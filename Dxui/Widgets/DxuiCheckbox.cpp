@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiCheckbox.h"
@@ -158,6 +159,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     constexpr float  s_kBoxSizeDip    = 16.0f;
     constexpr float  s_kLabelGapDip   = 6.0f;
     constexpr float  s_kFontDip       = 13.0f;
+    constexpr float  kOutlineContrast = 3.0f;
     uint32_t         glyphColor       = 0;
     uint32_t         textColor        = 0;
 
@@ -192,6 +194,14 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         float  labelW = 0.0f;
 
         painter.FillRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), boxColor);
+
+        //  A box whose fill is close to the surface behind it, as a light
+        //  theme's is, takes an outline, so an empty box is still seen.
+        if (m_enabled && DxuiColor::ComputeContrastRatio (boxColor, theme.Background()) < kOutlineContrast)
+        {
+            painter.OutlineRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                        (std::max) (1.0f, m_scaler.ToPxf (1.0f)), GetOutlineColor (theme));
+        }
 
         if (m_checked)
         {
@@ -245,6 +255,29 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                                       theme.FocusRing());
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCheckbox::GetOutlineColor
+//
+//  The theme's button border, or its muted text where the border is itself
+//  too faint against the surface to be seen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiCheckbox::GetOutlineColor (const IDxuiTheme & theme)
+{
+    constexpr float  kVisible = 3.0f;
+    uint32_t         border   = theme.ButtonBorder();
+
+
+
+    return (DxuiColor::ComputeContrastRatio (border, theme.Background()) >= kVisible) ? border : theme.ForegroundMuted();
 }
 
 

@@ -62,10 +62,127 @@ void DxuiTextView::SetCellSize (int widthPx, int heightPx)
 int DxuiTextView::GetLineCap() const
 {
     int  height = (int) (m_boundsDip.bottom - m_boundsDip.top) - m_scaler.ToPx (s_kPadDip) * 2;
+    int  used   = 0;
+    int  count  = 0;
+    int  line   = m_topLine;
 
 
 
-    return (m_cellHeightPx > 0) ? (std::max) (1, height / m_cellHeightPx) : 1;
+    if (m_cellHeightPx <= 0)
+    {
+        return 1;
+    }
+
+    //  Past the end, a line is taken as a full one, so the count does not
+    //  depend on how much text there is.
+    for (;;)
+    {
+        int  lineHeight = (line < (int) m_lines.size()) ? GetLineHeightPx (line) : m_cellHeightPx;
+
+        if (used + lineHeight > height)
+        {
+            break;
+        }
+
+        used += lineHeight;
+        count++;
+        line++;
+    }
+
+    return (std::max) (1, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLineHeightPx
+//
+//  A full line, or the fraction of one a short row asks for, never less
+//  than a pixel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetLineHeightPx (int lineIndex) const
+{
+    float  fraction = m_rows[(size_t) m_lines[(size_t) lineIndex].row].height;
+
+
+
+    if (fraction >= 1.0f)
+    {
+        return m_cellHeightPx;
+    }
+
+    return (std::max) (1, (int) ((float) m_cellHeightPx * fraction + 0.5f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLineOffsetPx
+//
+//  How far below the first line shown a line's top is; negative for a line
+//  above it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetLineOffsetPx (int lineIndex) const
+{
+    int  offset = 0;
+
+
+
+    for (int line = m_topLine; line < lineIndex; line++)
+    {
+        offset += (line < (int) m_lines.size()) ? GetLineHeightPx (line) : m_cellHeightPx;
+    }
+
+    for (int line = lineIndex; line < m_topLine; line++)
+    {
+        offset -= GetLineHeightPx (line);
+    }
+
+    return offset;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetTopForLast
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetTopForLast (int lineIndex) const
+{
+    int  height = (int) (m_boundsDip.bottom - m_boundsDip.top) - m_scaler.ToPx (s_kPadDip) * 2;
+    int  top    = lineIndex;
+    int  used   = 0;
+
+
+
+    if (lineIndex < 0 || lineIndex >= (int) m_lines.size() || m_cellHeightPx <= 0)
+    {
+        return 0;
+    }
+
+    used = GetLineHeightPx (lineIndex);
+
+    while (top > 0 && used + GetLineHeightPx (top - 1) <= height)
+    {
+        top--;
+        used += GetLineHeightPx (top);
+    }
+
+    return top;
 }
 
 
@@ -113,7 +230,7 @@ bool DxuiTextView::GetCellAnchorPx (int row, int cell, float & outX, float & out
     }
 
     outX = (float) GetTextLeft() + (float) GetCellStart (m_rows[(size_t) row], cell) * m_cellAdvance;
-    outY = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + ((float) (line - m_topLine) + 0.5f) * (float) m_cellHeightPx;
+    outY = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + (float) GetLineOffsetPx (line) + (float) GetLineHeightPx (line) * 0.5f;
 
     return true;
 }
@@ -135,7 +252,7 @@ void DxuiTextView::GetLinesSpanPx (float & outTop, float & outBottom) const
 
 
     outTop    = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip);
-    outBottom = outTop + (float) (shown * m_cellHeightPx);
+    outBottom = outTop + (float) GetLineOffsetPx (m_topLine + shown);
 }
 
 
@@ -150,7 +267,7 @@ void DxuiTextView::GetLinesSpanPx (float & outTop, float & outBottom) const
 
 void DxuiTextView::SetTopLine (int line)
 {
-    int  maxTop = (std::max) (0, (int) m_lines.size() - GetLineCap());
+    int  maxTop = GetTopForLast ((int) m_lines.size() - 1);
 
 
 
@@ -424,7 +541,13 @@ DxuiTextView::Position DxuiTextView::HitTest (POINT point) const
         return pos;
     }
 
-    lineIndex = m_topLine + ((y < 0) ? -1 : y / m_cellHeightPx);
+    lineIndex = (y < 0) ? m_topLine - 1 : m_topLine;
+
+    while (y >= 0 && lineIndex + 1 < (int) m_lines.size() && GetLineOffsetPx (lineIndex + 1) <= y)
+    {
+        lineIndex++;
+    }
+
     lineIndex = (std::max) (0, (std::min) (lineIndex, (int) m_lines.size() - 1));
     column    = (x < 0) ? 0 : (int) (((float) x + m_cellAdvance / 2.0f) / m_cellAdvance);
 
@@ -1326,7 +1449,7 @@ void DxuiTextView::ScrollToPosition (Position pos)
     }
     else if (line >= m_topLine + cap)
     {
-        SetTopLine (line - cap + 1);
+        SetTopLine (GetTopForLast (line));
     }
 }
 
@@ -1527,7 +1650,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     const Line             & line     = m_lines[(size_t) lineIndex];
     const Row              & row      = m_rows[(size_t) line.row];
     int                      left     = GetTextLeft();
-    int                      y        = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + (lineIndex - m_topLine) * m_cellHeightPx;
+    int                      y        = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + GetLineOffsetPx (lineIndex);
     int                      last     = (int) row.cells.size() - 1;
     Position                 from     = (std::min) (m_anchor, m_caret);
     Position                 to       = (std::max) (m_anchor, m_caret);
@@ -1548,7 +1671,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     //  A row's fill runs across the view on each of its lines, gutter and all.
     if (row.background != 0)
     {
-        painter.FillRect ((float) m_boundsDip.left, (float) y, (float) (m_boundsDip.right - m_boundsDip.left), (float) m_cellHeightPx,
+        painter.FillRect ((float) m_boundsDip.left, (float) y, (float) (m_boundsDip.right - m_boundsDip.left), (float) GetLineHeightPx (lineIndex),
                           row.background);
     }
 

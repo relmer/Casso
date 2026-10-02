@@ -266,15 +266,38 @@ TracePane::KeyAction TracePane::GetKeyAction (WPARAM vk, bool ctrl, bool alt, bo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TracePane::GetKeyHint
+//  TracePane::GetKeyPairs
 //
 //  The line above the rows listing the keys GetKeyAction takes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<KeyHintLine::Pair> TracePane::GetKeyPairs()
+{
+    return { { L"Space",  L"step into"    },
+             { L"O",      L"step over"    },
+             { L"R",      L"step out"     },
+             { L"Return", L"run"          },
+             { L"T",      L"trace on/off" },
+             { L"B",      L"bytes"        },
+             { L"S",      L"save"         } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePane::GetKeyHint
+//
+//  The same keys as one line of text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::wstring TracePane::GetKeyHint()
 {
-    return L"Space step into   O step over   R step out   Return run   T trace on/off   B bytes   S save";
+    return KeyHintLine::JoinPairs (GetKeyPairs());
 }
 
 

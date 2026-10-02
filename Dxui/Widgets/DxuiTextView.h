@@ -57,6 +57,10 @@ public:
         uint32_t                               background = 0;
         std::shared_ptr<const DxuiIconImage>   icon;
         std::vector<Span>                      spans;
+
+        //  The row's height as a fraction of a line, for a blank row that
+        //  spaces the rows around it. A row this applies to takes one line.
+        float                                  height     = 1.0f;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -278,6 +282,12 @@ private:
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors, const std::vector<bool> & lit, uint32_t litArgb) const;
     int           GetTextLeft       () const;
+
+    //  A drawn line's height, a line's top counted from the first line shown,
+    //  and the first line to show for a given line to be the last that fits.
+    int           GetLineHeightPx   (int lineIndex) const;
+    int           GetLineOffsetPx   (int lineIndex) const;
+    int           GetTopForLast     (int lineIndex) const;
 
     //  Each character of a row's text, its cells joined by tabs: its span's
     //  color, or 0 for the view's own.

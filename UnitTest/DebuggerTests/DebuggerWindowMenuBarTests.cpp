@@ -462,7 +462,7 @@ namespace DebuggerMenuBarTests
             window.OnCreate();
 
             Assert::IsNotNull (window.GetConsoleBar());
-            Assert::AreEqual  (MenuBarWindow::kDialectEntry, window.GetConsoleBar()->GetEntryCommandId (0));
+            Assert::AreEqual  (MenuBarWindow::kDialectEntry, window.GetConsoleBar()->GetEntryCommandId (1), L"after the Mode: label");
         }
 
 

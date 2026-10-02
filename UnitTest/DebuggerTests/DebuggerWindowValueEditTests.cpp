@@ -364,13 +364,13 @@ namespace DebuggerValueEditTests
 
             window.OnCreate();
 
-            Assert::AreEqual (std::wstring (L"Mode: AppleWin"), window.GetModeText(), L"AppleWin before any snapshot");
+            Assert::AreEqual (std::wstring (L"AppleWin"), window.GetModeText(), L"AppleWin before any snapshot");
 
             snapshot->mode = CommandMode::Monitor;
             window.SetSnapshotForTest (snapshot);
             window.SetConsoleBarMenus();
 
-            Assert::AreEqual (std::wstring (L"Mode: Monitor"), window.GetModeText());
+            Assert::AreEqual (std::wstring (L"Monitor"),  window.GetModeText());
         }
     };
 }

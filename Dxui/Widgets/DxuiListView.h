@@ -78,6 +78,12 @@ public:
         //  fitted width: a line between the rows rather than a value in a
         //  column.
         bool      spansRow   = false;
+
+        //  A face and weight of the cell's own in place of the list's, for a
+        //  row that is a label rather than a value; null keeps the list's.
+        //  Honored where the cell is drawn in one color.
+        const wchar_t   * face       = nullptr;
+        DxuiFontWeight    weight     = DxuiFontWeight::Normal;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates

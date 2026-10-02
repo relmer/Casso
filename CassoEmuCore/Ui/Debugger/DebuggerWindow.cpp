@@ -199,7 +199,7 @@ void DebuggerWindow::OnCreate()
     m_callStackButton   = CreateChild<DxuiButton>    (L"Hybrid");
     m_consoleView       = CreateChild<DxuiTextView>  ();
     m_traceList         = CreateChild<DxuiListView>  ();
-    m_traceHint         = CreateChild<DxuiLabel>     ();
+    m_traceHint         = CreateChild<KeyHintLine>   ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     //  The memory bar before its Address box, so the box paints over the strip.
@@ -447,7 +447,7 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     m_tracePane->Configure();
-    m_traceHint->SetText (TracePane::GetKeyHint());
+    m_traceHint->SetPairs (TracePane::GetKeyPairs());
 
     for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
     {
@@ -2834,9 +2834,33 @@ bool DebuggerWindow::RouteFindKey (const DxuiKeyEvent & ev, bool & handled)
         return true;
     }
 
+    //  Space or Enter on one of the widget's buttons presses it and leaves the
+    //  focus there, so the character the key sends next is not typed into
+    //  the box.
+    if (isDown && focused != m_findBox && (ev.vk == VK_SPACE || ev.vk == VK_RETURN) && !ev.ctrl && !ev.alt)
+    {
+        m_findKeyClick = true;
+        handled        = focused->OnKey (ev);
+        m_findKeyClick = false;
+
+        if (handled)
+        {
+            return true;
+        }
+    }
+
     if (focused != m_findBox)
     {
         return false;
+    }
+
+    //  The box's own editing chords -- select all, the clipboard, undo -- go
+    //  to the box ahead of the window's commands.
+    if (isDown && DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift) != DxuiStandardCommand::None)
+    {
+        (void) m_findBox->OnKey (ev);
+        handled = true;
+        return true;
     }
 
     if (isDown && ev.vk == VK_RETURN)
@@ -2922,7 +2946,7 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
     state.chevron     = CreateChild<DxuiButton>      (s_kpszMdl2ChevronRight);
     state.box         = CreateChild<DxuiTextInput>   ();
     state.caseButton  = CreateChild<DxuiButton>      (L"Aa");
-    state.wordButton  = CreateChild<DxuiButton>      (L"ab");
+    state.wordButton  = CreateChild<WholeWordButton> ();
     state.regexButton = CreateChild<DxuiButton>      (L".*");
     state.status      = CreateChild<DxuiLabel>       ();
     state.prevButton  = CreateChild<DxuiButton>      (s_kpszMdl2Up);
@@ -2943,17 +2967,17 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
 
     //  Each option is a toggle, shown emphasized while on, as Visual Studio
     //  Code's find bar shows them.
-    state.caseButton->SetOnClick  ([this, pane] { ActivateFind (pane); SetFindOptions (!m_findMatchCase, m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
-    state.wordButton->SetOnClick  ([this, pane] { ActivateFind (pane); SetFindOptions (m_findMatchCase, !m_findWholeWord, m_findRegex); SetFocusedControl (m_findBox); });
-    state.regexButton->SetOnClick ([this, pane] { ActivateFind (pane); SetFindOptions (m_findMatchCase, m_findWholeWord, !m_findRegex); SetFocusedControl (m_findBox); });
+    state.caseButton->SetOnClick  ([this, pane] { ActivateFind (pane); SetFindOptions (!m_findMatchCase, m_findWholeWord, m_findRegex); RefocusFindBox(); });
+    state.wordButton->SetOnClick  ([this, pane] { ActivateFind (pane); SetFindOptions (m_findMatchCase, !m_findWholeWord, m_findRegex); RefocusFindBox(); });
+    state.regexButton->SetOnClick ([this, pane] { ActivateFind (pane); SetFindOptions (m_findMatchCase, m_findWholeWord, !m_findRegex); RefocusFindBox(); });
 
     //  A button press takes the keys, so each gives them back to the box
     //  and the next Enter searches again.
-    state.prevButton->SetOnClick  ([this, pane] { ActivateFind (pane); FindInPane (false); SetFocusedControl (m_findBox); });
-    state.nextButton->SetOnClick  ([this, pane] { ActivateFind (pane); FindInPane (true);  SetFocusedControl (m_findBox); });
+    state.prevButton->SetOnClick  ([this, pane] { ActivateFind (pane); FindInPane (false); RefocusFindBox(); });
+    state.nextButton->SetOnClick  ([this, pane] { ActivateFind (pane); FindInPane (true);  RefocusFindBox(); });
     state.closeButton->SetOnClick ([this, pane] { ActivateFind (pane); CloseFind(); });
 
-    state.selButton->SetOnClick ([this, pane] { ActivateFind (pane); SetFindInSelection (!m_findInSelection); SetFocusedControl (m_findBox); });
+    state.selButton->SetOnClick ([this, pane] { ActivateFind (pane); SetFindInSelection (!m_findInSelection); RefocusFindBox(); });
 
     //  The chevron opens replace in Visual Studio Code. The console and the
     //  source are read-only, so it is shown, as the widget shows it, but off.
@@ -3637,6 +3661,10 @@ void DebuggerWindow::PlaceActiveFindBar()
 
     boxRight = (std::max) (x + button * 3, right);
 
+    //  The box measures its text to place the caret under a click and to drag
+    //  a selection, which needs the window's renderer, made after the box.
+    m_findBox->SetTextRenderer (GetTextRenderer());
+
     m_findBox->Layout         (RECT { x, top, boxRight, bottom }, m_scaler);
     m_findRegexButton->Layout (RECT { boxRight - px (2) - button,     top + px (2), boxRight - px (2),              bottom - px (2) }, m_scaler);
     m_findWordButton->Layout  (RECT { boxRight - px (2) - button * 2, top + px (2), boxRight - px (2) - button,     bottom - px (2) }, m_scaler);
@@ -3760,6 +3788,28 @@ void DebuggerWindow::CloseFind()
     m_routingPane = saved;
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RefocusFindBox
+//
+//  A button the pointer pressed gives the keys back to the box, so the next
+//  Enter searches again; one pressed from the keyboard keeps them, as Visual
+//  Studio Code's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RefocusFindBox()
+{
+    if (!m_findKeyClick)
+    {
+        SetFocusedControl (m_findBox);
+    }
 }
 
 
@@ -6431,7 +6481,9 @@ void DebuggerWindow::ApplySnapshot()
     {
         DxuiListView::Cell  prompt = { L"Add item to watch" };
 
-        prompt.dim = true;
+        prompt.dim    = true;
+        prompt.face   = DxuiTheme::kBodyFace;
+        prompt.weight = DxuiFontWeight::Italic;
         rows.push_back ({ prompt, { L"" } });
         m_watchRows.push_back ({ WatchRowKind::Add, 0 });
     }
@@ -6494,20 +6546,25 @@ void DebuggerWindow::ApplySnapshot()
 //  DebuggerWindow::MakeWatchHeading
 //
 //  A row that divides the watch pane rather than holding a watch: its title
-//  in the heading color, on the fill that marks a whole row.
+//  in the heading color and the proportional face of a list's column
+//  headings, on a fill a little way from the pane's background toward the
+//  hover color, enough to mark the row without a strong band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiListView::Cell> DebuggerWindow::MakeWatchHeading (const std::wstring & title) const
 {
+    constexpr float     kTint = 0.35f;
     DxuiListView::Cell  label = { title };
     DxuiListView::Cell  blank = { L"" };
+    uint32_t            fill  = DxuiColor::Mix (m_theme->ContentBackground(), m_theme->HoverBackground(), kTint);
 
 
 
     label.argb       = m_theme->HeadingForeground();
-    label.background = m_theme->HoverBackground();
-    blank.background = m_theme->HoverBackground();
+    label.face       = DxuiTheme::kBodyFace;
+    label.background = fill;
+    blank.background = fill;
 
     return { label, blank };
 }
@@ -7174,7 +7231,7 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 
     //  A command's gap sets it apart from the one before, so the console
     //  does not open on one.
-    while (m_console.empty() && first != lines.end() && first->empty())
+    while (m_console.empty() && first != lines.end() && (first->empty() || DebuggerViewState::IsCommandGap (*first)))
     {
         ++first;
     }
@@ -7196,7 +7253,16 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
     {
         DxuiTextView::Row  row;
 
-        row.cells = { Widen (line) };
+        if (DebuggerViewState::IsCommandGap (line))
+        {
+            row.cells  = { std::wstring() };
+            row.height = DebuggerViewState::kCommandGapHeight;
+        }
+        else
+        {
+            row.cells = { Widen (line) };
+        }
+
         rows.push_back (std::move (row));
     }
 
@@ -9570,7 +9636,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
                 continue;
             }
 
-            state.box->SetMouseHover (x, y);
+            //  The box takes the whole move, so a press in it drags a selection.
+            (void) state.box->OnMouse (ev);
 
             for (DxuiButton * button : { state.caseButton, state.wordButton, state.regexButton, state.prevButton, state.nextButton, state.selButton, state.closeButton })
             {

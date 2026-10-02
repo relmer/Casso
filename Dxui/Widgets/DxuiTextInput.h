@@ -29,6 +29,7 @@
 //      Ctrl+C                        -> copy selection.
 //      Ctrl+X                        -> cut selection.
 //      Ctrl+V                        -> paste clipboard at caret / replace.
+//      Ctrl+Z / Ctrl+Y               -> undo / redo an edit; typing is one.
 //      Printable chars (via OnChar)  -> insert at caret / replace.
 //
 //  Click-to-place-caret and drag selection need glyph measurement, so they
@@ -46,7 +47,7 @@ public:
     ~DxuiTextInput() override = default;
 
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
-    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
+    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undoBase = { m_text, m_caret, m_anchor }; m_lastTyping = false; }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
 
     //  Selects every character, so a default value is replaced by the first
@@ -173,6 +174,9 @@ private:
     void   CopyToClipboard () const;
     void   PasteFromClipboard ();
     void   FireChange ();
+    void   Undo       ();
+    void   Redo       ();
+    bool   OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool alt);
     void   ResetBlink () const { m_blinkAnchorMs = 0; }
 
     static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
@@ -200,6 +204,21 @@ private:
     IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
     ChangeFn             m_change;
     DxuiDpiScaler        m_scaler;
+
+    // The text and selection before each edit, for undo, and the ones undo
+    // took back, for redo. A run of typed characters is one step.
+    struct UndoState
+    {
+        std::wstring  text;
+        size_t        caret  = 0;
+        size_t        anchor = 0;
+    };
+
+    std::vector<UndoState>  m_undo;
+    std::vector<UndoState>  m_redo;
+    UndoState               m_undoBase;
+    bool                    m_typing     = false;
+    bool                    m_lastTyping = false;
 
     // Click counting and word-drag state. The word anchor is the span of the
     // double-clicked word, which a word drag always keeps selected.

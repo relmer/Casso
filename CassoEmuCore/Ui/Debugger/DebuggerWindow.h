@@ -33,6 +33,9 @@
 #include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/UndoBarCommands.h"
 #include "Ui/Debugger/ToolbarCheckEntry.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
+#include "Ui/Debugger/KeyHintLine.h"
+#include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -252,6 +255,7 @@ protected:
     DxuiTextInput  * GetFindBox      () const { return m_findBox; }
     DxuiButton     * GetFindWordButton () const { return m_findWordButton; }
     void             SetFindOptions  (bool matchCase, bool wholeWord, bool isRegex);
+    void             RefocusFindBox  ();
     std::wstring     GetFindStatus   () const { return m_findStatusText; }
     void             SetFindInSelection (bool on);
     bool             IsFindInSelection  () const { return m_findInSelection; }
@@ -813,6 +817,7 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleBarSlot;
     DxuiToolbar                                                                    * m_consoleBar         = nullptr;
     std::shared_ptr<DxuiCommand>                                                     m_dialectCommand;
+    std::unique_ptr<ToolbarLabelEntry>                                               m_modeLabel;
     std::unique_ptr<DebuggerCommands>                                                m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_menuCommands;
     DxuiDockSite                                                                   * m_dockSite           = nullptr;
@@ -860,7 +865,7 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_callStackFrame;
     DxuiListView                                                                   * m_traceList          = nullptr;
     std::unique_ptr<TracePane>                                                       m_tracePane;
-    DxuiLabel                                                                      * m_traceHint          = nullptr;
+    KeyHintLine                                                                    * m_traceHint          = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_traceFrame;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
@@ -917,6 +922,7 @@ private:
     bool                                                          m_findMatchCase       = false;
     bool                                                          m_findWholeWord       = false;
     bool                                                          m_findRegex           = false;
+    bool                                                          m_findKeyClick        = false;
     DxuiButton                                                  * m_findPrevButton      = nullptr;
     DxuiButton                                                  * m_findNextButton      = nullptr;
     DxuiButton                                                  * m_findCloseButton     = nullptr;

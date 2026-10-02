@@ -691,18 +691,25 @@ Error:
 //
 //  DebuggerWindow::ConfigureConsoleBar
 //
-//  The console pane's toolbar, in the breakpoints pane's style: the mode the
-//  console reads, which the memory Address box follows too, as a drop-down
-//  drawn as the breakpoints pane's "Show columns" is, reading "Mode:" and
-//  the mode in force.
+//  The console pane's toolbar, in the breakpoints pane's style: a static
+//  "Mode:" label, then the mode the console reads, which the memory Address
+//  box follows too, as a drop-down drawn as the breakpoints pane's "Show
+//  columns" is, reading the mode in force.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ConfigureConsoleBar()
 {
+    DxuiToolbar::Entry  label;
     DxuiToolbar::Entry  dialect;
 
 
+
+    m_modeLabel = std::make_unique<ToolbarLabelEntry> (L"Mode:");
+
+    label.command       = m_modeLabel->GetCommand();
+    label.custom        = m_modeLabel.get();
+    label.neverOverflow = true;
 
     m_dialectCommand        = std::make_shared<DxuiCommand>();
     m_dialectCommand->id    = kDialectEntry;
@@ -718,7 +725,7 @@ void DebuggerWindow::ConfigureConsoleBar()
     m_consoleBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_consoleBar->SetCompact      (true);
     m_consoleBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-    m_consoleBar->SetEntries      ({ dialect, MakeFindEntry (DebuggerLayout::kConsole) });
+    m_consoleBar->SetEntries      ({ label, dialect, MakeFindEntry (DebuggerLayout::kConsole) });
     m_consoleBar->SetVisible      (false);
 
     SetConsoleBarMenus();
@@ -787,7 +794,7 @@ void DebuggerWindow::SetConsoleBarMenus()
 
 std::wstring DebuggerWindow::GetModeLabel (const wchar_t * mode)
 {
-    return std::wstring (L"Mode: ") + mode;
+    return std::wstring (mode);
 }
 
 

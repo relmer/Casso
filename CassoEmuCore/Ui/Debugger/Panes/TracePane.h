@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/KeyHintLine.h"
 #include "Widgets/DxuiListView.h"
 
 
@@ -56,8 +57,9 @@ public:
         Save,
     };
 
-    static KeyAction     GetKeyAction (WPARAM vk, bool ctrl, bool alt, bool shift);
-    static std::wstring  GetKeyHint   ();
+    static KeyAction                       GetKeyAction (WPARAM vk, bool ctrl, bool alt, bool shift);
+    static std::vector<KeyHintLine::Pair>  GetKeyPairs  ();
+    static std::wstring                    GetKeyHint   ();
 
     void  ToggleBytes    ();
     void  SetColors      (const DebuggerTextColors::Set & colors) { m_colors = colors; }

@@ -79,7 +79,8 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Checkbox; }
 
 private:
-    void  Toggle();
+    void             Toggle          ();
+    static uint32_t  GetOutlineColor (const IDxuiTheme & theme);
 
 
     std::wstring   m_label;

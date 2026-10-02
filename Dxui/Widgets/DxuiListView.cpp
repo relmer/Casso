@@ -583,7 +583,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
         {
             if (c < row.size() && !row[c].text.empty() && !row[c].spansRow)
             {
-                hr = text.MeasureString (row[c].text.c_str(), fontDip, GetBodyFace(), w, h);
+                hr = text.MeasureString (row[c].text.c_str(), fontDip, (row[c].face != nullptr) ? row[c].face : GetBodyFace(), w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 wpx = std::max (wpx, (int) std::ceil (w) + GetCellLeadPx (row[c]));
@@ -3358,10 +3358,10 @@ void DxuiListView::PaintDataRows (
                                   rowH,
                                   argb,
                                   fontPx,
-                                  GetBodyFace(),
+                                  (cells[c].face != nullptr) ? cells[c].face : GetBodyFace(),
                                   m_columns[c].align,
                                   DxuiTextVAlign::CenterOnCapHeight,
-                                  DxuiFontWeight::Normal,
+                                  cells[c].weight,
                                   false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }

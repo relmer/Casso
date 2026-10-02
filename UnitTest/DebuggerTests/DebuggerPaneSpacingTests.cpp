@@ -129,8 +129,8 @@ namespace DebuggerTests
             DebuggerViewState::AddCommandGap (none);
 
             Assert::AreEqual ((size_t) 3, lines.size());
-            Assert::AreEqual (std::string(),      lines[0]);
-            Assert::AreEqual (std::string ("> R"), lines[1]);
+            Assert::AreEqual (std::string (DebuggerViewState::kCommandGap), lines[0]);
+            Assert::AreEqual (std::string ("> R"),                          lines[1]);
             Assert::IsTrue   (none.empty());
         }
 

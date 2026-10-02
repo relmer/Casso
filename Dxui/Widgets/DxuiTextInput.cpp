@@ -281,10 +281,25 @@ void DxuiTextInput::OnMouseMove (int x, int y)
 
 bool DxuiTextInput::OnKey (WPARAM vk)
 {
+    return OnKeyWithModifiers (vk, IsShiftKeyDown(), IsControlKeyDown(), IsAltKeyDown());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKeyWithModifiers
+//
+//  OnKey with the modifier keys given, as a key event carries them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool alt)
+{
     HRESULT              hr       = S_OK;
     bool                 consumed = false;
-    bool                 shift    = IsShiftKeyDown    ();
-    bool                 ctrl     = IsControlKeyDown  ();
     bool                 isActive = m_focused && m_enabled;
     DxuiStandardCommand  standard = DxuiStandardCommand::None;
 
@@ -292,11 +307,12 @@ bool DxuiTextInput::OnKey (WPARAM vk)
 
     BAIL_OUT_IF (!isActive, S_OK);
 
-    standard = DxuiCommandRouter::TranslateKey (vk, ctrl, IsAltKeyDown(), shift);
+    standard = DxuiCommandRouter::TranslateKey (vk, ctrl, alt, shift);
 
     if (standard != DxuiStandardCommand::None)
     {
-        consumed = InvokeCommand (standard);
+        consumed     = InvokeCommand (standard);
+        m_lastTyping = m_lastTyping && !consumed;
 
         BAIL_OUT_IF (consumed, S_OK);
     }
@@ -396,9 +412,11 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             break;
     }
 
+    //  A key that acts between typed characters ends their undo step.
     if (consumed)
     {
         ResetBlink();
+        m_lastTyping = false;
     }
 
 Error:
@@ -426,7 +444,10 @@ bool DxuiTextInput::OnChar (wchar_t ch)
     if (isTypable)
     {
         ins.assign (1, ch);
+        m_lastTyping = m_lastTyping && m_caret == m_anchor;
+        m_typing     = true;
         InsertText (ins);
+        m_typing     = false;
         ResetBlink();
     }
 
@@ -1051,6 +1072,14 @@ bool DxuiTextInput::QueryCommand (DxuiStandardCommand command, bool & outEnabled
         outEnabled = !m_text.empty();
         return true;
 
+    case DxuiStandardCommand::Undo:
+        outEnabled = !m_undo.empty();
+        return true;
+
+    case DxuiStandardCommand::Redo:
+        outEnabled = !m_redo.empty();
+        return true;
+
     default:
         return false;
     }
@@ -1097,6 +1126,14 @@ bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
     case DxuiStandardCommand::SelectAll:
         m_anchor = 0;
         m_caret  = m_text.size();
+        break;
+
+    case DxuiStandardCommand::Undo:
+        Undo();
+        break;
+
+    case DxuiStandardCommand::Redo:
+        Redo();
         break;
 
     default:
@@ -1187,6 +1224,87 @@ void DxuiTextInput::PasteFromClipboard()
 
 void DxuiTextInput::FireChange()
 {
+    if (m_text != m_undoBase.text)
+    {
+        if (!(m_typing && m_lastTyping))
+        {
+            m_undo.push_back (m_undoBase);
+        }
+
+        m_redo.clear();
+        m_lastTyping = m_typing;
+        m_undoBase   = { m_text, m_caret, m_anchor };
+    }
+
+    if (m_change)
+    {
+        m_change (m_text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Undo
+//
+//  Puts back the text and selection from before the last edit. The change
+//  is reported as any edit is, and is not itself an edit undo takes back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::Undo()
+{
+    if (m_undo.empty())
+    {
+        return;
+    }
+
+    m_redo.push_back ({ m_text, m_caret, m_anchor });
+    m_undoBase = m_undo.back();
+    m_undo.pop_back();
+
+    m_text       = m_undoBase.text;
+    m_caret      = m_undoBase.caret;
+    m_anchor     = m_undoBase.anchor;
+    m_lastTyping = false;
+    ClampCaret();
+
+    if (m_change)
+    {
+        m_change (m_text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Redo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::Redo()
+{
+    if (m_redo.empty())
+    {
+        return;
+    }
+
+    m_undo.push_back ({ m_text, m_caret, m_anchor });
+    m_undoBase = m_redo.back();
+    m_redo.pop_back();
+
+    m_text       = m_undoBase.text;
+    m_caret      = m_undoBase.caret;
+    m_anchor     = m_undoBase.anchor;
+    m_lastTyping = false;
+    ClampCaret();
+
     if (m_change)
     {
         m_change (m_text);
@@ -1347,7 +1465,7 @@ bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
     }
     else if (ev.kind == DxuiKeyEventKind::Down)
     {
-        handled = OnKey (ev.vk);
+        handled = OnKeyWithModifiers (ev.vk, ev.shift, ev.ctrl, ev.alt);
     }
 
     return handled;

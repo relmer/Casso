@@ -1660,7 +1660,7 @@ void DebuggerViewState::AddCommandGap (std::vector<std::string> & lines)
 {
     if (!lines.empty())
     {
-        lines.insert (lines.begin(), std::string());
+        lines.insert (lines.begin(), std::string (kCommandGap));
     }
 }
 
