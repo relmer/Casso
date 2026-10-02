@@ -156,7 +156,7 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
   - the `m:ss / m:ss` readout and progress fraction
   - `(empty)` with no tape
   - record disabled for a protected tape
-- [ ] T024 [P] [US4] Write `UnitTest/UiTests/TapeAutoMountTests.cpp` with `InMemoryFileSystem`:
+- [X] T024 [P] [US4] Write the restore cases in `UnitTest/UiTests/TapeManagerTests.cpp` with `InMemoryFileSystem` (`TapeManager::RestoreTape`, since the saved-path read itself goes through the on-disk machine JSON):
   - a saved `tapePath` reinserts at position 0, stopped
   - a missing file clears the entry and leaves the deck empty (FR-016)
   - the //c never reinserts
@@ -176,8 +176,8 @@ each step; the //c shows no deck; a restart brings the tape back at 0.
   - drag-and-drop insertion through `DxuiDragDropTarget` with a tape-extension filter
   - transport commands posted to the CPU thread (command-thread routing)
 - [ ] T031 [US4] Route widget clicks in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`. Add a Tape submenu (Insert tape..., New blank tape..., Eject tape, Rewind; sentence case) through `WindowCommandManager` and the resource menu, disabled on the //c
-- [ ] T032 [US4] Persist the per-machine `tapePath` through `Config/DiskSettings.{h,cpp}` (beside `disk1Path`). Reinsert at launch and on machine switch via `AutoMountResolver`, rewound to 0 and stopped. Clear stale entries. Until T024 passes
-- [ ] T033 [US4] Implement `MfTapeAudioDecoder` (MP3 through a Media Foundation source reader over `MFCreateMFByteStreamOnStream`, following `Audio/PrinterAudioSource.cpp`) in `CassoEmuCore/Devices/Tape/MfTapeAudioDecoder.{h,cpp}`. Inject it into `TapeImage` from the shell
+- [X] T032 [US4] Persist the per-machine `tapePath` through `Config/DiskSettings.{h,cpp}` (beside `disk1Path`). Reinsert at launch and on machine switch via `AutoMountResolver`, rewound to 0 and stopped. Clear stale entries. Until T024 passes
+- [X] T033 [US4] Implement `MfTapeAudioDecoder` (MP3 through a Media Foundation source reader over `MFCreateMFByteStreamOnStream`, following `Audio/PrinterAudioSource.cpp`) in `CassoEmuCore/Devices/Tape/MfTapeAudioDecoder.{h,cpp}`. Inject it into `TapeImage` from the shell
 - [ ] T034 [P] [US4] Write `UnitTest/UiTests/DeskSceneRecorderTests.cpp`, modeled on the existing desk-scene hit and layout tests:
   - a `CassetteRecorder` device is present on the ][/][+/e and absent on the //c
   - hit regions for the record, play, rewind and stop/eject keys, the cassette door and the counter map to the same commands as the flat widget

@@ -635,6 +635,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ControlTape
+//
+//  One tape-deck command, against the recorder the machine host owns, timed
+//  at the current bus cycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ControlTape (TapeCommand command)
+{
+    uint64_t  now = m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0;
+
+
+
+    m_tapeManager->Execute (command, m_machine.GetTapeDeck(), now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunOneFrame
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -872,6 +894,10 @@ void EmulatorShell::ExecuteCpuSlices()
         {
             m_machine.GetRefs().iieKeyboard->TickResetHold (sliceActual);
         }
+
+        // The recorder stops itself at the end of the tape and refreshes what
+        // the deck shows, on emulated time like everything else here.
+        m_machine.GetTapeDeck().Update (*m_machine.GetCpu()->GetBusCyclePtr());
 
         if (audioActive)
         {

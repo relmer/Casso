@@ -602,6 +602,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
 
+    // Each machine keeps its own tape, as it keeps its own disks.
+    m_shell.m_tapeManager->OnMachineSwitched();
+
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.
     if (speedCmd == 0)

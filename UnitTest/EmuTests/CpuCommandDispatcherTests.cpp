@@ -208,6 +208,30 @@ public:
     }
 
 
+    TEST_METHOD (TapeCommandsReachTheDeck)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_TAPE_INSERT, "",  target);
+        Dispatch (IDM_TAPE_PLAY,   "",  target);
+        Dispatch (IDM_TAPE_STOP,   "",  target);
+        Dispatch (IDM_TAPE_REWIND, "",  target);
+        Dispatch (IDM_TAPE_RECORD, "1", target);
+        Dispatch (IDM_TAPE_RECORD, "0", target);
+        Dispatch (IDM_TAPE_EJECT,  "",  target);
+        Dispatch (IDM_TAPE_NEW,    "",  target);
+
+        Assert::AreEqual (size_t (7), target.calls.size(), L"New blank tape is the UI thread's, not the deck's");
+        Assert::AreEqual (std::string ("ControlTape 0"), target.calls[0]);
+        Assert::AreEqual (std::string ("ControlTape 2"), target.calls[1]);
+        Assert::AreEqual (std::string ("ControlTape 3"), target.calls[2]);
+        Assert::AreEqual (std::string ("ControlTape 4"), target.calls[3]);
+        Assert::AreEqual (std::string ("ControlTape 5"), target.calls[4]);
+        Assert::AreEqual (std::string ("ControlTape 6"), target.calls[5]);
+        Assert::AreEqual (std::string ("ControlTape 1"), target.calls[6]);
+    }
+
+
     TEST_METHOD (AnIdTheCpuThreadDoesNotHandleAsksForNothing)
     {
         Notebook  target;
@@ -311,6 +335,11 @@ private:
         void     PlayDriveTestSound (int drive, int kind) override
         {
             calls.push_back (std::format ("PlayDriveTestSound {} {}", drive, kind));
+        }
+
+        void     ControlTape (TapeCommand command) override
+        {
+            calls.push_back (std::format ("ControlTape {}", (int) command));
         }
     };
 

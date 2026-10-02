@@ -7,6 +7,7 @@
 #include "Audio/PrinterAudioSource.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
+#include "Devices/Tape/MfTapeAudioDecoder.h"
 #include "Config/Win32FileSystem.h"
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
@@ -35,6 +36,7 @@
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
+#include "Shell/TapeManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
@@ -425,6 +427,10 @@ private:
     // 0/1, kind matches Disk2AudioSource::TestSoundKind. CPU-thread only,
     // marshaled via IDM_AUDIO_DRIVE_TEST.
     void PlayDriveTestSound (int drive, int kind);
+
+    // Carries out one tape-deck command. CPU-thread only, marshaled through
+    // the IDM_TAPE_* commands.
+    void ControlTape (TapeCommand command);
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.
@@ -2199,6 +2205,9 @@ private:
 
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
+    std::unique_ptr<IDiskFileIo>              m_tapeFileIo;
+    MfTapeAudioDecoder                        m_tapeAudioDecoder;
+    std::unique_ptr<TapeManager>              m_tapeManager;
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

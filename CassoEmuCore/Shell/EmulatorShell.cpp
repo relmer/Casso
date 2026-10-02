@@ -55,6 +55,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Seams/Win32DiskFileIo.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -375,7 +376,8 @@ HRESULT EmulatorShell::Initialize (
     const string        & disk1Path,
     const string        & disk2Path)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    HRESULT  hrTape = S_OK;
 
 
 
@@ -603,6 +605,9 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
+    hrTape = m_tapeManager->RestoreSavedTape();
+    IGNORE_RETURN_VALUE (hrTape, S_OK);
+
     ApplyPersistedAudioPrefs();
 
 Error:
@@ -679,6 +684,14 @@ void EmulatorShell::InitAssetPathsAndStores()
     //  gets. --no-image-watch installs one that refuses every watch, so the
     //  check made before every write can be measured on its own.
     m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
+
+    m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
+    m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
+                                                   m_uiFs,
+                                                   *m_userConfigStore,
+                                                   m_tapeAudioDecoder,
+                                                   [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
+                                                   [this] () { return m_machine.GetCurrentMachineName(); });
 }
 
 

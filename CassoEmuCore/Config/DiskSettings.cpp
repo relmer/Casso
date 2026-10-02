@@ -177,20 +177,75 @@ HRESULT DiskSettings::ReadSavedDiskPath (
     const std::wstring & machineName,
     std::wstring       & outPath)
 {
+    HRESULT  hr = S_OK;
+
+
+
+    outPath.clear();
+
+    CBRAEx (drive >= 0 && drive <= 1, E_INVALIDARG);
+
+    hr = ReadSavedPath (store, fs, (drive == 0) ? "disk1Path" : "disk2Path", machineName, outPath);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadSavedTapePath
+//
+//  The tape last inserted in this machine's recorder, or empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSettings::ReadSavedTapePath (
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    const std::wstring & machineName,
+    std::wstring       & outPath)
+{
+    return ReadSavedPath (store, fs, kTapePathKey, machineName, outPath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadSavedPath
+//
+//  One exe-relative path under $cassoUiPrefs.<key> for a machine, resolved to
+//  a full path, or empty when nothing is saved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSettings::ReadSavedPath (
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    const char         * keyName,
+    const std::wstring & machineName,
+    std::wstring       & outPath)
+{
     HRESULT           hr            = S_OK;
     JsonValue         defaultJson;
     JsonValue         mergedJson;
     const JsonValue * uiPrefs       = nullptr;
     std::string       pathNarrow;
     bool              hasMachine    = false;
-    const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
 
 
 
     outPath.clear();
 
     hasMachine = !machineName.empty();
-    CBRAEx (drive >= 0 && drive <= 1 && hasMachine, E_INVALIDARG);
+    CBRAEx (hasMachine, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
@@ -256,6 +311,39 @@ HRESULT DiskSettings::WriteSavedDiskPath (
 
     stored = PathResolver::MakeExeRelativePath (path);
     values.emplace_back (keyName, JsonValue (WideToUtf8 (stored)));
+
+    hr = WriteSavedUiPrefs (store, fs, machineName, values);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteSavedTapePath
+//
+//  Records the tape in this machine's recorder, exe-relative like the disk
+//  paths. An empty path clears it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSettings::WriteSavedTapePath (
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    const std::wstring & machineName,
+    const std::wstring & path)
+{
+    HRESULT                                         hr = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  values;
+
+
+
+    values.emplace_back (kTapePathKey, JsonValue (WideToUtf8 (PathResolver::MakeExeRelativePath (path))));
 
     hr = WriteSavedUiPrefs (store, fs, machineName, values);
     CHR (hr);

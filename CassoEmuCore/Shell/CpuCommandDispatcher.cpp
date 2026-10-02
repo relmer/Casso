@@ -112,6 +112,31 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             DispatchDriveTest (cmd.payload, target);
             break;
 
+        case IDM_TAPE_INSERT:
+            target.ControlTape (TapeCommand::Insert);
+            break;
+
+        case IDM_TAPE_EJECT:
+            target.ControlTape (TapeCommand::Eject);
+            break;
+
+        case IDM_TAPE_PLAY:
+            target.ControlTape (TapeCommand::Play);
+            break;
+
+        case IDM_TAPE_STOP:
+            target.ControlTape (TapeCommand::Stop);
+            break;
+
+        case IDM_TAPE_REWIND:
+            target.ControlTape (TapeCommand::Rewind);
+            break;
+
+        case IDM_TAPE_RECORD:
+            // "1" arms record, anything else releases it.
+            target.ControlTape (cmd.payload == "1" ? TapeCommand::ArmRecord : TapeCommand::ReleaseRecord);
+            break;
+
         default:
             break;
     }
