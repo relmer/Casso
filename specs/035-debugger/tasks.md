@@ -1134,5 +1134,5 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [ ] T405 Owner answer 2026-10-02: breakpoint export stays in AppleWin's format, and import reads it in any console dialect
 - [X] T406 Owner answer 2026-10-02: the Mockingboard pane's "running" timer text clips its descenders; fix it
 - [ ] T407 Owner answer 2026-10-02: the Watches pane is shown by default, not auto-hidden, and, as in Visual Studio, ends with an "add new watch" row edited in place; existing watches edit in place
-- [ ] T408 Owner answer 2026-10-02 to T358: pane toolbar labels use the theme's body font, decided inside Dxui
+- [X] T408 Owner answer 2026-10-02 to T358: pane toolbar labels use the theme's body font, decided inside Dxui
 - [ ] T409 Owner answer 2026-10-02 to T377: Detach removes the debugger's CPU hook so the machine runs untouched; reopening the debugger attaches again with breakpoints intact

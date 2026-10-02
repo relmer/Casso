@@ -352,11 +352,10 @@ private:
     static constexpr float     kFallbackFontDip  = 13.0f;  // size the char estimate was taken at
     static constexpr float     kFallbackCharPx   = 7.5f;
 
-    //  The chrome font: one size for the strip's labels, the menu bar's
-    //  titles and every dropdown, read from the Windows menu settings. A
-    //  toolbar label in a font its OWN picker did not use is the mismatch
-    //  this avoids -- the pickers are popup menus and paint in that font.
-    float  GetChromeFontPx () const { return m_metrics.fontPx; }
+    //  The label font: the theme's body size, the one a pane's title and
+    //  tabs use, so a pane's toolbar reads at the same size as the tab over
+    //  it. Dxui decides it; no consumer sets it.
+    float  GetChromeFontPx () const;
     void   RefreshMetrics  ();
 
     //  Runtime state the strip keeps per entry.
