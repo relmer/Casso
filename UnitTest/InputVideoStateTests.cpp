@@ -349,7 +349,7 @@ namespace InputVideoState
             constexpr uint32_t  kTargetCycle = 77;
             VideoTiming         source;
             VideoTiming         target;
-            HRESULT             hr = S_OK;
+            HRESULT             hr           = S_OK;
 
 
 

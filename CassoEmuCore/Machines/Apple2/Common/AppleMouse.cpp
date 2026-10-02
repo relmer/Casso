@@ -489,16 +489,15 @@ HRESULT AppleMouse::SaveState (StateWriter & writer) const
 HRESULT AppleMouse::LoadState (StateReader & reader)
 {
     constexpr int  kMaxPending = 1023;
-
-    HRESULT   hr         = S_OK;
-    uint16_t  version    = 0;
-    uint32_t  hostDx     = 0;
-    uint32_t  hostDy     = 0;
-    bool      hostButton = false;
-    uint32_t  hostTarget = 0;
-    bool      hasTarget  = false;
-    uint32_t  pendingX   = 0;
-    uint32_t  pendingY   = 0;
+    HRESULT        hr          = S_OK;
+    uint16_t       version     = 0;
+    uint32_t       hostDx      = 0;
+    uint32_t       hostDy      = 0;
+    bool           hostButton  = false;
+    uint32_t       hostTarget  = 0;
+    bool           hasTarget   = false;
+    uint32_t       pendingX    = 0;
+    uint32_t       pendingY    = 0;
 
 
 

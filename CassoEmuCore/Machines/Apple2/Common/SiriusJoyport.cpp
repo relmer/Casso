@@ -263,13 +263,12 @@ HRESULT SiriusJoyport::SaveState (StateWriter & writer) const
 
 HRESULT SiriusJoyport::LoadState (StateReader & reader)
 {
-    constexpr uint32_t  kSwitchMask = (1u << static_cast<uint32_t> (JoystickSwitch::Count)) - 1;
-
-    HRESULT   hr                              = S_OK;
-    uint16_t  version                         = 0;
-    uint32_t  jackCount                       = 0;
-    uint32_t  jacks[JoyportJacks::kJackCount] = {};
-    size_t    jack                            = 0;
+    constexpr uint32_t  kSwitchMask                     = (1u << static_cast<uint32_t> (JoystickSwitch::Count)) - 1;
+    HRESULT             hr                              = S_OK;
+    uint16_t            version                         = 0;
+    uint32_t            jackCount                       = 0;
+    uint32_t            jacks[JoyportJacks::kJackCount] = {};
+    size_t              jack                            = 0;
 
 
 
