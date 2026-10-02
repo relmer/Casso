@@ -163,6 +163,10 @@ public:
     // marks the track dirty. Does nothing on a write-protected image.
     void                SpliceFluxWrite      (int slot, uint64_t startTick, const vector<uint8_t> & bits);
 
+    // The bulk-writer counterpart, for sector edits made to an image in
+    // memory. Like GetTrackBitsForWrite, it bypasses write-protect.
+    void                SpliceFluxBulk       (int slot, uint64_t startTick, const vector<uint8_t> & bits);
+
     // Changes whenever what a quarter track resolves to, or a flux track's
     // bytes, may have changed. A reader that caches a resolved slot or a
     // flux cursor compares it to know when to look again.

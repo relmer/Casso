@@ -349,6 +349,7 @@
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />
     <ClCompile Include="EmuTests\WozFluxLoaderTests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineFluxTests.cpp" />
+    <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />

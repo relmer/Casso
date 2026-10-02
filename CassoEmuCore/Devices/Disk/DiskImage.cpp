@@ -203,11 +203,31 @@ bool DiskImage::HasFluxTracks() const
 
 void DiskImage::SpliceFluxWrite (int slot, uint64_t startTick, const vector<uint8_t> & bits)
 {
+    if (IsWriteProtected())
+    {
+        return;
+    }
+
+    SpliceFluxBulk (slot, startTick, bits);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SpliceFluxBulk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::SpliceFluxBulk (int slot, uint64_t startTick, const vector<uint8_t> & bits)
+{
     bool  isFluxSlot = (GetTrackKind (slot) == TrackKind::Flux);
 
 
 
-    if (IsWriteProtected() || !isFluxSlot || bits.empty())
+    if (!isFluxSlot || bits.empty())
     {
         return;
     }

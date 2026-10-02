@@ -230,6 +230,7 @@
     <ClCompile Include="Machines\Apple2\Common\Disk2AddressMarkWatcher.cpp" />
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\FluxTrack.cpp" />
+    <ClCompile Include="Devices\Disk\FluxBitView.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2NibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibbleImageCodec.cpp" />
@@ -503,6 +504,7 @@
     <ClInclude Include="Machines\Apple2\Common\IDiskController.h" />
     <ClInclude Include="Devices\Disk\DiskImage.h" />
     <ClInclude Include="Devices\Disk\FluxTrack.h" />
+    <ClInclude Include="Devices\Disk\FluxBitView.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleImageCodec.h" />
