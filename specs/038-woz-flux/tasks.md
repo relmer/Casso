@@ -202,7 +202,7 @@ parallel (different files, no dependency on an unfinished task).
 
 ## Phase 7: Follow-ups from review
 
-- [ ] T043 [US3] Restructure the damaged-disk report on insert (`CassoEmuCore/Devices/Disk/DamagedMountReport.cpp`, tests in `UnitTest/EmuTests/DamagedDiskMountTests.cpp`) as a problem list, once the owner approves this draft:
+- [X] T043 [US3] Restructure the damaged-disk report on insert (`CassoEmuCore/Devices/Disk/DamagedMountReport.cpp`, tests in `UnitTest/EmuTests/DamagedDiskMountTests.cpp`) as a problem list, once the owner approves this draft:
 
   > Casso found these problems in this disk image:
   >

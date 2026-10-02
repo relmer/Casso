@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DamagedMountReport.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -42,14 +43,17 @@ wstring DamagedMountReport::FormatTrackNumber (int quarterTrack)
 //
 //  DamagedMountReport::FormatTrackList
 //
+//  Tracks one whole track apart join into a run, so a disk whose flux tracks
+//  sit on half tracks reads "tracks 1.5-19.5" rather than a list of nineteen.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 wstring DamagedMountReport::FormatTrackList (const vector<int> & quarterTracks)
 {
     wstring  text;
-    size_t   count  = quarterTracks.size();
-    size_t   listed = min (count, kMaxListedTracks);
-    size_t   i      = 0;
+    size_t   count = quarterTracks.size();
+    size_t   first = 0;
+    size_t   last  = 0;
 
 
 
@@ -60,27 +64,29 @@ wstring DamagedMountReport::FormatTrackList (const vector<int> & quarterTracks)
 
     text = (count == 1) ? L"track " : L"tracks ";
 
-    for (i = 0; i < listed; i++)
+    while (first < count)
     {
-        if (i > 0 && count == 2)
+        last = first;
+
+        while (last + 1 < count &&
+               quarterTracks[last + 1] - quarterTracks[last] == DiskImage::kQuarterTracksPerWholeTrack)
         {
-            text += L" and ";
+            last++;
         }
-        else if (i > 0 && i == listed - 1 && listed == count)
-        {
-            text += L", and ";
-        }
-        else if (i > 0)
+
+        if (first > 0)
         {
             text += L", ";
         }
 
-        text += FormatTrackNumber (quarterTracks[i]);
-    }
+        text += FormatTrackNumber (quarterTracks[first]);
 
-    if (count > listed)
-    {
-        text += L", and " + to_wstring (count - listed) + L" more";
+        if (last > first)
+        {
+            text += L"-" + FormatTrackNumber (quarterTracks[last]);
+        }
+
+        first = last + 1;
     }
 
     return text;
@@ -141,15 +147,17 @@ vector<int> DamagedMountReport::GetDamagedQuarterTracks (const DiskImage & image
 //
 //  DamagedMountReport::FormatBody
 //
-//  What is wrong, then the file, then what Casso did about it. A flux disk
-//  adds what salvage cannot keep, because salvage writes standard sectors and
-//  a flux disk's timing is usually the reason it is a flux disk.
+//  One bullet per problem found, then the file, then what Casso did about
+//  it. A flux disk adds what salvage cannot keep, because salvage writes
+//  standard sectors and a flux disk's timing is usually the reason it is a
+//  flux disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 wstring DamagedMountReport::FormatBody (const DiskImage & image, const wstring & path)
 {
     wstring      text;
+    wstring      bullet = wstring (1, s_kchBullet) + L" ";
     vector<int>  tracks = GetDamagedQuarterTracks (image);
 
 
@@ -159,32 +167,32 @@ wstring DamagedMountReport::FormatBody (const DiskImage & image, const wstring &
         return text;
     }
 
+    text = L"Casso found these problems in this disk image:\n";
+
     if (image.HasSourceCrcMismatch())
     {
-        text += L"This disk image's stored checksum does not match its contents. "
-                L"The file is damaged or was written by a tool that miscomputed it.";
+        text += bullet + L"The stored checksum does not match the contents.\n";
     }
 
     if (image.HasDamagedTracks())
     {
-        text += text.empty() ? L"Some" : L" Also, some";
-        text += L" of this disk image's tracks could not be read from the file";
-        text += tracks.empty() ? L"." : (L": " + FormatTrackList (tracks) + L".");
-        text += L" Their data is missing or cut short, so the drive reads them as blank.";
+        text += bullet + L"Unable to read ";
+        text += tracks.empty() ? wstring (L"some tracks") : FormatTrackList (tracks);
+        text += L".\n";
     }
 
-    text += L"\n\n" + path + L"\n\n";
-    text += L"Casso has loaded it so you can read it, and has write-protected it "
-            L"for this session. ";
-    text += image.HasDamagedTracks()
-            ? L"Rewriting the file would replace the damaged tracks with blank ones, "
-              L"silently hiding the damage."
-            : L"Rewriting the file would give it a newly computed checksum, "
-              L"silently hiding the damaged sectors.";
+    text += L"\n" + path + L"\n\n";
+    text += L"Casso has loaded the disk so you can read it, and has write-protected it "
+            L"for this session, because rewriting the file would hide the damage.";
+
+    if (image.HasDamagedTracks())
+    {
+        text += L" Unreadable tracks read as blank.";
+    }
 
     if (image.HasFluxTracks())
     {
-        text += L"\n\nA salvaged copy is a standard disk image of the readable sectors, "
+        text += L" A salvaged copy is a standard disk image of the readable sectors, "
                 L"without this disk's flux timing or its copy protection.";
     }
 

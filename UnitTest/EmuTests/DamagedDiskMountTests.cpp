@@ -261,29 +261,28 @@ public:
     }
 
 
-    TEST_METHOD (TrackListReadsAsASentence)
+    TEST_METHOD (TrackListJoinsWholeTracksIntoRuns)
     {
         Assert::AreEqual (wstring (L"track 3"),                 DamagedMountReport::FormatTrackList ({ 12 }));
-        Assert::AreEqual (wstring (L"tracks 3 and 7.5"),        DamagedMountReport::FormatTrackList ({ 12, 30 }));
-        Assert::AreEqual (wstring (L"tracks 3, 7.5, and 12"),   DamagedMountReport::FormatTrackList ({ 12, 30, 48 }));
-        Assert::AreEqual (wstring (L"tracks 0.25 and 0.75"),    DamagedMountReport::FormatTrackList ({ 1, 3 }));
+        Assert::AreEqual (wstring (L"tracks 3, 7.5"),           DamagedMountReport::FormatTrackList ({ 12, 30 }));
+        Assert::AreEqual (wstring (L"tracks 0.25, 0.75"),       DamagedMountReport::FormatTrackList ({ 1, 3 }));
+        Assert::AreEqual (wstring (L"tracks 1-5, 8-9, 13"),
+                          DamagedMountReport::FormatTrackList ({ 4, 8, 12, 16, 20, 32, 36, 52 }));
     }
 
 
-    TEST_METHOD (TrackListStopsAfterEight)
+    TEST_METHOD (HalfTrackFluxRunReadsAsOneRun)
     {
         vector<int>  quarterTracks;
         int          i = 0;
 
-        for (i = 0; i < 11; i++)
+        for (i = 0; i < 19; i++)
         {
-            quarterTracks.push_back (i * 4);
+            quarterTracks.push_back (6 + i * 4);
         }
 
-        Assert::AreEqual (wstring (L"tracks 0, 1, 2, 3, 4, 5, 6, 7, and 3 more"),
-                          DamagedMountReport::FormatTrackList (quarterTracks));
+        Assert::AreEqual (wstring (L"tracks 1.5-19.5"), DamagedMountReport::FormatTrackList (quarterTracks));
     }
-
 
     TEST_METHOD (ReportListsTheDamagedTrackAtTheMiddleOfItsRun)
     {
@@ -305,9 +304,9 @@ public:
 
         body = DamagedMountReport::FormatBody (disk, L"C:\\disks\\damaged.woz");
 
-        Assert::IsTrue (body.find (L"could not be read from the file: track 5.") != wstring::npos);
+        Assert::IsTrue (body.find (L"\x2022 Unable to read track 5.\n") != wstring::npos);
         Assert::IsTrue (body.find (L"C:\\disks\\damaged.woz") != wstring::npos);
-        Assert::IsTrue (body.find (L"write-protected it for this session") != wstring::npos);
+        Assert::IsTrue (body.find (L"write-protected it for this session, because rewriting the file would hide the damage.") != wstring::npos);
         Assert::IsTrue (body.find (L"without this disk's flux timing") != wstring::npos,
                         L"a flux disk's report must mention that salvage loses flux timing");
     }
@@ -328,8 +327,9 @@ public:
 
         body = DamagedMountReport::FormatBody (disk, L"d.woz");
 
-        Assert::IsTrue (body.find (L"stored checksum does not match") != wstring::npos);
-        Assert::IsTrue (body.find (L"Also, some of this disk image's tracks") != wstring::npos);
+        Assert::IsTrue (body.find (L"\x2022 The stored checksum does not match the contents.\n") != wstring::npos);
+        Assert::IsTrue (body.find (L"\x2022 Unable to read track 4.\n") != wstring::npos);
+        Assert::IsTrue (body.find (L"Unreadable tracks read as blank.") != wstring::npos);
         Assert::IsTrue (body.find (L"flux timing") == wstring::npos, L"a bit-only disk has no flux to lose");
     }
 };
