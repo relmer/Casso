@@ -1313,3 +1313,210 @@ is worth its cost.
 
 **Owner decision 2026-10-03:** option C, rewinding the whole machine including devices. Disk writes made while reverse execution is on stay in memory and never reach the image file until they are committed later, or are dropped. See T439.
 
+
+### R-040 design: option C
+
+**Status**: designed 2026-10-01 for T439; nothing is built. Tasks T441-T462.
+
+**Two layers, one timeline.** Every executed instruction gets a sequence
+number, its *position*: the CPU's retired-instruction count since the history
+began. History is a contiguous range of positions `[oldest, now]`.
+
+- **Undo log (recent).** A ring of per-instruction records covering the newest
+  positions. Step back within the ring is an O(1) pop per instruction.
+- **Keyframes (older).** A whole-machine snapshot every *K* cycles (default
+  one video frame, 17,030 cycles, or every Nth frame by setting). To reach a
+  position older than the ring, restore the nearest earlier keyframe and
+  replay forward with the recorded inputs, debug hooks muted, to the target
+  position. The ring is then rebuilt from that point, so further steps back are
+  instant again.
+- The ring is an accelerator only. Correctness rests on keyframes plus
+  deterministic replay; the ring must agree with replay, which is the main test
+  (T452).
+
+**What the undo record holds.** Prior PC, A, X, Y, S, P, the cycle counter,
+and an undo list of `(target, old value)` pairs for everything the instruction
+changed. Targets are not just CPU-visible bytes: a write to `$C0xx` or a slot
+I/O range can change device state the CPU never reads back, so devices log
+their own changes through the same journal (see below). Fixed part 16 bytes;
+the variable part averages under 4 bytes for ordinary code. A 32 MB default
+ring holds about 1.5 million instructions, a little over a second at 1 MHz.
+
+#### Machine state that must rewind (survey of the tree)
+
+| State | Where | Notes |
+|---|---|---|
+| CPU registers, cycle counters, interrupt lines | `Core/Cpu65C02.h`, `Core/EmuCpu.h`, `Core/MemoryBusCpu.h`, `Core/InterruptController.h` | `m_totalCycles` and the bus-cycle pointer that devices read (`GetBusCyclePtr`) |
+| Main and aux RAM | `Devices/RamDevice.h` | 48/64/128 KB; bytes logged per write |
+| Bank routing, soft switches | `Apple2e/Apple2eMmu.h`, `Apple2e/Apple2eSoftSwitchBank.h`, `Common/AppleSoftSwitchBank.h`, `Common/LanguageCard.h`, `Apple2c/Apple2cRomBank.h`, `Common/CxxxRomRouter.h` | Plain flags plus the LC pre-write latch; snapshot is a few dozen bytes |
+| Video mode and beam position | `Devices/IVideoMode.h`, `Common/VideoTiming.h` | Beam derives from the cycle counter; the floating bus reads it, so it must be exact |
+| Speaker | `Common/AppleSpeaker.h` | Toggle state only; the emitted audio is output, not state (see audio below) |
+| Keyboard | `Common/AppleKeyboard.h`, `Apple2e/Apple2eKeyboard.h` | Latch, strobe, any-key-down atomic, auto-repeat timer |
+| Game port, mouse, Joyport | `Common/AppleGamePort.h`, `Common/AppleMouse.h`, `Common/SiriusJoyport.h` | Paddle timers run off the cycle source; host paddle positions are inputs |
+| Disk II | `Common/Disk2Controller.h`, `Common/Disk2NibbleEngine.h` | Phases, quarter track, Q6/Q7, latch, bit cursor, motor spin-up/spin-down counters, `m_lastCpuSync`, per-drive engines |
+| Disk media | `Devices/Disk/DiskImage.h` (`m_trackBits`, `m_trackDirty`) | Guest writes change track bits; see disk writes below |
+| Mockingboard | `Common/MockingboardCard.h`, `Devices/Via6522.h` x2, `Devices/Ay8910.h` x2, `Devices/Ssi263.h` | Timers, IFR/IER, ports, AY registers and envelope/noise generators |
+| ACIA (//c) | `Devices/Acia6551.h` | Registers; host endpoint traffic is an input/output boundary |
+| Printer card | `Common/PrinterCard.h` | Bytes sent to the printer are output (see open questions) |
+| Mouse/IWM/other cards | per card under `Machines/Apple2/Common` | Each `MemoryDevice` with state |
+
+Every one of these is a `MemoryDevice` or is reached from `MachineHost`'s
+refs (`Shell/MachineRefs.h`). There is **no save-state support today**: the
+only serialization near it is `Debugger/DiagnosticsSnapshot.h`, which formats
+display rows, and `IDiskImage::Serialize`, which writes media to file formats.
+
+#### The state interface
+
+A new `IMachineState` interface (in `Core/IMachineState.h`) that each stateful
+device implements:
+
+- `SaveState (StateWriter &) const` and `LoadState (StateReader &)`: flat,
+  versioned, little-endian blobs. Readers check a per-device tag and size, so a
+  mismatch is a hard failure rather than silent corruption.
+- `MachineHost::SaveState` walks CPU, bus devices, MMU, video timing and slot
+  cards in a fixed order. `LoadState` restores the same order, then re-derives
+  caches (bus page tables, the active video mode object) instead of storing
+  them.
+- Pointers are never stored. Anything held as a pointer (active drive engine,
+  current read bank) is saved as an index.
+
+This is also a machine save state, which the earlier recommendation noted pays
+off outside the debugger; whether to expose it as a user feature is an open
+question.
+
+#### Device changes in the undo log
+
+The cheapest correct scheme is a **journal hook**: a device that changes its
+own state on a bus access calls `journal.Record (deviceId, fieldOffset,
+oldBytes)` before the change. Two ways to cover a device:
+
+1. Fine-grained: the device journals each field it changes (soft switches,
+   LC flags, keyboard strobe, Disk II phases and latch). Cheap per access.
+2. Coarse: the device's whole state is small (VIA, AY, ACIA, MMU: tens of
+   bytes), so on its first touch within an instruction the journal copies its
+   entire `SaveState` blob. Simplest and good enough for anything under about
+   64 bytes.
+
+**Time-driven state** (VIA timers counting down, the Disk II bit cursor
+advancing, motor spin-down, AY envelopes) changes on every cycle without a bus
+access. It need not be journaled: it is a pure function of the cycle count and
+the state at the last access, *provided* devices advance lazily from the cycle
+source rather than in host-time ticks. Disk II already syncs lazily from
+`m_cpuCycleSource` (issue #67 path in `Disk2Controller.cpp`); the VIA and AY
+must be checked and, where they tick in bulk from `Tick (cpuCycles)`, the bulk
+tick boundaries must be part of the deterministic schedule (they are, as long as
+the CPU thread calls them at cycle-determined points). Where that cannot be
+guaranteed, the device journals its whole state each time a tick changes it,
+which bounds cost to once per instruction.
+
+#### Disk writes
+
+Today the in-memory `DiskImage` already holds guest writes (`m_trackBits`,
+`m_trackDirty`), and `DiskImageStore` writes them to the host file at fixed
+moments: eject, machine switch, soft reset, power cycle, shutdown, and the
+**motor-off auto-flush** installed in `Shell/MachineBuilder.cpp`
+(`SetMotorOffFlushCallback` -> `FlushAll`). While reverse execution is on:
+
+- A store-level **hold**: `DiskImageStore::SetFlushHold (bool)`. Under hold,
+  the motor-off callback and soft-reset flushes do nothing; every write stays in
+  `DiskImage`.
+- Guest writes to track bits are journaled like RAM (bit index and old byte of
+  the packed track buffer), so a rewind restores the media exactly, and keyframes
+  store only the tracks dirtied since the previous keyframe (copy-on-write by
+  track, about 6.5 KB each), not the whole disk.
+- When the hold is released (reverse execution turned off, or the user chooses
+  *Commit disk writes*), the image as it stands at the *current* position is
+  written through the normal `FlushAll` path. *Discard disk writes* reloads the
+  image from the host file instead (the existing reload path the store already
+  uses for external changes).
+- Eject, machine switch and shutdown under hold must ask: commit, discard, or
+  cancel. A crash under hold loses the uncommitted writes; that is the price of
+  the owner's rule and the UI must say so (the history indicator shows
+  "N disk writes not saved").
+
+#### Determinism for replay
+
+Replay from a keyframe must reproduce the same instruction stream to the
+cycle. Sources of nondeterminism found in the tree:
+
+| Source | Where | Treatment |
+|---|---|---|
+| Keystrokes | `AppleKeyboard::PressKey`, `SetKeyDown` (atomic, set from the UI thread), `ClipboardManager` paste | Record every input with the cycle at which the CPU thread applied it; replay applies it at the same cycle |
+| Key auto-repeat | `TickAutoRepeat (elapsedMicroseconds)` from `EmulatorShellCpuThread.cpp`, host time | Record the elapsed value per call, or (better) convert repeat to cycle time |
+| Paddles, buttons, mouse | `MachineGamePortSink.cpp` -> `SetPaddle`/`SetButton`, `AppleMouse` | Record with cycle stamp |
+| Power-on RAM pattern | `Prng` seeded from `time(nullptr)` in `MachineHost` | Keyframe captures RAM; replay never power-cycles past a keyframe. A power cycle or reset is recorded as an input event |
+| Disk mount, eject, write-protect change | `DiskImageStore`, drive widgets | Recorded events; a mount under history is a keyframe boundary |
+| Debugger memory and register edits | debugger panes and console | Not replayed: an edit truncates the future and starts a new keyframe |
+| ACIA endpoint input | `Devices/AciaEndpoints.h` | Recorded with cycle stamp |
+| Frame pacing and host timing | `CpuManager.cpp` (QueryPerformanceCounter), `FramePacing` | Must only decide *when* emulation runs, never *what* it computes. Audit that no device reads host time |
+
+All inputs go through one **input journal** on the CPU thread: the thread that
+drains `InputEventRing` and posted commands stamps each event with the current
+cycle and position before applying it. Replay feeds the journal back at the
+same positions. Applying inputs only at instruction boundaries (which the CPU
+thread already does) makes "same position" sufficient.
+
+#### Output during replay and rewind
+
+Audio, video and printer output are produced by the forward run and are not
+rewound. During a replay the speaker, Mockingboard, drive audio and printer
+sinks are muted and video presents only the final frame. Stepping back shows
+the screen as video RAM and soft switches stand at that position, rendered by
+a full-frame redraw from state (the renderer already draws from memory each
+frame). Printer output already sent is not retracted (open question).
+
+#### Costs
+
+- **Recording**: one record per instruction, roughly 20-40 ns on the CPU hook,
+  about 3-8% of emulation time at 1x; still far above real speed. The hook is
+  off unless reverse execution is enabled.
+- **Ring memory**: setting, default 32 MB (about 1.5 M instructions).
+- **Keyframes**: a //e keyframe is about 140 KB (128 KB RAM, 16 KB LC, device
+  state) plus dirty disk tracks. One per frame for 60 seconds is 3,600 frames,
+  about 500 MB, so the default is one per 10 frames with a 60-second window
+  (about 50 MB). Replay to an arbitrary position then costs at most 10 frames of
+  emulation, about 2 ms with hooks off.
+- **Reverse continue** over the keyframe range runs each keyframe interval
+  forward with the breakpoint predicate active and keeps the last hit, then
+  repeats for the earlier interval if none fired. Worst case scales with the
+  history length: about 60 s of emulation at full speed in under a second.
+
+#### Commands and UI
+
+- **Commands** (all reduce to "go back to the latest position before now where a
+  predicate holds"): Step back (one instruction), Step back over (stack-depth
+  rule of R-033 run backward), Step back out (land on the `JSR` that entered the
+  current routine), Reverse continue (latest breakpoint or watchpoint hit
+  before now). Console verbs follow the WinDbg TTD pattern: `t-`, `p-`, `g-`,
+  plus `gu-` for step back out.
+- **Keys**: the owner suggested Shift plus the step key, but in the VS scheme
+  Shift+F11 is already Step out (`DebuggerKeySchemes.cpp`). Proposal:
+  Ctrl+Shift+F11 step back, Ctrl+Shift+F10 step back over, Alt+Shift+F11 step
+  back out, Shift+F5 is Stop in VS so reverse continue takes Ctrl+Shift+F5. The
+  other schemes get their own mapping. Open question.
+- **Toolbar**: four buttons beside the forward steps, same icons mirrored.
+- **History indicator**: while the position is behind *now*, a band across the
+  disassembly and register panes reads "History: 1,234 instructions behind
+  live" with the position on a scrubber; unsaved disk writes appear in it. The
+  trace pane becomes a view of the ring.
+- **Leaving history**: forward stepping from a past position replays the
+  recorded future (it does not diverge). Any edit of memory, registers or
+  disks, or a new input, **truncates** the future after a confirmation the
+  first time in a session.
+
+#### Open questions for the owner
+
+1. **Keys**: Shift+F11 is already Step out in the VS scheme. Accept the
+   Ctrl+Shift / Alt+Shift proposal above, or another mapping?
+2. **Default limits**: 32 MB ring and a 60-second keyframe window at one
+   keyframe per 10 frames, both settable?
+3. **On by default?** Recording costs a few percent; enable it only while the
+   debugger window is open, always, or by a menu toggle?
+4. **Disk hold on exit or eject**: always ask commit/discard, or commit by
+   default with an undo note?
+5. **Printer and serial output** sent before a rewind cannot be recalled. Accept
+   that, or hold printer output in the same way as disk writes?
+6. **User-facing save states**: the state interface makes save/load state to a
+   file nearly free. Ship it as a feature, or keep it internal for now?
+7. **Running forward from history**: replay the recorded future (proposed), or
+   always run live and discard it?
