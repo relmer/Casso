@@ -74,6 +74,15 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_panOneLabel);
     Adopt (m_panTwoLabel);
     Adopt (m_tapeLabel);
+    Adopt (m_diskHeading);
+    Adopt (m_tapeHeading);
+    Adopt (m_tapeDivider);
+
+    // Each kind of storage gets a heading of its own over its rows.
+    m_diskHeading.SetTextRole   (DxuiTextRole::Heading);
+    m_diskHeading.SetFontWeight (DxuiFontWeight::SemiBold);
+    m_tapeHeading.SetTextRole   (DxuiTextRole::Heading);
+    m_tapeHeading.SetFontWeight (DxuiFontWeight::SemiBold);
 
     Adopt (m_writeMode);
     Adopt (m_mechanism);
@@ -163,8 +172,13 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  playSize     = rowHeight;
     int  playX        = controlsX + dropWidth + scaler.ToPx (s_kPlayGapDp);
     int  resetW       = scaler.ToPx (s_kResetWidthDp);
+    int  right        = rect.right - pad;
 
 
+
+    m_diskHeading.SetRect (MakeRect (x, y, right - x, rowHeight));
+    m_diskHeading.SetText (L"Disk drives");
+    y += rowHeight + sectionGap;
 
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_wpLabel.SetText (L"Write protect:");
@@ -178,13 +192,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeModeLabel.SetText (L"Write mode:");
     m_writeMode.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_writeMode.SetItems ({ L"Buffer and flush", L"Copy on write" });
-    y += rowHeight + sectionGap;
-
-    // The cassette recorder's one setting. Off loads tapes at the selected
-    // speed with the tape audible, as a real load would sound.
-    m_tapeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_tapeLabel.SetText (L"Fast tape loading:");
-    m_fastTape.SetRect  (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
@@ -240,6 +247,22 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_reset.SetLabel (L"Restore defaults");
     m_reset.Layout   (MakeRect (controlsX, y, resetW, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // The rule runs margin to margin and is laid out again on every resize,
+    // so it always spans the page as it is now.
+    m_tapeDivider.SetRect (MakeRect (x, y, right - x, sectionGap));
+    y += sectionGap * 2;
+
+    m_tapeHeading.SetRect (MakeRect (x, y, right - x, rowHeight));
+    m_tapeHeading.SetText (L"Cassette tape");
+    y += rowHeight + sectionGap;
+
+    // Off loads tapes at the selected speed with the tape audible, as a real
+    // load would sound.
+    m_tapeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeLabel.SetText (L"Fast tape loading:");
+    m_fastTape.SetRect  (MakeRect (controlsX, y, checkWidth, rowHeight));
 
     m_wpLabel.SetDpi         (dpi);
     m_writeModeLabel.SetDpi  (dpi);
@@ -250,6 +273,9 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_driveAudio.SetDpi      (dpi);
     m_fastTape.SetDpi        (dpi);
     m_tapeLabel.SetDpi       (dpi);
+    m_diskHeading.SetDpi     (dpi);
+    m_tapeHeading.SetDpi     (dpi);
+    m_tapeDivider.SetDpi     (dpi);
     m_writeProtect[0].SetDpi (dpi);
     m_writeProtect[1].SetDpi (dpi);
     m_motorLabel.SetDpi      (dpi);

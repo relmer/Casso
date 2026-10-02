@@ -83,7 +83,7 @@ SettingsSheet::~SettingsSheet()
 void SettingsSheet::OnBuildPages()
 {
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
-    m_diskPage     = CreatePage<DiskPage>     (L"Disk");
+    m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");

@@ -88,6 +88,9 @@ private:
     DxuiLabel                        m_panOneLabel;
     DxuiLabel                        m_panTwoLabel;
     DxuiLabel                        m_tapeLabel;
+    DxuiLabel                        m_diskHeading;
+    DxuiLabel                        m_tapeHeading;
+    DxuiDivider                      m_tapeDivider;
 
     DxuiComboBox                     m_writeMode;
     DxuiComboBox                     m_mechanism;

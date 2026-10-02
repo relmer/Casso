@@ -128,6 +128,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiContextMenu.h"
+#include "Widgets/DxuiDivider.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiMenuBar.h"
