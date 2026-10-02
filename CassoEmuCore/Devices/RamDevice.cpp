@@ -2,6 +2,8 @@
 
 #include "RamDevice.h"
 #include "Core/Prng.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -118,4 +120,67 @@ unique_ptr<MemoryDevice> RamDevice::Create (const DeviceConfig & config, MemoryB
     UNREFERENCED_PARAMETER (config);
     UNREFERENCED_PARAMETER (bus);
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RamDevice::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteWord  (m_start);
+    writer.WriteWord  (m_end);
+    writer.WriteBytes (m_data.data(), m_data.size());
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  Fails with ERROR_INVALID_DATA when the saved RAM covered other addresses,
+//  before any byte is read into this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RamDevice::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+    Word      start   = 0;
+    Word      end     = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadWord (start);
+    reader.ReadWord (end);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (start == m_start && end == m_end, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    reader.ReadBytes (m_data.data(), m_data.size());
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
 }

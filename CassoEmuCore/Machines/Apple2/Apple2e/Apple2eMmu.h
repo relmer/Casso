@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
@@ -32,7 +33,7 @@
 // virtual IMmu getters (GetIntCxRom / GetSlotC3Rom / ...) when they are called
 // through a concrete `Apple2eMmu &` -- e.g. CxxxRomRouter pulls them on every
 // $Cxxx access, where the indirect call was showing up in profiles.
-class Apple2eMmu final : public IMmu, public IDiagnosticsProvider
+class Apple2eMmu final : public IMmu, public IDiagnosticsProvider, public IMachineState
 {
 public:
     Apple2eMmu ();
@@ -88,6 +89,16 @@ public:
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
     DiagnosticsMemoryMap  GetMemoryMap () const;
+
+    // IMachineState: the seven switches and the 64 KiB of aux RAM. The
+    // CxxxRomRouter it owns holds only ROM images and wiring, so it has no
+    // section of its own; its routing follows the switches saved here. A load
+    // re-derives the $0000-$BFFF page table and the language card's window.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'M', 'U', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     void   RebindPageTable       ();

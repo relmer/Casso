@@ -3,6 +3,8 @@
 
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -132,4 +134,60 @@ bool Apple2cRomBank::TryPatch (Word address, Byte value)
 
 Error:
     return patched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cRomBank::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte (static_cast<Byte> (m_current));
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  Fails with ERROR_INVALID_DATA for a bank other than 0 or 1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cRomBank::LoadState (StateReader & reader)
+{
+    constexpr Byte  kBankCount = static_cast<Byte> (ARRAYSIZE (m_bank));
+    HRESULT         hr         = S_OK;
+    uint16_t        version    = 0;
+    Byte            bank       = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte (bank);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx (bank < kBankCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    ApplyBank (bank);
+
+Error:
+    return hr;
 }

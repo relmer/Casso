@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Devices/IRomBankSwitch.h"
 
 class LanguageCard;
@@ -32,7 +33,7 @@ class Apple2eMmu;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2cRomBank : public IRomBankSwitch
+class Apple2cRomBank : public IRomBankSwitch, public IMachineState
 {
 public:
     Apple2cRomBank (LanguageCard & lc, Apple2eMmu & mmu);
@@ -49,6 +50,15 @@ public:
     // bank's own image, which a flip re-slices from, and into the live copies
     // the router and the language card read, so it holds across flips.
     bool TryPatch (Word address, Byte value);
+
+    // IMachineState: which bank is visible. The two images are the machine's
+    // ROM, not state. A load re-slices the restored bank into the router and
+    // the language card, so it may run before or after their own loads.
+    HRESULT SaveState (StateWriter & writer) const override;
+    HRESULT LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('R', 'O', 'M', 'C');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     void ApplyBank     (int bank);

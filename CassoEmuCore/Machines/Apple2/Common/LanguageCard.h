@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
@@ -47,7 +48,7 @@ constexpr Word kLcFlagsPowerOn = static_cast<Word> (kLcFlagBank2 | kLcFlagWriteR
 
 
 
-class LanguageCard : public MemoryDevice
+class LanguageCard : public MemoryDevice, public IMachineState
 {
 public:
     LanguageCard (MemoryBus & bus);
@@ -86,6 +87,15 @@ public:
 
     void SoftReset    ();
     void PowerCycle   (Prng & prng) override;
+
+    // IMachineState: the bank flags, the pre-write count and all six RAM
+    // banks. The ROM image belongs to the machine's ROM set (and on the //c to
+    // Apple2cRomBank), so it is not saved.
+    HRESULT SaveState (StateWriter & writer) const override;
+    HRESULT LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('L', 'C', ' ', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 

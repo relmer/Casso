@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -275,4 +277,69 @@ std::string AppleSoftSwitchBank::GetModeName() const
     mode += m_mixedMode ? ", mixed" : "";
 
     return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleSoftSwitchBank::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool (m_graphicsMode);
+    writer.WriteBool (m_mixedMode);
+    writer.WriteBool (m_page2);
+    writer.WriteBool (m_hiresMode);
+    writer.WriteByte (m_annunciators.load (memory_order_acquire));
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  Fails with ERROR_INVALID_DATA when the annunciator byte holds a bit past
+//  AN2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleSoftSwitchBank::LoadState (StateReader & reader)
+{
+    constexpr Byte  kValidAnnunciators = static_cast<Byte> ((1 << kAnnunciatorCount) - 1);
+    HRESULT         hr                 = S_OK;
+    uint16_t        version            = 0;
+    Byte            annunciators       = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (m_graphicsMode);
+    reader.ReadBool (m_mixedMode);
+    reader.ReadBool (m_page2);
+    reader.ReadBool (m_hiresMode);
+    reader.ReadByte (annunciators);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx ((annunciators & ~kValidAnnunciators) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_annunciators.store (annunciators, memory_order_release);
+
+Error:
+    return hr;
 }

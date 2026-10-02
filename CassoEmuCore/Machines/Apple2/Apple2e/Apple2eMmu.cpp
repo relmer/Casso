@@ -3,6 +3,8 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
@@ -798,4 +800,76 @@ MemorySource Apple2eMmu::GetCxxxSource (int page) const
     }
 
     return MemorySource::SlotRom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2eMmu::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool  (m_ramRd);
+    writer.WriteBool  (m_ramWrt);
+    writer.WriteBool  (m_altZp);
+    writer.WriteBool  (m_store80);
+    writer.WriteBool  (m_intCxRom);
+    writer.WriteBool  (m_slotC3Rom);
+    writer.WriteBool  (m_intC8Rom);
+    writer.WriteBytes (m_auxRam.data(), m_auxRam.size());
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  The setters are bypassed: each re-resolves only what its own switch moves
+//  and skips an unchanged value, so the whole table is rebuilt once instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2eMmu::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool  (m_ramRd);
+    reader.ReadBool  (m_ramWrt);
+    reader.ReadBool  (m_altZp);
+    reader.ReadBool  (m_store80);
+    reader.ReadBool  (m_intCxRom);
+    reader.ReadBool  (m_slotC3Rom);
+    reader.ReadBool  (m_intC8Rom);
+    reader.ReadBytes (m_auxRam.data(), m_auxRam.size());
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    RebindPageTable();
+
+    if (m_lc != nullptr)
+    {
+        m_lc->RebindWindow();
+    }
+
+Error:
+    return hr;
 }

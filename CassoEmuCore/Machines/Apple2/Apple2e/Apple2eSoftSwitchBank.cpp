@@ -10,6 +10,8 @@
 #include "Devices/IRomBankSwitch.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/IVideoTiming.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -689,4 +691,119 @@ unique_ptr<MemoryDevice> Apple2eSoftSwitchBank::Create (const DeviceConfig & con
     UNREFERENCED_PARAMETER (config);
 
     return make_unique<Apple2eSoftSwitchBank> (&bus);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPaddle
+//
+//  The staged position of one axis, or zero for an axis past the fourth.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::GetPaddle (int axis) const
+{
+    Byte  position = 0;
+
+
+
+    if (axis >= 0 && axis < s_knPaddleAxisCount)
+    {
+        position = m_paddlePosition[axis].load (memory_order_acquire);
+    }
+
+    return position;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2eSoftSwitchBank::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    hr = AppleSoftSwitchBank::SaveState (writer);
+    CHR (hr);
+
+    writer.WriteBool   (m_80colMode);
+    writer.WriteBool   (m_doubleHiRes);
+    writer.WriteBool   (m_altCharSet);
+    writer.WriteUInt64 (m_paddleTriggerCycle);
+
+    for (const atomic<Byte> & axis : m_paddlePosition)
+    {
+        writer.WriteByte (axis.load (memory_order_acquire));
+    }
+
+    hr = writer.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  PAGE2 and HIRES pick the aux or main page under 80STORE, so a load hands
+//  the MMU the restored switches. The MMU's own load re-resolves them too, so
+//  the order of the two loads does not matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2eSoftSwitchBank::LoadState (StateReader & reader)
+{
+    HRESULT   hr       = S_OK;
+    uint16_t  version  = 0;
+    Byte      position = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    hr = AppleSoftSwitchBank::LoadState (reader);
+    CHR (hr);
+
+    reader.ReadBool   (m_80colMode);
+    reader.ReadBool   (m_doubleHiRes);
+    reader.ReadBool   (m_altCharSet);
+    reader.ReadUInt64 (m_paddleTriggerCycle);
+
+    for (atomic<Byte> & axis : m_paddlePosition)
+    {
+        reader.ReadByte (position);
+        axis.store (position, memory_order_release);
+    }
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    if (m_mmu != nullptr)
+    {
+        m_mmu->OnSoftSwitchChanged();
+    }
+
+Error:
+    return hr;
 }

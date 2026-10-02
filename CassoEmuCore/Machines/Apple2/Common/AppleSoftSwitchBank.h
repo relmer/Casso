@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
@@ -20,7 +21,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleSoftSwitchBank : public MemoryDevice, public IDiagnosticsProvider
+class AppleSoftSwitchBank : public MemoryDevice, public IDiagnosticsProvider, public IMachineState
 {
 public:
     AppleSoftSwitchBank ();
@@ -48,6 +49,13 @@ public:
     bool IsAnnunciatorOn (int index) const;
 
     static constexpr int  kAnnunciatorCount = 3;
+
+    // IMachineState: the four display switches and the annunciators.
+    HRESULT SaveState (StateWriter & writer) const override;
+    HRESULT LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'W', ' ');
+    static constexpr uint16_t  kStateVersion = 1;
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 

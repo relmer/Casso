@@ -100,6 +100,19 @@ public:
 
     static constexpr Byte s_knPaddleCenter = 127;
 
+    // IMachineState: the base bank's section nested inside this one, then
+    // 80COL, DHIRES, ALTCHARSET, the paddle one-shot's trigger cycle and the
+    // staged paddle positions. The host-sink dedupe is not machine state. A
+    // load re-resolves the MMU's PAGE2 and HIRES routed pages.
+    HRESULT SaveState (StateWriter & writer) const override;
+    HRESULT LoadState (StateReader & reader) override;
+
+    uint64_t GetPaddleTriggerCycle () const          { return m_paddleTriggerCycle; }
+    Byte     GetPaddle             (int axis) const;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'W', 'E');
+    static constexpr uint16_t  kStateVersion = 1;
+
 protected:
     std::string  GetModeName () const override;
 

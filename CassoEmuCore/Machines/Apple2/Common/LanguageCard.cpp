@@ -3,6 +3,8 @@
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Devices/IMmu.h"
 #include "Core/Prng.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -534,4 +536,81 @@ void LanguageCardBank::Write (Word address, Byte value)
 
 void LanguageCardBank::Reset()
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LanguageCard::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteWord   (m_flags);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_preWriteCount));
+    writer.WriteBytes  (m_ramBank1Main.data(), m_ramBank1Main.size());
+    writer.WriteBytes  (m_ramBank2Main.data(), m_ramBank2Main.size());
+    writer.WriteBytes  (m_ramMainHigh.data(),  m_ramMainHigh.size());
+    writer.WriteBytes  (m_ramBank1Aux.data(),  m_ramBank1Aux.size());
+    writer.WriteBytes  (m_ramBank2Aux.data(),  m_ramBank2Aux.size());
+    writer.WriteBytes  (m_ramAuxHigh.data(),   m_ramAuxHigh.size());
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+//  Fails with ERROR_INVALID_DATA when the flags hold a bit no switch sets, or
+//  the pre-write count is past the two reads that enable writes. A load
+//  re-points the $D000-$FFFF read window at the restored bank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LanguageCard::LoadState (StateReader & reader)
+{
+    constexpr Word  kValidFlags   = static_cast<Word> (kLcFlagBank2 | kLcFlagReadRam | kLcFlagWriteRam);
+    HRESULT         hr            = S_OK;
+    uint16_t        version       = 0;
+    Word            flags         = 0;
+    uint32_t        preWriteCount = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadWord   (flags);
+    reader.ReadUInt32 (preWriteCount);
+    reader.ReadBytes  (m_ramBank1Main.data(), m_ramBank1Main.size());
+    reader.ReadBytes  (m_ramBank2Main.data(), m_ramBank2Main.size());
+    reader.ReadBytes  (m_ramMainHigh.data(),  m_ramMainHigh.size());
+    reader.ReadBytes  (m_ramBank1Aux.data(),  m_ramBank1Aux.size());
+    reader.ReadBytes  (m_ramBank2Aux.data(),  m_ramBank2Aux.size());
+    reader.ReadBytes  (m_ramAuxHigh.data(),   m_ramAuxHigh.size());
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    CBREx ((flags & ~kValidFlags) == 0,                                 HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (preWriteCount <= static_cast<uint32_t> (kPreWriteArmTarget), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_flags         = flags;
+    m_preWriteCount = static_cast<int> (preWriteCount);
+
+    RebindWindow();
+
+Error:
+    return hr;
 }

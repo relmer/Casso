@@ -417,6 +417,7 @@
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
+    <ClCompile Include="EmuTests\MemoryStateTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
     <ClCompile Include="EmuTests\AppleMouseTests.cpp" />
     <ClCompile Include="EmuTests\AppleSingleCodecTests.cpp" />
