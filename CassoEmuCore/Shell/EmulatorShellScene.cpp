@@ -605,7 +605,10 @@ void EmulatorShell::ClampSceneView()
 
     m_sceneView.zoom = std::clamp (m_sceneView.zoom, s_kSceneZoomMin, s_kSceneZoomMax);
 
-    slack = std::max (0.0f, m_sceneView.zoom - 1.0f);
+    // Some room even at the fitted zoom: a turn can swing part of the desk out
+    // of frame, and panning is how it comes back. Half the viewport either way,
+    // plus whatever zooming in adds.
+    slack = s_kScenePanFloorNdc + std::max (0.0f, m_sceneView.zoom - 1.0f);
 
     m_sceneView.panX = std::clamp (m_sceneView.panX, -slack, slack);
 

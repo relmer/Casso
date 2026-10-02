@@ -1061,8 +1061,9 @@ private:
     // Below 1 the fitted composition shrinks into the window with margin
     // around it -- the step-back look. Pan slack stays zero down there (see
     // ClampSceneView), so zooming back in cannot strand the scene off-center.
-    static constexpr float  s_kSceneZoomMin  = 0.5f;
-    static constexpr float  s_kSceneZoomMax  = 8.0f;
+    static constexpr float  s_kSceneZoomMin     = 0.5f;
+    static constexpr float  s_kScenePanFloorNdc = 1.0f;   // pan room at any zoom: half the viewport
+    static constexpr float  s_kSceneZoomMax     = 8.0f;
 
     // One wheel notch. Geometric, so the same flick covers the same visual
     // proportion at every zoom -- a fixed additive step feels fast when close
