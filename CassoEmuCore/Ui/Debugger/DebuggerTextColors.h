@@ -29,20 +29,40 @@ public:
     static constexpr float  s_kLightRowShade       = 0.15f;
     static constexpr float  s_kLightTextSoftening  = 0.25f;
 
+    //  How far each row fill is mixed from the page toward its hue: the PC's
+    //  dark yellow, a branch destination's accent, a navigated row's green.
+    static constexpr float  s_kDarkPcRowMix        = 0.22f;
+    static constexpr float  s_kLightPcRowMix       = 0.55f;
+    static constexpr float  s_kDarkTargetRowMix    = 0.16f;
+    static constexpr float  s_kLightTargetRowMix   = 0.20f;
+
+    //  The ratio a changed value reaches on a dark page.
+    static constexpr float  s_kChangedContrast     = 7.0f;
+
     struct Set
     {
         SourceSyntax::Colors  syntax;
-        uint32_t              annotation = 0;
-        uint32_t              changed    = 0;
-        uint32_t              result     = 0;
-        uint32_t              muted      = 0;
+        uint32_t              annotation     = 0;
+        uint32_t              changed        = 0;
+        uint32_t              result         = 0;
+        uint32_t              muted          = 0;
+
+        //  An operand's address, set apart from an immediate's number.
+        uint32_t              operandAddress = 0;
+
+        //  The opaque row fills every color above reads on: the PC's row, a
+        //  branch's destination, and a row another pane brought into view.
+        uint32_t              pcRow          = 0;
+        uint32_t              targetRow      = 0;
+        uint32_t              navigatedRow   = 0;
     };
 
     //  `resultText` of zero means the theme gives no result color.
     static Set       Make        (uint32_t background,
                                   uint32_t foreground,
                                   uint32_t muted,
-                                  uint32_t resultText);
+                                  uint32_t resultText,
+                                  uint32_t accent = 0xFF3C8CE6);
 
     static bool      IsDark      (uint32_t background);
 
@@ -53,4 +73,17 @@ public:
     //  `argb`, or the nearest color along the way to black or white that
     //  reaches s_kMinTextContrast against `background`.
     static uint32_t  GetReadable (uint32_t argb, uint32_t background);
+
+    //  A disassembled instruction's colored runs, as a list cell's color
+    //  ranges: first, end and color. A number after # is an immediate in the
+    //  number color; any other number is an address in the operand color.
+    using Ranges = std::vector<std::tuple<int, int, uint32_t>>;
+
+    static Ranges    GetInstructionRanges (const std::wstring & instruction, const Set & set);
+
+    //  The same against several backgrounds at once, to `minRatio`.
+    static uint32_t  GetReadable (uint32_t argb, const std::vector<uint32_t> & backgrounds, float minRatio = s_kMinTextContrast);
+
+private:
+    static float     GetLowestRatio (uint32_t argb, const std::vector<uint32_t> & backgrounds);
 };

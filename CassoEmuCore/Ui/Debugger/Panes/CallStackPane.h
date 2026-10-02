@@ -2,6 +2,7 @@
 
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiListView.h"
 
@@ -53,6 +54,10 @@ public:
 
     void  Configure ();
     void  Apply     (const CallStackData & data);
+    void  SetColors (const DebuggerTextColors::Set & colors) { m_colors = colors; }
+
+    //  A row's cells, colored as the disassembly is unless dimmed or a break.
+    static std::vector<DxuiListView::Cell>  GetCells (const Row & row, const DebuggerTextColors::Set & colors);
 
     static std::vector<Row>  GetRows      (const CallStackData & data);
     static std::string       GetNextModeLine (CallStackMechanism current);
@@ -62,10 +67,11 @@ public:
 private:
     static bool  IsSameText (const std::vector<Row> & a, const std::vector<Row> & b);
 
-    DxuiListView        * m_list       = nullptr;
-    DxuiButton          * m_modeButton = nullptr;
-    RunFn                 m_run;
-    ShowFn                m_showCode;
-    std::vector<Row>      m_rows;
-    CallStackMechanism    m_mechanism  = CallStackMechanism::Hybrid;
+    DxuiListView             * m_list       = nullptr;
+    DxuiButton               * m_modeButton = nullptr;
+    RunFn                      m_run;
+    ShowFn                     m_showCode;
+    std::vector<Row>           m_rows;
+    CallStackMechanism         m_mechanism  = CallStackMechanism::Hybrid;
+    DebuggerTextColors::Set    m_colors;
 };

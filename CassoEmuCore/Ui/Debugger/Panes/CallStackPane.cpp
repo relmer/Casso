@@ -82,7 +82,7 @@ void CallStackPane::Apply (const CallStackData & data)
 
     for (const Row & row : m_rows)
     {
-        cells.push_back ({ { row.site, row.isDim }, { row.routine, row.isDim }, { row.foundBy, row.isDim } });
+        cells.push_back (GetCells (row, m_colors));
     }
 
     m_list->SetRows (std::move (cells));
@@ -99,6 +99,37 @@ void CallStackPane::Apply (const CallStackData & data)
         m_mechanism = data.mechanism;
         m_modeButton->SetLabel (GetModeLabel (m_mechanism));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetCells
+//
+//  The call site in the address color and the routine as an instruction is
+//  colored: its kind, its target and its symbol. A dimmed row and a break
+//  are left plain, so the dimming still reads as dimming.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const DebuggerTextColors::Set & colors)
+{
+    std::vector<DxuiListView::Cell>  cells = { { row.site, row.isDim }, { row.routine, row.isDim }, { row.foundBy, row.isDim } };
+
+
+
+    if (row.isDim || row.isBreak || colors.syntax.address == 0)
+    {
+        return cells;
+    }
+
+    cells[0].colorRanges.emplace_back (0, (int) row.site.size(), colors.operandAddress);
+    cells[1].colorRanges = DebuggerTextColors::GetInstructionRanges (row.routine, colors);
+
+    return cells;
 }
 
 

@@ -6056,14 +6056,15 @@ void DebuggerWindow::RenderFrame()
 
 void DebuggerWindow::ApplyCodeView (int view)
 {
-    DxuiListView                                       * list     = m_codeLists[(size_t) view];
-    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = GetCodeLines (view);
+    DxuiListView                                       * list       = m_codeLists[(size_t) view];
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines      = GetCodeLines (view);
     std::vector<std::vector<DxuiListView::Cell>>         rows;
-    int                                                  current  = -1;
-    int                                                  selected = -1;
+    int                                                  current    = -1;
+    int                                                  selected   = -1;
     std::optional<Word>                                  target;
-    SourceSyntax::Colors                                 syntax   = GetSyntaxColors();
-    bool                                                 symbols  = m_codeOptions.IsOn (DisassemblyOptions::Option::Symbols);
+    DebuggerTextColors::Set                              textColors = GetTextColors();
+    SourceSyntax::Colors                                 syntax     = textColors.syntax;
+    bool                                                 symbols    = m_codeOptions.IsOn (DisassemblyOptions::Option::Symbols);
     bool                                                 source   = m_codeOptions.IsOn (DisassemblyOptions::Option::Source) &&
                                                                     IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
     bool                                                 numbers  = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
@@ -6175,10 +6176,7 @@ void DebuggerWindow::ApplyCodeView (int view)
             cells[3].colorRanges.push_back ({ first, last, GetChangedArgb() });
         }
 
-        for (const SourceSyntax::Run & run : SourceSyntax::GetInstructionRuns (cells[5].text))
-        {
-            cells[5].colorRanges.push_back ({ run.start, run.start + run.length, syntax.Get (run.token) });
-        }
+        cells[5].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[5].text, textColors);
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -6355,6 +6353,7 @@ void DebuggerWindow::ApplySnapshot()
         m_completion.OfferSuggestion (Widen (m_snapshot->suggestion), m_commandBox->GetText());
     }
 
+    m_tracePane->SetColors  (GetTextColors());
     m_tracePane->Apply      (m_snapshot->trace);
 
     ApplyBreakpoints();
@@ -6441,7 +6440,8 @@ void DebuggerWindow::ApplySnapshot()
     }
 
     m_stackList->SetRows (std::move (rows));
-    m_callStackPane->Apply (m_snapshot->callStack);
+    m_callStackPane->SetColors (GetTextColors());
+    m_callStackPane->Apply     (m_snapshot->callStack);
 
     ApplyMemoryWindows();
     ApplySource();
@@ -8409,7 +8409,7 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetHoverBreakpointIcon()
 
 uint32_t DebuggerWindow::GetPcMarkerArgb() const
 {
-    return IsDarkTheme() ? 0xFFFFE34D : 0xFFD8A800;
+    return IsDarkTheme() ? 0xFFFFE34D : 0xFFA88300;
 }
 
 
@@ -8424,7 +8424,7 @@ uint32_t DebuggerWindow::GetPcMarkerArgb() const
 
 uint32_t DebuggerWindow::GetPcRowArgb() const
 {
-    return IsDarkTheme() ? 0x50C8A000 : 0x60FFE34D;
+    return GetTextColors().pcRow;
 }
 
 
@@ -8441,7 +8441,7 @@ uint32_t DebuggerWindow::GetPcRowArgb() const
 
 uint32_t DebuggerWindow::GetNavigatedRowArgb() const
 {
-    return IsDarkTheme() ? 0x4A3C8C3C : 0x5096D796;
+    return GetTextColors().navigatedRow;
 }
 
 
@@ -8456,11 +8456,7 @@ uint32_t DebuggerWindow::GetNavigatedRowArgb() const
 
 uint32_t DebuggerWindow::GetTargetRowArgb() const
 {
-    uint32_t  accent = (m_theme != nullptr) ? m_theme->Accent() : 0xFF3C8CE6;
-
-
-
-    return (accent & 0x00FFFFFFu) | 0x38000000u;
+    return GetTextColors().targetRow;
 }
 
 
@@ -8482,10 +8478,11 @@ DebuggerTextColors::Set DebuggerWindow::GetTextColors() const
     uint32_t  foreground = (m_theme != nullptr) ? m_theme->Foreground()        : 0xFFFFFFFF;
     uint32_t  muted      = (m_theme != nullptr) ? m_theme->ForegroundMuted()   : 0xFFC0C0C0;
     uint32_t  result     = (m_theme != nullptr) ? m_theme->resultText          : 0u;
+    uint32_t  accent     = (m_theme != nullptr) ? m_theme->Accent()            : 0xFF3C8CE6;
 
 
 
-    return DebuggerTextColors::Make (background, foreground, muted, result);
+    return DebuggerTextColors::Make (background, foreground, muted, result, accent);
 }
 
 

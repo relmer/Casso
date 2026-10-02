@@ -182,9 +182,9 @@ namespace DebuggerFindReviewTests
             window.Type (L"$");
 
             view  = window.GetConsoleView();
-            dark  = view->GetFindFillOf (view->GetFindHighlights()[1], theme) == 0x50C8A000u;
-            row   = dark ? 0x50C8A000u : 0x60FFE34Du;
-            arrow = dark ? 0xFFFFE34Du : 0xFFD8A800u;
+            dark  = DebuggerTextColors::IsDark (theme.ContentBackground());
+            row   = DebuggerTextColors::Make (theme.ContentBackground(), theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent()).pcRow;
+            arrow = dark ? 0xFFFFE34Du : 0xFFA88300u;
 
             Assert::AreEqual ((size_t) 2, view->GetFindHighlights().size());
             Assert::AreEqual (arrow, view->GetFindFillOf (view->GetFindHighlights()[0], theme), L"the match the search is at: the PC arrow's yellow");

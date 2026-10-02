@@ -1205,3 +1205,35 @@ the filter is one lookup at the step-into decision.
 **Command**: `SKIP name|addr|first.last` adds, `SKIP` lists, `SKIP - name`
 removes, `SKIP CLEAR` empties. Reachable in every mode through its marker.
 The list is session state, not a preference, in this feature.
+
+## R-039: 6502 assembly color schemes
+
+T420 asks which color scheme the disassembly, source, trace and call stack
+should follow. These are the schemes worth considering, from what each one
+publishes for its token kinds (from the extensions' grammars and the tools' defaults as recalled, not
+re-measured; the owner should look at any one before adopting it):
+
+| Scheme | Where it comes from | Mnemonic | Immediate | Address / label | Comment | Notes |
+|---|---|---|---|---|---|---|
+| Visual Studio / VS Code Dark+ and Light+ | the editor's own theme, applied to any 6502 grammar | keyword blue (#569CD6 / #0000FF) | number green (#B5CEA8 / #098658) | variable or function (#9CDCFE, #DCDCAA / #001080, #795E26) | green | What Casso follows. Every 6502 grammar below maps its scopes onto it, so it is the scheme a VS Code user already sees. |
+| ca65 and generic 6502 grammars on the VS Code marketplace | TextMate scopes only, no colors of their own | `keyword.other.opcode` | `constant.numeric` | `entity.name.function` / `variable` | `comment.line` | Separate immediates from addresses only by the `#`; colors come from the active theme. |
+| Kick Assembler extensions | own grammar, theme colors | keyword | numeric, with `#` in operator color | label as function | green | Gives illegal opcodes and pseudo-ops scopes of their own, which a theme can color apart. |
+| Retro Assembler, 64tass, ACME extensions | TextMate scopes | keyword | numeric | label | comment | As above; nothing to adopt beyond the scope split. |
+| C64 Debugger / VICE monitor | fixed palette on black | white or light gray | cyan | yellow addresses | gray | High contrast on black, but not theme-aware. |
+| AppleWin debugger | fixed palette (configurable in its color scheme) | white mnemonic on blue | yellow immediate | cyan address, green symbol | -- | The Apple II reference most users know; its blue page is unlike any Casso theme. |
+| Mesen debugger | per-token colors in its settings | blue | green-ish | address and label colors of their own | green | Mesen's split -- opcode, immediate, address, label, comment -- matches Casso's tokens one for one. |
+
+Every scheme splits the same five kinds: mnemonic, immediate, address,
+label/symbol, comment. The ones that differ only pick different hues, and
+the fixed-palette debuggers (AppleWin, VICE) assume a page color no Casso
+theme has.
+
+Recommendation: keep the Visual Studio / VS Code family, now with the address
+operand in the editor's function color so it is apart from the immediate
+(T412), and every color held to AA against the PC, branch-destination and
+navigated row fills (T415). It is the only scheme with light and dark variants
+designed together, it matches what users of the VS Code 6502 extensions
+already see, and it needs no new theme roles. If the owner wants a second
+choice, AppleWin's palette is the one worth offering as an option, because
+it is the Apple II debugger users know; it would need its own page color
+rather than the theme's. The owner chooses.

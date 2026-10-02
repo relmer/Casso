@@ -164,6 +164,7 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
         out[3].text = std::wstring (bytes.begin(), bytes.end());
         out[4].text = std::wstring (record->symbol.begin(), record->symbol.end());
         out[5].text = std::wstring (record->instruction.begin(), record->instruction.end());
+        AddColors (out, m_colors);
         return;
     }
 
@@ -195,6 +196,33 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
     {
         out[6].text += (wchar_t) ch;
     }
+
+    AddColors (out, m_colors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePane::AddColors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TracePane::AddColors (std::vector<DxuiListView::Cell> & row, const DebuggerTextColors::Set & colors)
+{
+    if (colors.syntax.address == 0 || row.size() < 6)
+    {
+        return;
+    }
+
+    row[0].argb        = colors.muted;
+    row[1].argb        = colors.muted;
+    row[2].argb        = colors.syntax.address;
+    row[3].argb        = colors.syntax.bytes;
+    row[4].argb        = colors.syntax.symbol;
+    row[5].colorRanges = DebuggerTextColors::GetInstructionRanges (row[5].text, colors);
 }
 
 

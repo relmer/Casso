@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Widgets/DxuiListView.h"
 
@@ -59,7 +60,12 @@ public:
     static std::wstring  GetKeyHint   ();
 
     void  ToggleBytes    ();
+    void  SetColors      (const DebuggerTextColors::Set & colors) { m_colors = colors; }
     void  ProvideRow     (int row, std::vector<DxuiListView::Cell> & out) const;
+
+    //  A row's address, bytes, label and instruction in the disassembly's
+    //  colors; the entry number and cycles in the muted one.
+    static void  AddColors (std::vector<DxuiListView::Cell> & row, const DebuggerTextColors::Set & colors);
     bool  IsShowingBytes () const { return m_showBytes; }
 
     void  Configure    ();
@@ -87,4 +93,5 @@ private:
     std::vector<TraceRecord>   m_next;
     bool                       m_showBytes = true;
     std::optional<uint64_t>    m_requested = kFollowEnd;
+    DebuggerTextColors::Set    m_colors;
 };
