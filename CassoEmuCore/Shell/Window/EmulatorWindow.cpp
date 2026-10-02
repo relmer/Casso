@@ -1982,6 +1982,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                         m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
                     }
                 }
+
+                RegisterTapeDropTarget();
             }
         }
 

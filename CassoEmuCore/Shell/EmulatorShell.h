@@ -1099,6 +1099,11 @@ private:
     void          BrowseForTape          ();
     void          InsertTape             (const std::wstring & path);
     void          CreateBlankTape        ();
+    void          RegisterTapeDropTarget ();
+    void          OnFileDropped          (int tag, const std::wstring & path);
+
+    // The drop tag of the tape, after the drives' 0 and 1.
+    static constexpr int  s_kTapeDropTag = 2;
 
     // Re-hangs the mounted-image basename strip under each projected drive.
     void    SyncSceneDriveLabels ();

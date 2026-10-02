@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -121,6 +122,77 @@ void EmulatorShell::SyncTapeChrome()
     m_tapeChrome.Layout (anchor, scaler);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RegisterTapeDropTarget
+//
+//  Adds the recorder to the drop targets the drives already registered: the
+//  3D recorder's projected box in the desk scene, the flat widget otherwise.
+//  The flat widget is laid out here first because it is placed off the
+//  drive's rect, which is only final once the drives have been laid out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RegisterTapeDropTarget()
+{
+    HRESULT  hr   = S_OK;
+    RECT     rect = {};
+
+
+
+    BAIL_OUT_IF (!MachineHasCassettePort(), S_OK);
+
+    if (DeskSceneActive())
+    {
+        rect = m_deskScene.Composition().recorderRectPx;
+    }
+    else
+    {
+        SyncTapeChrome();
+        rect = m_tapeChrome.IsHidden() ? RECT {} : m_tapeChrome.GetOuterRect();
+    }
+
+    BAIL_OUT_IF (IsRectEmpty (&rect), S_OK);
+
+    m_uiShell.GetHitTester().Register (DxuiHitRect { rect, DxuiHitSlot::Custom, s_kTapeDropTag });
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnFileDropped
+//
+//  A file dropped on a drive mounts there and one dropped on the recorder is
+//  inserted into it, but only the kind each takes: a tape dropped on a drive,
+//  or a disk on the recorder, is ignored rather than mounted somewhere it
+//  cannot be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
+{
+    if (tag == s_kTapeDropTag)
+    {
+        if (TapeImageLoader::IsTapeFileExtension (path))
+        {
+            InsertTape (path);
+        }
+    }
+    else if (IsSupportedDiskImageExtension (path))
+    {
+        Mount (6, tag, path);
+    }
+}
 
 
 

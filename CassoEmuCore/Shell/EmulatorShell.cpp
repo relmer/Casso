@@ -29,6 +29,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -1128,6 +1129,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
                 m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
             }
         }
+
+        RegisterTapeDropTarget();
     }
 
     if (m_fOleInitialized)
@@ -1182,7 +1185,15 @@ void EmulatorShell::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
+    // Disks and tapes both; OnFileDropped sends each only to what can take it.
+    hrDrop = m_dragDropTarget.Initialize (m_hwnd,
+                                          &m_uiShell.GetHitTester(),
+                                          [this] (int tag, const std::wstring & path) { OnFileDropped (tag, path); },
+                                          [] (const std::wstring & path)
+                                          {
+                                              return IsSupportedDiskImageExtension (path) ||
+                                                     TapeImageLoader::IsTapeFileExtension (path);
+                                          });
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
     // UIPI whitelist. When Casso runs at a higher integrity

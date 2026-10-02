@@ -952,6 +952,8 @@ void EmulatorShell::SyncSceneDriveChrome()
             m_uiShell.GetHitTester().Register (DxuiHitRect { comp.driveRectPx[i], DxuiHitSlot::Custom, i });
         }
     }
+
+    RegisterTapeDropTarget();
 }
 
 
