@@ -1112,16 +1112,24 @@ private:
     static constexpr int  s_kTapeDropTag = 2;
 
     // Re-hangs the mounted-image basename strip under each projected drive.
+    // The desk's baked labels: the two drives' names, then the recorder's
+    // tape name, its counter, and the name of the key under the pointer.
+    static constexpr size_t  s_kSceneLabelCount    = 5;
+    static constexpr int     s_kSceneTapeNameCell  = 2;
+    static constexpr int     s_kSceneCounterCell   = 3;
+    static constexpr int     s_kSceneKeyCell       = 4;
+
     void    SyncSceneDriveLabels ();
     bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
     float   GetSceneLabelScrollPx (int drive, int64_t nowMs);
     bool    SyncRecorderKeys      (int64_t nowMs);
     void    SyncSceneTapeLabel    ();
+    bool    GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3]);
 
     // Hands each drive's name to the scene as a depth-tested quad: bakes the
     // two strings into one texture when either has changed, then re-solves
     // the quads, which move whenever the camera does.
-    void    SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> & names,
+    void    SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kSceneLabelCount> & names,
                                      const SIZE                        & cellPx,
                                      int                                 gapPx);
 
@@ -1129,7 +1137,9 @@ private:
     // the view. One texture because the text renderer has only one: a second
     // bake replaces the first, so baking per drive would leave both wearing
     // whichever name went last.
-    bool    TryBakeSceneDiskLabels  (const std::array<std::wstring, 2> & names,
+    bool    TryMakeSceneLabelQuad   (const DeskSceneComposition & comp, int cell, const SIZE & cellPx,
+                                     int gapPx, float corners[4][3]);
+    bool    TryBakeSceneDiskLabels  (const std::array<std::wstring, s_kSceneLabelCount> & names,
                                      const SIZE                        & cellPx);
 
     // Retires both quads, for a theme or a presentation that draws no scene
@@ -1693,19 +1703,18 @@ private:
     // it is read at a fixed size wherever the desk is posed.
     std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
 
-    // The desk recorder's tape name and counter, hung under its front edge.
-    DxuiShadowedText          m_sceneTapeName;
-    DxuiShadowedText          m_sceneTapeCounter;
+    // Where the desk recorder's tape name and counter are, for clicks.
     RECT                      m_sceneTapeNameRect    = {};
+    std::wstring              m_sceneTapeLabelShown;   // what the baked recorder labels last said
     RECT                      m_sceneTapeCounterRect = {};
 
     // What the in-scene quads currently say and the cell they were baked at,
     // so the texture is rendered on a change rather than on every
     // composition pass. The view belongs to the text renderer and stays good
     // until the next bake, which is why nothing else may use that path.
-    std::array<std::wstring, 2>      m_sceneDiskLabelText;
-    SIZE                             m_sceneDiskLabelCell = {};
-    ID3D11ShaderResourceView       * m_sceneDiskLabelSrv  = nullptr;
+    std::array<std::wstring, s_kSceneLabelCount>    m_sceneDiskLabelText;
+    SIZE                                            m_sceneDiskLabelCell = {};
+    ID3D11ShaderResourceView                      * m_sceneDiskLabelSrv  = nullptr;
 
     // Where each of those strips landed, empty when a drive shows no name.
     // The write-protect tooltip belongs to the strip now that the padlock
@@ -1715,9 +1724,9 @@ private:
     // A desk name too long for its strip scrolls while the pointer is on its
     // drive or the name. The period is the name plus its gap in baked pixels,
     // zero for a name that fits.
-    std::array<float, 2>      m_sceneDiskLabelPeriod  = {};
-    int                       m_sceneLabelHover       = -1;
-    int64_t                   m_sceneLabelHoverMs     = 0;
+    std::array<float, s_kSceneLabelCount>  m_sceneDiskLabelPeriod = {};
+    int                                    m_sceneLabelHover      = -1;
+    int64_t                                m_sceneLabelHoverMs    = 0;
 
     // When each of the desk recorder's keys was last clicked, for its dip.
     std::array<int64_t, 6>    m_recorderKeyDipMs      = {};
@@ -1739,8 +1748,11 @@ private:
     // only STOP, EJECT or a reset lets them back up.
     std::array<bool, 6>       m_recorderKeyLatched    = {};
     uint32_t                  m_seenTapeResets        = 0;
+    int64_t                   m_recorderReleaseAtMs   = 0;    // when a pressed STOP or EJECT bottoms out
+
+    // How long a key takes to go all the way down.
+    static constexpr int64_t  s_kRecorderKeyDownMs    = 120;
     TapeTransport             m_shownTapeTransport    = TapeTransport::Empty;   // last drawn, to repaint on a change
-    DxuiShadowedText          m_sceneKeyLabel;
 
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no

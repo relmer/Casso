@@ -1015,13 +1015,13 @@ void EmulatorShell::SyncSceneDriveLabels()
     float                         fontDip = s_kSceneDriveLabelFontDip;
     // The strip has nothing in front of its drives, so it keeps the chrome
     // label; the desk hands its names to the scene instead.
-    bool                          inScene = visible && !onStrip;
-    std::array<std::wstring, 2>   names;
-    std::array<std::wstring, 2>   fullNames;
-    int                           halfW   = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
-    int                           stripH  = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-    int                           gapPx   = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
-    SIZE                          cellPx  = { halfW * 2, stripH };
+    bool                                          inScene   = visible && !onStrip;
+    std::array<std::wstring, 2>                   names;
+    std::array<std::wstring, s_kSceneLabelCount>  fullNames;
+    int                                           halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                                           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int                                           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    SIZE                                          cellPx    = { halfW * 2, stripH };
 
 
 
@@ -1099,6 +1099,27 @@ void EmulatorShell::SyncSceneDriveLabels()
         m_sceneDriveLabelRect[i] = name.empty() ? RECT{} : rc;
     }
 
+    // THE RECORDER'S LABELS ARE THE DRIVES' LABELS: the same bake, the same
+    // halo, the same quads, the same scroll under the pointer -- its tape name,
+    // the counter under it, and the name of the key under the pointer.
+    if (inScene && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && MachineHasCassettePort())
+    {
+        TapeDeckView  view = GetTapeView();
+
+        fullNames[s_kSceneTapeNameCell] = TapeDeckWidget::GetDisplayName (view);
+
+        if (view.transport != TapeTransport::Empty)
+        {
+            fullNames[s_kSceneCounterCell] = TapeDeckWidget::FormatTime (view.positionSeconds) + L" / " +
+                                             TapeDeckWidget::FormatTime (view.lengthSeconds);
+        }
+
+        if (m_recorderHoverKey >= 0 && m_recorderHoverKey < (int) DeskSceneModel::kRecorderKeyCount)
+        {
+            fullNames[s_kSceneKeyCell] = TapeDeckWidget::GetControlLabel ((size_t) m_recorderHoverKey);
+        }
+    }
+
     if (inScene)
     {
         SyncSceneDiskLabelQuads (fullNames, cellPx, gapPx);
@@ -1140,6 +1161,11 @@ bool EmulatorShell::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
                 hovered = i;
                 break;
             }
+        }
+
+        if (hovered < 0 && (PtInRect (&comp.recorderRectPx, pt) || PtInRect (&m_sceneTapeNameRect, pt)))
+        {
+            hovered = s_kSceneTapeNameCell;
         }
     }
 
@@ -1217,12 +1243,17 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
 
 
-    // A reset, a power cycle or an empty deck lets every key back up.
-    if (m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty)
+    // A reset, a power cycle or an empty deck lets every key back up, and so
+    // does a STOP or EJECT once it has reached the bottom of its stroke.
+    if (m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty ||
+        (m_recorderReleaseAtMs != 0 && nowMs >= m_recorderReleaseAtMs))
     {
-        m_seenTapeResets = m_machine.GetTapeResetCount();
+        m_seenTapeResets      = m_machine.GetTapeResetCount();
+        m_recorderReleaseAtMs = 0;
         m_recorderKeyLatched.fill (false);
     }
+
+    dipping = m_recorderReleaseAtMs != 0;
 
     for (size_t key = 0; key < depths.size(); key++)
     {
@@ -1244,7 +1275,7 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
     // speeds up to the bottom, as under a finger; coming up it returns fast
     // and at an even speed, as a spring sends it.
     {
-        constexpr float  kDownMs  = 120.0f;
+        constexpr float  kDownMs  = (float) s_kRecorderKeyDownMs;
         constexpr float  kUpMs    = 35.0f;     // a full stroke back up
         float            elapsed  = (m_recorderKeyStepMs == 0) ? 0.0f : clamp ((float) (nowMs - m_recorderKeyStepMs), 0.0f, 100.0f);
 
@@ -1318,117 +1349,133 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
 void EmulatorShell::SyncSceneTapeLabel()
 {
-    const DeskSceneComposition &  comp     = m_deskScene.Composition();
-    IDxuiTextRenderer *           text     = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    bool                          visible  = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
-                                             comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
-                                             MachineHasCassettePort();
-    TapeDeckView  view      = GetTapeView();
-    float         lo[3]     = {};
-    float         hi[3]     = {};
-    float         model[3]  = {};
-    float         world[3]  = {};
-    float         screen[2] = {};
-    int           halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
-    int           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-    int           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
-    std::wstring  name;
-    std::wstring  counter;
+    const DeskSceneComposition &  comp      = m_deskScene.Composition();
+    bool                          visible   = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+                                              comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
+                                              MachineHasCassettePort();
+    TapeDeckView                  view      = GetTapeView();
+    float                         anchor[3] = {};
+    float                         screen[2] = {};
+    int                           halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int                           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    std::wstring                  shown;
 
 
 
+    m_sceneTapeNameRect    = {};
+    m_sceneTapeCounterRect = {};
+
+    // Where the name and counter stand on screen, for the clicks on them.
+    if (visible && GetRecorderLabelAnchor (comp, -1, anchor) &&
+        SceneCamera::ProjectToScreen (comp.viewProj, anchor, comp.viewportPx, screen))
+    {
+        m_sceneTapeNameRect    = { (LONG) screen[0] - halfW, (LONG) screen[1] + gapPx,
+                                   (LONG) screen[0] + halfW, (LONG) screen[1] + gapPx + stripH };
+        m_sceneTapeCounterRect = { m_sceneTapeNameRect.left,  m_sceneTapeNameRect.bottom,
+                                   m_sceneTapeNameRect.right, m_sceneTapeNameRect.bottom + stripH };
+    }
+
+    // The labels themselves are baked with the drives' names, so any change
+    // to what they say -- the counter ticking, a key under the pointer --
+    // re-runs that bake.
     if (visible)
+    {
+        shown = TapeDeckWidget::GetDisplayName (view) + L"|" +
+                TapeDeckWidget::FormatTime (view.positionSeconds) + L"|" +
+                std::to_wstring (m_recorderHoverKey);
+    }
+
+    if (shown != m_sceneTapeLabelShown)
+    {
+        m_sceneTapeLabelShown = shown;
+        SyncSceneDriveLabels();
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetRecorderLabelAnchor
+//
+//  The world point a recorder label hangs from: the middle of the recorder's
+//  front edge at the desk for its tape name (key -1), or the front of a key
+//  for that key's name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3])
+{
+    float  lo[3]    = {};
+    float  hi[3]    = {};
+    float  model[3] = {};
+
+
+
+    if (key < 0)
     {
         m_deskScene.RecorderModel().BoundsMin (lo);
         m_deskScene.RecorderModel().BoundsMax (hi);
 
-        // The middle of the front edge, at the desk.
         model[0] = (lo[0] + hi[0]) * 0.5f;
         model[1] = lo[1];
         model[2] = lo[2];
-
-        visible = SceneCamera::TransformPoint (comp.recorderWorld, model, world) &&
-                  SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, screen);
     }
-
-    if (!visible)
+    else if (key < (int) DeskSceneModel::kRecorderKeyCount)
     {
-        m_sceneTapeName.SetVisible (false);
-        m_sceneTapeCounter.SetVisible (false);
-        m_sceneKeyLabel.SetVisible (false);
-        m_sceneTapeNameRect    = {};
-        m_sceneTapeCounterRect = {};
-        return;
+        const float *  box = m_deskScene.RecorderModel().KeyBoxes() + key * 6;
+
+        model[0] = (box[0] + box[3]) * 0.5f;
+        model[1] = box[1];
+        model[2] = box[2];
     }
-
-    name    = TapeDeckWidget::GetDisplayName (view);
-    counter = view.transport == TapeTransport::Empty
-                  ? std::wstring()
-                  : TapeDeckWidget::FormatTime (view.positionSeconds) + L" / " + TapeDeckWidget::FormatTime (view.lengthSeconds);
-
-    m_sceneTapeNameRect    = { (LONG) screen[0] - halfW, (LONG) screen[1] + gapPx,
-                               (LONG) screen[0] + halfW, (LONG) screen[1] + gapPx + stripH };
-    m_sceneTapeCounterRect = { m_sceneTapeNameRect.left,  m_sceneTapeNameRect.bottom,
-                               m_sceneTapeNameRect.right, m_sceneTapeNameRect.bottom + stripH };
-
-    if (text != nullptr)
+    else
     {
-        name = DxuiTextElide::ToWidth (*text, name,
-                                       s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / 96.0f,
-                                       DxuiTheme::kBodyFace,
-                                       (float) (m_sceneTapeNameRect.right - m_sceneTapeNameRect.left),
-                                       DxuiElide::Tail);
+        return false;
     }
 
-    for (DxuiShadowedText * label : { &m_sceneTapeName, &m_sceneTapeCounter })
+    return SceneCamera::TransformPoint (comp.recorderWorld, model, anchor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TryMakeSceneLabelQuad
+//
+//  Where a baked label stands: a drive's under the drive, the recorder's tape
+//  name under its front edge with the counter under that, and a key's name
+//  under the key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, int cell, const SIZE & cellPx,
+                                           int gapPx, float corners[4][3])
+{
+    float  anchor[3] = {};
+
+
+
+    if (cell < s_kSceneTapeNameCell)
     {
-        label->SetFontSizeDip (s_kSceneDriveLabelFontDip);
-        label->SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-        label->SetDpi         (m_scaler.GetDpi());
+        return DeskSceneLayout::TryMakeDriveLabelQuad (comp, cell, cellPx, gapPx, corners);
     }
 
-    m_sceneTapeName.SetText    (name);
-    m_sceneTapeName.Layout     (m_sceneTapeNameRect, m_scaler);
-    m_sceneTapeName.SetVisible (true);
-
-    m_sceneTapeCounter.SetText    (counter);
-    m_sceneTapeCounter.Layout     (m_sceneTapeCounterRect, m_scaler);
-    m_sceneTapeCounter.SetVisible (!counter.empty());
-
-    // THE KEY UNDER THE POINTER SAYS WHAT IT IS, just under its front edge,
-    // as the flat deck's controls do. Not above the key: there it sat on the
-    // printed legend, with its halo blotting the light plate, and a zoom
-    // pulled the two visibly apart.
+    if (comp.hasRecorder == 0 ||
+        !GetRecorderLabelAnchor (comp, (cell == s_kSceneKeyCell) ? m_recorderHoverKey : -1, anchor))
     {
-        bool  shown = false;
-
-        if (m_recorderHoverKey >= 0 && m_recorderHoverKey < (int) DeskSceneModel::kRecorderKeyCount)
-        {
-            const float *  box = m_deskScene.RecorderModel().KeyBoxes() + m_recorderHoverKey * 6;
-
-            model[0] = (box[0] + box[3]) * 0.5f;
-            model[1] = box[1];
-            model[2] = box[2];
-
-            shown = box[3] > box[0] &&
-                    SceneCamera::TransformPoint (comp.recorderWorld, model, world) &&
-                    SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, screen);
-        }
-
-        if (shown)
-        {
-            RECT  rc = { (LONG) screen[0] - halfW, (LONG) screen[1] + gapPx,
-                         (LONG) screen[0] + halfW, (LONG) screen[1] + gapPx + stripH };
-
-            m_sceneKeyLabel.SetText        (TapeDeckWidget::GetControlLabel ((size_t) m_recorderHoverKey));
-            m_sceneKeyLabel.SetFontSizeDip (s_kSceneDriveLabelFontDip);
-            m_sceneKeyLabel.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-            m_sceneKeyLabel.SetDpi         (m_scaler.GetDpi());
-            m_sceneKeyLabel.Layout         (rc, m_scaler);
-        }
-
-        m_sceneKeyLabel.SetVisible (shown);
+        return false;
     }
+
+    return DeskSceneLayout::TryMakeLabelQuad (comp, anchor, cellPx,
+                                              (cell == s_kSceneCounterCell) ? gapPx + cellPx.cy : gapPx,
+                                              corners);
 }
 
 
@@ -1452,9 +1499,9 @@ void EmulatorShell::SyncSceneTapeLabel()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> & names,
-                                             const SIZE                        & cellPx,
-                                             int                                 gapPx)
+void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kSceneLabelCount> & names,
+                                             const SIZE                                         & cellPx,
+                                             int                                                  gapPx)
 {
     const DeskSceneComposition  & comp  = m_deskScene.Composition();
     IDxuiTextRenderer           * text  = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
@@ -1464,7 +1511,7 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
 
 
 
-    if (text == nullptr || (names[0].empty() && names[1].empty()))
+    if (text == nullptr || std::all_of (names.begin(), names.end(), [] (const std::wstring & n) { return n.empty(); }))
     {
         ClearSceneDiskLabels();
         return;
@@ -1493,8 +1540,7 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
         float  corners[4][3] = {};
         float  uv[4]         = {};
 
-        if (names[i].empty() ||
-            !DeskSceneLayout::TryMakeDriveLabelQuad (comp, i, cellPx, gapPx, corners))
+        if (names[i].empty() || !TryMakeSceneLabelQuad (comp, i, cellPx, gapPx, corners))
         {
             m_deskScene.SetDiskLabel (i, nullptr, nullptr, nullptr);
             continue;
@@ -1527,7 +1573,7 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
 //
 //  EmulatorShell::TryBakeSceneDiskLabels
 //
-//  Draws both names into one off-screen texture, stacked, and keeps the view.
+//  Draws every label into one off-screen texture, stacked, and keeps the view.
 //
 //  ONE TEXTURE FOR THE PAIR because the text renderer owns exactly one: its
 //  view is replaced by the next BeginDrawToTexture, so baking a label per
@@ -1543,8 +1589,8 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & names,
-                                            const SIZE                        & cellPx)
+bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSceneLabelCount> & names,
+                                            const SIZE                                         & cellPx)
 {
     // Baked white, which is what the chrome label has always defaulted to;
     // the glow behind it is what separates it from the case.
@@ -1589,7 +1635,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & 
         }
     }
 
-    hr = text->BeginDrawToTexture ((UINT) bakeW, (UINT) (cellPx.cy * 2));
+    hr = text->BeginDrawToTexture ((UINT) bakeW, (UINT) (cellPx.cy * (LONG) names.size()));
 
     if (FAILED (hr))
     {

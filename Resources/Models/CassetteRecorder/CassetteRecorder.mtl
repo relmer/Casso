@@ -13,14 +13,9 @@ Ka 0 0 0
 Kd 0.7 0.7 0.69
 d 1
 
-newmtl window
+newmtl door_glass
 Ka 0 0 0 
 Kd 0.075 0.095 0.12
-d 1
-
-newmtl door_trim
-Ka 0 0 0 
-Kd 0.76 0.765 0.77
 d 1
 
 newmtl door_print
@@ -103,7 +98,7 @@ Ka 0 0 0
 Kd 0.185 0.185 0.19
 d 1
 
-newmtl handle
+newmtl chrome_handle
 Ka 0 0 0 
 Kd 0.86 0.87 0.88
 d 1

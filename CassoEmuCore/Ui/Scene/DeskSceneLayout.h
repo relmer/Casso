@@ -362,6 +362,14 @@ public:
                                            int                          gapPx,
                                            float                        outCorners[4][3]);
 
+    // The same quad hung under any world point: a constant pixel size,
+    // facing the camera, `gapPx` below the point.
+    static bool     TryMakeLabelQuad      (const DeskSceneComposition & comp,
+                                           const float                  anchor[3],
+                                           const SIZE                 & labelPx,
+                                           int                          gapPx,
+                                           float                        outCorners[4][3]);
+
 private:
     static void     SolveStandoff (const float             sceneMin[3],
                                    const float             sceneMax[3],

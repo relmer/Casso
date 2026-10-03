@@ -349,9 +349,14 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
                                  region == TapeDeckRegion::FastForward ? kForward : kPlay] = true;
             break;
 
+        // The held keys let go when the STOP or EJECT key reaches the bottom
+        // of its stroke -- it is that key going down that trips the latch --
+        // not the moment it is clicked.
         case TapeDeckRegion::Stop:
         case TapeDeckRegion::Eject:
-            m_recorderKeyLatched.fill (false);
+            m_recorderReleaseAtMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                        std::chrono::steady_clock::now().time_since_epoch()).count() +
+                                    s_kRecorderKeyDownMs;
             break;
 
         default:

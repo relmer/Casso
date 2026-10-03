@@ -134,6 +134,10 @@ public:
     // replace the first and both drives would wear the same name -- and that
     // texture is grown rather than resized, so even a lone label rarely
     // covers all of it.
+    // The baked labels the scene draws: the drives' names and the
+    // recorder's (see EmulatorShell::s_kSceneLabelCount).
+    static constexpr int  kLabelCount = 5;
+
     void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
                         const float uv[4]);
 
@@ -163,8 +167,12 @@ public:
     // whether a cassette shows behind it.
     void  SetRecorderLid       (float openRad, bool hasCassette);
 
-    // The door's hinge, behind the door's back edge in the grille.
-    static constexpr float  kLidHingeBehindMm = 10.0f;
+    // The door's struts are this thick; the hinge is at their lower end,
+    // half that in from the back of the door's box.
+    static constexpr float  kLidStrutHalfMm   = 0.75f;
+
+    // How much of the room the smoked pane lets through.
+    static constexpr float  kLidGlassAlpha    = 0.35f;
 
     // Draws the scene into `dstRtv` (bound here -- the CRT offscreen pass
     // that runs just before leaves ITS target bound, so relying on ambient
@@ -635,6 +643,7 @@ private:
     // progress -1 forces the first build.
     std::vector<Dxui3DRenderer::Vertex>                   m_driveDoorVerts[2];
     std::vector<Dxui3DRenderer::Vertex>                   m_recorderKeyVerts;
+    std::vector<Dxui3DRenderer::Vertex>                   m_recorderGlassVerts;
     std::array<float, DeskSceneModel::kRecorderKeyCount>  m_recorderKeyDepth  = {};
     float                                                 m_recorderLidRad    = 0.0f;
     bool                                                  m_recorderCassette  = true;
@@ -667,10 +676,10 @@ private:
     // it. Its own revision, because these six vertices move whenever the
     // camera does and the shared one would re-upload the whole scene's
     // furniture with them.
-    std::vector<Dxui3DRenderer::Vertex>   m_diskLabelVerts[2];
-    ID3D11ShaderResourceView            * m_diskLabelSrv[2] = { nullptr, nullptr };
-    Dxui3DRenderer::StaticMesh            m_diskLabelMesh[2];
-    uint32_t                              m_diskLabelRev    = 1;
+    std::vector<Dxui3DRenderer::Vertex>    m_diskLabelVerts[kLabelCount];
+    ID3D11ShaderResourceView             * m_diskLabelSrv[kLabelCount]   = {};
+    Dxui3DRenderer::StaticMesh             m_diskLabelMesh[kLabelCount];
+    uint32_t                               m_diskLabelRev                = 1;
 
     Dxui3DRenderer::StaticMesh             m_labelMesh[2];
     Dxui3DRenderer::StaticMesh             m_monitorTiltMesh;

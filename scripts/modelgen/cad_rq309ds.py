@@ -3,24 +3,32 @@ owners actually loaded tapes from. 140 x 70 x 260 mm (W x H x D), per
 radiomuseum.org. X right, Y back, Z up; the key end faces the viewer at y = 0.
 
 MODELED FROM PHOTOGRAPHS of the black-key version (an eBay listing; see
-Resources/Models/CassetteRecorder/README.md for the links). The straight-down
-top view is 270 px across the 140 mm case and 517 px from handle to back, so
-every Y below is a photo row read as millimeters from the front, not a number
-picked by eye:
+Resources/Models/CassetteRecorder/README.md for the links) and radiomuseum.org's
+left-side profile. The 260 mm depth runs from the chrome handle's front to the
+back of the case.
 
-    handle      0 -  11     chrome band wrapped round the front end
-    keys       11 -  44     six black keys, flat-topped, stadium-shaped dishes
-    strip      44 -  83     silver: black "Panasonic" band with the mic slots
-                            at its left, then the RECORD ... EJECT legend row
-    door       86 - 154     smoked clear lid, the cassette showing through
-    grille    155 - 257     fine-perforated silver plate
+THE SIDE PROFILE IS MEASURED, not drawn by eye: the profile photo is 464 px
+from handle to back and 120 px from desk to top, 0.56 mm a pixel along and
+0.58 up. From it:
+
+    handle      0 -  17     chrome carry handle, standing proud of the front
+                            face; its bar 15 mm deep and 7 mm tall, 30-37 mm up,
+                            with arms running 43 mm back along both sides
+    front face  17          vertical, 25-49 mm up
+    top slope   17 - 51.5   up to the top face, about 31 degrees
+    bottom      17 - 40     down to the bottom face, about 47 degrees
+    back        260         its top and bottom edges rounded
+
+and from the top view, front to back along the top: the keys over the top
+slope, the silver legend plate, the smoked door, then the grille.
 
 It lies FLAT, the way it sat beside a computer: the controls are all on top.
 The case is black pebbled plastic and stands a narrow black rim around the
 top plates.
 
-Sub-mesh identity is by part NAME; `window` is the cassette door and
-`keys_*` are the transport.
+Sub-mesh identity is by part NAME: `door_glass` and `door_print` are the door
+the scene swings open, `cassette*` the cassette it shows only with a tape in,
+`keys_*` the transport, and `chrome_*` polished metal.
 """
 
 import math
@@ -30,11 +38,13 @@ from cadkit import Model
 
 W, H, D = 140.0, 70.0, 260.0
 
-# The slope carries the keys: it falls from full height at the back of the key
-# row to about three fifths height at the front.
-SLOPE_Y = 44.0
-FRONT_H = 42.0
-SLOPE_A = math.degrees(math.atan2(H - FRONT_H, SLOPE_Y))
+# The side profile, measured from the photograph (see the docstring).
+YF      = 17.0                      # the front face, behind the handle
+FACE_Z0 = 25.0                      # the front face's bottom
+FACE_Z1 = 49.0                      # and its top
+TOP_Y   = 51.5                      # where the top slope meets the top face
+BOT_Y   = 40.0                      # where the bottom slope meets the bottom face
+BACK_R  = 8.0                       # the back edges' rounding
 EDGE_R  = 4.0
 RIM     = 5.0                       # black rim around the top plates
 
@@ -69,18 +79,30 @@ def text(s, size, x, y, z, halign="center", bold=False):
 
 def body():
     prof = (cq.Workplane("YZ")
-            .polyline([(0, 0), (D, 0), (D, H), (SLOPE_Y, H), (0, FRONT_H)])
+            .polyline([(YF, FACE_Z0), (BOT_Y, 0), (D, 0), (D, H), (TOP_Y, H), (YF, FACE_Z1)])
             .close()
             .extrude(W))
     prof = prof.edges("|Z").fillet(EDGE_R)
-    return prof.edges("|X").fillet(2.5)
+    back = cq.selectors.BoxSelector((-1, D - 0.1, -1), (W + 1, D + 0.1, H + 1))
+    prof = prof.edges("|X").edges(back).fillet(BACK_R)
+    return prof
 
 
-def on_slope(solid, y_front):
-    """Tilts a part built lying flat at z = 0 onto the key slope, its front
-    edge at y_front."""
-    z = FRONT_H + (H - FRONT_H) * y_front / SLOPE_Y
-    return solid.rotate((0, 0, 0), (1, 0, 0), SLOPE_A).translate((0, y_front, z))
+def strut(x, y_back, z_top, radius, thick):
+    """One of the door's hinge struts: a quarter arc seen from the side, from
+    the door's back edge round and down to the hinge under the grille, as
+    wide in X as the door is thick."""
+    cy, cz = y_back, z_top - thick / 2 - radius
+    ro, ri = radius + thick / 2, radius - thick / 2
+    k = 0.70710678
+    arc = (cq.Workplane("YZ")
+           .moveTo(cy, cz + ro)
+           .threePointArc((cy + ro * k, cz + ro * k), (cy + ro, cz))
+           .lineTo(cy + ri, cz)
+           .threePointArc((cy + ri * k, cz + ri * k), (cy, cz + ri))
+           .close()
+           .extrude(thick))
+    return arc.translate((x, 0, 0))
 
 
 def perforation(x0, x1, y0, y1, z, pitch=2.0, dot=0.8):
@@ -109,29 +131,36 @@ def build():
     top = H
     x0, x1 = RIM, W - RIM
 
-    # The cassette well under the door: without it the cassette is inside
-    # the solid and the door shows nothing.
-    well = box(RIM + 4, W - RIM - 4, 90.0, 144.0, H - 9.0, H + 1.0)
-    m.add("body", body().cut(well), BODY, angular=0.14)
-    m.add("well_floor", box(RIM + 4, W - RIM - 4, 90.0, 144.0, H - 9.0, H - 8.5), PERF)
+    # The door's opening, front to back.
+    dy0, dy1 = 90.0, 154.0
+    DOOR_T   = 1.5                       # the pane's thickness
+    STRUT_R  = 10.0                      # the struts' arc, seen from the side
+
+    # The seat the pane drops into, flush, and the cassette well under it:
+    # without them the cassette is inside the solid and the door shows nothing.
+    seat = box(x0, x1, dy0, dy1, top - DOOR_T, top + 1.0)
+    well = box(x0 + 4, x1 - 4, dy0 + 4, dy1 - 6, top - 9.0, top + 1.0)
+    m.add("body", body().cut(seat).cut(well), BODY, angular=0.14)
+    m.add("well_floor", box(x0 + 4, x1 - 4, dy0 + 4, dy1 - 6, top - 9.0, top - 8.5), PERF)
 
     # Grille.
-    m.add("grille", box(x0, x1, 155.0, D - RIM, top - 0.5, top + 0.6), GRILLE)
-    m.add_triangles("grille_perf", perforation(x0 + 1, x1 - 1, 156.0, D - RIM - 1, top + 0.62), PERF)
+    m.add("grille", box(x0, x1, dy1 + 2.0, D - RIM, top - 0.5, top + 0.6), GRILLE)
+    m.add_triangles("grille_perf", perforation(x0 + 1, x1 - 1, dy1 + 3.0, D - RIM - 1, top + 0.62), PERF)
 
-    # Cassette door: a smoked frame with the cassette standing below it. The
-    # renderer has no translucency, so the lid is drawn as its frame and the
-    # cassette as seen through it, a shade darker than in the open.
-    dy0, dy1 = 86.0, 154.0
-    door = box(x0, x1, dy0, dy1, top - 0.5, top + 1.0)
-    door = door.cut(box(x0 + 4, x1 - 4, dy0 + 4, dy1 - 10, top - 1, top + 2))
-    m.add("window", door, DOOR)
-    m.add("door_trim", box(x0, x1, dy1 - 0.8, dy1, top + 1.0, top + 1.3), SILVER)
+    # THE DOOR IS ONE PIECE OF SMOKED PLASTIC, frameless, flush with the top
+    # face; the scene draws it see-through. Two struts of the same plastic,
+    # 3 mm in from its sides, arc from its back edge down under the grille to
+    # the hinge, which is why it swings up in an arc rather than about its own
+    # back edge.
+    pane = box(x0, x1, dy0, dy1, top - DOOR_T, top)
+    for sx in (x0 + 3.0, x1 - 3.0 - DOOR_T):
+        pane = pane.union(strut(sx, dy1, top, STRUT_R, DOOR_T))
+    m.add("door_glass", pane, DOOR, angular=0.2)
     m.add("door_print",
-          box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, top + 1.0, top + 1.1)
-          .cut(box(x0 + 6.5, x0 + 29.5, dy1 - 7.0, dy1 - 4.0, top + 0.9, top + 1.2))
-          .union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top + 1.0))
-          .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top + 1.0)),
+          box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, top, top + 0.1)
+          .cut(box(x0 + 6.5, x0 + 29.5, dy1 - 7.0, dy1 - 4.0, top - 0.1, top + 0.2))
+          .union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top))
+          .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top)),
           PRINT)
 
     cz = top - 4.0
@@ -150,9 +179,9 @@ def build():
     m.add("transport", mech, BRASS)
 
     # The silver strip and what is printed on it.
-    sy0, sy1 = 44.0, 83.0
+    sy0, sy1 = TOP_Y + 1.5, dy0 - 3.0
     m.add("strip", box(x0, x1, sy0, sy1 + 3.0, top - 0.5, top + 0.6), SILVER)
-    by0, by1 = 64.0, 78.0
+    by0, by1 = sy1 - 15.0, sy1 - 1.0
     m.add("band", box(x0 + 1, x1 - 1, by0, by1, top + 0.6, top + 0.8), BAND)
     m.add("brand", text("Panasonic", 6.5, W / 2 + 8, (by0 + by1) / 2, top + 0.8, bold=True), PRINT)
     slots = None
@@ -181,7 +210,7 @@ def build():
     # its edges are rounded over a little: where the wall meets the key face,
     # and where it meets the floor.
     kw = pitch - 2.0
-    ky0, ky1 = 6.0, SLOPE_Y + 1.0
+    ky0, ky1 = YF + 2.0, sy0 + 1.0
     kl = ky1 - ky0
     ktop = top + 0.6
     KEY_T = 5.0
@@ -204,15 +233,16 @@ def build():
         key = key.edges(rim).fillet(RIM_R)
         hinge = box(kx + 2.0, kx + kw - 2.0, ky1 - 4.0, ky1 - 0.5, top - 6.0, ktop - KEY_T + 0.5)
         m.add(f"keys_{i}", key.union(hinge), KEY, angular=0.25)
-    # Chrome handle: a flat band wrapped round the front end and a little way
-    # down each side.
-    hz0, hz1 = 10.0, 24.0
-    band = (cq.Workplane("XY")
-            .rect(W + 3.0, 16.0).extrude(hz1 - hz0)
-            .edges("|Z").fillet(EDGE_R + 1.0)
-            .translate((W / 2, 6.5, hz0)))
-    band = band.cut(box(1.0, W - 1.0, -1.0, 40.0, hz0 - 1, hz1 + 1))
-    m.add("handle", band, CHROME, angular=0.15)
+    # THE CARRY HANDLE, polished chrome: a bar across the front, standing
+    # proud of the front face by its own depth, on two arms that run back
+    # along the sides into the case. Measured from the side profile.
+    HANDLE_Z0, HANDLE_Z1 = 30.0, 37.0
+    ARM_T, ARM_BACK      = 1.5, YF + 43.0
+    handle = box(-ARM_T, W + ARM_T, 2.0, YF, HANDLE_Z0, HANDLE_Z1)
+    handle = handle.edges("|Z").fillet(4.0)
+    handle = handle.union(box(-ARM_T, 0.0, 2.0, ARM_BACK, HANDLE_Z0, HANDLE_Z1))
+    handle = handle.union(box(W, W + ARM_T, 2.0, ARM_BACK, HANDLE_Z0, HANDLE_Z1))
+    m.add("chrome_handle", handle, CHROME, angular=0.15)
 
     # The tone and volume thumbwheels in a recess in the back end.
     m.add("wheel_well", box(W / 2 - 34, W / 2 + 34, D - 0.3, D + 0.2, 26.0, 46.0), KEY)

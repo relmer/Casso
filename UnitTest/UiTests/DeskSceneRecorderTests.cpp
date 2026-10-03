@@ -348,13 +348,6 @@ public:
         for (const Dxui3DRenderer::Vertex & v : model.OpaqueVerts())
         {
             Assert::AreEqual (0.0f, v.pebble);
-        }
-
-        // The window is the door now, kept apart so it can open, and keeps
-        // its own color there.
-        for (const Dxui3DRenderer::Vertex & v : model.LidVerts())
-        {
-            Assert::AreEqual (0.0f, v.pebble);
 
             if (std::abs (v.b - 0.12f) < 0.001f)
             {

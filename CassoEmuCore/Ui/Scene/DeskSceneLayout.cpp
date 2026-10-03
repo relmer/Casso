@@ -1411,7 +1411,32 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
                                              int                          gapPx,
                                              float                        outCorners[4][3])
 {
-    const float  * anchor   = nullptr;
+    memset (outCorners, 0, sizeof (float) * 4 * 3);
+
+    if (drive < 0 || drive >= 2 || drive >= comp.driveCount)
+    {
+        return false;
+    }
+
+    return TryMakeLabelQuad (comp, comp.driveLabelWorld[drive], labelPx, gapPx, outCorners);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::TryMakeLabelQuad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::TryMakeLabelQuad (const DeskSceneComposition & comp,
+                                        const float                  anchor[3],
+                                        const SIZE                 & labelPx,
+                                        int                          gapPx,
+                                        float                        outCorners[4][3])
+{
     float          right[3] = {};
     float          up[3]    = {};
     float          perPxX   = 0.0f;
@@ -1426,13 +1451,10 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
 
     memset (outCorners, 0, sizeof (float) * 4 * 3);
 
-    if (drive < 0 || drive >= 2 || drive >= comp.driveCount ||
-        labelPx.cx <= 0 || labelPx.cy <= 0)
+    if (labelPx.cx <= 0 || labelPx.cy <= 0)
     {
         return false;
     }
-
-    anchor = comp.driveLabelWorld[drive];
 
     if (!GetWorldPerPixel (comp, anchor, perPxX, perPxY))
     {

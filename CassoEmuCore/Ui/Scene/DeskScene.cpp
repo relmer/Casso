@@ -1484,10 +1484,25 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
             }
         }
 
+        // The door turns about the hinge at the struts' lower end, under the
+        // grille: the back of its box less half a strut, and the box's floor.
+        m_recorderGlassVerts.clear();
+
         if (lid[4] > lid[1])
         {
-            AppendHinged (m_recorder.LidVerts(), lid[4] + kLidHingeBehindMm, lid[5],
+            AppendHinged (m_recorder.LidVerts(), lid[4] - kLidStrutHalfMm, lid[2],
                           -m_recorderLidRad, m_recorderKeyVerts);
+            AppendHinged (m_recorder.LidGlassVerts(), lid[4] - kLidStrutHalfMm, lid[2],
+                          -m_recorderLidRad, m_recorderGlassVerts);
+
+            // Smoked, so faint: premultiplied, as the renderer blends.
+            for (Dxui3DRenderer::Vertex & v : m_recorderGlassVerts)
+            {
+                v.a  = kLidGlassAlpha;
+                v.r *= kLidGlassAlpha;
+                v.g *= kLidGlassAlpha;
+                v.b *= kLidGlassAlpha;
+            }
         }
 
         if (m_recorderCassette)
@@ -1500,6 +1515,15 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
     {
         hr = m_renderer.DrawTriangles (m_recorderKeyVerts.data(), m_recorderKeyVerts.size(),
                                        mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    // The pane last, over what it covers, tested against the depth but not
+    // written to it, so the cassette and well behind it still show.
+    if (!m_recorderGlassVerts.empty())
+    {
+        hr = m_renderer.DrawTriangles (m_recorderGlassVerts.data(), m_recorderGlassVerts.size(),
+                                       mvp, false, viewport, true, false);
         CHRA (hr);
     }
 
@@ -2628,7 +2652,7 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
 
 
 
-    if (drive < 0 || drive >= 2)
+    if (drive < 0 || drive >= kLabelCount)
     {
         return;
     }
@@ -2701,7 +2725,8 @@ HRESULT DeskScene::DrawDiskLabels (const DeskSceneComposition & comp, const D3D1
 
 
 
-    for (int drive = 0; drive < comp.driveCount && drive < 2; drive++)
+    // Every label the shell set: the drives' names and the recorder's.
+    for (int drive = 0; drive < kLabelCount; drive++)
     {
         if (m_diskLabelVerts[drive].empty() || m_diskLabelSrv[drive] == nullptr)
         {

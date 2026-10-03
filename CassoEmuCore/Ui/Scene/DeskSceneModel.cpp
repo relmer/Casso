@@ -651,10 +651,12 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             }
         }
         else if (kind == DeskDeviceKind::CassetteRecorder &&
-                 std::find (std::begin (s_kpszLidParts), std::end (s_kpszLidParts), part) != std::end (s_kpszLidParts))
+                 (part == s_kpszLidGlass ||
+                  std::find (std::begin (s_kpszLidParts), std::end (s_kpszLidParts), part) != std::end (s_kpszLidParts)))
         {
-            // The door, kept apart so the scene can open it.
-            AppendLitTri (m_lid, tri, corners);
+            // The door, kept apart so the scene can open it, and its pane
+            // apart again so the scene can draw it see-through.
+            AppendLitTri ((part == s_kpszLidGlass) ? m_lidGlass : m_lid, tri, corners);
 
             for (const float * p : { tri.p0, tri.p1, tri.p2 })
             {
@@ -670,7 +672,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             // The cassette, which goes out with the tape.
             AppendLitTri (m_cassette, tri, corners);
         }
-        else if (part.rfind (s_kpszAcPinPrefix, 0) == 0)
+        else if (part.rfind (s_kpszAcPinPrefix, 0) == 0 || part.rfind (s_kpszChromePrefix, 0) == 0)
         {
             // Plated metal, not painted plastic: the blades keep their tint
             // and gain the standing glint -- see s_kAcPinGlintRgb.

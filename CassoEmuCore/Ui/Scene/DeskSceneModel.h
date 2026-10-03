@@ -180,6 +180,7 @@ public:
     // leaves out with no tape in. LidBox is the door's box, lo xyz then hi xyz.
     const std::vector<Dxui3DRenderer::Vertex> &   LidVerts      () const { return m_lid; }
     const std::vector<Dxui3DRenderer::Vertex> &   CassetteVerts () const { return m_cassette; }
+    const std::vector<Dxui3DRenderer::Vertex> &   LidGlassVerts () const { return m_lidGlass; }
     const float *                                 LidBox        () const { return m_lidBox.data(); }
     const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
@@ -392,7 +393,9 @@ public:
     static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
     static constexpr const char *  s_kpszAcPinPrefix = "acpin";   // the mains blades
     static constexpr const char *  s_kpszKeyPrefix   = "keys_";   // the recorder's keys, keys_0 to keys_5
-    static constexpr const char *  s_kpszLidParts[]  = { "window", "door_trim", "door_print" };
+    static constexpr const char *  s_kpszLidParts[]  = { "door_print" };
+    static constexpr const char *  s_kpszLidGlass    = "door_glass";   // the smoked pane and its struts
+    static constexpr const char *  s_kpszChromePrefix = "chrome";     // polished metal, as the blades
     static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, cassette_hubs
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
@@ -605,6 +608,7 @@ private:
     std::array<std::array<float, 6>, kRecorderKeyCount>                 m_keyBoxes   = {};
     std::vector<Dxui3DRenderer::Vertex>                                 m_lid;
     std::vector<Dxui3DRenderer::Vertex>                                 m_cassette;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_lidGlass;
     std::array<float, 6>                                                m_lidBox     = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
     std::vector<Dxui3DRenderer::Vertex>                                 m_tiltable;
     std::vector<DeskTiltGrip>                                           m_tiltGrips;
