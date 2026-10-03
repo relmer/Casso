@@ -167,9 +167,13 @@ public:
     // whether a cassette shows behind it.
     void  SetRecorderLid       (float openRad, bool hasCassette);
 
-    // The door's struts are this thick; the hinge is at their lower end,
-    // half that in from the back of the door's box.
-    static constexpr float  kLidStrutHalfMm   = 0.75f;
+    // The baked label texture was redrawn in place. The view and the quads
+    // are the same objects, so nothing else says the picture changed.
+    void  OnLabelsRebaked      () { InvalidatePlate(); }
+
+    // The door's hinge pin is at the struts' rear end: the back of the door's
+    // box, this far above its floor (half the struts' breadth).
+    static constexpr float  kLidHingeAboveMm  = 5.0f;
 
     // How much of the room the smoked pane lets through.
     static constexpr float  kLidGlassAlpha    = 0.35f;

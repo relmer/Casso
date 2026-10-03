@@ -1484,15 +1484,15 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
             }
         }
 
-        // The door turns about the hinge at the struts' lower end, under the
-        // grille: the back of its box less half a strut, and the box's floor.
+        // The door turns about the hinge pin at the struts' rear end, just
+        // behind the door's back edge and down under the grille.
         m_recorderGlassVerts.clear();
 
         if (lid[4] > lid[1])
         {
-            AppendHinged (m_recorder.LidVerts(), lid[4] - kLidStrutHalfMm, lid[2],
+            AppendHinged (m_recorder.LidVerts(), lid[4], lid[2] + kLidHingeAboveMm,
                           -m_recorderLidRad, m_recorderKeyVerts);
-            AppendHinged (m_recorder.LidGlassVerts(), lid[4] - kLidStrutHalfMm, lid[2],
+            AppendHinged (m_recorder.LidGlassVerts(), lid[4], lid[2] + kLidHingeAboveMm,
                           -m_recorderLidRad, m_recorderGlassVerts);
 
             // Smoked, so faint: premultiplied, as the renderer blends.

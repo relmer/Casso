@@ -1335,6 +1335,20 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
+    // A desk recorder key starts down the moment it is pressed, as under a
+    // finger; what it does still waits for the release, like any button.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen())
+    {
+        SceneHitResult  keyHit = DeskSceneHit (x, y);
+
+        if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
+        {
+            m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     // The compass outranks everything on the scene: it is drawn on top,
     // so a press where it sits belongs to it.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen() &&
@@ -1649,8 +1663,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         {
             if (sceneHit.recorderKey >= 0)
             {
-                m_recorderKeyDipMs[(size_t) sceneHit.recorderKey] = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                    std::chrono::steady_clock::now().time_since_epoch()).count();
                 HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
             }
             else

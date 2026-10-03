@@ -100,7 +100,7 @@ d 1
 
 newmtl chrome_handle
 Ka 0 0 0 
-Kd 0.86 0.87 0.88
+Kd 0.33 0.335 0.345
 d 1
 
 newmtl wheel_well

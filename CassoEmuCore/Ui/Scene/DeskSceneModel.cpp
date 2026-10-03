@@ -147,6 +147,11 @@ static constexpr float   s_kDriveLabelTopZMm = s_kFaceHmm - s_kFaceMarginMm;
 // reflection, enough to read as bright metal and far too dim to read as a
 // lamp.
 static constexpr float   s_kAcPinGlintRgb[3] = { 0.100f, 0.105f, 0.115f };
+
+// Chrome's sheen: what an upward face reflects of the ceiling lights, and
+// what a sideways one reflects of the room.
+static constexpr float   s_kChromeSkyGlow  = 0.75f;
+static constexpr float   s_kChromeRoomGlow = 0.18f;
 static constexpr float   s_kDriveLabelCapMm  = 3.1f;
 static constexpr float   s_kDriveLabelFrontY = -1.8f;
 
@@ -672,7 +677,31 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             // The cassette, which goes out with the tape.
             AppendLitTri (m_cassette, tri, corners);
         }
-        else if (part.rfind (s_kpszAcPinPrefix, 0) == 0 || part.rfind (s_kpszChromePrefix, 0) == 0)
+        else if (part.rfind (s_kpszChromePrefix, 0) == 0)
+        {
+            // POLISHED CHROME MIRRORS THE ROOM, and the renderer has no room
+            // to mirror: so each face takes the light of what it would see.
+            // Facing up it shows the ceiling lights and blazes; facing the
+            // side it shows the dim room; facing down, the dark desk. Baked
+            // per vertex from the normal, which is what makes the rounded
+            // edges band like real chrome rather than glow evenly.
+            size_t  first = m_opaque.size();
+
+            opaqueTris.push_back (t);
+            AppendLitTri (m_opaque, tri, corners);
+
+            for (size_t i = first; i < m_opaque.size(); i++)
+            {
+                float  up     = (std::max) (0.0f, m_opaque[i].nz);
+                float  side   = 1.0f - std::abs (m_opaque[i].nz);
+                float  sheen  = s_kChromeSkyGlow * up * up * up + s_kChromeRoomGlow * side * side;
+
+                m_opaque[i].er = sheen;
+                m_opaque[i].eg = sheen;
+                m_opaque[i].eb = sheen * 1.04f;
+            }
+        }
+        else if (part.rfind (s_kpszAcPinPrefix, 0) == 0)
         {
             // Plated metal, not painted plastic: the blades keep their tint
             // and gain the standing glint -- see s_kAcPinGlintRgb.

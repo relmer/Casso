@@ -1685,6 +1685,11 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
     m_sceneDiskLabelText = names;
     m_sceneDiskLabelCell = cellPx;
 
+    // Redrawn into the same texture, so the scene's cached picture has to be
+    // told -- or the counter only moves when something else, such as the
+    // camera, redraws the scene.
+    m_deskScene.OnLabelsRebaked();
+
     return true;
 }
 

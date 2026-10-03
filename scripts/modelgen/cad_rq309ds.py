@@ -17,7 +17,9 @@ from handle to back and 120 px from desk to top, 0.56 mm a pixel along and
     front face  17          vertical, 25-49 mm up
     top slope   17 - 51.5   up to the top face, about 31 degrees
     bottom      17 - 40     down to the bottom face, about 47 degrees
-    back        260         its top and bottom edges rounded
+    back        260         a short upright middle between two chamfers of
+                            about 30 degrees to the vertical, each very slightly
+                            convex: 23-47 mm up, the chamfers 12 mm and 11 mm deep
 
 and from the top view, front to back along the top: the keys over the top
 slope, the silver legend plate, the smoked door, then the grille.
@@ -44,7 +46,11 @@ FACE_Z0 = 25.0                      # the front face's bottom
 FACE_Z1 = 49.0                      # and its top
 TOP_Y   = 51.5                      # where the top slope meets the top face
 BOT_Y   = 40.0                      # where the bottom slope meets the bottom face
-BACK_R  = 8.0                       # the back edges' rounding
+BACK_Z0 = 23.0                      # the back's upright band, bottom
+BACK_Z1 = 47.0                      # and top
+BACK_IN_LO = 12.0                   # how far the bottom chamfer steps in
+BACK_IN_HI = 11.0                   # and the top one
+BACK_BULGE = 1.2                    # the chamfers' gentle convexity
 EDGE_R  = 4.0
 RIM     = 5.0                       # black rim around the top plates
 
@@ -61,7 +67,7 @@ CASSETTE= (0.240, 0.245, 0.255)
 CASS_LBL= (0.880, 0.880, 0.870)
 HUB     = (0.030, 0.030, 0.030)
 BRASS   = (0.700, 0.600, 0.380)
-CHROME  = (0.860, 0.870, 0.880)
+CHROME  = (0.330, 0.335, 0.345)     # dark base: the scene adds the sheen from above
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -77,31 +83,47 @@ def text(s, size, x, y, z, halign="center", bold=False):
             .translate((x, y, 0)))
 
 
+def _bulge(p0, p1, amount):
+    """The midpoint of p0-p1 pushed `amount` outward (to the right of the
+    direction of travel), for a very slightly convex chamfer."""
+    mx, my = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
+    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+    n = math.hypot(dx, dy)
+    return (mx + dy / n * amount, my - dx / n * amount)
+
+
 def body():
+    lo0, lo1 = (D - BACK_IN_LO, 0.0), (D, BACK_Z0)
+    hi0, hi1 = (D, BACK_Z1), (D - BACK_IN_HI, H)
     prof = (cq.Workplane("YZ")
-            .polyline([(YF, FACE_Z0), (BOT_Y, 0), (D, 0), (D, H), (TOP_Y, H), (YF, FACE_Z1)])
+            .moveTo(YF, FACE_Z0)
+            .lineTo(BOT_Y, 0)
+            .lineTo(*lo0)
+            .threePointArc(_bulge(lo0, lo1, -BACK_BULGE), lo1)
+            .lineTo(*hi0)
+            .threePointArc(_bulge(hi0, hi1, -BACK_BULGE), hi1)
+            .lineTo(TOP_Y, H)
+            .lineTo(YF, FACE_Z1)
             .close()
             .extrude(W))
-    prof = prof.edges("|Z").fillet(EDGE_R)
-    back = cq.selectors.BoxSelector((-1, D - 0.1, -1), (W + 1, D + 0.1, H + 1))
-    prof = prof.edges("|X").edges(back).fillet(BACK_R)
-    return prof
+    return prof.edges("|Z").fillet(EDGE_R)
 
 
-def strut(x, y_back, z_top, radius, thick):
-    """One of the door's hinge struts: a quarter arc seen from the side, from
-    the door's back edge round and down to the hinge under the grille, as
-    wide in X as the door is thick."""
-    cy, cz = y_back, z_top - thick / 2 - radius
-    ro, ri = radius + thick / 2, radius - thick / 2
+def strut(x, hinge_y, door_under_z, ro, ri, width):
+    """One of the door's hinge struts, seen from the side a quarter of a ring
+    in the lower-front quadrant about (hinge_y, door_under_z): it leaves the
+    door's underside, drops into the cassette well, and curves back to end
+    under the grille, where the hinge pin is. Broad seen from the side, as
+    thin as the door seen from the front."""
+    cy, cz = hinge_y, door_under_z
     k = 0.70710678
     arc = (cq.Workplane("YZ")
-           .moveTo(cy, cz + ro)
-           .threePointArc((cy + ro * k, cz + ro * k), (cy + ro, cz))
-           .lineTo(cy + ri, cz)
-           .threePointArc((cy + ri * k, cz + ri * k), (cy, cz + ri))
+           .moveTo(cy - ro, cz)
+           .threePointArc((cy - ro * k, cz - ro * k), (cy, cz - ro))
+           .lineTo(cy, cz - ri)
+           .threePointArc((cy - ri * k, cz - ri * k), (cy - ri, cz))
            .close()
-           .extrude(thick))
+           .extrude(width))
     return arc.translate((x, 0, 0))
 
 
@@ -134,7 +156,9 @@ def build():
     # The door's opening, front to back.
     dy0, dy1 = 90.0, 154.0
     DOOR_T   = 1.5                       # the pane's thickness
-    STRUT_R  = 10.0                      # the struts' arc, seen from the side
+    HINGE_Y  = dy1 + 2.0                 # the hinge, just behind the door's back edge
+    STRUT_RO = 13.0                      # the struts' ring, seen from the side:
+    STRUT_RI = 3.0                       # about a centimeter broad
 
     # The seat the pane drops into, flush, and the cassette well under it:
     # without them the cassette is inside the solid and the door shows nothing.
@@ -143,18 +167,19 @@ def build():
     m.add("body", body().cut(seat).cut(well), BODY, angular=0.14)
     m.add("well_floor", box(x0 + 4, x1 - 4, dy0 + 4, dy1 - 6, top - 9.0, top - 8.5), PERF)
 
-    # Grille.
-    m.add("grille", box(x0, x1, dy1 + 2.0, D - RIM, top - 0.5, top + 0.6), GRILLE)
-    m.add_triangles("grille_perf", perforation(x0 + 1, x1 - 1, dy1 + 3.0, D - RIM - 1, top + 0.62), PERF)
+    # Grille, short of the rounded back.
+    gy1 = D - BACK_IN_HI - 2.0
+    m.add("grille", box(x0, x1, dy1 + 2.0, gy1, top - 0.5, top + 0.6), GRILLE)
+    m.add_triangles("grille_perf", perforation(x0 + 1, x1 - 1, dy1 + 3.0, gy1 - 1, top + 0.62), PERF)
 
     # THE DOOR IS ONE PIECE OF SMOKED PLASTIC, frameless, flush with the top
     # face; the scene draws it see-through. Two struts of the same plastic,
-    # 3 mm in from its sides, arc from its back edge down under the grille to
-    # the hinge, which is why it swings up in an arc rather than about its own
-    # back edge.
+    # 3 mm in from its sides, hang from its underside down into the well and
+    # curve back under the grille to the hinge, just behind the door's back
+    # edge -- so the door swings up about a point below and behind it.
     pane = box(x0, x1, dy0, dy1, top - DOOR_T, top)
     for sx in (x0 + 3.0, x1 - 3.0 - DOOR_T):
-        pane = pane.union(strut(sx, dy1, top, STRUT_R, DOOR_T))
+        pane = pane.union(strut(sx, HINGE_Y, top - DOOR_T, STRUT_RO, STRUT_RI, DOOR_T))
     m.add("door_glass", pane, DOOR, angular=0.2)
     m.add("door_print",
           box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, top, top + 0.1)
@@ -236,13 +261,30 @@ def build():
     # THE CARRY HANDLE, polished chrome: a bar across the front, standing
     # proud of the front face by its own depth, on two arms that run back
     # along the sides into the case. Measured from the side profile.
+    #
+    # Every edge rounded over, and each arm ends in a rounded point, almost a
+    # shovel's, where it disappears into the case.
     HANDLE_Z0, HANDLE_Z1 = 30.0, 37.0
-    ARM_T, ARM_BACK      = 1.5, YF + 43.0
-    handle = box(-ARM_T, W + ARM_T, 2.0, YF, HANDLE_Z0, HANDLE_Z1)
-    handle = handle.edges("|Z").fillet(4.0)
-    handle = handle.union(box(-ARM_T, 0.0, 2.0, ARM_BACK, HANDLE_Z0, HANDLE_Z1))
-    handle = handle.union(box(W, W + ARM_T, 2.0, ARM_BACK, HANDLE_Z0, HANDLE_Z1))
-    m.add("chrome_handle", handle, CHROME, angular=0.15)
+    ARM_T, ARM_BACK      = 2.0, YF + 43.0
+    zc = (HANDLE_Z0 + HANDLE_Z1) / 2
+
+    bar = box(-ARM_T, W + ARM_T, 2.0, YF + 1.0, HANDLE_Z0, HANDLE_Z1)
+    bar = bar.edges("|Z").fillet(4.0).edges().fillet(1.2)
+
+    def arm(x):
+        shoulder = ARM_BACK - 9.0
+        prof = (cq.Workplane("YZ")
+                .moveTo(YF - 2.0, HANDLE_Z0)
+                .lineTo(shoulder, HANDLE_Z0)
+                .threePointArc((ARM_BACK - 2.5, zc - 2.2), (ARM_BACK, zc))
+                .threePointArc((ARM_BACK - 2.5, zc + 2.2), (shoulder, HANDLE_Z1))
+                .lineTo(YF - 2.0, HANDLE_Z1)
+                .close()
+                .extrude(ARM_T))
+        return prof.translate((x, 0, 0)).edges().fillet(0.6)
+
+    handle = bar.union(arm(-ARM_T)).union(arm(W))
+    m.add("chrome_handle", handle, CHROME, angular=0.12)
 
     # The tone and volume thumbwheels in a recess in the back end.
     m.add("wheel_well", box(W / 2 - 34, W / 2 + 34, D - 0.3, D + 0.2, 26.0, 46.0), KEY)
