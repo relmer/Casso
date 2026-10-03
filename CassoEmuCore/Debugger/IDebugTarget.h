@@ -120,4 +120,8 @@ public:
     // The devices that publish debugger panels. A target with no devices has
     // none, which is the default.
     virtual std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const { return {}; }
+
+    // The address the Mockingboard's page starts at; false where the machine
+    // has none, which is the default.
+    virtual bool  TryGetMockingboardBase (Word &) const { return false; }
 };

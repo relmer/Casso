@@ -205,10 +205,13 @@
     <ClCompile Include="Debugger\DataBlockTable.cpp" />
     <ClCompile Include="Debugger\Handlers\DataDirectiveHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\ExecutionHandlers.cpp" />
+    <ClCompile Include="Debugger\Handlers\LogHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\WatchHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\ConfigHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\CallStackHandlers.cpp" />
     <ClCompile Include="Debugger\ProfileTable.cpp" />
+    <ClCompile Include="Debugger\CycleStopwatch.cpp" />
+    <ClCompile Include="Debugger\IoEventLog.cpp" />
     <ClCompile Include="Debugger\Reverse\InputJournal.cpp" />
     <ClCompile Include="Debugger\TraceController.cpp" />
     <ClCompile Include="Debugger\TraceLookahead.cpp" />
@@ -634,10 +637,13 @@
     <ClInclude Include="Debugger\DataBlockTable.h" />
     <ClInclude Include="Debugger\Handlers\DataDirectiveHandlers.h" />
     <ClInclude Include="Debugger\Handlers\ExecutionHandlers.h" />
+    <ClInclude Include="Debugger\Handlers\LogHandlers.h" />
     <ClInclude Include="Debugger\Handlers\WatchHandlers.h" />
     <ClInclude Include="Debugger\Handlers\ConfigHandlers.h" />
     <ClInclude Include="Debugger\Handlers\CallStackHandlers.h" />
     <ClInclude Include="Debugger\ProfileTable.h" />
+    <ClInclude Include="Debugger\CycleStopwatch.h" />
+    <ClInclude Include="Debugger\IoEventLog.h" />
     <ClInclude Include="Debugger\Reverse\HistoryRecorder.h" />
     <ClInclude Include="Debugger\Reverse\InputJournal.h" />
     <ClInclude Include="Debugger\Reverse\IReverseStopTest.h" />

@@ -192,6 +192,8 @@ Casso commands:
     PAUSE                                                Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]       Profile where execution goes, by routine or by address
     SKIP [CLEAR|[-]name|addr[.last]]                     Show or change the routines stepping goes over
+    SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log speaker toggles and Mockingboard writes with their cycles
+    STOPWATCH [start [stop]|OFF|RESET]                   Count the cycles between two addresses in debugger runs
   Registers and flags
     CALLS [MODE [RECORDED|WALK|HYBRID]]                  Show the call stack, or choose how it is found
     STACK                                                Show the stack
@@ -203,6 +205,7 @@ Casso commands:
     SRC [ON|OFF]                                         Show the source line at PC, or step by source lines
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]          List the device panels, or open or close one
+    VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log video mode changes with the frame and beam position
   Session and settings
     MODE [mode]                                          Show or set the command mode, which sets the output too
     OUTPUT [format]                                      Show or set the format replies are written in
@@ -259,6 +262,8 @@ Casso commands:
     /RCC                                                   Reset the cycle counter that CYCLES PART reads
     /RTS [count]                                           Step out of the current subroutine
     /SKIP [CLEAR|[-]name|addr[.last]]                      Show or change the routines stepping goes over
+    /SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]          Log speaker toggles and Mockingboard writes with their cycles
+    /STOPWATCH [start [stop]|OFF|RESET]                    Count the cycles between two addresses in debugger runs
     /TF [file] [V]                                         Turn tracing to a file on or off; V records the video position
   Breakpoints
     /BP addr[,len|:last]|file:line [IF expr]               Set an execution breakpoint, or one on PC with < > = !
@@ -402,6 +407,7 @@ Casso commands:
     /RET                                                   Move the code pane to the return address
     /V                                                     Move the code pane down one instruction
     /VIDEOINFO                                             Show the video scanner's position
+    /VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]          Log video mode changes with the frame and beam position
   Session and settings
     /? [command]                                           List the commands, or describe one
     /CALC expr                                             Evaluate an expression
@@ -470,6 +476,8 @@ Casso commands:
     PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]  Profile where execution goes, by routine or by address
     RCC                                             Reset the cycle counter that CYCLES PART reads
     SKIP [CLEAR|[-]name|addr[.last]]                Show or change the routines stepping goes over
+    SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log speaker toggles and Mockingboard writes with their cycles
+    STOPWATCH [start [stop]|OFF|RESET]              Count the cycles between two addresses in debugger runs
     TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
     BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
@@ -572,6 +580,7 @@ Casso commands:
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     VIDEOINFO                                       Show the video scanner's position
+    VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log video mode changes with the frame and beam position
   Session and settings
     CALC expr                                       Evaluate an expression
     ECHO text                                       Print text
@@ -645,6 +654,8 @@ Casso commands:
     !PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]  Profile where execution goes, by routine or by address
     !RCC                                             Reset the cycle counter that CYCLES PART reads
     !SKIP [CLEAR|[-]name|addr[.last]]                Show or change the routines stepping goes over
+    !SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log speaker toggles and Mockingboard writes with their cycles
+    !STOPWATCH [start [stop]|OFF|RESET]              Count the cycles between two addresses in debugger runs
     !TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
     !BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
@@ -752,6 +763,7 @@ Casso commands:
   Display and panels
     !PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     !VIDEOINFO                                       Show the video scanner's position
+    !VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log video mode changes with the frame and beam position
   Session and settings
     !CD dir                                          Change the current directory
     !ECHO text                                       Print text
@@ -789,6 +801,8 @@ Casso commands:
     RCC                                                  Reset the cycle counter that CYCLES PART reads
     RTS [count]                                          Step out of the current subroutine
     SKIP [CLEAR|[-]name|addr[.last]]                     Show or change the routines stepping goes over
+    SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log speaker toggles and Mockingboard writes with their cycles
+    STOPWATCH [start [stop]|OFF|RESET]                   Count the cycles between two addresses in debugger runs
     T, TL, TRACE [count]                                 Step into
     TF [file] [V]                                        Turn tracing to a file on or off; V records the video position
   Breakpoints
@@ -945,6 +959,7 @@ Casso commands:
     RET                                                  Move the code pane to the return address
     V                                                    Move the code pane down one instruction
     VIDEOINFO                                            Show the video scanner's position
+    VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log video mode changes with the frame and beam position
   Session and settings
     ? [command]                                          List the commands, or describe one
     CALC expr                                            Evaluate an expression

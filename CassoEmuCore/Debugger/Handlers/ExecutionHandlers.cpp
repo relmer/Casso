@@ -31,6 +31,7 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
     case DebugVerb::ShowBranchRecord:  ShowBranchRecord  (session, reply);          return true;
     case DebugVerb::TraceToFile:       ToggleTrace       (session, command, reply); return true;
     case DebugVerb::Profile:           Profile           (session, command, reply); return true;
+    case DebugVerb::Stopwatch:         Stopwatch         (session, command, reply); return true;
     case DebugVerb::ShowCycles:        ShowCycles        (session, command, reply); return true;
     case DebugVerb::ResetCycles:       ResetCycles       (session, reply);          return true;
     case DebugVerb::Benchmark:
@@ -53,6 +54,11 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 {
     FeedKeys      (session);
     RecordProfile (session, pc);
+
+    if (m_stopwatch.IsArmed())
+    {
+        m_stopwatch.OnInstruction (pc, session.GetTarget().GetCycleCount());
+    }
 
     // Tested here, not in RecordTrace, so a run with TF off does not pay for
     // the disassembler and the register reads RecordTrace sets up.
@@ -136,6 +142,8 @@ void ExecutionHandlers::OnRunStopped (DebugSession & session, const StopEvent & 
 //  The profile's opcodes were the old CPU's, which the new one may decode
 //  differently, and its cycle count is not the new machine's, so the counts
 //  and the instruction waiting to be billed go. Profiling stays on or off.
+//  The stopwatch's laps, counted on the old machine's clock, go too; it
+//  stays armed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,6 +153,7 @@ void ExecutionHandlers::OnMachineChanged (DebugSession & session)
 
     m_profile.Reset();
     m_profilePending.reset();
+    m_stopwatch.Reset();
 }
 
 
@@ -680,6 +689,128 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR] or SAVE [file].");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::Stopwatch
+//
+//  STOPWATCH start [stop] arms the stopwatch, stop defaulting to start;
+//  STOPWATCH OFF disarms it and RESET clears its laps. A bare STOPWATCH
+//  shows it. Each address is an expression, as BP takes one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::Stopwatch (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    constexpr int32_t   kLastAddress = 0xFFFF;
+    std::istringstream  stream (command.text);
+    std::string         first;
+    std::string         second;
+    std::string         extra;
+    std::string         keyword;
+    std::string         error;
+    int32_t             start        = 0;
+    int32_t             stop         = 0;
+    HRESULT             hr           = S_OK;
+
+
+
+    stream >> first >> second >> extra;
+    keyword = SymbolTable::ToUpper (first);
+
+    if (first.empty())
+    {
+        ShowStopwatch (reply);
+        return;
+    }
+
+    if ((keyword == "OFF" || keyword == "RESET") && second.empty())
+    {
+        if (keyword == "OFF")
+        {
+            m_stopwatch.Disarm();
+        }
+        else
+        {
+            m_stopwatch.Reset();
+        }
+
+        ShowStopwatch (reply);
+        return;
+    }
+
+    hr = DebugExpressionEvaluator::ParseAndEvaluate (first, session, start, error);
+
+    if (SUCCEEDED (hr) && !second.empty())
+    {
+        hr = DebugExpressionEvaluator::ParseAndEvaluate (second, session, stop, error);
+    }
+    else
+    {
+        stop = start;
+    }
+
+    if (FAILED (hr) || !extra.empty() || start < 0 || start > kLastAddress || stop < 0 || stop > kLastAddress)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", error.empty() ? "STOPWATCH takes start [stop], OFF or RESET." : error);
+        return;
+    }
+
+    m_stopwatch.Arm ((Word) start, (Word) stop);
+    ShowStopwatch (reply);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::ShowStopwatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::ShowStopwatch (Reply & reply) const
+{
+    std::vector<std::string>  lines;
+    uint64_t                  laps  = m_stopwatch.GetLapCount();
+
+
+
+    if (m_stopwatch.IsArmed())
+    {
+        lines.push_back (std::format ("Stopwatch from ${:04X} to ${:04X}, in runs the debugger starts.", m_stopwatch.GetStart(), m_stopwatch.GetStop()));
+    }
+    else
+    {
+        lines.push_back ("Stopwatch off.");
+    }
+
+    if (laps == 0)
+    {
+        lines.push_back ("No laps.");
+    }
+    else
+    {
+        lines.push_back (std::format ("{} laps: last {} cycles, shortest {}, longest {}, average {}.",
+                                      laps,
+                                      m_stopwatch.GetLastLap(),
+                                      m_stopwatch.GetShortest(),
+                                      m_stopwatch.GetLongest(),
+                                      m_stopwatch.GetTotal() / laps));
+    }
+
+    if (m_stopwatch.IsTiming())
+    {
+        lines.push_back ("A lap is being timed.");
+    }
+
+    reply.data = MessageData { lines };
 }
 
 

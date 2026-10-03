@@ -207,6 +207,9 @@
     <ClCompile Include="DebuggerTests\InputJournalTests.cpp" />
     <ClCompile Include="DebuggerTests\InputObservedAtReadTests.cpp" />
     <ClCompile Include="DebuggerTests\ProfileTableTests.cpp" />
+    <ClCompile Include="DebuggerTests\CycleStopwatchTests.cpp" />
+    <ClCompile Include="DebuggerTests\IoEventLogTests.cpp" />
+    <ClCompile Include="DebuggerTests\LogCommandsTests.cpp" />
     <ClCompile Include="DebuggerTests\ChangeConfirmationTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandSuggestionTests.cpp" />
     <ClCompile Include="DebuggerTests\SuggestionSweepTests.cpp" />

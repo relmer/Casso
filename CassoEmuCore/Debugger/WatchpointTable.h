@@ -68,6 +68,10 @@ struct Watchpoint
 //  replaced, when there was one.
 using StackWriteSink = std::function<void (Word, Byte, std::optional<Byte>)>;
 
+//  Any access to one of the I/O log's pages: its address, the byte, and
+//  whether it was a read or a write.
+using IoLogSink = std::function<void (Word, Byte, BusAccess)>;
+
 
 
 
@@ -88,6 +92,11 @@ public:
     //  While set, the stack page is watched and every write to it is offered
     //  here first, whether or not a watchpoint covers it. Empty to stop.
     void   SetStackWriteSink (StackWriteSink sink);
+
+    //  While set, the pages given are watched and every access to them is
+    //  offered here first, a read or a write, whether or not a watchpoint
+    //  covers it. Empty to stop.
+    void   SetIoLogSink     (IoLogSink sink, const WatchedPages & pages);
 
     int    Add              (WatchAccess access, Word first, Word last, WatchMode mode = WatchMode::After, const Expression & condition = {});
     bool   TryClear         (int id);
@@ -161,6 +170,8 @@ private:
     std::optional<WatchHit>            m_pendingHit;
     std::optional<Suppression>         m_suppression;
     StackWriteSink                     m_stackWriteSink;
+    IoLogSink                          m_ioLogSink;
+    WatchedPages                       m_ioLogPages       = {};
     Word                               m_fetchPc          = 0;
     Byte                               m_fetchesLeft      = 0;       // bit n: the byte at m_fetchPc + n
     std::optional<Word>                m_storeTarget;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/IDebugCommandHandler.h"
+#include "Debugger/CycleStopwatch.h"
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/ProfileTable.h"
 
@@ -15,12 +16,12 @@ class IFileSystem;
 //
 //  ExecutionHandlers
 //
-//  =, JSR, NOP and ZAP, KEY, BPV and VIDEOINFO, LBR, TF, PROFILE, CYCLES and
-//  RCC, and BENCHMARK, BENCH and EXITBENCH. The run commands themselves (G,
+//  =, JSR, NOP and ZAP, KEY, BPV and VIDEOINFO, LBR, TF, PROFILE, STOPWATCH,
+//  CYCLES and RCC, and BENCHMARK, BENCH and EXITBENCH. The run commands themselves (G,
 //  GG, T, TL, P, RTS) are the session's own.
 //
 //  The family is also the session's instruction observer: the profile
-//  counters (while PROFILE ON) and the trace file are fed from each
+//  counters (while PROFILE ON), the stopwatch (while armed) and the trace file are fed from each
 //  instruction a debugger-driven run executes, and never from a machine
 //  running freely. The key queue is fed during a run and after each slice of
 //  a free run. The branch record is the CPU's own, kept on every path.
@@ -78,6 +79,8 @@ private:
     static void  ShowBranchRecord  (DebugSession & session, Reply & reply);
     void         ToggleTrace       (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         Profile           (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         Stopwatch         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         ShowStopwatch     (Reply & reply) const;
     void         ShowCycles        (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         ResetCycles       (DebugSession & session, Reply & reply);
     static void  Benchmark         (const DebugCommand & command, Reply & reply);
@@ -95,6 +98,7 @@ private:
 
     TraceState                         m_trace;
     ProfileTable                       m_profile;
+    CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
     std::deque<Byte>                   m_keys;
     uint64_t                           m_cycleMarker    = 0;

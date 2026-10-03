@@ -68,6 +68,7 @@ public:
     TraceController   & GetTrace          () { return m_trace; }
 
     std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override;
+    bool                                       TryGetMockingboardBase  (Word & base) const override;
 
 private:
     MachineHost       & m_host;

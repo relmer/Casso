@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/MachineHost.h"
 
@@ -633,3 +634,33 @@ std::vector<const IDiagnosticsProvider *> MachineDebugTarget::GetDiagnosticsProv
 {
     return m_host.GetDiagnosticsProviders();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::TryGetMockingboardBase
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineDebugTarget::TryGetMockingboardBase (Word & base) const
+{
+    const MockingboardCard  * card = m_host.GetRefs().mockingboard;
+
+
+
+    if (card == nullptr)
+    {
+        return false;
+    }
+
+    base = card->GetStart();
+    return true;
+}
+
+
+
+
+

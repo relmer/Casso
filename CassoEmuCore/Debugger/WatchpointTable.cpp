@@ -426,7 +426,8 @@ bool WatchpointTable::IsTouchMatch (WatchAccess watched, PredictedAccess predict
 //  WatchpointTable::GetWatchedPages
 //
 //  Every page an enabled after-mode watchpoint's range touches, and the page
-//  of every enabled value breakpoint, and no other.
+//  of every enabled value breakpoint, the stack page while the stack write
+//  sink is set and the I/O log's pages while its sink is, and no other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -437,6 +438,11 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 
 
     pages[kStackPage] = m_stackWriteSink != nullptr;
+
+    for (size_t page = 0; m_ioLogSink != nullptr && page < pages.size(); ++page)
+    {
+        pages[page] = pages[page] || m_ioLogPages[page];
+    }
 
     for (const Watchpoint & entry : m_entries)
     {
@@ -500,6 +506,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     if (m_stackWriteSink != nullptr && access == BusAccess::Write && (address >> kPageShift) == kStackPage)
     {
         m_stackWriteSink (address, value, previous);
+    }
+
+    if (m_ioLogSink != nullptr && m_ioLogPages[address >> kPageShift])
+    {
+        m_ioLogSink (address, value, access);
     }
 
     if (access == BusAccess::Read && TryConsumeCpuOwnRead (address))
@@ -694,6 +705,23 @@ bool WatchpointTable::IsAccessMatch (WatchAccess watched, BusAccess actual)
 void WatchpointTable::SetStackWriteSink (StackWriteSink sink)
 {
     m_stackWriteSink = std::move (sink);
+    Publish();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::SetIoLogSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SetIoLogSink (IoLogSink sink, const WatchedPages & pages)
+{
+    m_ioLogSink  = std::move (sink);
+    m_ioLogPages = pages;
     Publish();
 }
 

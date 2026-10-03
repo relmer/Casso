@@ -126,8 +126,8 @@ public:
     DebugSession               session;
     Handlers                   handlers;
 
-    explicit MachineHandlerRig (const std::string & id = "Apple2e") :
-        machine (id, TestMachine::Slots::Empty),
+    explicit MachineHandlerRig (const std::string & id = "Apple2e", TestMachine::Slots slots = TestMachine::Slots::Empty) :
+        machine (id, slots),
         target  (machine),
         driver  (machine, target.GetRunHook()),
         session (target, sink, RunState::Paused)

@@ -482,6 +482,41 @@ mnemonic and addressing mode, and the penalty cycles apart: page crossings on
 indexed reads, taken branches, and branches that cross a page. `PROFILE LIST
 ADDR` shows the twenty hottest addresses; `PROFILE SAVE file` writes both
 tables; `PROFILE RESET` clears them.
+## The stopwatch
+
+`STOPWATCH start [stop]` times every pass from one address to another in runs
+the debugger starts: a lap begins when the instruction at `start` is about to
+run and ends when the one at `stop` is, and is the exact cycle count between
+the two. Each address is an expression, as `BP` takes one, so `STOPWATCH
+DrawRow DrawRow_Exit` times a routine from its entry to its exit. With one
+address, each lap is the time from one arrival to the next, such as a game
+loop's period. A routine that calls itself is timed from its outermost entry.
+A bare `STOPWATCH` shows the laps: their count, the last, the shortest, the
+longest and the average. `STOPWATCH RESET` clears the laps, and `STOPWATCH OFF`
+stops timing and keeps them.
+
+To time between two breakpoints instead, stop at the first, run `RCC`, run to
+the second, and `CYCLES PART` gives the cycles in between.
+
+## Video and sound logs
+
+`VIDEOLOG ON` records each change of video mode -- `TEXT`, `MIXED`, `PAGE2`,
+`HIRES`, `80COL`, `DHIRES`, `ALTCHARSET` and `80STORE` -- with the machine's
+cycle count and the scanline and cycle within the line the beam was at,
+grouped under the frame each fell in. An access that leaves the mode as it was
+records nothing. `SOUNDLOG ON` records each speaker toggle and each write to
+the Mockingboard's 6522s, with its cycle count and the cycles since the last
+entry of its kind; a port B write that clocks a value into an AY register also
+records that write, with the register and the value. Both logs follow the
+machine whether the debugger started the run or not.
+
+Each log takes `ON`, `OFF`, `CLEAR`, `LIST [n]` (the last `n` entries, 100
+unless given; a bare `VIDEOLOG` or `SOUNDLOG` lists) and `SAVE [file]`, which
+writes every entry the log holds (`VideoLog.txt` or `SoundLog.txt` unless
+given). A log keeps its last 100,000 entries, and the listing gives how many
+were recorded in all. The count and beam position are those at the start of
+the instruction that made the access. While both logs are off they cost
+nothing: the I/O page goes back to the bus's ordinary path.
 ## The debugger window
 
 **Debug > Debugger...** opens the window beside the emulator, as do F12, F7

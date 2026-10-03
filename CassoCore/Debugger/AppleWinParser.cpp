@@ -1258,7 +1258,8 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
 //
 //  MODE [APPLEWIN | MONITOR | GSSQUARED | WINDBG | CASSO], OUTPUT with the
 //  same names, and BUDGET n with n in decimal, as --max-cycles takes it.
-//  PATCH takes its arguments as ME does and PROFILE its keywords as text.
+//  PATCH takes its arguments as ME does, and PROFILE, STOPWATCH, VIDEOLOG and
+//  SOUNDLOG their arguments as text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1293,7 +1294,8 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParseMemoryArguments (args, command, error);
     }
 
-    if (command.verb == DebugVerb::Profile)
+    if (command.verb == DebugVerb::Profile  || command.verb == DebugVerb::Stopwatch ||
+        command.verb == DebugVerb::VideoLog || command.verb == DebugVerb::SoundLog)
     {
         command.text = args.rest;
         return true;

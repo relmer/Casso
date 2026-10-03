@@ -37,6 +37,8 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "RCC",         H::RunningAndStepping, "RCC",                                            "Reset the cycle counter that CYCLES PART reads"                                          },
     { "RTS",         H::RunningAndStepping, "RTS [count]",                                    "Step out of the current subroutine"                                                      },
     { "SKIP",        H::RunningAndStepping, "SKIP [CLEAR|[-]name|addr[.last]]",               "Show or change the routines stepping goes over"                                          },
+    { "SOUNDLOG",    H::RunningAndStepping, "SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]",   "Log speaker toggles and Mockingboard writes with their cycles"                           },
+    { "STOPWATCH",   H::RunningAndStepping, "STOPWATCH [start [stop]|OFF|RESET]",             "Count the cycles between two addresses in debugger runs"                                 },
     { "T",           H::RunningAndStepping, "T [count]",                                      "Step into"                                                                               },
     { "TF",          H::RunningAndStepping, "TF [file] [V]",                                  "Turn tracing to a file on or off; V records the video position"                          },
 
@@ -191,6 +193,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "PANEL",       H::DisplayAndPanels,   "PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]",    "List the device panels, or open or close one"                                            },
     { "RET",         H::DisplayAndPanels,   "RET",                                            "Move the code pane to the return address"                                                },
     { "V",           H::DisplayAndPanels,   "V",                                              "Move the code pane down one instruction"                                                 },
+    { "VIDEOLOG",    H::DisplayAndPanels,   "VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]",   "Log video mode changes with the frame and beam position"                                 },
     { "VIDEOINFO",   H::DisplayAndPanels,   "VIDEOINFO",                                      "Show the video scanner's position"                                                       },
     { "^",           H::DisplayAndPanels,   "^",                                              "Move the code pane up one instruction"                                                   },
 
