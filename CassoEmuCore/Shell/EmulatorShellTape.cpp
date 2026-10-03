@@ -106,7 +106,8 @@ void EmulatorShell::SyncTapeChrome()
     // be scrolling under the pointer, ask for one every UI frame or the
     // counter stands still.
     if ((view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped) ||
-        (isShown && m_tapeChrome.GetHover() == TapeDeckRegion::Name))
+        (isShown && m_tapeChrome.GetHover() == TapeDeckRegion::Name) ||
+        (isShown && m_tapeChrome.IsMagnifying()))
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }

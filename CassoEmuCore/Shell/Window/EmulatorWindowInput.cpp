@@ -603,6 +603,17 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
         drive.UpdateMarqueeHover (false, nowMs);
     }
 
+    // Off every control, so the recorder's magnified controls ease back down
+    // and the desk's scrolling name returns to its start.
+    m_tapeChrome.UpdateHover (INT_MIN / 2, INT_MIN / 2);
+
+    if (UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
+    {
+        SyncSceneDriveLabels();
+    }
+
+    m_d3dRenderer.MarkRedrawNeeded();
+
     m_toolbar.OnToolbarMouseLeave();
     m_toolbarTooltip.RequestHide (nowMs);
     m_driveTooltip.RequestHide (nowMs);

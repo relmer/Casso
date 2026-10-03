@@ -58,6 +58,7 @@ public:
     RECT            GetButtonRect  (TapeDeckRegion region) const;
     bool            IsHidden       () const { return m_hidden; }
     TapeDeckRegion  GetHover       () const { return m_hover; }
+    bool            IsMagnifying   () const;
 
     static bool          IsRegionEnabled (TapeDeckRegion region, const TapeDeckView & view);
     static std::wstring  FormatTime      (double seconds);
@@ -70,6 +71,12 @@ public:
     // that began at startMs and travels one name-plus-gap period. Zero before
     // it begins and once it has finished, which is where the name rests.
     static float         GetMarqueeOffset (int64_t nowMs, int64_t startMs, float periodPx, float speedPxPerSec);
+
+    // The dock's magnification for a control whose center is `distance` from
+    // the pointer: kMagnifyMax right under it, easing to 1 at `reach`.
+    static float         GetMagnification (float distance, float reach);
+
+    static constexpr float  kMagnifyMax = 2.0f;
 
     static constexpr size_t  kButtonCount = 6;
 
@@ -96,6 +103,11 @@ private:
     // as a long disk name does: at once when the pointer arrives, then again
     // after a hold for as long as it stays.
     static constexpr int64_t  kMarqueeHoldMs         = 2000;
+
+    // The controls magnify like the macOS dock as the pointer nears them,
+    // reaching this many buttons either side, and fade in and out this fast.
+    static constexpr float    kMagnifyReachButtons   = 2.5f;
+    static constexpr int64_t  kMagnifyFadeMs         = 140;
     static constexpr float    kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float    kMarqueeGapDip         = 25.0f;
     // The transport row and counter, under the rail and within its width.
@@ -117,7 +129,10 @@ private:
     static int64_t  GetNowMs       ();
 
     void      PaintRail    (IDxuiPainter & painter, const CassoTheme & theme);
-    void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme);
+    void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const RECT (& rects)[kButtonCount + 1]);
+    float     GetPresence  (int64_t nowMs) const;
+    void      ComputeControlRects (int64_t nowMs, RECT (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const;
+    bool      IsNearControls (int x, int y) const;
     void      PaintMark    (IDxuiPainter & painter, TapeDeckRegion region, const RECT & box, uint32_t argb);
     uint32_t  GetMarkColor (TapeDeckRegion region, const CassoTheme & theme) const;
     void      PaintName    (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
@@ -135,4 +150,9 @@ private:
     bool            m_hidden                = true;
     std::wstring    m_marqueeName;                          // the name the schedule below is for
     int64_t         m_marqueeStartMs        = 0;            // when its scroll begins
+    int             m_mouseX                = INT_MIN / 2;  // the pointer, for the magnification
+    int             m_mouseY                = INT_MIN / 2;
+    bool            m_isNear                = false;        // the pointer is over the controls
+    float           m_presenceFrom          = 0.0f;         // the magnification's strength when that last changed
+    int64_t         m_presenceMs            = 0;            // and when
 };
