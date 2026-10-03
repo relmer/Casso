@@ -125,6 +125,8 @@ private:
     void      DropOldestGroups  ();
     void      ScheduleAfter     (uint64_t cycle);
 
+    static void  XorBytes (const Byte * a, const Byte * b, Byte * out, size_t count);
+
     KeyframeSettings    m_settings;
     std::deque<Entry>   m_entries;
     std::vector<Byte>   m_latestWhole;          // unpacked copy of the newest whole snapshot

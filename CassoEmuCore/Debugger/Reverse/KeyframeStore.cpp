@@ -194,7 +194,6 @@ HRESULT KeyframeStore::AddDifference (
 {
     HRESULT  hr         = S_OK;
     Entry    entry;
-    size_t   i          = 0;
     bool     isSameSize = state.size() == m_latestWhole.size();
 
 
@@ -203,10 +202,7 @@ HRESULT KeyframeStore::AddDifference (
 
     m_scratch.resize (state.size());
 
-    for (i = 0; i < state.size(); i++)
-    {
-        m_scratch[i] = static_cast<Byte> (state[i] ^ m_latestWhole[i]);
-    }
+    XorBytes (state.data(), m_latestWhole.data(), m_scratch.data(), state.size());
 
     hr = m_compressor.Compress (m_scratch.data(), m_scratch.size(), entry.packed);
     CHR (hr);
@@ -250,7 +246,6 @@ HRESULT KeyframeStore::Restore (
     const Entry        * entry       = nullptr;
     const Entry        * whole       = nullptr;
     const Byte         * base        = nullptr;
-    size_t               i           = 0;
 
 
 
@@ -280,10 +275,7 @@ HRESULT KeyframeStore::Restore (
         hr = m_compressor.Decompress (entry->packed, entry->info.stateBytes, outState);
         CHR (hr);
 
-        for (i = 0; i < outState.size(); i++)
-        {
-            outState[i] ^= base[i];
-        }
+        XorBytes (outState.data(), base, outState.data(), outState.size());
     }
 
 Error:
@@ -531,9 +523,11 @@ void KeyframeStore::ScheduleAfter (uint64_t cycle)
 //  ComputeChecksum
 //
 //  64-bit FNV-1a over the state eight bytes at a time, folding the high half
-//  down after each word so a change in any bit reaches every later bit, then
-//  the tail a byte at a time. Not cryptographic: it detects a replay that diverged, not
-//  tampering.
+//  down after each word so a change in any bit reaches every later bit. The
+//  words are dealt round-robin to four lanes, each seeded differently, so the
+//  multiplies overlap instead of waiting on each other; the lanes are then
+//  hashed together in order, then the tail a byte at a time. Not
+//  cryptographic: it detects a replay that diverged, not tampering.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -544,16 +538,34 @@ uint64_t KeyframeStore::ComputeChecksum (
     constexpr uint64_t  kOffset = 0xCBF29CE484222325ULL;
     constexpr uint64_t  kPrime  = 0x00000100000001B3ULL;
     constexpr int       kFold   = 32;
+    constexpr size_t    kLanes  = 4;
+    constexpr size_t    kStride = kLanes * sizeof (uint64_t);
+    uint64_t            lanes[kLanes];
     uint64_t            hash    = kOffset;
     uint64_t            word    = 0;
     size_t              i       = 0;
+    size_t              lane    = 0;
 
 
 
-    for (i = 0; i + sizeof (word) <= size; i += sizeof (word))
+    for (lane = 0; lane < kLanes; lane++)
     {
-        memcpy (&word, data + i, sizeof (word));
-        hash  = (hash ^ word) * kPrime;
+        lanes[lane] = kOffset + lane;
+    }
+
+    for (i = 0; i + kStride <= size; i += kStride)
+    {
+        for (lane = 0; lane < kLanes; lane++)
+        {
+            memcpy (&word, data + i + lane * sizeof (word), sizeof (word));
+            lanes[lane]  = (lanes[lane] ^ word) * kPrime;
+            lanes[lane] ^= lanes[lane] >> kFold;
+        }
+    }
+
+    for (lane = 0; lane < kLanes; lane++)
+    {
+        hash  = (hash ^ lanes[lane]) * kPrime;
         hash ^= hash >> kFold;
     }
 
@@ -564,3 +576,49 @@ uint64_t KeyframeStore::ComputeChecksum (
 
     return hash;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  XorBytes
+//
+//  out = a XOR b over count bytes, eight at a time; out may be a. Through
+//  raw pointers and words, so the loop does not reload a vector's pointers
+//  after every byte it stores.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::XorBytes (
+    const Byte  * a,
+    const Byte  * b,
+    Byte        * out,
+    size_t        count)
+{
+    uint64_t  wordA = 0;
+    uint64_t  wordB = 0;
+    size_t    i     = 0;
+
+
+
+    for (i = 0; i + sizeof (wordA) <= count; i += sizeof (wordA))
+    {
+        memcpy (&wordA, a + i, sizeof (wordA));
+        memcpy (&wordB, b + i, sizeof (wordB));
+
+        wordA ^= wordB;
+
+        memcpy (out + i, &wordA, sizeof (wordA));
+    }
+
+    for (; i < count; i++)
+    {
+        out[i] = static_cast<Byte> (a[i] ^ b[i]);
+    }
+}
+
+
+
+
