@@ -13,14 +13,19 @@ AppleWin commands:
     CYCLES [ABS|REL|PART]                                Show the cycles in total, in the last run, or since RCC
     FRAME [count]                                        Run one video frame, or count of them
     G [addr [skip[,len|:last]]]                          Run, stopping at addr or when PC leaves the skip range
+    G-                                                   Run backward through the recorded history to the latest breakpoint or watchpoint
     GG [addr [skip[,len|:last]]]                         Run at full speed, stopping as G does
+    GU-                                                  Step back out to the JSR that called the current subroutine
     JSR addr                                             Call a subroutine and run until it returns
     KEY byte [byte ...]                                  Queue key codes for the machine to read
     LBR                                                  Show the last branch taken
+    LIVE                                                 Leave the recorded history and return to where the machine was running
     P [count]                                            Step over
+    P-                                                   Step back over, taking a whole subroutine call as one step
     RCC                                                  Reset the cycle counter that CYCLES PART reads
     RTS [count]                                          Step out of the current subroutine
     T, TL, TRACE [count]                                 Step into
+    T-                                                   Step back one instruction
     TF [file] [V]                                        Turn tracing to a file on or off; V records the video position
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !
@@ -254,12 +259,16 @@ Casso commands:
     /BUDGET cycles                                         Stop each run after a number of cycles, in decimal; 0 removes the limit
     /CYCLES [ABS|REL|PART]                                 Show the cycles in total, in the last run, or since RCC
     /FRAME [count]                                         Run one video frame, or count of them
+    /G-                                                    Run backward through the recorded history to the latest breakpoint or watchpoint
     /GG [addr [skip[,len|:last]]]                          Run at full speed, stopping as G does
+    /GU-                                                   Step back out to the JSR that called the current subroutine
     /HISTORY [ON|OFF|SAVE file|first [n]]                  Show the instruction trace, turn it on or off, or save it
     /JSR addr                                              Call a subroutine and run until it returns
     /KEY byte [byte ...]                                   Queue key codes for the machine to read
     /LBR                                                   Show the last branch taken
+    /LIVE                                                  Leave the recorded history and return to where the machine was running
     /P [count]                                             Step over
+    /P-                                                    Step back over, taking a whole subroutine call as one step
     /PAUSE                                                 Stop the running machine
     /PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]        Profile where execution goes, by routine or by address
     /RCC                                                   Reset the cycle counter that CYCLES PART reads
@@ -267,6 +276,7 @@ Casso commands:
     /SKIP [CLEAR|[-]name|addr[.last]]                      Show or change the routines stepping goes over
     /SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]          Log speaker toggles and Mockingboard writes with their cycles
     /STOPWATCH [start [stop]|OFF|RESET]                    Count the cycles between two addresses in debugger runs
+    /T-                                                    Step back one instruction
     /TF [file] [V]                                         Turn tracing to a file on or off; V records the video position
   Breakpoints
     /BP addr[,len|:last]|file:line [IF expr]               Set an execution breakpoint, or one on PC with < > = !
@@ -438,9 +448,13 @@ Casso commands:
 GSSquared commands:
   Running and stepping
     g, or Return                                    Run
+    g-                                              Run backward to a breakpoint
+    gu-                                             Step back out
     o                                               Step over
+    p-                                              Step back over
     r                                               Step out
     s, or Space                                     Step into
+    t-                                              Step back into
   Breakpoints
     bp addr [IF expr]                               Set an execution breakpoint
     bpd addr r|w|rw                                 Break on a read or write of addr
@@ -477,6 +491,7 @@ Casso commands:
     JSR addr                                        Call a subroutine and run until it returns
     KEY byte [byte ...]                             Queue key codes for the machine to read
     LBR                                             Show the last branch taken
+    LIVE                                            Leave the recorded history and return to where the machine was running
     PAUSE                                           Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]  Profile where execution goes, by routine or by address
     RCC                                             Reset the cycle counter that CYCLES PART reads
@@ -608,10 +623,14 @@ Casso commands:
 WinDbg commands:
   Running and stepping
     g [addr]                                         Run, stopping at addr if given
+    g-                                               Run backward to a breakpoint
     gu                                               Step out
+    gu-                                              Step back out
     p [count]                                        Step over
+    p-                                               Step back over
     pa addr                                          Run to addr
     t [count]                                        Step into
+    t-                                               Step back into
     ta addr                                          Run to addr
   Breakpoints
     ba r1|w1|e1 addr                                 Break on a read, write or execution of addr
@@ -657,6 +676,7 @@ Casso commands:
     !JSR addr                                        Call a subroutine and run until it returns
     !KEY byte [byte ...]                             Queue key codes for the machine to read
     !LBR                                             Show the last branch taken
+    !LIVE                                            Leave the recorded history and return to where the machine was running
     !PAUSE                                           Stop the running machine
     !PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]  Profile where execution goes, by routine or by address
     !RCC                                             Reset the cycle counter that CYCLES PART reads
@@ -799,12 +819,16 @@ Casso commands:
     CYCLES [ABS|REL|PART]                                Show the cycles in total, in the last run, or since RCC
     FRAME [count]                                        Run one video frame, or count of them
     G [addr [skip[,len|:last]]]                          Run, stopping at addr or when PC leaves the skip range
+    G-                                                   Run backward through the recorded history to the latest breakpoint or watchpoint
     GG [addr [skip[,len|:last]]]                         Run at full speed, stopping as G does
+    GU-                                                  Step back out to the JSR that called the current subroutine
     HISTORY [ON|OFF|SAVE file|first [n]]                 Show the instruction trace, turn it on or off, or save it
     JSR addr                                             Call a subroutine and run until it returns
     KEY byte [byte ...]                                  Queue key codes for the machine to read
     LBR                                                  Show the last branch taken
+    LIVE                                                 Leave the recorded history and return to where the machine was running
     P [count]                                            Step over
+    P-                                                   Step back over, taking a whole subroutine call as one step
     PAUSE                                                Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]       Profile where execution goes, by routine or by address
     RCC                                                  Reset the cycle counter that CYCLES PART reads
@@ -813,6 +837,7 @@ Casso commands:
     SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log speaker toggles and Mockingboard writes with their cycles
     STOPWATCH [start [stop]|OFF|RESET]                   Count the cycles between two addresses in debugger runs
     T, TL, TRACE [count]                                 Step into
+    T-                                                   Step back one instruction
     TF [file] [V]                                        Turn tracing to a file on or off; V records the video position
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !

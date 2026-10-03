@@ -854,6 +854,20 @@ HRESULT EmulatorShell::OpenDebugger()
     SetDebugSession    (&m_debugger->GetSession());
     SetReverseStopTest (&m_debugger->GetReverseStopTest());
 
+    m_debugger->GetSession().SetReverseRequester ([this] (ReverseCommand command)
+    {
+        bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
+
+
+
+        if (isRecording)
+        {
+            PostReverseCommand (command);
+        }
+
+        return isRecording;
+    });
+
 Error:
     if (FAILED (hr))
     {

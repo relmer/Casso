@@ -3,6 +3,7 @@
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/Reply.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 #include "Ui/Debugger/BreakpointHistory.h"
 #include "Ui/Debugger/BreakpointImport.h"
 #include "Ui/Debugger/DebuggerActions.h"
@@ -205,6 +206,9 @@ struct DebuggerViewSnapshot
     bool                         isAssembling  = false;
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
+
+    //  Where the machine stands in its recorded history; the host fills it in.
+    HistoryStatus                history;
 
     //  Where the symbols came from, one line a source: each built-in table
     //  and each file loaded; see DebuggerViewState::DescribeSymbolSources.

@@ -195,6 +195,10 @@ void DebuggerWindow::OnCreate()
     m_consoleView       = CreateChild<DxuiTextView>  ();
     m_traceList         = CreateChild<DxuiListView>  ();
     m_traceHint         = CreateChild<KeyHintLine>   ();
+    m_codeHistoryBand   = CreateChild<HistoryBand>   ();
+    m_regHistoryBand    = CreateChild<HistoryBand>   ();
+    m_codeHistoryBand->SetOnGoLive ([this] { RunCommandBarEntry (DebuggerCommands::kGoLive); });
+    m_regHistoryBand->SetOnGoLive  ([this] { RunCommandBarEntry (DebuggerCommands::kGoLive); });
     m_heatMapView       = CreateChild<HeatMapView>   ();
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
@@ -886,6 +890,12 @@ void DebuggerWindow::RunCommandBarEntry (int id)
         return;
     }
 
+    if (id == DebuggerCommands::kReverseContinue || id == DebuggerCommands::kGoLive)
+    {
+        RunAction (DebuggerActions::GetReverse ((id == DebuggerCommands::kGoLive) ? DebugVerb::GoLive : DebugVerb::ReverseGo, GetMode()));
+        return;
+    }
+
     (void) OnMappedCommand (id);
 }
 
@@ -930,6 +940,19 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
     if (id == DebuggerCommands::kRunToCursor)
     {
         return paused && m_codeLists[(size_t) m_activeCode]->GetSelectedRow() >= 0;
+    }
+
+    //  Moving through history needs a stopped machine and a recording, and
+    //  going live needs the machine to be behind live.
+    if (id == DebuggerCommands::kStepBackInto || id == DebuggerCommands::kStepBackOver ||
+        id == DebuggerCommands::kStepBackOut  || id == DebuggerCommands::kReverseContinue)
+    {
+        return paused && m_snapshot->history.isRecording;
+    }
+
+    if (id == DebuggerCommands::kGoLive)
+    {
+        return paused && m_snapshot->history.isBehindLive;
     }
 
     return true;
@@ -4583,6 +4606,7 @@ void DebuggerWindow::ConfigureDockSite()
     constexpr int   kMemoryBarDip = DxuiToolbar::kCompactBandDp;
     auto            boxHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
     auto            barHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kMemoryBarDip); };
+    auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::kHeightDip); };
     std::wstring    savedText;
     DxuiPaneLayout  restored;
 
@@ -4646,6 +4670,12 @@ void DebuggerWindow::ConfigureDockSite()
         each.slot  = std::make_unique<DebuggerPaneFrame> (L"Undo commands");
         each.frame = std::make_unique<DebuggerPaneFrame> (GetPaneTitle (each.pane));
         each.frame->AddPart (each.slot.get(), barHeight);
+
+        if (each.pane == DebuggerLayout::kRegisters)
+        {
+            each.frame->AddPart (m_regHistoryBand, bandHeight, [this] { return HistoryBand::IsShown (m_regHistoryBand->GetStatus()); });
+        }
+
         each.frame->AddPart (each.list);
     }
 
@@ -4655,6 +4685,12 @@ void DebuggerWindow::ConfigureDockSite()
         m_codeFrames[(size_t) view]   = std::make_unique<DebuggerPaneFrame> (std::format (L"Disassembly {}", view + 1));
         m_codeBarSlots[(size_t) view] = std::make_unique<DebuggerPaneFrame> (L"Disassembly options");
         m_codeFrames[(size_t) view]->AddPart (m_codeBarSlots[(size_t) view].get(), barHeight);
+
+        if (view == 0)
+        {
+            m_codeFrames[0]->AddPart (m_codeHistoryBand, bandHeight, [this] { return HistoryBand::IsShown (m_codeHistoryBand->GetStatus()); });
+        }
+
         m_codeFrames[(size_t) view]->AddPart (m_codeLists[(size_t) view]);
 
         m_dockSite->AddPane (DebuggerLayout::GetCodePaneId (view), std::format (L"Disassembly {}", view + 1),
@@ -6316,6 +6352,46 @@ void DebuggerWindow::ApplyCodeView (int view)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ApplyHistory
+//
+//  The history bands follow the snapshot's place in history, and the panes
+//  that hold them are laid out again when the bands appear or go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyHistory()
+{
+    HistoryStatus  status   = (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus();
+    bool           wasShown = HistoryBand::IsShown (m_codeHistoryBand->GetStatus());
+    bool           isShown  = HistoryBand::IsShown (status);
+
+
+
+    m_codeHistoryBand->SetStatus (status);
+    m_regHistoryBand->SetStatus  (status);
+
+    if (wasShown != isShown)
+    {
+        m_codeFrames[0]->Relayout();
+
+        for (PaneUndoBar & each : m_undoBars)
+        {
+            if (each.frame != nullptr)
+            {
+                each.frame->Relayout();
+            }
+        }
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::TakeSnapshot
 //
 //  A new snapshot from the machine, applied as each frame applies one.
@@ -6326,6 +6402,7 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 {
     m_snapshot = std::move (snapshot);
     ApplySnapshot();
+    ApplyHistory();
 
     m_watchHistory.OnSnapshot (*m_snapshot);
 

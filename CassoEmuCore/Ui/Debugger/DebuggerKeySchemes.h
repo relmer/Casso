@@ -40,6 +40,11 @@ enum class DebuggerKeyScheme
 //  None of the three has a key to run one video frame; all take F6, which
 //  none of them binds.
 //
+//  Every scheme steps back with Alt and the forward step's Visual Studio key:
+//  Alt+F11 into, Alt+F10 over, Alt+Shift+F11 out. The Visual Studio scheme
+//  also takes Visual Studio's own chords, Ctrl+R then the forward step's key,
+//  and shows those in its menus.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DebuggerKeySchemes
@@ -58,9 +63,12 @@ public:
         FindNext,
         FindPrevious,
         RunFrame,
+        StepBackInto,
+        StepBackOver,
+        StepBackOut,
 
         First = Run,
-        Last  = RunFrame,
+        Last  = StepBackOut,
     };
 
     static constexpr DebuggerKeyScheme  kDefault = DebuggerKeyScheme::VisualStudio;

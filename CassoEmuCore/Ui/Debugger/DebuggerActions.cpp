@@ -110,6 +110,37 @@ DebuggerAction DebuggerActions::GetStepOut (CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetReverse
+//
+//  The AppleWin line each reverse verb is typed as, which the echo shows in
+//  the words of the mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetReverse (DebugVerb verb, CommandMode mode)
+{
+    const char  * line = "T-";
+
+
+
+    switch (verb)
+    {
+    case DebugVerb::StepBackOver: line = "P-";   break;
+    case DebugVerb::StepBackOut:  line = "GU-";  break;
+    case DebugVerb::ReverseGo:    line = "G-";   break;
+    case DebugVerb::GoLive:       line = "LIVE"; break;
+    default:                                     break;
+    }
+
+    return Make (verb, line, mode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetRunToCursor
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -782,6 +813,10 @@ std::optional<DebuggerAction> DebuggerActions::GetForKey (
     case Action::StepOver: taken = GetStepOver (mode); break;
     case Action::StepOut:  taken = GetStepOut  (mode); break;
     case Action::RunFrame: taken = GetRunFrame();      break;
+
+    case Action::StepBackInto: taken = GetReverse (DebugVerb::StepBack,     mode); break;
+    case Action::StepBackOver: taken = GetReverse (DebugVerb::StepBackOver, mode); break;
+    case Action::StepBackOut:  taken = GetReverse (DebugVerb::StepBackOut,  mode); break;
 
     case Action::RunToCursor:
         if (selected.has_value())

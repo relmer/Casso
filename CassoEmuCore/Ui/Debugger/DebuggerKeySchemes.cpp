@@ -8,6 +8,9 @@
 
 using Action = DebuggerKeySchemes::Action;
 
+//  Visual Studio's step back chords start with Ctrl+R.
+static constexpr DxuiKeyStroke  s_kChordPrefix = { 'R', true, false, false };
+
 static constexpr DxuiKeyChord  s_kVisualStudioKeys[] =
 {
     { VK_F5,  false, false, false, (int) Action::Run              },
@@ -21,6 +24,12 @@ static constexpr DxuiKeyChord  s_kVisualStudioKeys[] =
     { VK_F3,  false, false, false, (int) Action::FindNext         },
     { VK_F3,  false, false, true,  (int) Action::FindPrevious     },
     { VK_F6,  false, false, false, (int) Action::RunFrame         },
+    { VK_F11, false, false, false, (int) Action::StepBackInto,     s_kChordPrefix },
+    { VK_F10, false, false, false, (int) Action::StepBackOver,     s_kChordPrefix },
+    { VK_F11, false, false, true,  (int) Action::StepBackOut,      s_kChordPrefix },
+    { VK_F11, false, true,  false, (int) Action::StepBackInto     },
+    { VK_F10, false, true,  false, (int) Action::StepBackOver     },
+    { VK_F11, false, true,  true,  (int) Action::StepBackOut      },
 };
 
 static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
@@ -36,6 +45,9 @@ static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
     { VK_F3,     false, false, false, (int) Action::FindNext         },
     { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
     { VK_F6,     false, false, false, (int) Action::RunFrame         },
+    { VK_F11,    false, true,  false, (int) Action::StepBackInto     },
+    { VK_F10,    false, true,  false, (int) Action::StepBackOver     },
+    { VK_F11,    false, true,  true,  (int) Action::StepBackOut      },
 };
 
 static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
@@ -51,6 +63,9 @@ static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
     { VK_F3,     false, false, false, (int) Action::FindNext         },
     { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
     { VK_F6,     false, false, false, (int) Action::RunFrame         },
+    { VK_F11,    false, true,  false, (int) Action::StepBackInto     },
+    { VK_F10,    false, true,  false, (int) Action::StepBackOver     },
+    { VK_F11,    false, true,  true,  (int) Action::StepBackOut      },
 };
 
 

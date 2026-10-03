@@ -1226,6 +1226,8 @@ void EmulatorShell::PublishDebuggerView()
     //  in: the command bar gates its stepping entries on it, and the code
     //  pane's annotations are built only when it is paused (FR-110).
     DebuggerViewSnapshot  built = m_debugViewState.Build (m_debugger->GetSession(), m_cpuManager.IsPaused());
+
+    built.history = GetHistoryStatus();
     snapshot       = std::make_shared<const DebuggerViewSnapshot> (std::move (built));
 
     {

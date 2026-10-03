@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Debugger/Reverse/HistoryStatus.h"
 #include "Debugger/Reverse/ReverseCommand.h"
 #include "Debugger/Reverse/ReverseController.h"
 
@@ -46,6 +47,9 @@ public:
 
     bool     IsRecording    () const { return m_controller.IsRecording(); }
     bool     IsBehindLive   () const { return m_controller.IsInHistory(); }
+
+    //  How far behind live the machine stands; the outcome is left empty.
+    HistoryStatus  GetStatus () const;
 
     ReverseController        & GetController()       { return m_controller; }
     const ReverseController  & GetController() const { return m_controller; }

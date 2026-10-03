@@ -1483,19 +1483,47 @@ DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
 //  Key-downs only: a map binds presses, and a release of a mapped key must
 //  not run its command a second time.
 //
+//  The first key of a two-key chord is kept until the next key-down. A
+//  second key that completes no chord is consumed with it, as Visual Studio
+//  consumes one, so it does not reach a control as a key of its own.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiWindow::RouteMappedKey (const DxuiKeyEvent & ev)
 {
-    int   commandId = 0;
-    bool  isHandled = false;
+    int            commandId = 0;
+    bool           isHandled = false;
+    DxuiKeyMatch   match     = DxuiKeyMatch::None;
+    DxuiKeyStroke  stroke    = { ev.vk, ev.ctrl, ev.alt, ev.shift };
 
 
 
-    if (m_keyMap != nullptr && ev.kind == DxuiKeyEventKind::Down &&
-        m_keyMap->TryTranslate (ev.vk, ev.ctrl, ev.alt, ev.shift, commandId))
+    if (m_keyMap == nullptr || ev.kind != DxuiKeyEventKind::Down)
     {
+        return false;
+    }
+
+    match = m_keyMap->Match (stroke, m_keyPrefix, commandId);
+
+    switch (match)
+    {
+    case DxuiKeyMatch::Command:
+        m_keyPrefix.reset();
         isHandled = OnMappedCommand (commandId);
+        break;
+
+    case DxuiKeyMatch::Prefix:
+        m_keyPrefix = stroke;
+        isHandled   = true;
+        break;
+
+    case DxuiKeyMatch::Modifier:
+        break;
+
+    default:
+        isHandled = m_keyPrefix.has_value();
+        m_keyPrefix.reset();
+        break;
     }
 
     return isHandled;

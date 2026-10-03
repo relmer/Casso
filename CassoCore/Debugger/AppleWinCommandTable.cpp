@@ -49,6 +49,11 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "TF",          V::TraceToFile,              F::Cpu,         A::Headless,     nullptr,     nullptr },
     { "TL",          V::StepInto,                 F::Cpu,         A::Headless,     "T",         nullptr },
     { "U",           V::Disassemble,              F::Cpu,         A::Headless,     nullptr,     nullptr },
+    { "T-",          V::StepBack,                 F::Cpu,         A::Headless,     nullptr,     nullptr },
+    { "P-",          V::StepBackOver,             F::Cpu,         A::Headless,     nullptr,     nullptr },
+    { "GU-",         V::StepBackOut,              F::Cpu,         A::Headless,     nullptr,     nullptr },
+    { "G-",          V::ReverseGo,                F::Cpu,         A::Headless,     nullptr,     nullptr },
+    { "LIVE",        V::GoLive,                   F::Cpu,         A::Headless,     nullptr,     nullptr },
 
     // Bookmarks
     { "BM",          V::AddBookmark,              F::Bookmarks,   A::Headless,     nullptr,     nullptr },

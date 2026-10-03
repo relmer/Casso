@@ -23,6 +23,7 @@
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/KeyHintLine.h"
+#include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -516,6 +517,7 @@ private:
     void     ConfigureWidgets ();
     void     LayoutWidgets    ();
     void     ApplySnapshot    ();
+    void     ApplyHistory     ();
     void     UpdateChanges    ();
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
     void     RemoveSelectedWatch ();
@@ -873,6 +875,8 @@ private:
     DxuiListView                                                                   * m_traceList          = nullptr;
     std::unique_ptr<TracePane>                                                       m_tracePane;
     KeyHintLine                                                                    * m_traceHint          = nullptr;
+    HistoryBand                                                                    * m_codeHistoryBand    = nullptr;
+    HistoryBand                                                                    * m_regHistoryBand     = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_traceFrame;
     HeatMapView                                                                    * m_heatMapView        = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapFrame;

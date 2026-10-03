@@ -446,6 +446,7 @@ private:
     const IDxuiTheme                 * m_theme           = nullptr;
     IDxuiControl                     * m_initialFocus    = nullptr;
     const DxuiKeyMap                 * m_keyMap          = nullptr;
+    std::optional<DxuiKeyStroke>       m_keyPrefix;                // the first key of a two-key chord, while it waits
     DxuiFocusManager                   m_focus;
     bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
     bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)

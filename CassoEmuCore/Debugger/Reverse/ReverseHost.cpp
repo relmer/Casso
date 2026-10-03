@@ -280,3 +280,38 @@ ReverseSettings ReverseHost::MakeSettings (
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStatus
+//
+//  Live, or not recording, the machine is no distance behind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HistoryStatus ReverseHost::GetStatus() const
+{
+    HistoryStatus    status;
+    EmuCpu         * cpu      = m_machine.GetCpu();
+    uint64_t         position = m_machine.GetPosition();
+    uint64_t         cycle    = (cpu != nullptr) ? cpu->GetTotalCycles() : 0;
+    uint64_t         endPos   = m_controller.GetLiveEndPosition();
+    uint64_t         endCycle = m_controller.GetLiveEndCycle();
+
+
+
+    status.isRecording  = m_controller.IsRecording();
+    status.isBehindLive = m_controller.IsInHistory();
+
+    if (status.isBehindLive)
+    {
+        status.instructionsBehind = (endPos   > position) ? endPos   - position : 0;
+        status.cyclesBehind       = (endCycle > cycle)    ? endCycle - cycle    : 0;
+    }
+
+    return status;
+}
+
+
+
+
+

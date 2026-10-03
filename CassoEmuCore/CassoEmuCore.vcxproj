@@ -190,7 +190,7 @@
     <ClCompile Include="Ui\Debugger\Panes\MeterBar.cpp" />
     <ClCompile Include="Ui\Debugger\CommandBarDock.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerLayout.cpp" /><ClCompile Include="Ui\Debugger\DebuggerCommands.cpp" /><ClCompile Include="Ui\Debugger\MemoryBarCommands.cpp" /><ClCompile Include="Ui\Debugger\MemoryAddressEntry.cpp" /><ClCompile Include="Ui\Debugger\FlagsDialog.cpp" /><ClCompile Include="Ui\Debugger\BreakpointDialog.cpp" />
-    <ClCompile Include="Ui\Debugger\DisassemblyOptions.cpp" /><ClCompile Include="Ui\Debugger\ToolbarCheckEntry.cpp" /><ClCompile Include="Ui\Debugger\ToolbarLabelEntry.cpp" /><ClCompile Include="Ui\Debugger\KeyHintLine.cpp" /><ClCompile Include="Ui\Debugger\WholeWordButton.cpp" />
+    <ClCompile Include="Ui\Debugger\DisassemblyOptions.cpp" /><ClCompile Include="Ui\Debugger\ToolbarCheckEntry.cpp" /><ClCompile Include="Ui\Debugger\ToolbarLabelEntry.cpp" /><ClCompile Include="Ui\Debugger\KeyHintLine.cpp" /><ClCompile Include="Ui\Debugger\HistoryBand.cpp" /><ClCompile Include="Ui\Debugger\WholeWordButton.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindow.cpp" />
     <ClCompile Include="Debugger\SynchronousRunDriver.cpp" />
     <ClCompile Include="Debugger\BreakpointTable.cpp" />
@@ -626,7 +626,7 @@
     <ClInclude Include="Ui\Debugger\Panes\MeterBar.h" />
     <ClInclude Include="Ui\Debugger\CommandBarDock.h" />
     <ClInclude Include="Ui\Debugger\DebuggerLayout.h" /><ClInclude Include="Ui\Debugger\DebuggerCommands.h" /><ClInclude Include="Ui\Debugger\MemoryBarCommands.h" /><ClInclude Include="Ui\Debugger\MemoryAddressEntry.h" /><ClInclude Include="Ui\Debugger\FlagsDialog.h" /><ClInclude Include="Ui\Debugger\BreakpointDialog.h" />
-    <ClInclude Include="Ui\Debugger\DisassemblyOptions.h" /><ClInclude Include="Ui\Debugger\ToolbarCheckEntry.h" /><ClInclude Include="Ui\Debugger\ToolbarLabelEntry.h" /><ClInclude Include="Ui\Debugger\KeyHintLine.h" /><ClInclude Include="Ui\Debugger\WholeWordButton.h" />
+    <ClInclude Include="Ui\Debugger\DisassemblyOptions.h" /><ClInclude Include="Ui\Debugger\ToolbarCheckEntry.h" /><ClInclude Include="Ui\Debugger\ToolbarLabelEntry.h" /><ClInclude Include="Ui\Debugger\KeyHintLine.h" /><ClInclude Include="Ui\Debugger\HistoryBand.h" /><ClInclude Include="Ui\Debugger\WholeWordButton.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
     <ClInclude Include="Debugger\SynchronousRunDriver.h" />
     <ClInclude Include="Debugger\BreakpointTable.h" />
@@ -663,6 +663,7 @@
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
     <ClInclude Include="Debugger\Reverse\ReverseHost.h" />
     <ClInclude Include="Debugger\Reverse\ReverseStopTest.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryStatus.h" />
     <ClInclude Include="Debugger\Reverse\ReverseOutcome.h" />
     <ClInclude Include="Shell\HostInputGate.h" />
     <ClInclude Include="Debugger\Reverse\SnapshotCompressor.h" />

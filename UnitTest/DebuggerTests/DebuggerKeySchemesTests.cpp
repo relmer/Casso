@@ -117,7 +117,9 @@ namespace DebuggerTests
                     for (size_t j = i + 1; j < chords.size(); j++)
                     {
                         bool  same = chords[i].vk == chords[j].vk && chords[i].ctrl == chords[j].ctrl &&
-                                     chords[i].alt == chords[j].alt && chords[i].shift == chords[j].shift;
+                                     chords[i].alt == chords[j].alt && chords[i].shift == chords[j].shift &&
+                                     chords[i].prefix.vk == chords[j].prefix.vk && chords[i].prefix.ctrl == chords[j].prefix.ctrl &&
+                                     chords[i].prefix.alt == chords[j].prefix.alt && chords[i].prefix.shift == chords[j].prefix.shift;
 
                         Assert::IsFalse (same, DebuggerKeySchemes::GetMap (scheme).GetName().c_str());
                     }

@@ -91,6 +91,9 @@ public:
     static DebuggerAction  GetStepOver         (CommandMode mode);
     static DebuggerAction  GetStepOut          (CommandMode mode);
 
+    //  T-, P-, GU-, G- or LIVE: the verb is one of the reverse verbs.
+    static DebuggerAction  GetReverse          (DebugVerb verb, CommandMode mode);
+
     //  Runs to the address. Its echo is Casso's G, whatever the mode, since
     //  GSSquared's g takes no address.
     static DebuggerAction  GetRunToCursor      (Word address);

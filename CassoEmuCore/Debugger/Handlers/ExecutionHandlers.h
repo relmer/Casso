@@ -4,6 +4,7 @@
 #include "Debugger/CycleStopwatch.h"
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/ProfileTable.h"
+#include "Debugger/Reverse/ReverseCommand.h"
 
 class IDebugTarget;
 class IFileSystem;
@@ -17,8 +18,9 @@ class IFileSystem;
 //  ExecutionHandlers
 //
 //  =, JSR, NOP and ZAP, KEY, BPV, BPBEAM, FRAME and VIDEOINFO, LBR, TF,
-//  PROFILE, STOPWATCH, CYCLES and RCC, and BENCHMARK, BENCH and EXITBENCH.
-//  The run commands themselves (G, GG, T, TL, P, RTS) are the session's own.
+//  PROFILE, STOPWATCH, CYCLES and RCC, BENCHMARK, BENCH and EXITBENCH, and the
+//  reverse commands T-, P-, GU-, G- and LIVE. The run commands themselves (G,
+//  GG, T, TL, P, RTS) are the session's own.
 //
 //  The family is also the session's instruction observer: the profile
 //  counters (while PROFILE ON), the stopwatch (while armed) and the trace file are fed from each
@@ -86,6 +88,10 @@ private:
     void         ShowCycles        (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         ResetCycles       (DebugSession & session, Reply & reply);
     static void  Benchmark         (const DebugCommand & command, Reply & reply);
+    static void  RunReverse        (DebugSession & session, const DebugCommand & command, Reply & reply);
+
+    //  The reverse command a reverse verb stands for.
+    static ReverseCommand  GetReverseCommand (DebugVerb verb);
 
     void         RecordProfile     (DebugSession & session, Word pc);
     void         BillProfile       (DebugSession & session);

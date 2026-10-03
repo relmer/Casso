@@ -14,6 +14,7 @@
 #include "Debugger/SymbolTable.h"
 #include "Debugger/WatchTable.h"
 #include "Debugger/WatchpointTable.h"
+#include "Debugger/Reverse/ReverseCommand.h"
 
 class IDebugCommandHandler;
 class IDebugNotificationSink;
@@ -235,6 +236,13 @@ public:
     void                       SetScriptLineRunner (ScriptLineRunner runner)       { m_scriptLineRunner = std::move (runner); }
     const ScriptLineRunner   & GetScriptLineRunner () const                        { return m_scriptLineRunner; }
 
+    // Reverse execution, where the host records the machine's history: the
+    // requester carries a reverse command to the machine and returns whether
+    // it was taken. Empty where nothing is recorded.
+    using ReverseRequester = std::function<bool (ReverseCommand)>;
+
+    void                       SetReverseRequester (ReverseRequester requester)    { m_reverseRequester = std::move (requester); }
+    const ReverseRequester   & GetReverseRequester () const                        { return m_reverseRequester; }
     // BPV: stop when the video scanline enters the range, once.
     void   SetVideoBreak         (uint32_t first, uint32_t last);
     void   ClearVideoBreak       ();
@@ -371,6 +379,7 @@ private:
     std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;
     bool                                  m_isViewQuery   = false;
     ScriptLineRunner                      m_scriptLineRunner;
+    ReverseRequester                      m_reverseRequester;
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;

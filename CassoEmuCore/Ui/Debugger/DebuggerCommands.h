@@ -28,17 +28,22 @@ class DebuggerCommands
 {
 public:
     //  The key schemes' actions, then the bar's own.
-    static constexpr int  kRun         = (int) DebuggerKeySchemes::Action::Run;
-    static constexpr int  kPause       = (int) DebuggerKeySchemes::Action::Pause;
-    static constexpr int  kStepInto    = (int) DebuggerKeySchemes::Action::StepInto;
-    static constexpr int  kStepOver    = (int) DebuggerKeySchemes::Action::StepOver;
-    static constexpr int  kStepOut     = (int) DebuggerKeySchemes::Action::StepOut;
-    static constexpr int  kRunToCursor = (int) DebuggerKeySchemes::Action::RunToCursor;
-    static constexpr int  kFind        = (int) DebuggerKeySchemes::Action::Find;
-    static constexpr int  kRunFrame    = (int) DebuggerKeySchemes::Action::RunFrame;
+    static constexpr int  kRun          = (int) DebuggerKeySchemes::Action::Run;
+    static constexpr int  kPause        = (int) DebuggerKeySchemes::Action::Pause;
+    static constexpr int  kStepInto     = (int) DebuggerKeySchemes::Action::StepInto;
+    static constexpr int  kStepOver     = (int) DebuggerKeySchemes::Action::StepOver;
+    static constexpr int  kStepOut      = (int) DebuggerKeySchemes::Action::StepOut;
+    static constexpr int  kRunToCursor  = (int) DebuggerKeySchemes::Action::RunToCursor;
+    static constexpr int  kFind         = (int) DebuggerKeySchemes::Action::Find;
+    static constexpr int  kRunFrame     = (int) DebuggerKeySchemes::Action::RunFrame;
+    static constexpr int  kStepBackInto = (int) DebuggerKeySchemes::Action::StepBackInto;
+    static constexpr int  kStepBackOver = (int) DebuggerKeySchemes::Action::StepBackOver;
+    static constexpr int  kStepBackOut  = (int) DebuggerKeySchemes::Action::StepBackOut;
 
-    static constexpr int  kShowNext    = 100;
-    static constexpr int  kTrace       = 101;
+    static constexpr int  kShowNext        = 100;
+    static constexpr int  kTrace           = 101;
+    static constexpr int  kReverseContinue = 102;
+    static constexpr int  kGoLive          = 103;
 
     struct Handlers
     {
@@ -84,16 +89,21 @@ private:
 
     static const std::vector<Row> &  GetRows ();
     static std::wstring              GetTip  (const Row & row, const std::wstring & accelerator);
-    static void  PaintIcon        (int id, IDxuiPainter & painter, const DxuiToolbarIconBox & icon, const IconColors & colors);
-    static void  PaintRun         (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintPause       (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepInto    (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepOver    (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepOut     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintRunToCursor (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t arrow, uint32_t bar);
-    static void  PaintShowNext    (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintArrowHead   (IDxuiPainter & painter, float tipX, float tipY, float dirX, float dirY, float length, float stroke, uint32_t color);
-    static void  PaintStepDot     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintIcon         (int id, IDxuiPainter & painter, const DxuiToolbarIconBox & icon, const IconColors & colors);
+    static void  PaintRun          (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintPause        (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepInto     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepOver     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepOut      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintRunToCursor  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t arrow, uint32_t bar);
+    static void  PaintShowNext     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepBackInto (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepBackOver (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintStepBackOut  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintReverseRun   (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintBackDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void  PaintArrowHead    (IDxuiPainter & painter, float tipX, float tipY, float dirX, float dirY, float length, float stroke, uint32_t color);
+    static void  PaintStepDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
 
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;

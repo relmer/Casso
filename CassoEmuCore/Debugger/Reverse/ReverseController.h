@@ -125,6 +125,7 @@ public:
     bool      IsInHistory         () const;
     uint64_t  GetOldestPosition   () const;
     uint64_t  GetLiveEndPosition  () const;
+    uint64_t  GetLiveEndCycle     () const { return m_liveEndCycle; }
     size_t    GetTableBuildCount  () const { return m_tableBuilds; }
     bool      HasStepTable        () const { return m_hasSteps; }
 

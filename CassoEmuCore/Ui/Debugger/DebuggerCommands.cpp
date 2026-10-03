@@ -18,6 +18,7 @@ static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up
 static constexpr const wchar_t *  s_kGlyphRunToCursor = L"";         // MDL2 has no arrow into a bar, so the entry draws its own icon
 static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
+static constexpr const wchar_t *  s_kGlyphDrawn       = L"";         // the step back and reverse entries draw their own icons
 
 
 
@@ -38,14 +39,18 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
-        { kRun,         L"Run",           s_kGlyphRun,         L"Run until something stops the machine",           DxuiToolbar::Kind::Command,  0, false, true  },
-        { kPause,       L"Pause",         s_kGlyphPause,       L"Stop the running machine",                        DxuiToolbar::Kind::Command,  0, false, true  },
-        { kStepInto,    L"Step into",     s_kGlyphStepInto,    L"Step one instruction, into a call",               DxuiToolbar::Kind::Command,  1, false, true  },
-        { kStepOver,    L"Step over",     s_kGlyphStepOver,    L"Step one instruction, over a call",               DxuiToolbar::Kind::Command,  1, false, true  },
-        { kStepOut,     L"Step out",      s_kGlyphStepOut,     L"Run to the return of the current call",           DxuiToolbar::Kind::Command,  1, false, true  },
-        { kRunToCursor, L"Run to cursor", s_kGlyphRunToCursor, L"Run until the selected line",                     DxuiToolbar::Kind::Command,  1, false, true  },
-        { kShowNext,    L"Show next",     s_kGlyphShowNext,    L"Bring the code panes to the next statement",      DxuiToolbar::Kind::Command,  2, false, true  },
-        { kTrace,       L"Trace",         s_kGlyphTrace,       L"Record every instruction the machine runs",       DxuiToolbar::Kind::Toggle,   2, true,  false },
+        { kRun,             L"Run",              s_kGlyphRun,         L"Run until something stops the machine",                DxuiToolbar::Kind::Command, 0, false, true  },
+        { kPause,           L"Pause",            s_kGlyphPause,       L"Stop the running machine",                             DxuiToolbar::Kind::Command, 0, false, true  },
+        { kStepInto,        L"Step into",        s_kGlyphStepInto,    L"Step one instruction, into a call",                    DxuiToolbar::Kind::Command, 1, false, true  },
+        { kStepOver,        L"Step over",        s_kGlyphStepOver,    L"Step one instruction, over a call",                    DxuiToolbar::Kind::Command, 1, false, true  },
+        { kStepOut,         L"Step out",         s_kGlyphStepOut,     L"Run to the return of the current call",                DxuiToolbar::Kind::Command, 1, false, true  },
+        { kRunToCursor,     L"Run to cursor",    s_kGlyphRunToCursor, L"Run until the selected line",                          DxuiToolbar::Kind::Command, 1, false, true  },
+        { kStepBackInto,    L"Step back into",   s_kGlyphDrawn,       L"Go back one instruction, into a call",                 DxuiToolbar::Kind::Command, 2, false, true  },
+        { kStepBackOver,    L"Step back over",   s_kGlyphDrawn,       L"Go back one instruction, over a call",                 DxuiToolbar::Kind::Command, 2, false, true  },
+        { kStepBackOut,     L"Step back out",    s_kGlyphDrawn,       L"Go back to the call that entered the current routine", DxuiToolbar::Kind::Command, 2, false, true  },
+        { kReverseContinue, L"Reverse continue", s_kGlyphDrawn,       L"Run backward to the latest breakpoint or watchpoint",  DxuiToolbar::Kind::Command, 2, false, true  },
+        { kShowNext,        L"Show next",        s_kGlyphShowNext,    L"Bring the code panes to the next statement",           DxuiToolbar::Kind::Command, 3, false, true  },
+        { kTrace,           L"Trace",            s_kGlyphTrace,       L"Record every instruction the machine runs",            DxuiToolbar::Kind::Toggle,  3, true,  false },
     };
 
 
@@ -193,14 +198,18 @@ void DebuggerCommands::PaintIcon (int id, IDxuiPainter & painter, const DxuiTool
 
     switch (id)
     {
-    case kRun:         PaintRun         (painter, icon, run);             break;
-    case kPause:       PaintPause       (painter, icon, icon.ink);        break;
-    case kStepInto:    PaintStepInto    (painter, icon, step);            break;
-    case kStepOver:    PaintStepOver    (painter, icon, step);            break;
-    case kStepOut:     PaintStepOut     (painter, icon, step);            break;
-    case kRunToCursor: PaintRunToCursor (painter, icon, step, icon.ink);  break;
-    case kShowNext:    PaintShowNext    (painter, icon, icon.ink);        break;
-    default:                                                              break;
+    case kRun:             PaintRun          (painter, icon, run);               break;
+    case kPause:           PaintPause        (painter, icon, icon.ink);          break;
+    case kStepInto:        PaintStepInto     (painter, icon, step);              break;
+    case kStepOver:        PaintStepOver     (painter, icon, step);              break;
+    case kStepOut:         PaintStepOut      (painter, icon, step);              break;
+    case kRunToCursor:     PaintRunToCursor  (painter, icon, step, icon.ink);    break;
+    case kShowNext:        PaintShowNext     (painter, icon, icon.ink);          break;
+    case kStepBackInto:    PaintStepBackInto (painter, icon, step);              break;
+    case kStepBackOver:    PaintStepBackOver (painter, icon, step);              break;
+    case kStepBackOut:     PaintStepBackOut  (painter, icon, step);              break;
+    case kReverseContinue: PaintReverseRun   (painter, icon, run);               break;
+    default:                                                                     break;
     }
 }
 
@@ -454,6 +463,159 @@ void DebuggerCommands::PaintShowNext (IDxuiPainter & painter, const DxuiToolbarI
 
     painter.DrawLine (icon.x + s * 0.08f, cy, tipX, cy, stroke, color);
     PaintArrowHead   (painter, tipX, cy, 1.0f, 0.0f, s * 0.34f, stroke, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintBackDot
+//
+//  The statement a step back lands beside, as Visual Studio draws it: a dot
+//  at the icon's top left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintBackDot (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s  = icon.size;
+    float  cy = icon.top + icon.rowH * 0.5f;
+
+
+
+    painter.FillCircle (icon.x + s * 0.20f, cy - s * 0.30f, s * 0.11f, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintStepBackInto
+//
+//  An arrow from the bottom right up to the dot at the top left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintStepBackInto (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    constexpr float  kDiagonal = 0.70710678f;
+    float            s         = icon.size;
+    float            cy        = icon.top + icon.rowH * 0.5f;
+    float            stroke    = (std::max) (1.5f, s / 7.5f);
+    float            tipX      = icon.x + s * 0.40f;
+    float            tipY      = cy - s * 0.10f;
+
+
+
+    painter.DrawLine (icon.x + s * 0.88f, cy + s * 0.38f, tipX, tipY, stroke, color);
+    PaintArrowHead   (painter, tipX, tipY, -kDiagonal, -kDiagonal, s * 0.24f, stroke, color);
+    PaintBackDot     (painter, icon, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintStepBackOut
+//
+//  An arrow from beside the dot at the top left down to the bottom right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintStepBackOut (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    constexpr float  kDiagonal = 0.70710678f;
+    float            s         = icon.size;
+    float            cy        = icon.top + icon.rowH * 0.5f;
+    float            stroke    = (std::max) (1.5f, s / 7.5f);
+    float            tipX      = icon.x + s * 0.88f;
+    float            tipY      = cy + s * 0.38f;
+
+
+
+    painter.DrawLine (icon.x + s * 0.40f, cy - s * 0.10f, tipX, tipY, stroke, color);
+    PaintArrowHead   (painter, tipX, tipY, kDiagonal, kDiagonal, s * 0.24f, stroke, color);
+    PaintBackDot     (painter, icon, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintStepBackOver
+//
+//  Step over mirrored: an arc from the right up over the dot, ending in an
+//  arrow pointing down on the left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintStepBackOver (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    static constexpr int    kSegments = 10;
+    static constexpr float  kPi       = 3.14159265f;
+
+
+
+    float  s      = icon.size;
+    float  cx     = icon.x + s * 0.5f;
+    float  cy     = icon.top + icon.rowH * 0.5f;
+    float  stroke = (std::max) (1.5f, s / 7.5f);
+    float  rx     = s * 0.36f;
+    float  ry     = s * 0.42f;
+    float  baseY  = cy - s * 0.04f;
+    float  tipY   = cy + s * 0.20f;
+    float  prevX  = cx + rx;
+    float  prevY  = baseY;
+
+
+
+    for (int i = 1; i <= kSegments; i++)
+    {
+        float  angle = kPi * (float) i / (float) kSegments;
+        float  x     = cx + rx * std::cos (angle);
+        float  y     = baseY - ry * std::sin (angle);
+
+        painter.DrawLine (prevX, prevY, x, y, stroke, color);
+
+        prevX = x;
+        prevY = y;
+    }
+
+    painter.DrawLine (cx - rx, baseY, cx - rx, tipY, stroke, color);
+    PaintArrowHead   (painter, cx - rx, tipY, 0.0f, 1.0f, s * 0.22f, stroke, color);
+    PaintStepDot     (painter, icon, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintReverseRun
+//
+//  Run mirrored: a filled triangle pointing left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintReverseRun (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color)
+{
+    float  s  = icon.size;
+    float  cy = icon.top + icon.rowH * 0.5f;
+    float  l  = icon.x + s * 0.10f;
+    float  r  = icon.x + s * 0.82f;
+
+
+
+    painter.FillConvexQuad (r, cy - s * 0.42f, l, cy, l, cy, r, cy + s * 0.42f, color);
 }
 
 

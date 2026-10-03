@@ -26,6 +26,10 @@ static constexpr WinDbgCommand s_kCommands[] =
     { "p",        "P"     },
     { "gu",       "RTS"   },
     { "g",        "G"     },
+    { "t-",       "T-"    },
+    { "p-",       "P-"    },
+    { "gu-",      "GU-"   },
+    { "g-",       "G-"    },
     { "pa",       "G"     },
     { "ta",       "G"     },
     { "bp",       "BP"    },
@@ -389,6 +393,19 @@ bool WinDbgParser::TryBuild (
     {
         command.verb  = DebugVerb::StepOut;
         command.count = 1;
+    }
+    else if (name == "t-" || name == "p-" || name == "gu-" || name == "g-")
+    {
+        if (!args.empty())
+        {
+            build.error = std::format ("{} takes no arguments.", name);
+            return false;
+        }
+
+        command.verb = (name == "t-")  ? DebugVerb::StepBack
+                     : (name == "p-")  ? DebugVerb::StepBackOver
+                     : (name == "gu-") ? DebugVerb::StepBackOut
+                     :                   DebugVerb::ReverseGo;
     }
     else if (name == "bl")
     {

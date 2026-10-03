@@ -87,6 +87,10 @@ static constexpr CommandModeHelp::Entry  s_kGSSquared[] =
     { "o",       C::RunningAndStepping, "o",                        "Step over",                                          "P"             },
     { "r",       C::RunningAndStepping, "r",                        "Step out",                                           "RTS"           },
     { "g",       C::RunningAndStepping, "g, or Return",             "Run",                                                "G"             },
+    { "t-",      C::RunningAndStepping, "t-",                       "Step back into",                                     "T-"            },
+    { "p-",      C::RunningAndStepping, "p-",                       "Step back over",                                     "P-"            },
+    { "gu-",     C::RunningAndStepping, "gu-",                      "Step back out",                                      "GU-"           },
+    { "g-",      C::RunningAndStepping, "g-",                       "Run backward to a breakpoint",                       "G-"            },
     { "help",    C::SessionAndSettings, "help [word]",              "This list, or one command",                          "HELP ?"        },
 };
 
@@ -106,6 +110,10 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "p",        C::RunningAndStepping, "p [count]",         "Step over",                                   "P"             },
     { "gu",       C::RunningAndStepping, "gu",                "Step out",                                    "RTS"           },
     { "g",        C::RunningAndStepping, "g [addr]",          "Run, stopping at addr if given",              "G"             },
+    { "t-",       C::RunningAndStepping, "t-",                "Step back into",                              "T-"            },
+    { "p-",       C::RunningAndStepping, "p-",                "Step back over",                              "P-"            },
+    { "gu-",      C::RunningAndStepping, "gu-",               "Step back out",                               "GU-"           },
+    { "g-",       C::RunningAndStepping, "g-",                "Run backward to a breakpoint",                "G-"            },
     { "pa",       C::RunningAndStepping, "pa addr",           "Run to addr",                                 "G"             },
     { "ta",       C::RunningAndStepping, "ta addr",           "Run to addr",                                 "G"             },
     { "bp",       C::Breakpoints,        "bp addr",           "Set an execution breakpoint",                 "BP BPX"        },

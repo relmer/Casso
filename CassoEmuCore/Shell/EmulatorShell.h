@@ -485,6 +485,10 @@ private:
     void  RunReverseCommand     (ReverseCommand command, uint64_t argument) override;
     void  SetReverseStopTest    (IReverseStopTest * stopTest) { m_reverseStopTest = stopTest; }
 
+    // CPU thread: where the machine stands in history, with the last reverse
+    // command's outcome while the machine has not moved since it landed.
+    HistoryStatus  GetHistoryStatus ();
+
     const ReverseHost *  GetReverseHost() const { return m_reverseHost.get(); }
 
     // Where debugger commands go. The session machine events go to is set
@@ -2216,6 +2220,8 @@ private:
     bool                          m_isReverseOn           = false;   // the settings, read when the CPU thread starts
     int                           m_reverseBudgetMb       = 0;
     int                           m_reverseIntervalFrames = 0;
+    std::optional<ReverseOutcome> m_lastReverseOutcome;                // the last reverse command's, for the history band
+    uint64_t                      m_lastReversePosition   = 0;       // where it landed
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.

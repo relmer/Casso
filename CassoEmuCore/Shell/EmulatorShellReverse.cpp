@@ -133,6 +133,9 @@ void EmulatorShell::RunReverseCommand (
     stop.registers = cpu->GetCpu6502()->GetRegisters();
     stop.history   = result.outcome;
 
+    m_lastReverseOutcome  = result.outcome;
+    m_lastReversePosition = m_machine.GetPosition();
+
     if (m_debugSession != nullptr)
     {
         m_debugSession->OnStopped (stop);
@@ -148,6 +151,40 @@ Error:
     {
         DEBUGMSG (L"Reverse execution command %d failed: 0x%08X\n", static_cast<int> (command), hr);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHistoryStatus
+//
+//  The last reverse command's outcome stands until the machine moves from
+//  where it landed, by running or by a step, and is dropped then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HistoryStatus EmulatorShell::GetHistoryStatus()
+{
+    HistoryStatus  status;
+    bool           hasMoved = !m_cpuManager.IsPaused() || m_machine.GetPosition() != m_lastReversePosition;
+
+
+
+    if (m_reverseHost != nullptr)
+    {
+        status = m_reverseHost->GetStatus();
+    }
+
+    if (hasMoved)
+    {
+        m_lastReverseOutcome.reset();
+    }
+
+    status.outcome = m_lastReverseOutcome;
+    return status;
 }
 
 

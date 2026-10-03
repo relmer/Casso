@@ -88,6 +88,11 @@ enum class DebugVerb
     ShowVideoInfo,
     Pause,
     SetBudget,
+    StepBack,
+    StepBackOver,
+    StepBackOut,
+    ReverseGo,
+    GoLive,
 
     // Breakpoints and watchpoints
     SetBreakpoint,

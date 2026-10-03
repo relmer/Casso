@@ -38,6 +38,11 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
     case DebugVerb::ResetCycles:       ResetCycles       (session, reply);          return true;
     case DebugVerb::Benchmark:
     case DebugVerb::ExitBenchmark:     Benchmark         (command, reply);          return true;
+    case DebugVerb::StepBack:
+    case DebugVerb::StepBackOver:
+    case DebugVerb::StepBackOut:
+    case DebugVerb::ReverseGo:
+    case DebugVerb::GoLive:            RunReverse        (session, command, reply); return true;
     default:                                                                        return false;
     }
 }
@@ -1163,6 +1168,69 @@ void ExecutionHandlers::Benchmark (const DebugCommand & command, Reply & reply)
 {
     reply.SetError (CommandStatus::NotAvailable, "command not available",
                     std::format ("{} is not available in this session.", command.sourceName));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::RunReverse
+//
+//  T-, P-, GU-, G- and LIVE: the machine moves through its recorded history
+//  on the machine's own thread, and the landing is reported as a step's stop.
+//  The machine must be paused, and the host must be recording.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::RunReverse (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    const DebugSession::ReverseRequester  & requester = session.GetReverseRequester();
+    ReverseCommand                          reverse   = GetReverseCommand (command.verb);
+    bool                                    isTaken   = false;
+
+
+
+    if (session.GetRunState() != RunState::Paused)
+    {
+        reply.SetError (CommandStatus::Error, "machine running",
+                        std::format ("{} moves the machine through its recorded history. Pause the machine first.", command.sourceName));
+        return;
+    }
+
+    if (requester != nullptr)
+    {
+        isTaken = requester (reverse);
+    }
+
+    if (!isTaken)
+    {
+        reply.SetError (CommandStatus::NotAvailable, "no recorded history",
+                        "Reverse execution is off. Turn recording on in the debugger's options.");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::GetReverseCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReverseCommand ExecutionHandlers::GetReverseCommand (DebugVerb verb)
+{
+    switch (verb)
+    {
+    case DebugVerb::StepBackOver: return ReverseCommand::StepBackOver;
+    case DebugVerb::StepBackOut:  return ReverseCommand::StepBackOut;
+    case DebugVerb::ReverseGo:    return ReverseCommand::ReverseContinue;
+    case DebugVerb::GoLive:       return ReverseCommand::GoLive;
+    default:                      return ReverseCommand::StepBack;
+    }
 }
 
 

@@ -319,6 +319,12 @@ void DebuggerWindow::SetWindowMenus()
 
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kShowNext,    L"Show next statement"));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
+    add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepBackInto,    L"Step back into"));
+    add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepBackOver,    L"Step back over"));
+    add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepBackOut,     L"Step back out"));
+    add (debug, MakeKeyedMenuCommand (DebuggerCommands::kReverseContinue, L"Reverse continue"));
+    add (debug, MakeKeyedMenuCommand (DebuggerCommands::kGoLive,          L"Go live"));
+    debug.push_back (DxuiPopupMenuItem::ForSeparator());
 
     row = MakeMenuCommand (L"Step by source line", false, [this]
     {
