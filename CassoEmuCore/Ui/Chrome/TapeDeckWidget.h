@@ -78,6 +78,9 @@ public:
 
     static constexpr float  kMagnifyMax = 2.0f;
 
+    // The transport keys left to right, as the RQ-309DS has them.
+    static TapeDeckRegion  GetButtonRegion (size_t index);
+
     static constexpr size_t  kButtonCount = 6;
 
 private:
@@ -136,7 +139,6 @@ private:
     void      PaintMark    (IDxuiPainter & painter, TapeDeckRegion region, const RECT & box, uint32_t argb);
     uint32_t  GetMarkColor (TapeDeckRegion region, const CassoTheme & theme) const;
     void      PaintName    (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
-    static TapeDeckRegion  GetButtonRegion (size_t index);
 
     TapeDeckView    m_view;
     RECT            m_captionRect           = {};

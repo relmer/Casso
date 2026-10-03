@@ -193,6 +193,9 @@ void DeskScene::BuildDerivedGeometry()
         m_doorProgress[drive] = -1.0f;
     }
 
+    // So were the recorder's keys, for the same reason.
+    m_recorderKeyVerts.clear();
+
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   DriveGlowRgb (m_drive.Kind()), m_driveGlowVerts);
 
@@ -1354,6 +1357,25 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SetRecorderKeyDepths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kRecorderKeyCount> & depthsMm)
+{
+    if (depthsMm != m_recorderKeyDepth)
+    {
+        m_recorderKeyDepth = depthsMm;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::DrawRecorder
 //
 //  The cassette recorder beside the stack, when the composition placed one:
@@ -1379,6 +1401,26 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
                                 m_recorder.OpaqueVerts().size(),
                                 m_geometryRev, mvp, false, viewport, true);
     CHRA (hr);
+
+    // The keys, each lowered by its own depth, rebuilt only when one moved.
+    if (m_recorderKeyVerts.empty())
+    {
+        for (size_t key = 0; key < DeskSceneModel::kRecorderKeyCount; key++)
+        {
+            for (Dxui3DRenderer::Vertex v : m_recorder.KeyVerts (key))
+            {
+                v.z -= m_recorderKeyDepth[key];
+                m_recorderKeyVerts.push_back (v);
+            }
+        }
+    }
+
+    if (!m_recorderKeyVerts.empty())
+    {
+        hr = m_renderer.DrawTriangles (m_recorderKeyVerts.data(), m_recorderKeyVerts.size(),
+                                       mvp, false, viewport, true);
+        CHRA (hr);
+    }
 
 Error:
     return hr;

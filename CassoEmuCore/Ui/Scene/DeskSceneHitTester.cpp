@@ -82,7 +82,9 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
                                              const float *                      driveBoundsMax,
                                              const DeskRegionBox *              driveDoorBoxes,
                                              const float *                      recorderBoundsMin,
-                                             const float *                      recorderBoundsMax)
+                                             const float *                      recorderBoundsMax,
+                                             const float *                      recorderKeyBoxes,
+                                             size_t                             recorderKeyCount)
 {
     SceneHitResult   result;
     float            invViewProj[16] = {};
@@ -335,7 +337,7 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
         }
 
         ClassifyRecorder (comp, origin, dir, recorderBoundsMin, recorderBoundsMax,
-                          occluderT, bestT, result);
+                          occluderT, bestT, result, recorderKeyBoxes, recorderKeyCount);
     }
 
     return result;
@@ -362,8 +364,11 @@ void DeskSceneHitTester::ClassifyRecorder (const DeskSceneComposition & comp,
                                            const float                  boxMax[3],
                                            float                        occluderT,
                                            float                      & bestT,
-                                           SceneHitResult             & result)
+                                           SceneHitResult             & result,
+                                           const float *                keyBoxes,
+                                           size_t                       keyCount)
 {
+    float   keyT           = FLT_MAX;
     float   invWorld[16]   = {};
     float   modelOrigin[3] = {};
     float   modelDir[3]    = {};
@@ -390,8 +395,24 @@ void DeskSceneHitTester::ClassifyRecorder (const DeskSceneComposition & comp,
         return;
     }
 
-    bestT             = tNear;
-    result.target     = SceneHitResult::Target::Recorder;
-    result.driveIndex = -1;
-    result.region     = {};
+    bestT              = tNear;
+    result.target      = SceneHitResult::Target::Recorder;
+    result.driveIndex  = -1;
+    result.region      = {};
+    result.recorderKey = -1;
+
+    // Then which key, if any: the nearest key box the same ray enters.
+    for (size_t key = 0; keyBoxes != nullptr && key < keyCount; key++)
+    {
+        const float *  box   = keyBoxes + key * 6;
+        float          lo[3] = { box[0] - kKeyHitPadMm, box[1] - kKeyHitPadMm, box[2] };
+        float          hi[3] = { box[3] + kKeyHitPadMm, box[4] + kKeyHitPadMm, box[5] + kKeyHitPadMm };
+        float          t     = 0.0f;
+
+        if (box[3] > box[0] && RayHitsBox (modelOrigin, modelDir, lo, hi, t) && t < keyT)
+        {
+            keyT               = t;
+            result.recorderKey = (int) key;
+        }
+    }
 }

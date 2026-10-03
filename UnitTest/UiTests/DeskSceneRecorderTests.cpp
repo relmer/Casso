@@ -255,6 +255,28 @@ public:
     //  the drive and monitor guards that reject a model missing those parts
     //  are about those devices, not this one.
     //
+    TEST_METHOD (Recorder_Keys_Are_Kept_Apart_With_Their_Boxes)
+    {
+        DeskSceneModel        model;
+        std::vector<uint8_t>  blob;
+        const float *         box = nullptr;
+
+
+
+        Bake (RecorderObj(), blob);
+        AssertSucceeded (model.Load (DeskDeviceKind::CassetteRecorder, blob));
+
+        Assert::IsFalse (model.KeyVerts (0).empty(), L"the key is its own geometry, so it can be pressed");
+        Assert::IsTrue  (model.KeyVerts (1).empty());
+
+        box = model.KeyBoxes();
+        Assert::AreEqual (10.0f,           box[0], 0.01f);
+        Assert::AreEqual (26.0f,           box[1], 0.01f);
+        Assert::AreEqual (28.0f,           box[3], 0.01f);
+        Assert::AreEqual (s_kRecH + 6.2f,  box[5], 0.01f);
+    }
+
+
     TEST_METHOD (Recorder_Loads_Without_Lamp_Door_Or_Glass)
     {
         DeskSceneModel        model;

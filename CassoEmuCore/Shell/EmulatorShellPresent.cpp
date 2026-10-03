@@ -786,6 +786,14 @@ bool EmulatorShell::TryPresentUiFrame()
                 }
             }
 
+            // The recorder's keys follow the transport, and a clicked key's
+            // dip needs frames until it is back up.
+            if (SyncRecorderKeys ((int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                      std::chrono::steady_clock::now().time_since_epoch()).count()))
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+
             // A name scrolling under the pointer moves every frame.
             if (m_sceneLabelHover >= 0 && m_sceneDiskLabelPeriod[(size_t) m_sceneLabelHover] > 0.0f)
             {

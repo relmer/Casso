@@ -42,6 +42,10 @@ struct SceneHitResult
     // Which tilt mark was grabbed: +1 the up one, -1 the down one. Only
     // meaningful for BezelTilt.
     int                tiltDirection = 0;
+
+    // Which of the recorder's keys, left to right, or -1 for the rest of the
+    // case. Only meaningful for Recorder.
+    int                recorderKey   = -1;
 };
 
 
@@ -70,7 +74,9 @@ public:
                                      const float *                      driveBoundsMax   = nullptr,
                                      const DeskRegionBox *              driveDoorBoxes   = nullptr,
                                      const float *                      recorderBoundsMin = nullptr,
-                                     const float *                      recorderBoundsMax = nullptr);
+                                     const float *                      recorderBoundsMax = nullptr,
+                                     const float *                      recorderKeyBoxes  = nullptr,
+                                     size_t                             recorderKeyCount  = 0);
 
 private:
     // Slab test; reports the entry distance so drives can compete on
@@ -104,5 +110,11 @@ private:
                                    const float                  boxMax[3],
                                    float                        occluderT,
                                    float                      & bestT,
-                                   SceneHitResult             & result);
+                                   SceneHitResult             & result,
+                                   const float *                keyBoxes,
+                                   size_t                       keyCount);
+
+    // A key is a small target on a big case, so its box reaches a little above
+    // the key for the hand that aims at its top.
+    static constexpr float  kKeyHitPadMm = 2.0f;
 };

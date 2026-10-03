@@ -31,6 +31,7 @@
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
+#include "Render/SceneCamera.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 #include "Config/DiskSettings.h"
@@ -479,7 +480,9 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          monLo, monHi, drvLo, drvHi,
                                          doorBoxes,
                                          m_deskScene.HasRecorder() ? recLo : nullptr,
-                                         m_deskScene.HasRecorder() ? recHi : nullptr);
+                                         m_deskScene.HasRecorder() ? recHi : nullptr,
+                                         m_deskScene.HasRecorder() ? m_deskScene.RecorderModel().KeyBoxes() : nullptr,
+                                         DeskSceneModel::kRecorderKeyCount);
 }
 
 
@@ -1186,6 +1189,148 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
     }
 
     return TapeDeckWidget::GetMarqueeOffset (nowMs, m_sceneLabelHoverMs, period, speed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncRecorderKeys
+//
+//  Stands the desk recorder's keys as the transport has them: PLAY down while
+//  the tape plays, RECORD and PLAY both down while it records -- the deck's
+//  own interlock -- and the wind keys down while winding. Any key also dips
+//  for a moment when clicked, so a press reads as a press even on a key that
+//  latches nothing. Returns whether a dip is still running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
+{
+    constexpr float                                       kTravelMm = 3.0f;   // how far a key goes down
+    constexpr int64_t                                     kDipMs    = 160;
+    constexpr size_t                                      kRecord   = 0, kRewind = 1, kForward = 2, kPlay = 3;
+    TapeTransport                                         transport = GetTapeView().transport;
+    std::array<float, DeskSceneModel::kRecorderKeyCount>  depths    = {};
+    bool                                                  dipping   = false;
+
+
+
+    depths[kRecord]  = transport == TapeTransport::Recording                                     ? kTravelMm : 0.0f;
+    depths[kPlay]    = (transport == TapeTransport::Playing || transport == TapeTransport::Recording) ? kTravelMm : 0.0f;
+    depths[kForward] = transport == TapeTransport::FastForwarding                                ? kTravelMm : 0.0f;
+    depths[kRewind]  = transport == TapeTransport::Rewinding                                     ? kTravelMm : 0.0f;
+
+    for (size_t key = 0; key < depths.size(); key++)
+    {
+        int64_t  since = nowMs - m_recorderKeyDipMs[key];
+
+        if (m_recorderKeyDipMs[key] != 0 && since >= 0 && since < kDipMs)
+        {
+            depths[key] = kTravelMm;
+            dipping     = true;
+        }
+    }
+
+    m_deskScene.SetRecorderKeyDepths (depths);
+
+    return dipping;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSceneTapeLabel
+//
+//  The desk recorder's tape name, with its counter under it, hung below the
+//  recorder's front edge as the drives' names hang below theirs: the name
+//  opens the picker and the counter the position dialog. Re-hung every frame,
+//  since the counter runs and the orbit moves the recorder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneTapeLabel()
+{
+    const DeskSceneComposition &  comp     = m_deskScene.Composition();
+    IDxuiTextRenderer *           text     = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    bool                          visible  = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+                                             comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
+                                             MachineHasCassettePort();
+    TapeDeckView  view      = GetTapeView();
+    float         lo[3]     = {};
+    float         hi[3]     = {};
+    float         model[3]  = {};
+    float         world[3]  = {};
+    float         screen[2] = {};
+    int           halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    std::wstring  name;
+    std::wstring  counter;
+
+
+
+    if (visible)
+    {
+        m_deskScene.RecorderModel().BoundsMin (lo);
+        m_deskScene.RecorderModel().BoundsMax (hi);
+
+        // The middle of the front edge, at the desk.
+        model[0] = (lo[0] + hi[0]) * 0.5f;
+        model[1] = lo[1];
+        model[2] = lo[2];
+
+        visible = SceneCamera::TransformPoint (comp.recorderWorld, model, world) &&
+                  SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, screen);
+    }
+
+    if (!visible)
+    {
+        m_sceneTapeName.SetVisible (false);
+        m_sceneTapeCounter.SetVisible (false);
+        m_sceneTapeNameRect    = {};
+        m_sceneTapeCounterRect = {};
+        return;
+    }
+
+    name    = TapeDeckWidget::GetDisplayName (view);
+    counter = view.transport == TapeTransport::Empty
+                  ? std::wstring()
+                  : TapeDeckWidget::FormatTime (view.positionSeconds) + L" / " + TapeDeckWidget::FormatTime (view.lengthSeconds);
+
+    m_sceneTapeNameRect    = { (LONG) screen[0] - halfW, (LONG) screen[1] + gapPx,
+                               (LONG) screen[0] + halfW, (LONG) screen[1] + gapPx + stripH };
+    m_sceneTapeCounterRect = { m_sceneTapeNameRect.left,  m_sceneTapeNameRect.bottom,
+                               m_sceneTapeNameRect.right, m_sceneTapeNameRect.bottom + stripH };
+
+    if (text != nullptr)
+    {
+        name = DxuiTextElide::ToWidth (*text, name,
+                                       s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / 96.0f,
+                                       DxuiTheme::kBodyFace,
+                                       (float) (m_sceneTapeNameRect.right - m_sceneTapeNameRect.left),
+                                       DxuiElide::Tail);
+    }
+
+    for (DxuiShadowedText * label : { &m_sceneTapeName, &m_sceneTapeCounter })
+    {
+        label->SetFontSizeDip (s_kSceneDriveLabelFontDip);
+        label->SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        label->SetDpi         (m_scaler.GetDpi());
+    }
+
+    m_sceneTapeName.SetText    (name);
+    m_sceneTapeName.Layout     (m_sceneTapeNameRect, m_scaler);
+    m_sceneTapeName.SetVisible (true);
+
+    m_sceneTapeCounter.SetText    (counter);
+    m_sceneTapeCounter.Layout     (m_sceneTapeCounterRect, m_scaler);
+    m_sceneTapeCounter.SetVisible (!counter.empty());
 }
 
 

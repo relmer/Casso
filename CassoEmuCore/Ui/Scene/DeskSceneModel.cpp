@@ -626,6 +626,30 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
                 }
             }
         }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszKeyPrefix, 0) == 0 &&
+                 part.size() == strlen (s_kpszKeyPrefix) + 1 &&
+                 (size_t) (part.back() - '0') < kRecorderKeyCount)
+        {
+            // A key, kept apart so the scene can press it.
+            size_t                    key = (size_t) (part.back() - '0');
+            std::array<float, 6>   &  box = m_keyBoxes[key];
+
+            if (m_keys[key].empty())
+            {
+                box = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            }
+
+            AppendLitTri (m_keys[key], tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    box[axis]     = (std::min) (box[axis],     p[axis]);
+                    box[axis + 3] = (std::max) (box[axis + 3], p[axis]);
+                }
+            }
+        }
         else if (part.rfind (s_kpszAcPinPrefix, 0) == 0)
         {
             // Plated metal, not painted plastic: the blades keep their tint

@@ -166,6 +166,14 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   GlassVerts   () const { return m_glass; }
     const std::vector<Dxui3DRenderer::Vertex> &   LampVerts    () const { return m_lamp; }
     const std::vector<Dxui3DRenderer::Vertex> &   DoorVerts    () const { return m_door; }
+
+    // The recorder's keys, each its own geometry so it can go down by itself,
+    // left to right as the deck has them: RECORD, REW, FF, PLAY, STOP, EJECT.
+    // KeyBoxes holds each key's model-space box as lo xyz then hi xyz.
+    static constexpr size_t  kRecorderKeyCount = 6;
+
+    const std::vector<Dxui3DRenderer::Vertex> &   KeyVerts     (size_t key) const { return m_keys[key]; }
+    const float *                                 KeyBoxes     () const { return &m_keyBoxes[0][0]; }
     const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
     const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
@@ -376,6 +384,7 @@ public:
     static constexpr const char *  s_kpszLever       = "lever";   // the //c's door
     static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
     static constexpr const char *  s_kpszAcPinPrefix = "acpin";   // the mains blades
+    static constexpr const char *  s_kpszKeyPrefix   = "keys_";   // the recorder's keys, keys_0 to keys_5
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
 
@@ -578,20 +587,22 @@ private:
     void     ComputeTiltTravel     ();
     void     ComputeGroundFootprint ();
 
-    DeskDeviceKind                       m_kind        = DeskDeviceKind::Monitor2c;
-    std::vector<Dxui3DRenderer::Vertex>  m_opaque;
-    std::vector<Dxui3DRenderer::Vertex>  m_glass;
-    std::vector<Dxui3DRenderer::Vertex>  m_lamp;
-    std::vector<Dxui3DRenderer::Vertex>  m_door;
-    std::vector<Dxui3DRenderer::Vertex>  m_tiltable;
-    std::vector<DeskTiltGrip>            m_tiltGrips;
-    float                                m_tiltPivotY  = 0.0f;
-    float                                m_tiltPivotZ  = 0.0f;
-    float                                m_maxTiltRad  = 0.0f;
-    std::vector<Dxui3DRenderer::Vertex>  m_padlock;
-    std::vector<DeskLampAnchor>          m_lamps;
-    std::vector<DeskRegionBox>           m_regions;
-    CurvedDisplaySurface                 m_surface;
+    DeskDeviceKind                                                      m_kind       = DeskDeviceKind::Monitor2c;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_opaque;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_glass;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_lamp;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_door;
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderKeyCount>  m_keys;
+    std::array<std::array<float, 6>, kRecorderKeyCount>                 m_keyBoxes   = {};
+    std::vector<Dxui3DRenderer::Vertex>                                 m_tiltable;
+    std::vector<DeskTiltGrip>                                           m_tiltGrips;
+    float                                                               m_tiltPivotY = 0.0f;
+    float                                                               m_tiltPivotZ = 0.0f;
+    float                                                               m_maxTiltRad = 0.0f;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_padlock;
+    std::vector<DeskLampAnchor>                                         m_lamps;
+    std::vector<DeskRegionBox>                                          m_regions;
+    CurvedDisplaySurface                                                m_surface;
     // The door assembly's extent with the door SHUT, which GetDoorBoundsAt
     // poses to wherever the door has travelled.
     float                                m_doorMin[3]  = {};

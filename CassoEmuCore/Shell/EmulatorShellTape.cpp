@@ -100,6 +100,7 @@ void EmulatorShell::SyncTapeChrome()
 
 
     m_tapeChrome.SyncFromView (view);
+    SyncSceneTapeLabel();
 
     // A STATIC GUEST SCREEN PRESENTS NO FRAMES, and a program loading from
     // tape is exactly that: so while the tape moves, and while a long name may

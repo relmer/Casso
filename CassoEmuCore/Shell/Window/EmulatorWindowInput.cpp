@@ -1611,10 +1611,34 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             driveTook = true;
         }
 
-        // The recorder does what the flat deck's body does: pick a tape.
-        if (sceneHit.target == SceneHitResult::Target::Recorder)
+        // The labels under the recorder: its counter sets the position and
+        // its name picks a tape, as on the flat deck.
+        if (!inStrip && PtInRect (&m_sceneTapeCounterRect, pt))
+        {
+            HandleTapeClick (TapeDeckRegion::Counter);
+            driveTook = true;
+        }
+        else if (!inStrip && PtInRect (&m_sceneTapeNameRect, pt))
         {
             HandleTapeClick (TapeDeckRegion::Name);
+            driveTook = true;
+        }
+
+        // A key does what the flat deck's button of the same name does, and
+        // dips as it is pressed; the rest of the case picks a tape.
+        else if (sceneHit.target == SceneHitResult::Target::Recorder)
+        {
+            if (sceneHit.recorderKey >= 0)
+            {
+                m_recorderKeyDipMs[(size_t) sceneHit.recorderKey] = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+                HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
+            }
+            else
+            {
+                HandleTapeClick (TapeDeckRegion::Name);
+            }
+
             driveTook = true;
         }
     }

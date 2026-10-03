@@ -154,6 +154,10 @@ public:
     // write-protect padlock. Only an actual change dirties geometry.
     void  SetDriveVisuals  (int drive, bool lampOn, float doorProgress, bool writeProtected);
 
+    // How far down each of the recorder's keys stands, in millimeters, left
+    // to right. The keys are re-posed only when one of these changes.
+    void  SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kRecorderKeyCount> & depthsMm);
+
     // Draws the scene into `dstRtv` (bound here -- the CRT offscreen pass
     // that runs just before leaves ITS target bound, so relying on ambient
     // state would draw the monitor into the display texture). `displaySrv`
@@ -616,7 +620,9 @@ private:
 
     // Door assemblies, rotated copies of the model's cached door verts;
     // progress -1 forces the first build.
-    std::vector<Dxui3DRenderer::Vertex>   m_driveDoorVerts[2];
+    std::vector<Dxui3DRenderer::Vertex>                   m_driveDoorVerts[2];
+    std::vector<Dxui3DRenderer::Vertex>                   m_recorderKeyVerts;
+    std::array<float, DeskSceneModel::kRecorderKeyCount>  m_recorderKeyDepth  = {};
 
     // GPU-resident copies of every array that is NOT rebuilt per frame, which
     // is all of them but the doors. Re-uploading the lot each frame made the

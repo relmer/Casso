@@ -1112,6 +1112,8 @@ private:
     void    SyncSceneDriveLabels ();
     bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
     float   GetSceneLabelScrollPx (int drive, int64_t nowMs);
+    bool    SyncRecorderKeys      (int64_t nowMs);
+    void    SyncSceneTapeLabel    ();
 
     // Hands each drive's name to the scene as a depth-tested quad: bakes the
     // two strings into one texture when either has changed, then re-solves
@@ -1688,6 +1690,12 @@ private:
     // it is read at a fixed size wherever the desk is posed.
     std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
 
+    // The desk recorder's tape name and counter, hung under its front edge.
+    DxuiShadowedText          m_sceneTapeName;
+    DxuiShadowedText          m_sceneTapeCounter;
+    RECT                      m_sceneTapeNameRect    = {};
+    RECT                      m_sceneTapeCounterRect = {};
+
     // What the in-scene quads currently say and the cell they were baked at,
     // so the texture is rendered on a change rather than on every
     // composition pass. The view belongs to the text renderer and stays good
@@ -1707,6 +1715,9 @@ private:
     std::array<float, 2>      m_sceneDiskLabelPeriod  = {};
     int                       m_sceneLabelHover       = -1;
     int64_t                   m_sceneLabelHoverMs     = 0;
+
+    // When each of the desk recorder's keys was last clicked, for its dip.
+    std::array<int64_t, 6>    m_recorderKeyDipMs      = {};
 
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no
