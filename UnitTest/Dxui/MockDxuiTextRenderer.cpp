@@ -38,7 +38,7 @@ HRESULT MockDxuiTextRenderer::DrawString (
     const wchar_t      * /*fontFamily*/,
     DxuiTextHAlign       hAlign,
     DxuiTextVAlign       vAlign,
-    DxuiFontWeight       /*weight*/,
+    DxuiFontWeight       weight,
     bool                 /*wrap*/)
 {
     RecordedTextCall  call;
@@ -55,6 +55,7 @@ HRESULT MockDxuiTextRenderer::DrawString (
     call.fontSizeDip = fontSizeDip;
     call.hAlign      = hAlign;
     call.vAlign      = vAlign;
+    call.weight      = weight;
     m_calls.push_back (call);
 
     return S_OK;

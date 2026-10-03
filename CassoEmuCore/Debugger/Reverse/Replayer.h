@@ -4,6 +4,7 @@
 
 #include "Core/StateWriter.h"
 
+class EmuCpu;
 class IReverseStopTest;
 class KeyframeStore;
 class MachineHost;
@@ -59,15 +60,25 @@ struct ReplayReport
 //
 //  ReplayStep
 //
-//  The PC and stack pointer one replayed instruction began with; a replay
-//  that collects them gives one per position, in order.
+//  The registers, cycle count and instruction bytes one replayed instruction
+//  began with; a replay that collects them gives one per position, in order.
+//  The step commands read the PC and stack pointer, and the trace pane the
+//  rest while the machine is behind live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ReplayStep
 {
-    Word  pc = 0;
-    Byte  sp = 0;
+    uint64_t  cycles = 0;
+    Word      pc     = 0;
+    Byte      sp     = 0;
+    Byte      a      = 0;
+    Byte      x      = 0;
+    Byte      y      = 0;
+    Byte      p      = 0;
+    Byte      opcode = 0;
+    Byte      op1    = 0;
+    Byte      op2    = 0;
 };
 
 
@@ -121,6 +132,8 @@ private:
     HRESULT   CheckKeyframe       (ReplayReport & report);
     HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report, std::vector<ReplayStep> * steps);
     void      FindNextKeyframe    (uint64_t afterPosition);
+
+    ReplayStep         MakeStep   (const EmuCpu & cpu) const;
 
     MachineHost                  & m_machine;
     KeyframeStore                & m_keyframes;

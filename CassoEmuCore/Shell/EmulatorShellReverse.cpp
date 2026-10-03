@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
@@ -185,6 +186,35 @@ HistoryStatus EmulatorShell::GetHistoryStatus()
 
     status.outcome = m_lastReverseOutcome;
     return status;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildHistoryTrace
+//
+//  Behind live, the trace pane lists the instructions that led to where the
+//  machine stands, from the step table the last reverse command left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::BuildHistoryTrace (DebuggerViewSnapshot & snapshot)
+{
+    std::vector<TraceRecord>  entries;
+
+
+
+    if (m_reverseHost == nullptr || m_debugger == nullptr)
+    {
+        return;
+    }
+
+    m_reverseHost->GetRecentTrace (DebuggerViewState::kHistoryTraceRows, entries);
+
+    DebuggerViewState::ApplyHistoryTrace (m_debugger->GetSession(), std::move (entries), snapshot);
 }
 
 

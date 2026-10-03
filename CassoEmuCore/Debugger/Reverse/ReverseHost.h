@@ -8,6 +8,7 @@
 
 class IReverseStopTest;
 class MachineHost;
+struct TraceRecord;
 
 
 
@@ -50,6 +51,8 @@ public:
 
     //  How far behind live the machine stands; the outcome is left empty.
     HistoryStatus  GetStatus () const;
+
+    void           GetRecentTrace (size_t count, std::vector<TraceRecord> & outEntries) const;
 
     ReverseController        & GetController()       { return m_controller; }
     const ReverseController  & GetController() const { return m_controller; }

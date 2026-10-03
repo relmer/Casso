@@ -820,11 +820,11 @@
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
     <ClCompile Include="EmuTests\ReverseSessionStopTestTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />
-    <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" />
+    <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseOptionsDialogTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
-    <ClCompile Include="EmuTests\ReverseHostTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />
     <ClCompile Include="EmuTests\ReverseDebuggerEditTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />

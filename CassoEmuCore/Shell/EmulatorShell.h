@@ -487,7 +487,8 @@ private:
 
     // CPU thread: where the machine stands in history, with the last reverse
     // command's outcome while the machine has not moved since it landed.
-    HistoryStatus  GetHistoryStatus ();
+    HistoryStatus  GetHistoryStatus  ();
+    void           BuildHistoryTrace (DebuggerViewSnapshot & snapshot);
 
     const ReverseHost *  GetReverseHost() const { return m_reverseHost.get(); }
 

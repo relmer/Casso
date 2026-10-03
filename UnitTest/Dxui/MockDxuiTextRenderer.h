@@ -46,6 +46,7 @@ struct RecordedTextCall
     float             fontSizeDip  = 0.0f;
     DxuiTextHAlign    hAlign       = DxuiTextHAlign::Left;
     DxuiTextVAlign    vAlign       = DxuiTextVAlign::Top;
+    DxuiFontWeight    weight       = DxuiFontWeight::Normal;
 };
 
 

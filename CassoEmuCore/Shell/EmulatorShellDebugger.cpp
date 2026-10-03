@@ -1270,6 +1270,12 @@ void EmulatorShell::PublishDebuggerView()
     DebuggerViewSnapshot  built = m_debugViewState.Build (m_debugger->GetSession(), m_cpuManager.IsPaused());
 
     built.history = GetHistoryStatus();
+
+    if (built.history.isBehindLive)
+    {
+        BuildHistoryTrace (built);
+    }
+
     snapshot       = std::make_shared<const DebuggerViewSnapshot> (std::move (built));
 
     {

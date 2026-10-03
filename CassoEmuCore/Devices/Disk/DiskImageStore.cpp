@@ -1850,7 +1850,24 @@ Error:
 
 bool DiskImageStore::HasUnsavedWrites() const
 {
-    bool  hasWrites = false;
+    return CountUnsavedDisks() > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CountUnsavedDisks
+//
+//  How many mounted disks hold writes their files do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImageStore::CountUnsavedDisks() const
+{
+    int  count = 0;
 
 
 
@@ -1858,11 +1875,14 @@ bool DiskImageStore::HasUnsavedWrites() const
     {
         for (const Entry & entry : row)
         {
-            hasWrites = hasWrites || (entry.mounted && entry.image != nullptr && entry.image->IsDirty());
+            if (entry.mounted && entry.image != nullptr && entry.image->IsDirty())
+            {
+                count++;
+            }
         }
     }
 
-    return hasWrites;
+    return count;
 }
 
 

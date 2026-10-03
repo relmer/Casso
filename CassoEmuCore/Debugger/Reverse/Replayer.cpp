@@ -5,6 +5,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/DebugMemoryView.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Debugger/Reverse/KeyframeStore.h"
@@ -84,7 +85,7 @@ Error:
 //  and no changed file is taken up; a boundary keyframe the replay reaches
 //  is loaded rather than checked.
 //
-//  With steps, the PC and stack pointer of every instruction the replay runs
+//  With steps, the registers and bytes of every instruction the replay runs
 //  are appended to it, one per position.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +178,7 @@ Error:
 //
 //  Step
 //
-//  One instruction of a replay: its PC and stack pointer when they are
+//  One instruction of a replay: its registers and bytes when they are
 //  collected, the stop test's breakpoint before it, the observed inputs it
 //  reads, the instruction, and the stop test's watchpoint after it.
 //
@@ -198,7 +199,7 @@ HRESULT Replayer::Step (
 
     if (steps != nullptr)
     {
-        steps->push_back (ReplayStep { cpu->GetPC(), cpu->GetSP() });
+        steps->push_back (MakeStep (*cpu));
     }
 
     if (stopTest != nullptr && stopTest->ShouldStopBefore (m_machine, cpu->GetPC()))
@@ -222,6 +223,50 @@ HRESULT Replayer::Step (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeStep
+//
+//  The instruction the CPU is about to run: its registers and cycle count,
+//  and its three bytes as the CPU sees them under the current banking, read
+//  through the debugger's side-effect-free view. A byte the view cannot
+//  read without touching a device is left zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReplayStep Replayer::MakeStep (const EmuCpu & cpu) const
+{
+    Cpu6502Registers  registers = cpu.GetCpu6502()->GetRegisters();
+    DebugMemoryView   memory    (m_machine);
+    ReplayStep        step;
+    bool              isRead    = false;
+
+
+
+    step.cycles = cpu.GetTotalCycles();
+    step.pc     = registers.pc;
+    step.sp     = registers.sp;
+    step.a      = registers.a;
+    step.x      = registers.x;
+    step.y      = registers.y;
+    step.p      = registers.p;
+
+    isRead = memory.TryPeek (registers.pc, step.opcode);
+    IGNORE_RETURN_VALUE (isRead, false);
+
+    isRead = memory.TryPeek ((Word) (registers.pc + 1), step.op1);
+    IGNORE_RETURN_VALUE (isRead, false);
+
+    isRead = memory.TryPeek ((Word) (registers.pc + 2), step.op2);
+    IGNORE_RETURN_VALUE (isRead, false);
+
+    return step;
 }
 
 

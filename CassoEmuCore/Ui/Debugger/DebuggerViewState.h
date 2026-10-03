@@ -394,6 +394,13 @@ public:
     static std::string  GetHistoryLine      (uint64_t first, int rows);
     static std::string  GetTraceToggleLine  (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
 
+    //  Behind live, the trace pane lists the instructions that led to the
+    //  current position, at most kHistoryTraceRows of them, in place of the
+    //  live trace.
+    static constexpr size_t  kHistoryTraceRows = 1000;
+
+    static void         ApplyHistoryTrace   (DebugSession & session, std::vector<TraceRecord> entries, DebuggerViewSnapshot & snapshot);
+
     //  The heat map pane: while it is shown the machine's accesses are
     //  counted and each snapshot carries their levels; hidden, the machine
     //  records nothing.

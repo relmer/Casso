@@ -1005,6 +1005,92 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrepareRecentSteps
+//
+//  Behind live, makes the step table hold the instructions that led to the
+//  current position, so the trace pane can list them: a step command has
+//  usually built it already; otherwise the stretch is replayed once and the
+//  machine put back where it stood. A replay that diverges cuts history, and
+//  result then reports the cut in place of the command's own outcome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::PrepareRecentSteps (ReverseResult & result)
+{
+    HRESULT        hr        = S_OK;
+    uint64_t       position  = m_machine.GetPosition();
+    bool           isCovered = m_hasSteps && position > m_stepsStart && position <= m_stepsEnd;
+    bool           isInGap   = false;
+    uint64_t       gapStart  = 0;
+    ReplayStep     step;
+    ReverseResult  landed;
+
+
+
+    BAIL_OUT_IF (!IsInHistory() || position <= GetOldestPosition() || isCovered, S_OK);
+
+    m_isCut = false;
+
+    hr = GetStep (position - 1, step, isInGap, gapStart);
+    CHR (hr);
+
+    if (m_isCut)
+    {
+        result = m_cutResult;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    BAIL_OUT_IF (m_machine.GetPosition() == position, S_OK);
+
+    hr = SeekToPosition (position, landed);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRecentSteps
+//
+//  Up to count instructions before the current position, oldest first, from
+//  the step table; none when the table does not hold them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::GetRecentSteps (
+    size_t                     count,
+    std::vector<ReplayStep>  & outSteps) const
+{
+    uint64_t  position = m_machine.GetPosition();
+    size_t    last     = 0;
+    size_t    first    = 0;
+
+
+
+    outSteps.clear();
+
+    if (!m_hasSteps || position <= m_stepsStart || position > m_stepsEnd)
+    {
+        return;
+    }
+
+    last  = static_cast<size_t> (position - m_stepsStart);
+    first = (last > count) ? last - count : 0;
+
+    outSteps.assign (m_steps.begin() + static_cast<ptrdiff_t> (first), m_steps.begin() + static_cast<ptrdiff_t> (last));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FindStepOverTarget
 //
 //  The instruction before current, unless it was a return: an instruction

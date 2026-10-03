@@ -464,6 +464,33 @@ void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::ApplyHistoryTrace
+//
+//  The instructions that led to where the machine stands in its history,
+//  oldest first, replace the live trace's window: the replay that rebuilt
+//  them is the only record of that past, since nothing is traced while
+//  live unless the trace is on. They are described as trace entries are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::ApplyHistoryTrace (
+    DebugSession              & session,
+    std::vector<TraceRecord>    entries,
+    DebuggerViewSnapshot      & snapshot)
+{
+    TraceHandlers::Describe (session, entries);
+
+    snapshot.trace.total   = entries.size();
+    snapshot.trace.first   = 0;
+    snapshot.trace.entries = std::move (entries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::BuildTraceNext
 //
 //  The instructions the stopped machine runs next, described as trace entries

@@ -23,8 +23,6 @@
 class HistoryBand : public IDxuiControl
 {
 public:
-    static constexpr int  kHeightDip = 24;
-
     HistoryBand() = default;
     ~HistoryBand() override = default;
 
@@ -41,13 +39,31 @@ public:
     //  live.
     static bool          CanGoLive     (const HistoryStatus & status) { return status.isBehindLive; }
 
-    //  The band's text: the outcome first, then the distance behind live.
+    //  The band's height for a pane whose rows are rowDip tall: one row and
+    //  its edge.
+    static int           GetHeightDip  (int rowDip) { return rowDip + kEdgeDip * 2; }
+
+    //  The band's text: the outcome first, then the distance behind live,
+    //  then the disks holding writes not yet saved.
     static std::wstring  GetText       (const HistoryStatus & status);
     static std::wstring  GetOutcomeText (ReverseOutcome outcome);
     static std::wstring  GetShortText  (const HistoryStatus & status);
     static std::wstring  GetCompactText (const HistoryStatus & status);
     static std::wstring  GetDistanceText (uint64_t instructions, uint64_t cycles);
+    static std::wstring  GetUnsavedText (int disks);
     static std::wstring  GroupDigits   (uint64_t value);
+
+    //  Where the link and the text go in a band left to right wide: the link
+    //  inset by pad from the right edge, and the longest of the texts, full
+    //  to short, that fits between the left pad and the link.
+    struct Placement
+    {
+        float   linkLeft  = 0.0f;
+        float   textRight = 0.0f;
+        size_t  textIndex = 0;
+    };
+
+    static Placement     Place         (float left, float right, float pad, float linkWidth, const std::vector<float> & textWidths);
 
     static constexpr const wchar_t * kGoLiveText = L"Go live";
 
@@ -61,8 +77,8 @@ public:
 
 private:
     static constexpr double  kCyclesPerSecond = 1020484.0;
-    static constexpr float   kPadDip          = 8.0f;
-    static constexpr float   kEdgeDip         = 1.0f;
+    static constexpr float   kPadDip          = 4.0f;      // the debugger panes' cell padding
+    static constexpr int     kEdgeDip         = 1;
 
     bool          IsOverLink        (POINT point) const;
 

@@ -4606,7 +4606,7 @@ void DebuggerWindow::ConfigureDockSite()
     constexpr int   kMemoryBarDip = DxuiToolbar::kCompactBandDp;
     auto            boxHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
     auto            barHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kMemoryBarDip); };
-    auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::kHeightDip); };
+    auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (kPaneRowDip)); };
     std::wstring    savedText;
     DxuiPaneLayout  restored;
 

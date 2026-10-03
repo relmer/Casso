@@ -2,7 +2,9 @@
 
 #include "Debugger/Reverse/ReverseHost.h"
 
+#include "Debugger/Reply.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineHost.h"
 
 
@@ -158,7 +160,9 @@ void ReverseHost::SyncInputGate()
 //  Runs one reverse command. The host input gate is held before the machine
 //  moves, so no host write lands in the replay, and it stays held for as
 //  long as the command leaves the machine behind live. ReverseContinue
-//  needs a stop test; Seek takes its position as argument.
+//  needs a stop test; Seek takes its position as argument. Behind live, the
+//  instructions that led to where the machine landed are made ready for the
+//  trace pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,6 +182,9 @@ HRESULT ReverseHost::Execute (
     m_machine.GetHostInputGate().Hold();
 
     hr = Move (command, argument, stopTest, result);
+    CHR (hr);
+
+    hr = m_controller.PrepareRecentSteps (result);
     CHR (hr);
 
 Error:
@@ -284,7 +291,9 @@ ReverseSettings ReverseHost::MakeSettings (
 //
 //  GetStatus
 //
-//  Live, or not recording, the machine is no distance behind.
+//  Live, or not recording, the machine is no distance behind. Behind live,
+//  the disks holding writes their files do not are counted too: the
+//  automatic flushes are held there, so those writes wait for a commit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -306,9 +315,61 @@ HistoryStatus ReverseHost::GetStatus() const
     {
         status.instructionsBehind = (endPos   > position) ? endPos   - position : 0;
         status.cyclesBehind       = (endCycle > cycle)    ? endCycle - cycle    : 0;
+        status.unsavedDisks       = m_machine.GetDiskStore().CountUnsavedDisks();
     }
 
     return status;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRecentTrace
+//
+//  Behind live, up to count instructions that led to the current position,
+//  oldest first, as trace entries; their text and symbols are left for the
+//  trace command's describer. Nothing while live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseHost::GetRecentTrace (
+    size_t                      count,
+    std::vector<TraceRecord>  & outEntries) const
+{
+    std::vector<ReplayStep>  steps;
+    TraceRecord              record;
+
+
+
+    outEntries.clear();
+
+    if (!m_controller.IsInHistory())
+    {
+        return;
+    }
+
+    m_controller.GetRecentSteps (count, steps);
+
+    for (const ReplayStep & step : steps)
+    {
+        record        = TraceRecord();
+        record.index  = outEntries.size();
+        record.cycles = step.cycles;
+        record.pc     = step.pc;
+        record.opcode = step.opcode;
+        record.op1    = step.op1;
+        record.op2    = step.op2;
+        record.a      = step.a;
+        record.x      = step.x;
+        record.y      = step.y;
+        record.sp     = step.sp;
+        record.p      = step.p;
+
+        outEntries.push_back (record);
+    }
 }
 
 

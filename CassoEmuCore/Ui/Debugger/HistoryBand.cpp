@@ -47,7 +47,35 @@ std::wstring HistoryBand::GetText (const HistoryStatus & status)
         text += (text.empty() ? L"" : L" ") + GetDistanceText (status.instructionsBehind, status.cyclesBehind);
     }
 
+    if (status.unsavedDisks > 0)
+    {
+        text += (text.empty() ? L"" : L" ") + GetUnsavedText (status.unsavedDisks);
+    }
+
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryBand::GetUnsavedText
+//
+//  The disks whose guest writes have not reached their image files, which
+//  stay unwritten while the machine is behind live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HistoryBand::GetUnsavedText (int disks)
+{
+    if (disks <= 0)
+    {
+        return {};
+    }
+
+    return std::format (L"{} {} with writes not saved.", disks, (disks == 1) ? L"disk" : L"disks");
 }
 
 
@@ -78,6 +106,11 @@ std::wstring HistoryBand::GetCompactText (const HistoryStatus & status)
     if (status.isBehindLive)
     {
         text += (text.empty() ? L"" : L" ") + GetDistanceText (status.instructionsBehind, status.cyclesBehind);
+    }
+
+    if (status.unsavedDisks > 0)
+    {
+        text += (text.empty() ? L"" : L" ") + GetUnsavedText (status.unsavedDisks);
     }
 
     return text;
@@ -235,31 +268,35 @@ void HistoryBand::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //  HistoryBand::Paint
 //
 //  The banner fill and edge, the text from the left, and the Go live link
-//  at the right in the accent, its place kept for the mouse.
+//  at the right in the accent, its place kept for the mouse. The link is
+//  drawn at the weight it was measured at and right-aligned against the
+//  pad, so it never runs into the pane's edge; a narrow pane shortens the
+//  text, never the link.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HistoryBand::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT          hr          = S_OK;
-    DxuiFontHandle   font        = theme.BodyFont();
-    RECT             bounds      = GetBounds();
-    float            left        = (float) bounds.left;
-    float            top         = (float) bounds.top;
-    float            width       = (float) (bounds.right - bounds.left);
-    float            height      = (float) (bounds.bottom - bounds.top);
-    float            sizePx      = m_scaler.ToPxf (font.sizeDip);
-    float            pad         = m_scaler.ToPxf (kPadDip);
-    float            edge        = m_scaler.ToPxf (kEdgeDip);
-    bool             isWarning   = m_status.outcome.has_value() && *m_status.outcome != ReverseOutcome::Moved;
-    uint32_t         fill        = isWarning ? theme.InfoBannerWarningBackground() : theme.InfoBannerBackground();
-    uint32_t         border      = isWarning ? theme.InfoBannerWarningBorder()     : theme.InfoBannerBorder();
-    float            linkWidth   = 0.0f;
-    float            linkHeight  = 0.0f;
-    float            linkLeft    = left + width;
-    float            textWidth   = 0.0f;
-    float            textHeight  = 0.0f;
-    std::wstring     message     = GetText (m_status);
+    HRESULT                    hr          = S_OK;
+    DxuiFontHandle             font        = theme.BodyFont();
+    RECT                       bounds      = GetBounds();
+    float                      left        = (float) bounds.left;
+    float                      right       = (float) bounds.right;
+    float                      top         = (float) bounds.top;
+    float                      width       = right - left;
+    float                      height      = (float) (bounds.bottom - bounds.top);
+    float                      sizePx      = m_scaler.ToPxf (font.sizeDip);
+    float                      pad         = m_scaler.ToPxf (kPadDip);
+    float                      edge        = m_scaler.ToPxf ((float) kEdgeDip);
+    bool                       isWarning   = m_status.outcome.has_value() && *m_status.outcome != ReverseOutcome::Moved;
+    uint32_t                   fill        = isWarning ? theme.InfoBannerWarningBackground() : theme.InfoBannerBackground();
+    uint32_t                   border      = isWarning ? theme.InfoBannerWarningBorder()     : theme.InfoBannerBorder();
+    float                      linkWidth   = 0.0f;
+    float                      measured    = 0.0f;
+    float                      textHeight  = 0.0f;
+    std::vector<std::wstring>  texts       = { GetText (m_status), GetCompactText (m_status), GetShortText (m_status) };
+    std::vector<float>         widths;
+    Placement                  placement;
 
 
 
@@ -269,39 +306,78 @@ void HistoryBand::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     if (CanGoLive (m_status))
     {
-        hr = text.MeasureString (kGoLiveText, sizePx, font.face, linkWidth, linkHeight);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        linkLeft   = left + width - pad - linkWidth;
-        m_linkRect = { (LONG) linkLeft, bounds.top, (LONG) (linkLeft + linkWidth), bounds.bottom };
-
-        hr = text.DrawString (kGoLiveText, linkLeft, top, linkWidth, height, theme.Accent(), sizePx, font.face,
-                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Bold, false);
+        hr = text.MeasureString (kGoLiveText, sizePx, font.face, linkWidth, textHeight);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    hr = text.MeasureString (message.c_str(), sizePx, font.face, textWidth, textHeight);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    //  Too wide for the pane: the short outcome with the distance, then the
-    //  short text alone.
-    if (textWidth > linkLeft - left - pad - pad)
+    for (const std::wstring & each : texts)
     {
-        message = GetCompactText (m_status);
+        hr = text.MeasureString (each.c_str(), sizePx, font.face, measured, textHeight);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.MeasureString (message.c_str(), sizePx, font.face, textWidth, textHeight);
+        widths.push_back (measured);
+    }
+
+    placement = Place (left, right, pad, linkWidth, widths);
+
+    if (CanGoLive (m_status))
+    {
+        m_linkRect = { (LONG) placement.linkLeft, bounds.top, (LONG) std::ceil (right - pad), bounds.bottom };
+
+        hr = text.DrawString (kGoLiveText, placement.linkLeft, top, right - pad - placement.linkLeft, height, theme.Accent(),
+                              sizePx, font.face, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (textWidth > linkLeft - left - pad - pad)
-    {
-        message = GetShortText (m_status);
-    }
-
-    hr = text.DrawString (message.c_str(), left + pad, top, (std::max) (0.0f, linkLeft - left - pad - pad), height,
+    hr = text.DrawString (texts[placement.textIndex].c_str(), left + pad, top, (std::max) (0.0f, placement.textRight - left - pad), height,
                           theme.InfoBannerForeground(), sizePx, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryBand::Place
+//
+//  The link's right edge sits pad inside the band's; the text runs from
+//  pad inside the left edge to pad before the link, and is the first of
+//  textWidths, longest first, that fits there, or the last when none does.
+//  A band too narrow for the link keeps it whole from the left pad.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HistoryBand::Placement HistoryBand::Place (
+    float                       left,
+    float                       right,
+    float                       pad,
+    float                       linkWidth,
+    const std::vector<float>  & textWidths)
+{
+    Placement  placement;
+    float      room      = 0.0f;
+
+
+
+    placement.linkLeft  = (std::max) (left + pad, right - pad - linkWidth);
+    placement.textRight = (linkWidth > 0.0f) ? placement.linkLeft - pad : right - pad;
+    room                = placement.textRight - left - pad;
+
+    placement.textIndex = textWidths.empty() ? 0 : textWidths.size() - 1;
+
+    for (size_t i = 0; i < textWidths.size(); i++)
+    {
+        if (textWidths[i] <= room)
+        {
+            placement.textIndex = i;
+            break;
+        }
+    }
+
+    return placement;
 }
 
 

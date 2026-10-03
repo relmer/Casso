@@ -129,6 +129,9 @@ public:
     size_t    GetTableBuildCount  () const { return m_tableBuilds; }
     bool      HasStepTable        () const { return m_hasSteps; }
 
+    HRESULT   PrepareRecentSteps  (ReverseResult & result);
+    void      GetRecentSteps      (size_t count, std::vector<ReplayStep> & outSteps) const;
+
     KeyframeStore        & GetKeyframes ()       { return m_keyframes; }
     Replayer             & GetReplayer  ()       { return m_replayer; }
     const KeyframeStore  & GetKeyframes () const { return m_keyframes; }
@@ -172,7 +175,7 @@ private:
     StateWriter                m_writer;                 // kept so its section and segment lists keep their capacity
     StateWriter                m_hostWriter;             // the host input state taken with every capture
     IWorkQueue               * m_workQueueOverride = nullptr;  // set by a test
-    std::vector<ReplayStep>    m_steps;                  // one stretch's PC and stack pointer per position
+    std::vector<ReplayStep>    m_steps;                  // one stretch's registers and bytes per position
     uint64_t                   m_stepsStart        = 0;
     uint64_t                   m_stepsEnd          = 0;
     size_t                     m_tableBuilds       = 0;

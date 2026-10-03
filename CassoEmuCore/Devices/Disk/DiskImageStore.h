@@ -138,6 +138,7 @@ public:
     void          SetFlushHold      (bool isHeld) { m_isFlushHeld = isHeld; }
     bool          IsFlushHeld       () const      { return m_isFlushHeld; }
     bool          HasUnsavedWrites  () const;
+    int           CountUnsavedDisks () const;
     HRESULT       CommitHeldWrites  ();
     HRESULT       DiscardHeldWrites ();
 
