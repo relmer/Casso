@@ -33,6 +33,29 @@ void StateWriter::Reuse (std::vector<Byte> && buffer)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Reuse (with a segment list)
+//
+//  As Reuse, and the segment list of an earlier save as well, emptied, so a
+//  sharing save keeps that list's capacity instead of reserving a new one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StateWriter::Reuse (
+    std::vector<Byte>          && buffer,
+    std::vector<StateSegment>  && segments)
+{
+    Reuse (std::move (buffer));
+
+    m_segments = std::move (segments);
+    m_segments.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetBytes
 //
 //  The stream's own bytes. The buffer is cut to the byte count first; cutting
@@ -230,6 +253,24 @@ void StateWriter::WriteShared (const std::shared_ptr<const std::vector<Byte>> & 
 
     m_sharedBytes += bytes->size();
     m_segments.push_back (std::move (segment));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlattenInto
+//
+//  The whole blob this writer holds so far, segments spliced in, written
+//  over outBytes, which keeps its capacity.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StateWriter::FlattenInto (std::vector<Byte> & outBytes) const
+{
+    Flatten (GetBytes(), m_segments, outBytes);
 }
 
 

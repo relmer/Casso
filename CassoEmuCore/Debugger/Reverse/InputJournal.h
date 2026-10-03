@@ -128,6 +128,11 @@ struct InputRecord
 //  device holds a pointer to the journal only while it is on, so with the
 //  journal off its reads pay one null test and nothing else.
 //
+//  The records sit in one vector from m_head on. Dropped records leave their
+//  slots behind, which a later record is written over, payload string and
+//  all, so a journal that has reached its working size records without
+//  allocating.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class InputJournal
@@ -144,7 +149,7 @@ public:
     void  RecordObserved (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, uint64_t data);
 
     size_t               GetBeginIndex () const { return m_firstIndex; }
-    size_t               GetEndIndex   () const { return m_firstIndex + m_records.size(); }
+    size_t               GetEndIndex   () const { return m_firstIndex + m_count; }
     const InputRecord  & GetRecord     (size_t index) const;
 
     void  Truncate      (size_t endIndex);
@@ -152,7 +157,11 @@ public:
     void  Clear         ();
 
 private:
-    std::deque<InputRecord>    m_records;
+    InputRecord  & AppendSlot();
+
+    std::vector<InputRecord>   m_records;                   // live records start at m_head; slots past them are kept for reuse
+    size_t                     m_head           = 0;
+    size_t                     m_count          = 0;
     size_t                     m_firstIndex     = 0;
     const uint64_t           * m_positionSource = nullptr;
     const uint64_t           * m_cycleSource    = nullptr;

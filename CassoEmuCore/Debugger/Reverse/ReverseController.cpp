@@ -895,20 +895,25 @@ Error:
 //  ring, or both. Keyframes dropped over budget take their journal records
 //  with them.
 //
+//  The save shares the disk tracks that have not changed, as a checkpoint
+//  holds them; a keyframe needs the whole blob in one buffer, so it is
+//  flattened into one kept at full size. Every buffer, list and writer here
+//  is reused, so once the ring is full a capture allocates nothing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::CaptureNow (
     bool  takeKeyframe,
     bool  takeCheckpoint)
 {
-    HRESULT          hr         = S_OK;
-    EmuCpu         * cpu        = m_machine.GetCpu();
-    InputJournal   & journal    = m_machine.GetInputJournal();
-    uint64_t         position   = m_machine.GetPosition();
-    uint64_t         cycle      = 0;
-    size_t           journalEnd = 0;
-    std::string      hostState;
-    StateWriter    & writer     = m_writer;
+    HRESULT            hr         = S_OK;
+    EmuCpu           * cpu        = m_machine.GetCpu();
+    InputJournal     & journal    = m_machine.GetInputJournal();
+    uint64_t           position   = m_machine.GetPosition();
+    uint64_t           cycle      = 0;
+    size_t             journalEnd = 0;
+    StateWriter      & writer     = m_writer;
+    std::string_view   hostState;
 
 
 
@@ -919,24 +924,28 @@ HRESULT ReverseController::CaptureNow (
 
     // A host write no read has seen yet is in the snapshot; the sync record
     // puts it in front of any replay that crosses this point as well.
-    hr = m_machine.SaveHostInputState (hostState);
+    m_hostWriter.Reuse (m_hostWriter.TakeBytes());
+
+    hr = m_machine.SaveHostInputState (m_hostWriter);
     CHR (hr);
+
+    hostState = std::string_view (reinterpret_cast<const char *> (m_hostWriter.GetBytes().data()), m_hostWriter.GetBytes().size());
 
     m_machine.RecordInput (InputKind::HostState, 0, 0, hostState);
 
     journalEnd = journal.GetEndIndex();
 
-    // A keyframe needs the whole blob in one buffer; a checkpoint alone
-    // shares the disk tracks that have not changed since the last one.
-    writer.Reuse      (m_ring.TakeSpareBuffer());
-    writer.SetSharing (!takeKeyframe);
+    writer.Reuse      (m_ring.TakeSpareBuffer(), m_ring.TakeSpareSegments());
+    writer.SetSharing (true);
 
     hr = m_machine.SaveState (writer);
     CHR (hr);
 
     if (takeKeyframe)
     {
-        hr = m_keyframes.Add (position, cycle, journalEnd, writer.GetBytes());
+        writer.FlattenInto (m_keyframeState);
+
+        hr = m_keyframes.Add (position, cycle, journalEnd, m_keyframeState);
         CHR (hr);
 
         journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);
@@ -949,9 +958,9 @@ HRESULT ReverseController::CaptureNow (
     }
     else
     {
-        // A keyframe taken alone hands its buffer back, or the next capture's
-        // spare would replace it and the pool would drain one buffer at a time.
-        m_ring.ReturnSpareBuffer (writer.TakeBytes());
+        // A keyframe taken alone hands its buffers back, or the next capture's
+        // spare would replace them and the pool would drain one at a time.
+        m_ring.ReturnSpareBuffer (writer.TakeBytes(), writer.TakeSegments());
     }
 
     PruneRetainedMedia();

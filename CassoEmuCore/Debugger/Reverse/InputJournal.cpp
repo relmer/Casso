@@ -25,7 +25,7 @@ void InputJournal::Record (
     uint16_t          detail,
     std::string_view  payload)
 {
-    InputRecord  record;
+    InputRecord  * record = nullptr;
 
 
 
@@ -34,14 +34,17 @@ void InputJournal::Record (
         return;
     }
 
-    record.position = (m_positionSource != nullptr) ? *m_positionSource : 0;
-    record.cycle    = cycle;
-    record.kind     = kind;
-    record.value    = value;
-    record.detail   = detail;
-    record.payload  = payload;
+    record = &AppendSlot();
 
-    m_records.push_back (std::move (record));
+    record->position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
+    record->cycle      = cycle;
+    record->kind       = kind;
+    record->value      = value;
+    record->detail     = detail;
+    record->data       = 0;
+    record->isObserved = false;
+
+    record->payload.assign (payload);
 }
 
 
@@ -66,7 +69,7 @@ __declspec (noinline) void InputJournal::RecordObserved (
     uint16_t   detail,
     uint64_t   data)
 {
-    InputRecord  record;
+    InputRecord  * record = nullptr;
 
 
 
@@ -75,15 +78,57 @@ __declspec (noinline) void InputJournal::RecordObserved (
         return;
     }
 
-    record.position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
-    record.cycle      = cycle;
-    record.kind       = kind;
-    record.value      = value;
-    record.detail     = detail;
-    record.data       = data;
-    record.isObserved = true;
+    record = &AppendSlot();
 
-    m_records.push_back (std::move (record));
+    record->position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
+    record->cycle      = cycle;
+    record->kind       = kind;
+    record->value      = value;
+    record->detail     = detail;
+    record->data       = data;
+    record->isObserved = true;
+
+    record->payload.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendSlot
+//
+//  The slot for the next record: one a dropped record left past the live
+//  ones, or a new one. Once as many slots lie dead before the live records
+//  as there are live ones, the live records move to the front and the dead
+//  slots go behind them, payload buffers and all, so the move is paid for by
+//  the records that freed them and the vector stops growing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InputRecord & InputJournal::AppendSlot()
+{
+    size_t  end = m_head + m_count;
+
+
+
+    if (end == m_records.size() && m_head != 0 && m_head >= m_count)
+    {
+        std::rotate (m_records.begin(), m_records.begin() + static_cast<ptrdiff_t> (m_head), m_records.end());
+
+        m_head = 0;
+        end    = m_count;
+    }
+
+    if (end == m_records.size())
+    {
+        m_records.emplace_back();
+    }
+
+    m_count++;
+
+    return m_records[end];
 }
 
 
@@ -102,7 +147,7 @@ const InputRecord & InputJournal::GetRecord (size_t index) const
 {
     assert (index >= m_firstIndex && index < GetEndIndex());
 
-    return m_records[index - m_firstIndex];
+    return m_records[m_head + (index - m_firstIndex)];
 }
 
 
@@ -114,7 +159,7 @@ const InputRecord & InputJournal::GetRecord (size_t index) const
 //  Truncate
 //
 //  Drops every record at or after endIndex: the recorded future that a change
-//  made in the past has made wrong.
+//  made in the past has made wrong. Their slots stay for reuse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,10 +174,7 @@ void InputJournal::Truncate (size_t endIndex)
         keep = endIndex - m_firstIndex;
     }
 
-    if (keep < m_records.size())
-    {
-        m_records.resize (keep);
-    }
+    m_count = std::min (m_count, keep);
 }
 
 
@@ -159,10 +201,16 @@ void InputJournal::DiscardBefore (size_t beginIndex)
         return;
     }
 
-    drop = std::min (beginIndex - m_firstIndex, m_records.size());
+    drop = std::min (beginIndex - m_firstIndex, m_count);
 
-    m_records.erase (m_records.begin(), m_records.begin() + static_cast<ptrdiff_t> (drop));
+    m_head       += drop;
+    m_count      -= drop;
     m_firstIndex += drop;
+
+    if (m_count == 0)
+    {
+        m_head = 0;
+    }
 }
 
 
@@ -180,8 +228,9 @@ void InputJournal::DiscardBefore (size_t beginIndex)
 
 void InputJournal::Clear()
 {
-    m_firstIndex += m_records.size();
-    m_records.clear();
+    m_firstIndex += m_count;
+    m_head        = 0;
+    m_count       = 0;
 }
 
 

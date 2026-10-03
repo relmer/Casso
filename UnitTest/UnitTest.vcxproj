@@ -807,6 +807,8 @@
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
     <ClCompile Include="EmuTests\SharedCheckpointTests.cpp" />
     <ClCompile Include="EmuTests\StateWriterReuseTests.cpp" />
+    <ClCompile Include="EmuTests\RecordingBufferTests.cpp" />
+    <ClCompile Include="EmuTests\ThreadAllocationCounter.cpp" />
     <ClCompile Include="EmuTests\UndoRingModelTests.cpp" />
     <ClCompile Include="EmuTests\UndoRingTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
@@ -829,6 +831,7 @@
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\ReverseSessionRig.h" />
+    <ClInclude Include="EmuTests\ThreadAllocationCounter.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />

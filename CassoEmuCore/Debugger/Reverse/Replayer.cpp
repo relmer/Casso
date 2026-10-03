@@ -474,16 +474,16 @@ Error:
 
 HRESULT Replayer::TakeCheckpointIfDue()
 {
-    HRESULT      hr    = S_OK;
-    uint64_t     cycle = m_machine.GetCpu()->GetTotalCycles();
-    bool         isDue = m_ring.IsCheckpointDue (cycle);
-    StateWriter  writer;
+    HRESULT        hr     = S_OK;
+    uint64_t       cycle  = m_machine.GetCpu()->GetTotalCycles();
+    bool           isDue  = m_ring.IsCheckpointDue (cycle);
+    StateWriter  & writer = m_writer;
 
 
 
     BAIL_OUT_IF (!isDue, S_OK);
 
-    writer.Reuse      (m_ring.TakeSpareBuffer());
+    writer.Reuse      (m_ring.TakeSpareBuffer(), m_ring.TakeSpareSegments());
     writer.SetSharing (true);
 
     hr = m_machine.SaveState (writer);

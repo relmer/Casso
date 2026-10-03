@@ -46,7 +46,11 @@ HRESULT UndoRing::Configure (const UndoRingSettings & settings, uint64_t keyfram
 
     Clear();
     m_spareStates.clear();
+    m_spareSegments.clear();
     m_records.clear();
+
+    m_largestOwnBytes = 0;
+
     ResizeRecords (GetRecordCapacity (m_checkpointLimit));
 
 Error:
@@ -263,13 +267,11 @@ HRESULT UndoRing::AddCheckpoint (
     checkpoint.state        = std::move (state);
     checkpoint.segments     = std::move (segments);
 
-    // A buffer new to the ring grew by doubling; it is reused from here on,
-    // so trim it once rather than carry the slack in every checkpoint.
-    checkpoint.state.shrink_to_fit();
+    m_largestOwnBytes = std::max (m_largestOwnBytes, checkpoint.state.size());
 
     m_checkpoints.push_back (std::move (checkpoint));
 
-    m_nextCheckpointCycle = cycle + m_settings.checkpointCycles;
+    ScheduleAfter (cycle);
 
 Error:
     return hr;
@@ -281,10 +283,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ScheduleAfter
+//
+//  The next checkpoint falls due on the first multiple of the spacing after
+//  cycle, as keyframes fall due on multiples of their interval, so where the
+//  interval is a multiple of the spacing every keyframe falls due on the
+//  same instruction boundary as a checkpoint and one save serves both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UndoRing::ScheduleAfter (uint64_t cycle)
+{
+    uint64_t  spacing = std::max<uint64_t> (m_settings.checkpointCycles, 1);
+
+
+
+    m_nextCheckpointCycle = (cycle / spacing + 1) * spacing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TakeSpareBuffer
 //
 //  The buffer of a dropped checkpoint, for the next state to be saved into,
-//  or an empty one.
+//  or a new one reserved to the largest checkpoint held so far, so it does
+//  not grow by doubling and carry the slack for as long as it is reused.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -299,8 +326,39 @@ std::vector<Byte> UndoRing::TakeSpareBuffer()
         buffer = std::move (m_spareStates.back());
         m_spareStates.pop_back();
     }
+    else
+    {
+        buffer.reserve (m_largestOwnBytes);
+    }
 
     return buffer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeSpareSegments
+//
+//  The emptied segment list of a dropped checkpoint, or an empty one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<StateSegment> UndoRing::TakeSpareSegments()
+{
+    std::vector<StateSegment>  segments;
+
+
+
+    if (!m_spareSegments.empty())
+    {
+        segments = std::move (m_spareSegments.back());
+        m_spareSegments.pop_back();
+    }
+
+    return segments;
 }
 
 
@@ -320,6 +378,32 @@ void UndoRing::ReturnSpareBuffer (std::vector<Byte> && buffer)
     if (buffer.capacity() != 0)
     {
         m_spareStates.push_back (std::move (buffer));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReturnSpareBuffer (with a segment list)
+//
+//  As ReturnSpareBuffer, and the save's segment list as well, emptied so the
+//  tracks it shared are not kept alive by the pool.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UndoRing::ReturnSpareBuffer (
+    std::vector<Byte>          && buffer,
+    std::vector<StateSegment>  && segments)
+{
+    ReturnSpareBuffer (std::move (buffer));
+
+    if (segments.capacity() != 0)
+    {
+        segments.clear();
+        m_spareSegments.push_back (std::move (segments));
     }
 }
 
@@ -377,7 +461,7 @@ void UndoRing::Truncate (
 {
     while (!m_checkpoints.empty() && (m_checkpoints.back().position > position || (!keepCheckpointAt && m_checkpoints.back().position == position)))
     {
-        m_spareStates.push_back (std::move (m_checkpoints.back().state));
+        KeepSpares (m_checkpoints.back());
         m_checkpoints.pop_back();
     }
 
@@ -396,7 +480,14 @@ void UndoRing::Truncate (
         m_endPosition   = position;
     }
 
-    m_nextCheckpointCycle = m_checkpoints.empty() ? 0 : m_checkpoints.back().cycle + m_settings.checkpointCycles;
+    if (m_checkpoints.empty())
+    {
+        m_nextCheckpointCycle = 0;
+    }
+    else
+    {
+        ScheduleAfter (m_checkpoints.back().cycle);
+    }
 }
 
 
@@ -648,6 +739,24 @@ void UndoRing::ResizeRecords (size_t capacity)
 
 void UndoRing::DropOldestCheckpoint()
 {
-    m_spareStates.push_back (std::move (m_checkpoints.front().state));
+    KeepSpares (m_checkpoints.front());
     m_checkpoints.pop_front();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KeepSpares
+//
+//  A checkpoint about to go gives its buffer and its emptied segment list to
+//  the pools.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UndoRing::KeepSpares (UndoCheckpoint & checkpoint)
+{
+    ReturnSpareBuffer (std::move (checkpoint.state), std::move (checkpoint.segments));
 }

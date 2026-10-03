@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/StateWriter.h"
+
 class IReverseStopTest;
 class KeyframeStore;
 class MachineHost;
@@ -112,6 +114,7 @@ private:
     std::function<void()>          m_onStateLoaded;
     std::function<void (bool)>     m_outputGate;
     std::vector<Byte>              m_scratch;
+    StateWriter                    m_writer;            // takes the ring's checkpoints; kept so its lists keep their capacity
     size_t                         m_journalCursor = 0;
     size_t                         m_nextKeyframe  = 0;
     bool                           m_isReplaying   = false;

@@ -253,7 +253,7 @@ public:
     //  The saved state of every device whose state another thread writes
     //  (keyboard, game port, //e paddles and buttons, mouse, Joyport), as
     //  one blob, and back; see InputKind::HostState.
-    HRESULT  SaveHostInputState (std::string & outBlob) const;
+    HRESULT  SaveHostInputState (StateWriter & writer) const;
     HRESULT  LoadHostInputState (std::string_view blob);
 
     //  The opcodes, a 256-entry table read in place, whose fetches the CPU
@@ -329,8 +329,8 @@ private:
     //  The slot whose Disk II the refs hold, which the drive bays feed.
     static constexpr int  kDiskControllerSlot = 6;
 
-    std::vector<IMachineState *>  GetStateParts       ();
-    std::vector<IMachineState *>  GetHostInputParts   ();
+    void                          GetStateParts       (std::vector<IMachineState *> & outParts);
+    void                          GetHostInputParts   (std::vector<IMachineState *> & outParts);
     void                          WriteStateHeader    (StateWriter & writer, size_t partCount) const;
     HRESULT                       CheckStateHeader    (StateReader & reader, uint32_t & outParts);
     bool                          CanSeatMedia        (const MediaIds & mediaIds) const;
@@ -362,6 +362,9 @@ private:
     mutable uint64_t  m_romIdentity           = 0;
     mutable uint64_t  m_romIdentityGeneration = 0;
     mutable uint64_t  m_romIdentityHashes     = 0;      // times GetRomIdentity hashed the ROMs
+
+    // The part list a save or load fills; kept so it keeps its capacity.
+    mutable std::vector<IMachineState *>  m_stateParts;
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;

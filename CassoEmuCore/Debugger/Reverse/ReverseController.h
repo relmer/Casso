@@ -152,12 +152,14 @@ private:
 
     bool      TryFindKeyframeAtOrBefore (uint64_t position, size_t & outIndex) const;
 
-    MachineHost    & m_machine;
-    KeyframeStore    m_keyframes;
-    Replayer         m_replayer;
-    StateWriter      m_writer;                 // kept so its section and segment lists keep their capacity
-    bool             m_isRecording     = false;
-    bool             m_isLive          = true;
-    uint64_t         m_liveEndPosition = 0;
-    uint64_t         m_liveEndCycle    = 0;
+    MachineHost        & m_machine;
+    KeyframeStore        m_keyframes;
+    Replayer             m_replayer;
+    StateWriter          m_writer;                 // kept so its section and segment lists keep their capacity
+    StateWriter          m_hostWriter;             // the host input state taken with every capture
+    std::vector<Byte>    m_keyframeState;          // a keyframe's whole blob, kept at full size
+    bool                 m_isRecording     = false;
+    bool                 m_isLive          = true;
+    uint64_t             m_liveEndPosition = 0;
+    uint64_t             m_liveEndCycle    = 0;
 };

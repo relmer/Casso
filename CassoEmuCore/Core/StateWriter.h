@@ -71,10 +71,12 @@ public:
     std::vector<Byte>         TakeBytes       ();
     std::vector<StateSegment> TakeSegments    ()       { return std::move (m_segments); }
     void                      Reuse           (std::vector<Byte> && buffer);
+    void                      Reuse           (std::vector<Byte> && buffer, std::vector<StateSegment> && segments);
     bool                      HasOpenSection  () const { return !m_openSections.empty(); }
     void                      SetSharing      (bool isSharing) { m_isSharing = isSharing; }
     bool                      IsSharing       () const { return m_isSharing; }
 
+    void                      FlattenInto     (std::vector<Byte> & outBytes) const;
     static void               Flatten         (const std::vector<Byte> & own, const std::vector<StateSegment> & segments, std::vector<Byte> & outBytes);
 
 private:

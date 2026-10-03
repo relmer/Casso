@@ -501,21 +501,19 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MachineHost::SaveHostInputState (std::string & outBlob) const
+HRESULT MachineHost::SaveHostInputState (StateWriter & writer) const
 {
-    HRESULT                       hr    = S_OK;
-    StateWriter                   writer;
-    std::vector<IMachineState *>  parts = const_cast<MachineHost &> (*this).GetHostInputParts();
+    HRESULT  hr = S_OK;
 
 
 
-    for (const IMachineState * part : parts)
+    const_cast<MachineHost &> (*this).GetHostInputParts (m_stateParts);
+
+    for (const IMachineState * part : m_stateParts)
     {
         hr = part->SaveState (writer);
         CHR (hr);
     }
-
-    outBlob.assign (writer.GetBytes().begin(), writer.GetBytes().end());
 
 Error:
     return hr;
@@ -536,13 +534,14 @@ Error:
 
 HRESULT MachineHost::LoadHostInputState (std::string_view blob)
 {
-    HRESULT                       hr     = S_OK;
-    std::vector<IMachineState *>  parts  = GetHostInputParts();
-    StateReader                   reader (reinterpret_cast<const Byte *> (blob.data()), blob.size());
+    HRESULT      hr     = S_OK;
+    StateReader  reader (reinterpret_cast<const Byte *> (blob.data()), blob.size());
 
 
 
-    for (IMachineState * part : parts)
+    GetHostInputParts (m_stateParts);
+
+    for (IMachineState * part : m_stateParts)
     {
         hr = part->LoadState (reader);
         CHR (hr);
@@ -562,13 +561,13 @@ Error:
 //
 //  The devices whose state the UI and controller threads write, each once:
 //  the keyboard through its most derived type, as GetStateParts saves it.
+//  Filled into the caller's list, which keeps its capacity from call to call.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<IMachineState *> MachineHost::GetHostInputParts()
+void MachineHost::GetHostInputParts (std::vector<IMachineState *> & outParts)
 {
-    std::vector<IMachineState *>  parts;
-    IMachineState               * candidates[] =
+    IMachineState  * candidates[] =
     {
         dynamic_cast<IMachineState *> (m_refs.keyboard),
         m_refs.iieSoftSwitches,
@@ -579,15 +578,15 @@ std::vector<IMachineState *> MachineHost::GetHostInputParts()
 
 
 
+    outParts.clear();
+
     for (IMachineState * part : candidates)
     {
         if (part != nullptr)
         {
-            parts.push_back (part);
+            outParts.push_back (part);
         }
     }
-
-    return parts;
 }
 
 
@@ -818,20 +817,19 @@ void MachineHost::PowerCycle()
 
 HRESULT MachineHost::SaveState (StateWriter & writer) const
 {
-    HRESULT                       hr    = S_OK;
-    std::vector<IMachineState *>  parts;
+    HRESULT  hr = S_OK;
 
 
 
     // GetStateParts hands out mutable pointers so LoadState can share it;
     // only SaveState, which is const on every part, is called through them.
-    parts = const_cast<MachineHost &> (*this).GetStateParts();
+    const_cast<MachineHost &> (*this).GetStateParts (m_stateParts);
 
     writer.BeginSection (kStateTag, kStateVersion);
 
-    WriteStateHeader (writer, parts.size());
+    WriteStateHeader (writer, m_stateParts.size());
 
-    for (const IMachineState * part : parts)
+    for (const IMachineState * part : m_stateParts)
     {
         hr = part->SaveState (writer);
         CHR (hr);
@@ -860,11 +858,10 @@ Error:
 
 HRESULT MachineHost::LoadState (StateReader & reader)
 {
-    HRESULT                       hr         = S_OK;
-    uint16_t                      version    = 0;
-    uint32_t                      savedParts = 0;
-    size_t                        partCount  = 0;
-    std::vector<IMachineState *>  parts;
+    HRESULT   hr         = S_OK;
+    uint16_t  version    = 0;
+    uint32_t  savedParts = 0;
+    size_t    partCount  = 0;
 
 
 
@@ -877,12 +874,12 @@ HRESULT MachineHost::LoadState (StateReader & reader)
     CHR (hr);
 
     // After the header, which put the saved disks back in their bays.
-    parts     = GetStateParts();
-    partCount = parts.size();
+    GetStateParts (m_stateParts);
+    partCount = m_stateParts.size();
 
     CBREx (savedParts == partCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    for (IMachineState * part : parts)
+    for (IMachineState * part : m_stateParts)
     {
         hr = part->LoadState (reader);
         CHR (hr);
@@ -908,13 +905,14 @@ Error:
 //  before the slot cards, so the Disk II controller loads against restored
 //  media. The keyboard is one owned device, so it is saved once, through its
 //  most derived type. Device wiring is not here: the machine builder made it.
+//  Filled into the caller's list, which keeps its capacity from call to call,
+//  so a save allocates nothing for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<IMachineState *> MachineHost::GetStateParts()
+void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
 {
-    std::vector<IMachineState *>  parts;
-    IMachineState               * optional[] =
+    IMachineState  * optional[] =
     {
         m_mmu.get(),
         m_apple2cRomBank.get(),
@@ -922,20 +920,22 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
         m_mouse.get(),
         m_joyport.get(),
     };
-    IMachineState               * device     = nullptr;
-    DiskImage                   * image      = nullptr;
-    int                           slot       = 0;
-    int                           drive      = 0;
+    IMachineState  * device     = nullptr;
+    DiskImage      * image      = nullptr;
+    int              slot       = 0;
+    int              drive      = 0;
 
 
+
+    outParts.clear();
 
     if (m_cpu != nullptr)
     {
-        parts.push_back (m_cpu.get());
+        outParts.push_back (m_cpu.get());
     }
 
-    parts.push_back (&m_interruptController);
-    parts.push_back (m_memoryBus.get());
+    outParts.push_back (&m_interruptController);
+    outParts.push_back (m_memoryBus.get());
 
     for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
     {
@@ -945,7 +945,7 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
 
             if (image != nullptr)
             {
-                parts.push_back (image);
+                outParts.push_back (image);
             }
         }
     }
@@ -954,7 +954,7 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
     {
         if (part != nullptr)
         {
-            parts.push_back (part);
+            outParts.push_back (part);
         }
     }
 
@@ -964,11 +964,9 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
 
         if (device != nullptr)
         {
-            parts.push_back (device);
+            outParts.push_back (device);
         }
     }
-
-    return parts;
 }
 
 

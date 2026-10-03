@@ -130,14 +130,16 @@ public:
         m_endPosition++;
     }
 
-    bool               IsCheckpointDue        (uint64_t cycle) const { return m_checkpoints.empty() || cycle >= m_nextCheckpointCycle; }
-    HRESULT            AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state) { return AddCheckpoint (position, cycle, journalIndex, std::move (state), {}); }
-    HRESULT            AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state, std::vector<StateSegment> && segments);
-    std::vector<Byte>  TakeSpareBuffer        ();
-    void               ReturnSpareBuffer      (std::vector<Byte> && buffer);
-    void               TruncateAt             (uint64_t position);
-    void               TruncateFrom           (uint64_t position);
-    uint64_t           GetNextCheckpointCycle () const { return m_checkpoints.empty() ? 0 : m_nextCheckpointCycle; }
+    bool                       IsCheckpointDue        (uint64_t cycle) const { return m_checkpoints.empty() || cycle >= m_nextCheckpointCycle; }
+    HRESULT                    AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state) { return AddCheckpoint (position, cycle, journalIndex, std::move (state), {}); }
+    HRESULT                    AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state, std::vector<StateSegment> && segments);
+    std::vector<Byte>          TakeSpareBuffer        ();
+    std::vector<StateSegment>  TakeSpareSegments      ();
+    void                       ReturnSpareBuffer      (std::vector<Byte> && buffer);
+    void                       ReturnSpareBuffer      (std::vector<Byte> && buffer, std::vector<StateSegment> && segments);
+    void                       TruncateAt             (uint64_t position);
+    void                       TruncateFrom           (uint64_t position);
+    uint64_t                   GetNextCheckpointCycle () const { return m_checkpoints.empty() ? 0 : m_nextCheckpointCycle; }
 
     bool      TryGetRecord                (uint64_t position, UndoRecord & outRecord) const;
     bool      TryFindCheckpointAtOrBefore (uint64_t position, size_t & outIndex) const;
@@ -166,18 +168,22 @@ private:
     size_t    GetRecordCapacity    (size_t checkpointLimit) const;
     void      ResizeRecords        (size_t capacity);
     void      DropOldestCheckpoint ();
+    void      KeepSpares           (UndoCheckpoint & checkpoint);
+    void      ScheduleAfter        (uint64_t cycle);
     void      Truncate             (uint64_t position, bool keepCheckpointAt);
 
-    UndoRingSettings                m_settings;
-    uint64_t                        m_keyframeInterval    = 0;
-    size_t                          m_checkpointLimit     = 0;
-    size_t                          m_stateBytes          = 0;
-    std::deque<UndoCheckpoint>      m_checkpoints;
-    std::vector<std::vector<Byte>>  m_spareStates;                  // buffers of dropped checkpoints, for reuse
-    std::vector<UndoRecord>         m_records;
-    size_t                          m_capacity            = 0;      // m_records.size()
-    size_t                          m_write               = 0;      // slot of m_endPosition
-    uint64_t                        m_startPosition       = 0;      // where the run of records began; older ones may be overwritten
-    uint64_t                        m_endPosition         = 0;
-    uint64_t                        m_nextCheckpointCycle = 0;
+    UndoRingSettings                        m_settings;
+    uint64_t                                m_keyframeInterval    = 0;
+    size_t                                  m_checkpointLimit     = 0;
+    size_t                                  m_stateBytes          = 0;
+    std::deque<UndoCheckpoint>              m_checkpoints;
+    std::vector<std::vector<Byte>>          m_spareStates;                  // buffers of dropped checkpoints, for reuse
+    std::vector<std::vector<StateSegment>>  m_spareSegments;                // their segment lists, emptied, for reuse
+    size_t                                  m_largestOwnBytes     = 0;      // what a fresh buffer is reserved to
+    std::vector<UndoRecord>                 m_records;
+    size_t                                  m_capacity            = 0;      // m_records.size()
+    size_t                                  m_write               = 0;      // slot of m_endPosition
+    uint64_t                                m_startPosition       = 0;      // where the run of records began; older ones may be overwritten
+    uint64_t                                m_endPosition         = 0;
+    uint64_t                                m_nextCheckpointCycle = 0;
 };

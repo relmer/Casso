@@ -9,11 +9,12 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-static constexpr uint32_t  s_kReuseTag       = IMachineState::MakeTag ('R', 'E', 'U', 'S');
-static constexpr size_t    s_kReuseStale     = 4096;
-static constexpr Byte      s_kReuseStaleByte = 0xEE;
-static constexpr size_t    s_kReuseSteps     = 400000;
-static constexpr uint64_t  s_kReuseSettle    = 200;
+static constexpr uint32_t  s_kReuseTag        = IMachineState::MakeTag ('R', 'E', 'U', 'S');
+static constexpr size_t    s_kReuseStale      = 4096;
+static constexpr Byte      s_kReuseStaleByte  = 0xEE;
+static constexpr size_t    s_kReuseSteps      = 400000;
+static constexpr uint64_t  s_kReuseSettle     = 200;
+static constexpr uint64_t  s_kReuseOffSpacing = 3;
 
 
 
@@ -83,9 +84,9 @@ public:
 
         ReverseSessionRig::Prepare (machine);
 
-        // Checkpoints a frame apart drift a few cycles past each keyframe
-        // boundary, so a keyframe is taken in a capture of its own.
-        settings.ring.checkpointCycles = KeyframeSettings::kFrameCycles;
+        // Checkpoints three frames apart miss the keyframe boundary every
+        // ten frames, so a keyframe is taken in a capture of its own.
+        settings.ring.checkpointCycles = KeyframeSettings::kFrameCycles * s_kReuseOffSpacing;
 
         hr = controller.Start (settings);
         AssertSucceeded (hr, L"Start");
