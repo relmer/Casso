@@ -103,6 +103,11 @@ Ka 0 0 0
 Kd 0.33 0.335 0.345
 d 1
 
+newmtl wheel_wells
+Ka 0 0 0 
+Kd 0.02 0.02 0.02
+d 1
+
 newmtl wheels
 Ka 0 0 0 
 Kd 0.185 0.185 0.19

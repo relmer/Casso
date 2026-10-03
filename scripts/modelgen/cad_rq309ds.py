@@ -360,6 +360,13 @@ def build():
     chin = box(CHIN_INSET, W - CHIN_INSET, -1.0, BOT_Y, -1.0, HANDLE_Z0 - CHIN_INSET)
     m.parts[0].solid = m.parts[0].solid.cut(chin)
 
+    # Round over the cutout's edges: every edge the cut left, but not the
+    # case's own bottom edge, which the cutout runs out through.
+    CUT_R    = 1.0
+    cut_zone = cq.selectors.BoxSelector((CHIN_INSET - 0.5, -1.0, 0.5),
+                                        (W - CHIN_INSET + 0.5, BOT_Y + 0.5, HANDLE_Z0 - CHIN_INSET + 0.5))
+    m.parts[0].solid = m.parts[0].solid.edges(cut_zone).fillet(CUT_R)
+
     origin = (BOT_Y, (HANDLE_Z0 - CHIN_INSET) / 2)
 
     def on_face(solid):
@@ -376,13 +383,26 @@ def build():
         pockets = pocket if pockets is None else pockets.union(pocket)
     m.parts[0].solid = m.parts[0].solid.cut(on_face(pockets))
 
+    # The windows are lined in black, so the wheels stand out against them.
+    liners = None
+    for wx in wheel_x:
+        outer = box(wx - WIN_HW + 0.05, wx + WIN_HW - 0.05, REC_D + 0.3, REC_D + 2 * WHEEL_R + 0.95,
+                    WIN_V0 + 0.05, WIN_V1 - 0.05)
+        inner = box(wx - WIN_HW + 0.3, wx + WIN_HW - 0.3, REC_D, REC_D + 2 * WHEEL_R + 0.7,
+                    WIN_V0 + 0.3, WIN_V1 - 0.3)
+        liner = outer.cut(inner)
+        liners = liner if liners is None else liners.union(liner)
+    m.add("wheel_wells", on_face(liners), (0.02, 0.02, 0.02))
+
+    # Each wheel's rim stands a few millimeters proud of its window.
+    WHEEL_PROUD = 2.5
     wheels = None
     for wx in wheel_x:
         pts = []
         for k in range(TEETH * 2):
             a = math.pi * 2 * k / (TEETH * 2)
             r = WHEEL_R if k % 2 == 0 else WHEEL_R - 0.7
-            pts.append((wx + r * math.cos(a), REC_D + 0.4 + WHEEL_R + r * math.sin(a)))
+            pts.append((wx + r * math.cos(a), REC_D - WHEEL_PROUD + WHEEL_R + r * math.sin(a)))
         wheel = (cq.Workplane("XY").workplane(offset=WIN_V0 + 1.0)
                  .polyline(pts).close().extrude(WIN_V1 - WIN_V0 - 2.0))
         wheels = wheel if wheels is None else wheels.union(wheel)
