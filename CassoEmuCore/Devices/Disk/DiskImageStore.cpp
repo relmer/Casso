@@ -649,6 +649,67 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MountRestored
+//
+//  Puts a disk saved in a machine state back in its bay: the image is built
+//  from the bytes the state carries, never read from the file, so the guest
+//  sees what it saw at the save even if the file has changed since. The
+//  bay still answers to the file's path, which is where a later guest write
+//  is flushed, and the file is watched from here like any mounted image.
+//  A disk the bay held is retired without a flush; the caller flushes first
+//  when it wants one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::MountRestored (
+    int                    slot,
+    int                    drive,
+    const string        &  path,
+    DiskFormat             fmt,
+    const vector<Byte>  &  bytes)
+{
+    HRESULT        hr       = S_OK;
+    bool           isValid  = IsValidBay (slot, drive);
+    ImageIdentity  identity;
+
+
+
+    CBRAEx (isValid, E_INVALIDARG);
+
+    {
+        Entry &  entry = GetEntry (slot, drive);
+
+        if (entry.mounted)
+        {
+            EndWatching (slot, drive);
+            RetireBay (entry);
+        }
+    }
+
+    hr = MountFromBytes (slot, drive, path, fmt, bytes);
+    CHR (hr);
+
+    identity = ReadIdentity (path);
+
+    if (identity.recorded)
+    {
+        GetEntry (slot, drive).sharedState.Mount (identity);
+        BeginWatching (slot, drive);
+    }
+
+    EmitBayChange (slot, drive, BayChange::Inserted);
+    NotifyMediaChanged();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ClassifyLoadFailure
 //
 //  What a refused load was, from the bytes and the format alone.

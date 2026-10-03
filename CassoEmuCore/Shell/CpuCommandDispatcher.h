@@ -88,6 +88,10 @@ public:
 
     //  A reverse execution command; argument is Seek's position.
     virtual void     RunReverseCommand        (ReverseCommand command, uint64_t argument)       = 0;
+
+    //  Saves the whole machine to a state file, or loads one.
+    virtual void     SaveMachineState         (const std::filesystem::path & path)              = 0;
+    virtual void     LoadMachineState         (const std::filesystem::path & path)              = 0;
 };
 
 
@@ -128,6 +132,10 @@ public:
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
     static bool         TryParseReversePayload (const std::string & payload, ReverseCommand & command, uint64_t & argument);
+
+    //  A file path as a command payload, in UTF-8, and back.
+    static std::string            PathToPayload (const std::filesystem::path & path);
+    static std::filesystem::path  PayloadToPath (const std::string & payload);
 
     static constexpr uint16_t  kResetHoldsOpenApple   = 1;
     static constexpr uint16_t  kResetHoldsClosedApple = 2;

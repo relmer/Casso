@@ -127,6 +127,23 @@ public:
     }
 
 
+    //  The path rides the queue as UTF-8, so a name outside the code page
+    //  arrives as it was picked.
+    TEST_METHOD (SaveAndLoadStateCarryThePathInTheirPayload)
+    {
+        Notebook     target;
+        std::string  payload = CpuCommandDispatcher::PathToPayload (std::filesystem::path (L"C:\\States\\caf\u00E9.cassostate"));
+
+        Dispatch (IDM_FILE_SAVE_STATE, payload.c_str(), target);
+        Dispatch (IDM_FILE_LOAD_STATE, payload.c_str(), target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual ("SaveMachineState " + payload, target.calls[0]);
+        Assert::AreEqual ("LoadMachineState " + payload, target.calls[1]);
+        Assert::IsTrue   (CpuCommandDispatcher::PayloadToPath (payload) == std::filesystem::path (L"C:\\States\\caf\u00E9.cassostate"));
+    }
+
+
     TEST_METHOD (WriteProtectReadsAOneAsOnAndAnythingElseAsOff)
     {
         Notebook  target;
@@ -519,6 +536,16 @@ private:
         void     RunReverseCommand (ReverseCommand command, uint64_t argument) override
         {
             calls.push_back (std::format ("RunReverseCommand {} {}", static_cast<int> (command), argument));
+        }
+
+        void     SaveMachineState (const std::filesystem::path & path) override
+        {
+            calls.push_back ("SaveMachineState " + CpuCommandDispatcher::PathToPayload (path));
+        }
+
+        void     LoadMachineState (const std::filesystem::path & path) override
+        {
+            calls.push_back ("LoadMachineState " + CpuCommandDispatcher::PathToPayload (path));
         }
 
         void     RedrawDebugFrame() override

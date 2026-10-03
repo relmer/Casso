@@ -19,6 +19,9 @@
 // documented 3+ line exception rather than moving onto the class.
 static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
 {
+    { IDM_FILE_SAVE_STATE,          MainMenuId::File,    L"&Save state...",         nullptr          },
+    { IDM_FILE_LOAD_STATE,          MainMenuId::File,    L"&Load state...",         nullptr          },
+    { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
     { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &printer preview",  nullptr          },
     { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy printout to clipboard",    nullptr   },
     { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard printout (tear off)",   nullptr   },

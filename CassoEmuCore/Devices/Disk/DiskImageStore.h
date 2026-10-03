@@ -117,6 +117,11 @@ public:
                                      DiskFormat fmt, const vector<Byte> & bytes,
                                      MountDiagnosis & outDiagnosis);
     void          Eject             (int slot, int drive);
+
+    //  A machine state's disk back in its bay, built from the bytes the state
+    //  carries rather than read from path (see the .cpp).
+    HRESULT       MountRestored     (int slot, int drive, const string & path,
+                                     DiskFormat fmt, const vector<Byte> & bytes);
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
 

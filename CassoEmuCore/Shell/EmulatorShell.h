@@ -492,6 +492,18 @@ private:
 
     const ReverseHost *  GetReverseHost() const { return m_reverseHost.get(); }
 
+    // Machine state files. The two dialogs run on the UI thread and post the
+    // chosen path; the save and the load run on the CPU thread. A load of a
+    // state another machine saved opens that machine first, and history
+    // starts again at the loaded point.
+    void  ShowSaveStateDialog ();
+    void  ShowLoadStateDialog ();
+    void  SaveMachineState    (const std::filesystem::path & path) override;
+    void  LoadMachineState    (const std::filesystem::path & path) override;
+
+    static HRESULT       ReadStateFile    (const std::filesystem::path & path, std::vector<Byte> & outBytes);
+    static std::wstring  FormatStateError (const wchar_t * verb, const struct MachineStateError & error);
+
     // Where debugger commands go. The session machine events go to is set
     // with SetDebugSession.
     using DebugCommandHandler = std::function<void (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)>;

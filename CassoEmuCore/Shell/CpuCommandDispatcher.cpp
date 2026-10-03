@@ -172,6 +172,14 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             DispatchReverse (cmd.payload, target);
             break;
 
+        case IDM_FILE_SAVE_STATE:
+            target.SaveMachineState (PayloadToPath (cmd.payload));
+            break;
+
+        case IDM_FILE_LOAD_STATE:
+            target.LoadMachineState (PayloadToPath (cmd.payload));
+            break;
+
         default:
             break;
     }
@@ -666,6 +674,46 @@ void CpuCommandDispatcher::DispatchReverse (const std::string & payload, ICpuCom
     {
         target.RunReverseCommand (command, argument);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PathToPayload
+//
+//  UTF-8, so a path the active code page cannot hold survives the queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CpuCommandDispatcher::PathToPayload (const std::filesystem::path & path)
+{
+    std::u8string  text = path.u8string();
+
+
+
+    return std::string (text.begin(), text.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PayloadToPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::filesystem::path CpuCommandDispatcher::PayloadToPath (const std::string & payload)
+{
+    std::u8string  text (payload.begin(), payload.end());
+
+
+
+    return std::filesystem::path (text);
 }
 
 

@@ -42,6 +42,8 @@ public:
     // in sync, which is exactly the point.
     static constexpr WORD kKnownMenuCommandIds[] =
     {
+        IDM_FILE_SAVE_STATE,
+        IDM_FILE_LOAD_STATE,
         IDM_FILE_EXIT,
 
         IDM_EDIT_COPY_TEXT,
@@ -86,6 +88,8 @@ public:
         { L"IDM_FILE_OPEN",                 IDM_FILE_OPEN                 },
         { L"IDM_FILE_RECENT",               IDM_FILE_RECENT               },
         { L"IDM_FILE_EXIT",                 IDM_FILE_EXIT                 },
+        { L"IDM_FILE_SAVE_STATE",           IDM_FILE_SAVE_STATE           },
+        { L"IDM_FILE_LOAD_STATE",           IDM_FILE_LOAD_STATE           },
         { L"IDM_EDIT_COPY_TEXT",            IDM_EDIT_COPY_TEXT            },
         { L"IDM_EDIT_COPY_SCREENSHOT",      IDM_EDIT_COPY_SCREENSHOT      },
         { L"IDM_EDIT_PASTE",                IDM_EDIT_PASTE                },

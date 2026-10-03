@@ -422,6 +422,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
 
     if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)              { route = WindowCommandRoute::Edit; }
     else if (id >= IDM_FILE_OPEN      && id <= IDM_FILE_EXIT)               { route = WindowCommandRoute::File; }
+    else if (id == IDM_FILE_SAVE_STATE || id == IDM_FILE_LOAD_STATE)        { route = WindowCommandRoute::File; }
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
@@ -608,6 +609,18 @@ void WindowCommandManager::OnFileCommand (int id)
         case IDM_FILE_OPEN:
         {
             m_shell.ShowMachinePicker();
+            break;
+        }
+
+        case IDM_FILE_SAVE_STATE:
+        {
+            m_shell.ShowSaveStateDialog();
+            break;
+        }
+
+        case IDM_FILE_LOAD_STATE:
+        {
+            m_shell.ShowLoadStateDialog();
             break;
         }
 

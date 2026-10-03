@@ -221,6 +221,7 @@
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
     <ClCompile Include="Shell\EmulatorShellReverse.cpp" />
+    <ClCompile Include="Shell\EmulatorShellState.cpp" />
     <ClCompile Include="Shell\HostInputGate.cpp" />
     <ClCompile Include="Debugger\Reverse\SnapshotCompressor.cpp" />
     <ClCompile Include="Debugger\Handlers\TraceHandlers.cpp" />
@@ -523,6 +524,7 @@
     <ClCompile Include="Shell\DiskManager.cpp" />
     <ClCompile Include="Shell\MachineBuilder.cpp" />
     <ClCompile Include="Shell\MachineHost.cpp" />
+    <ClCompile Include="Shell\MachineStateFile.cpp" />
     <ClCompile Include="Shell\MachineManager.cpp" />
     <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
@@ -1038,6 +1040,7 @@
     <ClInclude Include="Shell\DiskManager.h" />
     <ClInclude Include="Shell\MachineBuilder.h" />
     <ClInclude Include="Shell\MachineHost.h" />
+    <ClInclude Include="Shell\MachineStateFile.h" />
     <ClInclude Include="Shell\MachineRefs.h" />
     <ClInclude Include="Shell\MachineManager.h" />
     <ClInclude Include="Shell\ModernPrintDialog.h" />

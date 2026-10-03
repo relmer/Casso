@@ -7,6 +7,13 @@
 #define IDM_FILE_RECENT             40002
 #define IDM_FILE_EXIT               40003
 
+//  Save the whole machine to a file, and load one back. As WM_COMMAND each
+//  opens its file dialog; posted to the CPU thread with the chosen path as
+//  the payload, each does the work there. Outside the File span above, so
+//  routed one by one.
+#define IDM_FILE_SAVE_STATE         40190
+#define IDM_FILE_LOAD_STATE         40191
+
 #define IDM_EDIT_COPY_TEXT          40005
 #define IDM_EDIT_COPY_SCREENSHOT    40006
 #define IDM_EDIT_PASTE              40007
