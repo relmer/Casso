@@ -1727,6 +1727,7 @@ private:
 
     // The key under the pointer, whose name shows over it; -1 for none.
     int                       m_recorderHoverKey      = -1;
+    TapeTransport             m_shownTapeTransport    = TapeTransport::Empty;   // last drawn, to repaint on a change
     DxuiShadowedText          m_sceneKeyLabel;
 
     // The source path each label was last built from, so mounts and ejects

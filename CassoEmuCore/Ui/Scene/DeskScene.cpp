@@ -1367,6 +1367,11 @@ void DeskScene::SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kR
     {
         m_recorderKeyDepth = depthsMm;
         m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+
+        // The keys are part of the cached plate, so a key that moved has to
+        // throw it away, as a door does -- or the plate keeps drawing them
+        // where they were.
+        InvalidatePlate();
     }
 }
 

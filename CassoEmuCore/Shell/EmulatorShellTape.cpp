@@ -106,6 +106,14 @@ void EmulatorShell::SyncTapeChrome()
     // tape is exactly that: so while the tape moves, and while a long name may
     // be scrolling under the pointer, ask for one every UI frame or the
     // counter stands still.
+    // A transport change repaints too -- above all a STOP, after which nothing
+    // moves to ask for a frame and the desk's PLAY key would stay drawn down.
+    if (view.transport != m_shownTapeTransport)
+    {
+        m_shownTapeTransport = view.transport;
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     if ((view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped) ||
         (isShown && m_tapeChrome.GetHover() == TapeDeckRegion::Name) ||
         (isShown && m_tapeChrome.IsMagnifying()))
