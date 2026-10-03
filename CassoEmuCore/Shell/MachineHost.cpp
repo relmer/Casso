@@ -3,6 +3,7 @@
 #include "Shell/MachineHost.h"
 
 #include "Core/Prng.h"
+#include "Core/StateHash.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DebugHook.h"
@@ -977,7 +978,7 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
 //
 //  MachineHost::GetRomIdentity
 //
-//  FNV-1a over every ROM image the machine reads: the ROM devices in device
+//  A hash over every ROM image the machine reads: the ROM devices in device
 //  order, the //e internal $Cxxx ROM and the slot ROMs, then the //c
 //  firmware banks. A debugger ROM patch changes it: a patched ROM is a
 //  different ROM.
@@ -987,7 +988,7 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
 uint64_t MachineHost::GetRomIdentity() const
 {
     constexpr int          kRomBankCount = 2;
-    uint64_t               hash          = kFnvOffset;
+    uint64_t               hash          = StateHash::kSeed;
     const RomDevice      * rom           = nullptr;
     const CxxxRomRouter  * router        = nullptr;
     size_t                 size          = 0;
@@ -1034,22 +1035,15 @@ uint64_t MachineHost::GetRomIdentity() const
 //
 //  MachineHost::HashBytes
 //
-//  One FNV-1a step per byte, continuing from hash.
+//  StateHash continuing from hash. Every snapshot carries the ROM identity,
+//  so this runs at every ring checkpoint; a byte-at-a-time hash over the
+//  ROMs cost more than saving the rest of the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint64_t MachineHost::HashBytes (uint64_t hash, const Byte * data, size_t size)
 {
-    size_t  i = 0;
-
-
-
-    for (i = 0; i < size; i++)
-    {
-        hash = (hash ^ data[i]) * kFnvPrime;
-    }
-
-    return hash;
+    return StateHash::Hash (data, size, hash);
 }
 
 

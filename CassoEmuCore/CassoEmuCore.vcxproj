@@ -247,6 +247,7 @@
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
     <ClCompile Include="Core\StateReader.cpp" />
+    <ClCompile Include="Core\StateHash.cpp" />
     <ClCompile Include="Core\StateWriter.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
     <ClCompile Include="Core\CpuFactory.cpp" />
@@ -696,6 +697,7 @@
     <ClInclude Include="Core\IMachineState.h" />
     <ClInclude Include="Core\StateReader.h" />
     <ClInclude Include="Core\StateFloat.h" />
+    <ClInclude Include="Core\StateHash.h" />
     <ClInclude Include="Core\StateWriter.h" />
     <ClInclude Include="Devices\IMmu.h" />
     <ClInclude Include="Devices\IVideoMode.h" />
