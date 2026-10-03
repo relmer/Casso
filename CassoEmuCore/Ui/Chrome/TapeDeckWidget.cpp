@@ -211,7 +211,7 @@ RECT TapeDeckWidget::GetOuterRect() const
         return {};
     }
 
-    outer.bottom = m_counterRect.bottom + Scale (kControlsPadYPx, m_dpi);
+    outer.bottom = m_counterRect.bottom + Scale (kLabelStripPx, m_dpi);
 
     return outer;
 }
@@ -491,12 +491,15 @@ float TapeDeckWidget::GetMagnification (float distance, float reach)
 
 
 
-    if (reach <= 0.0f || distance >= reach)
+    // Either side alike, and nothing past the reach on EITHER side: comparing
+    // the signed distance let every control to the right of the pointer
+    // through, where the cosine comes back up to full size two reaches out.
+    t = (reach > 0.0f) ? fabsf (distance) / reach : 1.0f;
+
+    if (t >= 1.0f)
     {
         return 1.0f;
     }
-
-    t = fabsf (distance) / reach;
 
     return 1.0f + (kMagnifyMax - 1.0f) * 0.5f * (1.0f + cosf (kPi * t));
 }
@@ -549,14 +552,23 @@ float TapeDeckWidget::GetPresence (int64_t nowMs) const
 //
 //  IsNearControls
 //
-//  Over the controls row, or above it where a magnified control reaches.
+//  Over the controls row as it is drawn right now -- magnified and spread,
+//  which reaches past the resting row -- or above it where a magnified
+//  control stands, or over the label strip under it. Measured against the
+//  resting row instead, moving onto an end control that had grown out past
+//  the row's edge dropped the magnification under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TapeDeckWidget::IsNearControls (int x, int y) const
 {
-    int  button = m_buttons[0].bottom - m_buttons[0].top;
-    int  top    = m_buttons[0].top - (int) ((kMagnifyMax - 1.0f) * (float) button);
+    RECT   rects[kButtonCount + 1]  = {};
+    float  scales[kButtonCount + 1] = {};
+    int    button = m_buttons[0].bottom - m_buttons[0].top;
+    int    left   = m_buttons[0].left;
+    int    right  = m_counterRect.right;
+    int    top    = m_buttons[0].top - (int) ((kMagnifyMax - 1.0f) * (float) button);
+    int    bottom = m_counterRect.bottom + Scale (kLabelStripPx, m_dpi);
 
 
 
@@ -565,7 +577,12 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
         return false;
     }
 
-    return x >= m_buttons[0].left && x < m_counterRect.right && y >= top && y < m_counterRect.bottom;
+    ComputeControlRects (GetNowMs(), rects, scales);
+
+    left  = min (left,  (int) rects[0].left);
+    right = max (right, (int) rects[kButtonCount].right);
+
+    return x >= left && x < right && y >= top && y < bottom;
 }
 
 
@@ -626,6 +643,48 @@ void TapeDeckWidget::ComputeControlRects (int64_t nowMs, RECT (& rects)[kButtonC
         rects[i] = { (LONG) lroundf (x), (LONG) lroundf (bottom - height),
                      (LONG) lroundf (x + widths[i]), (LONG) lroundf (bottom) };
         x       += widths[i] + gaps[i];
+    }
+
+    // THE CONTROL UNDER THE POINTER STAYS UNDER IT, as on the dock: its
+    // neighbors move aside rather than the whole row spreading from its
+    // middle, which slid an end control out from under the pointer as it
+    // grew. Map the pointer's place in the resting row -- piecewise, control
+    // by control and gap by gap -- into the magnified one, and shift the row
+    // by the difference.
+    {
+        float  mouse  = (float) m_mouseX;
+        float  mapped = mouse;
+        float  shift  = 0.0f;
+
+        for (size_t i = 0; i < kCount; i++)
+        {
+            float  restL = (float) base[i].left;
+            float  restR = (float) base[i].right;
+            float  magL  = (float) rects[i].left;
+            float  magR  = (float) rects[i].right;
+            float  nextL = (i + 1 < kCount) ? (float) base[i + 1].left  : restR;
+            float  magN  = (i + 1 < kCount) ? (float) rects[i + 1].left : magR;
+
+            if (mouse >= restL && mouse < restR)
+            {
+                mapped = magL + (mouse - restL) / (restR - restL) * (magR - magL);
+                break;
+            }
+
+            if (mouse >= restR && mouse < nextL)
+            {
+                mapped = magR + (mouse - restR) / (nextL - restR) * (magN - magR);
+                break;
+            }
+        }
+
+        shift = mouse - mapped;
+
+        for (RECT & r : rects)
+        {
+            r.left  += (LONG) lroundf (shift);
+            r.right += (LONG) lroundf (shift);
+        }
     }
 }
 
@@ -795,6 +854,39 @@ void TapeDeckWidget::Paint (
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     PaintName (text, name, hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel);
+
+    // THE NEAREST CONTROL SAYS WHAT IT IS, under itself, while the pointer is
+    // near the row. One label only: under a magnified row, several at once
+    // would run into each other.
+    if (m_isNear)
+    {
+        size_t  nearest = 0;
+        float   best    = FLT_MAX;
+        float   labelW  = 0.0f;
+        float   cx      = 0.0f;
+
+        for (size_t i = 0; i <= kButtonCount; i++)
+        {
+            const RECT &  baseBox  = (i < kButtonCount) ? m_buttons[i] : m_counterRect;
+            float         distance = fabsf ((float) m_mouseX - (float) (baseBox.left + baseBox.right) * 0.5f);
+
+            if (distance < best)
+            {
+                best    = distance;
+                nearest = i;
+            }
+        }
+
+        labelW = (float) Scale (kLabelWidthPx, m_dpi);
+        cx     = (float) (rects[nearest].left + rects[nearest].right) * 0.5f;
+
+        hr = text.DrawString (GetControlLabel (nearest),
+                              cx - labelW * 0.5f, (float) m_counterRect.bottom,
+                              labelW, (float) Scale (kLabelStripPx, m_dpi),
+                              theme.driveLabel, kLabelFontDip * dipScale, kFontFamily,
+                              DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     hr = text.DrawString (counter.c_str(),
                           (float) counterBox.left, (float) counterBox.top,
@@ -974,6 +1066,31 @@ void TapeDeckWidget::PaintMark (IDxuiPainter & painter, TapeDeckRegion region, c
         default:
             break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetControlLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * TapeDeckWidget::GetControlLabel (size_t index)
+{
+    static constexpr const wchar_t *  kLabels[kButtonCount + 1] = { L"Record",
+                                                                    L"Rewind",
+                                                                    L"Fast-forward",
+                                                                    L"Play",
+                                                                    L"Stop",
+                                                                    L"Eject",
+                                                                    L"Set position" };
+
+
+
+    return index < std::size (kLabels) ? kLabels[index] : L"";
 }
 
 

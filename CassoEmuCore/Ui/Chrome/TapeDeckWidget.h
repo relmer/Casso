@@ -81,6 +81,10 @@ public:
     // The transport keys left to right, as the RQ-309DS has them.
     static TapeDeckRegion  GetButtonRegion (size_t index);
 
+    // What the control at `index` does, as its label says it -- the buttons
+    // left to right, then the counter.
+    static const wchar_t * GetControlLabel (size_t index);
+
     static constexpr size_t  kButtonCount = 6;
 
 private:
@@ -118,7 +122,9 @@ private:
     static constexpr int    kButtonSizePx      = 16;
     static constexpr int    kButtonGapPx       = 2;
     static constexpr int    kCounterGapXPx     = 4;
-    static constexpr int    kControlsPadYPx    = 4;
+    static constexpr int    kLabelStripPx      = 13;      // under the controls, for the nearest one's name
+    static constexpr float  kLabelFontDip      = 8.5f;
+    static constexpr int    kLabelWidthPx      = 90;
     static constexpr float  kMarkInsetRatio    = 0.28f;   // of the button, around each drawn mark
     static constexpr float  kDisabledAlpha     = 0.30f;
     static constexpr float  kArmedAlpha        = 0.55f;

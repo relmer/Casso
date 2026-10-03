@@ -216,6 +216,8 @@ public:
         Assert::AreEqual (TapeDeckWidget::kMagnifyMax, TapeDeckWidget::GetMagnification (0.0f,    kReach), 0.0001f);
         Assert::AreEqual (1.0f,                        TapeDeckWidget::GetMagnification (kReach,  kReach), 0.0001f);
         Assert::AreEqual (1.0f,                        TapeDeckWidget::GetMagnification (100.0f,  kReach), 0.0001f);
+        Assert::AreEqual (1.0f,                        TapeDeckWidget::GetMagnification (-80.0f,  kReach), 0.0001f,
+                          L"far to the right of the pointer is as unmagnified as far to the left");
         Assert::AreEqual (TapeDeckWidget::GetMagnification (10.0f, kReach),
                           TapeDeckWidget::GetMagnification (-10.0f, kReach), 0.0001f, L"either side alike");
         Assert::IsTrue   (TapeDeckWidget::GetMagnification (10.0f, kReach) > TapeDeckWidget::GetMagnification (20.0f, kReach),
