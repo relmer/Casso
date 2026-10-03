@@ -10,19 +10,97 @@
 //
 //  Reuse
 //
-//  Starts the stream over in buffer, keeping its capacity, so a writer that
-//  saves the machine many times allocates once. The sharing setting stays.
+//  Starts the stream over in buffer, keeping its length, so a writer that
+//  saves the machine many times allocates once and writes over the last
+//  save's bytes instead of zero-filling them again. The sharing setting
+//  stays.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void StateWriter::Reuse (std::vector<Byte> && buffer)
 {
     m_bytes = std::move (buffer);
-    m_bytes.clear();
     m_segments.clear();
     m_openSections.clear();
 
+    m_size        = 0;
     m_sharedBytes = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBytes
+//
+//  The stream's own bytes. The buffer is cut to the byte count first; cutting
+//  frees nothing, so a later write grows it back without reallocating.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<Byte> & StateWriter::GetBytes() const
+{
+    m_bytes.resize (m_size);
+
+    return m_bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeBytes
+//
+//  Hands the stream's own bytes over and starts an empty stream.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> StateWriter::TakeBytes()
+{
+    std::vector<Byte>  bytes;
+
+
+
+    m_bytes.resize (m_size);
+
+    bytes  = std::move (m_bytes);
+    m_size = 0;
+
+    m_bytes.clear();
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Grow
+//
+//  Lengthens the buffer to hold count more bytes than the stream does. Its
+//  capacity at least doubles, so a fresh buffer reallocates a handful of
+//  times over a save, and only the bytes about to be written are filled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StateWriter::Grow (size_t count)
+{
+    size_t  needed = m_size + count;
+
+
+
+    if (needed > m_bytes.capacity())
+    {
+        m_bytes.reserve (std::max (needed, m_bytes.capacity() * 2));
+    }
+
+    m_bytes.resize (needed);
 }
 
 
@@ -48,7 +126,7 @@ void StateWriter::BeginSection (uint32_t tag, uint16_t version)
     WriteWord   (version);
     WriteUInt32 (0);
 
-    section.sizeOffset   = m_bytes.size() - sizeof (uint32_t);
+    section.sizeOffset   = m_size - sizeof (uint32_t);
     section.payloadStart = GetStreamOffset();
 
     m_openSections.push_back (section);
@@ -101,83 +179,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WriteByte
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void StateWriter::WriteByte (Byte value)
-{
-    m_bytes.push_back (value);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteBool
-//
-//  One byte, 0 or 1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void StateWriter::WriteBool (bool value)
-{
-    m_bytes.push_back (value ? 1 : 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteWord
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void StateWriter::WriteWord (Word value)
-{
-    WriteLittleEndian (value, sizeof (Word));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteUInt32
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void StateWriter::WriteUInt32 (uint32_t value)
-{
-    WriteLittleEndian (value, sizeof (uint32_t));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteUInt64
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void StateWriter::WriteUInt64 (uint64_t value)
-{
-    WriteLittleEndian (value, sizeof (uint64_t));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WriteBytes
 //
 //  A raw run of bytes, such as a RAM bank. The count is not written; the
@@ -187,7 +188,10 @@ void StateWriter::WriteUInt64 (uint64_t value)
 
 void StateWriter::WriteBytes (const Byte * data, size_t count)
 {
-    m_bytes.insert (m_bytes.end(), data, data + count);
+    if (count != 0)
+    {
+        memcpy (GetRoom (count), data, count);
+    }
 }
 
 
@@ -221,7 +225,7 @@ void StateWriter::WriteShared (const std::shared_ptr<const std::vector<Byte>> & 
         m_segments.reserve (kSegmentReserve);
     }
 
-    segment.offset = m_bytes.size();
+    segment.offset = m_size;
     segment.bytes  = bytes;
 
     m_sharedBytes += bytes->size();
@@ -274,29 +278,3 @@ void StateWriter::Flatten (
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteLittleEndian
-//
-//  The stream grows once for the whole value, then its bytes are stored
-//  through a plain pointer rather than pushed one at a time.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void StateWriter::WriteLittleEndian (uint64_t value, size_t byteCount)
-{
-    size_t   start = m_bytes.size();
-    Byte   * out   = nullptr;
-    size_t   i     = 0;
-
-
-
-    m_bytes.resize (start + byteCount);
-
-    out = m_bytes.data() + start;
-
-    for (i = 0; i < byteCount; i++)
-    {
-        out[i] = static_cast<Byte> (value >> (i * CHAR_BIT));
-    }
-}

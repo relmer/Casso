@@ -134,6 +134,7 @@ public:
     HRESULT            AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state) { return AddCheckpoint (position, cycle, journalIndex, std::move (state), {}); }
     HRESULT            AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state, std::vector<StateSegment> && segments);
     std::vector<Byte>  TakeSpareBuffer        ();
+    void               ReturnSpareBuffer      (std::vector<Byte> && buffer);
     void               TruncateAt             (uint64_t position);
     void               TruncateFrom           (uint64_t position);
     uint64_t           GetNextCheckpointCycle () const { return m_checkpoints.empty() ? 0 : m_nextCheckpointCycle; }

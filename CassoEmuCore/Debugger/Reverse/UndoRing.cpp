@@ -287,6 +287,26 @@ std::vector<Byte> UndoRing::TakeSpareBuffer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReturnSpareBuffer
+//
+//  A buffer taken for a save that made no checkpoint, back into the pool.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UndoRing::ReturnSpareBuffer (std::vector<Byte> && buffer)
+{
+    if (buffer.capacity() != 0)
+    {
+        m_spareStates.push_back (std::move (buffer));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TruncateAt
 //
 //  Drops every record at or after position and every checkpoint after it:

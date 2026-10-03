@@ -44,6 +44,11 @@ struct StateSegment
 //  the same immutable buffer to many saves. The blob is then the writer's own
 //  bytes with the segments spliced in (Flatten); section sizes count them.
 //
+//  The writer keeps its own byte count apart from its buffer's size: a reused
+//  buffer keeps the length of the save it last held, so a save of the same
+//  machine writes over it without growing or zero-filling it first, and the
+//  buffer is cut to the count when it is handed out.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class StateWriter
@@ -54,16 +59,16 @@ public:
     void                      BeginSection (uint32_t tag, uint16_t version);
     HRESULT                   EndSection   ();
 
-    void                      WriteByte    (Byte value);
-    void                      WriteBool    (bool value);
-    void                      WriteWord    (Word value);
-    void                      WriteUInt32  (uint32_t value);
-    void                      WriteUInt64  (uint64_t value);
+    void                      WriteByte    (Byte value)     { *GetRoom (sizeof (value)) = value; }
+    void                      WriteBool    (bool value)     { *GetRoom (sizeof (Byte)) = value ? 1 : 0; }
+    void                      WriteWord    (Word value)     { WriteLittleEndian (value, sizeof (value)); }
+    void                      WriteUInt32  (uint32_t value) { WriteLittleEndian (value, sizeof (value)); }
+    void                      WriteUInt64  (uint64_t value) { WriteLittleEndian (value, sizeof (value)); }
     void                      WriteBytes   (const Byte * data, size_t count);
     void                      WriteShared  (const std::shared_ptr<const std::vector<Byte>> & bytes);
 
-    const std::vector<Byte> & GetBytes        () const { return m_bytes; }
-    std::vector<Byte>         TakeBytes       ()       { return std::move (m_bytes); }
+    const std::vector<Byte> & GetBytes        () const;
+    std::vector<Byte>         TakeBytes       ();
     std::vector<StateSegment> TakeSegments    ()       { return std::move (m_segments); }
     void                      Reuse           (std::vector<Byte> && buffer);
     bool                      HasOpenSection  () const { return !m_openSections.empty(); }
@@ -81,12 +86,44 @@ private:
         size_t  payloadStart = 0;   // stream offset of the payload, segments counted
     };
 
-    void                      WriteLittleEndian (uint64_t value, size_t byteCount);
-    size_t                    GetStreamOffset   () const { return m_bytes.size() + m_sharedBytes; }
+    //  The next count bytes of the stream, to be written through the pointer.
+    Byte *                    GetRoom           (size_t count)
+    {
+        Byte  * room = nullptr;
 
-    std::vector<Byte>          m_bytes;
+
+
+        if (m_size + count > m_bytes.size())
+        {
+            Grow (count);
+        }
+
+        room    = m_bytes.data() + m_size;
+        m_size += count;
+
+        return room;
+    }
+
+    void                      WriteLittleEndian (uint64_t value, size_t byteCount)
+    {
+        Byte    * out = GetRoom (byteCount);
+        size_t    i   = 0;
+
+
+
+        for (i = 0; i < byteCount; i++)
+        {
+            out[i] = static_cast<Byte> (value >> (i * CHAR_BIT));
+        }
+    }
+
+    void                      Grow              (size_t count);
+    size_t                    GetStreamOffset   () const { return m_size + m_sharedBytes; }
+
+    mutable std::vector<Byte>  m_bytes;                 // cut to m_size when handed out
     std::vector<StateSegment>  m_segments;
     std::vector<OpenSection>   m_openSections;
+    size_t                     m_size        = 0;       // bytes of m_bytes the stream holds
     size_t                     m_sharedBytes = 0;
     bool                       m_isSharing   = false;
 };

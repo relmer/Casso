@@ -945,6 +945,12 @@ HRESULT ReverseController::CaptureNow (
         hr = m_ring.AddCheckpoint (position, cycle, journalEnd, writer.TakeBytes(), writer.TakeSegments());
         CHR (hr);
     }
+    else
+    {
+        // A keyframe taken alone hands its buffer back, or the next capture's
+        // spare would replace it and the pool would drain one buffer at a time.
+        m_ring.ReturnSpareBuffer (writer.TakeBytes());
+    }
 
     PruneRetainedMedia();
 
