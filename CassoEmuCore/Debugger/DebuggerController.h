@@ -6,6 +6,7 @@
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/MachineDebugTarget.h"
+#include "Debugger/Reverse/ReverseStopTest.h"
 
 class CpuManager;
 class IPipeTransport;
@@ -62,6 +63,9 @@ public:
     DebugSession         & GetSession   () { return m_session; }
     CpuManagerRunDriver  & GetRunDriver () { return m_driver; }
 
+    //  The session's stop conditions, as reverse continue tests them.
+    IReverseStopTest     & GetReverseStopTest () { return m_reverseStopTest; }
+
     // IDebugCommandRunner
     Reply         RunLine      (const std::string          & line,
                                 std::optional<CommandMode>   mode,
@@ -83,4 +87,5 @@ private:
     DebugChannelServer     m_server;
     DebugSession           m_session;
     DebugHandlerSet        m_handlers;
+    ReverseStopTest        m_reverseStopTest { m_session };
 };

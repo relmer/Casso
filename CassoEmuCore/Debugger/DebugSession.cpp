@@ -1161,19 +1161,47 @@ void DebugSession::OnInterrupt (Word pc)
 
 void DebugSession::NoteCpuOwnReads (Word pc)
 {
+    Word                 length      = 0;
+    std::optional<Word>  storeTarget;
+
+
+
+    GetCpuOwnReads (pc, length, storeTarget);
+    m_watchpoints.SetCpuOwnReads (pc, length, storeTarget);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetCpuOwnReads
+//
+//  The instruction at pc's own bytes, as a length, and the target an indexed
+//  store reads before writing it; a length of zero where the instruction
+//  cannot be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::GetCpuOwnReads (
+    Word                  pc,
+    Word                & length,
+    std::optional<Word> & storeTarget) const
+{
     const Microcode      * set         = m_target.GetInstructionSet();
     const Microcode      * microcode   = nullptr;
     Byte                   opcode      = 0;
-    Word                   length      = 0;
-    std::optional<Word>    storeTarget;
     AccessPrediction       prediction;
     HRESULT                hr          = S_OK;
 
 
 
+    length = 0;
+    storeTarget.reset();
+
     if (set == nullptr || !m_target.TryPeek (pc, opcode))
     {
-        m_watchpoints.SetCpuOwnReads (pc, 0, std::nullopt);
         return;
     }
 
@@ -1189,8 +1217,6 @@ void DebugSession::NoteCpuOwnReads (Word pc)
             storeTarget = prediction.touches.back().address;
         }
     }
-
-    m_watchpoints.SetCpuOwnReads (pc, length, storeTarget);
 }
 
 

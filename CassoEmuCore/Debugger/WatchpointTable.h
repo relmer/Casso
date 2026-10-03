@@ -124,6 +124,13 @@ public:
     //  a matching access, records a hit for the instruction at pc.
     bool   TryMatchBefore   (Word pc, const AccessPrediction & prediction, WatchHit & hit);
 
+    //  The same tests as TryMatchBefore and OnWatchedAccess, for a replay of
+    //  history: true when an enabled watchpoint that stops, or a value
+    //  breakpoint on a write, matches. No hit is counted or recorded, and
+    //  neither sink is offered the access.
+    bool   IsStopBefore     (const AccessPrediction & prediction) const;
+    bool   IsStopOnAccess   (Word address, Byte value, BusAccess access) const;
+
     //  One instruction, one stop: after a before-stop on the instruction at
     //  pc, the accesses that instruction makes to the range are not reported
     //  when the run resumes. The suppression ends when another instruction

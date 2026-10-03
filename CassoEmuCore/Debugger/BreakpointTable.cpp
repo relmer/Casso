@@ -561,6 +561,70 @@ bool BreakpointTable::TryMatchWrite (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::IsStopBefore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::IsStopBefore (
+    Word                            pc,
+    std::optional<Byte>             opcode,
+    const IDebugExpressionContext & context) const
+{
+    std::optional<int32_t>  conditionValue;
+
+
+
+    for (const Breakpoint & entry : m_entries)
+    {
+        if (entry.enabled && entry.stops && TryMatchEntry (entry, pc, opcode, context, conditionValue))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::IsStopOnWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::IsStopOnWrite (
+    Word                            address,
+    Byte                            value,
+    const IDebugExpressionContext & context) const
+{
+    std::optional<int32_t>  conditionValue;
+
+
+
+    for (const Breakpoint & entry : m_entries)
+    {
+        bool  isTarget = entry.enabled && entry.stops && entry.kind == BreakpointKind::MemoryValue && entry.first == address && entry.value == value;
+
+
+
+        if (isTarget && ConditionContext::IsMet (entry.condition, context, address, value, conditionValue))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::TryMatchEntry
 //
 //  An address entry's IF expression is evaluated only once PC is in its

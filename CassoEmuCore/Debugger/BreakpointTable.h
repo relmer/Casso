@@ -113,6 +113,12 @@ public:
     //  an interrupt. Counts hits as TryMatchBeforeInstruction does.
     bool  TryMatchInterrupt (int & hitId);
 
+    //  The same tests as TryMatchBeforeInstruction and TryMatchWrite, for a
+    //  replay of history: true when an enabled entry that stops matches. No
+    //  hit is counted and nothing is remembered.
+    bool  IsStopBefore     (Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context) const;
+    bool  IsStopOnWrite    (Word address, Byte value, const IDebugExpressionContext & context) const;
+
     //  The IF expression's value from the last stop TryMatchBeforeInstruction
     //  reported, when the entry had one.
     const std::optional<int32_t> &  GetLastConditionValue () const { return m_lastConditionValue; }

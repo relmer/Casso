@@ -372,6 +372,82 @@ bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & predicti
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::IsStopBefore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::IsStopBefore (const AccessPrediction & prediction) const
+{
+    std::optional<int32_t>  conditionValue;
+
+
+
+    for (const PredictedTouch & touch : prediction.touches)
+    {
+        for (const Watchpoint & entry : m_entries)
+        {
+            bool  isInRange = touch.address >= entry.first && touch.address <= entry.last;
+
+
+
+            if (!entry.enabled || !entry.stops || entry.mode != WatchMode::Before || !isInRange || !IsTouchMatch (entry.access, touch.access))
+            {
+                continue;
+            }
+
+            if (IsConditionMet (entry.condition, touch.address, std::nullopt, conditionValue))
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::IsStopOnAccess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::IsStopOnAccess (Word address, Byte value, BusAccess access) const
+{
+    std::optional<int32_t>  conditionValue;
+
+
+
+    for (const Watchpoint & entry : m_entries)
+    {
+        bool  isInRange = address >= entry.first && address <= entry.last;
+
+
+
+        if (!entry.enabled || !entry.stops || entry.mode != WatchMode::After || !isInRange || !IsAccessMatch (entry.access, access))
+        {
+            continue;
+        }
+
+        if (IsConditionMet (entry.condition, address, value, conditionValue))
+        {
+            return true;
+        }
+    }
+
+    return access == BusAccess::Write && m_valueBreakpoints != nullptr && m_context != nullptr &&
+           m_valueBreakpoints->IsStopOnWrite (address, value, *m_context);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::SuppressAfterStopFor
 //
 ////////////////////////////////////////////////////////////////////////////////

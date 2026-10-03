@@ -255,8 +255,12 @@ public:
     bool   ShouldStopAtRunStart     (Word pc) override;
     bool   ShouldStopAfterInterrupt (Word pc) override;
 
+    // The reads the instruction at pc makes on its own account, which no
+    // watchpoint sees: its length in bytes, and an indexed store's target.
+    void   GetCpuOwnReads        (Word pc, Word & length, std::optional<Word> & storeTarget) const;
+
     // IRunObserver
-    void   OnStopped             (const StopEvent & stop) override;
+    void   OnStopped            (const StopEvent & stop) override;
     void   OnFreeRunSlice        () override;
 
     // IOpcodeWatcher: the call record's instructions, from the CPU.

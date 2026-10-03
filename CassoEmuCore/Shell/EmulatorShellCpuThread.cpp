@@ -850,8 +850,9 @@ HRESULT EmulatorShell::OpenDebugger()
     m_pipeTransport = std::move (transport);
     m_debugger      = std::move (controller);
 
-    SetDebugRunDriver (&m_debugger->GetRunDriver());
-    SetDebugSession   (&m_debugger->GetSession());
+    SetDebugRunDriver  (&m_debugger->GetRunDriver());
+    SetDebugSession    (&m_debugger->GetSession());
+    SetReverseStopTest (&m_debugger->GetReverseStopTest());
 
 Error:
     if (FAILED (hr))
@@ -877,8 +878,9 @@ Error:
 
 void EmulatorShell::CloseDebugger()
 {
-    SetDebugRunDriver (nullptr);
-    SetDebugSession   (nullptr);
+    SetDebugRunDriver  (nullptr);
+    SetDebugSession    (nullptr);
+    SetReverseStopTest (nullptr);
 
     m_debugger.reset();
     m_pipeTransport.reset();
