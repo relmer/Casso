@@ -264,7 +264,7 @@ def build():
         legend = part if legend is None else legend.union(part)
 
     LINE_T = 0.3
-    rise_y = ly + LH / 2 + 1.6
+    rise_y = ly + LH / 2 + 2.4
     (rx, ry), (px, py) = tops["RECORD"], tops["PLAY"]
     bracket = (box(rx - LINE_T / 2, rx + LINE_T / 2, ry + 0.3, rise_y + LINE_T, lz, lz + 0.3)
                .union(box(px - LINE_T / 2, px + LINE_T / 2, py + 0.3, rise_y + LINE_T, lz, lz + 0.3))
@@ -339,29 +339,64 @@ def build():
 
     # THE SHELL'S SEAM: a 2 mm channel where its top and bottom halves meet,
     # level with the arms' tips, from one tip round the back to the other.
+    # The groove's inner wall is rounded at the back corners to follow the
+    # case's own rounding, or the groove runs out where the corners curve away.
     seam_y = NOSE_Y + NOSE_RUN
+    inner  = box(1.0, W - 1.0, seam_y - 1.0, D - 1.0, zc - 2.0, zc + 2.0)
+    inner  = inner.edges("|Z").edges(cq.selectors.BoxSelector((-1, D - 2, 0), (W + 1, D, H))).fillet(EDGE_R - 1.0)
     m.parts[0].solid = (m.parts[0].solid
-                        .cut(box(-1.0, W + 1.0, seam_y, D + 1.0, zc - 1.0, zc + 1.0)
-                             .cut(box(1.0, W - 1.0, seam_y - 1.0, D - 1.0, zc - 2.0, zc + 2.0))))
+                        .cut(box(-1.0, W + 1.0, seam_y, D + 1.0, zc - 1.0, zc + 1.0).cut(inner)))
 
-    # The tone and volume thumbwheels in a recess in the back end.
-    m.add("wheel_well", box(W / 2 - 34, W / 2 + 34, D - 0.3, D + 0.2, 26.0, 46.0), KEY)
+    # THE TONE AND VOLUME THUMBWHEELS, in a recess in the lower front face,
+    # under the handle. Each is a knurled disc lying flat behind its window,
+    # so a thumb rolls it left and right; an embossed arrow above each window
+    # points down at it, and the legend runs under both.
+    #
+    # Built in the face's own frame -- x across, z up the face, -y out of it --
+    # then tilted onto the slope.
+    tilt   = math.atan2(BOT_Y - YF, FACE_Z0)
+    origin = ((YF + BOT_Y) / 2, FACE_Z0 / 2)
+
+    def on_face(solid):
+        return (solid.rotate((0, 0, 0), (1, 0, 0), math.degrees(tilt))
+                     .translate((0, origin[0], origin[1])))
+
+    REC_HW, REC_V0, REC_V1, REC_D = 46.0, -10.0, 10.0, 3.0
+    WIN_HW, WIN_V0, WIN_V1        = 12.0, -2.0, 5.0
+    WHEEL_R, TEETH                = 11.0, 72
+    wheel_x = (W / 2 - 22.0, W / 2 + 22.0)
+
+    recess = box(W / 2 - REC_HW, W / 2 + REC_HW, -1.0, REC_D, REC_V0, REC_V1).edges("|Y").fillet(1.5)
+    pockets = None
+    for wx in wheel_x:
+        pocket = box(wx - WIN_HW, wx + WIN_HW, REC_D - 0.1, REC_D + 2 * WHEEL_R + 1, WIN_V0, WIN_V1)
+        pockets = pocket if pockets is None else pockets.union(pocket)
+    m.parts[0].solid = m.parts[0].solid.cut(on_face(recess.union(pockets)))
+
     wheels = None
-    for wx in (W / 2 - 17, W / 2 + 17):
-        wheel = (cq.Workplane("YZ").workplane(offset=wx - 6).center(D - 4, 40.0)
-                 .polygon(24, 18.0).extrude(12.0))
+    for wx in wheel_x:
+        pts = []
+        for k in range(TEETH * 2):
+            a = math.pi * 2 * k / (TEETH * 2)
+            r = WHEEL_R if k % 2 == 0 else WHEEL_R - 0.7
+            pts.append((wx + r * math.cos(a), REC_D + 0.4 + WHEEL_R + r * math.sin(a)))
+        wheel = (cq.Workplane("XY").workplane(offset=WIN_V0 + 1.0)
+                 .polyline(pts).close().extrude(WIN_V1 - WIN_V0 - 2.0))
         wheels = wheel if wheels is None else wheels.union(wheel)
-    m.add("wheels", wheels, BAND)
-    # Read from BEHIND, so tone is on the viewer's left there -- the +X side --
-    # and the text is turned to face +Y, not -Y, or it reads mirrored.
-    def back_text(s, x):
-        return (text(s, 2.2, x, D + 0.3, 29.0)
-                .rotate((x, D + 0.3, 29.0), (x + 1, D + 0.3, 29.0), 90)
-                .rotate((x, D + 0.3, 29.0), (x, D + 0.3, 30.0), 180))
+    m.add("wheels", on_face(wheels), KEY, angular=0.25)
 
-    m.add("wheel_legend",
-          back_text("LOW-TONE-HIGH", W / 2 + 17).union(back_text("MIN-VOLUME-MAX", W / 2 - 17)),
-          SILVER)
+    def face_text(s, x, v, size):
+        return text(s, size, x, v, -REC_D).rotate((0, 0, 0), (1, 0, 0), 90)
+
+    marks = None
+    for wx, s in zip(wheel_x, ("LOW — TONE — HIGH", "MIN — VOLUME — MAX")):
+        arrow = (cq.Workplane("XZ").workplane(offset=-REC_D)
+                 .polyline([(wx - 1.0, WIN_V1 + 2.6), (wx + 1.0, WIN_V1 + 2.6), (wx, WIN_V1 + 1.0)])
+                 .close().extrude(0.3))
+        label = face_text(s, wx, WIN_V0 - 3.5, 2.6)
+        mark  = arrow.union(label)
+        marks = mark if marks is None else marks.union(mark)
+    m.add("wheel_legend", on_face(marks), SILVER)
     return m
 
 
