@@ -81,6 +81,20 @@ public:
     static void  BootToPrompt (MachineHost              & host,
                                const std::vector<Byte>  & bytes);
 
+    //  The same three for a WOZ file, which holds tracks rather than
+    //  sectors. `expectedSectors` is what the drive must read off it before
+    //  any processor starts -- the strongest of the pre-checks below, asked of
+    //  a container that has no sector buffer of its own.
+    static void  MountWoz        (MachineHost              & host,
+                                  const std::vector<Byte>  & wozBytes,
+                                  const std::vector<Byte>  & expectedSectors);
+    static void  BootWozToPrompt (MachineHost              & host,
+                                  const std::vector<Byte>  & wozBytes,
+                                  const std::vector<Byte>  & expectedSectors);
+
+    //  The name a WOZ mounted by MountWoz is flushed under.
+    static constexpr const char *  kpszWozGateName = "gate.woz";
+
     //  The container decoded the way the DRIVE reads it: laid down as physical
     //  nibbles and recovered through the hardware interleave, rather than
     //  through the path that wrote it.

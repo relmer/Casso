@@ -2,6 +2,8 @@
 #include "TestMachine.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "FluxTestImages.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -308,6 +310,89 @@ public:
         //  is to catch this turning into something that walks disks or takes a
         //  contended lock, not to police a handful of nanoseconds.
         Assert::IsTrue (shareOfBudget <= 0.001, msg);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  DiskEngine_FluxPlaybackCostsAboutWhatBitsDo
+    //
+    //  The drive engine alone, spinning a bit track and then the flux
+    //  version of the same track for the same number of cycles. Both times
+    //  are printed. The assertion is a loose sanity bound only: a timing
+    //  comparison as tight as the 2% the spec budgets is noise on a shared
+    //  CI runner or an unpinned host, so that budget is checked by hand,
+    //  pinned to one CCD, at maximum emulation speed.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    double TimeEngineCycles (Disk2NibbleEngine & engine, uint32_t cycles, int64_t freqHz)
+    {
+        LARGE_INTEGER  startQpc = {};
+        LARGE_INTEGER  endQpc   = {};
+
+
+
+        engine.Tick (cycles / 10);
+
+        QueryPerformanceCounter (&startQpc);
+        engine.Tick (cycles);
+        QueryPerformanceCounter (&endQpc);
+
+        return ElapsedMs (startQpc.QuadPart, endQpc.QuadPart, freqHz);
+    }
+
+
+    TEST_METHOD (DiskEngine_FluxPlaybackCostsAboutWhatBitsDo)
+    {
+        constexpr size_t    kTrackBits    = 51200;
+        constexpr uint32_t  kEngineCycles = 20'000'000;
+        constexpr double    kSanityRatio  = 1.5;
+
+        DiskImage          disk;
+        Disk2NibbleEngine  bitEngine;
+        Disk2NibbleEngine  fluxEngine;
+        vector<Byte>       bits (kTrackBits / 8, 0);
+        int64_t  freqHz   = QpcFrequencyHz();
+        double   bitMs    = 0.0;
+        double   fluxMs   = 0.0;
+        size_t   i        = 0;
+        wchar_t  msg[256] = {};
+
+
+
+        Assert::IsTrue (freqHz > 0);
+
+        // Self-sync bytes with data between them: realistic transition density.
+        for (i = 0; i < bits.size(); i++)
+        {
+            bits[i] = (i % 5 == 4) ? Byte (0x96) : Byte (0xFF);
+        }
+
+        disk.EnsureTrackSlots (2);
+        disk.ClearQuarterTrackMap();
+        disk.ResizeTrack (0, kTrackBits);
+        memcpy (disk.GetTrackBitsForWrite (0).data(), bits.data(), bits.size());
+        disk.SetQuarterTrackSlot (0, 0);
+        disk.SetFluxTrack (1, FluxTestImages::BitsToNominalFlux (bits, kTrackBits));
+        disk.SetQuarterTrackSlot (4, 1);
+
+        bitEngine.SetDiskImage  (&disk);
+        bitEngine.SetMotorOn    (true);
+        fluxEngine.SetDiskImage (&disk);
+        fluxEngine.SetCurrentTrack (4);
+        fluxEngine.SetMotorOn   (true);
+
+        Assert::IsTrue (fluxEngine.IsOnFluxTrack());
+
+        bitMs  = TimeEngineCycles (bitEngine,  kEngineCycles, freqHz);
+        fluxMs = TimeEngineCycles (fluxEngine, kEngineCycles, freqHz);
+
+        swprintf_s (msg, L"disk engine, %u cycles: bit track %.2f ms, flux track %.2f ms (%.1f%%)",
+                    kEngineCycles, bitMs, fluxMs, 100.0 * fluxMs / bitMs);
+        Logger::WriteMessage (msg);
+
+        Assert::IsTrue (fluxMs <= bitMs * kSanityRatio, msg);
     }
 
 #endif // NDEBUG

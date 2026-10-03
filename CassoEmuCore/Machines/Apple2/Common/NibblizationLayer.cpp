@@ -440,6 +440,15 @@ HRESULT NibblizationLayer::RenibblizeTracks (
             continue;
         }
 
+        //  A flux track is never regenerated: only the data fields that
+        //  changed are spliced in, and everything else keeps its timing.
+        if (inOutImage.GetTrackKind (track) == TrackKind::Flux)
+        {
+            hr = WriteFluxTrackSectors (sectors, interleave, track, inOutImage);
+            CHR (hr);
+            continue;
+        }
+
         inOutImage.ResizeTrack (track, kTrackBitCapacity);
 
         for (physical = 0; physical < kSectorsPerTrack; physical++)
@@ -681,8 +690,70 @@ HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, D
 
 Byte NibblizationLayer::ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
 {
-    const vector<Byte>  &  bits         = img.GetTrackBits (track);
-    size_t                 trackBits    = img.GetTrackBitCount (track);
+    FluxBitView  fluxView;
+    TrackBits    src = GetTrackBits (img, track, fluxView);
+
+
+
+    return ReadNibbleAt (src, bitPos);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::GetTrackBits
+//
+//  The bits a sector reader walks for one slot: a bit track's own buffer, or
+//  a flux track decoded into the caller's view at the controller's cell. The
+//  view is the caller's so a whole track decode can reuse it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+NibblizationLayer::TrackBits NibblizationLayer::GetTrackBits (
+    const DiskImage  &  img,
+    int                 track,
+    FluxBitView      &  fluxView)
+{
+    TrackBits  src;
+
+
+
+    if (img.GetTrackKind (track) == TrackKind::Flux)
+    {
+        fluxView.Build (img.GetFluxTrack (track));
+        src.bits     = &fluxView.GetBits();
+        src.bitCount = fluxView.GetBitCount();
+    }
+    else if (track >= 0 && track < img.GetTrackCount())
+    {
+        src.bits     = &img.GetTrackBits (track);
+        src.bitCount = img.GetTrackBitCount (track);
+    }
+
+    return src;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::ReadNibbleAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte NibblizationLayer::ReadNibbleAt (const TrackBits & src, size_t & bitPos)
+{
+    static const vector<Byte>  kNoBits;
+
+
+
+    const vector<Byte>  &  bits         = (src.bits != nullptr) ? *src.bits : kNoBits;
+    size_t                 trackBits    = (src.bits != nullptr) ? src.bitCount : 0;
     size_t                 capacityBits = bits.size() * 8;
     size_t                 start        = bitPos;
     size_t                 pos          = 0;
@@ -741,7 +812,8 @@ Byte NibblizationLayer::ReadNibbleAt (const DiskImage & img, int track, size_t &
         // is not a trade worth making. The general accessor range-checks.
         while ((value & 0x80) == 0 && !overran)
         {
-            bit = img.ReadBit (track, bitPos % trackBits);
+            pos = bitPos % trackBits;
+            bit = (pos >> 3 < bits.size()) ? static_cast<Byte> ((bits[pos >> 3] >> (7 - (pos & 7))) & 1) : 0;
 
             bitPos++;
             value   = static_cast<Byte> ((value << 1) | (bit & 1));
@@ -861,13 +933,13 @@ static int PopCount (uint16_t mask)
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT DecodeOneSector (
-    const DiskImage   &  img,
-    int                  track,
-    size_t            &  bitPos,
-    Byte              &  outSector,
-    Byte              *  outData,
-    SectorOutcome     &  outcome,
-    size_t            &  outFieldStart)
+    const NibblizationLayer::TrackBits  &  src,
+    size_t                              &  bitPos,
+    Byte                                &  outSector,
+    Byte                                *  outData,
+    SectorOutcome                       &  outcome,
+    size_t                              &  outFieldStart,
+    size_t                              &  outDataFieldStart)
 {
     HRESULT   hr                        = S_OK;
     Byte      n0                        = 0;
@@ -897,7 +969,7 @@ static HRESULT DecodeOneSector (
     Byte      prev                      = 0;
     Byte      raw                       = 0;
     int       i                         = 0;
-    size_t    trackBits                 = img.GetTrackBitCount (track);
+    size_t    trackBits                 = src.bitCount;
     size_t    startBitPos               = bitPos;
     size_t    bitsConsumed              = 0;
     size_t    addrFieldStart            = 0;
@@ -908,12 +980,13 @@ static HRESULT DecodeOneSector (
 
     foundProlog = 0;
 
-    outFieldStart = SIZE_MAX;
+    outFieldStart     = SIZE_MAX;
+    outDataFieldStart = SIZE_MAX;
 
     while (foundProlog == 0)
     {
         addrFieldStart = bitPos;
-        n0             = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n0             = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
         if (n0 != kAddrProlog0)
         {
@@ -922,8 +995,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-        n2 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n1 = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        n2 = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
         if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
         {
@@ -938,14 +1011,14 @@ static HRESULT DecodeOneSector (
     //  read and report it as a duplicate the disk does not have.
     outFieldStart = addrFieldStart;
 
-    vOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-    vEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-    tOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-    tEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-    sOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-    sEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-    cOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-    cEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    vOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    vEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    tOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    tEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    sOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    sEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    cOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    cEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
     outSector    = Decode44 (sOdd, sEven);
     addrVolume   = Decode44 (vOdd, vEven);
@@ -972,7 +1045,7 @@ static HRESULT DecodeOneSector (
     while (foundProlog == 0)
     {
         posBeforeProlog = bitPos;
-        n0              = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n0              = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
         if (n0 != kAddrProlog0)
         {
@@ -981,8 +1054,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
-        n2 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n1 = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        n2 = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
         if (n1 == kAddrProlog1 && n2 == kDataProlog2)
         {
@@ -1007,6 +1080,10 @@ static HRESULT DecodeOneSector (
 
     BAIL_OUT_IF (dataFieldMissing, S_OK);
 
+    // Where this sector's data field begins, which a write that replaces only
+    // the data field needs.
+    outDataFieldStart = posBeforeProlog;
+
     prev = 0;
 
     for (i = 0; i < kEncodedDataSize; i++)
@@ -1015,7 +1092,7 @@ static HRESULT DecodeOneSector (
         // the writer above: on-disk nibbles encode encoded[i] XOR'd
         // with the previous raw encoded value, so we recover raw
         // values via XOR with the previous DECODED value.
-        raw           = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        raw           = NibblizationLayer::ReadNibbleAt (src, bitPos);
         decodedNibble = InverseTranslate (raw);
 
         // 0xFF means the byte on the disk is not a legal 6-and-2 nibble at
@@ -1038,7 +1115,7 @@ static HRESULT DecodeOneSector (
     // The 343rd nibble is the data field's checksum -- the boot ROM's own
     // success gate -- and it was never read. Verifying it is what lets Casso
     // say a sector is intact rather than merely parseable.
-    decodedNibble  = InverseTranslate (NibblizationLayer::ReadNibbleAt (img, track, bitPos));
+    decodedNibble  = InverseTranslate (NibblizationLayer::ReadNibbleAt (src, bitPos));
     dataChecksum   = static_cast<Byte> (prev & kSixBitMask);
     dataChecksumOk = (decodedNibble == dataChecksum);
     dataTrusted    = dataTrusted && dataChecksumOk;
@@ -1288,6 +1365,8 @@ HRESULT NibblizationLayer::DecodeTracks (
     size_t        offset                = 0;
     size_t        trackBits             = 0;
     int           trackLimit            = img.GetTrackCount();
+    FluxBitView   fluxView;
+    TrackBits     src;
 
 
 
@@ -1325,7 +1404,8 @@ HRESULT NibblizationLayer::DecodeTracks (
         lost       = 0;
         duplicated = 0;
         slotMask   = 0;
-        trackBits = img.GetTrackBitCount (track);
+        src        = GetTrackBits (img, track, fluxView);
+        trackBits  = src.bitCount;
 
         //  A revolution that turns up nothing new means there is nothing left
         //  to find, and the scan can stop. Without this an EMPTY track is the
@@ -1367,9 +1447,10 @@ HRESULT NibblizationLayer::DecodeTracks (
             //  already read. Counting those would invent damage the scan caused
             //  rather than report damage the disk carries.
             size_t         fieldStart = SIZE_MAX;
+            size_t         dataStart  = SIZE_MAX;
             SectorOutcome  outcome    = SectorOutcome::Lost;
-            HRESULT        hrSector   = DecodeOneSector (img, track, bitPos, outSector,
-                                                         data, outcome, fieldStart);
+            HRESULT        hrSector   = DecodeOneSector (src, bitPos, outSector,
+                                                         data, outcome, fieldStart, dataStart);
             bool           firstPass  = fieldStart < trackBits;
 
             // A hard failure means no address field could be found before the
@@ -1487,4 +1568,221 @@ HRESULT NibblizationLayer::DecodeTracks (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::UnpackBits
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NibblizationLayer::UnpackBits (
+    const vector<Byte>  &  packed,
+    size_t                 from,
+    size_t                 to,
+    vector<uint8_t>     &  outBits)
+{
+    size_t  i = 0;
+
+
+
+    outBits.clear();
+
+    for (i = from; i < to; i++)
+    {
+        outBits.push_back (static_cast<uint8_t> ((packed[i >> 3] >> (7 - (i & 7))) & 1));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::WriteFluxTrackSectors
+//
+//  A bit track takes a sector write by being regenerated, which costs it any
+//  timing or weak bits it had. A flux track does not: each sector's data
+//  field is found in the track decoded at the controller's cell, and only the
+//  fields whose bytes changed are spliced back into the flux, at the cell a
+//  drive writes. Address fields, gaps and every other sector keep the timing
+//  they were recorded with.
+//
+//  The splice starts at the data prologue rather than the sync bytes before
+//  it, so the sync already on the disk -- written at whatever speed the disk
+//  was -- stays.
+//
+//  A changed sector whose data field cannot be found fails the write, rather
+//  than regenerating the track to make room for it. A track with no sectors
+//  at all is blank, so there is nothing to keep and a standard track is laid
+//  down in its place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::WriteFluxTrackSectors (
+    const vector<Byte>  &  sectors,
+    const int           *  interleave,
+    int                    track,
+    DiskImage           &  inOutImage)
+{
+    constexpr int     kMaxAttempts    = kSectorsPerTrack * 2;
+    constexpr size_t  kSyncNibbleBits = 8 + kSyncTailZeros;
+    constexpr size_t  kMaxLeadZeros   = 16;
+
+
+
+    HRESULT          hr                    = S_OK;
+    FluxBitView      view;
+    TrackBits        src                   = GetTrackBits (inOutImage, track, view);
+    size_t           bitPos                = 0;
+    size_t           start                 = 0;
+    size_t           fieldBits             = 0;
+    size_t           offset                = 0;
+    size_t           lead                  = 0;
+    int              attempt               = 0;
+    int              physical              = 0;
+    uint16_t         found                 = 0;
+    uint16_t         writeMask             = 0;
+    Byte             outSector             = 0;
+    Byte             data[kSectorByteSize] = {};
+    bool             changed               = false;
+    bool             located               = false;
+    vector<size_t>   dataStart (kSectorsPerTrack, SIZE_MAX);
+    vector<Byte>     priorData (static_cast<size_t> (kSectorsPerTrack) * kSectorByteSize, 0);
+    vector<Byte>     field;
+    vector<uint8_t>  bits;
+
+
+
+    for (attempt = 0; attempt < kMaxAttempts && found != 0xFFFF && src.bitCount > 0; attempt++)
+    {
+        size_t         fieldStart = SIZE_MAX;
+        size_t         dataAt     = SIZE_MAX;
+        SectorOutcome  outcome    = SectorOutcome::Lost;
+        HRESULT        hrSector   = DecodeOneSector (src, bitPos, outSector, data, outcome, fieldStart, dataAt);
+
+        if (FAILED (hrSector) || outcome == SectorOutcome::Lost || dataAt == SIZE_MAX)
+        {
+            continue;
+        }
+
+        if (outSector >= kSectorsPerTrack || (found & (1 << outSector)) != 0)
+        {
+            continue;
+        }
+
+        found = static_cast<uint16_t> (found | (1 << outSector));
+        dataStart[outSector] = dataAt;
+        memcpy (&priorData[static_cast<size_t> (outSector) * kSectorByteSize], data, kSectorByteSize);
+    }
+
+    if (found == 0)
+    {
+        WriteBlankFluxTrack (sectors, interleave, track, inOutImage);
+    }
+
+    // Every changed sector is found before any is written, so a write that
+    // cannot be completed leaves the track exactly as it was.
+    for (physical = 0; found != 0 && physical < kSectorsPerTrack; physical++)
+    {
+        offset  = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical]) * kSectorByteSize;
+        changed = memcmp (&sectors[offset], &priorData[static_cast<size_t> (physical) * kSectorByteSize], kSectorByteSize) != 0;
+        located = (dataStart[physical] != SIZE_MAX);
+
+        CBREx (!changed || located, HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
+
+        writeMask = static_cast<uint16_t> (writeMask | (changed ? (1 << physical) : 0));
+    }
+
+    for (physical = 0; physical < kSectorsPerTrack; physical++)
+    {
+        if ((writeMask & (1 << physical)) == 0)
+        {
+            continue;
+        }
+
+        offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical]) * kSectorByteSize;
+
+        field.assign (kTrackBitCapacity / 8, 0);
+        fieldBits = 0;
+        AppendDataField (field, fieldBits, &sectors[offset]);
+        UnpackBits (field, kDataPrologueGap * kSyncNibbleBits, fieldBits, bits);
+
+        // The decoder's position can sit in the zero tail of the sync byte
+        // before the prologue; the field itself starts at its first 1 bit.
+        start = dataStart[physical];
+
+        for (lead = 0; lead < kMaxLeadZeros && GetBit (src, start) == 0; lead++)
+        {
+            start++;
+        }
+
+        inOutImage.SpliceFluxBulk (track, view.GetTickForBit (start), bits);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::GetBit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte NibblizationLayer::GetBit (const TrackBits & src, size_t bitIndex)
+{
+    size_t  at = (src.bitCount > 0) ? bitIndex % src.bitCount : 0;
+
+
+
+    return (src.bitCount > 0) ? static_cast<Byte> (((*src.bits)[at >> 3] >> (7 - (at & 7))) & 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::WriteBlankFluxTrack
+//
+//  A flux track with no sectors on it has no timing worth keeping, so it gets
+//  a whole standard track written at the controller's cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NibblizationLayer::WriteBlankFluxTrack (
+    const vector<Byte>  &  sectors,
+    const int           *  interleave,
+    int                    track,
+    DiskImage           &  inOutImage)
+{
+    vector<Byte>     field (kTrackBitCapacity / 8, 0);
+    vector<uint8_t>  bits;
+    size_t           fieldBits = 0;
+    size_t           offset    = 0;
+    int              physical  = 0;
+
+
+
+    for (physical = 0; physical < kSectorsPerTrack; physical++)
+    {
+        offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical]) * kSectorByteSize;
+
+        AppendAddressField (field, fieldBits, kDefaultVolume, static_cast<Byte> (track), static_cast<Byte> (physical));
+        AppendDataField    (field, fieldBits, &sectors[offset]);
+    }
+
+    UnpackBits (field, 0, fieldBits, bits);
+    inOutImage.SpliceFluxBulk (track, 0, bits);
 }

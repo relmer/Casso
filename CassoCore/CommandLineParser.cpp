@@ -236,6 +236,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "volume",
     "bootable",
     "boot",
+    "flux",
     "load",
     "exec",
     "track",
@@ -1418,8 +1419,25 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
-        if (arg == "--boot" && hasValue)
+        //  --flux STANDS ALONE OR TAKES A TRACK LIST. Only an argument that
+        //  starts with a digit is taken as the list, so a file name or the
+        //  next option after a bare --flux is left alone.
+        if (arg == "--flux")
         {
+            bool  listed = hasValue && isdigit ((unsigned char) argv[i + 1][0]) != 0;
+
+            options.disk.flux       = true;
+            options.disk.fluxTracks = listed ? argv[i + 1] : "";
+
+            if (listed)
+            {
+                i++;
+            }
+
+            continue;
+        }
+
+        if (arg == "--boot" && hasValue)        {
             options.disk.directBootFile = argv[i + 1];
             i++;
             continue;

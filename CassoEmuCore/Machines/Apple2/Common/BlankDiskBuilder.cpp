@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Devices/Disk/FluxTrack.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -101,6 +102,8 @@ std::vector<DiskFormat> BlankDiskBuilder::GetContainers (BlankDiskContents conte
 //           as one
 //      Po   pairs with ProDOS or unformatted (ProDOS sector order)
 //
+//  Flux tracks need a WOZ container, the only one that can hold them.
+//
 //  Bootable requires formatted contents -- there is no OS to install on raw
 //  media. A ProDOS spec also needs a legal volume name (1-15 chars, leading
 //  letter, letters / digits / periods) since it lands in the directory
@@ -123,6 +126,7 @@ BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
     BlankDiskVerdict  verdict              = BlankDiskVerdict::Ok;
     bool              formatOk             = false;
     bool              bootableOk           = false;
+    bool              fluxOk               = false;
     bool              nameOk               = true;
     bool              isProDos             = spec.contents == BlankDiskContents::ProDos;
     size_t            i                    = 0;
@@ -155,6 +159,9 @@ BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
     }
 
     CBRF (formatOk, verdict = BlankDiskVerdict::ContentsNotInContainer);
+
+    fluxOk = spec.fluxTrackMask == 0 || CanHoldFlux (spec.format);
+    CBRF (fluxOk, verdict = BlankDiskVerdict::FluxNeedsWoz);
 
     bootableOk = !spec.bootable || spec.contents != BlankDiskContents::Unformatted;
     CBRF (bootableOk, verdict = BlankDiskVerdict::BootableNeedsFilesystem);
@@ -208,6 +215,47 @@ HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlankDiskBuilder::ConvertTracksToFlux
+//
+//  Each selected whole track becomes a flux track holding the same cells, so
+//  it reads back exactly as the bit track it replaces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlankDiskBuilder::ConvertTracksToFlux (uint64_t fluxTrackMask, DiskImage & inOutImage)
+{
+    vector<uint8_t>  bits;
+    FluxTrack        flux;
+    int              track = 0;
+    size_t           i     = 0;
+
+
+
+    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    {
+        if ((fluxTrackMask & (1ull << track)) == 0)
+        {
+            continue;
+        }
+
+        bits.resize (inOutImage.GetTrackBitCount (track));
+
+        for (i = 0; i < bits.size(); i++)
+        {
+            bits[i] = inOutImage.ReadBit (track, i);
+        }
+
+        flux.AssignBits (bits);
+        inOutImage.SetFluxTrack (track, flux.GetBytes());
+    }
 }
 
 
@@ -344,7 +392,8 @@ HRESULT BlankDiskBuilder::Build (
     }
 
     hr = WrapInContainer (spec.format, spec.nibbleTrackSize,
-                          spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
+                          spec.contents == BlankDiskContents::Unformatted, spec.fluxTrackMask,
+                          buffer, outBytes);
     CHR (hr);
 
 Error:
@@ -370,12 +419,15 @@ Error:
 //  changes the WOZ arm: a disk with no structure gets full-capacity all-zero
 //  bit tracks instead of a nibblized image of a buffer that holds nothing.
 //
+//  luxTrackMask stores the whole tracks it selects as flux, in WOZ only.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlankDiskBuilder::WrapInContainer (
     DiskFormat            format,
     size_t                nibbleTrackSize,
     bool                  unformatted,
+    uint64_t              fluxTrackMask,
     const vector<Byte> &  sectors,
     vector<Byte>       &  outBytes)
 {
@@ -402,6 +454,8 @@ HRESULT BlankDiskBuilder::WrapInContainer (
                 hr = NibblizationLayer::NibblizeDsk (sectors, img);
                 CHR (hr);
             }
+
+            ConvertTracksToFlux (fluxTrackMask, img);
 
             hr = WozLoader::Serialize (img, built);
             CHR (hr);

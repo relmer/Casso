@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "DamagedMountReport.h"
 #include "DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -24,6 +25,8 @@ DiskImage::DiskImage()
     m_trackBits.resize      (kDefaultTrackCount);
     m_trackBitCounts.resize (kDefaultTrackCount, 0);
     m_trackDirty.resize     (kDefaultTrackCount, false);
+    m_slotKind.resize       (kDefaultTrackCount, TrackKind::Bits);
+    m_fluxTracks.resize     (kDefaultTrackCount);
     InitWholeTrackMap();
 }
 
@@ -49,6 +52,7 @@ void DiskImage::InitWholeTrackMap()
 
 
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+    m_layoutGeneration++;
 
     for (qt = 0; qt < kQuarterTrackCount; qt++)
     {
@@ -99,15 +103,179 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 
     // Three ways to hold no data -- off the end of the map, an unmapped or
     // out-of-range slot, or a slot whose stream is empty -- and callers
-    // treat them identically, so they all fold into the one -1.
-    if (slot < 0
-        || slot >= static_cast<int> (m_trackBitCounts.size())
-        || m_trackBitCounts[slot] == 0)
+    // treat them identically, so they all fold into the one -1. A flux slot
+    // keeps its bit buffer empty, so it counts as data by its kind instead.
+    if (slot < 0 || slot >= static_cast<int> (m_trackBitCounts.size()))
+    {
+        slot = -1;
+    }
+    else if (m_trackBitCounts[slot] == 0 && m_slotKind[slot] != TrackKind::Flux)
     {
         slot = -1;
     }
 
     return slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMappedSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::GetMappedSlot (int quarterTrack) const
+{
+    bool  inMap = (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()));
+
+
+
+    return inMap ? m_quarterTrackMap[quarterTrack] : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTrackKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TrackKind DiskImage::GetTrackKind (int slot) const
+{
+    bool  inRange = (slot >= 0 && slot < static_cast<int> (m_slotKind.size()));
+
+
+
+    return inRange ? m_slotKind[slot] : TrackKind::Bits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFluxTrack
+//
+//  Makes a slot a flux track holding these bytes. Its bit buffer is emptied,
+//  so nothing that reads bits can mistake leftover bits for the track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::SetFluxTrack (int slot, const vector<Byte> & fluxBytes)
+{
+    if (slot < 0 || slot >= static_cast<int> (m_slotKind.size()))
+    {
+        return;
+    }
+
+    m_trackBits[slot].clear();
+    m_trackBitCounts[slot] = 0;
+    m_slotKind[slot]       = TrackKind::Flux;
+    m_fluxTracks[slot].Assign (fluxBytes);
+    m_layoutGeneration++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasFluxTracks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImage::HasFluxTracks() const
+{
+    bool    found = false;
+    size_t  i     = 0;
+
+
+
+    for (i = 0; !found && i < m_slotKind.size(); i++)
+    {
+        found = (m_slotKind[i] == TrackKind::Flux);
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SpliceFluxWrite
+//
+//  The flux counterpart of WriteBit, for a whole write at once. Protection is
+//  checked first for the same reason WriteBit checks it first: a refused write
+//  must never mark the track dirty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::SpliceFluxWrite (int slot, uint64_t startTick, const vector<uint8_t> & bits)
+{
+    if (IsWriteProtected())
+    {
+        return;
+    }
+
+    SpliceFluxBulk (slot, startTick, bits);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SpliceFluxBulk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::SpliceFluxBulk (int slot, uint64_t startTick, const vector<uint8_t> & bits)
+{
+    bool  isFluxSlot = (GetTrackKind (slot) == TrackKind::Flux);
+
+
+
+    if (!isFluxSlot || bits.empty())
+    {
+        return;
+    }
+
+    m_fluxTracks[slot].SpliceWrite (startTick, bits);
+    MarkTrackDirty (slot);
+    m_layoutGeneration++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitPendingWrite
+//
+//  Asks whoever holds an unfinished write to put it in now. The owner clears
+//  itself as part of committing, so this is safe to call at any time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::CommitPendingWrite()
+{
+    if (m_pendingWriteOwner != nullptr)
+    {
+        m_pendingWriteOwner->CommitPendingWrite();
+    }
 }
 
 
@@ -128,6 +296,7 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 void DiskImage::ClearQuarterTrackMap()
 {
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+    m_layoutGeneration++;
 }
 
 
@@ -136,6 +305,7 @@ void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
     if (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()))
     {
         m_quarterTrackMap[quarterTrack] = slot;
+        m_layoutGeneration++;
     }
 }
 
@@ -151,13 +321,16 @@ void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
 
 void DiskImage::EnsureTrackSlots (int slotCount)
 {
-    // Grow only -- the three vectors are index-parallel and shrinking one
+    // Grow only -- the slot vectors are index-parallel and shrinking one
     // would orphan the quarter-track map entries pointing past the new end.
     if (slotCount > static_cast<int> (m_trackBits.size()))
     {
         m_trackBits.resize      (slotCount);
         m_trackBitCounts.resize (slotCount, 0);
         m_trackDirty.resize     (slotCount, false);
+        m_slotKind.resize       (slotCount, TrackKind::Bits);
+        m_fluxTracks.resize     (slotCount);
+        m_layoutGeneration++;
     }
 }
 
@@ -341,7 +514,7 @@ bool DiskImage::IsWriteProtected() const
         || m_userWriteProtected
         || m_fileReadOnly
         || m_fileNoPermission
-        || m_sourceCrcMismatch;
+        || IsDamaged();
 }
 
 
@@ -365,6 +538,12 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo() const
     info.readOnlyFile     = m_fileReadOnly;
     info.noPermission     = m_fileNoPermission;
     info.checksumMismatch = m_sourceCrcMismatch;
+    info.damagedTracks    = HasDamagedTracks();
+
+    if (info.damagedTracks)
+    {
+        info.damagedQuarterTracks = DamagedMountReport::GetDamagedQuarterTracks (*this);
+    }
 
     return info;
 }
@@ -528,8 +707,12 @@ void DiskImage::ResizeTrack (int track, size_t bitCount)
 
     bytesNeeded = (bitCount + 7) / 8;
 
+    // Sizing a bit buffer makes the slot a bit track, whatever it held before.
     m_trackBits[track].assign (bytesNeeded, 0);
     m_trackBitCounts[track] = bitCount;
+    m_slotKind[track]       = TrackKind::Bits;
+    m_fluxTracks[track]     = FluxTrack();
+    m_layoutGeneration++;
 }
 
 
@@ -555,6 +738,7 @@ void DiskImage::SetTrackBitCount (int track, size_t bitCount)
     }
 
     m_trackBitCounts[track] = bitCount;
+    m_layoutGeneration++;
 }
 
 
@@ -600,6 +784,9 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_dirty          = false;
     m_rawSourceBytes = raw;
     m_wozMetadata.Clear();
+    m_damagedTracks.clear();
+    m_slotKind.assign   (m_slotKind.size(), TrackKind::Bits);
+    m_fluxTracks.assign (m_fluxTracks.size(), FluxTrack());
     InitWholeTrackMap();
 
     switch (fmt)
@@ -713,6 +900,8 @@ void DiskImage::Eject()
 
 
 
+    CommitPendingWrite();
+
     if (m_dirty && !IsWriteProtected())
     {
         hr = Flush();
@@ -725,6 +914,8 @@ void DiskImage::Eject()
     m_trackBits.assign      (kDefaultTrackCount, vector<Byte> ());
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);
+    m_slotKind.assign       (kDefaultTrackCount, TrackKind::Bits);
+    m_fluxTracks.assign     (kDefaultTrackCount, FluxTrack());
     InitWholeTrackMap();
     m_loaded              = false;
     m_dirty               = false;
@@ -733,6 +924,7 @@ void DiskImage::Eject()
     m_fileReadOnly        = false;
     m_fileNoPermission    = false;
     m_sourceCrcMismatch   = false;
+    m_damagedTracks.clear();
 }
 
 
@@ -769,6 +961,8 @@ HRESULT DiskImage::Flush()
     vector<Byte>  bytes;
 
 
+
+    CommitPendingWrite();
 
     BAIL_OUT_IF (!m_dirty, S_OK);
 

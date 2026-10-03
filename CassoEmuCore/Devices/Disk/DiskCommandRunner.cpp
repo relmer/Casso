@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "DiskImageStore.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Devices/Disk/DamagedMountReport.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -1710,8 +1711,12 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
                    "       .nib hold either.\n";
             break;
 
-        case BlankDiskVerdict::BootableNeedsFilesystem:
-            text = "Error: cannot make an unformatted disk bootable\n"
+        case BlankDiskVerdict::FluxNeedsWoz:
+            text = "Error: flux tracks need a WOZ image\n"
+                   "       Only a .woz image can store flux tracks.\n";
+            break;
+
+        case BlankDiskVerdict::BootableNeedsFilesystem:            text = "Error: cannot make an unformatted disk bootable\n"
                    "       There is no filesystem to copy an operating system into.\n"
                    "       Format the disk as dos33 or prodos.\n";
             break;
@@ -2081,6 +2086,29 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
 
     text += spec.bootable ? ", bootable" : ", not bootable";
 
+    if (spec.fluxTrackMask != 0)
+    {
+        vector<int>  quarterTracks;
+        wstring      list;
+        int          track = 0;
+
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            if ((spec.fluxTrackMask & (1ull << track)) != 0)
+            {
+                quarterTracks.push_back (track * DiskImage::kQuarterTracksPerWholeTrack);
+            }
+        }
+
+        list  = DamagedMountReport::FormatTrackList (quarterTracks);
+        text += ", flux ";
+
+        for (wchar_t ch : list)
+        {
+            text += static_cast<char> (ch);
+        }
+    }
+
     return text;
 }
 
@@ -2127,6 +2155,9 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     CHR (hr);
 
     hr = ResolveBoot (options, spec, payload, result);
+    CHR (hr);
+
+    hr = ResolveFlux (options, overExisting, spec.fluxTrackMask, result);
     CHR (hr);
 
     //  THE PAIRING RULES ARE THE BUILDER'S, AND ITS VERDICT IS ASKED FOR
@@ -2246,6 +2277,8 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
 {
     HRESULT                        hr           = S_OK;
     DirectBootSpec                 spec;
+    BlankDiskSpec                  fluxSpec;
+    bool                           fluxFits     = false;
     vector<Byte>                   payload;
     vector<Byte>                   sectors;
     vector<Byte>                   imageBytes;
@@ -2301,7 +2334,23 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     hr = DirectBootBuilder::Build (payload, spec, sectors, refusal);
     CHRF (hr, result.Fail (options.disk.imagePath, options.disk.directBootFile, refusal));
 
-    hr = BlankDiskBuilder::WrapInContainer (format, nibbleTrackSize, false, sectors, imageBytes);
+    hr = ResolveFlux (options, false, fluxSpec.fluxTrackMask, result);
+    CHR (hr);
+
+    //  A direct-boot disk has no filesystem, so of the builder's rules only
+    //  the container's hold on flux applies.
+    fluxSpec.format   = format;
+    fluxSpec.contents = BlankDiskContents::Unformatted;
+    refusal           = DescribeSpecRefusal (fluxSpec);
+    fluxFits          = refusal.empty();
+
+    CBRF (fluxFits,
+          (result.diagnostics    += refusal,
+           result.exitStatus      = DiskCommandResult::kNoOutput,
+           result.badCommandLine  = true));
+
+    hr = BlankDiskBuilder::WrapInContainer (format, nibbleTrackSize, false, fluxSpec.fluxTrackMask,
+                                            sectors, imageBytes);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
     target.imagePath     = options.disk.imagePath;
@@ -2388,6 +2437,153 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ParseTrackList
+//
+//  "0-2,17" as a mask of whole tracks: numbers from 0 to 34 separated by
+//  commas, a range being two of them joined by a hyphen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ParseTrackList (const std::string & text, uint64_t & outMask)
+{
+    HRESULT   hr      = S_OK;
+    uint64_t  mask    = 0;
+    size_t    pos     = 0;
+    int       first   = 0;
+    int       last    = 0;
+    int       track   = 0;
+    bool      inRange = false;
+    bool      ok      = !text.empty();
+
+
+
+    CBREx (ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    while (pos <= text.size())
+    {
+        ok = pos < text.size() && isdigit ((unsigned char) text[pos]) != 0;
+        CBREx (ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        first = 0;
+
+        while (pos < text.size() && isdigit ((unsigned char) text[pos]) != 0 && first < NibblizationLayer::kTrackCount)
+        {
+            first = first * 10 + (text[pos] - '0');
+            pos++;
+        }
+
+        last    = first;
+        inRange = pos < text.size() && text[pos] == '-';
+
+        if (inRange)
+        {
+            pos++;
+            ok = pos < text.size() && isdigit ((unsigned char) text[pos]) != 0;
+            CBREx (ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+            last = 0;
+
+            while (pos < text.size() && isdigit ((unsigned char) text[pos]) != 0 && last < NibblizationLayer::kTrackCount)
+            {
+                last = last * 10 + (text[pos] - '0');
+                pos++;
+            }
+        }
+
+        ok = first <= last && last < NibblizationLayer::kTrackCount;
+        CBREx (ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        for (track = first; track <= last; track++)
+        {
+            mask |= 1ull << track;
+        }
+
+        BAIL_OUT_IF (pos == text.size(), S_OK);
+
+        ok = text[pos] == ',';
+        CBREx (ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+        pos++;
+    }
+
+Error:
+    outMask = SUCCEEDED (hr) ? mask : 0;
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveFlux
+//
+//  Which whole tracks the new disk stores as flux. A bare --flux is every
+//  track. Reformatting without --flux keeps the tracks the WOZ already
+//  stores as flux, so init does not quietly turn a flux disk into a bit one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveFlux (const CommandLineOptions & options,
+                                        bool                       overExisting,
+                                        uint64_t                 & outMask,
+                                        DiskCommandResult        & result)
+{
+    HRESULT       hr       = S_OK;
+    DiskFormat    format   = DiskFormat::Dsk;
+    vector<Byte>  existing;
+    DiskImage     image;
+    int           track    = 0;
+    int           slot     = 0;
+
+
+
+    outMask = 0;
+
+    if (options.disk.flux && options.disk.fluxTracks.empty())
+    {
+        outMask = BlankDiskBuilder::kAllFluxTracks;
+    }
+    else if (options.disk.flux)
+    {
+        hr = ParseTrackList (options.disk.fluxTracks, outMask);
+        CHRF (hr, RefuseBadValue (result,
+                  "Error: illegal track list\n"
+                  "       Tracks are whole numbers from 0 to 34, separated by commas. A\n"
+                  "       range is two of them joined by a hyphen, such as 0-2,17.\n"));
+    }
+    else if (overExisting)
+    {
+        hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
+        BAIL_OUT_IF (FAILED (hr) || !BlankDiskBuilder::CanHoldFlux (format), S_OK);
+
+        hr = m_fileIo.ReadAllBytes (options.disk.imagePath, existing);
+        BAIL_OUT_IF (FAILED (hr), S_OK);
+
+        hr = WozLoader::Load (existing, image);
+        BAIL_OUT_IF (FAILED (hr), S_OK);
+
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            slot = image.ResolveQuarterTrack (track * DiskImage::kQuarterTracksPerWholeTrack);
+
+            if (slot >= 0 && image.GetTrackKind (slot) == TrackKind::Flux)
+            {
+                outMask |= 1ull << track;
+            }
+        }
+    }
+
+Error:
+    return hr;
 }
 
 
