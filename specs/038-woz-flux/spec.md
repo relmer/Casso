@@ -40,7 +40,8 @@ Applies to every machine with a Disk II controller (Apple ][, ][+, //e and
 //c) and to 5.25" WOZ 2.1 images. 3.5" flux tracks are out of scope. Mounting
 images with damaged tracks (User Story 3) also covers bit tracks in WOZ 1 and
 WOZ 2 images. Flux support extends to the sector-level tools (the `disk`
-command, Casso Explorer and salvage), not only the drive.
+command, Casso Explorer and salvage), not only the drive, and to making new
+flux disks.
 
 A disk inspector that draws flux timing (in Casso Explorer and in Casso,
 modeled on AppleEm's Disk Inspector) is a separate future spec. This spec only
@@ -80,12 +81,25 @@ has to leave the flux timing available for it.
   computed checksum, hiding the damage." for a checksum mismatch, and "Rewriting
   it would replace the tracks that could not be read with blank ones, hiding the
   damage." for damaged tracks. User text never uses "carries".
-- Q: How should the damaged-disk report on insert be laid out? -> A: Pending
-  owner approval (T043). Direction given: a bulleted list of every problem found,
-  each with the tracks it affects written as runs ("Unable to read tracks 1-5,
-  8-9, 13."), with no per-track reason (missing and cut-short data read the
-  same to a user), followed by what Casso did and what the user can do.
-
+- Q: How should the damaged-disk report on insert be laid out? -> A: Approved
+  by the owner on screen (T043): "Casso found problems in {file name}:", a
+  blank line, one bullet per problem ("The stored checksum does not match the
+  contents." and "Unable to read tracks 2.5-4.5, 8.5." with tracks written as
+  runs and no per-track reason), a blank line, then "Casso has loaded the disk
+  so you can read the undamaged portions and has write-protected it for this
+  session, because rewriting the file would hide the damage." and, with damaged
+  tracks, "Unreadable tracks read as blank." No salvage sentence: nothing has
+  been salvaged yet. The drive's tooltip shows the same report.
+- Q: Can a new flux disk be made? -> A: Yes, for completeness and for testing.
+  `disk create` and `disk init` take `--flux [<tracks>]`: bare, every track is
+  flux; with a list such as `0-2,17`, only those whole tracks are, and the rest
+  are bit tracks. It needs a WOZ container. `--type woz-flux` and
+  `--encoding flux` were rejected: `--type` is the container and maps onto file
+  extensions, and flux is how a track is stored, not how its bits are encoded
+  (5-and-3 and 6-and-2 are encodings, and either can be stored as flux).
+  `init` without `--flux` keeps the whole tracks that were flux. A track with
+  no data becomes one transition per revolution. The create dialog adds a
+  "Flux tracks" checkbox, enabled only for WOZ, meaning every track.
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot a disk with flux tracks (Priority: P1)
@@ -242,6 +256,10 @@ short FLUX chunk is refused.
   MUST read sectors on flux tracks, and MUST write a sector to a flux track by
   replacing only its data field at the controller's cell timing, leaving the
   rest of the track's flux unchanged.
+- **FR-014**: `disk create` and `disk init` MUST make flux tracks on request
+  (`--flux`, optionally limited to listed whole tracks), only in a WOZ
+  container; `init` MUST keep a disk's flux tracks when `--flux` is not given.
+  The create dialog MUST offer a "Flux tracks" checkbox for WOZ.
 
 ### Key Entities
 

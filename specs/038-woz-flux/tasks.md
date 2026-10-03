@@ -204,21 +204,16 @@ parallel (different files, no dependency on an unfinished task).
 
 - [X] T043 [US3] Restructure the damaged-disk report on insert (`CassoEmuCore/Devices/Disk/DamagedMountReport.cpp`, tests in `UnitTest/EmuTests/DamagedDiskMountTests.cpp`) as a problem list, once the owner approves this draft:
 
-  > Casso found these problems in this disk image:
-  >
-  > • The stored checksum does not match the contents.
-  > • Unable to read tracks 1-5, 8-9, 13, 20.
-  >
-  > {path}
-  >
-  > Casso has loaded the disk so you can read it, and has write-protected it for this session, because rewriting the file would hide the damage. Unreadable tracks read as blank. A salvaged copy is a standard disk image of the readable sectors, without this disk's flux timing or its copy protection.
-
-  - One bullet per problem, using `s_kchBullet` from `Core/UnicodeSymbols.h`. Every damaged track goes in one "Unable to read" bullet with no reason clause: the owner judged "missing from the file" and "cut short" to mean the same thing to a user (2026-10-02). `DamageReason` stays recorded for tests and diagnostics only.
-  - Track lists become runs of tracks one whole track apart ("1-5, 8-9, 13"; Bandits' half tracks read "1.5-19.5"), with "track" or "tracks" by how many the list covers. This replaces the eight-then-"N more" cutoff in `FormatTrackList`.
-  - "Unreadable tracks read as blank." only with damaged tracks; the salvage sentence only on flux disks. A checksum-only disk has one bullet.
-  - The drive tooltip and the write-protect refusal keep their single-sentence wording.
+  Built as approved; the final wording is in the spec's Clarifications. The drive tooltip shows the same report.
 - [X] T044 Run the pinned full-machine speed comparison (T037). Done 2026-10-02: a //e running `LDA $C0E9 / LDA $C0EC / JMP` with the drive spinning, 30 M cycles per sample, nine alternating rounds per run, four runs pinned to logical CPU 4. As first built, flux ran at a median 107.5% of bit (range 105.3-111.4%), which missed SC-005: the engine did flux work on all eight sequencer clocks of each bit cell. After moving flux time on inline and calling into the flux path only on a transition or the read clock, and skipping the write path when no write is open, the median is 100.7%. Marking `DiskImage` `final` was tried and reverted (flux 4% slower); the remaining per-clock overhead is relmer/Casso#162, after this spec. The six real flux disks are in `%LOCALAPPDATA%\Casso\FluxTestDisks` (never committed; keep until 038 closes). Baseline 2026-10-02: Bandits, Minotaur, Fly Wars, Cyclod, Lemmings and Jellyfish all boot in Casso, save byte-identical, and match AppleEm's Disk Inspector cell count on every flux track (104 tracks).
 
+
+## Phase 8: Making flux disks (FR-014)
+
+- [ ] T045 Add `FluxTrack::AssignBits` (one transition per 1 bit at the controller's cell; a track with no 1 bits gets one transition per revolution) and a `fluxTrackMask` on `BlankDiskSpec`, applied by `BlankDiskBuilder::WrapInContainer` to WOZ only, with a `FluxNeedsWoz` verdict; tests in `UnitTest/EmuTests/BlankDiskBuilderTests.cpp` and `FluxTrackTests.cpp`
+- [ ] T046 Parse `--flux [<tracks>]` for `disk create` and `disk init` (`CassoCore/CommandLineParser.cpp`, `CommandLineOptions.h`), resolve the track list and refuse a bad one or a non-WOZ container in `DiskCommandRunner.cpp`, keep a WOZ's flux tracks on `init` without `--flux`, report flux tracks in the new-disk summary, and update `DiskHelpPage.cpp`; tests in the parser and runner suites
+- [ ] T047 Add a "Flux tracks" checkbox to the create dialog, enabled only for WOZ (`CassoEmuCore/Ui/Dialogs/CreateDiskDialog.cpp`); tests where the dialog state is tested
+- [ ] T048 Scenario test: a bootable DOS 3.3 flux disk made by `disk create --flux` boots, takes a `SAVE`, and catalogs (`ScenarioTests/GuestVisibleFluxTests.cpp`)
 ---
 
 ## Dependencies
