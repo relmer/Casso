@@ -20,9 +20,10 @@ class MachineHost;
 //  An interrupt dispatched in place of an opcode fetch counts as one
 //  instruction. Called on the thread that runs the machine.
 //
-//  The per-instruction part is inline and not virtual: the record goes
-//  straight into the ring, and only a snapshot falling due, at most a few
-//  times a frame, reaches the derived class through OnCaptureDue.
+//  The per-instruction part is forced inline and not virtual: the record
+//  goes straight into the ring, and only a snapshot falling due, at most a
+//  few times a frame, reaches the derived class through OnCaptureDue. Left
+//  to the compiler it stayed a call.
 //
 //  Also told when a disk is mounted, ejected, swapped for a changed file or
 //  has the write protection in its file changed, after the change: the disks
@@ -34,9 +35,9 @@ class MachineHost;
 class HistoryRecorder
 {
 public:
-    virtual       ~HistoryRecorder() = default;
+    virtual             ~HistoryRecorder() = default;
 
-    void  OnInstructionStart (const Cpu6502 & cpu, uint64_t position)
+    __forceinline void  OnInstructionStart (const Cpu6502 & cpu, uint64_t position)
     {
         uint64_t    cycle = cpu.Cpu6502::GetCycleCount();      // qualified: no virtual call
         UndoRecord  record;
@@ -62,7 +63,7 @@ public:
     virtual void  OnMediaChanged (MachineHost & machine) = 0;
 
 protected:
-    virtual void  OnCaptureDue (uint64_t cycle) = 0;
+    virtual void        OnCaptureDue (uint64_t cycle) = 0;
 
     UndoRing  m_ring;
     uint64_t  m_nextDueCycle = 0;     // the first cycle at which OnCaptureDue is called

@@ -272,16 +272,25 @@ void StateWriter::Flatten (
 //
 //  WriteLittleEndian
 //
+//  The stream grows once for the whole value, then its bytes are stored
+//  through a plain pointer rather than pushed one at a time.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void StateWriter::WriteLittleEndian (uint64_t value, size_t byteCount)
 {
-    size_t  i = 0;
+    size_t   start = m_bytes.size();
+    Byte   * out   = nullptr;
+    size_t   i     = 0;
 
 
+
+    m_bytes.resize (start + byteCount);
+
+    out = m_bytes.data() + start;
 
     for (i = 0; i < byteCount; i++)
     {
-        m_bytes.push_back (static_cast<Byte> (value >> (i * CHAR_BIT)));
+        out[i] = static_cast<Byte> (value >> (i * CHAR_BIT));
     }
 }

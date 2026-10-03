@@ -906,7 +906,7 @@ HRESULT ReverseController::CaptureNow (
     uint64_t         cycle      = 0;
     size_t           journalEnd = 0;
     std::string      hostState;
-    StateWriter      writer;
+    StateWriter    & writer     = m_writer;
 
 
 

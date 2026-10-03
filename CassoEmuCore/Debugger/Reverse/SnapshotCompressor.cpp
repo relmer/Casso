@@ -103,12 +103,18 @@ HRESULT SnapshotCompressor::Compress (
     lastError = GetLastError();
     CBRAEx (!packed && lastError == ERROR_INSUFFICIENT_BUFFER, HRESULT_FROM_WIN32 (lastError));
 
-    out.resize (needed);
+    // Packed into a buffer kept from call to call, then copied out at its
+    // packed size: sizing out for the worst case allocated and zeroed a
+    // whole state's worth for every keyframe, and kept it as capacity.
+    if (m_buffer.size() < needed)
+    {
+        m_buffer.resize (needed);
+    }
 
-    packed = ::Compress (m_compressor, data, size, out.data(), needed, &packedSize);
+    packed = ::Compress (m_compressor, data, size, m_buffer.data(), needed, &packedSize);
     CWRA (packed);
 
-    out.resize (packedSize);
+    out.assign (m_buffer.begin(), m_buffer.begin() + static_cast<ptrdiff_t> (packedSize));
 
 Error:
     return hr;

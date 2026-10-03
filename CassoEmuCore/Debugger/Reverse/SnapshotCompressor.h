@@ -34,4 +34,5 @@ private:
 
     COMPRESSOR_HANDLE    m_compressor   = nullptr;
     DECOMPRESSOR_HANDLE  m_decompressor = nullptr;
+    std::vector<Byte>    m_buffer;                   // worst-case output, reused
 };

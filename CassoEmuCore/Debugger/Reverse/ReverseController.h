@@ -155,6 +155,7 @@ private:
     MachineHost    & m_machine;
     KeyframeStore    m_keyframes;
     Replayer         m_replayer;
+    StateWriter      m_writer;                 // kept so its section and segment lists keep their capacity
     bool             m_isRecording     = false;
     bool             m_isLive          = true;
     uint64_t         m_liveEndPosition = 0;
