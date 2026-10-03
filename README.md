@@ -351,11 +351,12 @@ images straight off the wire — protection schemes and all.
 | :---: | :---: | :---: |
 | ![Karateka on the Apple //e desk scene, the hero squaring off with the first guard](Assets/game-karateka.png) | ![Choplifter's title screen on the desk scene, the drive lamp still lit from loading](Assets/game-choplifter.png) | ![Lode Runner's demo running on the desk scene](Assets/game-loderunner.png) |
 
-`.woz`, `.dsk`, `.do`, `.po`, `.nib` and `.nb2` images all mount — drag one onto a
-drive, pick it from the dialog, or name it on the command line. Casso can **create
-blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK,
-PO and NIB, optionally bootable from the stock masters — and a created disk is
-usable immediately, with no `INIT` step.
+`.woz` (including WOZ 2.1 flux tracks), `.dsk`, `.do`, `.po`, `.nib` and `.nb2`
+images all mount — drag one onto a drive, pick it from the dialog, or name it on
+the command line. Casso can **create blank disks in-app** — DOS 3.3, ProDOS, or
+unformatted raw media, across WOZ (with bit or flux tracks), DSK, PO and NIB,
+optionally bootable from the stock masters — and a created disk is usable
+immediately, with no `INIT` step.
 
 <p align="center"><img src="Assets/feat-create-disk.png" alt="Create new disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
 
@@ -365,9 +366,9 @@ read-only attribute, and a protected disk fails a guest `SAVE` with `WRITE
 PROTECTED` just like the notch tab on real media. Dirty disks flush when the
 drive motor spins down, so changes survive a crash or a force-quit.
 
-Inserting a `.woz` checks its integrity. If the checksums are wrong Casso mounts
-it read-only to prevent further loss and offers to **salvage** what it can into a
-structurally correct copy.
+Inserting a `.woz` checks its integrity. If the checksums are wrong or some
+tracks can't be read from the file, Casso mounts it read-only to prevent further
+loss and offers to **salvage** what it can into a structurally correct copy.
 
 <p align="center"><img src="Assets/feat-salvage.png" alt="Salvage dialog listing total, verified, recoverable and lost sectors for a damaged disk" width="560" /></p>
 
