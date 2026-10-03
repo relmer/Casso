@@ -6,7 +6,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DebugHook.h"
-#include "Debugger/Reverse/IHistoryRecorder.h"
+#include "Debugger/Reverse/HistoryRecorder.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
@@ -249,7 +249,7 @@ Byte MachineHost::StepOne()
     // step, and a separate interrupt poll would be a second, redundant one.
     if (m_historyRecorder != nullptr)
     {
-        m_historyRecorder->OnInstructionStart (*this);
+        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502(), m_position);
     }
 
     m_cpu->StepOne();
@@ -285,7 +285,7 @@ Byte MachineHost::StepOneWithHook()
 
     if (m_historyRecorder != nullptr)
     {
-        m_historyRecorder->OnInstructionStart (*this);
+        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502(), m_position);
     }
 
     m_cpu->StepOne();
@@ -323,7 +323,7 @@ __declspec (noinline) Byte MachineHost::StepOneAsked (const DebugHookFilter & fi
 
     if (m_historyRecorder != nullptr)
     {
-        m_historyRecorder->OnInstructionStart (*this);
+        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502(), m_position);
     }
 
     m_cpu->StepOne();

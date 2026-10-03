@@ -125,45 +125,6 @@ void ReverseController::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnInstructionStart
-//
-//  Once per instruction: the registers it begins with go into the ring, and
-//  when a keyframe or checkpoint falls due, it is taken first. Only one
-//  compare is spent here otherwise.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ReverseController::OnInstructionStart (MachineHost & machine)
-{
-    EmuCpu      * cpu     = machine.GetCpu();
-    Cpu6502     * cpu6502 = cpu->GetCpu6502();
-    uint64_t      cycle   = cpu->GetTotalCycles();
-    UndoRecord    record;
-
-
-
-    if (cycle >= m_nextDueCycle)
-    {
-        CaptureDue (cycle);
-    }
-
-    record.cycle = cycle;
-    record.pc    = cpu6502->GetPC();
-    record.a     = cpu6502->GetA();
-    record.x     = cpu6502->GetX();
-    record.y     = cpu6502->GetY();
-    record.sp    = cpu6502->GetSP();
-    record.p     = cpu6502->GetP();
-
-    m_ring.Push (machine.GetPosition(), record);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMachineChanged
 //
 //  Something outside the recorded inputs changed the machine: the recorded
@@ -996,16 +957,17 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CaptureDue
+//  OnCaptureDue
 //
-//  Out of line, so the per-instruction path stays one compare. During a
-//  replay the replayer takes the ring's checkpoints and the keyframes exist
-//  already. A machine stepped from the past by anything but a replay is
-//  running live from there, so the recorded future goes first.
+//  A keyframe or checkpoint fell due, or the machine is in history, where
+//  every instruction start comes here. During a replay the replayer takes
+//  the ring's checkpoints and the keyframes exist already. A machine stepped
+//  from the past by anything but a replay is running live from there, so the
+//  recorded future goes first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-__declspec (noinline) void ReverseController::CaptureDue (uint64_t cycle)
+void ReverseController::OnCaptureDue (uint64_t cycle)
 {
     HRESULT  hr = S_OK;
 
@@ -1037,7 +999,7 @@ __declspec (noinline) void ReverseController::CaptureDue (uint64_t cycle)
 //  LeaveLive
 //
 //  Remembers where history ends before the machine moves into it. From here
-//  every instruction start reaches CaptureDue, which is how a machine run
+//  every instruction start reaches OnCaptureDue, which is how a machine run
 //  from the past without a seek is noticed.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Debugger/Reverse/IHistoryRecorder.h"
+#include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/Replayer.h"
 #include "Debugger/Reverse/UndoRing.h"
@@ -97,7 +97,7 @@ struct ReverseResult
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ReverseController : public IHistoryRecorder
+class ReverseController : public HistoryRecorder
 {
 public:
     static constexpr uint64_t  kScanlineCycles = 65;
@@ -113,9 +113,8 @@ public:
     void      Stop             ();
     bool      IsRecording      () const { return m_isRecording; }
 
-    void      OnInstructionStart (MachineHost & machine) override;
-    void      OnMediaChanged     (MachineHost & machine) override;
-    HRESULT   OnMachineChanged   ();
+    void      OnMediaChanged   (MachineHost & machine) override;
+    HRESULT   OnMachineChanged ();
 
     HRESULT   StepBack         (ReverseResult & result);
     HRESULT   StepBackOver     (ReverseResult & result);
@@ -144,7 +143,7 @@ private:
     HRESULT   FindStepOutTarget  (uint64_t current, bool & outFound, uint64_t & outTarget);
     HRESULT   LandAt             (uint64_t position, bool isFound, ReverseResult & result);
     HRESULT   CaptureNow         (bool takeKeyframe, bool takeCheckpoint);
-    void      CaptureDue         (uint64_t cycle);
+    void      OnCaptureDue       (uint64_t cycle) override;
     void      LeaveLive          ();
     void      BecomeLive         ();
     void      ScheduleCaptures   ();
@@ -155,11 +154,9 @@ private:
 
     MachineHost    & m_machine;
     KeyframeStore    m_keyframes;
-    UndoRing         m_ring;
     Replayer         m_replayer;
     bool             m_isRecording     = false;
     bool             m_isLive          = true;
     uint64_t         m_liveEndPosition = 0;
     uint64_t         m_liveEndCycle    = 0;
-    uint64_t         m_nextDueCycle    = 0;
 };

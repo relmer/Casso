@@ -24,7 +24,7 @@ class Apple2eMmu;
 class AppleMouse;
 class DebugHook;
 struct DebugHookFilter;
-class IHistoryRecorder;
+class HistoryRecorder;
 class SiriusJoyport;
 class IDisk2EventSink;
 class IInputEventSink;
@@ -222,8 +222,8 @@ public:
     //  Reverse execution's recorder, or null. While set, StepOne tells it of
     //  each instruction about to run; unset, each instruction costs one
     //  pointer test.
-    void                SetHistoryRecorder (IHistoryRecorder * recorder) noexcept { m_historyRecorder = recorder; }
-    IHistoryRecorder *  GetHistoryRecorder () const noexcept                     { return m_historyRecorder; }
+    void               SetHistoryRecorder (HistoryRecorder * recorder) noexcept { m_historyRecorder = recorder; }
+    HistoryRecorder *  GetHistoryRecorder () const noexcept                    { return m_historyRecorder; }
 
     //  The machine's position: the instructions it has retired, an interrupt
     //  dispatch counting as one. It never restarts on its own, not even on a
@@ -356,7 +356,7 @@ private:
     DebugHook         *  m_debugHook       = nullptr;
     const bool        *  m_watchOpcodes    = nullptr;
     IOpcodeWatcher    *  m_watcher         = nullptr;
-    IHistoryRecorder  *  m_historyRecorder = nullptr;
+    HistoryRecorder   *  m_historyRecorder = nullptr;
     uint64_t             m_position        = 0;
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;

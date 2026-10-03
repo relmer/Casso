@@ -636,7 +636,7 @@
     <ClInclude Include="Debugger\Handlers\ConfigHandlers.h" />
     <ClInclude Include="Debugger\Handlers\CallStackHandlers.h" />
     <ClInclude Include="Debugger\ProfileTable.h" />
-    <ClInclude Include="Debugger\Reverse\IHistoryRecorder.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryRecorder.h" />
     <ClInclude Include="Debugger\Reverse\InputJournal.h" />
     <ClInclude Include="Debugger\Reverse\IReverseStopTest.h" />
     <ClInclude Include="Debugger\TraceController.h" />

@@ -107,23 +107,33 @@ public:
     static size_t  GetCheckpointLimit (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles, size_t stateBytes);
     static size_t  GetMinimumBudget   (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles, size_t stateBytes);
 
-    //  Once per instruction, so the common case is inline: the next position,
-    //  with room.
+    //  Once per instruction, so the common cases are inline and divide by
+    //  nothing: the next position, with room or over the oldest record once
+    //  the ring is full, which it is for nearly all of a long recording.
     void      Push (uint64_t position, const UndoRecord & record)
     {
-        size_t  slot = m_head + m_count;
+        size_t  capacity = m_records.size();
+        size_t  slot     = m_head + m_count;
 
 
 
-        if (position != m_firstPosition + m_count || m_count == m_records.size())
+        if (position != m_firstPosition + m_count || capacity == 0)
         {
             PushSlow (position, record);
             return;
         }
 
-        if (slot >= m_records.size())
+        if (m_count == capacity)
         {
-            slot -= m_records.size();
+            m_records[m_head] = record;
+            m_head            = (m_head + 1 == capacity) ? 0 : m_head + 1;
+            m_firstPosition++;
+            return;
+        }
+
+        if (slot >= capacity)
+        {
+            slot -= capacity;
         }
 
         m_records[slot] = record;
