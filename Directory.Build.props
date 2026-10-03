@@ -109,6 +109,25 @@
     local-buffer-overrun and uninitialized-read detection, and the emulator
     writes through raw memory buffers, precisely what /RTCs protects.
   -->
+  <!--
+    activeCodePage UTF-8
+      Every executable merges Resources\Utf8CodePage.manifest, which makes the
+      process code page UTF-8. The code holds strings narrow in that code page:
+      CassoCli's argv arrives in it, and Casso converts its wide command line
+      down to it. Under the system's ANSI code page, a file name with a
+      character that code page cannot hold, such as Greek or CJK, arrives with
+      `?` in its place and is never found.
+
+      Set here so every executable gets it, including one added later. A DLL
+      ignores activeCodePage, so the setting is inert in UnitTest.dll and
+      ScenarioTests.dll. ExeManifestTests checks the shipped executables.
+  -->
+  <ItemDefinitionGroup>
+    <Manifest>
+      <AdditionalManifestFiles>$(MSBuildThisFileDirectory)Resources\Utf8CodePage.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+
   <ItemDefinitionGroup Condition="'$(Configuration)' == 'Debug'">
     <ClCompile>
       <PreprocessorDefinitions>_ITERATOR_DEBUG_LEVEL=0;_MSVC_STL_HARDENING=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>

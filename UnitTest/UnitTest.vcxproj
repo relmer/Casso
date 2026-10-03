@@ -555,6 +555,7 @@
     <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
+    <ClCompile Include="ExeManifestTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
