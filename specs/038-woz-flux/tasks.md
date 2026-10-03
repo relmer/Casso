@@ -196,7 +196,7 @@ parallel (different files, no dependency on an unfinished task).
 
   Touch each restored file before rebuilding
 - [X] T041 Pre-merge gate: full unit suite in x64 Debug and Release, `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis`, ARM64 build, `scripts/CheckStyle.ps1 -Mode Tree` (after `git add -A`, excluding `.specify/feature.json`), and `rg -n '\w \(\)'` over the touched files
-- [ ] T042 Draft the CHANGELOG `[Unreleased]` entries (GH #159 flux support, including the sector-level tools; damaged WOZ tracks mount read-only) and the README update. Show both to the owner for approval only after they have tested the build
+- [X] T042 Draft the CHANGELOG `[Unreleased]` entries (GH #159 flux support, including the sector-level tools; damaged WOZ tracks mount read-only) and the README update. Show both to the owner for approval only after they have tested the build
 
 ---
 
