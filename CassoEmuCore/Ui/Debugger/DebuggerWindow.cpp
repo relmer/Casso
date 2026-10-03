@@ -503,6 +503,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetGrabHandle   (true);
     m_commandBar->SetEntries      (m_commands->BuildEntries());
 
+    ConfigureCommandBarHost();
     SetWindowMenus();
 }
 
@@ -2607,9 +2608,9 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
         entry.second->SetTheme (m_theme);
     }
 
-    if (m_barFloat != nullptr)
+    if (m_barHost.GetFloatWindow() != nullptr)
     {
-        m_barFloat->SetTheme (m_theme);
+        m_barHost.GetFloatWindow()->SetTheme (m_theme);
     }
 
     if (m_commandBar != nullptr)
@@ -2647,9 +2648,9 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
         entry.second->SetKeyMap (&map);
     }
 
-    if (m_barFloat != nullptr)
+    if (m_barHost.GetFloatWindow() != nullptr)
     {
-        m_barFloat->SetKeyMap (&map);
+        m_barHost.GetFloatWindow()->SetKeyMap (&map);
     }
 
     if (m_commands != nullptr)
@@ -4038,10 +4039,7 @@ void DebuggerWindow::OnWindowClose()
         entry.second->Hide();
     }
 
-    if (m_barFloat != nullptr)
-    {
-        m_barFloat->Hide();
-    }
+    m_barHost.Hide();
 
     if (m_host != nullptr)
     {
@@ -4085,10 +4083,6 @@ void DebuggerWindow::LayoutWidgets()
 {
     auto  px       = [this] (int dip) { return m_scaler.ToPx (dip); };
     int   pad      = px (8);
-    //  The strip gets the thickness the toolbar is drawn for. Given less, it
-    //  keeps its fixed margin and shrinks the buttons instead, which leaves
-    //  a squeezed hover pill floating in air.
-    int   buttonH  = px (DxuiToolbar::GetBandDip());
     int   boxH     = px (30);
     int   width    = m_widthDip;
     int   height   = m_heightDip;
@@ -4121,65 +4115,16 @@ void DebuggerWindow::LayoutWidgets()
 
     rowY += menuH;
 
-    //  The command bar takes a band along the edge it is docked to, at its
-    //  place along that edge, as long as its entries need or the edge
-    //  allows; the panes fill the rest. The band is the dock site's edge
-    //  strip too, so auto-hidden panes' tabs on that edge run beside the bar
-    //  rather than in a strip of their own. Floating, the bar is in its own
-    //  window and the panes have the whole area.
+    //  The command bar takes a band along the edge it is docked to, sharing
+    //  it with the dock site's auto-hide tabs, and the panes fill the rest;
+    //  floating, the panes have the whole area.
     m_tooltip.SetDpi          (m_scaler.GetDpi());
     m_tooltip.SetViewportSize (width, height);
 
-    top       = rowY;
-    barY      = height - pad;
-    m_barArea = RECT { 0, rowY, width, height };
+    top  = rowY;
+    barY = height - pad;
 
-    //  Docked, the panes beside the bar draw its long sides.
-    m_commandBar->SetEndEdges (m_barFloat == nullptr);
-
-    if (m_barFloat != nullptr)
-    {
-        m_dockSite->ClearEdgeShare();
-    }
-    else
-    {
-        int   edgeLen = m_barDock.IsVertical() ? height - rowY : width - pad * 2;
-        int   length  = 0;
-        int   offset  = 0;
-        RECT  bar     = {};
-
-        m_commandBar->SetTextRenderer   (GetTextRenderer());
-        m_commandBar->SetHostClientRect (RECT { 0, 0, width, height });
-        m_commandBar->SetVertical       (m_barDock.IsVertical());
-
-        length = (std::min) (m_commandBar->GetNaturalLengthPx (m_scaler), edgeLen);
-        offset = CommandBarDock::ClampOffset (px (m_barDock.offsetDip), edgeLen, length);
-
-        switch (m_barDock.edge)
-        {
-        case CommandBarDock::Edge::Top:
-            bar = RECT { pad + offset, rowY, pad + offset + length, rowY + buttonH };
-            m_dockSite->SetEdgeShare (DxuiDockSide::Top, buttonH, bar.left, bar.right);
-            break;
-
-        case CommandBarDock::Edge::Bottom:
-            bar = RECT { pad + offset, height - buttonH, pad + offset + length, height };
-            m_dockSite->SetEdgeShare (DxuiDockSide::Bottom, buttonH - pad, bar.left, bar.right);
-            break;
-
-        case CommandBarDock::Edge::Left:
-            bar = RECT { 0, rowY + offset, buttonH, rowY + offset + length };
-            m_dockSite->SetEdgeShare (DxuiDockSide::Left, buttonH - pad, bar.top, bar.bottom);
-            break;
-
-        case CommandBarDock::Edge::Right:
-            bar = RECT { width - buttonH, rowY + offset, width, rowY + offset + length };
-            m_dockSite->SetEdgeShare (DxuiDockSide::Right, buttonH - pad, bar.top, bar.bottom);
-            break;
-        }
-
-        m_commandBar->Layout (bar, m_scaler);
-    }
+    m_barHost.Layout (RECT { 0, rowY, width, height }, RECT { 0, 0, width, height }, m_scaler);
 
     m_dockSite->Layout (RECT { pad, top, width - pad, barY }, m_scaler);
 
@@ -4574,7 +4519,7 @@ std::wstring DebuggerWindow::ReadSavedLayout()
 
     DebuggerLayout::ReadClosedPanes (SourcePathList::Utf8ToWide (m_host->GetDebuggerClosedPanes()), m_closedPanes);
 
-    m_barDock = CommandBarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock()));
+    m_barHost.SetDock (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
 
     if (layoutText != savedText)
     {
@@ -6138,7 +6083,8 @@ void DebuggerWindow::RenderFrame()
     m_tracePane->FollowScroll();
 
     SyncFloats();
-    SyncCommandBarFloat();
+    m_barHost.Sync();
+    SyncCommandBarFloatTip();
     CarryTornOffPane();
     PlaceMemoryBar();
     PlaceBreakpointBar();
@@ -7973,7 +7919,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
     //  The command bar's entries: what each does and its key in the scheme
     //  in force.
-    if (m_routingPane == ((m_barFloat != nullptr) ? std::wstring (kBarFloatKey) : std::wstring()) && m_commandBar != nullptr && m_commandBar->IsVisible())
+    if (m_routingPane == (m_barHost.IsFloating() ? std::wstring (kBarFloatKey) : std::wstring()) && m_commandBar != nullptr && m_commandBar->IsVisible())
     {
         barTip = m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
@@ -9031,7 +8977,7 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (RouteCommandBarDrag (ev))
+    if (m_barHost.RouteDrag (ev))
     {
         return true;
     }
@@ -9068,78 +9014,53 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RouteCommandBarDrag
+//  DebuggerWindow::ConfigureCommandBarHost
 //
-//  A press on the command bar's grab handle carries the bar: while the
-//  button is down the bar docks to the edge nearest the pointer, at the
-//  place that keeps the handle under it, and the release saves that place.
+//  The command bar docks and floats through a Dxui toolbar host; the
+//  debugger supplies its preferences, its tooltips and its frames.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::RouteCommandBarDrag (const DxuiMouseEvent & ev)
+void DebuggerWindow::ConfigureCommandBarHost()
 {
-    POINT           at    = ev.positionDip;
-    RECT            bar   = m_commandBar->GetBounds();
-    int             along = 0;
-    CommandBarDock  dock;
+    m_barHost.Attach (this, m_commandBar, m_dockSite, m_hInstance);
 
+    m_barHost.SetOnLayout        ([this] { LayoutWidgets(); });
+    m_barHost.SetOnFloatMouse    ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
+    m_barHost.SetOnMoveLoopFrame ([this] { RunModalLoopTick(); });
+    m_barHost.SetOnDragStart     ([this] { GetRoutedTooltip().HideImmediate(); });
 
-
-    //  A floating bar's own window moves it.
-    if (m_barFloat != nullptr)
+    m_barHost.SetOnSave ([this] (const std::wstring & text)
     {
-        return false;
-    }
-
-    if (!m_barDragging)
-    {
-        if (ev.kind != DxuiMouseEventKind::Down || m_commandBar->IsMenuOpen() || !m_commandBar->IsOnGrip (at.x, at.y))
+        if (m_host != nullptr)
         {
-            return false;
+            m_host->SetDebuggerCommandBarDock (SourcePathList::WideToUtf8 (text));
+        }
+    });
+
+    m_barHost.SetOnFloatCreated ([this] (DxuiToolbarWindow & window)
+    {
+        std::unique_ptr<DxuiTooltip>  tip = std::make_unique<DxuiTooltip>();
+
+        window.SetTheme  (m_theme);
+        window.SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
+
+        tip->SetPopupHost (window.GetPopupHost());
+        tip->SetTheme     (*m_theme);
+        tip->SetDpi       (GetDpiForWindow (window.GetHwnd()));
+        tip->SetMonospace (true);
+        m_floatTips[kBarFloatKey] = std::move (tip);
+    });
+
+    m_barHost.SetOnFloatChanged ([this]
+    {
+        if (!m_barHost.IsFloating())
+        {
+            m_floatTips.erase (kBarFloatKey);
         }
 
-        along         = m_barDock.IsVertical() ? at.y - bar.top : at.x - bar.left;
-        //  Across the top or bottom the bar starts a margin in from the
-        //  window's edge, so the grab point counts it.
-        m_barGrab     = POINT { along + m_scaler.ToPx (8), along };
-        m_barDragging = true;
-
-        GetRoutedTooltip().HideImmediate();
-        return true;
-    }
-
-    switch (ev.kind)
-    {
-    case DxuiMouseEventKind::Move:
-        //  The bar slides along the band it is in, however near another
-        //  edge the pointer comes; only a pull well away from that band
-        //  tears it off to float under the pointer.
-        if (CommandBarDock::IsPulledOut (at, m_barDock.edge, m_barArea, m_scaler.ToPx (DxuiToolbar::GetBandDip() + kBarDockReachDp), m_scaler.ToPx (kBarPullDp)))
-        {
-            TearOffCommandBar (at);
-            break;
-        }
-
-        dock = CommandBarDock::SlideAlong (at, m_barGrab, m_barDock, m_barArea, m_scaler.GetDpi());
-
-        if (!(dock == m_barDock))
-        {
-            m_barDock = dock;
-            LayoutWidgets();
-        }
-
-        break;
-
-    case DxuiMouseEventKind::Up:
-        m_barDragging = false;
-        SaveCommandBarDock();
-        break;
-
-    default:
-        break;
-    }
-
-    return true;
+        m_focusMgr.Rebuild();
+    });
 }
 
 
@@ -9148,469 +9069,36 @@ bool DebuggerWindow::RouteCommandBarDrag (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::SaveCommandBarDock
+//  DebuggerWindow::SyncCommandBarFloatTip
+//
+//  Once a frame, while the command bar floats: its window's tooltip sized
+//  to that window, and ticked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::SaveCommandBarDock()
+void DebuggerWindow::SyncCommandBarFloatTip()
 {
-    if (m_host != nullptr)
-    {
-        m_host->SetDebuggerCommandBarDock (SourcePathList::WideToUtf8 (m_barDock.ToText()));
-    }
-}
+    DxuiToolbarWindow  * window = m_barHost.GetFloatWindow();
+    auto                 tip    = m_floatTips.find (kBarFloatKey);
+    RECT                 client = {};
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::TearOffCommandBar
-//
-//  A drag of the docked bar that leaves the edges floats it at once, its
-//  grab handle under the pointer, and the floating window carries on with
-//  the drag while the button is still down.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::TearOffCommandBar (POINT clientPx)
-{
-    POINT  screen = clientPx;
-    int    grip   = m_scaler.ToPx (DxuiToolbar::kGripDp);
-    int    band   = m_scaler.ToPx (DxuiToolbar::GetBandDip());
-
-
-
-    ClientToScreen (GetHwnd(), &screen);
-
-    m_barDragging           = false;
-    m_barDock.floatVertical = m_barDock.IsVertical();
-    m_barDock.floating      = true;
-    m_barDock.floatPx       = m_barDock.floatVertical ? POINT { screen.x - band / 2, screen.y - grip / 2 } : POINT { screen.x - grip / 2, screen.y - band / 2 };
-
-    FloatCommandBar();
-
-    if (m_barFloat == nullptr)
+    if (window == nullptr || tip == m_floatTips.end())
     {
         return;
     }
 
-    ReleaseCapture();
-    m_barFloat->BeginMove();
-    LayoutWidgets();
-    SaveCommandBarDock();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetFloatingBarRect
-//
-//  The floating bar's window: as long as its icons need and one band high,
-//  with its top left at `topLeftPx`, or by this window's when that is on
-//  no monitor, as a place saved on a monitor since unplugged would be.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DebuggerWindow::GetFloatingBarRect (POINT topLeftPx)
-{
-    int   length = 0;
-    int   band   = m_scaler.ToPx (DxuiToolbar::GetBandDip());
-    RECT  rect   = {};
-    RECT  owner  = {};
-
-
-
-    m_commandBar->SetVertical (m_barDock.floatVertical);
-    m_commandBar->SetLabels   (false);
-
-    length = m_commandBar->GetNaturalLengthPx (m_scaler);
-    rect   = m_barDock.floatVertical ? RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + band, topLeftPx.y + length }
-                                     : RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + length, topLeftPx.y + band };
-
-    if (MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) == nullptr && GetWindowRect (GetHwnd(), &owner))
+    if (GetClientRect (window->GetHwnd(), &client))
     {
-        OffsetRect (&rect, owner.left + band - rect.left, owner.top + band - rect.top);
-    }
-
-    return rect;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::FloatCommandBar
-//
-//  A window for the floating bar, with no title, at its saved place, and
-//  the bar moved into it, showing icons alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::FloatCommandBar()
-{
-    std::unique_ptr<DxuiToolbarWindow>  window = std::make_unique<DxuiToolbarWindow>();
-    std::unique_ptr<IDxuiControl>       owned;
-    std::unique_ptr<DxuiTooltip>        tip    = std::make_unique<DxuiTooltip>();
-    DxuiWindow::CreateParams            params;
-    RECT                                rect   = GetFloatingBarRect (m_barDock.floatPx);
-    int                                 dpi    = (std::max) ((int) m_scaler.GetDpi(), 1);
-    HRESULT                             hr     = S_OK;
-
-
-
-    params.hInstance        = m_hInstance;
-    params.ownerHwnd        = GetHwnd();
-    params.initialSizeDip   = { MulDiv (rect.right - rect.left, USER_DEFAULT_SCREEN_DPI, dpi), MulDiv (rect.bottom - rect.top, USER_DEFAULT_SCREEN_DPI, dpi) };
-    params.resizable        = false;
-    params.captionStyle     = DxuiCaptionStyle::None;
-    params.createNoActivate = true;
-    params.toolWindow       = true;
-
-    hr = window->Create (params);
-
-    if (FAILED (hr))
-    {
-        //  With no window to float in, the bar docks where it was.
-        m_barDock.floating = false;
-        m_commandBar->SetLabels (true);
-        return;
-    }
-
-    window->SetTheme  (m_theme);
-    window->SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
-
-    owned = DetachChild (m_commandBar);
-
-    if (owned != nullptr)
-    {
-        (void) window->AttachChild (std::move (owned));
-    }
-
-    m_commandBar->SetPopupHost    (window->GetPopupHost());
-    m_commandBar->SetTextRenderer (window->GetTextRenderer());
-    m_commandBar->OnToolbarMouseLeave();
-
-    window->SetToolbar          (m_commandBar);
-    window->SetOnContentMouse      ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
-    window->SetOnCaptionDrag       ([this] (POINT screen)              { OnCommandBarFloatDrag (screen); });
-    window->SetOnCaptionDragEnd    ([this] (POINT screen)              { OnCommandBarDragEnd (screen); });
-    window->SetOnCaptionDragCancel ([this]                             { FinishCommandBarSnap(); });
-    window->SetOnMoveLoopFrame     ([this]                             { RunModalLoopTick(); });
-    window->SetScreenRect          (rect);
-
-    tip->SetPopupHost (window->GetPopupHost());
-    tip->SetTheme     (*m_theme);
-    tip->SetDpi       (GetDpiForWindow (window->GetHwnd()));
-    tip->SetMonospace (true);
-    m_floatTips[kBarFloatKey] = std::move (tip);
-
-    if (IsWindowVisible (GetHwnd()))
-    {
-        window->Show (false);
-    }
-
-    m_barFloat = std::move (window);
-    m_focusMgr.Rebuild();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::DockCommandBarBack
-//
-//  The bar back in this window, labeled again, and its floating window
-//  gone. Run from the frame, never from inside that window's own message.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::DockCommandBarBack()
-{
-    std::unique_ptr<IDxuiControl>  owned;
-
-
-
-    if (m_barFloat == nullptr)
-    {
-        return;
-    }
-
-    owned = m_barFloat->DetachChild (m_commandBar);
-
-    if (owned != nullptr)
-    {
-        (void) AttachChild (std::move (owned));
-    }
-
-    m_barFloat->SetToolbar (nullptr);
-    m_barFloat->Hide();
-    m_barFloat.reset();
-    m_floatTips.erase (kBarFloatKey);
-
-    m_commandBar->SetLabels       (true);
-    m_commandBar->SetPopupHost    (GetPopupHost());
-    m_commandBar->SetTextRenderer (GetTextRenderer());
-    m_commandBar->OnToolbarMouseLeave();
-
-    m_focusMgr.Rebuild();
-    LayoutWidgets();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SyncCommandBarFloat
-//
-//  Once a frame: a floating window for the bar while its place is
-//  floating and none otherwise, shown while this window is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SyncCommandBarFloat()
-{
-    bool   visible = IsWindowVisible (GetHwnd()) != FALSE;
-    auto   tip     = m_floatTips.find (kBarFloatKey);
-    RECT   client  = {};
-    RECT   current = {};
-    RECT   wanted  = {};
-    int    frameX  = 0;
-    int    frameY  = 0;
-    HWND   hwnd    = nullptr;
-
-
-
-    if (m_barDock.floating && m_barFloat == nullptr)
-    {
-        FloatCommandBar();
-        LayoutWidgets();
-    }
-    else if (!m_barDock.floating && m_barFloat != nullptr)
-    {
-        DockCommandBarBack();
-
-        //  A bar that snapped into a band while the button is still down
-        //  goes on sliding along it with the pointer.
-        if (m_barSnapDragOn)
-        {
-            m_barSnapDragOn = false;
-
-            if ((GetKeyState (VK_LBUTTON) & 0x8000) != 0)
-            {
-                SetCapture (GetHwnd());
-                m_barDragging = true;
-            }
-        }
-    }
-
-    if (m_barFloat == nullptr)
-    {
-        return;
-    }
-
-    hwnd = m_barFloat->GetHwnd();
-
-    //  The window stays as long as the bar's entries need, so the bar never
-    //  falls back on See more while it floats: a length measured before this
-    //  window had its DPI, or before a theme or entry change, comes right
-    //  here.
-    //  The window's frame comes on top of the bar's length.
-    current = m_barFloat->GetScreenRect();
-    wanted  = GetFloatingBarRect (POINT { current.left, current.top });
-
-    if (GetClientRect (hwnd, &client))
-    {
-        frameX = (current.right - current.left) - (client.right - client.left);
-        frameY = (current.bottom - current.top) - (client.bottom - client.top);
-
-        if (wanted.right - wanted.left + frameX != current.right - current.left || wanted.bottom - wanted.top + frameY != current.bottom - current.top)
-        {
-            m_barFloat->SetScreenRect (RECT { current.left, current.top, current.left + wanted.right - wanted.left + frameX, current.top + wanted.bottom - wanted.top + frameY });
-            GetClientRect (hwnd, &client);
-        }
-
-        //  Measuring planned the bar for any length, so it is laid out
-        //  again for the window it is in.
-        m_commandBar->Layout (client, m_scaler);
-    }
-
-    if ((IsWindowVisible (hwnd) != FALSE) != visible)
-    {
-        if (visible)
-        {
-            m_barFloat->Show (false);
-        }
-        else
-        {
-            m_barFloat->Hide();
-        }
-    }
-
-    tip = m_floatTips.find (kBarFloatKey);
-
-    if (tip != m_floatTips.end() && GetClientRect (hwnd, &client))
-    {
-        tip->second->SetDpi          (GetDpiForWindow (hwnd));
+        tip->second->SetDpi          (GetDpiForWindow (window->GetHwnd()));
         tip->second->SetViewportSize (client.right - client.left, client.bottom - client.top);
     }
 
-    if (tip != m_floatTips.end() && tip->second->WantsTick())
+    if (tip->second->WantsTick())
     {
         tip->second->Tick ((int64_t) GetTickCount64());
     }
-
-    m_barFloat->PollCaptionDrag();
-    m_barFloat->Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OnCommandBarDragEnd
-//
-//  A floating bar dropped near an edge of this window docks there, at the
-//  place that keeps its grab handle under the pointer; dropped anywhere
-//  else it stays where it was put. The frame docks it, outside the
-//  floating window's own message.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OnCommandBarDragEnd (POINT screenPx)
-{
-    POINT  client = screenPx;
-    RECT   rect   = (m_barFloat != nullptr) ? m_barFloat->GetScreenRect() : RECT {};
-    int    reach  = m_scaler.ToPx (DxuiToolbar::GetBandDip() + kBarDockReachDp);
-    POINT  grab   = POINT { screenPx.x - rect.left, screenPx.y - rect.top };
-
-
-
-    ScreenToClient (GetHwnd(), &client);
-
-    if (m_barSnapping)
-    {
-        FinishCommandBarSnap();
-        return;
-    }
-
-    if (IsWindowVisible (GetHwnd()) && CommandBarDock::IsInDockBand (client, m_barArea, reach))
-    {
-        //  Across the top or bottom the bar starts a margin in from the
-        //  window's edge, so the grab point counts it.
-        m_barDock = CommandBarDock::PickForDrop (client, POINT { grab.x + m_scaler.ToPx (8), grab.x }, m_barArea, m_scaler.GetDpi());
-    }
-    else
-    {
-        m_barDock.floating = true;
-        m_barDock.floatPx  = POINT { rect.left, rect.top };
-    }
-
-    SaveCommandBarDock();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::FinishCommandBarSnap
-//
-//  The move loop a snap ended has ended: the bar takes the place it snapped
-//  to, and the frame docks it and carries the drag on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::FinishCommandBarSnap()
-{
-    if (!m_barSnapping)
-    {
-        return;
-    }
-
-    m_barSnapping   = false;
-    m_barSnapDragOn = true;
-    m_barDock       = m_barSnapDock;
-
-    SaveCommandBarDock();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OnCommandBarFloatDrag
-//
-//  A floating bar dragged near a side of this window stands on end, and
-//  near the top or bottom lies flat again; away from every edge it keeps
-//  the orientation it last took, so it can be left floating either way.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OnCommandBarFloatDrag (POINT screenPx)
-{
-    POINT  client   = screenPx;
-    RECT   rect     = {};
-    int    reach    = m_scaler.ToPx (DxuiToolbar::GetBandDip() + kBarDockReachDp);
-    bool   vertical = false;
-
-
-
-    if (m_barFloat == nullptr || !IsWindowVisible (GetHwnd()))
-    {
-        return;
-    }
-
-    ScreenToClient (GetHwnd(), &client);
-
-    if (m_barSnapping)
-    {
-        return;
-    }
-
-    rect = m_barFloat->GetScreenRect();
-
-    //  Into a band, the bar snaps in where the pointer holds it: the move
-    //  loop ends here, and once it has, the frame docks the bar and carries
-    //  the drag on as a drag of the docked bar, which slides along the band
-    //  and leaves it only past the pull.
-    if (CommandBarDock::IsInDockBand (client, m_barArea, reach))
-    {
-        m_barGrab     = CommandBarDock::GrabForDocking (POINT { screenPx.x - rect.left, screenPx.y - rect.top }, m_barDock.floatVertical, m_scaler.ToPx (8));
-        m_barSnapDock = CommandBarDock::PickForDrop (client, m_barGrab, m_barArea, m_scaler.GetDpi());
-        m_barSnapping = true;
-
-        ReleaseCapture();
-        return;
-    }
-
-    vertical = CommandBarDock::PickFloatVertical (client, m_barArea, reach, m_barDock.floatVertical);
-
-    if (vertical == m_barDock.floatVertical)
-    {
-        return;
-    }
-
-    m_barDock.floatVertical = vertical;
-    m_barDock.floatPx       = POINT { rect.left, rect.top };
-
-    m_barFloat->SetScreenRect (GetFloatingBarRect (m_barDock.floatPx));
-    m_barFloat->Invalidate();
 }
 
 
@@ -9779,7 +9267,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_routingPane.empty() && m_barFloat == nullptr && RouteCommandBarMouse (ev))
+    if (m_routingPane.empty() && !m_barHost.IsFloating() && RouteCommandBarMouse (ev))
     {
         return true;
     }

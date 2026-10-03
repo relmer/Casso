@@ -1,17 +1,17 @@
 #include "Pch.h"
 
-#include "Ui/Debugger/CommandBarDock.h"
+#include "Widgets/DxuiToolbarDock.h"
 
 
 
 
 
-static constexpr std::pair<CommandBarDock::Edge, const wchar_t *>  s_kEdgeWords[] =
+static constexpr std::pair<DxuiToolbarDock::Edge, const wchar_t *>  s_kEdgeWords[] =
 {
-    { CommandBarDock::Edge::Top,    L"top"    },
-    { CommandBarDock::Edge::Bottom, L"bottom" },
-    { CommandBarDock::Edge::Left,   L"left"   },
-    { CommandBarDock::Edge::Right,  L"right"  },
+    { DxuiToolbarDock::Edge::Top,    L"top"    },
+    { DxuiToolbarDock::Edge::Bottom, L"bottom" },
+    { DxuiToolbarDock::Edge::Left,   L"left"   },
+    { DxuiToolbarDock::Edge::Right,  L"right"  },
 };
 
 
@@ -20,11 +20,11 @@ static constexpr std::pair<CommandBarDock::Edge, const wchar_t *>  s_kEdgeWords[
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::ToText
+//  DxuiToolbarDock::ToText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CommandBarDock::ToText() const
+std::wstring DxuiToolbarDock::ToText() const
 {
     std::wstring  word = L"top";
 
@@ -52,18 +52,18 @@ std::wstring CommandBarDock::ToText() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::FromText
+//  DxuiToolbarDock::FromText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandBarDock CommandBarDock::FromText (const std::wstring & text)
+DxuiToolbarDock DxuiToolbarDock::FromText (const std::wstring & text)
 {
-    CommandBarDock  dock;
-    size_t          space  = text.find (L' ');
-    std::wstring    word   = text.substr (0, space);
-    bool            known  = false;
-    wchar_t       * end    = nullptr;
-    long            offset = 0;
+    DxuiToolbarDock    dock;
+    size_t             space  = text.find (L' ');
+    std::wstring       word   = text.substr (0, space);
+    bool               known  = false;
+    wchar_t          * end    = nullptr;
+    long               offset = 0;
 
 
 
@@ -83,14 +83,14 @@ CommandBarDock CommandBarDock::FromText (const std::wstring & text)
 
     if (!known || space == std::wstring::npos)
     {
-        return CommandBarDock {};
+        return DxuiToolbarDock {};
     }
 
     offset = wcstol (text.c_str() + space + 1, &end, 10);
 
     if (end == text.c_str() + space + 1 || *end != L'\0' || offset < 0)
     {
-        return CommandBarDock {};
+        return DxuiToolbarDock {};
     }
 
     dock.offsetDip = (int) offset;
@@ -103,20 +103,20 @@ CommandBarDock CommandBarDock::FromText (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::ReadFloating
+//  DxuiToolbarDock::ReadFloating
 //
 //  "300 -40" after the "float": two numbers, then " vertical" or nothing, or the
 //  default place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandBarDock CommandBarDock::ReadFloating (const std::wstring & text)
+DxuiToolbarDock DxuiToolbarDock::ReadFloating (const std::wstring & text)
 {
-    CommandBarDock    dock;
-    const wchar_t   * start = text.c_str();
-    wchar_t         * end   = nullptr;
-    long              x     = 0;
-    long              y     = 0;
+    DxuiToolbarDock    dock;
+    const wchar_t    * start = text.c_str();
+    wchar_t          * end   = nullptr;
+    long               x     = 0;
+    long               y     = 0;
 
 
 
@@ -124,7 +124,7 @@ CommandBarDock CommandBarDock::ReadFloating (const std::wstring & text)
 
     if (end == start || *end != L' ')
     {
-        return CommandBarDock {};
+        return DxuiToolbarDock {};
     }
 
     start = end + 1;
@@ -132,7 +132,7 @@ CommandBarDock CommandBarDock::ReadFloating (const std::wstring & text)
 
     if (end == start || (*end != L'\0' && std::wstring (end) != L" vertical"))
     {
-        return CommandBarDock {};
+        return DxuiToolbarDock {};
     }
 
     dock.floating      = true;
@@ -147,19 +147,19 @@ CommandBarDock CommandBarDock::ReadFloating (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::PickForDrop
+//  DxuiToolbarDock::PickForDrop
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandBarDock CommandBarDock::PickForDrop (POINT pointer, POINT grab, const RECT & area, int dpi)
+DxuiToolbarDock DxuiToolbarDock::PickForDrop (POINT pointer, POINT grab, const RECT & area, int dpi)
 {
-    CommandBarDock  dock;
-    int             toTop    = pointer.y - area.top;
-    int             toBottom = area.bottom - pointer.y;
-    int             toLeft   = pointer.x - area.left;
-    int             toRight  = area.right - pointer.x;
-    int             nearest  = (std::min) ((std::min) (toTop, toBottom), (std::min) (toLeft, toRight));
-    int             offsetPx = 0;
+    DxuiToolbarDock  dock;
+    int              toTop    = pointer.y - area.top;
+    int              toBottom = area.bottom - pointer.y;
+    int              toLeft   = pointer.x - area.left;
+    int              toRight  = area.right - pointer.x;
+    int              nearest  = (std::min) ((std::min) (toTop, toBottom), (std::min) (toLeft, toRight));
+    int              offsetPx = 0;
 
 
 
@@ -192,11 +192,11 @@ CommandBarDock CommandBarDock::PickForDrop (POINT pointer, POINT grab, const REC
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::ClampOffset
+//  DxuiToolbarDock::ClampOffset
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandBarDock::ClampOffset (int offsetPx, int edgeLength, int barLength)
+int DxuiToolbarDock::ClampOffset (int offsetPx, int edgeLength, int barLength)
 {
     return std::clamp (offsetPx, 0, (std::max) (0, edgeLength - barLength));
 }
@@ -207,11 +207,11 @@ int CommandBarDock::ClampOffset (int offsetPx, int edgeLength, int barLength)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::IsInDockBand
+//  DxuiToolbarDock::IsInDockBand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandBarDock::IsInDockBand (POINT pointer, const RECT & area, int bandPx)
+bool DxuiToolbarDock::IsInDockBand (POINT pointer, const RECT & area, int bandPx)
 {
     int  toTop    = pointer.y - area.top;
     int  toBottom = area.bottom - pointer.y;
@@ -230,14 +230,14 @@ bool CommandBarDock::IsInDockBand (POINT pointer, const RECT & area, int bandPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::SlideAlong
+//  DxuiToolbarDock::SlideAlong
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandBarDock CommandBarDock::SlideAlong (POINT pointer, POINT grab, const CommandBarDock & current, const RECT & area, int dpi)
+DxuiToolbarDock DxuiToolbarDock::SlideAlong (POINT pointer, POINT grab, const DxuiToolbarDock & current, const RECT & area, int dpi)
 {
-    CommandBarDock  dock     = current;
-    int             offsetPx = 0;
+    DxuiToolbarDock  dock     = current;
+    int              offsetPx = 0;
 
 
 
@@ -254,11 +254,11 @@ CommandBarDock CommandBarDock::SlideAlong (POINT pointer, POINT grab, const Comm
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::IsPulledOut
+//  DxuiToolbarDock::IsPulledOut
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandBarDock::IsPulledOut (POINT pointer, Edge edge, const RECT & area, int bandPx, int pullPx)
+bool DxuiToolbarDock::IsPulledOut (POINT pointer, Edge edge, const RECT & area, int bandPx, int pullPx)
 {
     int  inward = 0;
     int  along  = 0;
@@ -297,11 +297,11 @@ bool CommandBarDock::IsPulledOut (POINT pointer, Edge edge, const RECT & area, i
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::PickFloatVertical
+//  DxuiToolbarDock::PickFloatVertical
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandBarDock::PickFloatVertical (POINT pointer, const RECT & area, int bandPx, bool current)
+bool DxuiToolbarDock::PickFloatVertical (POINT pointer, const RECT & area, int bandPx, bool current)
 {
     int  toTop    = pointer.y - area.top;
     int  toBottom = area.bottom - pointer.y;
@@ -325,11 +325,11 @@ bool CommandBarDock::PickFloatVertical (POINT pointer, const RECT & area, int ba
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandBarDock::GrabForDocking
+//  DxuiToolbarDock::GrabForDocking
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-POINT CommandBarDock::GrabForDocking (POINT grabPx, bool vertical, int marginPx)
+POINT DxuiToolbarDock::GrabForDocking (POINT grabPx, bool vertical, int marginPx)
 {
     int  along = vertical ? grabPx.y : grabPx.x;
 

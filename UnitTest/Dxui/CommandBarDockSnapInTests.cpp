@@ -1,7 +1,5 @@
 #include "Pch.h"
 
-#include "Ui/Debugger/CommandBarDock.h"
-
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -29,7 +27,7 @@ public:
 
     TEST_METHOD (AFlatBarsGrabCountsTheMarginAcross)
     {
-        POINT  grab = CommandBarDock::GrabForDocking (POINT { 10, 12 }, false, kMargin);
+        POINT  grab = DxuiToolbarDock::GrabForDocking (POINT { 10, 12 }, false, kMargin);
 
 
         Assert::AreEqual (18L, grab.x, L"across the top or bottom the docked bar starts a margin in");
@@ -39,7 +37,7 @@ public:
 
     TEST_METHOD (AnUprightBarsGrabMeasuresDown)
     {
-        POINT  grab = CommandBarDock::GrabForDocking (POINT { 12, 70 }, true, kMargin);
+        POINT  grab = DxuiToolbarDock::GrabForDocking (POINT { 12, 70 }, true, kMargin);
 
 
         Assert::AreEqual (78L, grab.x);
@@ -49,17 +47,17 @@ public:
 
     TEST_METHOD (ASnappedBarSlidesWithThePointerAndHoldsUntilPulled)
     {
-        POINT           grab = CommandBarDock::GrabForDocking (POINT { 12, 70 }, true, kMargin);
-        CommandBarDock  dock = CommandBarDock::PickForDrop (POINT { 20, 300 }, grab, kClient, 96);
-        CommandBarDock  slid;
+        POINT            grab = DxuiToolbarDock::GrabForDocking (POINT { 12, 70 }, true, kMargin);
+        DxuiToolbarDock  dock = DxuiToolbarDock::PickForDrop (POINT { 20, 300 }, grab, kClient, 96);
+        DxuiToolbarDock  slid;
 
 
-        Assert::IsTrue   (dock.edge == CommandBarDock::Edge::Left);
+        Assert::IsTrue   (dock.edge == DxuiToolbarDock::Edge::Left);
         Assert::AreEqual (230, dock.offsetDip, L"the bar snaps in with the grabbed point still under the pointer");
 
-        slid = CommandBarDock::SlideAlong (POINT { 30, 500 }, grab, dock, kClient, 96);
+        slid = DxuiToolbarDock::SlideAlong (POINT { 30, 500 }, grab, dock, kClient, 96);
 
         Assert::AreEqual (430, slid.offsetDip);
-        Assert::IsFalse  (CommandBarDock::IsPulledOut (POINT { kBand + kPull, 500 }, slid.edge, kClient, kBand, kPull), L"leaving the band is not yet a pull");
+        Assert::IsFalse  (DxuiToolbarDock::IsPulledOut (POINT { kBand + kPull, 500 }, slid.edge, kClient, kBand, kPull), L"leaving the band is not yet a pull");
     }
 };

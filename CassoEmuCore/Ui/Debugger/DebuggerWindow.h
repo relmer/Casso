@@ -8,7 +8,6 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ByteChanges.h"
-#include "Ui/Debugger/CommandBarDock.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
@@ -138,7 +137,7 @@ public:
     virtual std::string  GetDebuggerClosedPanes ()                         { return {}; }
     virtual void         SetDebuggerClosedPanes (const std::string &)      {}
 
-    //  Where the command bar is docked, in CommandBarDock's text, kept the
+    //  Where the command bar is docked, in DxuiToolbarDock's text, kept the
     //  same way. A host with no preferences keeps it across the top.
     virtual std::string  GetDebuggerCommandBarDock ()                      { return {}; }
     virtual void         SetDebuggerCommandBarDock (const std::string &)   {}
@@ -566,17 +565,9 @@ private:
     void     RunCommandBarEntry  (int id);
     bool     IsCommandBarEntryEnabled (int id) const;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
-    bool     RouteCommandBarDrag  (const DxuiMouseEvent & ev);
-    void     TearOffCommandBar    (POINT clientPx);
-    void     SyncCommandBarFloat  ();
-    void     FloatCommandBar      ();
-    void     DockCommandBarBack   ();
-    void     OnCommandBarDragEnd  (POINT screenPx);
-    void     OnCommandBarFloatDrag (POINT screenPx);
+    void     ConfigureCommandBarHost ();
+    void     SyncCommandBarFloatTip  ();
     bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);
-    RECT     GetFloatingBarRect   (POINT topLeftPx);
-    void     SaveCommandBarDock   ();
-    void     FinishCommandBarSnap ();
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -978,32 +969,9 @@ private:
     std::set<std::wstring>                                                           m_closedPanes;
     std::wstring                                                                     m_pendingShowPane;
 
-    //  The command bar's edge and place along it, and a drag of its grab
-    //  handle in progress, with where in the bar the handle was taken and
-    //  the region under the menu bar it docks around.
-    CommandBarDock                                                                   m_barDock;
-    RECT                                                                             m_barArea     = {};
-    bool                                                                             m_barDragging = false;
-    POINT                                                                            m_barGrab     = {};
-
-    //  A floating bar dragged into a band snaps into it: the place it takes
-    //  once the move loop has ended, and, until the frame docks it, whether
-    //  the drag goes on in this window.
-    CommandBarDock                                                                   m_barSnapDock;
-    bool                                                                             m_barSnapping   = false;
-    bool                                                                             m_barSnapDragOn = false;
-
-    //  The window the command bar floats in while it is torn off, and its
-    //  tooltip, which shows only over that window. Events from it route
-    //  under kBarFloatKey, which no pane has.
+    //  The command bar's place, docked or floating, and the drags that move
+    //  it. Events from its floating window route under kBarFloatKey, which
+    //  no pane has, with that window's own tooltip, which shows only over it.
+    DxuiToolbarHost                                                                  m_barHost;
     static constexpr wchar_t                                                         kBarFloatKey[] = L"~commandBar";
-    std::unique_ptr<DxuiToolbarWindow>                                               m_barFloat;
-
-    //  How near an edge, past the bar's own thickness, a drag of the bar has
-    //  to stay to dock there rather than float.
-    static constexpr int                                                             kBarDockReachDp = 24;
-
-    //  How far past its band a drag of the docked bar has to pull before
-    //  the bar tears off to float.
-    static constexpr int                                                             kBarPullDp      = 32;
 };
