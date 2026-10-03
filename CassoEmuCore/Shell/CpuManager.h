@@ -82,8 +82,10 @@ public:
     void    SetPaused      (bool paused) noexcept;
     void    TogglePaused   () noexcept;
 
-    SpeedMode  GetSpeedMode  () const noexcept;
-    void       SetSpeedMode  (SpeedMode mode) noexcept;
+    SpeedMode  GetSpeedMode       () const noexcept;
+    SpeedMode  GetUserSpeedMode   () const noexcept;
+    bool       IsUserMaximumSpeed () const noexcept { return GetUserSpeedMode() == SpeedMode::Maximum; }
+    void       SetSpeedMode       (SpeedMode mode, SpeedChooser chooser) noexcept;
 
     // Shared storage exposed for ClipboardManager wiring. The paste
     // buffer is guarded by the same mutex as the command queue so
@@ -101,6 +103,7 @@ private:
     std::atomic<bool>             m_running    { true };
     std::atomic<bool>             m_paused     { false };
     std::atomic<SpeedMode>        m_speedMode  { SpeedMode::Authentic };
+    std::atomic<SpeedMode>        m_userSpeed  { SpeedMode::Authentic };     // the last speed the user chose
 
     std::mutex                    m_pauseMutex;
     std::condition_variable       m_pauseCV;

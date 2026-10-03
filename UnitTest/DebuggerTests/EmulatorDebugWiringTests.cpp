@@ -256,19 +256,25 @@ namespace EmulatorDebugWiringTests
 
 
 
-            rig.cpuManager.SetSpeedMode (SpeedMode::Double);
+            rig.cpuManager.SetSpeedMode (SpeedMode::Double, SpeedChooser::User);
             request.fullSpeed = true;
 
             rig.StartOk (request);
 
             Assert::IsTrue (rig.cpuManager.GetSpeedMode() == SpeedMode::Maximum,
                             L"the run takes full speed");
+            Assert::IsTrue (rig.cpuManager.GetUserSpeedMode() == SpeedMode::Double,
+                            L"as an automatic change, which leaves the speed the user chose");
+            Assert::IsFalse (rig.cpuManager.IsUserMaximumSpeed(), L"so history keeps recording");
 
             rig.driver.Pause();
             Assert::IsTrue (rig.driver.OnSliceExecuted (1023), L"the pause ends the run");
 
             Assert::IsTrue (rig.cpuManager.GetSpeedMode() == SpeedMode::Double,
                             L"and gives back the speed it found");
+
+            rig.cpuManager.SetSpeedMode (SpeedMode::Maximum, SpeedChooser::User);
+            Assert::IsTrue (rig.cpuManager.IsUserMaximumSpeed(), L"Maximum chosen by the user is the user's speed");
         }
 
 
@@ -287,7 +293,7 @@ namespace EmulatorDebugWiringTests
 
 
 
-            rig.cpuManager.SetSpeedMode (SpeedMode::Double);
+            rig.cpuManager.SetSpeedMode (SpeedMode::Double, SpeedChooser::User);
 
             rig.StartOk (Rig::Go());
 

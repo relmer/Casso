@@ -743,19 +743,19 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_SPEED_1X:
         {
-            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Authentic);
+            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Authentic, SpeedChooser::User);
             break;
         }
 
         case IDM_MACHINE_SPEED_2X:
         {
-            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Double);
+            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Double, SpeedChooser::User);
             break;
         }
 
         case IDM_MACHINE_SPEED_MAX:
         {
-            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Maximum);
+            m_shell.m_cpuManager.SetSpeedMode (SpeedMode::Maximum, SpeedChooser::User);
             break;
         }
 

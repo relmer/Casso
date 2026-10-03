@@ -53,6 +53,27 @@ enum class SpeedMode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SpeedChooser
+//
+//  Who changed the speed: the user, from the menu, the settings or their
+//  saved preferences, or the emulator itself, raising it for a while to get
+//  through something slow and putting it back afterward. Recording history
+//  pauses only at a Maximum speed the user chose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class SpeedChooser
+{
+    User,
+    Automatic
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InputMappingMode
 //
 //  How host pointer / arrow input is mapped onto the emulated game port.

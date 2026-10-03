@@ -758,9 +758,9 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     hrOpt = uiPrefs->GetString ("speedMode", speedMode);
     if (SUCCEEDED (hrOpt))
     {
-        if      (speedMode == "authentic") { m_cpuManager.SetSpeedMode (SpeedMode::Authentic); }
-        else if (speedMode == "double")    { m_cpuManager.SetSpeedMode (SpeedMode::Double);    }
-        else if (speedMode == "maximum")   { m_cpuManager.SetSpeedMode (SpeedMode::Maximum);   }
+        if      (speedMode == "authentic") { m_cpuManager.SetSpeedMode (SpeedMode::Authentic, SpeedChooser::User); }
+        else if (speedMode == "double")    { m_cpuManager.SetSpeedMode (SpeedMode::Double,    SpeedChooser::User); }
+        else if (speedMode == "maximum")   { m_cpuManager.SetSpeedMode (SpeedMode::Maximum,   SpeedChooser::User); }
     }
 
     // //c external drive + mouse: seed the connected states HERE -- before

@@ -65,7 +65,7 @@ HRESULT CpuManagerRunDriver::Start (const RunRequest & request)
     if (m_speedChanged)
     {
         m_previousSpeed = m_cpuManager.GetSpeedMode();
-        m_cpuManager.SetSpeedMode (SpeedMode::Maximum);
+        m_cpuManager.SetSpeedMode (SpeedMode::Maximum, SpeedChooser::Automatic);
     }
 
     m_hook.Begin (request);
@@ -227,7 +227,7 @@ void CpuManagerRunDriver::Finish (StopReason reason, uint64_t cycles)
 
     if (m_speedChanged)
     {
-        m_cpuManager.SetSpeedMode (m_previousSpeed);
+        m_cpuManager.SetSpeedMode (m_previousSpeed, SpeedChooser::Automatic);
         m_speedChanged = false;
     }
 

@@ -265,12 +265,39 @@ SpeedMode CpuManager::GetSpeedMode() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetSpeedMode
+//  GetUserSpeedMode
+//
+//  The speed the user last chose, which an automatic change leaves alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuManager::SetSpeedMode (SpeedMode mode) noexcept
+SpeedMode CpuManager::GetUserSpeedMode() const noexcept
 {
+    return m_userSpeed.load (std::memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSpeedMode
+//
+//  Paces the machine at mode. A change the user chose also becomes the
+//  user's speed; an automatic one leaves that as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::SetSpeedMode (
+    SpeedMode     mode,
+    SpeedChooser  chooser) noexcept
+{
+    if (chooser == SpeedChooser::User)
+    {
+        m_userSpeed.store (mode, std::memory_order_release);
+    }
+
     m_speedMode.store (mode, std::memory_order_release);
 }
 
