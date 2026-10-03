@@ -1383,7 +1383,7 @@ void EmulatorShell::SyncSceneTapeLabel()
     {
         shown = TapeDeckWidget::GetDisplayName (view) + L"|" +
                 TapeDeckWidget::FormatTime (view.positionSeconds) + L"|" +
-                std::to_wstring (m_recorderHoverKey);
+                std::to_wstring (m_recorderHoverKey) + L"|" + std::to_wstring ((int) view.transport);
     }
 
     if (shown != m_sceneTapeLabelShown)
