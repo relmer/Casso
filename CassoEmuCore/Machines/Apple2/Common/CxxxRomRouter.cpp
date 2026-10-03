@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Devices/RomGeneration.h"
 
 
 
@@ -61,6 +62,7 @@ CxxxRomRouter::CxxxRomRouter (Apple2eMmu & mmu)
 void CxxxRomRouter::SetInternalRom (vector<Byte> data)
 {
     m_internal = move (data);
+    RomGeneration::Bump();
 
     if (m_internal.size() < kInternalRomSize)
     {
@@ -90,6 +92,7 @@ void CxxxRomRouter::SetSlotRom (int slot, vector<Byte> data)
     CBRAEx (slot >= kMinSlot && slot <= kMaxSlot, E_INVALIDARG);
 
     m_slotRom[slot] = move (data);
+    RomGeneration::Bump();
 
     if (m_slotRom[slot].size() < kSlotRomPageSize)
     {
@@ -505,6 +508,8 @@ bool CxxxRomRouter::TryPatch (Word address, Byte value)
 
     (*image)[offset] = value;
     patched          = true;
+
+    RomGeneration::Bump();
 
 Error:
     return patched;

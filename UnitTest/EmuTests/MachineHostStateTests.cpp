@@ -213,6 +213,51 @@ public:
     }
 
 
+    TEST_METHOD (TheRomIdentityIsHashedOnceUntilARomIsPatched)
+    {
+        TestMachine      machine ("Apple2e");
+        RomDevice      * rom     = nullptr;
+        CxxxRomRouter  * router  = nullptr;
+        Word             last    = 0;
+        bool             patched = false;
+        uint64_t         first   = 0;
+        uint64_t         second  = 0;
+        uint64_t         hashes  = 0;
+
+
+
+        first  = machine.GetRomIdentity();
+        hashes = machine.GetRomIdentityHashCount();
+
+        Assert::AreEqual<uint64_t> (first,  machine.GetRomIdentity(),          L"an unchanged ROM set keeps its identity");
+        Assert::AreEqual<uint64_t> (hashes, machine.GetRomIdentityHashCount(), L"and a second call does not hash the ROMs again");
+
+        for (std::unique_ptr<MemoryDevice> & owned : machine.GetOwnedDevices())
+        {
+            rom = dynamic_cast<RomDevice *> (owned.get());
+
+            if (rom != nullptr && !patched)
+            {
+                last    = rom->GetEnd();
+                patched = rom->TryPatch (last, static_cast<Byte> (~rom->GetData()[last - rom->GetStart()]));
+            }
+        }
+
+        Assert::IsTrue (patched, L"the //e must have a ROM device to patch");
+
+        second = machine.GetRomIdentity();
+        Assert::AreNotEqual<uint64_t> (first, second, L"a patched ROM device changes the identity");
+
+        router = machine.GetMmu()->GetCxxxRouter();
+        Assert::IsNotNull (router);
+
+        patched = router->TryPatch (s_kSlotRomByte, static_cast<Byte> (~router->GetSlotRom (s_kDiskSlot)[0]));
+        Assert::IsTrue (patched, L"the slot 6 ROM must take a patch");
+
+        Assert::AreNotEqual<uint64_t> (second, machine.GetRomIdentity(), L"and so does a patched slot ROM");
+    }
+
+
     TEST_METHOD (AStateWithADiskDoesNotLoadWithoutIt)
     {
         TestMachine        source ("Apple2e");

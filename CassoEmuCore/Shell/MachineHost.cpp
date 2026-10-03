@@ -10,6 +10,7 @@
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/RomDevice.h"
+#include "Devices/RomGeneration.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -983,6 +984,9 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
 //  firmware banks. A debugger ROM patch changes it: a patched ROM is a
 //  different ROM.
 //
+//  Every snapshot carries it, so the hash is kept and taken again only once
+//  RomGeneration says a ROM image changed since.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 uint64_t MachineHost::GetRomIdentity() const
@@ -993,8 +997,14 @@ uint64_t MachineHost::GetRomIdentity() const
     const CxxxRomRouter  * router        = nullptr;
     size_t                 size          = 0;
     int                    index         = 0;
+    uint64_t               generation    = RomGeneration::Get();
 
 
+
+    if (generation == m_romIdentityGeneration)
+    {
+        return m_romIdentity;
+    }
 
     for (const std::unique_ptr<MemoryDevice> & owned : m_ownedDevices)
     {
@@ -1023,6 +1033,10 @@ uint64_t MachineHost::GetRomIdentity() const
     {
         hash = HashBytes (hash, m_apple2cRomBank->GetBankImage (index));
     }
+
+    m_romIdentity           = hash;
+    m_romIdentityGeneration = generation;
+    m_romIdentityHashes++;
 
     return hash;
 }

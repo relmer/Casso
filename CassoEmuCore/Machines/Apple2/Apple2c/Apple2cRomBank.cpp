@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Devices/RomGeneration.h"
 
 
 
@@ -36,6 +37,7 @@ void Apple2cRomBank::SetBankImages (vector<Byte> bank0, vector<Byte> bank1)
 {
     m_bank[0] = std::move (bank0);
     m_bank[1] = std::move (bank1);
+    RomGeneration::Bump();
 
     ApplyBank (0);
 }
@@ -129,6 +131,7 @@ bool Apple2cRomBank::TryPatch (Word address, Byte value)
     BAIL_OUT_IF (offset >= image.size(), S_OK);
 
     image[offset] = value;
+    RomGeneration::Bump();
     patched       = inCxxx ? m_mmu.GetCxxxRouter()->TryPatch (address, value)
                            : m_lc.TryPatchRom (address, value);
 

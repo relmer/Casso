@@ -835,6 +835,7 @@
     <ClInclude Include="Machines\Apple2\Common\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />
     <ClInclude Include="Devices\RomDevice.h" />
+    <ClInclude Include="Devices\RomGeneration.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleGamePort.h" />
     <ClInclude Include="Machines\Apple2\Common\SiriusJoyport.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleKeyboard.h" />

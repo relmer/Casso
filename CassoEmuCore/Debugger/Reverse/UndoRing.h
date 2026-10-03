@@ -103,7 +103,7 @@ struct UndoCheckpoint
 class UndoRing
 {
 public:
-    void      Configure (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles);
+    HRESULT   Configure (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles);
     void      Clear     ();
 
     //  The checkpoint count the ring keeps for a state of stateBytes: what the
@@ -154,6 +154,7 @@ public:
 private:
     static constexpr uint64_t  kMinInstructionCycles = 2;
     static constexpr uint64_t  kMaxInstructionCycles = 8;
+    static constexpr uint64_t  kMaxRecordBytes       = 1ull << 30;     // the most one Configure may allocate for records
 
     static uint64_t  GetSpacing                (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles);
     static size_t    GetRecordBytesPerInterval (uint64_t spacing);

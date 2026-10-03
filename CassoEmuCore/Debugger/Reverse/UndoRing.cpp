@@ -14,10 +14,29 @@
 //  capacity is sized now for the fewest checkpoints the ring may keep, and
 //  grows once the first checkpoint gives the state's size.
 //
+//  A keyframe interval or spacing whose records for one interval would pass
+//  kMaxRecordBytes is rejected and leaves the ring as it was: the ring never
+//  keeps fewer records than that, so it could not be allocated.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void UndoRing::Configure (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles)
+HRESULT UndoRing::Configure (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles)
 {
+    HRESULT   hr        = S_OK;
+    uint64_t  spacing   = GetSpacing (settings, keyframeIntervalCycles);
+    uint64_t  intervals = 0;
+    uint64_t  perSpace  = 0;
+
+
+
+    CBREx (spacing <= kMaxRecordBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    // The minimum checkpoint count, plus the interval being filled.
+    intervals = keyframeIntervalCycles / spacing + ((keyframeIntervalCycles % spacing != 0) ? 1 : 0) + 2;
+    perSpace  = (spacing + kMaxInstructionCycles) / kMinInstructionCycles * sizeof (UndoRecord);
+
+    CBREx (perSpace <= kMaxRecordBytes / intervals, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
     m_settings                  = settings;
     m_settings.checkpointCycles = GetSpacing (settings, keyframeIntervalCycles);
     m_keyframeInterval          = keyframeIntervalCycles;
@@ -29,6 +48,9 @@ void UndoRing::Configure (const UndoRingSettings & settings, uint64_t keyframeIn
     m_spareStates.clear();
     m_records.clear();
     ResizeRecords (GetRecordCapacity (m_checkpointLimit));
+
+Error:
+    return hr;
 }
 
 

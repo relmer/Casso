@@ -62,8 +62,10 @@ HRESULT ReverseController::Start (const ReverseSettings & settings)
 
     CBRA (cpu);
 
+    hr = m_ring.Configure (settings.ring, settings.keyframes.intervalCycles);
+    CHR (hr);
+
     m_keyframes.Configure (settings.keyframes);
-    m_ring.Configure      (settings.ring, settings.keyframes.intervalCycles);
 
     m_machine.GetInputJournal().Clear();
     m_machine.SetInputJournalOn  (true);

@@ -143,7 +143,7 @@ public:
 
         settings.budgetBytes = 0;       // the fewest checkpoints, so adding them does not grow the records
 
-        ring.Configure (settings, KeyframeSettings::kFrameCycles);
+        AssertSucceeded (ring.Configure (settings, KeyframeSettings::kFrameCycles), L"Configure");
         empty = ring.GetByteCount();
 
         hr = ring.AddCheckpoint (10, 100, 0, std::vector<Byte> (s_kOwnBytes), { StateSegment { 0, shared } });

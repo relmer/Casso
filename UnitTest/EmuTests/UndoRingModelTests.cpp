@@ -50,7 +50,7 @@ public:
         settings.checkpointCycles = s_kModelSpacing;
         settings.budgetBytes      = 0;
 
-        ring.Configure (settings, s_kModelInterval);
+        AssertSucceeded (ring.Configure (settings, s_kModelInterval), L"Configure");
 
         capacity = ring.GetByteCount() / sizeof (UndoRecord);
         Assert::IsTrue (capacity > 0 && capacity < s_kModelSteps / 4, L"a ring small enough to wrap many times");

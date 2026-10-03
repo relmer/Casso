@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "RomDevice.h"
+#include "RomGeneration.h"
 
 
 
@@ -17,6 +18,7 @@ RomDevice::RomDevice (Word start, Word end, vector<Byte> && data)
       m_end   (end),
       m_data  (move (data))
 {
+    RomGeneration::Bump();
 }
 
 
@@ -60,6 +62,7 @@ bool RomDevice::TryPatch (Word address, Byte value)
     if (inside)
     {
         m_data[offset] = value;
+        RomGeneration::Bump();
     }
 
     return inside;

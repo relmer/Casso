@@ -288,8 +288,11 @@ public:
     HRESULT   SaveState      (StateWriter & writer) const;
     HRESULT   LoadState      (StateReader & reader);
 
-    //  A hash of every ROM image the machine was built with.
-    uint64_t  GetRomIdentity () const;
+    //  A hash of every ROM image the machine was built with. It is kept until a
+    //  ROM image is patched or replaced, and GetRomIdentityHashCount says how
+    //  many times it was worked out.
+    uint64_t  GetRomIdentity          () const;
+    uint64_t  GetRomIdentityHashCount () const noexcept { return m_romIdentityHashes; }
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'A', 'C', 'H');
     static constexpr uint16_t  kStateVersion = 2;
@@ -355,6 +358,10 @@ private:
     IOpcodeWatcher    *  m_watcher         = nullptr;
     HistoryRecorder   *  m_historyRecorder = nullptr;
     uint64_t             m_position        = 0;
+
+    mutable uint64_t  m_romIdentity           = 0;
+    mutable uint64_t  m_romIdentityGeneration = 0;
+    mutable uint64_t  m_romIdentityHashes     = 0;      // times GetRomIdentity hashed the ROMs
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;

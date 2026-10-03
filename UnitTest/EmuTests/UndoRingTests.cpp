@@ -38,7 +38,7 @@ public:
 
 
 
-        ring.Configure (MakeSettings (0), s_kRingInterval);
+        AssertSucceeded (ring.Configure (MakeSettings (0), s_kRingInterval), L"Configure");
 
         for (position = 100; pushed < 100000; position++, pushed++)
         {
@@ -72,7 +72,7 @@ public:
 
 
 
-        ring.Configure (MakeSettings (0), s_kRingInterval);
+        AssertSucceeded (ring.Configure (MakeSettings (0), s_kRingInterval), L"Configure");
 
         for (i = 0; i < 50; i++)
         {
@@ -88,7 +88,7 @@ public:
         Assert::IsTrue (minimum >= needed * s_kRingStateSize, L"the minimum budget holds that many states");
         Assert::AreEqual (needed, UndoRing::GetCheckpointLimit (MakeSettings (minimum), s_kRingInterval, s_kRingStateSize), L"and buys exactly that many");
 
-        ring.Configure (MakeSettings (minimum * 3), s_kRingInterval);
+        AssertSucceeded (ring.Configure (MakeSettings (minimum * 3), s_kRingInterval), L"Configure");
 
         for (i = 0; i < 50; i++)
         {
@@ -111,7 +111,7 @@ public:
 
 
 
-        ring.Configure (MakeSettings (0), s_kRingInterval);
+        AssertSucceeded (ring.Configure (MakeSettings (0), s_kRingInterval), L"Configure");
 
         for (i = 0; i < 100; i++)
         {
@@ -141,6 +141,26 @@ public:
         Assert::AreEqual<uint64_t> (MakeRecord (39).cycle, record.cycle);
     }
 
+
+    TEST_METHOD (AnAbsurdKeyframeIntervalIsRejectedWithoutAllocating)
+    {
+        UndoRing  ring;
+        HRESULT   hr = S_OK;
+
+
+
+        hr = ring.Configure (MakeSettings (0), s_kRingInterval);
+        AssertSucceeded (hr, L"Configure");
+
+        ring.Push (5, MakeRecord (5));
+
+        hr = ring.Configure (UndoRingSettings(), 1000000000000000ull);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"an interval whose records would not fit in memory is rejected");
+        Assert::AreEqual<uint64_t> (6, ring.GetEndPosition(), L"and the ring is left as it was");
+
+        hr = ring.Configure (UndoRingSettings(), UINT64_MAX);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"so is one whose size overflows");
+    }
 
 private:
 
