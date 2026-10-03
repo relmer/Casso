@@ -5,6 +5,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/RamPages.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/IMmu.h"
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
@@ -117,6 +118,7 @@ private:
     AppleSoftSwitchBank  *   m_ssBank      = nullptr;
     LanguageCard         *   m_lc          = nullptr;
     vector<Byte>             m_auxRam;
+    RamPages                 m_auxPages;           // marks aux RAM's written pages; see RamPages
     CxxxRomRouter            m_cxxxRouter;
 
     bool                     m_ramRd       = false;

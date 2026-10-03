@@ -3,6 +3,7 @@
 #include "HResultAssert.h"
 #include "EmuTests/ReverseSessionRig.h"
 #include "Core/IMachineState.h"
+#include "Core/RamPages.h"
 #include "Core/StateHash.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
@@ -82,7 +83,7 @@ public:
 
         machine.RunCycles (KeyframeSettings::kFrameCycles);
 
-        before = SaveSharedAndCompare (machine, L"before the disk is written");
+        before = KeepTracks (SaveSharedAndCompare (machine, L"before the disk is written"));
         Assert::AreEqual<size_t> (static_cast<size_t> (disk->GetTrackCount()), before.size(), L"one shared run per track");
 
         for (track = 0; track < before.size(); track++)
@@ -92,7 +93,7 @@ public:
 
         machine.RunCycles (KeyframeSettings::kFrameCycles * s_kSharedFrames);
 
-        after = SaveSharedAndCompare (machine, L"after the guest wrote the disk");
+        after = KeepTracks (SaveSharedAndCompare (machine, L"after the guest wrote the disk"));
 
         for (track = 0; track < after.size(); track++)
         {
@@ -253,5 +254,25 @@ private:
         Assert::IsTrue  (flat == ReverseSessionRig::Save (machine), when);
 
         return segments;
+    }
+
+
+    //  The disk's tracks among a save's shared runs: the runs that are not
+    //  RAM chunks, which all have one size.
+    static std::vector<StateSegment> KeepTracks (const std::vector<StateSegment> & segments)
+    {
+        std::vector<StateSegment>  tracks;
+
+
+
+        for (const StateSegment & segment : segments)
+        {
+            if (segment.bytes->size() != RamPages::kChunkBytes)
+            {
+                tracks.push_back (segment);
+            }
+        }
+
+        return tracks;
     }
 };

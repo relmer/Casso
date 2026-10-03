@@ -39,6 +39,8 @@ MemoryBus::MemoryBus()
     // No devices yet: an all-null map correctly resolves every I/O address to
     // "unmapped" until AddDevice rebuilds it.
     m_ioDeviceMap.assign (kIoMapSize, nullptr);
+
+    std::fill (std::begin (m_writeFlag), std::end (m_writeFlag), &m_flagSink);
 }
 
 
@@ -240,6 +242,7 @@ void MemoryBus::WriteByte (Word address, Byte value)
             }
 
             *cell = value;
+            *m_writeFlag[address >> 8] = 1;
             return;
         }
 
@@ -295,6 +298,7 @@ void MemoryBus::StoreToPage (Byte * page, Word address, Byte value)
     }
 
     *cell = value;
+    *m_writeFlag[address >> 8] = 1;
 }
 
 
@@ -396,6 +400,115 @@ void MemoryBus::SetWritePage (int pageIndex, Byte * page)
     {
         m_shadowWritePage[pageIndex] = page;
         m_writePage[pageIndex]       = m_pathWatched[pageIndex] ? nullptr : page;
+        m_writeFlag[pageIndex]       = FindPageFlag (page);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RegisterRamPages
+//
+//  A RAM buffer the page table may map, with one written flag per 256-byte
+//  page of it. Every store the bus makes into a page of the buffer sets that
+//  page's flag. Pages mapped before the buffer registered are resolved again
+//  now. The owner unregisters it before the buffer goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::RegisterRamPages (
+    const Byte  * base,
+    size_t        size,
+    Byte        * pageFlags)
+{
+    UnregisterRamPages (base);
+
+    m_ramRegions.push_back (RamRegion { base, size, pageFlags });
+
+    ResolvePageFlags();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UnregisterRamPages
+//
+//  The pages mapped into the buffer mark nothing from here on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::UnregisterRamPages (const Byte * base)
+{
+    std::erase_if (m_ramRegions, [base] (const RamRegion & region) { return region.base == base; });
+
+    ResolvePageFlags();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindPageFlag
+//
+//  The written flag of the registered page holding page, or a sink for a
+//  page no registered buffer holds, so the write paths store a flag without
+//  testing for one. Also what MarkPointerWritten sets, for a store made
+//  straight into a registered buffer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * MemoryBus::FindPageFlag (const Byte * page)
+{
+    static constexpr size_t  kPageShift = 8;
+    Byte                   * flag       = &m_flagSink;
+    const RamRegion        * region     = nullptr;
+    size_t                   count      = m_ramRegions.size();
+    size_t                   tried      = 0;
+    size_t                   index      = 0;
+
+
+
+    // The region that held the last page first: a banking change maps a run
+    // of pages from one buffer.
+    for (tried = 0; tried < count && page != nullptr; tried++)
+    {
+        index  = (m_lastRegion + tried) % count;
+        region = &m_ramRegions[index];
+
+        if (page >= region->base && page < region->base + region->size)
+        {
+            flag         = &region->flags[static_cast<size_t> (page - region->base) >> kPageShift];
+            m_lastRegion = index;
+            break;
+        }
+    }
+
+    return flag;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolvePageFlags
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ResolvePageFlags()
+{
+    for (int pageIndex = 0; pageIndex < 0x100; pageIndex++)
+    {
+        m_writeFlag[pageIndex] = FindPageFlag (m_shadowWritePage[pageIndex]);
     }
 }
 

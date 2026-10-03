@@ -91,6 +91,8 @@ HRESULT Apple2eMmu::Initialize (
     m_mainRamPtr = mainRam->GetData();
     m_ssBank     = ssBank;
 
+    m_auxPages.Attach (m_bus, m_auxRam.data(), m_auxRam.size());
+
     m_bus->AddDevice (&m_cxxxRouter);
 
     RebindPageTable();
@@ -345,6 +347,8 @@ void Apple2eMmu::OnPowerCycle (Prng & prng)
     OnSoftReset();
 
     DramPowerOnPattern::Fill (m_auxRam.data(), m_auxRam.size(), prng);
+
+    m_auxPages.MarkAllWritten();
 }
 
 
@@ -823,7 +827,8 @@ HRESULT Apple2eMmu::SaveState (StateWriter & writer) const
     writer.WriteBool  (m_intCxRom);
     writer.WriteBool  (m_slotC3Rom);
     writer.WriteBool  (m_intC8Rom);
-    writer.WriteBytes (m_auxRam.data(), m_auxRam.size());
+
+    m_auxPages.Save (writer, m_auxRam.data(), m_auxRam.size());
 
     return writer.EndSection();
 }
@@ -859,6 +864,8 @@ HRESULT Apple2eMmu::LoadState (StateReader & reader)
     reader.ReadBool  (m_slotC3Rom);
     reader.ReadBool  (m_intC8Rom);
     reader.ReadBytes (m_auxRam.data(), m_auxRam.size());
+
+    m_auxPages.MarkAllWritten();
 
     hr = reader.EndSection();
     CHR (hr);

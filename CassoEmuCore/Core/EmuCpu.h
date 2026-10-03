@@ -118,7 +118,7 @@ public:
 
     // 6502 memory surface
     Byte             PeekByte   (Word address) const            { return m_cpu6502->PeekByte (address); }
-    void             PokeByte   (Word address, Byte value)      { m_cpu6502->PokeByte (address, value); }
+    void             PokeByte   (Word address, Byte value)      { m_cpu6502->PokeByte (address, value); m_memoryBus.MarkPointerWritten (m_cpu6502->GetMemory() + address); }
     Word             PeekWord   (Word address) const            { return m_cpu6502->PeekWord (address); }
     const Byte *     GetMemory  () const                        { return m_cpu6502->GetMemory (); }
 

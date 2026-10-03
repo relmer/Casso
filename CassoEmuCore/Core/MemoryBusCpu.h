@@ -4,6 +4,7 @@
 #include "Cpu6502.h"
 #include "IMachineState.h"
 #include "MemoryBus.h"
+#include "RamPages.h"
 
 class Prng;
 
@@ -67,4 +68,5 @@ public:
 
 private:
     MemoryBus &  m_memoryBus;
+    RamPages     m_pages;           // marks memory[]'s written pages; see RamPages
 };

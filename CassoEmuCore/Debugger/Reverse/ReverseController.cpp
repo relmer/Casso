@@ -952,6 +952,8 @@ HRESULT ReverseController::CaptureNow (
     hr = m_machine.SaveState (writer);
     CHR (hr);
 
+    m_machine.CheckSharedSave (writer);
+
     if (takeKeyframe)
     {
         hr = m_keyframes.Add (position, cycle, journalEnd, writer);

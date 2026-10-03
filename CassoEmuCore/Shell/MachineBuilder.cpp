@@ -200,6 +200,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         end = static_cast<Word> (region.address + region.size - 1);
 
         device = std::make_unique<RamDevice> (start, end);
+        device->AttachPages (m_host.GetMemoryBus());
 
         if (m_host.GetRefs().mainRamDev == nullptr)
         {

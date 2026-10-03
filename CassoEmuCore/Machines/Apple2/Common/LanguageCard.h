@@ -5,6 +5,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/RamPages.h"
 
 class IMmu;
 
@@ -103,6 +104,7 @@ private:
     void ApplySwitch  (Byte switchAddr, bool isWrite);
     Byte * SelectBank4K (Word address);
     Byte * SelectMainHigh (Word address);
+    void   MarkAllWritten ();
 
     MemoryBus &    m_bus;
 
@@ -115,6 +117,14 @@ private:
     vector<Byte>   m_ramAuxHigh;
 
     vector<Byte>   m_romData;
+
+    // One per RAM bank above, in the same order; see RamPages.
+    RamPages       m_bank1MainPages;
+    RamPages       m_bank2MainPages;
+    RamPages       m_mainHighPages;
+    RamPages       m_bank1AuxPages;
+    RamPages       m_bank2AuxPages;
+    RamPages       m_auxHighPages;
 
     IMmu *         m_mmu            = nullptr;
     Word           m_flags          = kLcFlagsPowerOn;

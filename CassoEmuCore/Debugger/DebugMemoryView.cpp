@@ -107,6 +107,7 @@ bool DebugMemoryView::TryPoke (Word address, Byte value)
     }
 
     page[address & kPageMask] = value;
+    bus.MarkPointerWritten (&page[address & kPageMask]);
     bus.MarkVideoDirty();
     return true;
 }
@@ -180,6 +181,7 @@ bool DebugMemoryView::TryPokeShown (Word address, Byte value)
     }
 
     page[address & kPageMask] = value;
+    m_host.GetMemoryBus().MarkPointerWritten (&page[address & kPageMask]);
     return true;
 }
 

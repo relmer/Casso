@@ -489,6 +489,8 @@ HRESULT Replayer::TakeCheckpointIfDue()
     hr = m_machine.SaveState (writer);
     CHR (hr);
 
+    m_machine.CheckSharedSave (writer);
+
     hr = m_ring.AddCheckpoint (m_machine.GetPosition(), cycle, m_journalCursor, writer.TakeBytes(), writer.TakeSegments());
     CHR (hr);
 

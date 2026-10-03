@@ -91,7 +91,12 @@ public:
         hr = controller.Start (settings);
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kReuseSettle);
+        // The limit grows once the ring fills, while the checkpoints after the
+        // first share most of their RAM, so the ring is run until it stays full.
+        for (steps = 0; steps < s_kReuseSettle && controller.GetRing().GetCheckpointCount() < controller.GetRing().GetCheckpointLimit(); steps++)
+        {
+            machine.RunCycles (KeyframeSettings::kFrameCycles * s_kReuseOffSpacing);
+        }
 
         Assert::IsTrue (controller.GetRing().GetCheckpointCount() == controller.GetRing().GetCheckpointLimit(), L"the ring is full, so its pool holds spares");
 

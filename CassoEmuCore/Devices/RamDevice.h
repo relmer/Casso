@@ -5,6 +5,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/RamPages.h"
 
 
 
@@ -32,6 +33,10 @@ public:
 
     Byte * GetData () { return m_data.data (); }
 
+    // Register with the bus that maps this RAM, so its writes are marked for
+    // reverse execution's checkpoints (see RamPages).
+    void AttachPages (MemoryBus & bus);
+
     // IMachineState: every byte. The address range is wiring, saved only to
     // check that the RAM loading the state covers the same addresses.
     HRESULT SaveState (StateWriter & writer) const override;
@@ -46,4 +51,5 @@ private:
     Word          m_start;
     Word          m_end;
     vector<Byte>  m_data;
+    RamPages      m_pages;
 };

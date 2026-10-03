@@ -8,6 +8,7 @@
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/StateWriter.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -288,6 +289,11 @@ public:
     HRESULT   SaveState      (StateWriter & writer) const;
     HRESULT   LoadState      (StateReader & reader);
 
+    //  Debug builds only: asserts that a sharing save, flattened, is the
+    //  same blob a full save of the machine gives now, which catches a RAM
+    //  write no page marking saw. Call it right after the save.
+    void      CheckSharedSave (const StateWriter & writer) const;
+
     //  A hash of every ROM image the machine was built with. It is kept until a
     //  ROM image is patched or replaced, and GetRomIdentityHashCount says how
     //  many times it was worked out.
@@ -365,6 +371,12 @@ private:
 
     // The part list a save or load fills; kept so it keeps its capacity.
     mutable std::vector<IMachineState *>  m_stateParts;
+
+#ifdef _DEBUG
+    // CheckSharedSave's full save and flattened copy, kept between checks.
+    mutable StateWriter        m_checkWriter;
+    mutable std::vector<Byte>  m_checkFlat;
+#endif
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;

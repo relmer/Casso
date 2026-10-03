@@ -122,6 +122,16 @@ public:
 
     Byte * const * GetShadowReadPageTable () const      { return m_shadowReadPage; }
 
+    // Written-page marking, for reverse execution's checkpoints: a RAM buffer
+    // registers one flag per 256-byte page of it, and every store the bus
+    // makes into a mapped page sets that page's flag. A write made around the
+    // bus, such as a debugger edit through the shadow table, calls
+    // MarkWritten. The flags are the owner's to clear.
+    void   RegisterRamPages   (const Byte * base, size_t size, Byte * pageFlags);
+    void   UnregisterRamPages (const Byte * base);
+    void   MarkWritten        (Word address)            { *m_writeFlag[address >> 8] = 1; }
+    void   MarkPointerWritten (const Byte * cell)       { *FindPageFlag (cell) = 1; }
+
     // The instruction trace: while on, every page takes the watched path, so
     // every access reaches the trace sink as well as the watch sink's pages;
     // off, the watch mask alone is published again. The watched page count
@@ -228,4 +238,22 @@ private:
     bool                    m_traceAllPages          = false;
 
     BankingChangedFn        m_bankingChanged;
+
+    // Written-page marking (see RegisterRamPages). m_writeFlag holds, for
+    // each page, the flag of the registered page the shadow write table maps
+    // there, or the sink.
+    struct RamRegion
+    {
+        const Byte  * base  = nullptr;
+        size_t        size  = 0;
+        Byte        * flags = nullptr;
+    };
+
+    Byte * FindPageFlag     (const Byte * page);
+    void   ResolvePageFlags ();
+
+    std::vector<RamRegion>  m_ramRegions;
+    size_t                  m_lastRegion       = 0;     // where FindPageFlag last found a page
+    Byte *                  m_writeFlag[0x100] = {};
+    Byte                    m_flagSink         = 0;
 };

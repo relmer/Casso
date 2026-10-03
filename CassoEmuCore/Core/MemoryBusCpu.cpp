@@ -31,6 +31,8 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
     // with bus-routed reads and writes. EmulatorShell may later remap
     // individual pages (e.g. $0400-$07FF to aux RAM under 80STORE+PAGE2);
     // those calls override these defaults.
+    m_pages.Attach (&m_memoryBus, pBase, kStateRamSize);
+
     for (page = 0x00; page <= 0xBF; page++)
     {
         m_memoryBus.SetReadPage  (page, pBase + (page * 0x100));
@@ -140,6 +142,7 @@ void MemoryBusCpu::InitForEmulation (Prng & prng)
     // bytes drawn from the same Prng PowerCycle uses, so a pinned seed
     // reproduces cold boot byte-for-byte.
     DramPowerOnPattern::Fill (memory.data(), 0xC000, prng);
+    m_pages.MarkAllWritten();
 
     SP = 0xFD;
 
@@ -202,6 +205,7 @@ void MemoryBusCpu::SoftReset()
 void MemoryBusCpu::PowerCycle (Prng & prng)
 {
     DramPowerOnPattern::Fill (memory.data(), 0xC000, prng);
+    m_pages.MarkAllWritten();
 
     A             = 0;
     X             = 0;
@@ -252,7 +256,8 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
     writer.WriteWord   (m_lastBranchFrom);
     writer.WriteBool   (m_hasLastBranch);
 
-    writer.WriteBytes  (memory.data(), kStateRamSize);
+
+    m_pages.Save (writer, memory.data(), kStateRamSize);
 
     return writer.EndSection();
 }
@@ -297,6 +302,8 @@ HRESULT MemoryBusCpu::LoadState (StateReader & reader)
     reader.ReadBool   (m_hasLastBranch);
 
     reader.ReadBytes  (memory.data(), kStateRamSize);
+
+    m_pages.MarkAllWritten();
 
     hr = reader.EndSection();
     CHR (hr);

@@ -74,6 +74,7 @@ void UndoRing::Clear()
         DropOldestCheckpoint();
     }
 
+    m_heldBytes           = 0;
     m_write               = 0;
     m_startPosition       = 0;
     m_endPosition         = 0;
@@ -224,9 +225,13 @@ void UndoRing::PushSlow (uint64_t position, const UndoRecord & record)
 //  AddCheckpoint
 //
 //  The machine's whole state at the boundary before the instruction at
-//  position, as its own bytes and the segments it shares. The first
-//  checkpoint sizes the ring for the whole state, segments counted; past the
-//  limit the oldest checkpoint goes.
+//  position, as its own bytes and the segments it shares. A checkpoint holds
+//  its own bytes and the segments the one before it does not share, which
+//  for a sharing save is the RAM chunks and disk tracks written since then.
+//  The first checkpoint, which holds everything, sizes the ring; past the
+//  limit, or past the budget counting what the checkpoints actually hold,
+//  the oldest goes, and once the ring is full the limit grows when what they
+//  hold leaves room for more.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,21 +244,22 @@ HRESULT UndoRing::AddCheckpoint (
 {
     HRESULT         hr         = S_OK;
     bool            isLater    = m_checkpoints.empty() || position > m_checkpoints.back().position;
-    size_t          stateBytes = state.size();
     UndoCheckpoint  checkpoint;
 
 
 
     CBRAEx (isLater, E_INVALIDARG);
 
-    for (const StateSegment & segment : segments)
-    {
-        stateBytes += segment.bytes->size();
-    }
+    checkpoint.position     = position;
+    checkpoint.cycle        = cycle;
+    checkpoint.journalIndex = journalIndex;
+    checkpoint.state        = std::move (state);
+    checkpoint.segments     = std::move (segments);
+    checkpoint.heldBytes    = GetHeldBytes (checkpoint, m_checkpoints.empty() ? nullptr : &m_checkpoints.back());
 
-    if (stateBytes > m_stateBytes)
+    if (checkpoint.heldBytes > m_stateBytes)
     {
-        SizeFor (stateBytes);
+        SizeFor (checkpoint.heldBytes);
     }
 
     while (m_checkpoints.size() >= m_checkpointLimit)
@@ -261,15 +267,13 @@ HRESULT UndoRing::AddCheckpoint (
         DropOldestCheckpoint();
     }
 
-    checkpoint.position     = position;
-    checkpoint.cycle        = cycle;
-    checkpoint.journalIndex = journalIndex;
-    checkpoint.state        = std::move (state);
-    checkpoint.segments     = std::move (segments);
-
-    m_largestOwnBytes = std::max (m_largestOwnBytes, checkpoint.state.size());
+    m_largestOwnBytes  = std::max (m_largestOwnBytes, checkpoint.state.size());
+    m_heldBytes       += checkpoint.heldBytes;
 
     m_checkpoints.push_back (std::move (checkpoint));
+
+    DropOverBudget();
+    GrowLimitIfRoom();
 
     ScheduleAfter (cycle);
 
@@ -461,6 +465,8 @@ void UndoRing::Truncate (
 {
     while (!m_checkpoints.empty() && (m_checkpoints.back().position > position || (!keepCheckpointAt && m_checkpoints.back().position == position)))
     {
+        m_heldBytes -= m_checkpoints.back().heldBytes;
+
         KeepSpares (m_checkpoints.back());
         m_checkpoints.pop_back();
     }
@@ -739,8 +745,152 @@ void UndoRing::ResizeRecords (size_t capacity)
 
 void UndoRing::DropOldestCheckpoint()
 {
+    UndoCheckpoint  * front = nullptr;
+    size_t            held  = 0;
+
+
+
+    m_heldBytes -= m_checkpoints.front().heldBytes;
+
     KeepSpares (m_checkpoints.front());
     m_checkpoints.pop_front();
+
+    // The new oldest now holds alone what it shared with the one dropped.
+    if (!m_checkpoints.empty())
+    {
+        front = &m_checkpoints.front();
+        held  = GetHeldBytes (*front, nullptr);
+
+        m_heldBytes      += held - front->heldBytes;
+        front->heldBytes  = held;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHeldBytes
+//
+//  What a checkpoint holds that the one before it does not: its own bytes,
+//  and each segment that is not the very buffer the one before holds in the
+//  same place. With no checkpoint before it, every segment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t UndoRing::GetHeldBytes (
+    const UndoCheckpoint  & checkpoint,
+    const UndoCheckpoint  * previous)
+{
+    size_t  held     = checkpoint.state.capacity();
+    size_t  i        = 0;
+    bool    isShared = false;
+
+
+
+    for (i = 0; i < checkpoint.segments.size(); i++)
+    {
+        isShared = previous != nullptr
+                   && i < previous->segments.size()
+                   && previous->segments[i].bytes == checkpoint.segments[i].bytes;
+
+        held += isShared ? 0 : checkpoint.segments[i].bytes->size();
+    }
+
+    return held;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropOverBudget
+//
+//  Drops the oldest checkpoints while what they hold and the records their
+//  intervals need pass the budget, down to the fewest that cover a keyframe
+//  interval.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UndoRing::DropOverBudget()
+{
+    UndoRingSettings  unbudgeted = m_settings;
+    size_t            minimum    = 0;
+    size_t            perRecords = GetRecordBytesPerInterval (m_settings.checkpointCycles);
+
+
+
+    unbudgeted.budgetBytes = 0;
+    minimum                = GetCheckpointLimit (unbudgeted, m_keyframeInterval, 0);
+
+    while (m_checkpoints.size() > minimum && m_heldBytes + m_checkpoints.size() * perRecords > m_settings.budgetBytes)
+    {
+        DropOldestCheckpoint();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GrowLimitIfRoom
+//
+//  Once the ring is full, the checkpoints after the oldest show what one
+//  more costs on average: the records of its interval and the bytes it holds
+//  that the one before does not. When the budget left beside the oldest buys
+//  a quarter more checkpoints than the limit, the limit and the record
+//  capacity grow to that. The limit never shrinks here; DropOverBudget keeps
+//  the bytes in the budget whatever the checkpoints come to hold.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UndoRing::GrowLimitIfRoom()
+{
+    size_t  count      = m_checkpoints.size();
+    size_t  perRecords = GetRecordBytesPerInterval (m_settings.checkpointCycles);
+    size_t  first      = 0;
+    size_t  mean       = 0;
+    size_t  affordable = 0;
+    size_t  capacity   = 0;
+
+
+
+    if (count < m_checkpointLimit || count < 2)
+    {
+        return;
+    }
+
+    first = m_checkpoints.front().heldBytes;
+    mean  = (m_heldBytes - first) / (count - 1);
+
+    // The record capacity covers one interval more than the limit, so with
+    // L checkpoints the ring holds (L + 1) intervals of records, the oldest
+    // checkpoint and L - 1 more.
+    if (first + perRecords >= m_settings.budgetBytes)
+    {
+        return;
+    }
+
+    affordable = (m_settings.budgetBytes - first - perRecords + mean) / (mean + perRecords);
+
+    if (affordable <= m_checkpointLimit + m_checkpointLimit / 4)
+    {
+        return;
+    }
+
+    m_checkpointLimit = affordable;
+    capacity          = GetRecordCapacity (affordable);
+
+    if (capacity > m_records.size())
+    {
+        ResizeRecords (capacity);
+    }
 }
 
 

@@ -57,6 +57,12 @@ LanguageCard::LanguageCard (MemoryBus & bus)
       m_ramBank2Aux   (kLc4KSize,   0),
       m_ramAuxHigh    (kLcHighSize, 0)
 {
+    m_bank1MainPages.Attach (&m_bus, m_ramBank1Main.data(), m_ramBank1Main.size());
+    m_bank2MainPages.Attach (&m_bus, m_ramBank2Main.data(), m_ramBank2Main.size());
+    m_mainHighPages.Attach  (&m_bus, m_ramMainHigh.data(),  m_ramMainHigh.size());
+    m_bank1AuxPages.Attach  (&m_bus, m_ramBank1Aux.data(),  m_ramBank1Aux.size());
+    m_bank2AuxPages.Attach  (&m_bus, m_ramBank2Aux.data(),  m_ramBank2Aux.size());
+    m_auxHighPages.Attach   (&m_bus, m_ramAuxHigh.data(),   m_ramAuxHigh.size());
 }
 
 
@@ -301,11 +307,15 @@ void LanguageCard::WriteRam (Word address, Byte value)
     {
         bank = SelectBank4K (address);
         bank[address - kLcWindowStart] = value;
+
+        m_bus.MarkPointerWritten (&bank[address - kLcWindowStart]);
     }
     else if (canWrite && address >= kLcHighStart && address <= kLcWindowLast)
     {
         bank = SelectMainHigh (address);
         bank[address - kLcHighStart] = value;
+
+        m_bus.MarkPointerWritten (&bank[address - kLcHighStart]);
     }
 }
 
@@ -361,6 +371,30 @@ void LanguageCard::PowerCycle (Prng & prng)
     DramPowerOnPattern::Fill (m_ramBank1Aux.data(),  m_ramBank1Aux.size(),  prng);
     DramPowerOnPattern::Fill (m_ramBank2Aux.data(),  m_ramBank2Aux.size(),  prng);
     DramPowerOnPattern::Fill (m_ramAuxHigh.data(),   m_ramAuxHigh.size(),   prng);
+
+    MarkAllWritten();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkAllWritten
+//
+//  Every bank was filled or loaded whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LanguageCard::MarkAllWritten()
+{
+    m_bank1MainPages.MarkAllWritten();
+    m_bank2MainPages.MarkAllWritten();
+    m_mainHighPages.MarkAllWritten();
+    m_bank1AuxPages.MarkAllWritten();
+    m_bank2AuxPages.MarkAllWritten();
+    m_auxHighPages.MarkAllWritten();
 }
 
 
@@ -555,12 +589,13 @@ HRESULT LanguageCard::SaveState (StateWriter & writer) const
 
     writer.WriteWord   (m_flags);
     writer.WriteUInt32 (static_cast<uint32_t> (m_preWriteCount));
-    writer.WriteBytes  (m_ramBank1Main.data(), m_ramBank1Main.size());
-    writer.WriteBytes  (m_ramBank2Main.data(), m_ramBank2Main.size());
-    writer.WriteBytes  (m_ramMainHigh.data(),  m_ramMainHigh.size());
-    writer.WriteBytes  (m_ramBank1Aux.data(),  m_ramBank1Aux.size());
-    writer.WriteBytes  (m_ramBank2Aux.data(),  m_ramBank2Aux.size());
-    writer.WriteBytes  (m_ramAuxHigh.data(),   m_ramAuxHigh.size());
+
+    m_bank1MainPages.Save (writer, m_ramBank1Main.data(), m_ramBank1Main.size());
+    m_bank2MainPages.Save (writer, m_ramBank2Main.data(), m_ramBank2Main.size());
+    m_mainHighPages.Save  (writer, m_ramMainHigh.data(),  m_ramMainHigh.size());
+    m_bank1AuxPages.Save  (writer, m_ramBank1Aux.data(),  m_ramBank1Aux.size());
+    m_bank2AuxPages.Save  (writer, m_ramBank2Aux.data(),  m_ramBank2Aux.size());
+    m_auxHighPages.Save   (writer, m_ramAuxHigh.data(),   m_ramAuxHigh.size());
 
     return writer.EndSection();
 }
@@ -600,6 +635,8 @@ HRESULT LanguageCard::LoadState (StateReader & reader)
     reader.ReadBytes  (m_ramBank1Aux.data(),  m_ramBank1Aux.size());
     reader.ReadBytes  (m_ramBank2Aux.data(),  m_ramBank2Aux.size());
     reader.ReadBytes  (m_ramAuxHigh.data(),   m_ramAuxHigh.size());
+
+    MarkAllWritten();
 
     hr = reader.EndSection();
     CHR (hr);

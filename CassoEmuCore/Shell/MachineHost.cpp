@@ -898,6 +898,48 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::CheckSharedSave
+//
+//  A sharing save keeps each RAM chunk nobody wrote since the last one by
+//  reference, trusting the written-page marks; a write that left no mark
+//  would leave a stale chunk in this and every later checkpoint. In a debug
+//  build each such save is flattened and compared with a full save taken
+//  now, and a difference asserts. A release build does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::CheckSharedSave (const StateWriter & writer) const
+{
+#ifdef _DEBUG
+    HRESULT  hr     = S_OK;
+    bool     isSame = false;
+
+
+
+    // Kept from check to check, so the check adds no allocation of its own.
+    m_checkWriter.Reuse (m_checkWriter.TakeBytes());
+
+    hr = SaveState (m_checkWriter);
+    CHRA (hr);
+
+    writer.FlattenInto (m_checkFlat);
+
+    isSame = m_checkFlat == m_checkWriter.GetBytes();
+    CBRA (isSame);
+
+Error:
+    return;
+#else
+    UNREFERENCED_PARAMETER (writer);
+#endif
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::GetStateParts
 //
 //  The fixed save and load order. The CPU comes first, because devices

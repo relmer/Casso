@@ -72,6 +72,7 @@ struct UndoCheckpoint
     size_t                     journalIndex = 0;
     std::vector<Byte>          state;
     std::vector<StateSegment>  segments;
+    size_t                     heldBytes    = 0;      // what it holds that the checkpoint before it does not
 };
 
 
@@ -159,6 +160,7 @@ private:
     static constexpr uint64_t  kMaxRecordBytes       = 1ull << 30;     // the most one Configure may allocate for records
 
     static uint64_t  GetSpacing                (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles);
+    static size_t    GetHeldBytes              (const UndoCheckpoint & checkpoint, const UndoCheckpoint * previous);
     static size_t    GetRecordBytesPerInterval (uint64_t spacing);
 
     void      PushSlow             (uint64_t position, const UndoRecord & record);
@@ -168,6 +170,8 @@ private:
     size_t    GetRecordCapacity    (size_t checkpointLimit) const;
     void      ResizeRecords        (size_t capacity);
     void      DropOldestCheckpoint ();
+    void      DropOverBudget       ();
+    void      GrowLimitIfRoom      ();
     void      KeepSpares           (UndoCheckpoint & checkpoint);
     void      ScheduleAfter        (uint64_t cycle);
     void      Truncate             (uint64_t position, bool keepCheckpointAt);
@@ -180,6 +184,7 @@ private:
     std::vector<std::vector<Byte>>          m_spareStates;                  // buffers of dropped checkpoints, for reuse
     std::vector<std::vector<StateSegment>>  m_spareSegments;                // their segment lists, emptied, for reuse
     size_t                                  m_largestOwnBytes     = 0;      // what a fresh buffer is reserved to
+    size_t                                  m_heldBytes           = 0;      // what the checkpoints hold between them; see GetHeldBytes
     std::vector<UndoRecord>                 m_records;
     size_t                                  m_capacity            = 0;      // m_records.size()
     size_t                                  m_write               = 0;      // slot of m_endPosition

@@ -21,6 +21,7 @@ RamDevice::RamDevice (Word start, Word end)
       m_end   (end),
       m_data  (static_cast<size_t> (end - start + 1), 0)
 {
+    m_pages.Attach (nullptr, m_data.data(), m_data.size());
 }
 
 
@@ -51,6 +52,8 @@ Byte RamDevice::Read (Word address)
 void RamDevice::Write (Word address, Byte value)
 {
     m_data[address - m_start] = value;
+
+    m_pages.MarkWritten (static_cast<size_t> (address - m_start));
 }
 
 
@@ -66,6 +69,8 @@ void RamDevice::Write (Word address, Byte value)
 void RamDevice::Reset()
 {
     fill (m_data.begin(), m_data.end(), Byte (0));
+
+    m_pages.MarkAllWritten();
 }
 
 
@@ -102,6 +107,26 @@ void RamDevice::SoftReset()
 void RamDevice::PowerCycle (Prng & prng)
 {
     DramPowerOnPattern::Fill (m_data.data(), m_data.size(), prng);
+
+    m_pages.MarkAllWritten();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachPages
+//
+//  Registers the buffer with the bus, whose page table maps it, so every
+//  store into it marks the page written; see RamPages.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RamDevice::AttachPages (MemoryBus & bus)
+{
+    m_pages.Attach (&bus, m_data.data(), m_data.size());
 }
 
 
@@ -139,7 +164,8 @@ HRESULT RamDevice::SaveState (StateWriter & writer) const
 
     writer.WriteWord  (m_start);
     writer.WriteWord  (m_end);
-    writer.WriteBytes (m_data.data(), m_data.size());
+
+    m_pages.Save (writer, m_data.data(), m_data.size());
 
     return writer.EndSection();
 }
@@ -178,6 +204,8 @@ HRESULT RamDevice::LoadState (StateReader & reader)
     CBREx (start == m_start && end == m_end, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     reader.ReadBytes (m_data.data(), m_data.size());
+
+    m_pages.MarkAllWritten();
 
     hr = reader.EndSection();
     CHR (hr);
