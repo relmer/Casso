@@ -355,3 +355,21 @@ and fast loading (US2) once US1 lands.
     - Six black keys sit on the sloped front, each with a dished oval face.
     - A chrome handle wraps the front end.
     - The tone and volume thumbwheels sit at the back end, between two screws.
+
+### Hands-on review, 2026-10-02
+
+Built and committed in this round; the decisions are in spec.md under Clarifications, "hands-on review".
+
+- [X] T069 [US4] Remodel the RQ-309DS's keys (flat 5 mm plates hinged under the legend plate, stadium recesses cut straight down and rounded at both edges), round the grille holes, turn the back legends to read correctly, and make the plastic dark gray in `scripts/modelgen/cad_rq309ds.py`
+- [X] T070 [US1] Load FLAC tapes through Media Foundation, stating the content type to the source reader, in `CassoEmuCore/Devices/Tape/TapeImageLoader.cpp` and `MfTapeAudioDecoder.cpp`, with tests in `TapeImageLoaderTests.cpp`
+- [X] T071 [US1] Add `--tape <file>` in `CassoCore/CommandLineParser.cpp`, passed through `GuiMain.cpp` to `EmulatorShell::Initialize`, with a parse test in `UnitTest/CommandLineTests.cpp`
+- [X] T072 [US3] Start recording from RECORD alone and end it with RECORD or Stop (`TapeDeck::Record`, `TapeManager::Execute`); Play unavailable while recording; tests in `TapeDeckTests.cpp` and `TapeDeckWidgetTests.cpp`
+- [X] T073 [US4] Wind with fast-forward and rewind at 20x until stopped or the tape ends (`TapeTransport::FastForwarding`/`Rewinding`, `IDM_TAPE_FASTFORWARD`, Disk menu), with tests in `TapeDeckTests.cpp`
+- [X] T074 [US2] Stop playback 2 s after the guest stops reading, behind the Storage setting "Stop when loading ends" (`tapeIdleStop`, default on), with a test in `TapeDeckTests.cpp`
+- [X] T075 [US4] Rework the flat widget: controls and counter under the rail, recorder right of the drives with the row centered as a unit and top-aligned (`LayoutDriveWidgetsInCommandBar`), hover limited to the name and rail, counter opening `TapePositionDialog` (`TapeDeck::Seek`, `IDM_TAPE_SEEK`), and the counter repainting while the tape moves
+- [X] T076 [US4] Magnify the controls like the macOS dock (raised cosine reaching two pitches, so the row width is constant; fractional geometry; drawn in front of the rail) and label the nearest control, in `TapeDeckWidget.cpp`, with tests
+- [X] T077 [US4] Scroll long names only under the pointer: `DriveWidget`, `TapeDeckWidget`, and the desk's baked names (double bake, texture window slides) in `EmulatorShellScene.cpp`
+- [X] T078 [US4] Desk recorder: keys split out by the loader with their boxes, hit-tested per key, travelling down and back and latching with the transport; key name over the hovered key; tape name and position / length counter under the recorder, clickable
+- [X] T079 [US4] Center the desk scene's framing and orbit pivot on all devices, recorder included, and pan with Ctrl+drag at any zoom
+- [X] T080 [US4] Keep Reset view (Ctrl+0) in the flat themes at least as wide as the drive row (`GetDriveRowWidthPx`)
+- [ ] T081 [US4] Scroll the desk recorder's tape name on hover, as the drive names do (it is shortened with an ellipsis today)

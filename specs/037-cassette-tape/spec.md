@@ -39,6 +39,19 @@ spec.
 - Q: Rebase onto 035-debugger? → A: No. Merge master into 037 after 035 ships, then add the debugger integration (tasks T061-T067).
 - Q: What metadata could Casso Explorer (033) show for a tape? → A: Container info and WAV/AIFF/ID3 tags, plus a pseudo-catalog from a decode-only scan (records, sizes, checksums, Applesoft/Integer listings). Tapes have no catalog, filenames or load addresses. Explorer's, not 037's.
 
+### Session 2026-10-02 (hands-on review)
+
+- Q: Which 3D model? → A: The black-key Panasonic RQ-309DS, modeled from photographs: dark gray case, flat 5 mm keys hinged under the legend plate with straight-sided stadium recesses rounded at both edges, round grille holes, and legends that read correctly from where they face.
+- Q: Should FLAC tapes load? → A: Yes, through Media Foundation like MP3; recognized by the "fLaC" marker and the `.flac` extension, read-only like MP3.
+- Q: Can a tape be named on the command line? → A: Yes, `--tape <file>`, which replaces the remembered tape as `--disk1` does; on the //c it posts a notice and inserts nothing.
+- Q: How does recording start when two keys cannot be pressed at once? → A: RECORD alone starts recording (no Play); clicking it again or Stop ends it and writes the tape. Play is unavailable while recording.
+- Q: What do fast-forward and rewind do? → A: Both wind at 20x tape speed until Stop or the end of the tape, as on the deck; rewind no longer jumps to the start.
+- Q: Should the deck stop when a load finishes? → A: The Apple II has no motor control, so on real hardware a person pressed Stop. A Storage setting, Stop when loading ends (on by default), stops playback 2 s after the guest last read the tape, but only once it has started reading.
+- Q: What units does the counter use? → A: Minutes and seconds of tape from the start, truncated, not the RQ-309DS's mechanical reel count. The position dialog takes seconds, m:ss or h:mm:ss.
+- Q: How does the flat widget look and behave? → A: TAPE caption, name and rail as on a drive; under the rail and no wider than it, six buttons in the deck's own order (RECORD, REW, FF, PLAY, STOP, EJECT) and the counter. The recorder sits right of the drives and the row centers as a unit, top-aligned. Hover highlights only the name and rail. Clicking the name opens the picker; clicking the counter opens the position dialog. The controls magnify like the macOS dock (up to 2x, a raised cosine reaching two pitches so the row never slides), in front of the rail, with the nearest control's name under it.
+- Q: How do long names behave? → A: They scroll only while the pointer is over them, in the flat widgets and on the desk (a drive's face or its name); at rest they show their head.
+- Q: How does the 3D recorder act? → A: Each key is clickable and travels down and back; PLAY latches while playing, RECORD and PLAY while recording, REW or FF while winding. A key's name shows over it under the pointer. The tape name and a position / length counter hang under the recorder; the name opens the picker and the counter the position dialog.
+- Q: How should Reset view (Ctrl+0) size a flat-theme window? → A: Never narrower than the drive row with the recorder in it.
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Load a program from a tape recording (Priority: P1)
@@ -175,8 +188,9 @@ on the //c.
 
 **Playback**
 
-- **FR-001**: Casso MUST accept `.wav` and `.mp3` tape recordings, and SHOULD
-  accept `.aif`/`.aiff`. MP3 is decoded through Windows Media Foundation.
+- **FR-001**: Casso MUST accept `.wav`, `.mp3` and `.flac` tape recordings, and
+  SHOULD accept `.aif`/`.aiff`. MP3 and FLAC are decoded through Windows Media
+  Foundation. A tape MAY be named on the command line with `--tape`.
 - **FR-002**: Casso MUST convert the recording to a sequence of signal level
   transitions and present the current level to the guest on the cassette
   input ($C060 bit 7) on the ][, ][+ and //e.
@@ -190,8 +204,10 @@ on the //c.
 
 **Recording**
 
-- **FR-006**: While record is armed, Casso MUST capture every cassette output
-  toggle ($C020) with its emulated-cycle timestamp.
+- **FR-006**: While recording, Casso MUST capture every cassette output toggle
+  ($C020) with its emulated-cycle timestamp. The RECORD key alone MUST start
+  recording on a writable stopped tape, and Play MUST be unavailable while
+  recording.
 - **FR-007**: Recording MUST overwrite the inserted tape from the current
   position, extending it if the recording runs past the end, as a real deck
   does. On stop or eject Casso MUST write the result as a `.wav` that loads
@@ -215,14 +231,20 @@ on the //c.
 - **FR-012**: A preference MUST let the user choose real-time loading instead,
   with authentic speed and audible tape sound.
 - **FR-012a**: The tape's own sound MUST have a volume setting, and the deck
-  MUST stop at the end of the tape unless the user turns that off.
+  MUST stop at the end of the tape unless the user turns that off. It MUST also
+  stop playback once the guest has read the tape and then left it unread for
+  about 2 s of emulated time, unless the user turns that off.
 - **FR-012b**: Reading and decoding a tape file MUST NOT run on the UI thread;
   a load that takes noticeable time MUST show that it is loading.
 
 **User interface**
 
 - **FR-013**: A tape-deck control MUST offer insert, new blank tape, eject,
-  play, stop, record, and rewind, and MUST show the tape's position and progress.
+  play, stop, record, rewind and fast-forward, and MUST show the tape's
+  position and progress. Rewind and fast-forward MUST wind until stopped or
+  the tape ends. The counter MUST show minutes and seconds and MUST open a
+  dialog that sets the position. A tape file dropped on the deck MUST be
+  inserted.
 - **FR-014**: The tape-deck control MUST follow the conventions of the existing
   drive widgets and device toolbar. Choosing a tape MUST use the disk picker,
   sharing its recent list and scanned folders, filtered to tape files.
@@ -231,6 +253,11 @@ on the //c.
 - **FR-016**: Casso MUST remember the inserted tape across sessions and
   reinsert it on launch, rewound to position 0 and stopped. A remembered tape
   that no longer exists leaves the deck empty.
+- **FR-017**: In the desk scene the RQ-309DS's keys MUST act as the deck's
+  controls and show their state, and the tape's name and counter MUST be shown
+  with the recorder.
+- **FR-018**: A name too long for its place MUST scroll only while the pointer
+  is over it (flat widgets) or over its drive or name (desk scene).
 
 ### Explicitly rejected
 
