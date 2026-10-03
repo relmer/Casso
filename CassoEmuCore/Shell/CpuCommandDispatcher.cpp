@@ -443,7 +443,8 @@ bool CpuCommandDispatcher::TryGetHeatMapShown (const std::string & where, bool &
 //  is passed on as no address. "lines <hex>" is how many lines the code pane
 //  has room for. "trace <decimal>" and "trace end" place the trace pane.
 //  "goto <window> <text>" is a memory window's Go to, as typed. "heatmap on"
-//  and "heatmap off" say whether the heat map pane is shown.
+//  and "heatmap off" say whether the heat map pane is shown. "beam" asks for
+//  the stopped picture to be drawn again with the beam mark turned on or off.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
 //
@@ -471,6 +472,12 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
             target.SetDebugHeatMapShown (isShown);
         }
 
+        return;
+    }
+
+    if (view == "beam")
+    {
+        target.RedrawDebugFrame();
         return;
     }
 

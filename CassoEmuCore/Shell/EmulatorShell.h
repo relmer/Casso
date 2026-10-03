@@ -522,6 +522,9 @@ private:
     // Whether the heat map pane is shown, and so recording.
     void    SetDebugHeatMapShown (bool shown) override;
 
+    // Draws a stopped machine's picture again when the beam mark changed.
+    void    RedrawDebugFrame     () override;
+
     // Rebuilds the window's snapshot when it is showing and due. CPU thread.
     void    PublishDebuggerView ();
 
@@ -550,7 +553,7 @@ private:
     void         SetDebuggerKeyScheme (const std::string & name) override;
     std::string  GetDebuggerTheme     () override;
     bool         IsBeamOverlayOn      () override { return m_isBeamOverlayOn.load (memory_order_acquire); }
-    void         SetBeamOverlayOn     (bool on) override { m_isBeamOverlayOn.store (on, memory_order_release); }
+    void         SetBeamOverlayOn     (bool on) override;
     void         SetDebuggerTheme     (const std::string & name) override;
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;

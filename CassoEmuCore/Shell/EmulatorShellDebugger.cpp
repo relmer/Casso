@@ -778,6 +778,25 @@ void EmulatorShell::SetDebuggerHeatMapShown (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetBeamOverlayOn
+//
+//  UI thread. The CPU thread is asked to draw the picture again, since a
+//  stopped machine would otherwise show the change only at its next step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetBeamOverlayOn (bool on)
+{
+    m_isBeamOverlayOn.store (on, memory_order_release);
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "beam");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ScrollDebuggerCode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1125,6 +1144,36 @@ void EmulatorShell::SetDebugHeatMapShown (bool shown)
 {
     m_debugViewState.SetHeatMapShown (shown);
     m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RedrawDebugFrame
+//
+//  A stopped machine runs no frame, so nothing else would draw the picture
+//  again when the beam mark is turned on or off. CPU thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RedrawDebugFrame()
+{
+    uint64_t  colorSig = ComputeColorSig();
+
+
+
+    if (colorSig == m_lastRenderColorSig)
+    {
+        return;
+    }
+
+    RenderFramebuffer();
+    PublishFramebuffer();
+
+    m_lastRenderColorSig = colorSig;
 }
 
 

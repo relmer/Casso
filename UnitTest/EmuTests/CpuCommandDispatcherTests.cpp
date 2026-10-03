@@ -360,6 +360,19 @@ public:
     }
 
 
+    TEST_METHOD (ABeamChangeRedrawsTheStoppedFrame)
+    {
+        Notebook  target;
+
+        //  A stopped machine runs no frame, so turning the beam mark on or
+        //  off has to ask for the picture to be drawn again.
+        Dispatch (IDM_DEBUG_VIEW, "beam", target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("RedrawDebugFrame"), target.calls[0]);
+    }
+
+
     TEST_METHOD (APauseChangeSaysWhichWay)
     {
         Notebook  target;
@@ -506,6 +519,11 @@ private:
         void     RunReverseCommand (ReverseCommand command, uint64_t argument) override
         {
             calls.push_back (std::format ("RunReverseCommand {} {}", static_cast<int> (command), argument));
+        }
+
+        void     RedrawDebugFrame() override
+        {
+            calls.push_back ("RedrawDebugFrame");
         }
     };
 

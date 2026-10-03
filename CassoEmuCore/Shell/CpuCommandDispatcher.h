@@ -76,6 +76,10 @@ public:
     //  records its accesses.
     virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
 
+    //  Draws the picture again if what is marked on it has changed while
+    //  the machine is stopped, when no frame runs to draw it.
+    virtual void     RedrawDebugFrame         ()                                                { }
+
     //  A memory window's Go to, as typed, to resolve against the machine.
     virtual void     GoToDebugMemory          (int window, const std::string & text)           = 0;
 
