@@ -1237,7 +1237,8 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
     constexpr float                                       kTravelMm = 6.0f;   // how far a key goes down
     constexpr int64_t                                     kDipMs    = 160;   // held down long enough to reach the bottom
     constexpr size_t                                      kRecord   = 0, kRewind = 1, kForward = 2, kPlay = 3;
-    TapeTransport                                         transport = GetTapeView().transport;
+    TapeDeckView                                          view      = GetTapeView();
+    TapeTransport                                         transport = view.transport;
     std::array<float, DeskSceneModel::kRecorderKeyCount>  depths    = {};
     bool                                                  dipping   = false;
 
@@ -1253,11 +1254,24 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         m_recorderKeyLatched.fill (false);
     }
 
-    dipping = m_recorderReleaseAtMs != 0;
+    // A wind key lets go by itself once the deck has wound to the end it was
+    // winding toward and stopped there.
+    if (m_recorderKeyLatched[kRewind] && transport != TapeTransport::Rewinding && view.positionSeconds <= 0.0)
+    {
+        m_recorderKeyLatched[kRewind] = false;
+    }
+
+    if (m_recorderKeyLatched[kForward] && transport != TapeTransport::FastForwarding &&
+        view.positionSeconds >= view.lengthSeconds)
+    {
+        m_recorderKeyLatched[kForward] = false;
+    }
+
+    dipping = m_recorderReleaseAtMs != 0 || m_recorderHeldKey >= 0;
 
     for (size_t key = 0; key < depths.size(); key++)
     {
-        depths[key] = m_recorderKeyLatched[key] ? kTravelMm : 0.0f;
+        depths[key] = (m_recorderKeyLatched[key] || (int) key == m_recorderHeldKey) ? kTravelMm : 0.0f;
     }
 
     for (size_t key = 0; key < depths.size(); key++)

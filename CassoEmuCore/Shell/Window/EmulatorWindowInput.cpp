@@ -1336,15 +1336,27 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     }
 
     // A desk recorder key starts down the moment it is pressed, as under a
-    // finger; what it does still waits for the release, like any button.
+    // finger, and stays down while the button is held; what it does still
+    // waits for the release, like any button. STOP is the exception: it is
+    // the key reaching the bottom that trips the latch, so the held keys let
+    // go then, with the button still down.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen())
     {
         SceneHitResult  keyHit = DeskSceneHit (x, y);
 
         if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
         {
-            m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now().time_since_epoch()).count();
+
+            m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = nowMs;
+            m_recorderHeldKey                               = keyHit.recorderKey;
+
+            if (TapeDeckWidget::GetButtonRegion ((size_t) keyHit.recorderKey) == TapeDeckRegion::Stop)
+            {
+                m_recorderReleaseAtMs = nowMs + s_kRecorderKeyDownMs;
+            }
+
             m_d3dRenderer.MarkRedrawNeeded();
         }
     }
@@ -1484,6 +1496,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
+
+    // A desk recorder key held under the pointer comes back up with the
+    // button, wherever the pointer has gone since.
+    if (m_recorderHeldKey >= 0)
+    {
+        m_recorderHeldKey = -1;
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
 
     //  THE CLICK-CAPTURE GOES BACK FIRST, whatever this release turns out to
     //  mean. OnLButtonDown takes it unconditionally, so every path out of

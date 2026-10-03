@@ -1746,6 +1746,7 @@ private:
 
     // The key under the pointer, whose name shows over it; -1 for none.
     int                       m_recorderHoverKey      = -1;
+    int                       m_recorderHeldKey       = -1;   // the key the left button is holding down
 
     // Which of the desk recorder's keys are locked down. They latch as the
     // RQ-309DS's do -- RECORD, REW, FF and PLAY stay down once pressed -- and

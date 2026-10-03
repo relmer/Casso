@@ -287,6 +287,7 @@ def build():
     KEY_T = 5.0
     RECESS_D = 2.0
     RIM_R, FLOOR_R = 0.5, 0.6
+    STEM_IN, STEM_DROP = 5.0, 10.0
     rw = kw * 0.31                          # the half width of the stadium
     rl = kl * 0.72                          # its overall length
     for i in range(6):
@@ -303,7 +304,12 @@ def build():
                                        (cx + rw + 0.1, cy + rl / 2 + 0.1, ktop + 0.01))
         key = key.edges(rim).fillet(RIM_R)
         hinge = box(kx + 2.0, kx + kw - 2.0, ky1 - 4.0, ky1 - 0.5, top - 6.0, ktop - KEY_T + 0.5)
-        m.add(f"keys_{i}", key.union(hinge), KEY, angular=0.25)
+        # The stem that drops from the key's underside into the case: 5 mm in
+        # from its sides and front, running all the way to its back.
+        stem = (box(kx + STEM_IN, kx + kw - STEM_IN, ky0 + STEM_IN, ky1,
+                    ktop - KEY_T - STEM_DROP, ktop - KEY_T + 0.5)
+                .edges().fillet(0.8))
+        m.add(f"keys_{i}", key.union(hinge).union(stem), KEY, angular=0.25)
     # THE CARRY HANDLE, polished chrome: a bar across the front, standing
     # proud of the front face by its own depth, on two arms that run back
     # along the sides into the case.
