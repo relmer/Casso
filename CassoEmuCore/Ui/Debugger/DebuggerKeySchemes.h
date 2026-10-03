@@ -37,6 +37,9 @@ enum class DebuggerKeyScheme
 //  Windows keys: Ctrl+F to open the find bar, F3 and Shift+F3 for the next
 //  and previous match. No scheme binds any of them to anything else.
 //
+//  None of the three has a key to run one video frame; all take F6, which
+//  none of them binds.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DebuggerKeySchemes
@@ -54,9 +57,10 @@ public:
         Find,
         FindNext,
         FindPrevious,
+        RunFrame,
 
         First = Run,
-        Last  = FindPrevious,
+        Last  = RunFrame,
     };
 
     static constexpr DebuggerKeyScheme  kDefault = DebuggerKeyScheme::VisualStudio;

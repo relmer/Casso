@@ -132,6 +132,29 @@ DebuggerAction DebuggerActions::GetRunToCursor (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetRunFrame
+//
+//  FRAME is Casso's own command, so it runs in Casso mode whatever mode the
+//  console is in, as run to cursor does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetRunFrame()
+{
+    DebuggerAction  action = Make (DebugVerb::RunFrame, "FRAME", CommandMode::Casso);
+
+
+
+    action.command.count = 1;
+    action.echoMode      = CommandMode::Casso;
+    return action;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetToggleBreakpoint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -757,6 +780,7 @@ std::optional<DebuggerAction> DebuggerActions::GetForKey (
     case Action::StepInto: taken = GetStepInto (mode); break;
     case Action::StepOver: taken = GetStepOver (mode); break;
     case Action::StepOut:  taken = GetStepOut  (mode); break;
+    case Action::RunFrame: taken = GetRunFrame();      break;
 
     case Action::RunToCursor:
         if (selected.has_value())

@@ -921,7 +921,8 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
     }
 
     if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
-        id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext)
+        id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext ||
+        id == DebuggerCommands::kRunFrame)
     {
         return paused;
     }

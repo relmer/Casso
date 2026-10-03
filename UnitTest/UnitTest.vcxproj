@@ -209,6 +209,7 @@
     <ClCompile Include="DebuggerTests\MemoryHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\DataDirectiveHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\BeamBreakAndFrameTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerRunFrameKeyTests.cpp" />
     <ClCompile Include="DebuggerTests\ExecutionHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\InputJournalTests.cpp" />
     <ClCompile Include="DebuggerTests\InputObservedAtReadTests.cpp" />

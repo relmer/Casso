@@ -305,6 +305,7 @@ void DebuggerWindow::SetWindowMenus()
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepOver,    L"Step over"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepOut,     L"Step out"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunToCursor, L"Run to cursor"));
+    add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunFrame,    L"Run one frame"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kShowNext,    L"Show next statement"));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
 

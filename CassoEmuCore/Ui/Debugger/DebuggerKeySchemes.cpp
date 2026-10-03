@@ -20,6 +20,7 @@ static constexpr DxuiKeyChord  s_kVisualStudioKeys[] =
     { 'F',    true,  false, false, (int) Action::Find             },
     { VK_F3,  false, false, false, (int) Action::FindNext         },
     { VK_F3,  false, false, true,  (int) Action::FindPrevious     },
+    { VK_F6,  false, false, false, (int) Action::RunFrame         },
 };
 
 static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
@@ -34,6 +35,7 @@ static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
     { 'F',       true,  false, false, (int) Action::Find             },
     { VK_F3,     false, false, false, (int) Action::FindNext         },
     { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
+    { VK_F6,     false, false, false, (int) Action::RunFrame         },
 };
 
 static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
@@ -48,6 +50,7 @@ static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
     { 'F',       true,  false, false, (int) Action::Find             },
     { VK_F3,     false, false, false, (int) Action::FindNext         },
     { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
+    { VK_F6,     false, false, false, (int) Action::RunFrame         },
 };
 
 

@@ -35,6 +35,7 @@ public:
     static constexpr int  kStepOut     = (int) DebuggerKeySchemes::Action::StepOut;
     static constexpr int  kRunToCursor = (int) DebuggerKeySchemes::Action::RunToCursor;
     static constexpr int  kFind        = (int) DebuggerKeySchemes::Action::Find;
+    static constexpr int  kRunFrame    = (int) DebuggerKeySchemes::Action::RunFrame;
 
     static constexpr int  kShowNext    = 100;
     static constexpr int  kTrace       = 101;

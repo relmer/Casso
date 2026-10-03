@@ -94,6 +94,7 @@ public:
     //  Runs to the address. Its echo is Casso's G, whatever the mode, since
     //  GSSquared's g takes no address.
     static DebuggerAction  GetRunToCursor      (Word address);
+    static DebuggerAction  GetRunFrame         ();
 
     //  Sets a breakpoint at the address, or clears the execution breakpoint
     //  there by its id, so a click never clears a different breakpoint that
