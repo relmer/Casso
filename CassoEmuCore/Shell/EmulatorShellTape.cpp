@@ -224,6 +224,14 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
 
 
 
+    // STOP AND EJECT ALWAYS LET THE KEYS UP, even with the tape already
+    // stopped -- at its end, or after a load -- when Stop itself has nothing
+    // to stop. Otherwise a latched key could never be released.
+    if (region == TapeDeckRegion::Stop || region == TapeDeckRegion::Eject)
+    {
+        LatchRecorderKeys (region);
+    }
+
     if (!TapeDeckWidget::IsRegionEnabled (region, view) || m_tapeManager == nullptr)
     {
         return;
@@ -239,7 +247,7 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         case TapeDeckRegion::Play:        m_tapeManager->Play();                                                      break;
         case TapeDeckRegion::Stop:        m_tapeManager->Stop();                                                      break;
         case TapeDeckRegion::Record:      m_tapeManager->SetRecordArmed (view.transport != TapeTransport::Recording); break;
-        case TapeDeckRegion::Eject:       m_tapeManager->Eject();                                                     break;
+        case TapeDeckRegion::Eject:       EjectAndPickTape();                                                         break;
         case TapeDeckRegion::Counter:     PromptTapePosition();                                                       break;
         default:                                                                                                      break;
     }
@@ -313,6 +321,7 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
 {
     constexpr size_t  kRecord      = 0, kRewind = 1, kForward = 2, kPlay = 3;
     bool              wasRecording = m_recorderKeyLatched[kRecord];
+    TapeDeckView      view         = GetTapeView();
 
 
 
@@ -327,6 +336,14 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
         case TapeDeckRegion::Rewind:
         case TapeDeckRegion::FastForward:
         case TapeDeckRegion::Play:
+            // Winding toward the end the tape is already at goes nowhere, so
+            // the key does not stay down; it only dips.
+            if ((region == TapeDeckRegion::Rewind && view.positionSeconds <= 0.0) ||
+                (region == TapeDeckRegion::FastForward && view.positionSeconds >= view.lengthSeconds))
+            {
+                break;
+            }
+
             m_recorderKeyLatched.fill (false);
             m_recorderKeyLatched[region == TapeDeckRegion::Rewind      ? kRewind  :
                                  region == TapeDeckRegion::FastForward ? kForward : kPlay] = true;
@@ -342,6 +359,29 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
     }
 
     m_d3dRenderer.MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectAndPickTape
+//
+//  Eject takes the tape out and offers the picker for the next one, as a
+//  drive's slot does, so with no tape in it is the way to put one in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::EjectAndPickTape()
+{
+    if (GetTapeView().transport != TapeTransport::Empty)
+    {
+        m_tapeManager->Eject();
+    }
+
+    PickTape();
 }
 
 

@@ -1209,7 +1209,7 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 {
     constexpr float                                       kTravelMm = 3.0f;   // how far a key goes down
-    constexpr int64_t                                     kDipMs    = 160;
+    constexpr int64_t                                     kDipMs    = 160;   // held down long enough to reach the bottom
     constexpr size_t                                      kRecord   = 0, kRewind = 1, kForward = 2, kPlay = 3;
     TapeTransport                                         transport = GetTapeView().transport;
     std::array<float, DeskSceneModel::kRecorderKeyCount>  depths    = {};
@@ -1240,23 +1240,60 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         }
     }
 
-    // A KEY TRAVELS, it does not teleport: each eases toward where it belongs
-    // at a full stroke in kStrokeMs, so a press is seen going down and a
-    // release coming back up.
+    // A KEY IS PUSHED DOWN AND SPRINGS BACK. Going down it starts slow and
+    // speeds up to the bottom, as under a finger; coming up it returns fast
+    // and at an even speed, as a spring sends it.
     {
-        constexpr float  kStrokeMs = 70.0f;
-        float            elapsed   = (m_recorderKeyStepMs == 0) ? 0.0f : (float) (nowMs - m_recorderKeyStepMs);
-        float            step      = kTravelMm * clamp (elapsed, 0.0f, 100.0f) / kStrokeMs;
+        constexpr float  kDownMs  = 120.0f;
+        constexpr float  kUpMs    = 35.0f;     // a full stroke back up
+        float            elapsed  = (m_recorderKeyStepMs == 0) ? 0.0f : clamp ((float) (nowMs - m_recorderKeyStepMs), 0.0f, 100.0f);
 
         m_recorderKeyStepMs = nowMs;
 
         for (size_t key = 0; key < depths.size(); key++)
         {
-            float &  shown = m_recorderKeyShownMm[key];
+            float &    shown = m_recorderKeyShownMm[key];
+            int64_t &  start = m_recorderKeyDownMs[key];
 
-            shown    = (shown < depths[key]) ? min (shown + step, depths[key]) : max (shown - step, depths[key]);
-            dipping  = dipping || shown != depths[key];
+            if (depths[key] > 0.0f)
+            {
+                float  p = 0.0f;
+
+                if (start == 0)
+                {
+                    start                      = nowMs;
+                    m_recorderKeyDownFrom[key] = shown;
+                }
+
+                p     = min (1.0f, (float) (nowMs - start) / kDownMs);
+                shown = m_recorderKeyDownFrom[key] + (kTravelMm - m_recorderKeyDownFrom[key]) * p * p;
+            }
+            else
+            {
+                start = 0;
+                shown = max (0.0f, shown - kTravelMm * elapsed / kUpMs);
+            }
+
+            dipping = dipping || shown != depths[key];
         }
+    }
+
+    // THE DOOR stands open with no tape in -- after Eject, or before the
+    // first tape -- and closes over one. It eases both ways, and the cassette
+    // behind it goes and comes with the tape.
+    {
+        constexpr float  kOpenMs   = 320.0f;
+        constexpr float  kOpenRad  = 35.0f * 3.14159265f / 180.0f;
+        bool             isEmpty   = transport == TapeTransport::Empty;
+        float            elapsed   = (m_recorderLidStepMs == 0) ? 0.0f : clamp ((float) (nowMs - m_recorderLidStepMs), 0.0f, 100.0f);
+        float            p         = 0.0f;
+
+        m_recorderLidStepMs = nowMs;
+        m_recorderLidOpen   = clamp (m_recorderLidOpen + (isEmpty ? 1.0f : -1.0f) * elapsed / kOpenMs, 0.0f, 1.0f);
+        p                   = m_recorderLidOpen * m_recorderLidOpen * (3.0f - 2.0f * m_recorderLidOpen);
+        dipping             = dipping || (m_recorderLidOpen > 0.0f && m_recorderLidOpen < 1.0f);
+
+        m_deskScene.SetRecorderLid (kOpenRad * p, !isEmpty);
     }
 
     m_deskScene.SetRecorderKeyDepths (m_recorderKeyShownMm);

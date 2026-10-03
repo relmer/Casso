@@ -154,9 +154,17 @@ public:
     // write-protect padlock. Only an actual change dirties geometry.
     void  SetDriveVisuals  (int drive, bool lampOn, float doorProgress, bool writeProtected);
 
-    // How far down each of the recorder's keys stands, in millimeters, left
-    // to right. The keys are re-posed only when one of these changes.
+    // How far down the FRONT of each of the recorder's keys stands, in
+    // millimeters, left to right; each key pivots on the hinge at its back.
+    // The keys are re-posed only when one of these changes.
     void  SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kRecorderKeyCount> & depthsMm);
+
+    // How far the recorder's cassette door stands open, in radians, and
+    // whether a cassette shows behind it.
+    void  SetRecorderLid       (float openRad, bool hasCassette);
+
+    // The door's hinge, behind the door's back edge in the grille.
+    static constexpr float  kLidHingeBehindMm = 10.0f;
 
     // Draws the scene into `dstRtv` (bound here -- the CRT offscreen pass
     // that runs just before leaves ITS target bound, so relying on ambient
@@ -461,6 +469,11 @@ private:
     HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     HRESULT  DrawRecorder     (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
 
+    // Appends `in` turned by `angleRad` about the model's left-right axis
+    // through (pivotY, pivotZ), positive turning the front (low Y) down.
+    static void  AppendHinged (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotY, float pivotZ,
+                               float angleRad, std::vector<Dxui3DRenderer::Vertex> & out);
+
     // The mounted-image names, drawn after every opaque body so the depth
     // they test against is the whole scene's.
     HRESULT  DrawDiskLabels   (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
@@ -623,6 +636,8 @@ private:
     std::vector<Dxui3DRenderer::Vertex>                   m_driveDoorVerts[2];
     std::vector<Dxui3DRenderer::Vertex>                   m_recorderKeyVerts;
     std::array<float, DeskSceneModel::kRecorderKeyCount>  m_recorderKeyDepth  = {};
+    float                                                 m_recorderLidRad    = 0.0f;
+    bool                                                  m_recorderCassette  = true;
 
     // GPU-resident copies of every array that is NOT rebuilt per frame, which
     // is all of them but the doors. Re-uploading the lot each frame made the

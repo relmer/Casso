@@ -1103,6 +1103,7 @@ private:
     void          CreateBlankTape        ();
     void          PromptTapePosition     ();
     void          LatchRecorderKeys      (TapeDeckRegion region);
+    void          EjectAndPickTape       ();
     int           GetDriveRowWidthPx     ();
     void          RegisterTapeDropTarget ();
     void          OnFileDropped          (int tag, const std::wstring & path);
@@ -1725,6 +1726,10 @@ private:
     // and when that was last advanced.
     std::array<float, 6>      m_recorderKeyShownMm    = {};
     int64_t                   m_recorderKeyStepMs     = 0;
+    std::array<int64_t, 6>    m_recorderKeyDownMs     = {};   // when each key's press began, 0 if not going down
+    std::array<float, 6>      m_recorderKeyDownFrom   = {};   // and where it started from
+    float                     m_recorderLidOpen       = 1.0f; // the door, 0 shut to 1 open
+    int64_t                   m_recorderLidStepMs     = 0;
 
     // The key under the pointer, whose name shows over it; -1 for none.
     int                       m_recorderHoverKey      = -1;

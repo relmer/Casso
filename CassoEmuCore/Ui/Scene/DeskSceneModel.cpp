@@ -650,6 +650,26 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
                 }
             }
         }
+        else if (kind == DeskDeviceKind::CassetteRecorder &&
+                 std::find (std::begin (s_kpszLidParts), std::end (s_kpszLidParts), part) != std::end (s_kpszLidParts))
+        {
+            // The door, kept apart so the scene can open it.
+            AppendLitTri (m_lid, tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    m_lidBox[axis]     = (std::min) (m_lidBox[axis],     p[axis]);
+                    m_lidBox[axis + 3] = (std::max) (m_lidBox[axis + 3], p[axis]);
+                }
+            }
+        }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszCassettePrefix, 0) == 0)
+        {
+            // The cassette, which goes out with the tape.
+            AppendLitTri (m_cassette, tri, corners);
+        }
         else if (part.rfind (s_kpszAcPinPrefix, 0) == 0)
         {
             // Plated metal, not painted plastic: the blades keep their tint

@@ -140,11 +140,15 @@ public:
 
 
 
-        Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Name, view));
+        Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Name,  view));
+        Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject, view), L"Eject opens the picker");
 
         for (TapeDeckRegion region : s_kButtons)
         {
-            Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (region, view));
+            if (region != TapeDeckRegion::Eject)
+            {
+                Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (region, view));
+            }
         }
     }
 

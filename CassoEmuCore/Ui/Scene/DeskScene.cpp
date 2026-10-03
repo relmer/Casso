@@ -1381,6 +1381,64 @@ void DeskScene::SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kR
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SetRecorderLid
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderLid (float openRad, bool hasCassette)
+{
+    if (openRad != m_recorderLidRad || hasCassette != m_recorderCassette)
+    {
+        m_recorderLidRad   = openRad;
+        m_recorderCassette = hasCassette;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+        InvalidatePlate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::AppendHinged
+//
+//  The model is X right, Y back, Z up, so a hinge running left to right is
+//  the X axis through (pivotY, pivotZ). Normals turn with the faces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::AppendHinged (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotY, float pivotZ,
+                              float angleRad, std::vector<Dxui3DRenderer::Vertex> & out)
+{
+    float  c = cosf (angleRad);
+    float  s = sinf (angleRad);
+
+
+
+    for (Dxui3DRenderer::Vertex v : in)
+    {
+        float  dy = v.y - pivotY;
+        float  dz = v.z - pivotZ;
+        float  ny = v.ny;
+        float  nz = v.nz;
+
+        v.y  = pivotY + dy * c - dz * s;
+        v.z  = pivotZ + dy * s + dz * c;
+        v.ny = ny * c - nz * s;
+        v.nz = ny * s + nz * c;
+
+        out.push_back (v);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::DrawRecorder
 //
 //  The cassette recorder beside the stack, when the composition placed one:
@@ -1407,16 +1465,34 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
                                 m_geometryRev, mvp, false, viewport, true);
     CHRA (hr);
 
-    // The keys, each lowered by its own depth, rebuilt only when one moved.
+    // The keys, each pivoted down on its rear hinge so its front drops by its
+    // depth; the door turned open on its hinge in the grille; the cassette
+    // only with a tape in. Rebuilt only when something moved.
     if (m_recorderKeyVerts.empty())
     {
+        const float *  lid = m_recorder.LidBox();
+
         for (size_t key = 0; key < DeskSceneModel::kRecorderKeyCount; key++)
         {
-            for (Dxui3DRenderer::Vertex v : m_recorder.KeyVerts (key))
+            const float *  box   = m_recorder.KeyBoxes() + key * 6;
+            float          reach = box[4] - box[1];
+
+            if (reach > 0.0f)
             {
-                v.z -= m_recorderKeyDepth[key];
-                m_recorderKeyVerts.push_back (v);
+                AppendHinged (m_recorder.KeyVerts (key), box[4], box[5],
+                              atanf (m_recorderKeyDepth[key] / reach), m_recorderKeyVerts);
             }
+        }
+
+        if (lid[4] > lid[1])
+        {
+            AppendHinged (m_recorder.LidVerts(), lid[4] + kLidHingeBehindMm, lid[5],
+                          -m_recorderLidRad, m_recorderKeyVerts);
+        }
+
+        if (m_recorderCassette)
+        {
+            AppendHinged (m_recorder.CassetteVerts(), 0.0f, 0.0f, 0.0f, m_recorderKeyVerts);
         }
     }
 
