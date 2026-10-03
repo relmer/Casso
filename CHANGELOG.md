@@ -8,6 +8,16 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+
+- `disk create` appends the default file extension for `--type` if one is not
+  specified
+
+### Fixed
+
+- Casso and CassoCli now open disk images with non-ASCII file names
+- Disk write errors now report the actual cause
+
 ## [1.30.0] - 2026-10-03: The one with 1.21 gigawatts of WOZ 2.1 flux support
 
 ### Added
