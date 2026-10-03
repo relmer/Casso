@@ -48,9 +48,9 @@ void UndoRing::Clear()
         DropOldestCheckpoint();
     }
 
-    m_head                = 0;
-    m_count               = 0;
-    m_firstPosition       = 0;
+    m_write               = 0;
+    m_startPosition       = 0;
+    m_endPosition         = 0;
     m_nextCheckpointCycle = 0;
 }
 
@@ -169,39 +169,24 @@ size_t UndoRing::GetRecordBytesPerInterval (uint64_t spacing)
 //
 //  PushSlow
 //
-//  Push when the record does not simply go on the end. A position that does
-//  not continue the ring starts it over, since the ring only ever holds one
-//  contiguous range; when it is full the oldest record goes.
+//  Push when the record does not continue the ring: it starts the ring over,
+//  since the ring only ever holds one contiguous range. A ring with no room
+//  keeps nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void UndoRing::PushSlow (uint64_t position, const UndoRecord & record)
 {
-    size_t  capacity = m_records.size();
-
-
-
-    if (capacity == 0)
+    if (m_capacity == 0)
     {
         return;
     }
 
-    if (position != GetEndPosition())
-    {
-        m_head          = 0;
-        m_count         = 0;
-        m_firstPosition = position;
-    }
+    m_records[0] = record;
 
-    if (m_count == capacity)
-    {
-        m_head = (m_head + 1) % capacity;
-        m_count--;
-        m_firstPosition++;
-    }
-
-    m_records[(m_head + m_count) % capacity] = record;
-    m_count++;
+    m_write         = (m_capacity == 1) ? 0 : 1;
+    m_startPosition = position;
+    m_endPosition   = position + 1;
 }
 
 
@@ -354,15 +339,19 @@ void UndoRing::Truncate (
         m_checkpoints.pop_back();
     }
 
-    if (position < m_firstPosition)
+    if (position < GetFirstPosition())
     {
-        m_head          = 0;
-        m_count         = 0;
-        m_firstPosition = position;
+        m_write         = 0;
+        m_startPosition = position;
+        m_endPosition   = position;
     }
-    else if (position < GetEndPosition())
+    else if (position < m_endPosition)
     {
-        m_count = static_cast<size_t> (position - m_firstPosition);
+        // The slots before the oldest record held now go to the dropped
+        // future, so the run starts no earlier than that record.
+        m_startPosition = GetFirstPosition();
+        m_write         = GetSlot (position);
+        m_endPosition   = position;
     }
 
     m_nextCheckpointCycle = m_checkpoints.empty() ? 0 : m_checkpoints.back().cycle + m_settings.checkpointCycles;
@@ -382,16 +371,38 @@ bool UndoRing::TryGetRecord (
     uint64_t      position,
     UndoRecord  & outRecord) const
 {
-    bool  isHeld = position >= m_firstPosition && position < GetEndPosition();
+    bool  isHeld = position >= GetFirstPosition() && position < m_endPosition;
 
 
 
     if (isHeld)
     {
-        outRecord = m_records[(m_head + static_cast<size_t> (position - m_firstPosition)) % m_records.size()];
+        outRecord = m_records[GetSlot (position)];
     }
 
     return isHeld;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSlot
+//
+//  The slot of position, which is at most one ring's length before the end;
+//  the end position's own slot is m_write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t UndoRing::GetSlot (uint64_t position) const
+{
+    size_t  back = static_cast<size_t> (m_endPosition - position);
+
+
+
+    return (m_write >= back) ? m_write - back : m_write + m_capacity - back;
 }
 
 
@@ -563,21 +574,21 @@ size_t UndoRing::GetRecordCapacity (size_t checkpointLimit) const
 void UndoRing::ResizeRecords (size_t capacity)
 {
     std::vector<UndoRecord>  records (capacity);
-    size_t                   kept    = std::min (m_count, capacity);
-    size_t                   skipped = m_count - kept;
+    size_t                   kept    = std::min (GetRecordCount(), capacity);
+    uint64_t                 first   = m_endPosition - kept;
     size_t                   i       = 0;
 
 
 
     for (i = 0; i < kept; i++)
     {
-        records[i] = m_records[(m_head + skipped + i) % m_records.size()];
+        records[i] = m_records[GetSlot (first + i)];
     }
 
-    m_records        = std::move (records);
-    m_head           = 0;
-    m_count          = kept;
-    m_firstPosition += skipped;
+    m_records       = std::move (records);
+    m_capacity      = capacity;
+    m_write         = (kept == capacity) ? 0 : kept;
+    m_startPosition = first;
 }
 
 

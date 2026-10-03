@@ -112,37 +112,22 @@ public:
     static size_t  GetCheckpointLimit (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles, size_t stateBytes);
     static size_t  GetMinimumBudget   (const UndoRingSettings & settings, uint64_t keyframeIntervalCycles, size_t stateBytes);
 
-    //  Once per instruction, so the common cases are inline and divide by
-    //  nothing: the next position, with room or over the oldest record once
-    //  the ring is full, which it is for nearly all of a long recording.
+    //  Once per instruction, so the common case is inline and has one store
+    //  to make: the next position goes in the slot after the newest, over
+    //  the oldest record once the ring is full, which it is for nearly all
+    //  of a long recording.
     void      Push (uint64_t position, const UndoRecord & record)
     {
-        size_t  capacity = m_records.size();
-        size_t  slot     = m_head + m_count;
-
-
-
-        if (position != m_firstPosition + m_count || capacity == 0)
+        if (position != m_endPosition || m_capacity == 0)
         {
             PushSlow (position, record);
             return;
         }
 
-        if (m_count == capacity)
-        {
-            m_records[m_head] = record;
-            m_head            = (m_head + 1 == capacity) ? 0 : m_head + 1;
-            m_firstPosition++;
-            return;
-        }
+        m_records[m_write] = record;
 
-        if (slot >= capacity)
-        {
-            slot -= capacity;
-        }
-
-        m_records[slot] = record;
-        m_count++;
+        m_write = (m_write + 1 == m_capacity) ? 0 : m_write + 1;
+        m_endPosition++;
     }
 
     bool               IsCheckpointDue        (uint64_t cycle) const { return m_checkpoints.empty() || cycle >= m_nextCheckpointCycle; }
@@ -157,8 +142,8 @@ public:
     bool      TryFindCheckpointAtOrBefore (uint64_t position, size_t & outIndex) const;
     bool      TryFindCheckpointByCycle    (uint64_t cycle, size_t & outIndex) const;
 
-    uint64_t                  GetFirstPosition   () const { return m_firstPosition; }
-    uint64_t                  GetEndPosition     () const { return m_firstPosition + m_count; }
+    uint64_t                  GetFirstPosition   () const { return m_endPosition - GetRecordCount(); }
+    uint64_t                  GetEndPosition     () const { return m_endPosition; }
     size_t                    GetCheckpointCount () const { return m_checkpoints.size(); }
     size_t                    GetCheckpointLimit () const { return m_checkpointLimit; }
     const UndoCheckpoint    & GetCheckpoint      (size_t index) const { return m_checkpoints[index]; }
@@ -173,6 +158,8 @@ private:
     static size_t    GetRecordBytesPerInterval (uint64_t spacing);
 
     void      PushSlow             (uint64_t position, const UndoRecord & record);
+    size_t    GetRecordCount       () const { return static_cast<size_t> (std::min<uint64_t> (m_endPosition - m_startPosition, m_capacity)); }
+    size_t    GetSlot              (uint64_t position) const;
     void      SizeFor              (size_t stateBytes);
     size_t    GetRecordCapacity    (size_t checkpointLimit) const;
     void      ResizeRecords        (size_t capacity);
@@ -186,8 +173,9 @@ private:
     std::deque<UndoCheckpoint>      m_checkpoints;
     std::vector<std::vector<Byte>>  m_spareStates;                  // buffers of dropped checkpoints, for reuse
     std::vector<UndoRecord>         m_records;
-    size_t                          m_head                = 0;      // slot of m_firstPosition
-    size_t                          m_count               = 0;
-    uint64_t                        m_firstPosition       = 0;
+    size_t                          m_capacity            = 0;      // m_records.size()
+    size_t                          m_write               = 0;      // slot of m_endPosition
+    uint64_t                        m_startPosition       = 0;      // where the run of records began; older ones may be overwritten
+    uint64_t                        m_endPosition         = 0;
     uint64_t                        m_nextCheckpointCycle = 0;
 };
