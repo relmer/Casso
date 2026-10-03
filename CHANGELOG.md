@@ -8,6 +8,11 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed bug causing incorrect disk image to be picked when scrolling through
+  the list of images
+
 ## [1.29.0] - 2026-09-29: The one where controllers Just Work™
 
 ### Added
