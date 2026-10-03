@@ -266,10 +266,11 @@ Error:
 //  Takes all the memory the store will use, once, sized from the budget and
 //  the first state: the table, at one slot per kBudgetPerEntry bytes of
 //  budget; the arena, which is the rest of the budget after the table and
-//  the unpacked newest whole snapshot; and the work buffers. The arena is
-//  never smaller than the newest group, plus a keyframe in flight and the
-//  room lost where the arena wraps, can need at the packer's worst case, so
-//  a store whose budget is too small for that holds more than its budget.
+//  the unpacked newest whole snapshot; and the work buffers, with room for
+//  a state that grows a little. The arena is never smaller than the newest
+//  group, plus a keyframe in flight and the room lost where the arena wraps,
+//  can need at the packer's worst case, so a store whose budget is too small
+//  for that holds more than its budget.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -277,10 +278,12 @@ HRESULT KeyframeStore::Reserve (size_t stateBytes)
 {
     constexpr size_t  kPackSlack    = 4096;
     constexpr size_t  kPackOverhead = 8;          // the packed size bound is stateBytes plus an eighth
+    constexpr size_t  kStateGrowth  = 16;         // a state may grow by a sixteenth without a new buffer
     HRESULT           hr            = S_OK;
     bool              isReserved    = !m_entries.empty();
     size_t            groupSlots    = 0;
     size_t            slotCount     = 0;
+    size_t            stateRoom     = 0;
     size_t            packedBound   = 0;
     size_t            overhead      = 0;
     size_t            minimumArena  = 0;
@@ -293,7 +296,8 @@ HRESULT KeyframeStore::Reserve (size_t stateBytes)
 
     groupSlots   = static_cast<size_t> (m_settings.wholeEvery) + kBufferCount + 2;
     slotCount    = std::max (m_settings.budgetBytes / kBudgetPerEntry, 2 * groupSlots);
-    packedBound  = stateBytes + stateBytes / kPackOverhead + kPackSlack;
+    stateRoom    = stateBytes + stateBytes / kStateGrowth;
+    packedBound  = stateRoom + stateRoom / kPackOverhead + kPackSlack;
     overhead     = slotCount * sizeof (Entry) + stateBytes;
     minimumArena = groupSlots * packedBound;
     arenaBytes   = (m_settings.budgetBytes > overhead) ? m_settings.budgetBytes - overhead : 0;
@@ -307,13 +311,13 @@ HRESULT KeyframeStore::Reserve (size_t stateBytes)
     m_arenaBytes = arenaBytes;
     m_entries.resize (slotCount);
 
-    m_latestWhole.reserve (stateBytes);
-    m_scratch.reserve     (stateBytes);
-    m_olderWhole.reserve  (stateBytes);
+    m_latestWhole.reserve (stateRoom);
+    m_scratch.reserve     (stateRoom);
+    m_olderWhole.reserve  (stateRoom);
 
     for (Job & job : m_jobs)
     {
-        job.state.reserve  (stateBytes);
+        job.state.reserve  (stateRoom);
         job.packed.reserve (packedBound);
     }
 
@@ -656,7 +660,7 @@ Error:
 //  Where size bytes can go: straight after the newest packed snapshot, or
 //  at the start of the arena when the end has no room and the oldest one
 //  does not start before size. The packed snapshots held run from the
-//  oldest's offset to m_arenaEnd, wrapping round the end of the arena.
+//  oldest's offset to m_arenaEnd, wrapping around the end of the arena.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -854,7 +854,7 @@ Error:
 //  the table of its stretch, which is built first when the table holds
 //  another stretch or none. A position recording skipped is in a gap, and
 //  outGapStart is where the gap began. Leaves the machine wherever building
-//  the table left it, so the caller seeks afterwards.
+//  the table left it, so the caller seeks afterward.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

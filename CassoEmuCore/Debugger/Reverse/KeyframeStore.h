@@ -84,7 +84,7 @@ struct KeyframeInfo
 //  or ejected) starts a new group.
 //
 //  The memory is taken once, on the first Add: a table of keyframes and one
-//  arena the packed snapshots are laid into end to end, wrapping round, so
+//  arena the packed snapshots are laid into end to end, wrapping around, so
 //  recording never allocates again. Over the byte budget, or out of room in
 //  the table or the arena, the oldest group is dropped whole, oldest first,
 //  because its differences cannot be restored without it. The newest group
@@ -193,7 +193,7 @@ private:
     std::vector<Entry>             m_entries;              // the table, used as a ring; sized once by Reserve
     size_t                         m_first        = 0;     // slot of the oldest keyframe
     size_t                         m_count        = 0;
-    std::unique_ptr<Byte[]>        m_arena;                // packed snapshots, end to end, wrapping round
+    std::unique_ptr<Byte[]>        m_arena;                // packed snapshots, end to end, wrapping around
     size_t                         m_arenaBytes   = 0;
     size_t                         m_arenaEnd     = 0;     // just past the newest packed snapshot
     size_t                         m_storedBytes  = 0;
