@@ -1699,7 +1699,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
                                              (float) cellPx.cx, (float) cellPx.cy,
                                              kLabelArgb, fontPx, DxuiTheme::kBodyFace,
                                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                                             glow);
+                                             DxuiShadowedText::kGlowReachPx);
             continue;
         }
 
@@ -1710,7 +1710,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
                                              period, (float) cellPx.cy,
                                              kLabelArgb, fontPx, DxuiTheme::kBodyFace,
                                              DxuiTextHAlign::Left, DxuiTextVAlign::Center,
-                                             glow);
+                                             DxuiShadowedText::kGlowReachPx);
         }
     }
 
