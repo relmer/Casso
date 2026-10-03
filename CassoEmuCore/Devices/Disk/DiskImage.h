@@ -151,6 +151,16 @@ public:
 private:
     friend class DiskTrackSnapshot;
 
+    // A track's bits as an immutable buffer, kept while its generation holds,
+    // for a sharing StateWriter.
+    struct SharedTrack
+    {
+        uint64_t                        generation = 0;
+        shared_ptr<const vector<Byte>>  bits;
+    };
+
+    const shared_ptr<const vector<Byte>> & GetSharedTrack (size_t track) const;
+
     void     TouchTrack       (int track);
     void     RenewIdentity    ();
     HRESULT  LoadDsk          (const vector<Byte> & raw);
@@ -180,4 +190,9 @@ private:
     vector<uint64_t>      m_trackGeneration;
     uint64_t              m_imageId             = 0;
     uint64_t              m_lastGeneration      = 0;
+
+    // Filled by SaveState into a sharing writer, on the thread that runs the
+    // machine; a plain save never touches it.
+    mutable vector<SharedTrack>  m_sharedTracks;
+    mutable uint64_t             m_sharedImageId = 0;
 };

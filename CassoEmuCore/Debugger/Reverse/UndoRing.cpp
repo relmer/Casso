@@ -213,28 +213,36 @@ void UndoRing::PushSlow (uint64_t position, const UndoRecord & record)
 //  AddCheckpoint
 //
 //  The machine's whole state at the boundary before the instruction at
-//  position. The first checkpoint sizes the ring for the state; past the
+//  position, as its own bytes and the segments it shares. The first
+//  checkpoint sizes the ring for the whole state, segments counted; past the
 //  limit the oldest checkpoint goes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UndoRing::AddCheckpoint (
-    uint64_t              position,
-    uint64_t              cycle,
-    size_t                journalIndex,
-    std::vector<Byte>  && state)
+    uint64_t                      position,
+    uint64_t                      cycle,
+    size_t                        journalIndex,
+    std::vector<Byte>          && state,
+    std::vector<StateSegment>  && segments)
 {
     HRESULT         hr         = S_OK;
     bool            isLater    = m_checkpoints.empty() || position > m_checkpoints.back().position;
+    size_t          stateBytes = state.size();
     UndoCheckpoint  checkpoint;
 
 
 
     CBRAEx (isLater, E_INVALIDARG);
 
-    if (state.size() > m_stateBytes)
+    for (const StateSegment & segment : segments)
     {
-        SizeFor (state.size());
+        stateBytes += segment.bytes->size();
+    }
+
+    if (stateBytes > m_stateBytes)
+    {
+        SizeFor (stateBytes);
     }
 
     while (m_checkpoints.size() >= m_checkpointLimit)
@@ -246,6 +254,7 @@ HRESULT UndoRing::AddCheckpoint (
     checkpoint.cycle        = cycle;
     checkpoint.journalIndex = journalIndex;
     checkpoint.state        = std::move (state);
+    checkpoint.segments     = std::move (segments);
 
     // A buffer new to the ring grew by doubling; it is reused from here on,
     // so trim it once rather than carry the slack in every checkpoint.
@@ -461,13 +470,27 @@ bool UndoRing::TryFindCheckpointByCycle (
 
 size_t UndoRing::GetByteCount() const
 {
-    size_t  bytes = m_records.size() * sizeof (UndoRecord);
+    size_t                  bytes    = m_records.size() * sizeof (UndoRecord);
+    const UndoCheckpoint  * previous = nullptr;
+    size_t                  i        = 0;
+    bool                    isShared = false;
 
 
 
     for (const UndoCheckpoint & checkpoint : m_checkpoints)
     {
         bytes += checkpoint.state.capacity();
+
+        for (i = 0; i < checkpoint.segments.size(); i++)
+        {
+            isShared = previous != nullptr
+                       && i < previous->segments.size()
+                       && previous->segments[i].bytes == checkpoint.segments[i].bytes;
+
+            bytes += isShared ? 0 : checkpoint.segments[i].bytes->size();
+        }
+
+        previous = &checkpoint;
     }
 
     for (const std::vector<Byte> & spare : m_spareStates)

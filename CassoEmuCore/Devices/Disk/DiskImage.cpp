@@ -882,9 +882,9 @@ uint64_t DiskImage::GetTrackGeneration (int track) const
 //
 //  SaveState
 //
-//  Every track in full. Keyframes use DiskTrackSnapshot instead, which shares
-//  unchanged tracks with the previous keyframe; this is the form for a state
-//  written to a file.
+//  Every track in full. A sharing writer gets each track as a buffer kept
+//  until the track's next write, so saves in between share it rather than
+//  copy it; the blob they stand for is the same.
 //
 //  The dirty flags are not here. They say what the host file lacks, which a
 //  flush changes without the machine changing, so a snapshot that held them
@@ -907,13 +907,58 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
     {
         writer.WriteUInt64 (m_trackBitCounts[track]);
         writer.WriteUInt32 (static_cast<uint32_t> (m_trackBits[track].size()));
-        writer.WriteBytes  (m_trackBits[track].data(), m_trackBits[track].size());
+
+        if (writer.IsSharing())
+        {
+            writer.WriteShared (GetSharedTrack (track));
+        }
+        else
+        {
+            writer.WriteBytes (m_trackBits[track].data(), m_trackBits[track].size());
+        }
     }
 
     writer.WriteBool (m_imageWriteProtected);
     writer.WriteBool (m_userWriteProtected);
 
     return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSharedTrack
+//
+//  The track's bits as an immutable buffer: the one made last time while the
+//  medium and the track's generation are unchanged, since a generation is
+//  renewed on every write, or a fresh copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const shared_ptr<const vector<Byte>> & DiskImage::GetSharedTrack (size_t track) const
+{
+    SharedTrack  * shared = nullptr;
+
+
+
+    if (m_sharedImageId != m_imageId || m_sharedTracks.size() != m_trackBits.size())
+    {
+        m_sharedTracks.assign (m_trackBits.size(), SharedTrack());
+        m_sharedImageId = m_imageId;
+    }
+
+    shared = &m_sharedTracks[track];
+
+    if (shared->bits == nullptr || shared->generation != m_trackGeneration[track])
+    {
+        shared->bits       = make_shared<const vector<Byte>> (m_trackBits[track]);
+        shared->generation = m_trackGeneration[track];
+    }
+
+    return shared->bits;
 }
 
 

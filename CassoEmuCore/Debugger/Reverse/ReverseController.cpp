@@ -924,7 +924,10 @@ HRESULT ReverseController::CaptureNow (
 
     journalEnd = journal.GetEndIndex();
 
-    writer.Reuse (m_ring.TakeSpareBuffer());
+    // A keyframe needs the whole blob in one buffer; a checkpoint alone
+    // shares the disk tracks that have not changed since the last one.
+    writer.Reuse      (m_ring.TakeSpareBuffer());
+    writer.SetSharing (!takeKeyframe);
 
     hr = m_machine.SaveState (writer);
     CHR (hr);
@@ -939,7 +942,7 @@ HRESULT ReverseController::CaptureNow (
 
     if (takeCheckpoint)
     {
-        hr = m_ring.AddCheckpoint (position, cycle, journalEnd, writer.TakeBytes());
+        hr = m_ring.AddCheckpoint (position, cycle, journalEnd, writer.TakeBytes(), writer.TakeSegments());
         CHR (hr);
     }
 

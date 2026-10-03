@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/StateWriter.h"
+
 
 
 
@@ -57,16 +59,19 @@ struct UndoRecord
 //  UndoCheckpoint
 //
 //  The whole machine at one instruction boundary, unpacked, with the input
-//  journal's end index at that moment.
+//  journal's end index at that moment. Taken by a sharing StateWriter, the
+//  state is its own bytes and the segments it shares with other checkpoints
+//  (see StateWriter::Flatten).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct UndoCheckpoint
 {
-    uint64_t           position     = 0;
-    uint64_t           cycle        = 0;
-    size_t             journalIndex = 0;
-    std::vector<Byte>  state;
+    uint64_t                   position     = 0;
+    uint64_t                   cycle        = 0;
+    size_t                     journalIndex = 0;
+    std::vector<Byte>          state;
+    std::vector<StateSegment>  segments;
 };
 
 
@@ -141,7 +146,8 @@ public:
     }
 
     bool               IsCheckpointDue        (uint64_t cycle) const { return m_checkpoints.empty() || cycle >= m_nextCheckpointCycle; }
-    HRESULT            AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state);
+    HRESULT            AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state) { return AddCheckpoint (position, cycle, journalIndex, std::move (state), {}); }
+    HRESULT            AddCheckpoint          (uint64_t position, uint64_t cycle, size_t journalIndex, std::vector<Byte> && state, std::vector<StateSegment> && segments);
     std::vector<Byte>  TakeSpareBuffer        ();
     void               TruncateAt             (uint64_t position);
     void               TruncateFrom           (uint64_t position);

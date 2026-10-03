@@ -90,22 +90,33 @@ Error:
 //  RestoreCheckpoint
 //
 //  Loads the ring's checkpoint index and drops what the ring holds after it.
+//  A checkpoint holding shared segments is flattened into the scratch buffer
+//  first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Replayer::RestoreCheckpoint (size_t index)
 {
-    HRESULT   hr       = S_OK;
-    bool      isValid  = index < m_ring.GetCheckpointCount();
-    uint64_t  position = 0;
+    HRESULT                  hr         = S_OK;
+    bool                     isValid    = index < m_ring.GetCheckpointCount();
+    const UndoCheckpoint   * checkpoint = nullptr;
+    bool                     isShared   = false;
+    uint64_t                 position   = 0;
 
 
 
     CBRAEx (isValid, E_INVALIDARG);
 
-    position = m_ring.GetCheckpoint (index).position;
+    checkpoint = &m_ring.GetCheckpoint (index);
+    isShared   = !checkpoint->segments.empty();
+    position   = checkpoint->position;
 
-    hr = LoadState (m_ring.GetCheckpoint (index).state, position, m_ring.GetCheckpoint (index).journalIndex);
+    if (isShared)
+    {
+        StateWriter::Flatten (checkpoint->state, checkpoint->segments, m_scratch);
+    }
+
+    hr = LoadState (isShared ? m_scratch : checkpoint->state, position, checkpoint->journalIndex);
     CHR (hr);
 
     m_ring.TruncateAt (position);
@@ -472,12 +483,13 @@ HRESULT Replayer::TakeCheckpointIfDue()
 
     BAIL_OUT_IF (!isDue, S_OK);
 
-    writer.Reuse (m_ring.TakeSpareBuffer());
+    writer.Reuse      (m_ring.TakeSpareBuffer());
+    writer.SetSharing (true);
 
     hr = m_machine.SaveState (writer);
     CHR (hr);
 
-    hr = m_ring.AddCheckpoint (m_machine.GetPosition(), cycle, m_journalCursor, writer.TakeBytes());
+    hr = m_ring.AddCheckpoint (m_machine.GetPosition(), cycle, m_journalCursor, writer.TakeBytes(), writer.TakeSegments());
     CHR (hr);
 
 Error:

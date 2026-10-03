@@ -11,7 +11,7 @@
 //  Reuse
 //
 //  Starts the stream over in buffer, keeping its capacity, so a writer that
-//  saves the machine many times allocates once.
+//  saves the machine many times allocates once. The sharing setting stays.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,7 +19,10 @@ void StateWriter::Reuse (std::vector<Byte> && buffer)
 {
     m_bytes = std::move (buffer);
     m_bytes.clear();
+    m_segments.clear();
     m_openSections.clear();
+
+    m_sharedBytes = 0;
 }
 
 
@@ -37,11 +40,18 @@ void StateWriter::Reuse (std::vector<Byte> && buffer)
 
 void StateWriter::BeginSection (uint32_t tag, uint16_t version)
 {
+    OpenSection  section;
+
+
+
     WriteUInt32 (tag);
     WriteWord   (version);
     WriteUInt32 (0);
 
-    m_openSections.push_back (m_bytes.size());
+    section.sizeOffset   = m_bytes.size() - sizeof (uint32_t);
+    section.payloadStart = GetStreamOffset();
+
+    m_openSections.push_back (section);
 }
 
 
@@ -60,28 +70,25 @@ void StateWriter::BeginSection (uint32_t tag, uint16_t version)
 
 HRESULT StateWriter::EndSection()
 {
-    HRESULT  hr           = S_OK;
-    bool     isOpen       = !m_openSections.empty();
-    size_t   payloadStart = 0;
-    size_t   payloadSize  = 0;
-    size_t   sizeOffset   = 0;
-    size_t   i            = 0;
+    HRESULT      hr          = S_OK;
+    bool         isOpen      = !m_openSections.empty();
+    OpenSection  section;
+    size_t       payloadSize = 0;
+    size_t       i           = 0;
 
 
 
     CBRAEx (isOpen, E_UNEXPECTED);
 
-    payloadStart = m_openSections.back();
+    section = m_openSections.back();
     m_openSections.pop_back();
 
-    payloadSize = m_bytes.size() - payloadStart;
+    payloadSize = GetStreamOffset() - section.payloadStart;
     CBRAEx (payloadSize <= UINT32_MAX, HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
-
-    sizeOffset = payloadStart - sizeof (uint32_t);
 
     for (i = 0; i < sizeof (uint32_t); i++)
     {
-        m_bytes[sizeOffset + i] = static_cast<Byte> (payloadSize >> (i * CHAR_BIT));
+        m_bytes[section.sizeOffset + i] = static_cast<Byte> (payloadSize >> (i * CHAR_BIT));
     }
 
 Error:
@@ -181,6 +188,80 @@ void StateWriter::WriteUInt64 (uint64_t value)
 void StateWriter::WriteBytes (const Byte * data, size_t count)
 {
     m_bytes.insert (m_bytes.end(), data, data + count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteShared
+//
+//  A raw run of bytes, as WriteBytes, that a sharing writer keeps by
+//  reference. The buffer must not change while any save holding it lives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StateWriter::WriteShared (const std::shared_ptr<const std::vector<Byte>> & bytes)
+{
+    StateSegment  segment;
+
+
+
+    if (!m_isSharing)
+    {
+        WriteBytes (bytes->data(), bytes->size());
+        return;
+    }
+
+    segment.offset = m_bytes.size();
+    segment.bytes  = bytes;
+
+    m_sharedBytes += bytes->size();
+    m_segments.push_back (std::move (segment));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Flatten
+//
+//  The blob a sharing writer stands for: its own bytes with each segment
+//  spliced in at its offset, in order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StateWriter::Flatten (
+    const std::vector<Byte>          & own,
+    const std::vector<StateSegment>  & segments,
+    std::vector<Byte>                & outBytes)
+{
+    size_t  total = own.size();
+    size_t  taken = 0;
+
+
+
+    for (const StateSegment & segment : segments)
+    {
+        total += segment.bytes->size();
+    }
+
+    outBytes.clear();
+    outBytes.reserve (total);
+
+    for (const StateSegment & segment : segments)
+    {
+        outBytes.insert (outBytes.end(), own.begin() + static_cast<ptrdiff_t> (taken), own.begin() + static_cast<ptrdiff_t> (segment.offset));
+        outBytes.insert (outBytes.end(), segment.bytes->begin(), segment.bytes->end());
+
+        taken = segment.offset;
+    }
+
+    outBytes.insert (outBytes.end(), own.begin() + static_cast<ptrdiff_t> (taken), own.end());
 }
 
 
