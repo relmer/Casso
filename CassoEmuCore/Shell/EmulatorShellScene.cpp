@@ -1555,14 +1555,40 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kS
         {
             float  scroll = GetSceneLabelScrollPx (i, nowMs);
 
+            float  top = (float) GetSceneLabelCellTopPx (i, cellPx);
+
             uv[0] = scroll                        / (float) texW;
-            uv[1] = (float) (i * cellPx.cy)       / (float) texH;
+            uv[1] = top                           / (float) texH;
             uv[2] = (scroll + (float) cellPx.cx)  / (float) texW;
-            uv[3] = (float) ((i + 1) * cellPx.cy) / (float) texH;
+            uv[3] = (top + (float) cellPx.cy)     / (float) texH;
         }
 
         m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetSceneLabelCellTopPx
+//
+//  Where a label's cell starts in the baked texture. The cells are stacked
+//  with a glow's reach of empty texture above and below each: a name's glow
+//  spills past its cell, and with the cells touching that spill showed in
+//  the next cell down as a hard dark band along its top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LONG EmulatorShell::GetSceneLabelCellTopPx (int cell, const SIZE & cellPx)
+{
+    LONG  pad = (LONG) ceilf (DxuiShadowedText::kGlowReachPx);
+
+
+
+    return cell * (cellPx.cy + 2 * pad) + pad;
 }
 
 
@@ -1635,7 +1661,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
         }
     }
 
-    hr = text->BeginDrawToTexture ((UINT) bakeW, (UINT) (cellPx.cy * (LONG) names.size()));
+    hr = text->BeginDrawToTexture ((UINT) bakeW, (UINT) GetSceneLabelCellTopPx ((int) names.size(), cellPx));
 
     if (FAILED (hr))
     {
@@ -1655,7 +1681,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
         if (period <= 0.0f)
         {
             DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
-                                             0.0f, (float) (i * cellPx.cy),
+                                             0.0f, (float) GetSceneLabelCellTopPx (i, cellPx),
                                              (float) cellPx.cx, (float) cellPx.cy,
                                              kLabelArgb, fontPx, DxuiTheme::kBodyFace,
                                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
@@ -1666,7 +1692,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
         for (float x : { glow, glow + period })
         {
             DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
-                                             x, (float) (i * cellPx.cy),
+                                             x, (float) GetSceneLabelCellTopPx (i, cellPx),
                                              period, (float) cellPx.cy,
                                              kLabelArgb, fontPx, DxuiTheme::kBodyFace,
                                              DxuiTextHAlign::Left, DxuiTextVAlign::Center,

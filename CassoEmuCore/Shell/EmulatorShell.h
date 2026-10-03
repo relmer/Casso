@@ -1142,6 +1142,10 @@ private:
     bool    TryBakeSceneDiskLabels  (const std::array<std::wstring, s_kSceneLabelCount> & names,
                                      const SIZE                        & cellPx);
 
+    // Where a label's cell starts in that texture, with room between cells
+    // for each name's glow.
+    static LONG GetSceneLabelCellTopPx (int cell, const SIZE & cellPx);
+
     // Retires both quads, for a theme or a presentation that draws no scene
     // drives at all.
     void    ClearSceneDiskLabels    ();
