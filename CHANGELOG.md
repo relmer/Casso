@@ -8,6 +8,8 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-10-03: The one with 1.21 gigawatts of WOZ 2.1 flux support
+
 ### Added
 
 - GH #159: Support for WOZ 2.1 flux tracks, validated with Bandits, Minotaur,
