@@ -50,6 +50,7 @@ public:
 
     void       Attach         (MemoryBus * bus, const Byte * data, size_t size);
     void       Detach         ();
+    void       OnBusDestroyed ();
 
     void       MarkWritten    (size_t offset)       { m_written[offset / kPageBytes] = 1; }
     void       MarkAllWritten ();

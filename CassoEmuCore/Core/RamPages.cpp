@@ -49,7 +49,7 @@ void RamPages::Attach (
 
     if (m_bus != nullptr)
     {
-        m_bus->RegisterRamPages (m_data, m_size, m_written.data());
+        m_bus->RegisterRamPages (this, m_data, m_size, m_written.data());
     }
 }
 
@@ -70,6 +70,24 @@ void RamPages::Detach()
         m_bus->UnregisterRamPages (m_data);
         m_bus = nullptr;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnBusDestroyed
+//
+//  The bus went first. Nothing marks the pages from here on, so later saves
+//  write the bytes themselves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RamPages::OnBusDestroyed()
+{
+    m_bus = nullptr;
 }
 
 

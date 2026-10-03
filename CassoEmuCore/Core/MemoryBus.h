@@ -6,6 +6,7 @@
 #include "MemoryDevice.h"
 
 class Prng;
+class RamPages;
 
 
 
@@ -61,6 +62,7 @@ class MemoryBus : public IMachineState
 {
 public:
     MemoryBus ();
+    ~MemoryBus ();
 
     // IMachineState: the floating-bus latch only. The page tables are derived
     // from the banking flags the MMU and language card restore, the watch and
@@ -127,7 +129,7 @@ public:
     // makes into a mapped page sets that page's flag. A write made around the
     // bus, such as a debugger edit through the shadow table, calls
     // MarkWritten. The flags are the owner's to clear.
-    void   RegisterRamPages   (const Byte * base, size_t size, Byte * pageFlags);
+    void   RegisterRamPages   (RamPages * owner, const Byte * base, size_t size, Byte * pageFlags);
     void   UnregisterRamPages (const Byte * base);
     void   MarkWritten        (Word address)            { *m_writeFlag[address >> 8] = 1; }
     void   MarkPointerWritten (const Byte * cell)       { *FindPageFlag (cell) = 1; }
@@ -244,6 +246,7 @@ private:
     // there, or the sink.
     struct RamRegion
     {
+        RamPages    * owner = nullptr;
         const Byte  * base  = nullptr;
         size_t        size  = 0;
         Byte        * flags = nullptr;
@@ -254,6 +257,6 @@ private:
 
     std::vector<RamRegion>  m_ramRegions;
     size_t                  m_lastRegion       = 0;     // where FindPageFlag last found a page
-    Byte *                  m_writeFlag[0x100] = {};
+    std::vector<Byte *>     m_writeFlag;                // 256 entries, on the heap: the bus is often a test's local
     Byte                    m_flagSink         = 0;
 };

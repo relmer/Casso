@@ -2,6 +2,7 @@
 
 #include "MemoryBus.h"
 #include "Prng.h"
+#include "RamPages.h"
 #include "StateReader.h"
 #include "StateWriter.h"
 
@@ -40,7 +41,31 @@ MemoryBus::MemoryBus()
     // "unmapped" until AddDevice rebuilds it.
     m_ioDeviceMap.assign (kIoMapSize, nullptr);
 
-    std::fill (std::begin (m_writeFlag), std::end (m_writeFlag), &m_flagSink);
+    m_writeFlag.assign (0x100, &m_flagSink);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~MemoryBus
+//
+//  Tells the owners of RAM still registered that the bus is gone, so they do
+//  not unregister from it later.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemoryBus::~MemoryBus()
+{
+    for (const RamRegion & region : m_ramRegions)
+    {
+        if (region.owner != nullptr)
+        {
+            region.owner->OnBusDestroyed();
+        }
+    }
 }
 
 
@@ -415,18 +440,21 @@ void MemoryBus::SetWritePage (int pageIndex, Byte * page)
 //  A RAM buffer the page table may map, with one written flag per 256-byte
 //  page of it. Every store the bus makes into a page of the buffer sets that
 //  page's flag. Pages mapped before the buffer registered are resolved again
-//  now. The owner unregisters it before the buffer goes.
+//  now. The owner unregisters it before the buffer goes; a bus that goes
+//  first tells every owner still registered, so neither outliving the other
+//  leaves a dangling pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryBus::RegisterRamPages (
+    RamPages    * owner,
     const Byte  * base,
     size_t        size,
     Byte        * pageFlags)
 {
     UnregisterRamPages (base);
 
-    m_ramRegions.push_back (RamRegion { base, size, pageFlags });
+    m_ramRegions.push_back (RamRegion { owner, base, size, pageFlags });
 
     ResolvePageFlags();
 }
