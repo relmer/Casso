@@ -77,4 +77,14 @@ public:
     //  becomes UTF-8, the same calls turn lossless with no edit here.
     static std::string   WideToNarrow (const std::wstring & text);
     static std::wstring  NarrowToWide (const std::string  & text);
+
+    //  The same crossings in an explicit code page, for a caller that knows
+    //  the encoding of its text regardless of the process code page.
+    static std::string   WideToNarrow (const std::wstring & text, unsigned codePage);
+    static std::wstring  NarrowToWide (const std::string  & text, unsigned codePage);
+
+    //  Text in a file format that specifies UTF-8 -- theme.json, the prefs and
+    //  machine JSON -- is UTF-8 whatever the process code page is.
+    static std::wstring  Utf8ToWide   (const std::string  & text);
+    static std::string   WideToUtf8   (const std::wstring & text);
 };

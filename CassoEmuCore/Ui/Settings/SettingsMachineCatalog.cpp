@@ -16,6 +16,7 @@
 #include "Core/PathResolver.h"
 
 #include "resource.h"
+#include "Core/TextEncoding.h"
 
 
 namespace fs = std::filesystem;
@@ -317,7 +318,7 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
     bool                   userExited     = false;
     bool                   selected       = false;
     HINSTANCE              hInstance      = (HINSTANCE) GetModuleHandleW (nullptr);
-    std::wstring      wideName (machineName.begin(), machineName.end());
+    std::wstring           wideName       = TextEncoding::NarrowToWide (std::string (machineName));
     HWND              hwndParent  = (m_emuShell != nullptr && m_emuShell->m_hwnd != nullptr)
                                         ? m_emuShell->m_hwnd
                                         : GetActiveWindow();
@@ -366,7 +367,7 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
         {
             DialogDefinition  def;
 
-            std::wstring     wErr (bootstrapError.begin(), bootstrapError.end());
+            std::wstring     wErr = TextEncoding::NarrowToWide (bootstrapError);
             def = {};
 
             def.title = L"Casso";

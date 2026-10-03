@@ -44,6 +44,7 @@
 #include "Shell/DiskManager.h"
 #include "../Ui/Disk2DebugPanel.h"
 #include "../Ui/InputDebugPanel.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -374,7 +375,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                                     newConfig,
                                     error);
     CHRN (hr, std::format (L"Failed to load machine config:\n{}",
-                           std::wstring (error.begin(), error.end())).c_str());
+                           TextEncoding::NarrowToWide (error)).c_str());
 
     // The mapping and the //c pointer nudge are applied HERE, past the last
     // refusal. The loader above can still reject the config, and until it has

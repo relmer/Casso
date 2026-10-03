@@ -290,7 +290,7 @@ static HRESULT LoadMachineConfig (
         IGNORE_RETURN_VALUE (hrSave, S_OK);
 
         CHRN (hr, format (L"Asset download failed:\n{}",
-                          wstring (error.begin(), error.end())).c_str());
+                          TextEncoding::NarrowToWide (error)).c_str());
 
         // User chose Exit rather than downloading. Stop here with no
         // config; wWinMain shuts down quietly.
@@ -354,7 +354,7 @@ static HRESULT LoadMachineConfig (
             // comes back; what reaches here is a machine whose embedded
             // config could not be read.
             CHRN (hr, format (L"Boot disk picker failed:\n{}",
-                              wstring (error.begin(), error.end())).c_str());
+                              TextEncoding::NarrowToWide (error)).c_str());
 
             // Closing the boot-disk picker is the same clean-shutdown
             // request as choosing Exit above.
@@ -415,7 +415,7 @@ static HRESULT LoadMachineConfig (
                                     outConfig,
                                     error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
-                      wstring (error.begin(), error.end())).c_str());
+                      TextEncoding::NarrowToWide (error)).c_str());
 
     // Validate disk images
     if (!inoutDisk1Path.empty())
@@ -757,8 +757,7 @@ int WINAPI wWinMain (
 
         hrLoad = earlyPrefs.Load (assetBaseDir, earlyFs);
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
-        machineName.assign (earlyPrefs.lastSelectedMachine.begin(),
-                            earlyPrefs.lastSelectedMachine.end());
+        machineName = TextEncoding::Utf8ToWide (earlyPrefs.lastSelectedMachine);
     }
 
     // Resolve the requested machine (from --machine or last-selected prefs)
