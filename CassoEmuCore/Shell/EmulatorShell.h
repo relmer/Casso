@@ -1720,6 +1720,15 @@ private:
     // When each of the desk recorder's keys was last clicked, for its dip.
     std::array<int64_t, 6>    m_recorderKeyDipMs      = {};
 
+    // Where each key stands now, easing toward where the transport puts it,
+    // and when that was last advanced.
+    std::array<float, 6>      m_recorderKeyShownMm    = {};
+    int64_t                   m_recorderKeyStepMs     = 0;
+
+    // The key under the pointer, whose name shows over it; -1 for none.
+    int                       m_recorderHoverKey      = -1;
+    DxuiShadowedText          m_sceneKeyLabel;
+
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no
     // filesystem parsing or text measurement.

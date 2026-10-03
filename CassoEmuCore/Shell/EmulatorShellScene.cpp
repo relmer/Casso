@@ -1203,7 +1203,7 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 //  the tape plays, RECORD and PLAY both down while it records -- the deck's
 //  own interlock -- and the wind keys down while winding. Any key also dips
 //  for a moment when clicked, so a press reads as a press even on a key that
-//  latches nothing. Returns whether a dip is still running.
+//  latches nothing. Returns whether a key is still moving.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1234,7 +1234,26 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         }
     }
 
-    m_deskScene.SetRecorderKeyDepths (depths);
+    // A KEY TRAVELS, it does not teleport: each eases toward where it belongs
+    // at a full stroke in kStrokeMs, so a press is seen going down and a
+    // release coming back up.
+    {
+        constexpr float  kStrokeMs = 70.0f;
+        float            elapsed   = (m_recorderKeyStepMs == 0) ? 0.0f : (float) (nowMs - m_recorderKeyStepMs);
+        float            step      = kTravelMm * clamp (elapsed, 0.0f, 100.0f) / kStrokeMs;
+
+        m_recorderKeyStepMs = nowMs;
+
+        for (size_t key = 0; key < depths.size(); key++)
+        {
+            float &  shown = m_recorderKeyShownMm[key];
+
+            shown    = (shown < depths[key]) ? min (shown + step, depths[key]) : max (shown - step, depths[key]);
+            dipping  = dipping || shown != depths[key];
+        }
+    }
+
+    m_deskScene.SetRecorderKeyDepths (m_recorderKeyShownMm);
 
     return dipping;
 }
@@ -1293,6 +1312,7 @@ void EmulatorShell::SyncSceneTapeLabel()
     {
         m_sceneTapeName.SetVisible (false);
         m_sceneTapeCounter.SetVisible (false);
+        m_sceneKeyLabel.SetVisible (false);
         m_sceneTapeNameRect    = {};
         m_sceneTapeCounterRect = {};
         return;
@@ -1331,6 +1351,39 @@ void EmulatorShell::SyncSceneTapeLabel()
     m_sceneTapeCounter.SetText    (counter);
     m_sceneTapeCounter.Layout     (m_sceneTapeCounterRect, m_scaler);
     m_sceneTapeCounter.SetVisible (!counter.empty());
+
+    // THE KEY UNDER THE POINTER SAYS WHAT IT IS, just above its back edge, as
+    // the flat deck's controls do under themselves.
+    {
+        bool  shown = false;
+
+        if (m_recorderHoverKey >= 0 && m_recorderHoverKey < (int) DeskSceneModel::kRecorderKeyCount)
+        {
+            const float *  box = m_deskScene.RecorderModel().KeyBoxes() + m_recorderHoverKey * 6;
+
+            model[0] = (box[0] + box[3]) * 0.5f;
+            model[1] = box[4];
+            model[2] = box[5];
+
+            shown = box[3] > box[0] &&
+                    SceneCamera::TransformPoint (comp.recorderWorld, model, world) &&
+                    SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, screen);
+        }
+
+        if (shown)
+        {
+            RECT  rc = { (LONG) screen[0] - halfW, (LONG) screen[1] - gapPx - stripH,
+                         (LONG) screen[0] + halfW, (LONG) screen[1] - gapPx };
+
+            m_sceneKeyLabel.SetText        (TapeDeckWidget::GetControlLabel ((size_t) m_recorderHoverKey));
+            m_sceneKeyLabel.SetFontSizeDip (s_kSceneDriveLabelFontDip);
+            m_sceneKeyLabel.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+            m_sceneKeyLabel.SetDpi         (m_scaler.GetDpi());
+            m_sceneKeyLabel.Layout         (rc, m_scaler);
+        }
+
+        m_sceneKeyLabel.SetVisible (shown);
+    }
 }
 
 

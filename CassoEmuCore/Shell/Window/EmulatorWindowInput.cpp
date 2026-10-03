@@ -400,6 +400,24 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
+    // The desk recorder's key under the pointer shows its name over it.
+    {
+        int  key = -1;
+
+        if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
+        {
+            SceneHitResult  hit = DeskSceneHit (x, y);
+
+            key = (hit.target == SceneHitResult::Target::Recorder) ? hit.recorderKey : -1;
+        }
+
+        if (key != m_recorderHoverKey)
+        {
+            m_recorderHoverKey = key;
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
     // write-protected drive under the pointer so the WP tooltip can show.
@@ -606,6 +624,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     // Off every control, so the recorder's magnified controls ease back down
     // and the desk's scrolling name returns to its start.
     m_tapeChrome.UpdateHover (INT_MIN / 2, INT_MIN / 2);
+    m_recorderHoverKey = -1;
 
     if (UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
     {
