@@ -1316,7 +1316,7 @@ is worth its cost.
 
 ### R-040 design: option C
 
-**Status**: designed 2026-10-01 for T439; nothing is built. Tasks T441-T462.
+**Status**: designed 2026-10-01 for T439. Tasks T441-T462. The undo log and ring described here were built and then removed; see "As built 2026-10-03: snapshots only" at the end of this section.
 
 **Two layers, one timeline.** Every executed instruction gets a sequence
 number, its *position*: the CPU's retired-instruction count since the history
@@ -1699,3 +1699,45 @@ Two findings from the determinism test. First, a snapshot can catch a value the 
 Measured in Release x64, pinned to one core, on the rig's guest loop with a disk mounted: without history 70.5x real time; recording at the defaults 46.6x (one checkpoint per frame, one keyframe per 10 frames), so 1 MHz keeps far more headroom than it needs. A checkpoint every 4,096 cycles cost 38.8x. A 32 MB ring holds about 60 frames.
 
 **Disk writes under history (2026-10-02).** While `ReverseController` records, `DiskImageStore` holds the automatic flushes (the motor stopping, a reset and its remount, a power cycle) and keeps a disk that leaves its bay in memory, with its writes, until no snapshot still in history predates its leaving. An eject, a machine switch, exit and `CommitHeldWrites` still flush, each with the disk at the current position, through the atomic write; `DiscardHeldWrites` reloads from the file. A replay marks the store as replaying, so it never flushes or takes up a changed file. The snapshot header holds the identity of the disk in each bay rather than a mask of occupied bays, and loading a snapshot puts those disks back (`DiskImageStore::SeatMedia`) and points the Disk II at them. A mount, eject, swap or image write-protect change makes a boundary keyframe right after it; a replay reaching a boundary loads it instead of comparing it, so the journaled disk command is never redone from a file that may have changed. The dirty flags are not in the disk state any more, since a flush changes them without the machine changing and a replay that did not flush would fail the checksum; a load marks dirty every track whose bits it changes, so a flush after a step back writes the disk at that position (rule 8). Disk identities are per process, so a machine state saved to a file will need another way to match its disks.
+
+#### As built 2026-10-03: snapshots only (T479, T480)
+
+This supersedes the two-layer design above: the undo log, the undo ring and its per-frame checkpoints are gone, and so is T468's floor on the ring's size, which has no ring left to apply to. Where this section and the text above disagree, this section is what the code does.
+
+**What history holds.** The keyframe store and the input journal, nothing else. A keyframe is taken every 10 video frames (170,300 cycles) on cycle boundaries; the per-instruction hook (`HistoryRecorder::OnInstructionStart`) is one compare of the cycle count against the next due cycle. The store takes its memory once, on the first keyframe when recording starts: a fixed table of keyframes, one slot per KB of budget (65,536 at the default), and one arena, the rest of the budget less the unpacked newest whole snapshot, into which the packed snapshots are laid end to end, wrapping around. It never allocates again until recording stops. Over the byte budget, or out of table or arena room, the oldest group goes whole; the arena is never smaller than the newest group can need at the packer's worst case, so a tiny budget holds more than it asked for rather than failing. Beside the budget the store keeps fixed work buffers, two job buffers and three unpacked states, about 6 MB on a //e with a disk. Snapshots are still grouped as before (a whole one every 30, XOR differences between, XPRESS packing on the thread pool), and the save still shares the RAM chunks and disk tracks not written since the last one, which saves one whole copy of the state per capture. A steady recording allocates nothing on the machine thread.
+
+**Reaching a position.** Every step back or forward, and every seek, loads the keyframe at or before the target and replays forward by the retired-instruction count. One exception: a target ahead of the machine in the stretch it stands in (from one keyframe to the next) is replayed on from where the machine is, which gives the same state, since nothing in the stretch differs from the recording. A replay therefore reaches a keyframe only when it runs a stretch to its end, which the table build and reverse continue do; T467's checksum is checked there, and a mismatch cuts history at the last good keyframe as before.
+
+**The step table.** The first step command into a stretch replays the whole stretch once from its keyframe and keeps the PC and stack pointer each instruction began with, one entry per position. Later steps, step back over and step back out in that stretch read the table to find their target and then need only the replay to the target. The table goes when a command lands outside its stretch, when the machine becomes live, and on any change. The memory for it (one entry per two cycles of the interval) is reserved when recording starts.
+
+**Reverse continue.** One stretch at a time, newest first, each replayed once with the stop test asked about every instruction; the latest hit in the newest stretch that has one wins, and the machine lands there with one more replay. The stop test (`IReverseStopTest`) never logs, counts or stops: breakpoints and memory conditions are its `ShouldStopBefore`, and watchpoints come through its own `IWatchSink`, which the replayer puts on the bus in place of the debugger's sink for the replay. The debugger's hook is detached and its watch sink sees nothing, so a replayed instruction never counts a hit or reports a stop. Logpoints do not exist yet (T466).
+
+**Speed (T480).** Recording pauses while the user has chosen Maximum speed and resumes when they leave it (`ReverseController::SetUserMaximumSpeed`). From the position where it paused to the keyframe taken where it resumed is a gap: that keyframe is a boundary marked with the gap's start, and a replay of the stretch before it stops at the gap's start. A step back from the far edge stops at the near one, and a step forward from the near edge lands on the far one, both reported as `ReverseOutcome::AtHistoryGap`; a step over or out that meets a gap stops at its edge the same way. Moving into history while paused first keeps the current position as a keyframe after the gap. Every speed change carries a `SpeedChooser`: the speed menu and the saved preference are the user's; the debugger's full-speed run is automatic and leaves the user's speed, and so recording, alone. No disk acceleration exists; the cassette branch's tape-load boost can mark its own change as automatic. The controller is not yet hosted by the shell, so nothing calls `SetUserMaximumSpeed` from the CPU thread yet.
+
+**One known limit of replay exactness.** A key the host presses is in the live machine's latch before any guest read sees it, but the journal records it at that read (T475), so a position between the press and the read replays without it. Positions outside such a window, and every keyframe, replay exactly.
+
+**Measured 2026-10-03.** Release x64, `RewindProfile` at `b816bc7d7` built against this branch, run with `start /wait /high /affinity 40000000`, so the packing worker shares the one core with the machine. Twelve runs of 6,000 frames each way; each figure is the median of the twelve runs' values.
+
+| Workload | Off: us per frame | Off: per-frame max | On: us per frame | On: per-frame max |
+|---|---|---|---|---|
+| hgr | 94.2 | 161.8 | 101.0 | 739.6 |
+| write | 147.2 | 1,086.8 | 154.8 | 728.0 |
+| game | 94.5 | 172.7 | 104.7 | 1,331.3 |
+
+The recording maximum is the frame in which the worker packs a whole snapshot on the same core; unpinned it runs beside the machine.
+
+| Workload | History per emulated second | Minutes 64 MB holds (measured by filling the store) |
+|---|---|---|
+| hgr | 23,482 bytes | 43.8 |
+| write | 24,333 bytes | 42.3 |
+| game | 42,522 bytes | 24.1 |
+
+Reverse commands after recording 60 seconds (3,600 frames, about 19 million instructions); medians of 15, each landing about 20,000 instructions into a stretch:
+
+| Workload | Step back, first in a stretch | Step back, later in it | Step back over | Reverse continue over all 60 s |
+|---|---|---|---|---|
+| hgr | 2.17 ms | 0.65 ms | 0.65 ms | 591 ms |
+| write | 3.77 ms | 1.27 ms | 1.27 ms | 903 ms |
+| game | 2.66 ms | 0.85 ms | 0.84 ms | 689 ms |
+
+A step forward inside a stretch replays one instruction and took under a microsecond.
