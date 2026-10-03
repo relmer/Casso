@@ -16,9 +16,9 @@ class IFileSystem;
 //
 //  ExecutionHandlers
 //
-//  =, JSR, NOP and ZAP, KEY, BPV and VIDEOINFO, LBR, TF, PROFILE, STOPWATCH,
-//  CYCLES and RCC, and BENCHMARK, BENCH and EXITBENCH. The run commands themselves (G,
-//  GG, T, TL, P, RTS) are the session's own.
+//  =, JSR, NOP and ZAP, KEY, BPV, BPBEAM, FRAME and VIDEOINFO, LBR, TF,
+//  PROFILE, STOPWATCH, CYCLES and RCC, and BENCHMARK, BENCH and EXITBENCH.
+//  The run commands themselves (G, GG, T, TL, P, RTS) are the session's own.
 //
 //  The family is also the session's instruction observer: the profile
 //  counters (while PROFILE ON), the stopwatch (while armed) and the trace file are fed from each
@@ -75,6 +75,8 @@ private:
     static void  WriteNop          (DebugSession & session, Reply & reply);
     void         QueueKeys         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  BreakOnVideoLine  (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  BreakOnBeam       (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  RunFrame          (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ShowVideoInfo     (DebugSession & session, Reply & reply);
     static void  ShowBranchRecord  (DebugSession & session, Reply & reply);
     void         ToggleTrace       (DebugSession & session, const DebugCommand & command, Reply & reply);

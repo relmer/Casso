@@ -81,6 +81,8 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
 
     // Video timing
     { "BPV",         V::BreakOnVideoLine,         F::Video,       A::Headless,     nullptr,     nullptr },
+    { "BPBEAM",      V::BreakOnBeam,              F::Video,       A::Headless,     nullptr,     nullptr },
+    { "FRAME",       V::RunFrame,                 F::Video,       A::Headless,     nullptr,     nullptr },
     { "VIDEOINFO",   V::ShowVideoInfo,            F::Video,       A::Headless,     nullptr,     nullptr },
 
     // Config

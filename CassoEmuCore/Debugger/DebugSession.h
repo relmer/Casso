@@ -240,6 +240,13 @@ public:
     void   ClearVideoBreak       ();
     bool   HasVideoBreak         () const { return m_videoBreak.has_value(); }
 
+    // BPBEAM and FRAME: stop when the beam reaches a place in the frame,
+    // given as the cycle within it, after passing it `passes - 1` times.
+    // A break for one run goes at the run's stop, whatever stopped it.
+    void   SetBeamBreak          (uint32_t cycleInFrame, uint32_t passes = 1, bool isForOneRun = false);
+    void   ClearBeamBreak        ();
+    bool   HasBeamBreak          () const { return m_beamBreak.has_value(); }
+
     // DebugHook: the stop conditions consulted before each instruction.
     bool   ShouldStopBefore         (Word pc) override;
     bool   HasPendingStop           () const override;
@@ -266,6 +273,14 @@ private:
         uint32_t  first        = 0;
         uint32_t  last         = 0;
         uint32_t  lastScanline = 0;
+    };
+
+    struct BeamBreak
+    {
+        uint32_t  target    = 0;
+        uint32_t  passes    = 1;
+        uint32_t  lastCycle = 0;
+        bool      isOneRun  = false;
     };
 
     //  Where a Monitor `G` returns to. The ROM's own G pushes the address of
@@ -296,6 +311,8 @@ private:
     bool   TryMatchBeforeWatchpoint (Word pc);
     void   NoteCpuOwnReads       (Word pc);
     bool   HasEnteredVideoBreak  ();
+    bool   HasReachedBeamBreak   ();
+    uint32_t  GetBeamCycle       () const;
     void   ClearTemporary        (const StopEvent & stop);
     void   AttachCondition       (StopEvent & event) const;
 
@@ -343,6 +360,8 @@ private:
     std::optional<WatchHit>               m_beforeHit;
     std::optional<VideoBreak>             m_videoBreak;
     bool                                  m_videoBreakHit = false;
+    std::optional<BeamBreak>              m_beamBreak;
+    bool                                  m_beamBreakHit  = false;
 
     std::optional<Word>                   m_assemblyAddress;
     std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;

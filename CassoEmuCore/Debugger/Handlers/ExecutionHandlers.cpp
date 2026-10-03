@@ -27,6 +27,8 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
     case DebugVerb::WriteNop:          WriteNop          (session, reply);          return true;
     case DebugVerb::InjectKey:         QueueKeys         (session, command, reply); return true;
     case DebugVerb::BreakOnVideoLine:  BreakOnVideoLine  (session, command, reply); return true;
+    case DebugVerb::BreakOnBeam:       BreakOnBeam       (session, command, reply); return true;
+    case DebugVerb::RunFrame:          RunFrame          (session, command, reply); return true;
     case DebugVerb::ShowVideoInfo:     ShowVideoInfo     (session, reply);          return true;
     case DebugVerb::ShowBranchRecord:  ShowBranchRecord  (session, reply);          return true;
     case DebugVerb::TraceToFile:       ToggleTrace       (session, command, reply); return true;
@@ -362,6 +364,82 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
 
     session.SetVideoBreak (command.a1, last);
     reply.data = MessageData { { std::format ("Breakpoint set on video scanlines ${:X}-${:X}. It clears after it fires.", command.a1, last) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::BreakOnBeam
+//
+//  BPBEAM line cycle stops when the beam reaches that scanline and cycle;
+//  BPBEAM VBL stops where vertical blank starts. Like BPV it fires once, and
+//  the numbers are hex.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BreakOnBeam (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    bool      isVbl    = command.text == "VBL";
+    uint32_t  scanline = isVbl ? VideoTiming::kVblankStartScanline : command.a1;
+    uint32_t  cycle    = isVbl ? 0 : command.a2;
+
+
+
+    if (scanline >= VideoTiming::kScanlinesPerFrame)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("Scanline {:X} is past the frame. Scanlines run from 0 to {:X}.", scanline, VideoTiming::kScanlinesPerFrame - 1));
+        return;
+    }
+
+    if (cycle >= VideoTiming::kCyclesPerScanline)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("Cycle {:X} is past the scanline. Cycles run from 0 to {:X}.", cycle, VideoTiming::kCyclesPerScanline - 1));
+        return;
+    }
+
+    session.SetBeamBreak (scanline * VideoTiming::kCyclesPerScanline + cycle);
+
+    reply.data = MessageData { { isVbl ? std::format ("Breakpoint set at the start of vertical blank, scanline ${:X}. It clears after it fires.", scanline)
+                                       : std::format ("Breakpoint set at video scanline ${:X}, cycle ${:X}. It clears after it fires.", scanline, cycle) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::RunFrame
+//
+//  FRAME [count] runs until the beam comes back to where it is now, count
+//  times: one whole frame each, 17,030 cycles. Any other stop condition met
+//  on the way stops it first, and the frame break then goes with the run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::RunFrame (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    VideoPosition  position = session.GetTarget().GetVideoPosition();
+    DebugCommand   run;
+
+
+
+    session.SetBeamBreak (position.scanline * VideoTiming::kCyclesPerScanline + position.cycleInLine, std::max (command.count, 1u), true);
+
+    run.verb       = DebugVerb::Go;
+    run.sourceName = command.sourceName;
+    run.budget     = command.budget;
+    reply          = session.Execute (run);
+
+    if (reply.status != CommandStatus::Ok)
+    {
+        session.ClearBeamBreak();
+    }
 }
 
 

@@ -25,6 +25,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "=",           H::RunningAndStepping, "= addr",                                         "Set the program counter"                                                                 },
     { "BUDGET",      H::RunningAndStepping, "BUDGET cycles",                                  "Stop each run after a number of cycles, in decimal; 0 removes the limit"                 },
     { "CYCLES",      H::RunningAndStepping, "CYCLES [ABS|REL|PART]",                          "Show the cycles in total, in the last run, or since RCC"                                 },
+    { "FRAME",       H::RunningAndStepping, "FRAME [count]",                                  "Run one video frame, or count of them"                                                   },
     { "G",           H::RunningAndStepping, "G [addr [skip[,len|:last]]]",                    "Run, stopping at addr or when PC leaves the skip range"                                  },
     { "GG",          H::RunningAndStepping, "GG [addr [skip[,len|:last]]]",                   "Run at full speed, stopping as G does"                                                   },
     { "HISTORY",     H::RunningAndStepping, "HISTORY [ON|OFF|SAVE file|first [n]]",           "Show the instruction trace, turn it on or off, or save it"                               },
@@ -44,6 +45,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
 
     { "BP",          H::Breakpoints,        "BP addr[,len|:last]|file:line [IF expr]",        "Set an execution breakpoint, or one on PC with < > = !"                                  },
     { "BPA",         H::Breakpoints,        "BPA addr[,len|:last]",                           "Set an execution breakpoint and a memory watchpoint"                                     },
+    { "BPBEAM",      H::Breakpoints,        "BPBEAM line cycle|VBL",                          "Stop when the beam reaches a scanline and cycle, or vertical blank"                      },
     { "BPC",         H::Breakpoints,        "BPC #|*",                                        "Clear a breakpoint, or all of them"                                                      },
     { "BPCHANGE",    H::Breakpoints,        "BPCHANGE # flags",                               "Change a breakpoint's flags: E enabled, T temporary, S stops"                            },
     { "BPD",         H::Breakpoints,        "BPD #|*",                                        "Disable a breakpoint, or all of them"                                                    },

@@ -576,6 +576,12 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
         return TryParseRange (args.tokens[0], *args.context, command, error) && isLive();
 
+    case DebugVerb::BreakOnBeam:
+        return TryParseBeamArguments (args, command, error);
+
+    case DebugVerb::RunFrame:
+        return TryParseFrameArguments (args, command, error);
+
     case DebugVerb::SetMemoryWatchpoint:
     case DebugVerb::SetReadWatchpoint:
     case DebugVerb::SetWriteWatchpoint:
@@ -796,6 +802,83 @@ bool AppleWinParser::TryParseWatchpointArguments (const Arguments & args, DebugC
     }
 
     return TryParseRange (args.tokens[0], *args.context, command, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseBeamArguments
+//
+//  `BPBEAM line cycle` or `BPBEAM VBL`. VBL is held in text; the handler
+//  turns it into the frame's first blanked scanline.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseBeamArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    bool  isVbl = args.tokens.size() == 1 && ToUpper (args.tokens[0]) == "VBL";
+
+
+
+    if (isVbl)
+    {
+        command.text = "VBL";
+        return true;
+    }
+
+    if (args.tokens.size() != 2)
+    {
+        error = std::format ("{} takes a scanline and a cycle, or VBL.", ToUpper (command.sourceName));
+        return false;
+    }
+
+    command.hasA1 = true;
+    command.hasA2 = true;
+
+    return TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
+           TryEvaluate (args.tokens[1], *args.context, command.a2, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseFrameArguments
+//
+//  FRAME [count] counts frames as T counts steps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseFrameArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    Word  value = 1;
+
+
+
+    if (args.tokens.size() > 1)
+    {
+        error = std::format ("{} takes one argument, not {}.", ToUpper (command.sourceName), args.tokens.size());
+        return false;
+    }
+
+    if (!args.tokens.empty() && !TryEvaluate (args.tokens[0], *args.context, value, error))
+    {
+        return false;
+    }
+
+    if (value == 0)
+    {
+        error = std::format ("{} needs a count of at least 1.", ToUpper (command.sourceName));
+        return false;
+    }
+
+    command.count = value;
+    return true;
 }
 
 

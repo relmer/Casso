@@ -11,6 +11,7 @@ AppleWin commands:
   Running and stepping
     = addr                                               Set the program counter
     CYCLES [ABS|REL|PART]                                Show the cycles in total, in the last run, or since RCC
+    FRAME [count]                                        Run one video frame, or count of them
     G [addr [skip[,len|:last]]]                          Run, stopping at addr or when PC leaves the skip range
     GG [addr [skip[,len|:last]]]                         Run at full speed, stopping as G does
     JSR addr                                             Call a subroutine and run until it returns
@@ -24,6 +25,7 @@ AppleWin commands:
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                 Set an execution breakpoint and a memory watchpoint
+    BPBEAM line cycle|VBL                                Stop when the beam reaches a scanline and cycle, or vertical blank
     BPC #|*                                              Clear a breakpoint, or all of them
     BPCHANGE # flags                                     Change a breakpoint's flags: E enabled, T temporary, S stops
     BPD #|*                                              Disable a breakpoint, or all of them
@@ -251,6 +253,7 @@ Casso commands:
     /= addr                                                Set the program counter
     /BUDGET cycles                                         Stop each run after a number of cycles, in decimal; 0 removes the limit
     /CYCLES [ABS|REL|PART]                                 Show the cycles in total, in the last run, or since RCC
+    /FRAME [count]                                         Run one video frame, or count of them
     /GG [addr [skip[,len|:last]]]                          Run at full speed, stopping as G does
     /HISTORY [ON|OFF|SAVE file|first [n]]                  Show the instruction trace, turn it on or off, or save it
     /JSR addr                                              Call a subroutine and run until it returns
@@ -268,6 +271,7 @@ Casso commands:
   Breakpoints
     /BP addr[,len|:last]|file:line [IF expr]               Set an execution breakpoint, or one on PC with < > = !
     /BPA addr[,len|:last]                                  Set an execution breakpoint and a memory watchpoint
+    /BPBEAM line cycle|VBL                                 Stop when the beam reaches a scanline and cycle, or vertical blank
     /BPC #|*                                               Clear a breakpoint, or all of them
     /BPCHANGE # flags                                      Change a breakpoint's flags: E enabled, T temporary, S stops
     /BPD #|*                                               Disable a breakpoint, or all of them
@@ -467,6 +471,7 @@ Casso commands:
     = addr                                          Set the program counter
     BUDGET cycles                                   Stop each run after a number of cycles, in decimal; 0 removes the limit
     CYCLES [ABS|REL|PART]                           Show the cycles in total, in the last run, or since RCC
+    FRAME [count]                                   Run one video frame, or count of them
     GG [addr [skip[,len|:last]]]                    Run at full speed, stopping as G does
     HISTORY [ON|OFF|SAVE file|first [n]]            Show the instruction trace, turn it on or off, or save it
     JSR addr                                        Call a subroutine and run until it returns
@@ -481,6 +486,7 @@ Casso commands:
     TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
     BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
+    BPBEAM line cycle|VBL                           Stop when the beam reaches a scanline and cycle, or vertical blank
     BPCHANGE # flags                                Change a breakpoint's flags: E enabled, T temporary, S stops
     BPE #|*                                         Enable a breakpoint, or all of them
     BPEDIT # definition                             Replace a breakpoint with a new definition
@@ -645,6 +651,7 @@ Casso commands:
     != addr                                          Set the program counter
     !BUDGET cycles                                   Stop each run after a number of cycles, in decimal; 0 removes the limit
     !CYCLES [ABS|REL|PART]                           Show the cycles in total, in the last run, or since RCC
+    !FRAME [count]                                   Run one video frame, or count of them
     !GG [addr [skip[,len|:last]]]                    Run at full speed, stopping as G does
     !HISTORY [ON|OFF|SAVE file|first [n]]            Show the instruction trace, turn it on or off, or save it
     !JSR addr                                        Call a subroutine and run until it returns
@@ -659,6 +666,7 @@ Casso commands:
     !TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
     !BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
+    !BPBEAM line cycle|VBL                           Stop when the beam reaches a scanline and cycle, or vertical blank
     !BPCHANGE # flags                                Change a breakpoint's flags: E enabled, T temporary, S stops
     !BPEDIT # definition                             Replace a breakpoint with a new definition
     !BPMV addr byte [IF expr]                        Stop when a write leaves addr holding byte
@@ -789,6 +797,7 @@ Casso commands:
     = addr                                               Set the program counter
     BUDGET cycles                                        Stop each run after a number of cycles, in decimal; 0 removes the limit
     CYCLES [ABS|REL|PART]                                Show the cycles in total, in the last run, or since RCC
+    FRAME [count]                                        Run one video frame, or count of them
     G [addr [skip[,len|:last]]]                          Run, stopping at addr or when PC leaves the skip range
     GG [addr [skip[,len|:last]]]                         Run at full speed, stopping as G does
     HISTORY [ON|OFF|SAVE file|first [n]]                 Show the instruction trace, turn it on or off, or save it
@@ -808,6 +817,7 @@ Casso commands:
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                 Set an execution breakpoint and a memory watchpoint
+    BPBEAM line cycle|VBL                                Stop when the beam reaches a scanline and cycle, or vertical blank
     BPC #|*                                              Clear a breakpoint, or all of them
     BPCHANGE # flags                                     Change a breakpoint's flags: E enabled, T temporary, S stops
     BPD #|*                                              Disable a breakpoint, or all of them

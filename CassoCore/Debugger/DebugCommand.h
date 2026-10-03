@@ -83,6 +83,8 @@ enum class DebugVerb
     ShowCycles,
     ResetCycles,
     BreakOnVideoLine,
+    BreakOnBeam,
+    RunFrame,
     ShowVideoInfo,
     Pause,
     SetBudget,

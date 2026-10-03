@@ -21,6 +21,7 @@
 #include "Debugger/WinDbgFormatter.h"
 #include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 #include "Core/TextEncoding.h"
 
 
@@ -1069,6 +1070,8 @@ void DebugSession::ClearAllBreakpoints()
     m_watchpoints.ClearAll();
     m_videoBreak.reset();
     m_videoBreakHit = false;
+    m_beamBreak.reset();
+    m_beamBreakHit  = false;
     m_nextId        = 0;
     UpdateHookInstalled();
 }
@@ -1233,6 +1236,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_watchpoints.ClearPending();
     m_videoBreak.reset();
     m_videoBreakHit = false;
+    m_beamBreak.reset();
+    m_beamBreakHit  = false;
     m_nextId = 0;
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
@@ -1418,6 +1423,12 @@ bool DebugSession::ShouldStopBefore (Word pc)
         return true;
     }
 
+    if (HasReachedBeamBreak())
+    {
+        m_beamBreakHit = true;
+        return true;
+    }
+
     //  A Monitor `G` returning through its pushed address. It takes no id and
     //  is absent from BPL, because it is not the reader's breakpoint: it is
     //  how the Monitor gets control back from a program that ends in RTS.
@@ -1555,6 +1566,118 @@ bool DebugSession::HasEnteredVideoBreak()
     m_videoBreak->lastScanline = scanline;
 
     return scanline == m_videoBreak->first && previous != m_videoBreak->first;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::SetBeamBreak
+//
+//  A beam already at the target has not reached it: the break waits for the
+//  beam to come round again, which is what makes FRAME run a whole frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetBeamBreak (uint32_t cycleInFrame, uint32_t passes, bool isForOneRun)
+{
+    m_beamBreak    = BeamBreak { cycleInFrame, std::max (passes, 1u), GetBeamCycle(), isForOneRun };
+    m_beamBreakHit = false;
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ClearBeamBreak
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ClearBeamBreak()
+{
+    m_beamBreak.reset();
+    m_beamBreakHit = false;
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetBeamCycle
+//
+//  The beam's place as the cycle within the frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebugSession::GetBeamCycle() const
+{
+    VideoPosition  position = m_target.GetVideoPosition();
+
+
+
+    return position.scanline * VideoTiming::kCyclesPerScanline + position.cycleInLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::HasReachedBeamBreak
+//
+//  True on the instruction at which the beam has reached or passed the
+//  target since the instruction before. An instruction moves the beam several
+//  cycles, so it can step over the exact cycle; passing it counts. The end of
+//  a frame wraps the beam to zero, and a wrap passes every cycle after where
+//  the beam was and every one up to where it is now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::HasReachedBeamBreak()
+{
+    uint32_t  now      = 0;
+    uint32_t  previous = 0;
+    uint32_t  target   = 0;
+    bool      isWrap   = false;
+    bool      reached  = false;
+
+
+
+    if (!m_beamBreak.has_value())
+    {
+        return false;
+    }
+
+    now                    = GetBeamCycle();
+    previous               = m_beamBreak->lastCycle;
+    target                 = m_beamBreak->target;
+    isWrap                 = now < previous;
+    m_beamBreak->lastCycle = now;
+
+    if (now == previous)
+    {
+        return false;
+    }
+
+    reached = isWrap ? (target > previous || target <= now)
+                     : (target > previous && target <= now);
+
+    if (!reached)
+    {
+        return false;
+    }
+
+    m_beamBreak->passes--;
+    return m_beamBreak->passes == 0;
 }
 
 
@@ -1738,6 +1861,12 @@ void DebugSession::OnStopped (const StopEvent & stop)
     {
         m_videoBreak.reset();
         m_videoBreakHit = false;
+    }
+
+    if (m_beamBreakHit || (m_beamBreak.has_value() && m_beamBreak->isOneRun))
+    {
+        m_beamBreak.reset();
+        m_beamBreakHit = false;
     }
 
     m_watchpoints.ClearPending();
@@ -2641,7 +2770,7 @@ void DebugSession::UpdateHookInstalled()
 
 void DebugSession::RefreshHookFilter()
 {
-    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value();
+    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value();
 
 
 
@@ -2711,7 +2840,7 @@ void DebugSession::RefreshHookFilter()
 
 bool DebugSession::HasStopConditions() const
 {
-    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_monitorReturn.has_value();
+    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_monitorReturn.has_value();
 }
 
 
