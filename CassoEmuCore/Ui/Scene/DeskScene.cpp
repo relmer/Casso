@@ -1518,12 +1518,10 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
         CHRA (hr);
     }
 
-    // The chrome, relit for where the eye is now.
+    // The chrome, which the shader shows as a mirror.
     if (!m_recorder.ChromeVerts().empty())
     {
-        RelightChrome (m_recorder.ChromeVerts(), comp.recorderWorld, comp.view, m_recorderChromeVerts);
-
-        hr = m_renderer.DrawTriangles (m_recorderChromeVerts.data(), m_recorderChromeVerts.size(),
+        hr = m_renderer.DrawTriangles (m_recorder.ChromeVerts().data(), m_recorder.ChromeVerts().size(),
                                        mvp, false, viewport, true);
         CHRA (hr);
     }
@@ -1539,117 +1537,6 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskScene::RelightChrome
-//
-//  POLISHED CHROME SHOWS THE ROOM, and the renderer has no room to show, so
-//  each vertex takes the light of a made-up one: the eye's ray, bounced off
-//  the surface, lands on a ceiling of bright light panels, on dim walls
-//  around the horizon, or on the dark desk below. Worked out in the world,
-//  where the room stays put while the models orbit, so the reflections slide
-//  across the handle as it turns -- and the rounded edges, whose normals
-//  sweep through all three, band the way real chrome does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DeskScene::RelightChrome (const std::vector<Dxui3DRenderer::Vertex> & source,
-                               const float                                 world[16],
-                               const float                                 view[16],
-                               std::vector<Dxui3DRenderer::Vertex>       & out)
-{
-    float  eye[3] = {};
-
-
-
-    // The eye in the world: the view's translation undone through its
-    // rotation, which is orthonormal, so its transpose is its inverse.
-    for (int j = 0; j < 3; j++)
-    {
-        eye[j] = -(view[12] * view[j * 4] + view[13] * view[j * 4 + 1] + view[14] * view[j * 4 + 2]);
-    }
-
-    out = source;
-
-    for (Dxui3DRenderer::Vertex & v : out)
-    {
-        float  p[3]  = {};
-        float  n[3]  = {};
-        float  d[3]  = {};
-        float  r[3]  = {};
-        float  nl    = 0.0f;
-        float  dl    = 0.0f;
-        float  dn    = 0.0f;
-        float  glow  = 0.0f;
-
-        for (int j = 0; j < 3; j++)
-        {
-            p[j] = v.x * world[j] + v.y * world[4 + j] + v.z * world[8 + j] + world[12 + j];
-            n[j] = v.nx * world[j] + v.ny * world[4 + j] + v.nz * world[8 + j];
-        }
-
-        nl = std::sqrt (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-
-        for (int j = 0; j < 3; j++)
-        {
-            d[j] = p[j] - eye[j];
-        }
-
-        dl = std::sqrt (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-
-        if (nl <= 0.0f || dl <= 0.0f)
-        {
-            continue;
-        }
-
-        for (int j = 0; j < 3; j++)
-        {
-            n[j] /= nl;
-            d[j] /= dl;
-            dn   += d[j] * n[j];
-        }
-
-        for (int j = 0; j < 3; j++)
-        {
-            r[j] = d[j] - 2.0f * dn * n[j];
-        }
-
-        // Up, the ceiling: dim, with bright panels in a grid where the ray
-        // meets it. Level, the walls. Down, the dark desk. EVERY BOUNDARY IS
-        // SOFT: the light is worked out per vertex, and a hard edge between
-        // neighboring vertices speckles a fine mesh instead of banding it.
-        {
-            auto   ease    = [] (float t) { t = std::clamp (t, 0.0f, 1.0f); return t * t * (3.0f - 2.0f * t); };
-            float  ceiling = ease ( r[1] / kChromeHorizon);
-            float  desk    = ease (-r[1] / kChromeHorizon);
-            float  panel   = 0.0f;
-
-            // The panels fade out toward the horizon: there the ray meets the
-            // ceiling far off, the grid packs tighter than the vertices are
-            // spaced, and the pattern breaks into speckle.
-            if (r[1] > 0.01f)
-            {
-                float  u  = 0.5f + 0.5f * std::cos (6.2831853f * r[0] / r[1] * kChromePanelsPerUnit);
-                float  w  = 0.5f + 0.5f * std::cos (6.2831853f * r[2] / r[1] * kChromePanelsPerUnit);
-
-                panel = u * u * u * w * w * w * ease ((r[1] - kChromeHorizon) / kChromePanelFadeRise);
-            }
-
-            glow = ceiling * (kChromeCeilingGlow + panel * kChromePanelGlow) +
-                   (1.0f - ceiling - desk) * kChromeWallGlow +
-                   desk * kChromeDeskGlow;
-        }
-
-        v.er = glow;
-        v.eg = glow;
-        v.eb = glow * 1.04f;
-    }
 }
 
 

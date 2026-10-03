@@ -183,9 +183,8 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   LidGlassVerts () const { return m_lidGlass; }
     const float *                                 LidBox        () const { return m_lidBox.data(); }
 
-    // Polished chrome (the recorder's handle), which the scene relights from
-    // the eye's position, since what a mirror shows depends on where it is
-    // seen from.
+    // Polished chrome (the recorder's handle), with its normals smoothed and
+    // flagged for the shader to draw as a mirror.
     const std::vector<Dxui3DRenderer::Vertex> &   ChromeVerts   () const { return m_chrome; }
     const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
@@ -603,6 +602,7 @@ private:
     void     GrowTiltGrip          (int direction, size_t firstVert);
     void     ComputeTiltTravel     ();
     void     ComputeGroundFootprint ();
+    void     SmoothChromeNormals    ();
 
     DeskDeviceKind                                                      m_kind       = DeskDeviceKind::Monitor2c;
     std::vector<Dxui3DRenderer::Vertex>                                 m_opaque;

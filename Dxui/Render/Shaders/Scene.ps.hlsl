@@ -141,6 +141,37 @@ float DitherOffset (float2 pixel)
     // per channel picks up faint color speckle; moved together it stays gray.
     return (a + b - 1.0f) * (1.0f / 255.0f);
 }
+// POLISHED CHROME, flagged by a NEGATIVE pebble value: a mirror of a made-up
+// room, since the renderer has no real one to show. The eye's ray bounced
+// off the surface lands on a dim ceiling with a grid of bright light panels,
+// on gray walls around the level, or on the dark desk below; the boundaries
+// are soft so the reflection bands rather than steps. Model +Z is up, as for
+// the ambient term.
+//
+// PER PIXEL, NOT PER VERTEX. A mirror shows the curvature of its normals
+// directly, and anything coarser than a pixel -- the light worked out at the
+// vertices and interpolated -- reads as a texture rather than a reflection.
+//
+// BLUR, the normal's change across this pixel: where a tight rounded edge
+// sweeps it through the whole room inside a pixel or two, the reflection is
+// averaged toward the room's mean rather than sampled, or it glitters.
+float3 ChromeRoom (float3 r, float blur)
+{
+    float  ceiling = smoothstep (0.0f, 0.25f,  r.z);
+    float  desk    = smoothstep (0.0f, 0.25f, -r.z);
+    float  panel   = 0.0f;
+    if (r.z > 0.01f)
+    {
+        float2 g = r.xy / r.z * 1.6f;
+        float2 c = 0.5f + 0.5f * cos (6.2831853f * g);
+        panel = c.x * c.x * c.x * c.y * c.y * c.y * smoothstep (0.25f, 0.6f, r.z);
+    }
+    float  glow = ceiling * (0.42f + panel * 0.90f)
+                + (1.0f - ceiling - desk) * 0.24f
+                + desk * 0.04f;
+    glow = lerp (glow, 0.30f, saturate (blur * 1.5f));
+    return float3 (glow, glow, glow * 1.04f);
+}
 float4 main (PSIn input) : SV_TARGET
 {
     float4 texel = tex.Sample (samp, input.uv);
@@ -258,6 +289,14 @@ float4 main (PSIn input) : SV_TARGET
         float3 amb = lerp (ambDown.rgb, ambUp.rgb, saturate (n.z * 0.5f + 0.5f));
         float  ramp = parm.y * (1.0f - exp (-diff * parm.z));
         lit = base.rgb * (amb + ramp) + spec * parm.w;
+// Chrome shows the room instead, and only the room: shading it by the shadow
+// maps speckled its tight rounded edges with acne. No specular term: the panels are its highlights, and a hard point light on
+// a thin rounded edge aliases into glitter.
+        if (input.peb < 0.0f)
+        {
+            float3 rn = reflect (-v, n);
+            lit = ChromeRoom (rn, length (fwidth (rn)));
+        }
 // The device's own lamp, with its own occlusion. Facing the lens was once
 // taken as proof of seeing it -- "a face inside the notch points at the
 // lens and lights" -- and that is wrong wherever something stands between

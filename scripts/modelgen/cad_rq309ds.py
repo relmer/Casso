@@ -329,19 +329,28 @@ def build():
     FRONT_Y, FRONT_RUN   = 2.0, 3.0
     NOSE_Y, NOSE_RUN     = dy0, 9.0
 
-    profile = (cq.Workplane("YZ")
-               .moveTo(FRONT_Y + FRONT_RUN, HANDLE_Z0)
-               .lineTo(NOSE_Y, HANDLE_Z0)
-               .spline([(NOSE_Y + NOSE_RUN, zc), (NOSE_Y, HANDLE_Z1)],
-                       tangents=[(1, 0), (0, 1), (-1, 0)], includeCurrent=True)
-               .lineTo(FRONT_Y + FRONT_RUN, HANDLE_Z1)
-               .spline([(FRONT_Y, zc), (FRONT_Y + FRONT_RUN, HANDLE_Z0)],
-                       tangents=[(-1, 0), (0, -1), (1, 0)], includeCurrent=True)
-               .close()
-               .extrude(W + 2 * ARM_T)
-               .translate((-ARM_T, 0, 0)))
-    handle = profile.edges().fillet(0.8)
-    m.add("chrome_handle", handle, CHROME, angular=0.12)
+    # Each end is half an ellipse, which meets the straight top and bottom
+    # with no kink. EXACT CURVES, NOT SPLINES: a mirror shows every ripple
+    # in its surface, and the splines this was first drawn with, and the
+    # fillets laid over them, came out wavy enough to read as a texture.
+    half  = (HANDLE_Z1 - HANDLE_Z0) / 2
+    span  = W + 2 * ARM_T
+    y0    = FRONT_Y + FRONT_RUN
+
+    def end_cap(cy, ry):
+        return (cq.Workplane("YZ").workplane(offset=-ARM_T)
+                .center(cy, zc).ellipse(ry, half).extrude(span))
+
+    bar    = box(-ARM_T, W + ARM_T, y0, NOSE_Y, HANDLE_Z0, HANDLE_Z1)
+    handle = bar.union(end_cap(y0, FRONT_RUN)).union(end_cap(NOSE_Y, NOSE_RUN))
+
+    # Round over the edges at the two ends of the bar, where the profile
+    # meets the side faces. The lengthwise seams are tangent and need none.
+    handle = handle.edges("not |X").fillet(0.8)
+
+    # Tessellated finely: a mirror shows its normals directly, and at the
+    # default tolerance the curved ends came out lumpy.
+    m.add("chrome_handle", handle, CHROME, tolerance=0.02, angular=0.08)
 
     # THE SHELL'S SEAM: a 2 mm channel where its top and bottom halves meet,
     # level with the arms' tips, from one tip round the back to the other.
