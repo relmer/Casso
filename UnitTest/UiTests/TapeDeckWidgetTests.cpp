@@ -225,6 +225,36 @@ public:
     }
 
 
+    TEST_METHOD (MagnifiedRowIsTheSameWidthWhereverThePointerIs)
+    {
+        // The row does not slide as the pointer crosses it only because the
+        // growth across evenly spaced controls sums to the same at every
+        // pointer position, which holds for a reach of exactly two pitches.
+        constexpr float  kPitch = 18.0f;
+        constexpr float  kReach = 2.0f * kPitch;
+        float            first  = 0.0f;
+
+
+
+        for (float mouse = 100.0f; mouse < 100.0f + kPitch; mouse += 1.5f)
+        {
+            float  growth = 0.0f;
+
+            for (int k = 0; k < 12; k++)
+            {
+                growth += TapeDeckWidget::GetMagnification (mouse - (float) k * kPitch, kReach) - 1.0f;
+            }
+
+            if (first == 0.0f)
+            {
+                first = growth;
+            }
+
+            Assert::AreEqual (first, growth, 0.001f, L"the row would slide");
+        }
+    }
+
+
     TEST_METHOD (AtRestTheControlsKeepTheirLayout)
     {
         TapeDeckWidget  widget;

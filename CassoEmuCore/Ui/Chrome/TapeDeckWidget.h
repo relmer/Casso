@@ -126,8 +126,8 @@ private:
     static constexpr int64_t  kMarqueeHoldMs         = 2000;
 
     // The controls magnify like the macOS dock as the pointer nears them,
-    // reaching this many buttons either side, and fade in and out this fast.
-    static constexpr float    kMagnifyReachButtons   = 2.5f;
+    // reaching this many button pitches either side, and fade in and out this fast.
+    static constexpr float    kMagnifyReachPitches   = 2.0f;
     static constexpr int64_t  kMagnifyFadeMs         = 140;
     static constexpr float    kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float    kMarqueeGapDip         = 25.0f;

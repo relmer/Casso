@@ -598,6 +598,13 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
 //  rather than overlap, the row centered where it stands and every control
 //  standing on the row's bottom edge. At rest this is exactly the layout.
 //
+//  THE ROW STAYS WHERE IT IS as the pointer moves along it. The reach is
+//  exactly two pitches, and raised cosines that far apart at that spacing add
+//  up to the same total wherever the pointer stands -- so the row's width,
+//  and with it a centered row's position, does not change; only the controls
+//  within it grow and shrink. Anchoring the row to the pointer instead slid
+//  the whole row a few pixels as the pointer crossed each control.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void TapeDeckWidget::ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const
@@ -607,8 +614,8 @@ void TapeDeckWidget::ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kB
     float             widths[kCount] = {};
     float             gaps[kCount]   = {};
     float             presence       = GetPresence (nowMs);
-    float             button         = (float) (m_buttons[0].right - m_buttons[0].left);
-    float             reach          = button * kMagnifyReachButtons;
+    float             pitch          = (float) (m_buttons[1].left - m_buttons[0].left);
+    float             reach          = pitch * kMagnifyReachPitches;
     float             total          = 0.0f;
     float             center         = (float) (m_buttons[0].left + m_counterRect.right) * 0.5f;
     float             x              = 0.0f;
@@ -642,48 +649,6 @@ void TapeDeckWidget::ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kB
 
         rects[i] = { x, bottom - height, x + widths[i], bottom };
         x       += widths[i] + gaps[i];
-    }
-
-    // THE CONTROL UNDER THE POINTER STAYS UNDER IT, as on the dock: its
-    // neighbors move aside rather than the whole row spreading from its
-    // middle, which slid an end control out from under the pointer as it
-    // grew. Map the pointer's place in the resting row -- piecewise, control
-    // by control and gap by gap -- into the magnified one, and shift the row
-    // by the difference.
-    {
-        float  mouse  = (float) m_mouseX;
-        float  mapped = mouse;
-        float  shift  = 0.0f;
-
-        for (size_t i = 0; i < kCount; i++)
-        {
-            float  restL = (float) base[i].left;
-            float  restR = (float) base[i].right;
-            float  magL  = rects[i].left;
-            float  magR  = rects[i].right;
-            float  nextL = (i + 1 < kCount) ? (float) base[i + 1].left  : restR;
-            float  magN  = (i + 1 < kCount) ? rects[i + 1].left : magR;
-
-            if (mouse >= restL && mouse < restR)
-            {
-                mapped = magL + (mouse - restL) / (restR - restL) * (magR - magL);
-                break;
-            }
-
-            if (mouse >= restR && mouse < nextL)
-            {
-                mapped = magR + (mouse - restR) / (nextL - restR) * (magN - magR);
-                break;
-            }
-        }
-
-        shift = mouse - mapped;
-
-        for (ControlBox & r : rects)
-        {
-            r.left  += shift;
-            r.right += shift;
-        }
     }
 }
 
