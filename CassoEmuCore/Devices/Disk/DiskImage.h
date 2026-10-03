@@ -161,6 +161,8 @@ private:
 
     const shared_ptr<const vector<Byte>> & GetSharedTrack (size_t track) const;
 
+    static void  MakeTrackHeader (uint64_t bitCount, uint32_t byteCount, Byte * outHeader);
+
     void     TouchTrack       (int track);
     void     RenewIdentity    ();
     HRESULT  LoadDsk          (const vector<Byte> & raw);

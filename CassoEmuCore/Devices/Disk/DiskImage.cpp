@@ -894,7 +894,9 @@ uint64_t DiskImage::GetTrackGeneration (int track) const
 
 HRESULT DiskImage::SaveState (StateWriter & writer) const
 {
-    size_t  track = 0;
+    constexpr size_t  kHeaderBytes = sizeof (uint64_t) + sizeof (uint32_t);
+    Byte              header[kHeaderBytes];
+    size_t            track        = 0;
 
 
 
@@ -905,8 +907,12 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
 
     for (track = 0; track < m_trackBits.size(); track++)
     {
-        writer.WriteUInt64 (m_trackBitCounts[track]);
-        writer.WriteUInt32 (static_cast<uint32_t> (m_trackBits[track].size()));
+        // The bit count and the byte count, as WriteUInt64 and WriteUInt32
+        // would put them, in one write: a ring checkpoint saves every track,
+        // so this runs dozens of times a frame.
+        MakeTrackHeader (m_trackBitCounts[track], static_cast<uint32_t> (m_trackBits[track].size()), header);
+
+        writer.WriteBytes (header, kHeaderBytes);
 
         if (writer.IsSharing())
         {
@@ -922,6 +928,39 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
     writer.WriteBool (m_userWriteProtected);
 
     return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeTrackHeader
+//
+//  One track's header in SaveState's stream form: the bit count as eight
+//  bytes and the byte count as four, little-endian.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::MakeTrackHeader (
+    uint64_t    bitCount,
+    uint32_t    byteCount,
+    Byte      * outHeader)
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < sizeof (bitCount); i++)
+    {
+        outHeader[i] = static_cast<Byte> (bitCount >> (i * CHAR_BIT));
+    }
+
+    for (i = 0; i < sizeof (byteCount); i++)
+    {
+        outHeader[sizeof (bitCount) + i] = static_cast<Byte> (byteCount >> (i * CHAR_BIT));
+    }
 }
 
 

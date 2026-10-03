@@ -215,6 +215,12 @@ void StateWriter::WriteShared (const std::shared_ptr<const std::vector<Byte>> & 
         return;
     }
 
+    // Room for a disk's tracks at once, so a save does not regrow the list.
+    if (m_segments.capacity() == 0)
+    {
+        m_segments.reserve (kSegmentReserve);
+    }
+
     segment.offset = m_bytes.size();
     segment.bytes  = bytes;
 

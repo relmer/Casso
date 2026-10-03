@@ -73,6 +73,8 @@ public:
     static void               Flatten         (const std::vector<Byte> & own, const std::vector<StateSegment> & segments, std::vector<Byte> & outBytes);
 
 private:
+    static constexpr size_t   kSegmentReserve = 64;
+
     struct OpenSection
     {
         size_t  sizeOffset   = 0;   // where in m_bytes the size field is
