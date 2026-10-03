@@ -78,6 +78,24 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+<a id="v1-30"></a>
+### [2026-10-03 · 1.30] WOZ 2.1 flux support—great Scott!
+
+Casso now supports WOZ 2.1 flux tracks. A flux track holds the timing of every
+magnetic transition instead of a stream of bits, which is how Applesauce
+preserves copy protection that depends on that timing. Flux tracks play back at
+their recorded timing, and at the same speed as bit tracks. Support is
+validated with Bandits, Minotaur, Fly Wars, Cyclod, Lemmings and Jellyfish.
+Saving a disk with flux tracks leaves the tracks that weren't written to
+unchanged.
+
+WOZ disks with flux tracks can also be created in the create dialog or with
+`CassoCli disk create --flux`. The `disk create` command can mix bit and flux
+tracks on one disk.
+
+Casso now mounts a WOZ disk with unreadable tracks read-only, so the rest of
+the disk can be read, and offers to salvage it. Previously the disk failed to
+mount.
 <a id="v1-29"></a>
 ### [2026-09-29 · 1.29] Controllers Just Work™
 
