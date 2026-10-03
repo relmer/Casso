@@ -28,7 +28,7 @@ namespace DebuggerTests
         static constexpr const char * kHeadlessNames[] =
         {
             "A",
-            "=", "G", "GG", "IN", "KEY", "JSR", "NOP", "OUT", "LBR", "PROFILE", "R", "POP", "PPOP", "PUSH", "P", "RTS", "T", "TF", "TL", "U",
+            "=", "G", "GG", "IN", "KEY", "JSR", "NOP", "OUT", "LBR", "PROFILE", "SOUNDLOG", "STOPWATCH", "VIDEOLOG", "R", "POP", "PPOP", "PUSH", "P", "RTS", "T", "TF", "TL", "U",
             "BM", "BMA", "BMC", "BML", "BMG", "BMSAVE",
             "BRK", "BRKOP", "BRKINT", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
             "BENCHMARK", "DISASM", "LOAD", "SAVE", "PWD", "CD",
