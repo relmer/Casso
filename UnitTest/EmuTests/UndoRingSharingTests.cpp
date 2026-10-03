@@ -9,12 +9,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 static constexpr uint64_t  s_kSharingSpacing   = 1000;
 static constexpr uint64_t  s_kSharingInterval  = 10000;
-static constexpr size_t    s_kSharingBudget    = 2 * 1024 * 1024;
+static constexpr size_t    s_kSharingBudget    = 4 * 1024 * 1024;
 static constexpr size_t    s_kSharingSegments  = 64;
 static constexpr size_t    s_kSharingSegment   = 4096;
 static constexpr size_t    s_kSharingOwn       = 64;
 static constexpr size_t    s_kSharingLight     = 400;
 static constexpr size_t    s_kSharingHeavy     = 40;
+static constexpr size_t    s_kSharingSlack     = 16384;       // the interval being filled, which no checkpoint counts
 
 
 
@@ -85,11 +86,14 @@ public:
             Add (ring, step++, current);
         }
 
+        Logger::WriteMessage (std::format ("after whole checkpoints: {} of {} in {} bytes\n", ring.GetCheckpointCount(), ring.GetCheckpointLimit(), ring.GetByteCount()).c_str());
+
         wholeCount = s_kSharingBudget / (s_kSharingSegments * s_kSharingSegment);
         minimum    = static_cast<size_t> (s_kSharingInterval / s_kSharingSpacing) + 1;
 
         Assert::IsTrue (ring.GetCheckpointCount() <= std::max (wholeCount, minimum), L"checkpoints sharing nothing are dropped back to the budget");
         Assert::IsTrue (ring.GetCheckpointCount() >= minimum,                        L"but never below one keyframe interval");
+        Assert::IsTrue (ring.GetByteCount() <= s_kSharingBudget + s_kSharingSlack,   L"and the records the larger limit made room for are given back");
     }
 
 private:

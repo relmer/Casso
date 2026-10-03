@@ -812,15 +812,22 @@ size_t UndoRing::GetHeldBytes (
 //
 //  Drops the oldest checkpoints while what they hold and the records their
 //  intervals need pass the budget, down to the fewest that cover a keyframe
-//  interval.
+//  interval. When that leaves records for more than a thirty-second of the
+//  budget allocated past the count, the limit and the record capacity come
+//  down to the count, so records nothing will use do not hold the budget the
+//  checkpoints now need. The margin keeps a count that wavers by one from
+//  reallocating the records every time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void UndoRing::DropOverBudget()
 {
-    UndoRingSettings  unbudgeted = m_settings;
-    size_t            minimum    = 0;
-    size_t            perRecords = GetRecordBytesPerInterval (m_settings.checkpointCycles);
+    constexpr size_t  kShrinkFraction = 32;
+    UndoRingSettings  unbudgeted      = m_settings;
+    size_t            minimum         = 0;
+    size_t            perRecords      = GetRecordBytesPerInterval (m_settings.checkpointCycles);
+    size_t            unused          = 0;
+    bool              dropped         = false;
 
 
 
@@ -830,6 +837,16 @@ void UndoRing::DropOverBudget()
     while (m_checkpoints.size() > minimum && m_heldBytes + m_checkpoints.size() * perRecords > m_settings.budgetBytes)
     {
         DropOldestCheckpoint();
+        dropped = true;
+    }
+
+    unused = (m_checkpointLimit > m_checkpoints.size()) ? (m_checkpointLimit - m_checkpoints.size()) * perRecords : 0;
+
+    if (dropped && unused > m_settings.budgetBytes / kShrinkFraction)
+    {
+        m_checkpointLimit = std::max (m_checkpoints.size(), minimum);
+
+        ResizeRecords (GetRecordCapacity (m_checkpointLimit));
     }
 }
 
