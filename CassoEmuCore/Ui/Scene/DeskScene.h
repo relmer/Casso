@@ -175,6 +175,26 @@ public:
     // box, this far above its floor (half the struts' breadth).
     static constexpr float  kLidHingeAboveMm  = 5.0f;
 
+    // The chrome's reflection: the cube map's edge, the near and far planes
+    // its six views clip at, and what shows where no device stands -- the
+    // dark room around the desk.
+    static constexpr UINT   kEnvTexels        = 256;
+    static constexpr float  kEnvNearMm        = 2.0f;
+    static constexpr float  kEnvFrontInsetMm  = 2.5f;     // the capture point, back from the bar's front
+    static constexpr float  kEnvFarMm         = 6000.0f;
+    static constexpr float  kEnvClearRgba[4]  = { 0.11f, 0.13f, 0.18f, 1.0f };
+
+    // The room the chrome reflects: how far it reaches each way from the
+    // handle, how high its ceiling is above the desk, how big each light
+    // fixture is, and the colors of desk, walls, ceiling and fixtures.
+    static constexpr float  kEnvRoomHalfMm    = 2500.0f;
+    static constexpr float  kEnvRoomHeightMm  = 2000.0f;
+    static constexpr float  kEnvLampHalfMm    = 300.0f;
+    static constexpr float  kEnvDeskRgb[3]    = { 0.30f, 0.24f, 0.18f };
+    static constexpr float  kEnvWallRgb[3]    = { 0.42f, 0.42f, 0.44f };
+    static constexpr float  kEnvCeilingRgb[3] = { 0.62f, 0.62f, 0.64f };
+    static constexpr float  kEnvLampRgb[3]    = { 1.00f, 1.00f, 1.00f };
+
     // How much of the room the smoked pane lets through.
     static constexpr float  kLidGlassAlpha    = 0.35f;
 
@@ -483,6 +503,15 @@ private:
 
     // Appends `in` turned by `angleRad` about the model's left-right axis
     // through (pivotY, pivotZ), positive turning the front (low Y) down.
+    // The chrome's reflection: the scene captured into a cube map around
+    // the recorder's handle, and one face of it drawn.
+    HRESULT  RenderEnvironment   (const DeskSceneComposition & comp);
+    HRESULT  DrawEnvironmentFace (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    void     BuildEnvironmentRoom (const float center[3]);
+
+    // Where the camera stands in the world, from its view matrix.
+    static void  GetEyeWorld (const float view[16], float out[3]);
+
     static void  AppendHinged (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotY, float pivotZ,
                                float angleRad, std::vector<Dxui3DRenderer::Vertex> & out);
 
@@ -648,6 +677,9 @@ private:
     std::vector<Dxui3DRenderer::Vertex>                   m_driveDoorVerts[2];
     std::vector<Dxui3DRenderer::Vertex>                   m_recorderKeyVerts;
     std::vector<Dxui3DRenderer::Vertex>                   m_recorderGlassVerts;
+    std::vector<Dxui3DRenderer::Vertex>                   m_envRoomVerts;
+    bool                                                  m_envReady          = false;   // the chrome's cube holds this scene
+    bool                                                  m_inEnvCapture      = false;   // drawing into that cube
     std::array<float, DeskSceneModel::kRecorderKeyCount>  m_recorderKeyDepth  = {};
     float                                                 m_recorderLidRad    = 0.0f;
     bool                                                  m_recorderCassette  = true;

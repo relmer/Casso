@@ -553,6 +553,26 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         }
     }
 
+    // WHAT A MIRROR SHOWS: the scene captured around the recorder's handle,
+    // whose directions are the world's, and the real eye, in this device's
+    // own space, to bounce off it. The fixed eye direction above is a
+    // shading convention and no use to a mirror, which shows whatever lies
+    // along the actual line of sight.
+    if (m_envReady && !m_inEnvCapture)
+    {
+        float  eyeWorld[3] = {};
+
+        memcpy (lighting.envMatrix, world, sizeof (lighting.envMatrix));
+        lighting.envMatrix[12] = 0.0f;
+        lighting.envMatrix[13] = 0.0f;
+        lighting.envMatrix[14] = 0.0f;
+
+        GetEyeWorld (m_comp.view, eyeWorld);
+        SceneCamera::TransformPoint (toModel, eyeWorld, lighting.envEye);
+
+        lighting.hasEnvironment = true;
+    }
+
     m_renderer.SetLighting (lighting);
 }
 
@@ -1518,8 +1538,9 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
         CHRA (hr);
     }
 
-    // The chrome, which the shader shows as a mirror.
-    if (!m_recorder.ChromeVerts().empty())
+    // The chrome, which the shader shows as a mirror -- except while the
+    // scene is being captured for it to reflect, from inside it.
+    if (!m_recorder.ChromeVerts().empty() && !m_inEnvCapture)
     {
         hr = m_renderer.DrawTriangles (m_recorder.ChromeVerts().data(), m_recorder.ChromeVerts().size(),
                                        mvp, false, viewport, true);
@@ -2193,6 +2214,11 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     hr = RenderShadowMaps (m_comp, viewport);
     CHRA (hr);
 
+    // Then what the chrome reflects, which is the scene itself, so it too
+    // must be in hand before the scene is drawn.
+    hr = RenderEnvironment (m_comp);
+    CHRA (hr);
+
     // Behind the picture first.
     rawPlate = m_backPlateRtv.Get();
     m_context->OMSetRenderTargets (1, &rawPlate, nullptr);
@@ -2421,6 +2447,261 @@ Error:
     hrEnd = m_renderer.EndMultisampledScene();
     IGNORE_RETURN_VALUE (hrEnd, S_OK);
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::GetEyeWorld
+//
+//  The camera's position in the world: the view's translation undone through
+//  its rotation, which is orthonormal, so its transpose is its inverse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::GetEyeWorld (const float view[16], float out[3])
+{
+    for (int j = 0; j < 3; j++)
+    {
+        out[j] = -(view[12] * view[j * 4] + view[13] * view[j * 4 + 1] + view[14] * view[j * 4 + 2]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::RenderEnvironment
+//
+//  WHAT THE CHROME REFLECTS IS THE SCENE: the monitor, the drives and the
+//  rest of the recorder, drawn six times from the middle of the handle, once
+//  down each axis, into the faces of a cube map. The shader then looks up the
+//  eye's ray, bounced off the surface, in that cube.
+//
+//  Captured whenever the plate is redrawn, which is whenever anything in the
+//  scene moves, and not otherwise: a still scene costs nothing more.
+//
+//  Each face is a 90 degree view down its axis, MIRRORED left to right. The
+//  scene's cameras are right-handed and D3D's cube faces are laid out
+//  left-handed, so an unmirrored face would show the room backwards. Nothing
+//  in the color pass culls by winding, so the mirror costs nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::RenderEnvironment (const DeskSceneComposition & comp)
+{
+    // D3D's face order: +X, -X, +Y, -Y, +Z, -Z, each with the up its layout
+    // expects.
+    static constexpr float  kFaceDir[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 },
+                                               { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+    static constexpr float  kFaceUp[6][3]  = { { 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 },
+                                               { 0, 0, 1 }, { 0, 1, 0 }, { 0, 1, 0 } };
+    HRESULT               hr        = S_OK;
+    float                 lo[3]     = {  FLT_MAX,  FLT_MAX,  FLT_MAX };
+    float                 hi[3]     = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float                 mid[3]    = {};
+    float                 center[3] = {};
+    float                 proj[16]  = {};
+    D3D11_VIEWPORT        viewport  = {};
+    DeskSceneComposition  faceComp  = comp;
+
+
+
+    m_envReady = false;
+
+    BAIL_OUT_IF (comp.glassOnly != 0 || comp.hasRecorder == 0 || !m_hasRecorder, S_OK);
+    BAIL_OUT_IF (m_recorder.ChromeVerts().empty(), S_OK);
+
+    // The middle of the handle, in the world.
+    for (const Dxui3DRenderer::Vertex & v : m_recorder.ChromeVerts())
+    {
+        lo[0] = std::min (lo[0], v.x);  hi[0] = std::max (hi[0], v.x);
+        lo[1] = std::min (lo[1], v.y);  hi[1] = std::max (hi[1], v.y);
+        lo[2] = std::min (lo[2], v.z);  hi[2] = std::max (hi[2], v.z);
+    }
+
+    // The middle of the bar across the FRONT, not of the whole handle: its
+    // arms run back into the case, and the box around them has its middle
+    // inside the body, which is all a camera there would see.
+    mid[0] = (lo[0] + hi[0]) * 0.5f;
+    mid[1] = lo[1] + kEnvFrontInsetMm;
+    mid[2] = (lo[2] + hi[2]) * 0.5f;
+
+    SceneCamera::TransformPoint (comp.recorderWorld, mid, center);
+
+    BuildEnvironmentRoom (center);
+
+    SceneCamera::PerspectiveFovRH (3.14159265f * 0.5f, 1.0f, kEnvNearMm, kEnvFarMm, proj);
+
+    for (int i = 0; i < 4; i++)
+    {
+        proj[i * 4] = -proj[i * 4];
+    }
+
+    m_inEnvCapture = true;
+
+    for (int face = 0; face < 6; face++)
+    {
+        float  at[3] = { center[0] + kFaceDir[face][0], center[1] + kFaceDir[face][1], center[2] + kFaceDir[face][2] };
+
+        SceneCamera::LookAtUpRH (center, at, kFaceUp[face], faceComp.view);
+        SceneCamera::Mul44 (faceComp.view, proj, faceComp.viewProj);
+
+        hr = m_renderer.BeginEnvironmentFace (face, kEnvTexels, kEnvClearRgba);
+        CHRA (hr);
+
+        viewport = m_renderer.EnvironmentViewport();
+
+        hr = DrawEnvironmentFace (faceComp, viewport);
+        m_renderer.EndEnvironmentFace();
+        CHRA (hr);
+    }
+
+    m_envReady = true;
+
+Error:
+    m_inEnvCapture = false;
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::BuildEnvironmentRoom
+//
+//  THE ROOM THE DESK STANDS IN, for the chrome to reflect and for nothing
+//  else: the scene draws no room of its own, the host's backdrop shows
+//  through instead, and a mirror of a backdrop color is a black bar. So the
+//  capture gets the room the scene's lighting already assumes -- a desk at
+//  world height zero, walls, a ceiling, and a bright panel at each of the two
+//  ceiling fixtures that light everything else -- so what the chrome shows
+//  agrees with where the light comes from.
+//
+//  Unlit, in world space, colors as they look: a zero normal is the
+//  renderer's "unlit".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildEnvironmentRoom (const float center[3])
+{
+    float  x0 = center[0] - kEnvRoomHalfMm;
+    float  x1 = center[0] + kEnvRoomHalfMm;
+    float  z0 = center[2] - kEnvRoomHalfMm;
+    float  z1 = center[2] + kEnvRoomHalfMm;
+    float  y1 = kEnvRoomHeightMm;
+
+
+
+    auto  quad = [this] (const float a[3], const float b[3], const float c[3], const float d[3], const float rgb[3])
+    {
+        for (const float * p : { a, b, c, a, c, d })
+        {
+            Dxui3DRenderer::Vertex  v = {};
+
+            v.x = p[0];  v.y = p[1];  v.z = p[2];
+            v.r = rgb[0];  v.g = rgb[1];  v.b = rgb[2];  v.a = 1.0f;
+
+            m_envRoomVerts.push_back (v);
+        }
+    };
+
+    m_envRoomVerts.clear();
+
+    {
+        const float  f00[3] = { x0, 0.0f, z0 }, f10[3] = { x1, 0.0f, z0 }, f11[3] = { x1, 0.0f, z1 }, f01[3] = { x0, 0.0f, z1 };
+        const float  c00[3] = { x0, y1,   z0 }, c10[3] = { x1, y1,   z0 }, c11[3] = { x1, y1,   z1 }, c01[3] = { x0, y1,   z1 };
+
+        quad (f00, f10, f11, f01, kEnvDeskRgb);
+        quad (c00, c10, c11, c01, kEnvCeilingRgb);
+        quad (f00, f10, c10, c00, kEnvWallRgb);
+        quad (f01, f11, c11, c01, kEnvWallRgb);
+        quad (f00, f01, c01, c00, kEnvWallRgb);
+        quad (f10, f11, c11, c10, kEnvWallRgb);
+    }
+
+    // The fixtures, just under the ceiling over each room light.
+    for (const float * light : s_kRoomLightsWorld)
+    {
+        float        h     = kEnvLampHalfMm;
+        float        y     = y1 - 1.0f;
+        const float  a[3]  = { light[0] - h, y, light[2] - h };
+        const float  b[3]  = { light[0] + h, y, light[2] - h };
+        const float  c[3]  = { light[0] + h, y, light[2] + h };
+        const float  d[3]  = { light[0] - h, y, light[2] + h };
+
+        quad (a, b, c, d, kEnvLampRgb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::DrawEnvironmentFace
+//
+//  The opaque bodies as the main pass draws them, seen from one face of the
+//  capture. No picture: it is composited live and never part of the plate,
+//  so the reflected screen shows its dark tube.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawEnvironmentFace (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT  hr            = S_OK;
+    float    mvp[16]       = {};
+    float    tiltWorld[16] = {};
+
+
+
+    // The room first, already in the world.
+    hr = m_renderer.DrawTriangles (m_envRoomVerts.data(), m_envRoomVerts.size(), comp.viewProj,
+                                   false, viewport, true);
+    CHRA (hr);
+
+    SceneCamera::Mul44 (comp.monitorWorld, comp.viewProj, mvp);
+    SetModelLighting (m_monitor, comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
+
+    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh, m_monitor.OpaqueVerts().data(), m_monitor.OpaqueVerts().size(),
+                                m_geometryRev, mvp, false, viewport, true);
+    CHRA (hr);
+
+    BuildTiltedMonitorWorld (comp, tiltWorld);
+    SceneCamera::Mul44 (tiltWorld, comp.viewProj, mvp);
+    SetModelLighting (m_monitor, tiltWorld, m_powerLampOn, kMonitorGlowRgb);
+
+    if (!m_monitor.TiltableVerts().empty())
+    {
+        hr = m_renderer.DrawStatic (m_monitorTiltMesh, m_monitor.TiltableVerts().data(),
+                                    m_monitor.TiltableVerts().size(), m_geometryRev, mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    if (!m_glassVerts.empty())
+    {
+        hr = m_renderer.DrawStatic (m_glassMesh, m_glassVerts.data(), m_glassVerts.size(), m_geometryRev,
+                                    mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    hr = DrawDrives (comp, viewport);
+    CHRA (hr);
+
+    hr = DrawRecorder (comp, viewport);
+    CHRA (hr);
+
+Error:
     return hr;
 }
 

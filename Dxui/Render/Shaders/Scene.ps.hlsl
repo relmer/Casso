@@ -49,10 +49,13 @@ cbuffer Light : register(b1)
 // plateau wearing a tint rather than a light. Half leaves every channel
 // room to still be graded by distance and angle.
     float4 lampCap;          // xyz spill ceiling; the lens's own color
+    row_major float4x4 envMatrix;   // model directions to the world's
+    float4 envParm;                 // x 1 when an environment is bound, yzw the eye in model space
 };
 Texture2D              shadowTex0 : register(t1);
 Texture2D              shadowTex1 : register(t2);
 Texture2D              lampShadowTex : register(t3);
+TextureCube            envTex : register(t4);
 SamplerComparisonState shadowSamp : register(s1);
 struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR;
               float3 nrm : NORMAL;      float3 emi : COLOR1;   float3 wp : TEXCOORD1;
@@ -140,37 +143,6 @@ float DitherOffset (float2 pixel)
     // One offset for all three channels, not three. A neutral gray dithered
     // per channel picks up faint color speckle; moved together it stays gray.
     return (a + b - 1.0f) * (1.0f / 255.0f);
-}
-// POLISHED CHROME, flagged by a NEGATIVE pebble value: a mirror of a made-up
-// room, since the renderer has no real one to show. The eye's ray bounced
-// off the surface lands on a dim ceiling with a grid of bright light panels,
-// on gray walls around the level, or on the dark desk below; the boundaries
-// are soft so the reflection bands rather than steps. Model +Z is up, as for
-// the ambient term.
-//
-// PER PIXEL, NOT PER VERTEX. A mirror shows the curvature of its normals
-// directly, and anything coarser than a pixel -- the light worked out at the
-// vertices and interpolated -- reads as a texture rather than a reflection.
-//
-// BLUR, the normal's change across this pixel: where a tight rounded edge
-// sweeps it through the whole room inside a pixel or two, the reflection is
-// averaged toward the room's mean rather than sampled, or it glitters.
-float3 ChromeRoom (float3 r, float blur)
-{
-    float  ceiling = smoothstep (0.0f, 0.25f,  r.z);
-    float  desk    = smoothstep (0.0f, 0.25f, -r.z);
-    float  panel   = 0.0f;
-    if (r.z > 0.01f)
-    {
-        float2 g = r.xy / r.z * 1.6f;
-        float2 c = 0.5f + 0.5f * cos (6.2831853f * g);
-        panel = c.x * c.x * c.x * c.y * c.y * c.y * smoothstep (0.25f, 0.6f, r.z);
-    }
-    float  glow = ceiling * (0.42f + panel * 0.90f)
-                + (1.0f - ceiling - desk) * 0.24f
-                + desk * 0.04f;
-    glow = lerp (glow, 0.30f, saturate (blur * 1.5f));
-    return float3 (glow, glow, glow * 1.04f);
 }
 float4 main (PSIn input) : SV_TARGET
 {
@@ -289,13 +261,18 @@ float4 main (PSIn input) : SV_TARGET
         float3 amb = lerp (ambDown.rgb, ambUp.rgb, saturate (n.z * 0.5f + 0.5f));
         float  ramp = parm.y * (1.0f - exp (-diff * parm.z));
         lit = base.rgb * (amb + ramp) + spec * parm.w;
-// Chrome shows the room instead, and only the room: shading it by the shadow
-// maps speckled its tight rounded edges with acne. No specular term: the panels are its highlights, and a hard point light on
-// a thin rounded edge aliases into glitter.
-        if (input.peb < 0.0f)
+// POLISHED CHROME, flagged by a NEGATIVE pebble value, is a mirror: it shows
+// the scene around it, captured into a cube map from where it stands, along
+// the eye's ray bounced off the surface -- per pixel, since a mirror shows the
+// curvature of its normals directly. The cube holds WORLD directions, so the
+// ray is turned out of this draw's model space first. Slightly dimmed and
+// cooled, as chrome is; no shading of its own, and no specular term, which a
+// hard point light on a thin rounded edge aliases into glitter.
+        if (input.peb < 0.0f && envParm.x > 0.0f)
         {
-            float3 rn = reflect (-v, n);
-            lit = ChromeRoom (rn, length (fwidth (rn)));
+            float3 ve = normalize (envParm.yzw - input.wp);
+            float3 rw = mul (float4 (reflect (-ve, n), 0.0f), envMatrix).xyz;
+            lit = envTex.Sample (samp, rw).rgb * float3 (0.86f, 0.88f, 0.92f) + 0.03f;
         }
 // The device's own lamp, with its own occlusion. Facing the lens was once
 // taken as proof of seeing it -- "a face inside the notch points at the

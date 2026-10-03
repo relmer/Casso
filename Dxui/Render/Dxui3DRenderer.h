@@ -193,6 +193,16 @@ public:
         // reaches the bottom of a dimple than its rim, and that difference is
         // the whole cue. Zero leaves the finish shading-only.
         float  pebbleCavity  = 0.55f;
+
+        // THE ENVIRONMENT a mirror finish reflects: a cube map of the scene,
+        // captured by BeginEnvironmentFace. Its directions are WORLD ones,
+        // and this draw's normals are in its own model space, so this takes
+        // the model's directions to the world's (row-vector: w = m * M, the
+        // translation ignored). Off unless set: a draw that never names an
+        // environment gets none, and its mirrors fall back to plain shading.
+        float  envMatrix[16]  = {};
+        float  envEye[3]      = { 0.0f, 0.0f, 0.0f };   // the eye, in this draw's model space
+        bool   hasEnvironment = false;
     };
 
     void  SetLighting (const Lighting & lighting)  { m_lighting = lighting; }
@@ -268,6 +278,17 @@ public:
     // so it resolves the same detail from a fraction of the memory.
     HRESULT  BeginShadowPass (int slot, UINT texels);
     void     EndShadowPass   ();
+
+    // Capture of the environment a mirror finish reflects: six square faces
+    // of one cube map, in D3D's order (+X, -X, +Y, -Y, +Z, -Z). Between Begin
+    // and End every draw lands in that face, depth-tested against the cube's
+    // own depth buffer, and the caller's targets come back at End. Draw the
+    // face with a 90 degree projection looking down its axis; the viewport
+    // to pass is EnvironmentViewport. The map persists, so a still scene
+    // pays nothing to redraw it.
+    HRESULT         BeginEnvironmentFace (int face, UINT texels, const float clearRgba[4]);
+    void            EndEnvironmentFace   ();
+    D3D11_VIEWPORT  EnvironmentViewport  () const;
 
     static constexpr int   kShadowMaps        = 4;   // 0,1 room lights; 2,3 device lamps
     static constexpr int   kShadowLights      = 2;   // ...of which these are directional
@@ -361,6 +382,20 @@ private:
         ComPtr<ID3D11ShaderResourceView>  srv;
         UINT                              size = 0;
     };
+
+    HRESULT  EnsureEnvironment (UINT texels);
+
+    // The cube a mirror finish samples, its six faces as targets, and a
+    // depth buffer of the same edge for capturing them.
+    ComPtr<ID3D11Texture2D>           m_envTex;
+    ComPtr<ID3D11RenderTargetView>    m_envRtv[6];
+    ComPtr<ID3D11ShaderResourceView>  m_envSrv;
+    ComPtr<ID3D11Texture2D>           m_envDepthTex;
+    ComPtr<ID3D11DepthStencilView>    m_envDsv;
+    UINT                              m_envSize = 0;
+    int                               m_envFace = -1;   // >= 0 inside a capture
+    ComPtr<ID3D11RenderTargetView>    m_envSavedRtv;
+    ComPtr<ID3D11DepthStencilView>    m_envSavedDsv;
 
     ShadowMap                         m_shadow[kShadowMaps];
     int                               m_shadowSlot = -1;   // >= 0 inside a pass
