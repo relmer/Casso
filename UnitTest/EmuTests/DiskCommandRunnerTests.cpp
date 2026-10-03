@@ -1992,6 +1992,64 @@ public:
             L"and the refusal identifies the image");
     }
 
+    //  A name Windows rejects first fails at the temporary, and was once
+    //  reported there as a read-only or full folder.
+    TEST_METHOD (Commit_WhenTheNameIsInvalid_ReportsTheNameRatherThanTheFolder)
+    {
+        FakeDiskFileIo                 io;
+        DiskCommandRunner              runner (io);
+        DiskImageSession::OpenedImage  opened;
+        DiskCommandResult              result;
+        HRESULT                        hr     = S_OK;
+
+
+
+        SeedRealDisk (io);
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
+
+        io.failNextWrite  = true;
+        io.nextWriteError = HRESULT_FROM_WIN32 (ERROR_INVALID_NAME);
+
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_NAME), hr);
+        Assert::IsTrue (result.diagnostics.find (std::string (kImage) + ": is not a valid file name") != std::string::npos,
+                        L"the refusal reports the name");
+        Assert::IsTrue (result.diagnostics.find ("read-only") == std::string::npos,
+                        L"and does not blame the folder");
+    }
+
+    TEST_METHOD (DescribeTemporaryWriteFailure_GivesTheCauseTheCodeReports)
+    {
+        struct Case
+        {
+            DWORD         win32Error;
+            const char  * expected;
+        };
+
+        static constexpr Case  kCases[] =
+        {
+            { ERROR_INVALID_NAME,     "is not a valid file name"                          },
+            { ERROR_PATH_NOT_FOUND,   "could not be written. Its folder does not exist"   },
+            { ERROR_ACCESS_DENIED,    "could not be written. Its folder is read-only, or you do not have permission to write there" },
+            { ERROR_DISK_FULL,        "could not be written. The disk is full"            },
+            { ERROR_HANDLE_DISK_FULL, "could not be written. The disk is full"            },
+            { ERROR_WRITE_FAULT,      "could not be written"                              },
+        };
+
+
+
+        for (const Case & c : kCases)
+        {
+            Assert::AreEqual (std::string (c.expected),
+                              DiskImageSession::DescribeTemporaryWriteFailure (HRESULT_FROM_WIN32 (c.win32Error)));
+        }
+
+        Assert::AreEqual (std::string ("could not be written"),
+                          DiskImageSession::DescribeTemporaryWriteFailure (E_FAIL),
+                          L"a code with no specific cause gets no guessed one");
+    }
+
     TEST_METHOD (Commit_WhenTheReplaceFails_LeavesTheImageByteIdenticalAndRemovesTheTemporary)
     {
         // Here the temporary genuinely exists and is complete -- the last and
