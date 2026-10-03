@@ -226,4 +226,48 @@ public:
         Assert::IsTrue (loaded == MakePayload(),
             L"and the bytes in memory must be the file's, all of them");
     }
+
+    //  A flux disk made from nothing by `disk create --flux --bootable`, booted
+    //  and written by DOS itself.
+    TEST_METHOD (Dos33BootsAndSavesOnAFluxDiskMadeByCreate)
+    {
+        TestMachine                machine ("Apple2e");
+        std::vector<Byte>          master  = GuestSession::RequireDos33Master();
+        FakeDiskFileIo             io;
+        DiskCommandRunner          runner  (io);
+        CommandLineOptions         options;
+        DiskCommandResult          result;
+        std::vector<Byte>          woz;
+        std::vector<std::string>   rows;
+
+        io.files["master.dsk"]  = master;
+        io.stamps["master.dsk"] = FileStamp { master.size(), 100 };
+
+        options.subcommand        = CommandLineOptions::Subcommand::Disk;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.commandWord  = "create";
+        options.disk.imagePath    = kImagePath;
+        options.disk.bootable     = true;
+        options.disk.bootableFrom = "master.dsk";
+        options.disk.flux         = true;
+
+        result = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, L"create --flux --bootable must succeed");
+
+        woz = io.files[kImagePath];
+        AssertEveryTrackIsFlux (woz);
+
+        GuestSession::BootWozToPrompt (machine, woz, ReadSectors (woz));
+
+        rows = GuestSession::TypeAndCollect (machine, "10 PRINT \"MADE\"");
+        rows = GuestSession::TypeAndCollect (machine, "SAVE MADEFLUX");
+
+        Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"),
+            L"DOS must save to a flux disk create made");
+
+        rows = GuestSession::TypeAndCollect (machine, "CATALOG");
+
+        Assert::IsTrue (GuestSession::AnyRowContains (rows, "MADEFLUX"),
+            L"and catalog what it saved");
+    }
 };

@@ -48,6 +48,7 @@ public:
     static uint64_t         GetCellStartTick        (uint64_t cellIndex);
 
     void                    Assign                  (const vector<Byte> & bytes);
+    void                    AssignBits              (const vector<uint8_t> & bits);
     const vector<Byte>   &  GetBytes                () const { return m_bytes; }
     uint64_t                GetTotalTicks           () const { return m_totalTicks; }
     uint64_t                GetRevolutionTicks      () const;

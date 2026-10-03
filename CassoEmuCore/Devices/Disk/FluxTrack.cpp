@@ -66,6 +66,45 @@ void FluxTrack::Assign (const vector<Byte> & bytes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FluxTrack::AssignBits
+//
+//  A whole track from cells, one transition per 1 bit in the middle of its
+//  cell at the controller's timing, the way SpliceWrite places them. A track
+//  of only 0 bits gets a single transition at the end of the revolution,
+//  because the format cannot hold a revolution with none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxTrack::AssignBits (const vector<uint8_t> & bits)
+{
+    vector<uint64_t>  ticks;
+    uint64_t          revolution = GetCellStartTick (bits.size());
+    size_t            i          = 0;
+
+
+
+    for (i = 0; i < bits.size(); i++)
+    {
+        if (bits[i] != 0)
+        {
+            ticks.push_back ((GetCellStartTick (i) + GetCellStartTick (i + 1)) / 2);
+        }
+    }
+
+    if (ticks.empty() && revolution > 0)
+    {
+        ticks.push_back (revolution);
+    }
+
+    Encode (ticks, revolution);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FluxTrack::GetRevolutionTicks
 //
 //  One revolution. A track with no data has no length of its own, so it

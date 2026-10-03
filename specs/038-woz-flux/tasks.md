@@ -210,10 +210,10 @@ parallel (different files, no dependency on an unfinished task).
 
 ## Phase 8: Making flux disks (FR-014)
 
-- [ ] T045 Add `FluxTrack::AssignBits` (one transition per 1 bit at the controller's cell; a track with no 1 bits gets one transition per revolution) and a `fluxTrackMask` on `BlankDiskSpec`, applied by `BlankDiskBuilder::WrapInContainer` to WOZ only, with a `FluxNeedsWoz` verdict; tests in `UnitTest/EmuTests/BlankDiskBuilderTests.cpp` and `FluxTrackTests.cpp`
-- [ ] T046 Parse `--flux [<tracks>]` for `disk create` and `disk init` (`CassoCore/CommandLineParser.cpp`, `CommandLineOptions.h`), resolve the track list and refuse a bad one or a non-WOZ container in `DiskCommandRunner.cpp`, keep a WOZ's flux tracks on `init` without `--flux`, report flux tracks in the new-disk summary, and update `DiskHelpPage.cpp`; tests in the parser and runner suites
-- [ ] T047 Add a "Flux tracks" checkbox to the create dialog, enabled only for WOZ (`CassoEmuCore/Ui/Dialogs/CreateDiskDialog.cpp`); tests where the dialog state is tested
-- [ ] T048 Scenario test: a bootable DOS 3.3 flux disk made by `disk create --flux` boots, takes a `SAVE`, and catalogs (`ScenarioTests/GuestVisibleFluxTests.cpp`)
+- [X] T045 Add `FluxTrack::AssignBits` (one transition per 1 bit at the controller's cell; a track with no 1 bits gets one transition per revolution) and a `fluxTrackMask` on `BlankDiskSpec`, applied by `BlankDiskBuilder::WrapInContainer` to WOZ only, with a `FluxNeedsWoz` verdict; tests in `UnitTest/EmuTests/BlankDiskBuilderTests.cpp` and `FluxTrackTests.cpp`
+- [X] T046 Parse `--flux [<tracks>]` for `disk create` and `disk init` (`CassoCore/CommandLineParser.cpp`, `CommandLineOptions.h`), resolve the track list and refuse a bad one or a non-WOZ container in `DiskCommandRunner.cpp`, keep a WOZ's flux tracks on `init` without `--flux`, report flux tracks in the new-disk summary, and update `DiskHelpPage.cpp`; tests in the parser and runner suites
+- [X] T047 Add a "Flux tracks" checkbox to the create dialog, enabled only for WOZ. Built as its own row, "Store every track as flux", above the bootable row, because beside Image type it would not fit the 560-dip dialog; the WOZ rule is BlankDiskBuilder::CanHoldFlux. Awaiting the owner's look on screen (`CassoEmuCore/Ui/Dialogs/CreateDiskDialog.cpp`); tests where the dialog state is tested
+- [X] T048 Scenario test: a bootable DOS 3.3 flux disk made by `disk create --flux` boots, takes a `SAVE`, and catalogs (`ScenarioTests/GuestVisibleFluxTests.cpp`)
 ---
 
 ## Dependencies

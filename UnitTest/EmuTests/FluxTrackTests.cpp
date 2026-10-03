@@ -260,4 +260,43 @@ public:
         Assert::IsTrue (runs >= 4);
         Assert::IsTrue (FluxTrack::IsValidStream (track.GetBytes()));
     }
+
+    TEST_METHOD (AssignBitsKeepsEveryCellAndOneTransitionPerOneBit)
+    {
+        FluxTrack         track;
+        vector<uint8_t>   bits  = { 0, 1, 0, 0, 1, 1, 0, 1, 0, 0 };
+        vector<uint64_t>  ticks;
+        size_t            i     = 0;
+
+        track.AssignBits (bits);
+        track.GetTransitionTicks (ticks);
+
+        Assert::AreEqual (FluxTrack::GetCellStartTick (bits.size()), track.GetTotalTicks(),
+            L"the revolution must be exactly the cells given");
+        Assert::AreEqual (static_cast<size_t> (4), ticks.size());
+
+        // After the first, which takes the time left over at the end, each
+        // gap is the distance between the middles of two 1 cells.
+        for (i = 1; i < ticks.size(); i++)
+        {
+            Assert::IsTrue (ticks[i] > ticks[i - 1]);
+        }
+
+        Assert::AreEqual ((FluxTrack::GetCellStartTick (4) + FluxTrack::GetCellStartTick (5)) / 2
+                          - (FluxTrack::GetCellStartTick (1) + FluxTrack::GetCellStartTick (2)) / 2,
+                          ticks[1] - ticks[0]);
+    }
+
+
+    TEST_METHOD (AssignBitsOfAllZerosIsOneTransitionPerRevolution)
+    {
+        FluxTrack        track;
+        vector<uint8_t>  bits (51200, 0);
+
+        track.AssignBits (bits);
+
+        Assert::AreEqual (static_cast<size_t> (1), track.GetTransitionCount());
+        Assert::AreEqual (FluxTrack::GetCellStartTick (bits.size()), track.GetTotalTicks());
+        Assert::IsTrue (FluxTrack::IsValidStream (track.GetBytes()));
+    }
 };
