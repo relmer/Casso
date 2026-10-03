@@ -1102,6 +1102,7 @@ private:
     void          InsertTape             (const std::wstring & path);
     void          CreateBlankTape        ();
     void          PromptTapePosition     ();
+    int           GetDriveRowWidthPx     ();
     void          RegisterTapeDropTarget ();
     void          OnFileDropped          (int tag, const std::wstring & path);
 

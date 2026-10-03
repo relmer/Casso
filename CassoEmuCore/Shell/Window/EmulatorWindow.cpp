@@ -988,9 +988,57 @@ SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int f
     else
     {
         client = GetClientSizeForCenterPx (framebufferWpx, framebufferHpx);
+
+        // NEVER NARROWER THAN THE DRIVE ROW. With the recorder beside the
+        // drives the row outgrows a 100% screen, and a window wrapped tightly
+        // around the screen cut the recorder off at its right edge.
+        client.cx = max (client.cx, (LONG) GetDriveRowWidthPx());
     }
 
     return client;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetDriveRowWidthPx
+//
+//  How wide the flat drive row is -- the drives that show, the recorder when
+//  the machine has one, the gaps between them and a gap at either end --
+//  measured on throwaway widgets so the live ones keep their layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetDriveRowWidthPx()
+{
+    UINT            dpi    = m_scaler.GetDpi();
+    int             gap    = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
+    int             count  = ShouldShowExternalDrive() ? 2 : 1;
+    DxuiDpiScaler   scaler;
+    DriveWidget     drive;
+    TapeDeckWidget  tape;
+    RECT            outer  = {};
+    int             width  = 0;
+
+
+
+    scaler.SetDpi (dpi);
+
+    drive.Layout (RECT {}, scaler);
+    outer = drive.GetOuterRect();
+    width = count * (outer.right - outer.left) + (count + 1) * gap;
+
+    if (MachineHasCassettePort())
+    {
+        tape.Layout (RECT {}, scaler);
+        outer  = tape.GetOuterRect();
+        width += (outer.right - outer.left) + gap;
+    }
+
+    return width;
 }
 
 
