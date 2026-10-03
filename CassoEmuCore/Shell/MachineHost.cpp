@@ -481,6 +481,7 @@ void MachineHost::StopTape()
 
 
     m_tapeDeck->Stop (now);
+    m_tapeResetCount.fetch_add (1, std::memory_order_release);
 }
 
 

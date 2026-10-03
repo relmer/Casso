@@ -229,6 +229,10 @@ public:
     //  power cycle and a machine switch all do this.
     void  StopTape();
 
+    // How many times a reset, power cycle or rebuild has stopped the tape, so
+    // the UI can see one happened and let the recorder's keys back up.
+    uint32_t  GetTapeResetCount() const { return m_tapeResetCount.load (std::memory_order_acquire); }
+
     //  Where this machine's pending printer strip persists across a switch
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
     std::filesystem::path  GetPendingPrintDir() const;
@@ -280,6 +284,7 @@ private:
     // machine's, so it outlives every rebuild; each new cassette port is
     // connected to it.
     std::unique_ptr<TapeDeck>        m_tapeDeck;
+    std::atomic<uint32_t>            m_tapeResetCount { 0 };
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;

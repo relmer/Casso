@@ -1199,11 +1199,10 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 //
 //  EmulatorShell::SyncRecorderKeys
 //
-//  Stands the desk recorder's keys as the transport has them: PLAY down while
-//  the tape plays, RECORD and PLAY both down while it records -- the deck's
-//  own interlock -- and the wind keys down while winding. Any key also dips
-//  for a moment when clicked, so a press reads as a press even on a key that
-//  latches nothing. Returns whether a key is still moving.
+//  Stands the desk recorder's keys as they are latched (LatchRecorderKeys):
+//  RECORD, REW, FF and PLAY stay down from the press until STOP, EJECT or a
+//  reset, whatever the tape does meanwhile. STOP and EJECT dip for a moment
+//  when clicked. Returns whether a key is still moving.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1218,10 +1217,17 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
 
 
-    depths[kRecord]  = transport == TapeTransport::Recording                                     ? kTravelMm : 0.0f;
-    depths[kPlay]    = (transport == TapeTransport::Playing || transport == TapeTransport::Recording) ? kTravelMm : 0.0f;
-    depths[kForward] = transport == TapeTransport::FastForwarding                                ? kTravelMm : 0.0f;
-    depths[kRewind]  = transport == TapeTransport::Rewinding                                     ? kTravelMm : 0.0f;
+    // A reset, a power cycle or an empty deck lets every key back up.
+    if (m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty)
+    {
+        m_seenTapeResets = m_machine.GetTapeResetCount();
+        m_recorderKeyLatched.fill (false);
+    }
+
+    for (size_t key = 0; key < depths.size(); key++)
+    {
+        depths[key] = m_recorderKeyLatched[key] ? kTravelMm : 0.0f;
+    }
 
     for (size_t key = 0; key < depths.size(); key++)
     {
@@ -1352,8 +1358,10 @@ void EmulatorShell::SyncSceneTapeLabel()
     m_sceneTapeCounter.Layout     (m_sceneTapeCounterRect, m_scaler);
     m_sceneTapeCounter.SetVisible (!counter.empty());
 
-    // THE KEY UNDER THE POINTER SAYS WHAT IT IS, just above its back edge, as
-    // the flat deck's controls do under themselves.
+    // THE KEY UNDER THE POINTER SAYS WHAT IT IS, just under its front edge,
+    // as the flat deck's controls do. Not above the key: there it sat on the
+    // printed legend, with its halo blotting the light plate, and a zoom
+    // pulled the two visibly apart.
     {
         bool  shown = false;
 
@@ -1362,8 +1370,8 @@ void EmulatorShell::SyncSceneTapeLabel()
             const float *  box = m_deskScene.RecorderModel().KeyBoxes() + m_recorderHoverKey * 6;
 
             model[0] = (box[0] + box[3]) * 0.5f;
-            model[1] = box[4];
-            model[2] = box[5];
+            model[1] = box[1];
+            model[2] = box[2];
 
             shown = box[3] > box[0] &&
                     SceneCamera::TransformPoint (comp.recorderWorld, model, world) &&
@@ -1372,8 +1380,8 @@ void EmulatorShell::SyncSceneTapeLabel()
 
         if (shown)
         {
-            RECT  rc = { (LONG) screen[0] - halfW, (LONG) screen[1] - gapPx - stripH,
-                         (LONG) screen[0] + halfW, (LONG) screen[1] - gapPx };
+            RECT  rc = { (LONG) screen[0] - halfW, (LONG) screen[1] + gapPx,
+                         (LONG) screen[0] + halfW, (LONG) screen[1] + gapPx + stripH };
 
             m_sceneKeyLabel.SetText        (TapeDeckWidget::GetControlLabel ((size_t) m_recorderHoverKey));
             m_sceneKeyLabel.SetFontSizeDip (s_kSceneDriveLabelFontDip);

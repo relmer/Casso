@@ -229,6 +229,8 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         return;
     }
 
+    LatchRecorderKeys (region);
+
     switch (region)
     {
         case TapeDeckRegion::Name:        PickTape();                                                                 break;
@@ -290,6 +292,56 @@ void EmulatorShell::PromptTapePosition()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LatchRecorderKeys
+//
+//  The RQ-309DS's key mechanism, for the desk recorder: RECORD takes PLAY
+//  down with it, a wind key or PLAY knocks the others up, and STOP or EJECT
+//  releases everything. A latched key stays down even after the tape stops by
+//  itself -- at the end, or after a load -- as the real keys do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
+{
+    constexpr size_t  kRecord      = 0, kRewind = 1, kForward = 2, kPlay = 3;
+    bool              wasRecording = m_recorderKeyLatched[kRecord];
+
+
+
+    switch (region)
+    {
+        case TapeDeckRegion::Record:
+            m_recorderKeyLatched.fill (false);
+            m_recorderKeyLatched[kRecord] = !wasRecording;
+            m_recorderKeyLatched[kPlay]   = !wasRecording;
+            break;
+
+        case TapeDeckRegion::Rewind:
+        case TapeDeckRegion::FastForward:
+        case TapeDeckRegion::Play:
+            m_recorderKeyLatched.fill (false);
+            m_recorderKeyLatched[region == TapeDeckRegion::Rewind      ? kRewind  :
+                                 region == TapeDeckRegion::FastForward ? kForward : kPlay] = true;
+            break;
+
+        case TapeDeckRegion::Stop:
+        case TapeDeckRegion::Eject:
+            m_recorderKeyLatched.fill (false);
+            break;
+
+        default:
+            break;
+    }
+
+    m_d3dRenderer.MarkRedrawNeeded();
 }
 
 

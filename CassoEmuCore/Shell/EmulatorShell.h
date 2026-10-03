@@ -1102,6 +1102,7 @@ private:
     void          InsertTape             (const std::wstring & path);
     void          CreateBlankTape        ();
     void          PromptTapePosition     ();
+    void          LatchRecorderKeys      (TapeDeckRegion region);
     int           GetDriveRowWidthPx     ();
     void          RegisterTapeDropTarget ();
     void          OnFileDropped          (int tag, const std::wstring & path);
@@ -1727,6 +1728,12 @@ private:
 
     // The key under the pointer, whose name shows over it; -1 for none.
     int                       m_recorderHoverKey      = -1;
+
+    // Which of the desk recorder's keys are locked down. They latch as the
+    // RQ-309DS's do -- RECORD, REW, FF and PLAY stay down once pressed -- and
+    // only STOP, EJECT or a reset lets them back up.
+    std::array<bool, 6>       m_recorderKeyLatched    = {};
+    uint32_t                  m_seenTapeResets        = 0;
     TapeTransport             m_shownTapeTransport    = TapeTransport::Empty;   // last drawn, to repaint on a change
     DxuiShadowedText          m_sceneKeyLabel;
 

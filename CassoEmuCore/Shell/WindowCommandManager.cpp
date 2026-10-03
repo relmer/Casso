@@ -1555,13 +1555,13 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         // The tape items open their pickers here; the deck commands are
         // queued to the CPU thread by the tape manager.
-        case IDM_TAPE_INSERT:      m_shell.PickTape();                     break;
-        case IDM_TAPE_NEW:         m_shell.CreateBlankTape();              break;
-        case IDM_TAPE_EJECT:       m_shell.m_tapeManager->Eject();         break;
-        case IDM_TAPE_PLAY:        m_shell.m_tapeManager->Play();          break;
-        case IDM_TAPE_STOP:        m_shell.m_tapeManager->Stop();          break;
-        case IDM_TAPE_REWIND:      m_shell.m_tapeManager->Rewind();        break;
-        case IDM_TAPE_FASTFORWARD: m_shell.m_tapeManager->FastForward();   break;
+        case IDM_TAPE_INSERT:      m_shell.PickTape();                                     break;
+        case IDM_TAPE_NEW:         m_shell.CreateBlankTape();                              break;
+        case IDM_TAPE_EJECT:       m_shell.HandleTapeClick (TapeDeckRegion::Eject);        break;
+        case IDM_TAPE_PLAY:        m_shell.HandleTapeClick (TapeDeckRegion::Play);         break;
+        case IDM_TAPE_STOP:        m_shell.HandleTapeClick (TapeDeckRegion::Stop);         break;
+        case IDM_TAPE_REWIND:      m_shell.HandleTapeClick (TapeDeckRegion::Rewind);       break;
+        case IDM_TAPE_FASTFORWARD: m_shell.HandleTapeClick (TapeDeckRegion::FastForward);  break;
     }
 }
 
