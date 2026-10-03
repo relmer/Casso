@@ -46,7 +46,7 @@ namespace DebuggerTests
             "INPUT", "RC", "RZ", "RI", "RD", "RB", "RR", "RV", "RN", "SC", "SZ", "SI", "SD", "SB", "SR", "SV", "SN",
             "D", "ME8", "ME16", "MM", "MS", "P0", "P1", "P2", "P3", "P4", "REGISTER", "TRACE", "SYMDOS", "SYMPRO", "ZAP",
             "BENCH", "EXITBENCH", "MDB",
-            "BPV", "VIDEOINFO",
+            "BPV", "BPBEAM", "FRAME", "VIDEOINFO",
             "MODE", "PAUSE", "BUDGET", "SWITCHES", "MAP", "STACK", "PATCH", "SRC", "SKIP", "CALLS", "HISTORY", "PANEL",
             "OUTPUT",
         };
