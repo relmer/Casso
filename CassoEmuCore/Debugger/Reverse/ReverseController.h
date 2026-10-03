@@ -2,11 +2,11 @@
 
 #include "Pch.h"
 
+#include "Core/StateWriter.h"
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/Replayer.h"
-#include "Debugger/Reverse/UndoRing.h"
 
 class IReverseStopTest;
 class MachineHost;
@@ -24,7 +24,6 @@ class MachineHost;
 struct ReverseSettings
 {
     KeyframeSettings  keyframes;
-    UndoRingSettings  ring;
 };
 
 
@@ -37,9 +36,11 @@ struct ReverseSettings
 //
 //  How a reverse command ended. Moved: the machine is at the target.
 //  AtHistoryStart: no earlier position satisfied the command, so the machine
-//  is at the oldest position history holds. HistoryCut: a replay diverged
-//  from a keyframe's checksum, history after the last good keyframe was
-//  dropped, and the machine is live at that keyframe.
+//  is at the oldest position history holds. AtHistoryGap: the target lay in
+//  a stretch recording skipped (Maximum speed chosen by the user), so the
+//  machine stopped at the edge of it. HistoryCut: a replay diverged from a
+//  keyframe's checksum, history after the last good keyframe was dropped,
+//  and the machine is live at that keyframe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +48,7 @@ enum class ReverseOutcome
 {
     Moved,
     AtHistoryStart,
+    AtHistoryGap,
     HistoryCut,
 };
 
@@ -76,9 +78,17 @@ struct ReverseResult
 //  ReverseController
 //
 //  Records the machine's history and moves it backward and forward through
-//  it. Keyframes hold the long range, the undo ring the recent one, and the
-//  input journal what the host fed in; any position in history is reached by
-//  loading the nearest earlier snapshot and replaying.
+//  it. History is the keyframe store alone, one whole-machine snapshot every
+//  few frames, plus the input journal of what the host fed in; any position
+//  is reached by loading the keyframe at or before it and replaying forward
+//  by the retired-instruction count. The positions from one keyframe to the
+//  next are a stretch.
+//
+//  The step commands need the PC and stack pointer each instruction began
+//  with. The first step into a stretch replays the whole stretch once and
+//  keeps them in a table, so later steps in it, step back over and step
+//  back out are lookups; the table goes when the machine leaves the
+//  stretch, becomes live, or changes.
 //
 //  Running backward leaves the recorded future in place: seeking forward
 //  replays it, and reaching its end makes the machine live again. A change
@@ -86,6 +96,11 @@ struct ReverseResult
 //  OnMachineChanged, which drops the future and keyframes the changed state;
 //  running the machine from the past without a seek does the same. A disk
 //  change reaches it through OnMediaChanged.
+//
+//  While the user has chosen Maximum speed, recording pauses, leaving a gap
+//  in history from where it paused to the keyframe taken where it resumed;
+//  SetUserMaximumSpeed carries the choice. A speed raised automatically is
+//  not the user's choice and recording goes on.
 //
 //  While recording, the disk store holds the automatic flushes, so the image
 //  files are written only on an eject, a machine switch, exit or a commit,
@@ -110,60 +125,85 @@ public:
     ReverseController             (const ReverseController &) = delete;
     ReverseController & operator= (const ReverseController &) = delete;
 
-    HRESULT   Start            (const ReverseSettings & settings);
-    void      SetWorkQueue     (IWorkQueue * queue) { m_workQueueOverride = queue; }
-    void      Stop             ();
-    bool      IsRecording      () const { return m_isRecording; }
+    HRESULT   Start               (const ReverseSettings & settings);
+    void      SetWorkQueue        (IWorkQueue * queue) { m_workQueueOverride = queue; }
+    void      Stop                ();
+    bool      IsRecording         () const { return m_isRecording; }
+    HRESULT   SetUserMaximumSpeed (bool isMaximum);
+    bool      IsPaused            () const { return m_isPaused; }
 
-    void      OnMediaChanged   (MachineHost & machine) override;
-    HRESULT   OnMachineChanged ();
+    void      OnMediaChanged      (MachineHost & machine) override;
+    HRESULT   OnMachineChanged    ();
 
-    HRESULT   StepBack         (ReverseResult & result);
-    HRESULT   StepBackOver     (ReverseResult & result);
-    HRESULT   StepBackOut      (ReverseResult & result);
-    HRESULT   StepBackCycles   (uint64_t cycles, ReverseResult & result);
-    HRESULT   ReverseContinue  (IReverseStopTest & stopTest, ReverseResult & result);
-    HRESULT   SeekToCycle      (uint64_t cycle, ReverseResult & result);
-    HRESULT   SeekToPosition   (uint64_t position, ReverseResult & result);
+    HRESULT   StepBack            (ReverseResult & result);
+    HRESULT   StepForward         (ReverseResult & result);
+    HRESULT   StepBackOver        (ReverseResult & result);
+    HRESULT   StepBackOut         (ReverseResult & result);
+    HRESULT   StepBackCycles      (uint64_t cycles, ReverseResult & result);
+    HRESULT   ReverseContinue     (IReverseStopTest & stopTest, ReverseResult & result);
+    HRESULT   SeekToCycle         (uint64_t cycle, ReverseResult & result);
+    HRESULT   SeekToPosition      (uint64_t position, ReverseResult & result);
 
-    bool      IsInHistory        () const;
-    uint64_t  GetOldestPosition  () const;
-    uint64_t  GetLiveEndPosition () const;
+    bool      IsInHistory         () const;
+    uint64_t  GetOldestPosition   () const;
+    uint64_t  GetLiveEndPosition  () const;
+    size_t    GetTableBuildCount  () const { return m_tableBuilds; }
+    bool      HasStepTable        () const { return m_hasSteps; }
 
     KeyframeStore        & GetKeyframes ()       { return m_keyframes; }
-    UndoRing             & GetRing      ()       { return m_ring; }
     Replayer             & GetReplayer  ()       { return m_replayer; }
     const KeyframeStore  & GetKeyframes () const { return m_keyframes; }
-    const UndoRing       & GetRing      () const { return m_ring; }
 
 private:
+    //  The positions one keyframe's replay covers: from the keyframe to the
+    //  next one, or to where recording paused, or to the end of history.
+    struct Stretch
+    {
+        size_t    keyframe = 0;
+        uint64_t  start    = 0;
+        uint64_t  end      = 0;
+    };
+
     HRESULT   Seek               (const ReplayTarget & target, bool isByCycle, IReverseStopTest * stopTest, ReplayReport & report, ReverseResult & result);
-    HRESULT   RestoreAtOrBefore  (uint64_t position, uint64_t cycle, bool isByCycle);
+    HRESULT   RestoreAtOrBefore  (uint64_t position, uint64_t cycle, bool isByCycle, Stretch & outStretch);
     HRESULT   HandleDivergence   (const ReplayReport & report, ReverseResult & result);
-    HRESULT   GetRecord          (uint64_t position, UndoRecord & outRecord);
-    HRESULT   FindStepOverTarget (uint64_t current, bool & outFound, uint64_t & outTarget);
-    HRESULT   FindStepOutTarget  (uint64_t current, bool & outFound, uint64_t & outTarget);
-    HRESULT   LandAt             (uint64_t position, bool isFound, ReverseResult & result);
-    HRESULT   CaptureNow         (bool takeKeyframe, bool takeCheckpoint);
+    HRESULT   GetStep            (uint64_t position, ReplayStep & outStep, bool & outIsInGap, uint64_t & outGapStart);
+    HRESULT   BuildStepTable     (const Stretch & stretch);
+    HRESULT   FindStepOverTarget (uint64_t current, bool & outFound, uint64_t & outTarget, bool & outIsGap);
+    HRESULT   FindStepOutTarget  (uint64_t current, bool & outFound, uint64_t & outTarget, bool & outIsGap);
+    HRESULT   LandAt             (uint64_t position, ReverseOutcome outcome, ReverseResult & result);
+    HRESULT   CaptureNow         ();
+    HRESULT   CaptureBoundary    (bool isAfterGap, uint64_t gapStart);
     void      OnCaptureDue       (uint64_t cycle) override;
-    void      LeaveLive          ();
+    HRESULT   LeaveLive          ();
     void      BecomeLive         ();
     void      ScheduleCaptures   ();
+    void      DiscardStepTable   ();
     void      PruneRetainedMedia ();
     HRESULT   UseWorkQueue       ();
     void      FillResult         (ReverseResult & result) const;
 
-    bool      TryFindKeyframeAtOrBefore (uint64_t position, size_t & outIndex) const;
+    bool      TryFindStretch     (uint64_t position, Stretch & outStretch) const;
+    uint64_t  GetSegmentEnd      (size_t keyframe) const;
 
-    MachineHost        & m_machine;
-    ThreadPoolWorkQueue  m_workQueue;              // before the store, which waits on it as it goes
-    KeyframeStore        m_keyframes;
-    Replayer             m_replayer;
-    StateWriter          m_writer;                 // kept so its section and segment lists keep their capacity
-    StateWriter          m_hostWriter;             // the host input state taken with every capture
-    IWorkQueue         * m_workQueueOverride = nullptr;  // set by a test
-    bool                 m_isRecording       = false;
-    bool                 m_isLive            = true;
-    uint64_t             m_liveEndPosition   = 0;
-    uint64_t             m_liveEndCycle      = 0;
+    MachineHost              & m_machine;
+    ThreadPoolWorkQueue        m_workQueue;              // before the store, which waits on it as it goes
+    KeyframeStore              m_keyframes;
+    Replayer                   m_replayer;
+    StateWriter                m_writer;                 // kept so its section and segment lists keep their capacity
+    StateWriter                m_hostWriter;             // the host input state taken with every capture
+    IWorkQueue               * m_workQueueOverride = nullptr;  // set by a test
+    std::vector<ReplayStep>    m_steps;                  // one stretch's PC and stack pointer per position
+    uint64_t                   m_stepsStart        = 0;
+    uint64_t                   m_stepsEnd          = 0;
+    size_t                     m_tableBuilds       = 0;
+    bool                       m_hasSteps          = false;
+    bool                       m_isCut             = false;  // a table's replay diverged and cut history; m_cutResult says where
+    ReverseResult              m_cutResult;
+    bool                       m_isRecording       = false;
+    bool                       m_isLive            = true;
+    bool                       m_isPaused          = false;
+    uint64_t                   m_pauseStart        = 0;      // while paused and live: where recording stopped
+    uint64_t                   m_liveEndPosition   = 0;
+    uint64_t                   m_liveEndCycle      = 0;
 };

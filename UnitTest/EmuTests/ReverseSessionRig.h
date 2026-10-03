@@ -127,20 +127,14 @@ public:
     }
 
 
-    //  One keyframe per frame and the smallest ring that still covers it,
-    //  or the default ring when isSmallRing is false.
-    static ReverseSettings MakeSettings (bool isSmallRing)
+    //  One keyframe every framesPerKeyframe frames.
+    static ReverseSettings MakeSettings (uint64_t framesPerKeyframe)
     {
         ReverseSettings  settings;
 
 
 
-        settings.keyframes.intervalCycles = KeyframeSettings::kFrameCycles;
-
-        if (isSmallRing)
-        {
-            settings.ring.budgetBytes = 0;
-        }
+        settings.keyframes.intervalCycles = KeyframeSettings::kFrameCycles * framesPerKeyframe;
 
         return settings;
     }
@@ -247,6 +241,12 @@ public:
         isPending = false;
 
         return wasPending;
+    }
+
+
+    IWatchSink * GetWatchSink() override
+    {
+        return this;
     }
 
 

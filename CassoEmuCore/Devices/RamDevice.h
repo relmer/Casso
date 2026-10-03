@@ -34,7 +34,7 @@ public:
     Byte * GetData () { return m_data.data (); }
 
     // Register with the bus that maps this RAM, so its writes are marked for
-    // reverse execution's checkpoints (see RamPages).
+    // reverse execution's keyframes (see RamPages).
     void AttachPages (MemoryBus & bus);
 
     // IMachineState: every byte. The address range is wiring, saved only to

@@ -7,7 +7,6 @@
 class IReverseStopTest;
 class KeyframeStore;
 class MachineHost;
-class UndoRing;
 struct InputRecord;
 
 
@@ -58,38 +57,54 @@ struct ReplayReport
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReplayStep
+//
+//  The PC and stack pointer one replayed instruction began with; a replay
+//  that collects them gives one per position, in order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ReplayStep
+{
+    Word  pc = 0;
+    Byte  sp = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Replayer
 //
-//  Puts the machine back to a keyframe or an undo ring checkpoint and runs it
-//  forward with the recorded inputs, so it reaches every later position in
-//  the state it had live.
+//  Puts the machine back to a keyframe and runs it forward with the
+//  recorded inputs, so it reaches every later position in the state it had
+//  live.
 //
 //  While it runs, the debug hook is detached, the input journal is off and
-//  detached from the devices (so a replayed read records nothing), and the
-//  output gate is told, so a host can mute audio and the printer. Inputs are
-//  applied in journal order: before the instruction at a position, every
-//  record up to that position; when the replay stops at a position, only the
-//  boundary records there, since a device makes an observed record during
-//  the instruction at its position. Each keyframe the replay reaches is
-//  checked against its checksum, and the replay stops at the first that
-//  differs.
-//
-//  The ring is truncated to the restored position and refilled as the replay
-//  runs, so its records and checkpoints always end where the machine is.
+//  detached from the devices (so a replayed read records nothing), the bus
+//  reports watched accesses to the stop test's sink alone (so the
+//  debugger's own watchpoints see nothing), and the output gate is told, so
+//  a host can mute audio and the printer. Inputs are applied in journal
+//  order: before the instruction at a position, every record up to that
+//  position; when the replay stops at a position, only the boundary records
+//  there, since a device makes an observed record during the instruction at
+//  its position. Each keyframe the replay reaches is checked against its
+//  checksum, and the replay stops at the first that differs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class Replayer
 {
 public:
-    Replayer (MachineHost & machine, KeyframeStore & keyframes, UndoRing & ring);
+    Replayer (MachineHost & machine, KeyframeStore & keyframes);
 
     void      SetStateLoadedCallback (std::function<void()> callback)          { m_onStateLoaded = std::move (callback); }
     void      SetOutputGate          (std::function<void (bool)> gate)         { m_outputGate    = std::move (gate); }
 
     HRESULT   RestoreKeyframe   (size_t index);
-    HRESULT   RestoreCheckpoint (size_t index);
-    HRESULT   RunTo             (const ReplayTarget & target, uint64_t endPosition, IReverseStopTest * stopTest, ReplayReport & report);
+    HRESULT   RunTo             (const ReplayTarget & target, uint64_t endPosition, IReverseStopTest * stopTest, ReplayReport & report, std::vector<ReplayStep> * steps = nullptr);
 
     bool      IsReplaying       () const          { return m_isReplaying; }
     size_t    GetJournalCursor  () const          { return m_journalCursor; }
@@ -103,18 +118,16 @@ private:
     HRESULT   ApplyInputs         (uint64_t position, bool includeObserved);
     HRESULT   ApplyInput          (const InputRecord & record);
     HRESULT   LoadBoundaryIfDue   ();
-    HRESULT   TakeCheckpointIfDue ();
     HRESULT   CheckKeyframe       (ReplayReport & report);
-    HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report);
+    HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report, std::vector<ReplayStep> * steps);
     void      FindNextKeyframe    (uint64_t afterPosition);
 
     MachineHost                  & m_machine;
     KeyframeStore                & m_keyframes;
-    UndoRing                     & m_ring;
     std::function<void()>          m_onStateLoaded;
     std::function<void (bool)>     m_outputGate;
     std::vector<Byte>              m_scratch;
-    StateWriter                    m_writer;            // takes the ring's checkpoints; kept so its lists keep their capacity
+    StateWriter                    m_checkWriter;       // saves the machine at each keyframe a replay checks; kept for its capacity
     size_t                         m_journalCursor = 0;
     size_t                         m_nextKeyframe  = 0;
     bool                           m_isReplaying   = false;

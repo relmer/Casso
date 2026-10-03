@@ -7,7 +7,6 @@
 #include "Core/StateHash.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
-#include "Debugger/Reverse/UndoRing.h"
 #include "Devices/Disk/DiskImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -27,7 +26,7 @@ static constexpr size_t    s_kOwnBytes      = 300;
 //
 //  SharedCheckpointTests
 //
-//  Ring checkpoints taken by a sharing StateWriter keep a disk track by
+//  Keyframe saves taken by a sharing StateWriter keep a disk track by
 //  reference until the track changes. Each test holds a sharing save to the
 //  plain save of the same machine: flattened, the two must be the same
 //  bytes, before and after the disk is written and after a load, and only a
@@ -129,31 +128,6 @@ public:
 
         SaveSharedAndCompare (machine, L"after loading the earlier state");
         Assert::IsTrue (ReverseSessionRig::Save (machine) == earlier, L"the load took");
-    }
-
-
-    TEST_METHOD (TheRingCountsABufferSharedByCheckpointsOnce)
-    {
-        UndoRing                                  ring;
-        UndoRingSettings                          settings;
-        std::shared_ptr<const std::vector<Byte>>  shared = MakeBuffer (s_kSegmentBytes, 9);
-        size_t                                    empty  = 0;
-        HRESULT                                   hr     = S_OK;
-
-
-
-        settings.budgetBytes = 0;       // the fewest checkpoints, so adding them does not grow the records
-
-        AssertSucceeded (ring.Configure (settings, KeyframeSettings::kFrameCycles), L"Configure");
-        empty = ring.GetByteCount();
-
-        hr = ring.AddCheckpoint (10, 100, 0, std::vector<Byte> (s_kOwnBytes), { StateSegment { 0, shared } });
-        AssertSucceeded (hr, L"first AddCheckpoint");
-
-        hr = ring.AddCheckpoint (20, 200, 0, std::vector<Byte> (s_kOwnBytes), { StateSegment { 0, shared } });
-        AssertSucceeded (hr, L"second AddCheckpoint");
-
-        Assert::AreEqual (empty + 2 * s_kOwnBytes + s_kSegmentBytes, ring.GetByteCount(), L"own bytes twice, the shared run once");
     }
 
 

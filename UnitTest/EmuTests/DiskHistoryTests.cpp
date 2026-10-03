@@ -347,13 +347,7 @@ private:
 
     static ReverseSettings MakeSettings()
     {
-        ReverseSettings  settings;
-
-
-
-        settings.ring.budgetBytes = 0;
-
-        return settings;
+        return ReverseSettings();
     }
 
 

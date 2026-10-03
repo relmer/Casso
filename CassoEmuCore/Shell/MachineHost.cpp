@@ -251,7 +251,7 @@ Byte MachineHost::StepOne()
     // step, and a separate interrupt poll would be a second, redundant one.
     if (m_historyRecorder != nullptr)
     {
-        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502(), m_position);
+        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502());
     }
 
     m_cpu->StepOne();
@@ -287,7 +287,7 @@ Byte MachineHost::StepOneWithHook()
 
     if (m_historyRecorder != nullptr)
     {
-        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502(), m_position);
+        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502());
     }
 
     m_cpu->StepOne();
@@ -325,7 +325,7 @@ __declspec (noinline) Byte MachineHost::StepOneAsked (const DebugHookFilter & fi
 
     if (m_historyRecorder != nullptr)
     {
-        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502(), m_position);
+        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502());
     }
 
     m_cpu->StepOne();
@@ -902,7 +902,7 @@ Error:
 //
 //  A sharing save keeps each RAM chunk nobody wrote since the last one by
 //  reference, trusting the written-page marks; a write that left no mark
-//  would leave a stale chunk in this and every later checkpoint. In a debug
+//  would leave a stale chunk in this and every later save. In a debug
 //  build each such save is flattened and compared with a full save taken
 //  now, and a difference asserts. A release build does nothing.
 //
@@ -1090,7 +1090,7 @@ uint64_t MachineHost::GetRomIdentity() const
 //  MachineHost::HashBytes
 //
 //  StateHash continuing from hash. Every snapshot carries the ROM identity,
-//  so this runs at every ring checkpoint; a byte-at-a-time hash over the
+//  so this runs at every keyframe; a byte-at-a-time hash over the
 //  ROMs cost more than saving the rest of the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////

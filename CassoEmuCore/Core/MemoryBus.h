@@ -124,7 +124,7 @@ public:
 
     Byte * const * GetShadowReadPageTable () const      { return m_shadowReadPage; }
 
-    // Written-page marking, for reverse execution's checkpoints: a RAM buffer
+    // Written-page marking, for reverse execution's keyframes: a RAM buffer
     // registers one flag per 256-byte page of it, and every store the bus
     // makes into a mapped page sets that page's flag. A write made around the
     // bus, such as a debugger edit through the shadow table, calls

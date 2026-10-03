@@ -55,7 +55,7 @@ public:
 
         ReverseSessionRig::Prepare (machine);
 
-        hr = controller.Start (ReverseSessionRig::MakeSettings (false));
+        hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
         AssertSucceeded (hr, L"Start");
 
         samples = RecordSession (machine);
@@ -101,7 +101,7 @@ public:
 
         ReverseSessionRig::Prepare (machine);
 
-        hr = controller.Start (ReverseSessionRig::MakeSettings (true));
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
         RecordSession (machine);
@@ -138,7 +138,7 @@ public:
 
         ReverseSessionRig::Prepare (machine);
 
-        hr = controller.Start (ReverseSessionRig::MakeSettings (true));
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
         RecordSession (machine);
@@ -168,12 +168,15 @@ public:
             AssertSucceeded (hr, L"Add");
         }
 
-        hr = controller.SeekToCycle (store.GetInfo (bad - 1).cycle + 1, result);
-        AssertSucceeded (hr, L"SeekToCycle before the bad keyframe");
+        // A seek loads the keyframe at or before its target, so it reaches
+        // no keyframe; the first step back into the stretch before the bad
+        // one replays the whole stretch to build its table, and reaches it.
+        hr = controller.SeekToPosition (store.GetInfo (bad).position - 1, result);
+        AssertSucceeded (hr, L"SeekToPosition before the bad keyframe");
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"nothing is crossed yet");
 
-        hr = controller.SeekToCycle (store.GetInfo (bad + 1).cycle + 1, result);
-        AssertSucceeded (hr, L"SeekToCycle across the bad keyframe");
+        hr = controller.StepBack (result);
+        AssertSucceeded (hr, L"StepBack into the stretch before the bad keyframe");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::HistoryCut, L"the replay must catch the bad keyframe");
         Assert::AreEqual (bad, store.GetCount(), L"history is cut after the last good keyframe");
@@ -185,20 +188,18 @@ public:
 
 
     //  What recording costs at full speed: the same guest loop for the same
-    //  emulated time without history, then with it at several checkpoint
-    //  spacings, the first the default and the last a whole keyframe interval,
-    //  which leaves little but the per-instruction record and the keyframes.
-    //  Logged rather than asserted; the numbers mean something in Release.
+    //  emulated time without history, then with it at the default settings,
+    //  one keyframe every ten frames and nothing per instruction. Logged
+    //  rather than asserted; the numbers mean something in Release.
     TEST_METHOD (RecordingCostIsLogged)
     {
         constexpr uint64_t  kFrames    = 300;
-        constexpr uint64_t  kFine      = 4096;
-        uint64_t            spacings[] = { UndoRingSettings::kDefaultCheckpointCycles, kFine, KeyframeSettings::kFrameCycles * 4, KeyframeSettings::kFrameCycles * KeyframeSettings::kDefaultFrames };
         TestMachine         plain      ("Apple2e");
+        TestMachine         recorded   ("Apple2e");
+        ReverseController   controller (recorded);
         double              plainUs    = 0;
         double              recordedUs = 0;
         double              seconds    = static_cast<double> (kFrames * KeyframeSettings::kFrameCycles) / kClockHz;
-        ReverseSettings     settings;
         HRESULT             hr         = S_OK;
 
 
@@ -206,38 +207,26 @@ public:
         ReverseSessionRig::Prepare (plain);
         plainUs = TimeFrames (plain, kFrames);
 
-        Logger::WriteMessage (std::format ("{:.2f} emulated seconds without history: {:.1f} ms, {:.1f}x real time\n", seconds, plainUs / 1000, seconds * 1e6 / plainUs).c_str());
+        ReverseSessionRig::Prepare (recorded);
 
-        for (uint64_t spacing : spacings)
-        {
-            TestMachine        recorded   ("Apple2e");
-            ReverseController  controller (recorded);
+        hr = controller.Start (ReverseSettings());
+        AssertSucceeded (hr, L"Start");
 
+        recordedUs = TimeFrames (recorded, kFrames);
 
+        Assert::AreEqual<uint64_t> (plain.GetPosition(), recorded.GetPosition(), L"both ran the same instructions");
 
-            ReverseSessionRig::Prepare (recorded);
-
-            settings.ring.checkpointCycles = spacing;
-
-            hr = controller.Start (settings);
-            AssertSucceeded (hr, L"Start");
-
-            recordedUs = TimeFrames (recorded, kFrames);
-
-            Assert::AreEqual<uint64_t> (plain.GetPosition(), recorded.GetPosition(), L"both ran the same instructions");
-
-            Logger::WriteMessage (std::format ("  checkpoint every {} cycles: {:.1f} ms, {:.1f}x real time, +{:.1f}%; {} keyframes in {} bytes, ring {} checkpoints in {} bytes\n",
-                                               spacing,
-                                               recordedUs / 1000,
-                                               seconds * 1e6 / recordedUs,
-                                               (recordedUs - plainUs) * 100 / plainUs,
-                                               controller.GetKeyframes().GetCount(),
-                                               controller.GetKeyframes().GetByteCount(),
-                                               controller.GetRing().GetCheckpointCount(),
-                                               controller.GetRing().GetByteCount()).c_str());
-        }
+        Logger::WriteMessage (std::format ("{:.2f} emulated seconds without history: {:.1f} ms, {:.1f}x real time; recording: {:.1f} ms, {:.1f}x real time, +{:.1f}%; {} keyframes in {} bytes, {} bytes reserved\n",
+                                           seconds,
+                                           plainUs / 1000,
+                                           seconds * 1e6 / plainUs,
+                                           recordedUs / 1000,
+                                           seconds * 1e6 / recordedUs,
+                                           (recordedUs - plainUs) * 100 / plainUs,
+                                           controller.GetKeyframes().GetCount(),
+                                           controller.GetKeyframes().GetByteCount(),
+                                           controller.GetKeyframes().GetReservedBytes()).c_str());
     }
-
 private:
 
     static constexpr double  kClockHz = 1022727.0;
@@ -321,15 +310,14 @@ private:
         Assert::IsTrue (keys > 0,    L"the guest must have read keys");
         Assert::IsTrue (paddles > 0, L"the guest must have read paddle moves");
         Assert::IsTrue (machine.GetDiskStore().GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive)->IsDirty(), L"the guest must have written the disk");
-        Assert::IsTrue (controller.GetKeyframes().GetCount() > 10, L"the session must span many keyframes");
+        Assert::IsTrue (controller.GetKeyframes().GetCount() > 5, L"the session must span several keyframes");
 
-        Logger::WriteMessage (std::format ("{} keyframes, {} journal records ({} keys, {} paddles), {} ring checkpoints, {} bytes in the ring\n",
+        Logger::WriteMessage (std::format ("{} keyframes in {} bytes, {} journal records ({} keys, {} paddles)\n",
                                            controller.GetKeyframes().GetCount(),
+                                           controller.GetKeyframes().GetByteCount(),
                                            journal.GetEndIndex() - journal.GetBeginIndex(),
                                            keys,
-                                           paddles,
-                                           controller.GetRing().GetCheckpointCount(),
-                                           controller.GetRing().GetByteCount()).c_str());
+                                           paddles).c_str());
     }
 
 

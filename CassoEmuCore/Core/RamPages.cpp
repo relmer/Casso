@@ -200,7 +200,7 @@ bool RamPages::IsChunkWritten (size_t chunk) const
 //
 //  TakeChunkBuffer
 //
-//  A buffer only the pool holds, every checkpoint that shared it having been
+//  A buffer only the pool holds, every save that shared it having been
 //  dropped, or a new one when none of the next few is free. The pool is
 //  walked round from where the last search stopped, so the oldest buffers,
 //  the first to be freed, are the first tried.

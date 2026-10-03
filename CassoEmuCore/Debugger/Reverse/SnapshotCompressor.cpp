@@ -139,10 +139,32 @@ HRESULT SnapshotCompressor::Decompress (
     size_t                     size,
     std::vector<Byte>        & out)
 {
+    return Decompress (packed.data(), packed.size(), size, out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Decompress (from a span)
+//
+//  As Decompress, with the packed bytes given as a pointer and a length, so
+//  a stream held inside a larger buffer needs no copy of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SnapshotCompressor::Decompress (
+    const Byte         * packed,
+    size_t               packedSize,
+    size_t               size,
+    std::vector<Byte>  & out)
+{
     HRESULT  hr           = S_OK;
     SIZE_T   unpackedSize = 0;
     BOOL     unpacked     = FALSE;
-    bool     hasPacked    = !packed.empty();
+    bool     hasPacked    = packedSize != 0;
     bool     isEmpty      = size == 0;
 
 
@@ -155,7 +177,7 @@ HRESULT SnapshotCompressor::Decompress (
     CBREx       (!isEmpty || !hasPacked, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     BAIL_OUT_IF (isEmpty, S_OK);
 
-    unpacked = ::Decompress (m_decompressor, packed.data(), packed.size(), out.data(), size, &unpackedSize);
+    unpacked = ::Decompress (m_decompressor, packed, packedSize, out.data(), size, &unpackedSize);
     CWREx (unpacked,             HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx (unpackedSize == size, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

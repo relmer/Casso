@@ -19,7 +19,7 @@
 
 ReverseController::ReverseController (MachineHost & machine) :
     m_machine  (machine),
-    m_replayer (machine, m_keyframes, m_ring)
+    m_replayer (machine, m_keyframes)
 {
 }
 
@@ -46,29 +46,32 @@ ReverseController::~ReverseController()
 //
 //  Start
 //
-//  Turns the input journal on and takes the first keyframe and checkpoint at
-//  once, so history begins at the moment the journal attaches. The disks are
-//  machine state from here: the automatic flushes are held, and a disk that
-//  leaves its bay is kept in memory while history may put it back.
+//  Turns the input journal on and takes the first keyframe at once, so
+//  history begins at the moment the journal attaches; the keyframe store
+//  takes its whole budget there. The disks are machine state from here: the
+//  automatic flushes are held, and a disk that leaves its bay is kept in
+//  memory while history may put it back. A pause chosen before the start
+//  holds from the first keyframe on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::Start (const ReverseSettings & settings)
 {
-    HRESULT   hr  = S_OK;
-    EmuCpu  * cpu = m_machine.GetCpu();
+    constexpr uint64_t  kMinInstructionCycles = 2;
+    constexpr size_t    kStepSlack            = 64;
+    HRESULT             hr                    = S_OK;
+    EmuCpu            * cpu                   = m_machine.GetCpu();
 
 
 
     CBRA (cpu);
 
-    hr = m_ring.Configure (settings.ring, settings.keyframes.intervalCycles);
-    CHR (hr);
-
     m_keyframes.Configure (settings.keyframes);
 
     hr = UseWorkQueue();
     CHR (hr);
+
+    m_steps.reserve (static_cast<size_t> (settings.keyframes.intervalCycles / kMinInstructionCycles) + kStepSlack);
 
     m_machine.GetInputJournal().Clear();
     m_machine.SetInputJournalOn  (true);
@@ -80,8 +83,13 @@ HRESULT ReverseController::Start (const ReverseSettings & settings)
     m_isRecording = true;
     m_isLive      = true;
 
-    hr = CaptureNow (true, true);
+    hr = CaptureNow();
     CHR (hr);
+
+    if (m_isPaused)
+    {
+        BecomeLive();
+    }
 
 Error:
     return hr;
@@ -95,8 +103,9 @@ Error:
 //
 //  Stop
 //
-//  Detaches from the machine and drops all history. The disks keep any writes
-//  they hold, which the next flush writes as they stand.
+//  Detaches from the machine, drops all history and gives back the memory
+//  it held. The disks keep any writes they hold, which the next flush
+//  writes as they stand.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,12 +125,65 @@ void ReverseController::Stop()
         m_machine.GetDiskStore().SetMediaRetention (false);
     }
 
-    m_keyframes.Clear();
-    m_ring.Clear();
+    m_keyframes.Release();
+
+    DiscardStepTable();
+    m_steps = std::vector<ReplayStep>();
 
     m_isRecording  = false;
     m_isLive       = true;
     m_nextDueCycle = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetUserMaximumSpeed
+//
+//  The user chose Maximum speed, or left it. Recording pauses at Maximum:
+//  where the machine stands is the end of what history holds, until a
+//  keyframe taken where recording resumes starts the next part, marked as
+//  following a gap. A speed raised automatically must not come here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::SetUserMaximumSpeed (bool isMaximum)
+{
+    HRESULT   hr       = S_OK;
+    uint64_t  gapStart = m_pauseStart;
+    bool      hasGap   = false;
+
+
+
+    BAIL_OUT_IF (isMaximum == m_isPaused, S_OK);
+
+    m_isPaused = isMaximum;
+
+    BAIL_OUT_IF (!m_isRecording || !m_isLive, S_OK);
+
+    if (isMaximum)
+    {
+        BecomeLive();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hasGap = m_machine.GetPosition() > gapStart;
+
+    m_machine.SetInputJournalOn (true);
+
+    if (hasGap)
+    {
+        hr = CaptureBoundary (true, gapStart);
+        CHR (hr);
+    }
+
+    BecomeLive();
+
+Error:
+    return hr;
 }
 
 
@@ -142,17 +204,20 @@ void ReverseController::Stop()
 
 HRESULT ReverseController::OnMachineChanged()
 {
-    HRESULT   hr       = S_OK;
-    EmuCpu  * cpu      = m_machine.GetCpu();
-    uint64_t  cycle    = 0;
-    uint64_t  position = m_machine.GetPosition();
+    HRESULT   hr         = S_OK;
+    EmuCpu  * cpu        = m_machine.GetCpu();
+    uint64_t  cycle      = 0;
+    uint64_t  position   = m_machine.GetPosition();
+    uint64_t  gapStart   = m_pauseStart;
+    bool      isAfterGap = false;
 
 
 
     CBRA (cpu);
     BAIL_OUT_IF (!m_isRecording, S_OK);
 
-    cycle = cpu->GetTotalCycles();
+    cycle      = cpu->GetTotalCycles();
+    isAfterGap = m_isLive && m_isPaused && position > gapStart;
 
     if (!m_isLive)
     {
@@ -169,14 +234,10 @@ HRESULT ReverseController::OnMachineChanged()
         CHR (hr);
     }
 
-    m_ring.TruncateFrom (position);
-
     BecomeLive();
 
-    hr = CaptureNow (true, true);
+    hr = CaptureBoundary (isAfterGap, gapStart);
     CHR (hr);
-
-    m_keyframes.MarkNewestBoundary();
 
 Error:
     return hr;
@@ -220,18 +281,63 @@ void ReverseController::OnMediaChanged (MachineHost & machine)
 //
 //  StepBack
 //
-//  To the instruction before this one.
+//  To the instruction before this one. The first step into a stretch builds
+//  its table; one into a gap stops at the edge of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::StepBack (ReverseResult & result)
 {
-    uint64_t  position = m_machine.GetPosition();
-    bool      hasPrior = position > GetOldestPosition();
+    HRESULT     hr       = S_OK;
+    uint64_t    position = m_machine.GetPosition();
+    uint64_t    oldest   = GetOldestPosition();
+    ReplayStep  step;
+    bool        isInGap  = false;
+    uint64_t    gapStart = 0;
 
 
 
-    return LandAt (hasPrior ? position - 1 : GetOldestPosition(), hasPrior, result);
+    if (position <= oldest)
+    {
+        hr = LandAt (oldest, ReverseOutcome::AtHistoryStart, result);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    m_isCut = false;
+
+    hr = GetStep (position - 1, step, isInGap, gapStart);
+    CHR (hr);
+
+    if (m_isCut)
+    {
+        result = m_cutResult;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = LandAt (isInGap ? gapStart : position - 1, isInGap ? ReverseOutcome::AtHistoryGap : ReverseOutcome::Moved, result);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepForward
+//
+//  To the instruction after this one, replaying the recorded future. Live,
+//  there is nothing recorded ahead and the machine stays where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::StepForward (ReverseResult & result)
+{
+    return SeekToPosition (m_machine.GetPosition() + 1, result);
 }
 
 
@@ -249,16 +355,28 @@ HRESULT ReverseController::StepBack (ReverseResult & result)
 
 HRESULT ReverseController::StepBackOver (ReverseResult & result)
 {
-    HRESULT   hr      = S_OK;
-    bool      isFound = false;
-    uint64_t  target  = 0;
+    HRESULT         hr      = S_OK;
+    bool            isFound = false;
+    bool            isGap   = false;
+    uint64_t        target  = 0;
+    ReverseOutcome  outcome = ReverseOutcome::Moved;
 
 
 
-    hr = FindStepOverTarget (m_machine.GetPosition(), isFound, target);
+    m_isCut = false;
+
+    hr = FindStepOverTarget (m_machine.GetPosition(), isFound, target, isGap);
     CHR (hr);
 
-    hr = LandAt (target, isFound, result);
+    if (m_isCut)
+    {
+        result = m_cutResult;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
+
+    hr = LandAt (isFound ? target : GetOldestPosition(), outcome, result);
     CHR (hr);
 
 Error:
@@ -279,16 +397,28 @@ Error:
 
 HRESULT ReverseController::StepBackOut (ReverseResult & result)
 {
-    HRESULT   hr      = S_OK;
-    bool      isFound = false;
-    uint64_t  target  = 0;
+    HRESULT         hr      = S_OK;
+    bool            isFound = false;
+    bool            isGap   = false;
+    uint64_t        target  = 0;
+    ReverseOutcome  outcome = ReverseOutcome::Moved;
 
 
 
-    hr = FindStepOutTarget (m_machine.GetPosition(), isFound, target);
+    m_isCut = false;
+
+    hr = FindStepOutTarget (m_machine.GetPosition(), isFound, target, isGap);
     CHR (hr);
 
-    hr = LandAt (target, isFound, result);
+    if (m_isCut)
+    {
+        result = m_cutResult;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
+
+    hr = LandAt (isFound ? target : GetOldestPosition(), outcome, result);
     CHR (hr);
 
 Error:
@@ -349,10 +479,11 @@ Error:
 //  ReverseContinue
 //
 //  To the latest position before this one where the stop test fires. Each
-//  stretch of history is replayed forward with the stop test asked about
-//  every instruction, newest stretch first, and the latest hit wins; a
+//  stretch of history is replayed forward once with the stop test asked
+//  about every instruction, newest stretch first, and the latest hit wins; a
 //  breakpoint lands before its instruction and a watchpoint after the
-//  instruction that tripped it, as running forward would have.
+//  instruction that tripped it, as running forward would have. Nothing the
+//  replay runs reaches the debugger's own breakpoints or watchpoints.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -363,22 +494,26 @@ HRESULT ReverseController::ReverseContinue (
     HRESULT       hr      = S_OK;
     uint64_t      from    = m_machine.GetPosition();
     uint64_t      end     = from;
-    uint64_t      start   = 0;
-    uint64_t      oldest  = GetOldestPosition();
+    uint64_t      oldest  = 0;
+    Stretch       stretch;
     ReplayTarget  target;
     ReplayReport  report;
 
 
 
+    CBRAEx (m_isRecording, E_UNEXPECTED);
+
+    hr = LeaveLive();
+    CHR (hr);
+
+    oldest = GetOldestPosition();
+
     while (end > oldest)
     {
-        LeaveLive();
-
-        hr = RestoreAtOrBefore (end - 1, 0, false);
+        hr = RestoreAtOrBefore (end - 1, 0, false, stretch);
         CHR (hr);
 
-        start           = m_machine.GetPosition();
-        target.position = end;
+        target.position = std::min (end, stretch.end);
 
         hr = m_replayer.RunTo (target, from, &stopTest, report);
         CHR (hr);
@@ -392,15 +527,15 @@ HRESULT ReverseController::ReverseContinue (
 
         if (report.hasHit)
         {
-            hr = LandAt (report.lastHit, true, result);
+            hr = LandAt (report.lastHit, ReverseOutcome::Moved, result);
             CHR (hr);
             BAIL_OUT_IF (true, S_OK);
         }
 
-        end = start;
+        end = stretch.start;
     }
 
-    hr = LandAt (oldest, false, result);
+    hr = LandAt (oldest, ReverseOutcome::AtHistoryStart, result);
     CHR (hr);
 
 Error:
@@ -486,20 +621,7 @@ bool ReverseController::IsInHistory() const
 
 uint64_t ReverseController::GetOldestPosition() const
 {
-    uint64_t  oldest = m_machine.GetPosition();
-
-
-
-    if (m_keyframes.GetCount() > 0)
-    {
-        oldest = m_keyframes.GetInfo (0).position;
-    }
-    else if (m_ring.GetCheckpointCount() > 0)
-    {
-        oldest = m_ring.GetCheckpoint (0).position;
-    }
-
-    return oldest;
+    return (m_keyframes.GetCount() > 0) ? m_keyframes.GetInfo (0).position : m_machine.GetPosition();
 }
 
 
@@ -528,9 +650,11 @@ uint64_t ReverseController::GetLiveEndPosition() const
 //
 //  Seek
 //
-//  A target behind the machine loads the nearest snapshot at or before it
-//  first; one ahead replays on from where the machine stands. Reaching the
-//  end of history makes the machine live again.
+//  A target in the stretch the machine stands in, and ahead of it, is
+//  replayed on from where the machine stands; any other loads the keyframe
+//  at or before it first. A target in a gap stops at its edge: the near edge
+//  going forward from before it, the far one otherwise. Reaching the end of
+//  history makes the machine live again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -544,16 +668,15 @@ HRESULT ReverseController::Seek (
     HRESULT   hr        = S_OK;
     EmuCpu  * cpu       = m_machine.GetCpu();
     bool      isForward = false;
+    bool      isHere    = false;
+    bool      isShort   = false;
+    size_t    keyframe  = 0;
+    Stretch   stretch;
 
 
 
     CBRA (cpu);
     CBRAEx (m_isRecording, E_UNEXPECTED);
-
-    // The keyframes in flight are finished first, so nothing a seek reads
-    // or replays past is still being packed.
-    hr = m_keyframes.WaitForPending();
-    CHR (hr);
 
     isForward = isByCycle ? target.cycle >= cpu->GetTotalCycles() : target.position >= m_machine.GetPosition();
 
@@ -565,15 +688,34 @@ HRESULT ReverseController::Seek (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    LeaveLive();
+    hr = LeaveLive();
+    CHR (hr);
 
-    if (!isForward)
+    // Keyframe indices are taken only once nothing is in flight.
+    hr = m_keyframes.WaitForPending();
+    CHR (hr);
+
+    isHere = TryFindStretch (m_machine.GetPosition(), stretch);
+    isHere = isHere && isForward && (isByCycle ? m_keyframes.TryFindAtOrBefore (target.cycle, keyframe) : m_keyframes.TryFindByPosition (target.position, keyframe));
+    isHere = isHere && keyframe == stretch.keyframe && (isByCycle || target.position <= stretch.end);
+
+    if (!isHere)
     {
-        hr = RestoreAtOrBefore (target.position, target.cycle, isByCycle);
+        hr = RestoreAtOrBefore (target.position, target.cycle, isByCycle, stretch);
         CHR (hr);
+
+        // Going forward into a gap: on to the keyframe where it ends.
+        if (isForward && !isByCycle && target.position > stretch.end && stretch.keyframe + 1 < m_keyframes.GetCount())
+        {
+            hr = m_replayer.RestoreKeyframe (stretch.keyframe + 1);
+            CHR (hr);
+
+            result.outcome = ReverseOutcome::AtHistoryGap;
+            stretch.end    = m_machine.GetPosition();
+        }
     }
 
-    hr = m_replayer.RunTo (target, m_liveEndPosition, stopTest, report);
+    hr = m_replayer.RunTo (target, stretch.end, stopTest, report);
     CHR (hr);
 
     if (report.isDiverged)
@@ -581,6 +723,13 @@ HRESULT ReverseController::Seek (
         hr = HandleDivergence (report, result);
         CHR (hr);
         BAIL_OUT_IF (true, S_OK);
+    }
+
+    isShort = isByCycle ? cpu->GetTotalCycles() < target.cycle : m_machine.GetPosition() < target.position;
+
+    if (isShort && m_machine.GetPosition() < m_liveEndPosition)
+    {
+        result.outcome = ReverseOutcome::AtHistoryGap;
     }
 
     if (m_machine.GetPosition() >= m_liveEndPosition)
@@ -602,44 +751,44 @@ Error:
 //
 //  RestoreAtOrBefore
 //
-//  Loads whichever is later of the newest ring checkpoint and the newest
-//  keyframe at or before the target, or the oldest keyframe when the target
-//  is older than all history.
+//  Loads the newest keyframe at or before the target, or the oldest keyframe
+//  when the target is older than all history, and gives the stretch it
+//  starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::RestoreAtOrBefore (
-    uint64_t  position,
-    uint64_t  cycle,
-    bool      isByCycle)
+    uint64_t    position,
+    uint64_t    cycle,
+    bool        isByCycle,
+    Stretch   & outStretch)
 {
-    HRESULT   hr            = S_OK;
-    size_t    checkpoint    = 0;
-    size_t    keyframe      = 0;
-    bool      hasCheckpoint = isByCycle ? m_ring.TryFindCheckpointByCycle (cycle, checkpoint) : m_ring.TryFindCheckpointAtOrBefore (position, checkpoint);
-    bool      hasKeyframe   = isByCycle ? m_keyframes.TryFindAtOrBefore (cycle, keyframe)    : TryFindKeyframeAtOrBefore (position, keyframe);
-    bool      hasAny        = m_keyframes.GetCount() > 0;
-    bool      useCheckpoint = false;
+    HRESULT  hr       = S_OK;
+    size_t   keyframe = 0;
+    bool     hasAny   = false;
+    bool     isFound  = false;
 
 
-
-    CBRAEx (hasAny, E_UNEXPECTED);
 
     hr = m_keyframes.WaitForPending();
     CHR (hr);
 
-    useCheckpoint = hasCheckpoint && (!hasKeyframe || m_ring.GetCheckpoint (checkpoint).position >= m_keyframes.GetInfo (keyframe).position);
+    hasAny = m_keyframes.GetCount() > 0;
+    CBRAEx (hasAny, E_UNEXPECTED);
 
-    if (useCheckpoint)
+    isFound = isByCycle ? m_keyframes.TryFindAtOrBefore (cycle, keyframe) : m_keyframes.TryFindByPosition (position, keyframe);
+
+    if (!isFound)
     {
-        hr = m_replayer.RestoreCheckpoint (checkpoint);
-        CHR (hr);
+        keyframe = 0;
     }
-    else
-    {
-        hr = m_replayer.RestoreKeyframe (hasKeyframe ? keyframe : 0);
-        CHR (hr);
-    }
+
+    hr = m_replayer.RestoreKeyframe (keyframe);
+    CHR (hr);
+
+    outStretch.keyframe = keyframe;
+    outStretch.start    = m_keyframes.GetInfo (keyframe).position;
+    outStretch.end      = GetSegmentEnd (keyframe);
 
 Error:
     return hr;
@@ -655,8 +804,8 @@ Error:
 //
 //  A replay reached a keyframe and the machine did not hash to it, so the
 //  history from the keyframe before it on cannot be trusted. The machine goes
-//  back to that last good keyframe, and every keyframe, input and ring entry
-//  after it is dropped; the machine is live there.
+//  back to that last good keyframe, and every keyframe and input after it is
+//  dropped; the machine is live there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -683,7 +832,6 @@ HRESULT ReverseController::HandleDivergence (
     CHR (hr);
 
     m_machine.GetInputJournal().Truncate (info.journalIndex);
-    m_ring.Clear();
 
     BecomeLive();
 
@@ -700,43 +848,114 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetRecord
+//  GetStep
 //
-//  The registers the instruction at position began with. A position older
-//  than the ring is rebuilt by replaying from the snapshot before it up to
-//  just past it, which leaves the machine there; the ring then holds every
-//  position from that snapshot on, which is what a scan going backward reads
-//  next.
+//  The PC and stack pointer the instruction at position began with, from
+//  the table of its stretch, which is built first when the table holds
+//  another stretch or none. A position recording skipped is in a gap, and
+//  outGapStart is where the gap began. Leaves the machine wherever building
+//  the table left it, so the caller seeks afterwards.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ReverseController::GetRecord (
+HRESULT ReverseController::GetStep (
     uint64_t      position,
-    UndoRecord  & outRecord)
+    ReplayStep  & outStep,
+    bool        & outIsInGap,
+    uint64_t    & outGapStart)
 {
-    HRESULT       hr     = S_OK;
-    bool          isHeld = m_ring.TryGetRecord (position, outRecord);
+    HRESULT  hr       = S_OK;
+    Stretch  stretch;
+    bool     isFound  = false;
+    bool     isBuilt  = false;
+
+
+
+    outIsInGap = false;
+
+    hr = LeaveLive();
+    CHR (hr);
+
+    hr = m_keyframes.WaitForPending();
+    CHR (hr);
+
+    isFound = TryFindStretch (position, stretch);
+    CBRAEx (isFound, E_INVALIDARG);
+
+    if (position >= stretch.end)
+    {
+        outIsInGap  = true;
+        outGapStart = stretch.end;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    isBuilt = m_hasSteps && m_stepsStart == stretch.start && m_stepsEnd == stretch.end;
+
+    if (!isBuilt)
+    {
+        hr = BuildStepTable (stretch);
+        CHR (hr);
+
+        BAIL_OUT_IF (m_isCut, S_OK);
+    }
+
+    outStep = m_steps[static_cast<size_t> (position - m_stepsStart)];
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildStepTable
+//
+//  Replays the whole stretch once from its keyframe, keeping the PC and
+//  stack pointer of every instruction in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::BuildStepTable (const Stretch & stretch)
+{
+    HRESULT       hr         = S_OK;
     ReplayTarget  target;
     ReplayReport  report;
+    size_t        stepCount  = 0;
 
 
 
-    BAIL_OUT_IF (isHeld, S_OK);
+    DiscardStepTable();
 
-    LeaveLive();
-
-    hr = RestoreAtOrBefore (position, 0, false);
+    hr = m_replayer.RestoreKeyframe (stretch.keyframe);
     CHR (hr);
 
-    target.position = position + 1;
+    target.position = stretch.end;
 
-    hr = m_replayer.RunTo (target, m_liveEndPosition, nullptr, report);
+    hr = m_replayer.RunTo (target, stretch.end, nullptr, report, &m_steps);
     CHR (hr);
 
-    CBREx (!report.isDiverged, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    if (report.isDiverged)
+    {
+        DiscardStepTable();
 
-    isHeld = m_ring.TryGetRecord (position, outRecord);
-    CBRA (isHeld);
+        hr = HandleDivergence (report, m_cutResult);
+        CHR (hr);
+
+        m_isCut = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    stepCount = m_steps.size();
+    CBRA (stepCount == stretch.end - stretch.start);
+
+    m_stepsStart = stretch.start;
+    m_stepsEnd   = stretch.end;
+    m_hasSteps   = true;
+
+    m_tableBuilds++;
 
 Error:
     return hr;
@@ -754,50 +973,60 @@ Error:
 //  that began with the stack two or more bytes deeper than now. Then the
 //  target is the newest instruction before it that began no deeper than now,
 //  which is the JSR (or the interrupted instruction) the return came back
-//  over.
+//  over. A gap stops the search at its edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::FindStepOverTarget (
     uint64_t    current,
     bool      & outFound,
-    uint64_t  & outTarget)
+    uint64_t  & outTarget,
+    bool      & outIsGap)
 {
     constexpr int  kReturnDepth = 2;
     HRESULT        hr           = S_OK;
     uint64_t       oldest       = GetOldestPosition();
     int            spNow        = m_machine.GetCpu()->GetSP();
-    UndoRecord     record;
+    ReplayStep     step;
     uint64_t       q            = 0;
     bool           isReturn     = false;
+    bool           isInGap      = false;
+    uint64_t       gapStart     = 0;
 
 
 
     outFound = false;
+    outIsGap = false;
 
     BAIL_OUT_IF (current <= oldest, S_OK);
 
-    hr = GetRecord (current - 1, record);
+    hr = GetStep (current - 1, step, isInGap, gapStart);
     CHR (hr);
 
-    isReturn = spNow - static_cast<int> (record.sp) >= kReturnDepth;
+    BAIL_OUT_IF (m_isCut, S_OK);
 
-    if (!isReturn)
+    isReturn = spNow - static_cast<int> (step.sp) >= kReturnDepth;
+
+    if (isInGap || !isReturn)
     {
         outFound  = true;
-        outTarget = current - 1;
+        outIsGap  = isInGap;
+        outTarget = isInGap ? gapStart : current - 1;
         BAIL_OUT_IF (true, S_OK);
     }
 
     for (q = current - 1; q > oldest && !outFound; q--)
     {
-        hr = GetRecord (q - 1, record);
+        hr = GetStep (q - 1, step, isInGap, gapStart);
         CHR (hr);
 
-        if (static_cast<int> (record.sp) >= spNow)
+        BAIL_OUT_IF (m_isCut, S_OK);
+
+        if (isInGap || static_cast<int> (step.sp) >= spNow)
         {
             outFound  = true;
-            outTarget = q - 1;
+            outIsGap  = isInGap;
+            outTarget = isInGap ? q : q - 1;
         }
     }
 
@@ -816,14 +1045,16 @@ Error:
 //  Walking back, the call that entered the current routine is the newest
 //  JSR (the stack two bytes deeper after it) or interrupt (three bytes)
 //  whose stack after it is as shallow as anything since: a call that already
-//  returned left a shallower stack behind it.
+//  returned left a shallower stack behind it. A gap stops the search at its
+//  edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::FindStepOutTarget (
     uint64_t    current,
     bool      & outFound,
-    uint64_t  & outTarget)
+    uint64_t  & outTarget,
+    bool      & outIsGap)
 {
     constexpr int  kCallDepth      = 2;
     constexpr int  kInterruptDepth = 3;
@@ -832,19 +1063,32 @@ HRESULT ReverseController::FindStepOutTarget (
     int            spNext          = m_machine.GetCpu()->GetSP();
     int            ceiling         = spNext;
     int            pushed          = 0;
-    UndoRecord     record;
+    ReplayStep     step;
     uint64_t       q               = 0;
+    bool           isInGap         = false;
+    uint64_t       gapStart        = 0;
 
 
 
     outFound = false;
+    outIsGap = false;
 
     for (q = current; q > oldest && !outFound; q--)
     {
-        hr = GetRecord (q - 1, record);
+        hr = GetStep (q - 1, step, isInGap, gapStart);
         CHR (hr);
 
-        pushed = static_cast<int> (record.sp) - spNext;
+        BAIL_OUT_IF (m_isCut, S_OK);
+
+        if (isInGap)
+        {
+            outFound  = true;
+            outIsGap  = true;
+            outTarget = (q == current) ? gapStart : q;
+            break;
+        }
+
+        pushed = static_cast<int> (step.sp) - spNext;
 
         if ((pushed == kCallDepth || pushed == kInterruptDepth) && spNext >= ceiling)
         {
@@ -852,7 +1096,7 @@ HRESULT ReverseController::FindStepOutTarget (
             outTarget = q - 1;
         }
 
-        spNext  = record.sp;
+        spNext  = step.sp;
         ceiling = std::max (ceiling, spNext);
     }
 
@@ -868,14 +1112,14 @@ Error:
 //
 //  LandAt
 //
-//  Seeks to position; when the command found no target, that is the oldest
-//  position and the outcome is AtHistoryStart.
+//  Seeks to position and reports outcome, unless the seek itself ended
+//  otherwise. A landing outside the stretch the step table holds drops it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::LandAt (
     uint64_t         position,
-    bool             isFound,
+    ReverseOutcome   outcome,
     ReverseResult  & result)
 {
     HRESULT  hr = S_OK;
@@ -885,9 +1129,14 @@ HRESULT ReverseController::LandAt (
     hr = SeekToPosition (position, result);
     CHR (hr);
 
-    if (!isFound && result.outcome == ReverseOutcome::Moved)
+    if (result.outcome == ReverseOutcome::Moved)
     {
-        result.outcome = ReverseOutcome::AtHistoryStart;
+        result.outcome = outcome;
+    }
+
+    if (m_hasSteps && (result.position < m_stepsStart || result.position >= m_stepsEnd))
+    {
+        DiscardStepTable();
     }
 
 Error:
@@ -902,20 +1151,17 @@ Error:
 //
 //  CaptureNow
 //
-//  Saves the machine once and hands the state to the keyframe store, the
-//  ring, or both. Keyframes dropped over budget take their journal records
-//  with them.
+//  Saves the machine once and hands the state to the keyframe store.
+//  Keyframes dropped over budget take their journal records with them.
 //
-//  The save shares the disk tracks that have not changed, as a checkpoint
-//  holds them; the keyframe store flattens it into a buffer of its own and
-//  packs it on its work queue. Every buffer, list and writer here is reused,
-//  so once the ring is full a capture allocates nothing.
+//  The save shares the RAM chunks and disk tracks not written since the
+//  last one, so only what changed is copied; the keyframe store flattens it
+//  into a buffer of its own and packs it on its work queue. Every buffer,
+//  list and writer here is reused, so a capture allocates nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ReverseController::CaptureNow (
-    bool  takeKeyframe,
-    bool  takeCheckpoint)
+HRESULT ReverseController::CaptureNow()
 {
     HRESULT            hr         = S_OK;
     EmuCpu           * cpu        = m_machine.GetCpu();
@@ -929,7 +1175,6 @@ HRESULT ReverseController::CaptureNow (
 
 
     CBRA (cpu);
-    BAIL_OUT_IF (!takeKeyframe && !takeCheckpoint, S_OK);
 
     cycle = cpu->GetTotalCycles();
 
@@ -946,7 +1191,7 @@ HRESULT ReverseController::CaptureNow (
 
     journalEnd = journal.GetEndIndex();
 
-    writer.Reuse      (m_ring.TakeSpareBuffer(), m_ring.TakeSpareSegments());
+    writer.Reuse      (writer.TakeBytes(), writer.TakeSegments());
     writer.SetSharing (true);
 
     hr = m_machine.SaveState (writer);
@@ -954,25 +1199,10 @@ HRESULT ReverseController::CaptureNow (
 
     m_machine.CheckSharedSave (writer);
 
-    if (takeKeyframe)
-    {
-        hr = m_keyframes.Add (position, cycle, journalEnd, writer);
-        CHR (hr);
+    hr = m_keyframes.Add (position, cycle, journalEnd, writer);
+    CHR (hr);
 
-        journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);
-    }
-
-    if (takeCheckpoint)
-    {
-        hr = m_ring.AddCheckpoint (position, cycle, journalEnd, writer.TakeBytes(), writer.TakeSegments());
-        CHR (hr);
-    }
-    else
-    {
-        // A keyframe taken alone hands its buffers back, or the next capture's
-        // spare would replace them and the pool would drain one at a time.
-        m_ring.ReturnSpareBuffer (writer.TakeBytes(), writer.TakeSegments());
-    }
+    journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);
 
     PruneRetainedMedia();
 
@@ -988,13 +1218,55 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CaptureBoundary
+//
+//  A keyframe a replay loads rather than reaches: after a change from
+//  outside the recorded inputs, or where recording resumed after a gap that
+//  began at gapStart. While paused, recording stops again just after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::CaptureBoundary (
+    bool      isAfterGap,
+    uint64_t  gapStart)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = CaptureNow();
+    CHR (hr);
+
+    if (isAfterGap)
+    {
+        m_keyframes.MarkNewestGap (gapStart);
+    }
+    else
+    {
+        m_keyframes.MarkNewestBoundary();
+    }
+
+    if (m_isPaused)
+    {
+        m_pauseStart = m_machine.GetPosition();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnCaptureDue
 //
-//  A keyframe or checkpoint fell due, or the machine is in history, where
-//  every instruction start comes here. During a replay the replayer takes
-//  the ring's checkpoints and the keyframes exist already. A machine stepped
-//  from the past by anything but a replay is running live from there, so the
-//  recorded future goes first.
+//  A keyframe fell due, or the machine is in history, where every
+//  instruction start comes here. During a replay the keyframes exist
+//  already. A machine stepped from the past by anything but a replay is
+//  running live from there, so the recorded future goes first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1003,6 +1275,8 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
     HRESULT  hr = S_OK;
 
 
+
+    UNREFERENCED_PARAMETER (cycle);
 
     if (m_replayer.IsReplaying())
     {
@@ -1015,7 +1289,7 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
     }
     else
     {
-        hr = CaptureNow (m_keyframes.IsDue (cycle), m_ring.IsCheckpointDue (cycle));
+        hr = CaptureNow();
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1029,22 +1303,38 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
 //
 //  LeaveLive
 //
-//  Remembers where history ends before the machine moves into it. From here
-//  every instruction start reaches OnCaptureDue, which is how a machine run
-//  from the past without a seek is noticed.
+//  Remembers where history ends before the machine moves into it. While
+//  paused, the position the machine reached is kept first as a keyframe
+//  after the gap, so stepping back from it, and coming back to it, work.
+//  From here every instruction start reaches OnCaptureDue, which is how a
+//  machine run from the past without a seek is noticed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReverseController::LeaveLive()
+HRESULT ReverseController::LeaveLive()
 {
+    HRESULT   hr       = S_OK;
+    uint64_t  position = m_machine.GetPosition();
+
+
+
+    if (m_isLive && m_isPaused && position > m_pauseStart)
+    {
+        hr = CaptureBoundary (true, m_pauseStart);
+        CHR (hr);
+    }
+
     if (m_isLive)
     {
-        m_liveEndPosition = m_machine.GetPosition();
+        m_liveEndPosition = position;
         m_liveEndCycle    = m_machine.GetCpu()->GetTotalCycles();
         m_isLive          = false;
     }
 
     m_nextDueCycle = 0;
+
+Error:
+    return hr;
 }
 
 
@@ -1056,14 +1346,23 @@ void ReverseController::LeaveLive()
 //  BecomeLive
 //
 //  The machine is at the end of history: the journal records again and the
-//  snapshots fall due on their own schedule.
+//  keyframes fall due on their own schedule, or, while paused, recording
+//  stops where the machine stands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReverseController::BecomeLive()
 {
     m_isLive = true;
-    m_machine.SetInputJournalOn (true);
+
+    DiscardStepTable();
+
+    if (m_isPaused)
+    {
+        m_pauseStart = m_machine.GetPosition();
+    }
+
+    m_machine.SetInputJournalOn (!m_isPaused);
 
     ScheduleCaptures();
 }
@@ -1076,14 +1375,44 @@ void ReverseController::BecomeLive()
 //
 //  ScheduleCaptures
 //
-//  The next cycle at which a keyframe or a checkpoint falls due, or zero in
-//  history, so every instruction start is checked there.
+//  The next cycle at which a keyframe falls due: never while paused, and
+//  zero in history, so every instruction start is checked there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReverseController::ScheduleCaptures()
 {
-    m_nextDueCycle = m_isLive ? std::min (m_keyframes.GetNextDueCycle(), m_ring.GetNextCheckpointCycle()) : 0;
+    if (!m_isLive)
+    {
+        m_nextDueCycle = 0;
+    }
+    else if (m_isPaused)
+    {
+        m_nextDueCycle = UINT64_MAX;
+    }
+    else
+    {
+        m_nextDueCycle = m_keyframes.GetNextDueCycle();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiscardStepTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::DiscardStepTable()
+{
+    m_steps.clear();
+
+    m_hasSteps   = false;
+    m_stepsStart = 0;
+    m_stepsEnd   = 0;
 }
 
 
@@ -1095,32 +1424,15 @@ void ReverseController::ScheduleCaptures()
 //  PruneRetainedMedia
 //
 //  Lets the disk store drop the disks that left their bays before every
-//  snapshot still held.
+//  keyframe still held.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReverseController::PruneRetainedMedia()
 {
-    uint64_t  oldest    = 0;
-    bool      hasOldest = false;
-
-
-
     if (m_keyframes.GetCount() > 0)
     {
-        oldest    = m_keyframes.GetInfo (0).position;
-        hasOldest = true;
-    }
-
-    if (m_ring.GetCheckpointCount() > 0 && (!hasOldest || m_ring.GetCheckpoint (0).position < oldest))
-    {
-        oldest    = m_ring.GetCheckpoint (0).position;
-        hasOldest = true;
-    }
-
-    if (hasOldest)
-    {
-        m_machine.GetDiskStore().PruneRetainedMedia (oldest);
+        m_machine.GetDiskStore().PruneRetainedMedia (m_keyframes.GetInfo (0).position);
     }
 }
 
@@ -1189,43 +1501,67 @@ void ReverseController::FillResult (ReverseResult & result) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryFindKeyframeAtOrBefore
+//  TryFindStretch
 //
-//  The newest keyframe whose position is at or before position.
+//  The stretch that holds position: the one starting at the newest keyframe
+//  at or before it. False when position is older than every keyframe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ReverseController::TryFindKeyframeAtOrBefore (
-    uint64_t   position,
-    size_t   & outIndex) const
+bool ReverseController::TryFindStretch (
+    uint64_t    position,
+    Stretch   & outStretch) const
 {
-    size_t  low   = 0;
-    size_t  high  = m_keyframes.GetCount();
-    size_t  mid   = 0;
-    bool    found = false;
+    size_t  keyframe = 0;
+    bool    isFound  = m_keyframes.TryFindByPosition (position, keyframe);
 
 
 
-    while (low < high)
+    if (isFound)
     {
-        mid = low + (high - low) / 2;
-
-        if (m_keyframes.GetInfo (mid).position <= position)
-        {
-            low = mid + 1;
-        }
-        else
-        {
-            high = mid;
-        }
+        outStretch.keyframe = keyframe;
+        outStretch.start    = m_keyframes.GetInfo (keyframe).position;
+        outStretch.end      = GetSegmentEnd (keyframe);
     }
 
-    found = low > 0;
-
-    if (found)
-    {
-        outIndex = low - 1;
-    }
-
-    return found;
+    return isFound;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSegmentEnd
+//
+//  The last position a replay from keyframe can reach: the next keyframe,
+//  or where recording paused before it, or, for the newest, the end of
+//  history.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ReverseController::GetSegmentEnd (size_t keyframe) const
+{
+    uint64_t              end  = m_liveEndPosition;
+    const KeyframeInfo  * next = nullptr;
+
+
+
+    if (keyframe + 1 < m_keyframes.GetCount())
+    {
+        next = &m_keyframes.GetInfo (keyframe + 1);
+        end  = next->hasGapBefore ? next->gapStart : next->position;
+    }
+    else if (m_isLive)
+    {
+        end = m_isPaused ? m_pauseStart : m_machine.GetPosition();
+    }
+
+    return end;
+}
+
+
+
+
+

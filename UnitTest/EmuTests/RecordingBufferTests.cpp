@@ -13,7 +13,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 static constexpr Word      s_kBufferLoop        = 0x0800;
 static constexpr uint64_t  s_kBufferWarmFrames  = 100;
 static constexpr uint64_t  s_kBufferCountFrames = 20;
-static constexpr uint64_t  s_kBufferAlignFrames = 25;
+static constexpr size_t    s_kBufferBudget      = 512 * 1024;
+static constexpr size_t    s_kBufferOverStates  = 16;
 static constexpr size_t    s_kJournalRounds     = 40;
 static constexpr size_t    s_kJournalBurst      = 7;
 static constexpr size_t    s_kJournalKeep       = 5;
@@ -26,10 +27,10 @@ static constexpr size_t    s_kJournalKeep       = 5;
 //
 //  RecordingBufferTests
 //
-//  Recording reuses its buffers: once the ring and the keyframe store have
+//  Recording reuses its buffers: once the keyframe store and the journal have
 //  reached their working size, a capture allocates nothing on the thread that
-//  runs the machine, keyframes being packed on the work queue; and a
-//  keyframe falls on a checkpoint's capture, so one save serves both.
+//  runs the machine, keyframes being packed on the work queue; and the store
+//  takes its whole budget when recording starts and never more.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +57,6 @@ public:
         // group, so both the store and the journal reach their working size.
         settings.keyframes.intervalCycles = KeyframeSettings::kFrameCycles;
         settings.keyframes.budgetBytes    = 1;
-        settings.ring.budgetBytes         = 0;
 
         hr = controller.Start (settings);
         AssertSucceeded (hr, L"Start");
@@ -79,38 +79,42 @@ public:
 #endif
 
 
-    TEST_METHOD (EveryKeyframeIsTakenOnACheckpoint)
+    //  The store's memory is taken when recording starts, at the budget, and
+    //  a recording far longer than the budget holds takes no more.
+    TEST_METHOD (TheBudgetIsTakenAtTheStartAndNeverGrows)
     {
         TestMachine        machine    ("Apple2e");
         ReverseController  controller (machine);
+        ReverseSettings    settings;
+        size_t             reserved   = 0;
+        size_t             stateBytes = 0;
         HRESULT            hr         = S_OK;
-        size_t             i          = 0;
-        size_t             index      = 0;
-        bool               isHeld     = false;
-        KeyframeInfo       info;
 
 
 
         PrepareLoop (machine);
 
-        hr = controller.Start (ReverseSettings());
+        settings.keyframes.intervalCycles = KeyframeSettings::kFrameCycles;
+        settings.keyframes.wholeEvery     = 2;
+        settings.keyframes.budgetBytes    = s_kBufferBudget;
+
+        hr = controller.Start (settings);
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kBufferAlignFrames);
+        reserved   = controller.GetKeyframes().GetReservedBytes();
+        stateBytes = controller.GetKeyframes().GetInfo (0).stateBytes;
 
-        Assert::IsTrue (controller.GetKeyframes().GetCount() >= 3, L"keyframes were taken past the first");
+        Assert::IsTrue (reserved >= s_kBufferBudget, L"the whole budget is taken at the start");
+        Assert::IsTrue (reserved <= s_kBufferBudget + s_kBufferOverStates * stateBytes, L"and not much beyond it: the budget plus the work buffers");
 
-        for (i = 0; i < controller.GetKeyframes().GetCount(); i++)
-        {
-            info   = controller.GetKeyframes().GetInfo (i);
-            isHeld = controller.GetRing().TryFindCheckpointAtOrBefore (info.position, index);
+        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kBufferWarmFrames);
 
-            Assert::IsTrue (isHeld, L"the ring reaches back to the keyframe");
-            Assert::AreEqual<uint64_t> (info.position, controller.GetRing().GetCheckpoint (index).position, L"the keyframe has a checkpoint at its position");
-            Assert::AreEqual<uint64_t> (info.cycle, controller.GetRing().GetCheckpoint (index).cycle, L"and at its cycle");
-        }
+        Logger::WriteMessage (std::format ("state {} bytes, {} reserved, {} keyframes in {} bytes, oldest at {}\n", stateBytes, reserved, controller.GetKeyframes().GetCount(), controller.GetKeyframes().GetByteCount(), controller.GetKeyframes().GetInfo (0).position).c_str());
+
+        Assert::IsTrue (controller.GetKeyframes().GetByteCount() <= s_kBufferBudget, L"the budget dropped the oldest keyframes");
+        Assert::IsTrue (controller.GetKeyframes().GetInfo (0).position > 0, L"so the oldest kept is not the first taken");
+        Assert::AreEqual (reserved, controller.GetKeyframes().GetReservedBytes(), L"and nothing more was taken");
     }
-
 
     TEST_METHOD (AJournalReusingItsSlotsKeepsEveryRecord)
     {

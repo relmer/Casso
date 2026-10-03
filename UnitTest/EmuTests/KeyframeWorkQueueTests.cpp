@@ -303,7 +303,7 @@ public:
 
         controller.SetWorkQueue (&queue);
 
-        hr = controller.Start (ReverseSessionRig::MakeSettings (false));
+        hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
         AssertSucceeded (hr, L"Start");
 
         machine.RunCycles (KeyframeSettings::kFrameCycles * (s_kSeekFrames - s_kSeekBackFrames));

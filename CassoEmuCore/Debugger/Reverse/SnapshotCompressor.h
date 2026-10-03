@@ -28,6 +28,7 @@ public:
 
     HRESULT     Compress            (const Byte * data, size_t size, std::vector<Byte> & out);
     HRESULT     Decompress          (const std::vector<Byte> & packed, size_t size, std::vector<Byte> & out);
+    HRESULT     Decompress          (const Byte * packed, size_t packedSize, size_t size, std::vector<Byte> & out);
 
 private:
     HRESULT     CreateHandles       ();

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "EmuTests/ReverseSessionRig.h"
+#include "DebuggerTests/HandlerTestRig.h"
+#include "Debugger/Handlers/BreakpointHandlers.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -8,6 +10,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 static constexpr uint64_t  s_kCommandWarmupCycles = 60000;
 static constexpr size_t    s_kCommandSteps        = 3000;
 static constexpr size_t    s_kCommandStepBacks    = 400;
+static constexpr size_t    s_kCommandHookSteps    = 50;
+static constexpr size_t    s_kCommandGapSteps     = 400;
+static constexpr uint64_t  s_kCommandGapCycles    = 40000;
 
 
 
@@ -32,6 +37,7 @@ public:
     {
         uint64_t  position = 0;
         Word      pc       = 0;
+        uint64_t  cycle    = 0;
         uint64_t  checksum = 0;
     };
 
@@ -264,9 +270,9 @@ public:
         ReverseController  controller (machine);
         std::vector<Step>  steps;
         ReverseResult      result;
+        ReverseResult      before;
         HRESULT            hr         = S_OK;
         uint64_t           target     = 0;
-        UndoRecord         before;
 
 
 
@@ -281,7 +287,10 @@ public:
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
             Assert::IsTrue (result.cycle >= target, L"at or after the target");
-            Assert::IsTrue (controller.GetRing().TryGetRecord (result.position - 1, before), L"the ring holds the instruction before");
+
+            hr = controller.StepBack (before);
+            AssertSucceeded (hr, L"StepBack");
+
             Assert::IsTrue (before.cycle < target, L"and the boundary before it is short of the target");
         }
     }
@@ -317,6 +326,213 @@ public:
     }
 
 
+    //  One instruction at a time back over the whole recording, across at
+    //  least one keyframe, then forward again to the live end: the whole
+    //  machine must match the live run at every position, and each stretch's
+    //  table is built once on the way back.
+    TEST_METHOD (StepBackAndForwardOneAtATimeAcrossStretchesMatchesTheLiveRun)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        std::vector<Step>  steps;
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        size_t             index      = 0;
+        size_t             crossings  = 0;
+        size_t             builds     = 0;
+
+
+
+        // A key the host presses is in the live machine before any guest read
+        // sees it, but a replay applies it only at that read, so the steps
+        // between the two do not replay exactly; this run presses none.
+        Record (machine, controller, steps, nullptr, nullptr, nullptr, false);
+
+        crossings = CountKeyframesWithin (controller, steps.front().position, steps.back().position);
+        Assert::IsTrue (crossings >= 1, L"the recording must cross a keyframe");
+
+        for (index = steps.size() - 1; index > 0; index--)
+        {
+            hr = controller.StepBack (result);
+            AssertSucceeded (hr, L"StepBack");
+
+            Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
+            CheckStep (machine, steps[index - 1], L"back");
+        }
+
+        builds = controller.GetTableBuildCount();
+        Assert::IsTrue (builds >= crossings + 1 && builds <= crossings + 2, std::format (L"one table per stretch stepped into, not one per step: {} for {} keyframes crossed", builds, crossings).c_str());
+
+        for (index = 1; index < steps.size(); index++)
+        {
+            hr = controller.StepForward (result);
+            AssertSucceeded (hr, L"StepForward");
+
+            Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
+            CheckStep (machine, steps[index], L"forward");
+        }
+
+        Assert::IsFalse (controller.IsInHistory(), L"forward to the end of history makes the machine live");
+    }
+
+
+    //  The debugger's own breakpoints, a counting breakpoint and a write
+    //  watchpoint are installed as they are when a debugger is attached; no
+    //  reverse command may let a replayed instruction reach them. The stop
+    //  test still sees the replayed write through its own sink.
+    TEST_METHOD (AReplayNeverReachesTheDebuggersBreakpointsOrWatchpoints)
+    {
+        TestMachine                machine    ("Apple2e");
+        ReverseController          controller (machine);
+        MachineDebugTarget         target     (machine);
+        RecordingNotificationSink  sink;
+        DebugSession               session    (target, sink, RunState::Paused);
+        BreakpointHandlers         handlers;
+        ReverseProbe               probe;
+        std::vector<Step>          steps;
+        ReverseResult              result;
+        HRESULT                    hr         = S_OK;
+        int                        stopping   = 0;
+        int                        counting   = 0;
+        size_t                     i          = 0;
+
+
+
+        session.AddHandler (&handlers);
+
+        Record (machine, controller, steps, nullptr);
+
+        stopping = AddBreakpoint (session, "BP 900");
+        counting = AddBreakpoint (session, "BP 806");
+        session.GetBreakpoints().TrySetFlags (counting, false, false);
+        session.ExecuteLine ("BPMW 300");
+
+        machine.SetDebugHook (&session);
+
+        probe.watchAddr = ReverseSessionRig::kKeyStore;
+
+        for (i = 0; i < s_kCommandHookSteps; i++)
+        {
+            hr = controller.StepBack (result);
+            AssertSucceeded (hr, L"StepBack");
+        }
+
+        hr = controller.StepBackOver (result);
+        AssertSucceeded (hr, L"StepBackOver");
+
+        hr = controller.StepBackOut (result);
+        AssertSucceeded (hr, L"StepBackOut");
+
+        hr = controller.SeekToPosition (steps.back().position, result);
+        AssertSucceeded (hr, L"SeekToPosition");
+
+        hr = controller.ReverseContinue (probe, result);
+        AssertSucceeded (hr, L"ReverseContinue");
+
+        Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"the stop test saw a replayed write to the watched byte");
+        Assert::AreEqual<uint32_t> (0, GetBreakpointHits (session, stopping), L"the stopping breakpoint counted nothing");
+        Assert::AreEqual<uint32_t> (0, GetBreakpointHits (session, counting), L"the counting breakpoint counted nothing");
+        Assert::AreEqual<uint32_t> (0, session.GetWatchpoints().GetAll().front().hits, L"the debugger's watchpoint saw nothing");
+        Assert::IsTrue (sink.stops.empty(), L"and nothing was reported to the debugger");
+        Assert::IsTrue (machine.GetMemoryBus().GetWatchSink() == &session.GetWatchpoints(), L"the debugger's watch sink is back on the bus");
+
+        // Live, the same hook counts: the wiring itself works. The stopping
+        // breakpoint goes first, or the machine would stop on it.
+        session.GetBreakpoints().TryClear (stopping);
+
+        hr = controller.SeekToPosition (steps.back().position, result);
+        AssertSucceeded (hr, L"SeekToPosition live");
+
+        for (i = 0; i < s_kCommandSteps && GetBreakpointHits (session, counting) == 0; i++)
+        {
+            machine.StepOne();
+        }
+
+        Assert::IsTrue (GetBreakpointHits (session, counting) > 0, L"running live, the counting breakpoint counts");
+    }
+
+
+    //  At a Maximum speed the user chose, recording pauses; stepping back from
+    //  where it resumed stops at the edge of the gap, and the history on
+    //  either side of it is exact.
+    TEST_METHOD (SteppingBackIntoASpeedGapStopsAtItsEdge)
+    {
+        TestMachine          machine    ("Apple2e");
+        ReverseController    controller (machine);
+        std::vector<Step>    before;
+        std::vector<Step>    after;
+        ReverseResult        result;
+        HRESULT              hr         = S_OK;
+        size_t               keyframes  = 0;
+        size_t               i          = 0;
+        Step                 gapStart;
+        KeyframeInfo         resumed;
+
+
+
+        ReverseSessionRig::Prepare (machine);
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start");
+
+        machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
+        machine.RunCycles (s_kCommandWarmupCycles);
+
+        StepLive (machine, s_kCommandGapSteps, before);
+        gapStart = before.back();
+
+        hr = controller.SetUserMaximumSpeed (true);
+        AssertSucceeded (hr, L"SetUserMaximumSpeed on");
+
+        keyframes = controller.GetKeyframes().GetCount();
+        machine.RunCycles (s_kCommandGapCycles);
+
+        Assert::AreEqual (keyframes, controller.GetKeyframes().GetCount(), L"no keyframe is taken while paused");
+
+        hr = controller.SetUserMaximumSpeed (false);
+        AssertSucceeded (hr, L"SetUserMaximumSpeed off");
+
+        resumed = controller.GetKeyframes().GetInfo (controller.GetKeyframes().GetCount() - 1);
+
+        Assert::IsTrue (resumed.hasGapBefore, L"recording resumed with a keyframe after a gap");
+        Assert::AreEqual<uint64_t> (gapStart.position, resumed.gapStart, L"the gap starts where recording paused");
+        Assert::AreEqual<uint64_t> (machine.GetPosition(), resumed.position, L"and ends where it resumed");
+
+        StepLive (machine, s_kCommandGapSteps, after);
+
+        for (i = after.size() - 1; i > 0; i--)
+        {
+            hr = controller.StepBack (result);
+            AssertSucceeded (hr, L"StepBack after the gap");
+
+            CheckStep (machine, after[i - 1], L"after the gap");
+        }
+
+        hr = controller.StepBack (result);
+        AssertSucceeded (hr, L"StepBack into the gap");
+
+        Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryGap, L"a step into the gap reports it");
+        CheckStep (machine, gapStart, L"at the edge of the gap");
+
+        hr = controller.StepBack (result);
+        AssertSucceeded (hr, L"StepBack before the gap");
+
+        Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
+        CheckStep (machine, before[before.size() - 2], L"before the gap");
+
+        hr = controller.StepForward (result);
+        AssertSucceeded (hr, L"StepForward to the edge");
+
+        CheckStep (machine, gapStart, L"forward to the edge");
+
+        hr = controller.StepForward (result);
+        AssertSucceeded (hr, L"StepForward across the gap");
+
+        Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryGap, L"a step across the gap reports it");
+        CheckStep (machine, after.front(), L"where recording resumed");
+    }
+
+
 private:
 
     //  Warms the guest loop up, then steps it one instruction at a time,
@@ -328,8 +544,9 @@ private:
         ReverseController  & controller,
         std::vector<Step>  & steps,
         std::vector<Byte>  * counters,
-        ReverseProbe       * probe  = nullptr,
-        std::vector<Step>  * writes = nullptr)
+        ReverseProbe       * probe       = nullptr,
+        std::vector<Step>  * writes      = nullptr,
+        bool                 isPressing  = true)
     {
         static constexpr size_t  kKeyEvery = 1000;
         HRESULT                  hr        = S_OK;
@@ -340,7 +557,7 @@ private:
 
         ReverseSessionRig::Prepare (machine);
 
-        hr = controller.Start (ReverseSessionRig::MakeSettings (true));
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
         // Paddle 0 at zero keeps each pass of the loop short, so the
@@ -355,13 +572,14 @@ private:
 
         for (i = 0; i <= s_kCommandSteps; i++)
         {
-            if (i % kKeyEvery == kKeyEvery / 2)
+            if (isPressing && i % kKeyEvery == kKeyEvery / 2)
             {
                 machine.GetRefs().keyboard->PressKey (static_cast<Byte> ('a' + i / kKeyEvery));
             }
 
             step.position = machine.GetPosition();
             step.pc       = machine.GetCpu()->GetPC();
+            step.cycle    = machine.GetCpu()->GetTotalCycles();
             step.checksum = ReverseSessionRig::Checksum (machine);
             steps.push_back (step);
 
@@ -380,6 +598,84 @@ private:
                 machine.StepOne();
             }
         }
+    }
+
+
+    //  Steps the machine live count times, keeping each position, PC, cycle
+    //  and checksum, the last one being where it stops.
+    static void StepLive (TestMachine & machine, size_t count, std::vector<Step> & steps)
+    {
+        Step    step;
+        size_t  i = 0;
+
+
+
+        for (i = 0; i <= count; i++)
+        {
+            step.position = machine.GetPosition();
+            step.pc       = machine.GetCpu()->GetPC();
+            step.cycle    = machine.GetCpu()->GetTotalCycles();
+            step.checksum = ReverseSessionRig::Checksum (machine);
+            steps.push_back (step);
+
+            if (i < count)
+            {
+                machine.StepOne();
+            }
+        }
+    }
+
+
+    static void CheckStep (TestMachine & machine, const Step & expected, const wchar_t * when)
+    {
+        Assert::AreEqual<uint64_t> (expected.position, machine.GetPosition(),     std::format (L"{}: position", when).c_str());
+        Assert::AreEqual<Word>     (expected.pc,       machine.GetCpu()->GetPC(), std::format (L"{}: PC at position {}", when, expected.position).c_str());
+        Assert::AreEqual<uint64_t> (expected.checksum, ReverseSessionRig::Checksum (machine),
+                                    std::format (L"{}: the whole machine at position {}", when, expected.position).c_str());
+    }
+
+
+    //  The keyframes taken after first and at or before last.
+    static size_t CountKeyframesWithin (const ReverseController & controller, uint64_t first, uint64_t last)
+    {
+        const KeyframeStore  & store = controller.GetKeyframes();
+        size_t                 count = 0;
+        size_t                 i     = 0;
+
+
+
+        for (i = 0; i < store.GetCount(); i++)
+        {
+            count += (store.GetInfo (i).position > first && store.GetInfo (i).position <= last) ? 1 : 0;
+        }
+
+        return count;
+    }
+
+
+    static int AddBreakpoint (DebugSession & session, const std::string & line)
+    {
+        size_t  before = session.GetBreakpoints().GetAll().size();
+
+
+
+        session.ExecuteLine (line);
+
+        Assert::AreEqual (before + 1, session.GetBreakpoints().GetAll().size(), L"the breakpoint was set");
+
+        return session.GetBreakpoints().GetAll().back().id;
+    }
+
+
+    static uint32_t GetBreakpointHits (DebugSession & session, int id)
+    {
+        Breakpoint  entry;
+
+
+
+        Assert::IsTrue (session.GetBreakpoints().TryFind (id, entry), L"no such breakpoint");
+
+        return entry.hits;
     }
 
 

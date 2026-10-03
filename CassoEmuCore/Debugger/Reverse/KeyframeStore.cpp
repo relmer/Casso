@@ -33,8 +33,9 @@ KeyframeStore::~KeyframeStore()
 //
 //  Configure
 //
-//  Takes new settings and empties the store, since keyframes taken on the old
-//  interval do not fall on the new one's boundaries.
+//  Takes new settings and empties the store, giving back its memory, since
+//  keyframes taken on the old interval do not fall on the new one's
+//  boundaries and the table and arena are sized from the budget.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +43,7 @@ void KeyframeStore::Configure (const KeyframeSettings & settings)
 {
     m_settings = settings;
 
-    Clear();
+    Release();
 }
 
 
@@ -53,7 +54,8 @@ void KeyframeStore::Configure (const KeyframeSettings & settings)
 //
 //  Clear
 //
-//  Waits for the work in flight and drops it with everything else.
+//  Waits for the work in flight and drops it with every keyframe. The table,
+//  the arena and the buffers keep their memory for the next recording.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,14 +68,47 @@ void KeyframeStore::Clear()
 
     m_pendingCount = 0;
 
-    m_entries.clear();
-    m_latestWhole.clear();
-    m_latestWhole.shrink_to_fit();
+    m_first = 0;
+    m_count = 0;
 
+    m_latestWhole.clear();
+
+    m_arenaEnd     = 0;
     m_storedBytes  = 0;
     m_groupLength  = 0;
     m_wholeBytes   = 0;
     m_nextDueCycle = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Release
+//
+//  Clears the store and gives back every buffer it reserved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::Release()
+{
+    Clear();
+
+    m_entries = std::vector<Entry>();
+    m_arena.reset();
+    m_arenaBytes = 0;
+
+    m_latestWhole = std::vector<Byte>();
+    m_scratch     = std::vector<Byte>();
+    m_olderWhole  = std::vector<Byte>();
+
+    for (Job & job : m_jobs)
+    {
+        job.state  = std::vector<Byte>();
+        job.packed = std::vector<Byte>();
+    }
 }
 
 
@@ -131,6 +166,9 @@ HRESULT KeyframeStore::Add (
 
 
 
+    hr = Reserve (state.size());
+    CHR (hr);
+
     hr = TakeJob (job);
     CHR (hr);
 
@@ -171,6 +209,9 @@ HRESULT KeyframeStore::Add (
     CHR (hr);
 
     writer.FlattenInto (job->state);
+
+    hr = Reserve (job->state.size());
+    CHR (hr);
 
     hr = SubmitJob (*job, position, cycle, journalIndex);
     CHR (hr);
@@ -220,6 +261,101 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Reserve
+//
+//  Takes all the memory the store will use, once, sized from the budget and
+//  the first state: the table, at one slot per kBudgetPerEntry bytes of
+//  budget; the arena, which is the rest of the budget after the table and
+//  the unpacked newest whole snapshot; and the work buffers. The arena is
+//  never smaller than the newest group, plus a keyframe in flight and the
+//  room lost where the arena wraps, can need at the packer's worst case, so
+//  a store whose budget is too small for that holds more than its budget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::Reserve (size_t stateBytes)
+{
+    constexpr size_t  kPackSlack    = 4096;
+    constexpr size_t  kPackOverhead = 8;          // the packed size bound is stateBytes plus an eighth
+    HRESULT           hr            = S_OK;
+    bool              isReserved    = !m_entries.empty();
+    size_t            groupSlots    = 0;
+    size_t            slotCount     = 0;
+    size_t            packedBound   = 0;
+    size_t            overhead      = 0;
+    size_t            minimumArena  = 0;
+    size_t            arenaBytes    = 0;
+    Byte            * arena         = nullptr;
+
+
+
+    BAIL_OUT_IF (isReserved, S_OK);
+
+    groupSlots   = static_cast<size_t> (m_settings.wholeEvery) + kBufferCount + 2;
+    slotCount    = std::max (m_settings.budgetBytes / kBudgetPerEntry, 2 * groupSlots);
+    packedBound  = stateBytes + stateBytes / kPackOverhead + kPackSlack;
+    overhead     = slotCount * sizeof (Entry) + stateBytes;
+    minimumArena = groupSlots * packedBound;
+    arenaBytes   = (m_settings.budgetBytes > overhead) ? m_settings.budgetBytes - overhead : 0;
+    arenaBytes   = std::max (arenaBytes, minimumArena);
+
+    arena = new (std::nothrow) Byte[arenaBytes];
+    CPRA (arena);
+
+    m_arena.reset (arena);
+
+    m_arenaBytes = arenaBytes;
+    m_entries.resize (slotCount);
+
+    m_latestWhole.reserve (stateBytes);
+    m_scratch.reserve     (stateBytes);
+    m_olderWhole.reserve  (stateBytes);
+
+    for (Job & job : m_jobs)
+    {
+        job.state.reserve  (stateBytes);
+        job.packed.reserve (packedBound);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReservedBytes
+//
+//  All the memory the store holds: the arena, the table, the unpacked
+//  snapshots and the work buffers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t KeyframeStore::GetReservedBytes() const
+{
+    size_t  bytes = m_arenaBytes + m_entries.capacity() * sizeof (Entry);
+
+
+
+    bytes += m_latestWhole.capacity() + m_scratch.capacity() + m_olderWhole.capacity();
+
+    for (const Job & job : m_jobs)
+    {
+        bytes += job.state.capacity() + job.packed.capacity();
+    }
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TakeJob
 //
 //  The next job, whose buffer the state is written into. Results already in
@@ -260,7 +396,8 @@ Error:
 //
 //  Lists the keyframe with what is known now, whole or difference decided
 //  here, and hands its packing over: to the queue, or run at once without
-//  one. The checksum and packed bytes arrive when it is collected.
+//  one. The checksum and packed bytes arrive when it is collected. A full
+//  table gives up its oldest group first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,24 +407,38 @@ HRESULT KeyframeStore::SubmitJob (
     uint64_t    cycle,
     size_t      journalIndex)
 {
-    HRESULT  hr          = S_OK;
-    Entry    entry;
-    bool     isEmpty     = m_entries.empty();
-    bool     isLater     = isEmpty || cycle > m_entries.back().info.cycle;
-    bool     isSameSize  = job.state.size() == m_wholeBytes;
-    bool     isGroupFull = m_groupLength >= m_settings.wholeEvery;
+    HRESULT   hr          = S_OK;
+    Entry   * entry       = nullptr;
+    bool      isEmpty     = m_count == 0;
+    bool      isLater     = isEmpty || cycle > GetEntry (m_count - 1).info.cycle;
+    bool      isSameSize  = job.state.size() == m_wholeBytes;
+    bool      isGroupFull = m_groupLength >= m_settings.wholeEvery;
+    bool      isDropped   = false;
 
 
 
     CBRAEx (isLater, E_INVALIDARG);
 
-    entry.info.position     = position;
-    entry.info.cycle        = cycle;
-    entry.info.journalIndex = journalIndex;
-    entry.info.stateBytes   = job.state.size();
-    entry.info.isWhole      = isEmpty || !isSameSize || isGroupFull;
+    if (m_count == m_entries.size())
+    {
+        hr = WaitForPending();
+        CHR (hr);
 
-    if (entry.info.isWhole)
+        isDropped = TryDropOldestGroup();
+        CBRA (isDropped);
+    }
+
+    entry       = &GetEntry (m_count);
+    *entry      = Entry();
+    m_count++;
+
+    entry->info.position     = position;
+    entry->info.cycle        = cycle;
+    entry->info.journalIndex = journalIndex;
+    entry->info.stateBytes   = job.state.size();
+    entry->info.isWhole      = isEmpty || !isSameSize || isGroupFull;
+
+    if (entry->info.isWhole)
     {
         m_wholeBytes  = job.state.size();
         m_groupLength = 1;
@@ -297,9 +448,7 @@ HRESULT KeyframeStore::SubmitJob (
         m_groupLength++;
     }
 
-    m_entries.push_back (std::move (entry));
-
-    job.isWhole = m_entries.back().info.isWhole;
+    job.isWhole = entry->info.isWhole;
     job.isDone.store (false, std::memory_order_relaxed);
 
     m_nextJob = (m_nextJob + 1) % m_jobs.size();
@@ -406,11 +555,11 @@ Error:
 //
 //  Collect
 //
-//  Moves the results of finished jobs, oldest first, into the newest entries
-//  they belong to. Stops at the first job still in flight, since jobs finish
-//  in the order they were handed over. It drops nothing, so a wait never
-//  moves the index of a keyframe a caller holds; only Add enforces the
-//  budget.
+//  Lays the results of finished jobs, oldest first, into the arena for the
+//  newest entries they belong to. Stops at the first job still in flight,
+//  since jobs finish in the order they were handed over. Making room may
+//  drop the oldest groups, which moves every index, so a caller takes its
+//  keyframe indices after a wait, never before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -419,6 +568,7 @@ HRESULT KeyframeStore::Collect()
     HRESULT   hr     = S_OK;
     Job     * job    = nullptr;
     Entry   * entry  = nullptr;
+    size_t    offset = 0;
     bool      isDone = false;
 
 
@@ -433,20 +583,125 @@ HRESULT KeyframeStore::Collect()
             break;
         }
 
-        entry = &m_entries[m_entries.size() - m_pendingCount];
+        CHR (job->hr);
+
+        hr = Place (job->packed, offset);
+        CHR (hr);
+
+        entry = &GetEntry (m_count - m_pendingCount);
 
         entry->info.checksum    = job->checksum;
         entry->info.storedBytes = job->packed.size();
-        entry->packed           = std::move (job->packed);
+        entry->offset           = offset;
 
         m_storedBytes += entry->info.storedBytes;
         m_pendingCount--;
-
-        CHR (job->hr);
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Place
+//
+//  Copies packed into the arena after the newest packed snapshot, dropping
+//  the oldest groups until it fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::Place (
+    const std::vector<Byte>  & packed,
+    size_t                   & outOffset)
+{
+    HRESULT  hr        = S_OK;
+    size_t   size      = packed.size();
+    bool     hasRoom   = TryFindRoom (size, outOffset);
+    bool     isDropped = false;
+
+
+
+    while (!hasRoom)
+    {
+        isDropped = TryDropOldestGroup();
+        CBRAEx (isDropped, E_OUTOFMEMORY);
+
+        hasRoom = TryFindRoom (size, outOffset);
+    }
+
+    if (size != 0)
+    {
+        memcpy (m_arena.get() + outOffset, packed.data(), size);
+    }
+
+    m_arenaEnd = outOffset + size;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryFindRoom
+//
+//  Where size bytes can go: straight after the newest packed snapshot, or
+//  at the start of the arena when the end has no room and the oldest one
+//  does not start before size. The packed snapshots held run from the
+//  oldest's offset to m_arenaEnd, wrapping round the end of the arena.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KeyframeStore::TryFindRoom (
+    size_t    size,
+    size_t  & outOffset) const
+{
+    size_t  collected = m_count - m_pendingCount;
+    size_t  head      = 0;
+    size_t  tail      = m_arenaEnd;
+    bool    isHolding = collected > 0 && m_storedBytes > 0;
+    bool    isWrapped = false;
+    bool    hasRoom   = false;
+
+
+
+    if (isHolding)
+    {
+        head      = GetEntry (0).offset;
+        isWrapped = tail <= head;
+    }
+    else
+    {
+        // Nothing held: anywhere the size fits, after the newest if it can.
+        head = m_arenaBytes;
+        tail = (collected > 0 && tail + size <= m_arenaBytes) ? tail : 0;
+    }
+
+    if (!isWrapped && m_arenaBytes - tail >= size)
+    {
+        outOffset = tail;
+        hasRoom   = true;
+    }
+    else if (!isWrapped && head >= size)
+    {
+        outOffset = 0;
+        hasRoom   = true;
+    }
+    else if (isWrapped && head - tail >= size)
+    {
+        outOffset = tail;
+        hasRoom   = true;
+    }
+
+    return hasRoom;
 }
 
 
@@ -492,7 +747,7 @@ Error:
 //
 //  Unpacks keyframe index into outState: the whole snapshot of its group
 //  (already unpacked when it is the newest group), and for a difference, the
-//  difference XORed onto it.
+//  difference XORed onto it. Call WaitForPending before taking the index.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -500,35 +755,34 @@ HRESULT KeyframeStore::Restore (
     size_t               index,
     std::vector<Byte>  & outState)
 {
-    HRESULT              hr          = S_OK;
-    size_t               count       = 0;
-    size_t               groupStart  = 0;
-    bool                 isNewest    = false;
-    std::vector<Byte>    olderWhole;
-    const Entry        * entry       = nullptr;
-    const Entry        * whole       = nullptr;
-    const Byte         * base        = nullptr;
+    HRESULT        hr         = S_OK;
+    size_t         count      = 0;
+    size_t         groupStart = 0;
+    bool           isNewest   = false;
+    const Entry  * entry      = nullptr;
+    const Entry  * whole      = nullptr;
+    const Byte   * base       = nullptr;
 
 
 
     hr = WaitForPending();
     CHR (hr);
 
-    count = m_entries.size();
+    count = m_count;
     CBRAEx (index < count, E_INVALIDARG);
 
-    entry      = &m_entries[index];
+    entry      = &GetEntry (index);
     groupStart = FindGroupStart (index);
-    whole      = &m_entries[groupStart];
+    whole      = &GetEntry (groupStart);
     isNewest   = groupStart == FindGroupStart (count - 1);
 
     if (!isNewest)
     {
-        hr = m_compressor.Decompress (whole->packed, whole->info.stateBytes, olderWhole);
+        hr = m_compressor.Decompress (m_arena.get() + whole->offset, whole->info.storedBytes, whole->info.stateBytes, m_olderWhole);
         CHR (hr);
     }
 
-    base = isNewest ? m_latestWhole.data() : olderWhole.data();
+    base = isNewest ? m_latestWhole.data() : m_olderWhole.data();
 
     if (entry->info.isWhole)
     {
@@ -538,7 +792,7 @@ HRESULT KeyframeStore::Restore (
     {
         CBRA (entry->info.stateBytes == whole->info.stateBytes);
 
-        hr = m_compressor.Decompress (entry->packed, entry->info.stateBytes, outState);
+        hr = m_compressor.Decompress (m_arena.get() + entry->offset, entry->info.storedBytes, entry->info.stateBytes, outState);
         CHR (hr);
 
         XorBytes (outState.data(), base, outState.data(), outState.size());
@@ -565,17 +819,80 @@ bool KeyframeStore::TryFindAtOrBefore (
     uint64_t   cycle,
     size_t   & outIndex) const
 {
-    std::deque<Entry>::const_iterator  after = std::upper_bound (m_entries.begin(),
-                                                                 m_entries.end(),
-                                                                 cycle,
-                                                                 [] (uint64_t target, const Entry & entry) { return target < entry.info.cycle; });
-    bool                               found = after != m_entries.begin();
+    size_t  low   = 0;
+    size_t  high  = m_count;
+    size_t  mid   = 0;
+    bool    found = false;
 
 
+
+    while (low < high)
+    {
+        mid = low + (high - low) / 2;
+
+        if (GetEntry (mid).info.cycle <= cycle)
+        {
+            low = mid + 1;
+        }
+        else
+        {
+            high = mid;
+        }
+    }
+
+    found = low > 0;
 
     if (found)
     {
-        outIndex = static_cast<size_t> (std::distance (m_entries.begin(), after)) - 1;
+        outIndex = low - 1;
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryFindByPosition
+//
+//  The newest keyframe taken at or before position; false when every
+//  keyframe is later, or there are none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KeyframeStore::TryFindByPosition (
+    uint64_t   position,
+    size_t   & outIndex) const
+{
+    size_t  low   = 0;
+    size_t  high  = m_count;
+    size_t  mid   = 0;
+    bool    found = false;
+
+
+
+    while (low < high)
+    {
+        mid = low + (high - low) / 2;
+
+        if (GetEntry (mid).info.position <= position)
+        {
+            low = mid + 1;
+        }
+        else
+        {
+            high = mid;
+        }
+    }
+
+    found = low > 0;
+
+    if (found)
+    {
+        outIndex = low - 1;
     }
 
     return found;
@@ -607,12 +924,37 @@ bool KeyframeStore::DoesStateMatch (
     hr = WaitForPending();
     CHR (hr);
 
-    isMatch = index < m_entries.size()
-              && state.size() == m_entries[index].info.stateBytes
-              && ComputeChecksum (state.data(), state.size()) == m_entries[index].info.checksum;
+    isMatch = index < m_count
+              && state.size() == GetEntry (index).info.stateBytes
+              && ComputeChecksum (state.data(), state.size()) == GetEntry (index).info.checksum;
 
 Error:
     return isMatch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkNewestGap
+//
+//  Recording paused at gapStart and resumed at the newest keyframe, so the
+//  positions between are not in history and a replay loads that keyframe
+//  rather than reaching it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::MarkNewestGap (uint64_t gapStart)
+{
+    KeyframeInfo  & info = GetEntry (m_count - 1).info;
+
+
+
+    info.isBoundary   = true;
+    info.hasGapBefore = true;
+    info.gapStart     = gapStart;
 }
 
 
@@ -633,37 +975,37 @@ Error:
 
 HRESULT KeyframeStore::TruncateAfter (uint64_t cycle)
 {
-    HRESULT  hr      = S_OK;
-    bool     dropped = false;
-    bool     isEmpty = false;
+    HRESULT        hr      = S_OK;
+    bool           dropped = false;
+    const Entry  * newest  = nullptr;
 
 
 
     hr = WaitForPending();
     CHR (hr);
 
-    while (!m_entries.empty() && m_entries.back().info.cycle > cycle)
+    while (m_count > 0 && GetEntry (m_count - 1).info.cycle > cycle)
     {
-        m_storedBytes -= m_entries.back().info.storedBytes;
-        m_entries.pop_back();
+        m_storedBytes -= GetEntry (m_count - 1).info.storedBytes;
+        m_count--;
         dropped = true;
     }
 
     BAIL_OUT_IF (!dropped, S_OK);
 
-    isEmpty = m_entries.empty();
-
-    if (isEmpty)
+    if (m_count == 0)
     {
         Clear();
+        BAIL_OUT_IF (true, S_OK);
     }
-    else
-    {
-        hr = ReloadLatestWhole();
-        CHR (hr);
 
-        ScheduleAfter (m_entries.back().info.cycle);
-    }
+    newest     = &GetEntry (m_count - 1);
+    m_arenaEnd = newest->offset + newest->info.storedBytes;
+
+    hr = ReloadLatestWhole();
+    CHR (hr);
+
+    ScheduleAfter (newest->info.cycle);
 
 Error:
     return hr;
@@ -685,7 +1027,7 @@ Error:
 HRESULT KeyframeStore::ReloadLatestWhole()
 {
     HRESULT        hr         = S_OK;
-    size_t         count      = m_entries.size();
+    size_t         count      = m_count;
     size_t         groupStart = 0;
     const Entry  * whole      = nullptr;
 
@@ -694,9 +1036,9 @@ HRESULT KeyframeStore::ReloadLatestWhole()
     CBRA (count > 0);
 
     groupStart = FindGroupStart (count - 1);
-    whole      = &m_entries[groupStart];
+    whole      = &GetEntry (groupStart);
 
-    hr = m_compressor.Decompress (whole->packed, whole->info.stateBytes, m_latestWhole);
+    hr = m_compressor.Decompress (m_arena.get() + whole->offset, whole->info.storedBytes, whole->info.stateBytes, m_latestWhole);
     CHR (hr);
 
     m_groupLength = count - groupStart;
@@ -721,7 +1063,7 @@ Error:
 
 size_t KeyframeStore::FindGroupStart (size_t index) const
 {
-    while (index > 0 && !m_entries[index].info.isWhole)
+    while (index > 0 && !GetEntry (index).info.isWhole)
     {
         index--;
     }
@@ -735,43 +1077,78 @@ size_t KeyframeStore::FindGroupStart (size_t index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryDropOldestGroup
+//
+//  Drops the oldest group, its whole snapshot and every difference against
+//  it, when a collected whole snapshot follows it; false when none does, so
+//  the newest group and every keyframe in flight stay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KeyframeStore::TryDropOldestGroup()
+{
+    size_t  collected = m_count - m_pendingCount;
+    size_t  nextGroup = 1;
+    bool    isDropped = false;
+
+
+
+    while (nextGroup < collected && !GetEntry (nextGroup).info.isWhole)
+    {
+        nextGroup++;
+    }
+
+    isDropped = nextGroup < collected;
+
+    for (; isDropped && nextGroup > 0; nextGroup--)
+    {
+        PopOldest();
+    }
+
+    return isDropped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DropOldestGroups
 //
-//  While over the budget, drops the oldest group: its whole snapshot and
-//  every difference against it. The newest group stays even over budget.
-//  Only a group followed by a collected whole snapshot goes, so no keyframe
-//  in flight is ever dropped.
+//  While over the budget, drops the oldest group. The newest group stays
+//  even over budget.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void KeyframeStore::DropOldestGroups()
 {
-    size_t  nextGroup = 0;
-    size_t  collected = 0;
+    bool  isDropped = true;
 
 
 
-    while (GetByteCount() > m_settings.budgetBytes)
+    while (isDropped && GetByteCount() > m_settings.budgetBytes)
     {
-        nextGroup = 1;
-        collected = m_entries.size() - m_pendingCount;
-
-        while (nextGroup < collected && !m_entries[nextGroup].info.isWhole)
-        {
-            nextGroup++;
-        }
-
-        if (nextGroup >= collected)
-        {
-            break;
-        }
-
-        for (; nextGroup > 0; nextGroup--)
-        {
-            m_storedBytes -= m_entries.front().info.storedBytes;
-            m_entries.pop_front();
-        }
+        isDropped = TryDropOldestGroup();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PopOldest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::PopOldest()
+{
+    m_storedBytes -= GetEntry (0).info.storedBytes;
+
+    m_first = (m_first + 1) % m_entries.size();
+    m_count--;
 }
 
 
@@ -858,6 +1235,7 @@ void KeyframeStore::XorBytes (
         out[i] = static_cast<Byte> (a[i] ^ b[i]);
     }
 }
+
 
 
 

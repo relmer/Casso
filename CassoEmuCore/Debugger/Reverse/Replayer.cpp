@@ -8,7 +8,6 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Debugger/Reverse/KeyframeStore.h"
-#include "Debugger/Reverse/UndoRing.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Shell/MachineHost.h"
 
@@ -24,11 +23,9 @@
 
 Replayer::Replayer (
     MachineHost    & machine,
-    KeyframeStore  & keyframes,
-    UndoRing       & ring) :
+    KeyframeStore  & keyframes) :
     m_machine   (machine),
-    m_keyframes (keyframes),
-    m_ring      (ring)
+    m_keyframes (keyframes)
 {
 }
 
@@ -40,17 +37,16 @@ Replayer::Replayer (
 //
 //  RestoreKeyframe
 //
-//  Loads keyframe index. The ring keeps what it holds before the keyframe's
-//  position when the keyframe falls inside it, and starts over otherwise.
+//  Loads keyframe index. The store's keyframes in flight must have been
+//  waited for before index was taken.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Replayer::RestoreKeyframe (size_t index)
 {
-    HRESULT       hr       = S_OK;
-    bool          isValid  = index < m_keyframes.GetCount();
+    HRESULT       hr      = S_OK;
+    bool          isValid = index < m_keyframes.GetCount();
     KeyframeInfo  info;
-    bool          isInRing = false;
 
 
 
@@ -64,64 +60,7 @@ HRESULT Replayer::RestoreKeyframe (size_t index)
     hr = LoadState (m_scratch, info.position, info.journalIndex);
     CHR (hr);
 
-    isInRing = info.position >= m_ring.GetFirstPosition() && info.position <= m_ring.GetEndPosition();
-
-    if (isInRing)
-    {
-        m_ring.TruncateAt (info.position);
-    }
-    else
-    {
-        m_ring.Clear();
-    }
-
     FindNextKeyframe (info.position);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RestoreCheckpoint
-//
-//  Loads the ring's checkpoint index and drops what the ring holds after it.
-//  A checkpoint holding shared segments is flattened into the scratch buffer
-//  first.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Replayer::RestoreCheckpoint (size_t index)
-{
-    HRESULT                  hr         = S_OK;
-    bool                     isValid    = index < m_ring.GetCheckpointCount();
-    const UndoCheckpoint   * checkpoint = nullptr;
-    bool                     isShared   = false;
-    uint64_t                 position   = 0;
-
-
-
-    CBRAEx (isValid, E_INVALIDARG);
-
-    checkpoint = &m_ring.GetCheckpoint (index);
-    isShared   = !checkpoint->segments.empty();
-    position   = checkpoint->position;
-
-    if (isShared)
-    {
-        StateWriter::Flatten (checkpoint->state, checkpoint->segments, m_scratch);
-    }
-
-    hr = LoadState (isShared ? m_scratch : checkpoint->state, position, checkpoint->journalIndex);
-    CHR (hr);
-
-    m_ring.TruncateAt (position);
-
-    FindNextKeyframe (position);
 
 Error:
     return hr;
@@ -145,20 +84,25 @@ Error:
 //  and no changed file is taken up; a boundary keyframe the replay reaches
 //  is loaded rather than checked.
 //
+//  With steps, the PC and stack pointer of every instruction the replay runs
+//  are appended to it, one per position.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Replayer::RunTo (
-    const ReplayTarget  & target,
-    uint64_t              endPosition,
-    IReverseStopTest    * stopTest,
-    ReplayReport        & report)
+    const ReplayTarget       & target,
+    uint64_t                   endPosition,
+    IReverseStopTest         * stopTest,
+    ReplayReport             & report,
+    std::vector<ReplayStep>  * steps)
 {
-    HRESULT      hr       = S_OK;
-    DebugHook  * hook     = m_machine.GetDebugHook();
-    EmuCpu     * cpu      = m_machine.GetCpu();
-    uint64_t     position = 0;
-    uint64_t     cycle    = 0;
-    bool         isDone   = false;
+    HRESULT       hr        = S_OK;
+    DebugHook   * hook      = m_machine.GetDebugHook();
+    IWatchSink  * watchSink = m_machine.GetMemoryBus().GetWatchSink();
+    EmuCpu      * cpu       = m_machine.GetCpu();
+    uint64_t      position  = 0;
+    uint64_t      cycle     = 0;
+    bool          isDone    = false;
 
 
 
@@ -172,6 +116,10 @@ HRESULT Replayer::RunTo (
     {
         stopTest->TakePendingStop();
     }
+
+    // The debugger's watchpoints would log and count what the replay
+    // touches; only the stop test's checker sees it.
+    m_machine.GetMemoryBus().SetWatchSink ((stopTest != nullptr) ? stopTest->GetWatchSink() : nullptr);
 
     m_machine.SetDebugHook (nullptr);
     m_machine.SetInputJournalOn (false);
@@ -194,9 +142,6 @@ HRESULT Replayer::RunTo (
         hr = LoadBoundaryIfDue();
         CHR (hr);
 
-        hr = TakeCheckpointIfDue();
-        CHR (hr);
-
         hr = CheckKeyframe (report);
         CHR (hr);
 
@@ -204,7 +149,7 @@ HRESULT Replayer::RunTo (
 
         if (!isDone)
         {
-            hr = Step (stopTest, endPosition, report);
+            hr = Step (stopTest, endPosition, report, steps);
             CHR (hr);
         }
     }
@@ -219,6 +164,7 @@ Error:
     }
 
     m_machine.SetDebugHook (hook);
+    m_machine.GetMemoryBus().SetWatchSink (watchSink);
 
     return hr;
 }
@@ -231,24 +177,31 @@ Error:
 //
 //  Step
 //
-//  One instruction of a replay: the stop test's breakpoint before it, the
-//  observed inputs it reads, the instruction, and the stop test's watchpoint
-//  after it.
+//  One instruction of a replay: its PC and stack pointer when they are
+//  collected, the stop test's breakpoint before it, the observed inputs it
+//  reads, the instruction, and the stop test's watchpoint after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Replayer::Step (
-    IReverseStopTest  * stopTest,
-    uint64_t            endPosition,
-    ReplayReport      & report)
+    IReverseStopTest         * stopTest,
+    uint64_t                   endPosition,
+    ReplayReport             & report,
+    std::vector<ReplayStep>  * steps)
 {
     HRESULT   hr       = S_OK;
+    EmuCpu  * cpu      = m_machine.GetCpu();
     uint64_t  position = m_machine.GetPosition();
     uint64_t  after    = 0;
 
 
 
-    if (stopTest != nullptr && stopTest->ShouldStopBefore (m_machine, m_machine.GetCpu()->GetPC()))
+    if (steps != nullptr)
+    {
+        steps->push_back (ReplayStep { cpu->GetPC(), cpu->GetSP() });
+    }
+
+    if (stopTest != nullptr && stopTest->ShouldStopBefore (m_machine, cpu->GetPC()))
     {
         report.hasHit  = true;
         report.lastHit = position;
@@ -426,8 +379,7 @@ Error:
 //
 //  At the position of a boundary keyframe the machine was changed from
 //  outside its recorded inputs (a disk went in or out, or memory was edited),
-//  so the replay takes the keyframe's state instead of computing it. The ring
-//  keeps what the replay has added before it.
+//  so the replay takes the keyframe's state instead of computing it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -464,46 +416,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TakeCheckpointIfDue
-//
-//  The ring's checkpoints are taken where the replay applies boundary
-//  inputs, which is where a live run takes them, so a checkpoint from a
-//  replay and one from the live run hold the same state.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Replayer::TakeCheckpointIfDue()
-{
-    HRESULT        hr     = S_OK;
-    uint64_t       cycle  = m_machine.GetCpu()->GetTotalCycles();
-    bool           isDue  = m_ring.IsCheckpointDue (cycle);
-    StateWriter  & writer = m_writer;
-
-
-
-    BAIL_OUT_IF (!isDue, S_OK);
-
-    writer.Reuse      (m_ring.TakeSpareBuffer(), m_ring.TakeSpareSegments());
-    writer.SetSharing (true);
-
-    hr = m_machine.SaveState (writer);
-    CHR (hr);
-
-    m_machine.CheckSharedSave (writer);
-
-    hr = m_ring.AddCheckpoint (m_machine.GetPosition(), cycle, m_journalCursor, writer.TakeBytes(), writer.TakeSegments());
-    CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CheckKeyframe
 //
 //  At the position of the next keyframe, the replayed machine must hash to
@@ -513,15 +425,17 @@ Error:
 
 HRESULT Replayer::CheckKeyframe (ReplayReport & report)
 {
-    HRESULT      hr       = S_OK;
-    uint64_t     position = m_machine.GetPosition();
-    bool         isDue    = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
-    StateWriter  writer;
-    bool         isMatch  = false;
+    HRESULT        hr       = S_OK;
+    uint64_t       position = m_machine.GetPosition();
+    bool           isDue    = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    StateWriter  & writer   = m_checkWriter;
+    bool           isMatch  = false;
 
 
 
     BAIL_OUT_IF (!isDue, S_OK);
+
+    writer.Reuse (writer.TakeBytes());
 
     hr = m_machine.SaveState (writer);
     CHR (hr);
