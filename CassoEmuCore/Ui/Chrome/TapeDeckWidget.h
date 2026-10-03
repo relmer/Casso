@@ -13,6 +13,7 @@ enum class TapeDeckRegion
     None,
     Name,
     Rewind,
+    FastForward,
     Play,
     Stop,
     Record,
@@ -56,6 +57,7 @@ public:
     RECT            GetCounterRect () const { return m_counterRect; }
     RECT            GetButtonRect  (TapeDeckRegion region) const;
     bool            IsHidden       () const { return m_hidden; }
+    TapeDeckRegion  GetHover       () const { return m_hover; }
 
     static bool          IsRegionEnabled (TapeDeckRegion region, const TapeDeckView & view);
     static std::wstring  FormatTime      (double seconds);
@@ -69,7 +71,7 @@ public:
     // it begins and once it has finished, which is where the name rests.
     static float         GetMarqueeOffset (int64_t nowMs, int64_t startMs, float periodPx, float speedPxPerSec);
 
-    static constexpr size_t  kButtonCount = 5;
+    static constexpr size_t  kButtonCount = 6;
 
 private:
     static constexpr int              kBaseDpi           = 96;
@@ -98,7 +100,7 @@ private:
     static constexpr float    kMarqueeGapDip         = 25.0f;
     // The transport row and counter, under the rail and within its width.
     static constexpr int    kControlsGapYPx    = 5;
-    static constexpr int    kButtonSizePx      = 18;
+    static constexpr int    kButtonSizePx      = 16;
     static constexpr int    kButtonGapPx       = 2;
     static constexpr int    kCounterGapXPx     = 4;
     static constexpr int    kControlsPadYPx    = 4;

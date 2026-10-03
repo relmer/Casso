@@ -21,8 +21,8 @@ TEST_CLASS (TapeDeckWidgetTests)
 {
 public:
 
-    static constexpr TapeDeckRegion  s_kButtons[] = { TapeDeckRegion::Rewind, TapeDeckRegion::Play, TapeDeckRegion::Stop,
-                                                      TapeDeckRegion::Record, TapeDeckRegion::Eject };
+    static constexpr TapeDeckRegion  s_kButtons[] = { TapeDeckRegion::Record, TapeDeckRegion::Rewind, TapeDeckRegion::FastForward,
+                                                      TapeDeckRegion::Play,   TapeDeckRegion::Stop,   TapeDeckRegion::Eject };
 
 
     static void LayOut (TapeDeckWidget & widget)
@@ -165,7 +165,7 @@ public:
 
     TEST_METHOD (MovingDeckOffersStopNotPlayOrRecord)
     {
-        constexpr TapeTransport  kMoving[] = { TapeTransport::Playing, TapeTransport::Recording };
+        constexpr TapeTransport  kMoving[] = { TapeTransport::Playing, TapeTransport::FastForwarding, TapeTransport::Rewinding };
 
 
 
@@ -179,6 +179,20 @@ public:
             Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,   view));
             Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Record, view));
         }
+    }
+
+
+    TEST_METHOD (RecordingOffersRecordAndStopButNotPlayOrWinding)
+    {
+        TapeDeckView  view = MakeView (TapeTransport::Recording);
+
+
+
+        Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Record,      view), L"Record again stops it");
+        Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,        view));
+        Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        view));
+        Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      view));
+        Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, view));
     }
 
 

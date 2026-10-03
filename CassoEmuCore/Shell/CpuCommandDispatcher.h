@@ -28,6 +28,7 @@ enum class TapeCommand
     ReleaseRecord,
     Unload,     // out of the deck but still remembered: a machine switch
     Seek,       // to the position TapeManager::Seek last stored
+    FastForward,
 };
 
 

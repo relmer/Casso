@@ -48,6 +48,7 @@ public:
     void     Play              ();
     void     Stop              ();
     void     Rewind            ();
+    void     FastForward       ();
     void     Seek              (double seconds);
     void     SetRecordArmed    (bool isArmed);
     HRESULT  RestoreSavedTape  ();

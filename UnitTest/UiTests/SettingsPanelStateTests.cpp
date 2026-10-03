@@ -50,6 +50,7 @@ public:
         bool               lastFastTapeLoading        = true;
         float              lastTapeVolume             = 1.0f;
         bool               lastTapeAutoStop           = true;
+        bool               lastTapeIdleStop           = true;
         std::string        lastMechanism;
         bool               lastWriteProtect[2]        = { false, false };
         float              lastDriveMotor             = -1.0f;
@@ -68,6 +69,7 @@ public:
         void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
         void ApplyTapeVolume   (float gain) override               { lastTapeVolume = gain; }
         void ApplyTapeAutoStop (bool enabled) override             { lastTapeAutoStop = enabled; }
+        void ApplyTapeIdleStop (bool enabled) override             { lastTapeIdleStop = enabled; }
         void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
         void ApplyDriveVolumes (float motor, float head, float door) override
         {

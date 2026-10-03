@@ -328,6 +328,21 @@ void TapeManager::Rewind()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FastForward
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeManager::FastForward()
+{
+    m_post (IDM_TAPE_FASTFORWARD, {});
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Seek
 //
 //  Winds the tape to a position, in seconds from the start. The position
@@ -508,8 +523,12 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
 
         case TapeCommand::Play:          deck.Play   (nowCycle);         break;
 
+        // Every key that ends a recording keeps it: Stop, either wind, and
+        // releasing Record.
         case TapeCommand::Stop:
         case TapeCommand::Rewind:
+        case TapeCommand::FastForward:
+        case TapeCommand::ReleaseRecord:
             deck.Stop (nowCycle);
             hr = CommitPendingRecording (deck);
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -517,6 +536,10 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
             if (command == TapeCommand::Rewind)
             {
                 deck.Rewind (nowCycle);
+            }
+            else if (command == TapeCommand::FastForward)
+            {
+                deck.FastForward (nowCycle);
             }
 
             break;
@@ -529,8 +552,7 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
             deck.Seek (nowCycle, m_seekSeconds.load (std::memory_order_acquire));
             break;
 
-        case TapeCommand::ArmRecord:     deck.SetRecordArmed (true);     break;
-        case TapeCommand::ReleaseRecord: deck.SetRecordArmed (false);    break;
+        case TapeCommand::ArmRecord:     deck.Record (nowCycle);         break;
     }
 
     if (pending.has_value())

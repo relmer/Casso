@@ -141,7 +141,8 @@ void TapeDeck::Play (uint64_t nowCycle)
         return;
     }
 
-    m_startCycle = nowCycle;
+    m_startCycle    = nowCycle;
+    m_readSincePlay = false;
 
     if (m_isRecordArmed && m_image.isWritable)
     {
@@ -183,17 +184,93 @@ void TapeDeck::Stop (uint64_t nowCycle)
 //
 //  TapeDeck::Rewind
 //
-//  Stops first if the tape is moving, then returns to the start.
+//  Winds back toward the start, as the key does: stopping whatever the tape
+//  was doing first, and stopping again at the start or when Stop is pressed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TapeDeck::Rewind (uint64_t nowCycle)
 {
+    StartWinding (nowCycle, TapeTransport::Rewinding);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::FastForward
+//
+//  Winds on toward the end, stopping there or when Stop is pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeck::FastForward (uint64_t nowCycle)
+{
+    StartWinding (nowCycle, TapeTransport::FastForwarding);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::Record
+//
+//  Starts recording from where the tape stands, on a writable tape that is
+//  stopped. One key does it: a person clicking cannot press Record and Play
+//  together the way a hand does on the real deck.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeck::Record (uint64_t nowCycle)
+{
+    if (m_transport != TapeTransport::Stopped || !m_image.isWritable)
+    {
+        return;
+    }
+
+    m_isRecordArmed = true;
+    Play (nowCycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::StartWinding
+//
+//  A wind with nowhere to go -- rewinding at the start, winding on at the end
+//  -- leaves the tape stopped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeck::StartWinding (uint64_t nowCycle, TapeTransport direction)
+{
+    bool  atStart = false;
+    bool  atEnd   = false;
+
+
+
+    if (!m_hasImage || m_transport == direction)
+    {
+        return;
+    }
+
     Halt (nowCycle);
 
-    m_startSample  = 0.0;
-    m_cursor       = 0;
-    m_cursorSample = 0.0;
+    atStart = m_startSample <= 0.0;
+    atEnd   = m_startSample >= (double) m_image.signal.lengthSamples;
+
+    if (!(direction == TapeTransport::Rewinding ? atStart : atEnd))
+    {
+        m_transport  = direction;
+        m_startCycle = nowCycle;
+    }
 
     PublishSnapshot();
 }
@@ -274,15 +351,21 @@ void TapeDeck::SetRecordArmed (bool isArmed)
 
 void TapeDeck::Update (uint64_t nowCycle)
 {
-    bool  isPastEnd = m_transport == TapeTransport::Playing && m_isAutoStop.load (std::memory_order_relaxed) &&
-                      GetSampleAtCycle (nowCycle) >= (double) m_image.signal.lengthSamples;
+    double  sample    = GetSampleAtCycle (nowCycle);
+    bool    isPastEnd = m_transport == TapeTransport::Playing && m_isAutoStop.load (std::memory_order_relaxed) &&
+                        sample >= (double) m_image.signal.lengthSamples;
+    bool    isWound   = (m_transport == TapeTransport::Rewinding      && sample <= 0.0) ||
+                        (m_transport == TapeTransport::FastForwarding && sample >= (double) m_image.signal.lengthSamples);
+    bool    isIdle    = m_transport == TapeTransport::Playing && m_readSincePlay &&
+                        m_isIdleStop.load (std::memory_order_relaxed) &&
+                        (double) (nowCycle - m_lastAccessCycle) > kIdleStopSeconds * m_cpuClockHz;
 
 
 
-    if (isPastEnd)
+    if (isPastEnd || isWound || isIdle)
     {
         Halt (nowCycle);
-        m_startSample = (double) m_image.signal.lengthSamples;
+        PublishSnapshot();
     }
 
     m_shownPosition.store (GetSampleAtCycle (nowCycle), std::memory_order_release);
@@ -317,6 +400,7 @@ bool TapeDeck::ReadInputLevel (uint64_t busCycle)
 
     m_lastAccessCycle = busCycle;
     m_hasBeenAccessed = true;
+    m_readSincePlay   = true;
     sample            = GetSampleAtCycle (busCycle);
 
     if (sample < m_cursorSample)
@@ -444,7 +528,22 @@ TapeDeck::Snapshot TapeDeck::GetSnapshot() const
 
 bool TapeDeck::IsMoving() const
 {
-    return m_transport == TapeTransport::Playing || m_transport == TapeTransport::Recording;
+    return m_transport == TapeTransport::Playing || m_transport == TapeTransport::Recording || IsWinding();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::IsWinding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TapeDeck::IsWinding() const
+{
+    return m_transport == TapeTransport::FastForwarding || m_transport == TapeTransport::Rewinding;
 }
 
 
@@ -460,6 +559,7 @@ bool TapeDeck::IsMoving() const
 double TapeDeck::GetSampleAtCycle (uint64_t cycle) const
 {
     double  elapsedCycles = 0.0;
+    double  travel        = 0.0;
 
 
 
@@ -469,8 +569,17 @@ double TapeDeck::GetSampleAtCycle (uint64_t cycle) const
     }
 
     elapsedCycles = (double) (cycle - m_startCycle);
+    travel        = elapsedCycles * m_image.signal.sampleRate / m_cpuClockHz;
 
-    return m_startSample + elapsedCycles * m_image.signal.sampleRate / m_cpuClockHz;
+    // Winding runs at many times the playing speed and cannot leave the tape.
+    if (IsWinding())
+    {
+        travel *= (m_transport == TapeTransport::Rewinding) ? -kWindSpeed : kWindSpeed;
+
+        return clamp (m_startSample + travel, 0.0, (double) m_image.signal.lengthSamples);
+    }
+
+    return m_startSample + travel;
 }
 
 
@@ -495,10 +604,12 @@ void TapeDeck::Halt (uint64_t nowCycle)
 
     m_startSample = GetSampleAtCycle (nowCycle);
 
+    // Recording ends with the record key back up, as Stop leaves it.
     if (m_transport == TapeTransport::Recording)
     {
         m_capture.endCycle    = nowCycle;
         m_hasPendingRecording = true;
+        m_isRecordArmed       = false;
     }
 
     if (m_transport == TapeTransport::Playing)

@@ -421,7 +421,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
-    else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_RECORD)             { route = WindowCommandRoute::Disk; }
+    else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
@@ -1555,12 +1555,13 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         // The tape items open their pickers here; the deck commands are
         // queued to the CPU thread by the tape manager.
-        case IDM_TAPE_INSERT: m_shell.PickTape();                      break;
-        case IDM_TAPE_NEW:    m_shell.CreateBlankTape();               break;
-        case IDM_TAPE_EJECT:  m_shell.m_tapeManager->Eject();          break;
-        case IDM_TAPE_PLAY:   m_shell.m_tapeManager->Play();           break;
-        case IDM_TAPE_STOP:   m_shell.m_tapeManager->Stop();           break;
-        case IDM_TAPE_REWIND: m_shell.m_tapeManager->Rewind();         break;
+        case IDM_TAPE_INSERT:      m_shell.PickTape();                     break;
+        case IDM_TAPE_NEW:         m_shell.CreateBlankTape();              break;
+        case IDM_TAPE_EJECT:       m_shell.m_tapeManager->Eject();         break;
+        case IDM_TAPE_PLAY:        m_shell.m_tapeManager->Play();          break;
+        case IDM_TAPE_STOP:        m_shell.m_tapeManager->Stop();          break;
+        case IDM_TAPE_REWIND:      m_shell.m_tapeManager->Rewind();        break;
+        case IDM_TAPE_FASTFORWARD: m_shell.m_tapeManager->FastForward();   break;
     }
 }
 

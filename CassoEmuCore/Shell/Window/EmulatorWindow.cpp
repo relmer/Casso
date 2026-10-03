@@ -773,12 +773,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
             case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
-            case IDM_TAPE_INSERT:   return MachineHasCassettePort();
-            case IDM_TAPE_NEW:      return MachineHasCassettePort();
-            case IDM_TAPE_PLAY:     return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,   GetTapeView());
-            case IDM_TAPE_STOP:     return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,   GetTapeView());
-            case IDM_TAPE_REWIND:   return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind, GetTapeView());
-            case IDM_TAPE_EJECT:    return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,  GetTapeView());
+            case IDM_TAPE_INSERT:      return MachineHasCassettePort();
+            case IDM_TAPE_NEW:         return MachineHasCassettePort();
+            case IDM_TAPE_PLAY:        return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        GetTapeView());
+            case IDM_TAPE_STOP:        return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,        GetTapeView());
+            case IDM_TAPE_REWIND:      return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      GetTapeView());
+            case IDM_TAPE_FASTFORWARD: return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, GetTapeView());
+            case IDM_TAPE_EJECT:       return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       GetTapeView());
             default:           return true;
         }
     });

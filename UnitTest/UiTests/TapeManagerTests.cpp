@@ -63,6 +63,8 @@ public:
                     case IDM_TAPE_PLAY:   manager.Execute (TapeCommand::Play,   deck, 0); break;
                     case IDM_TAPE_STOP:   manager.Execute (TapeCommand::Stop,   deck, 0); break;
                     case IDM_TAPE_REWIND: manager.Execute (TapeCommand::Rewind, deck, 0); break;
+                    case IDM_TAPE_SEEK:   manager.Execute (TapeCommand::Seek,   deck, 0); break;
+                    case IDM_TAPE_FASTFORWARD: manager.Execute (TapeCommand::FastForward, deck, 0); break;
                     case IDM_TAPE_RECORD: manager.Execute (payload == "1" ? TapeCommand::ArmRecord : TapeCommand::ReleaseRecord, deck, 0); break;
                     default: break;
                 }
@@ -171,7 +173,7 @@ public:
         Assert::IsTrue (h.deck.GetTransport() == TapeTransport::Recording);
 
         h.manager.Stop();
-        h.manager.Rewind();
+        h.manager.Seek (0.0);
         h.Drain();
         Assert::IsTrue   (h.deck.GetTransport() == TapeTransport::Stopped);
         Assert::AreEqual (0.0, h.deck.GetPositionSamples (0));

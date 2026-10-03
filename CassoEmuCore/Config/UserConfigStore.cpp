@@ -744,6 +744,7 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
     uiObj.emplace_back ("fastTapeLoading",    JsonValue (true));
     uiObj.emplace_back ("tapeVolume",         JsonValue (1.0));
     uiObj.emplace_back ("tapeAutoStop",       JsonValue (true));
+    uiObj.emplace_back ("tapeIdleStop",       JsonValue (true));
     uiObj.emplace_back ("gamePortAdapter",    JsonValue (std::string (ControllerTokens::kpszAdapterNone)));
     wp.emplace_back (JsonValue (false));
     wp.emplace_back (JsonValue (false));

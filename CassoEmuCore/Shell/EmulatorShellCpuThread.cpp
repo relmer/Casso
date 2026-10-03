@@ -124,6 +124,12 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
         SetTapeAutoStop (enabled);
     }
 
+    hrOpt = uiPrefs->GetBool ("tapeIdleStop", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeIdleStop (enabled);
+    }
+
     hrOpt = uiPrefs->GetNumber ("tapeVolume", tapeVolume);
     if (SUCCEEDED (hrOpt))
     {

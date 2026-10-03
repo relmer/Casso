@@ -161,9 +161,12 @@ public:
         Assert::IsTrue (deck.ReadInputLevel (350));
 
         deck.Rewind (350);
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Rewinding, L"rewind winds, it does not jump");
 
-        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Stopped);
-        Assert::AreEqual (0.0, deck.GetPositionSamples (350));
+        deck.Update (400);   // 350 samples at twenty times the speed is under 18 cycles
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Stopped, L"and stops at the start");
+        Assert::AreEqual (0.0, deck.GetPositionSamples (400));
 
         deck.Play (1000);
         Assert::IsFalse (deck.ReadInputLevel (1000 + 50));
@@ -194,6 +197,77 @@ public:
     }
 
 
+    TEST_METHOD (FastForwardWindsToTheEndAndStops)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.FastForward (0);
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::FastForwarding);
+        Assert::AreEqual (200.0, deck.GetPositionSamples (10), L"twenty samples a cycle");
+
+        deck.Update (100);
+
+        Assert::IsTrue   (deck.GetTransport() == TapeTransport::Stopped);
+        Assert::AreEqual ((double) kLength, deck.GetPositionSamples (100));
+
+        deck.FastForward (200);
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Stopped, L"nowhere left to wind");
+    }
+
+
+    TEST_METHOD (RecordStartsByItselfAndStopReleasesIt)
+    {
+        TapeDeck  deck;
+
+
+
+        Load (deck);
+        deck.Record (0);
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Recording, L"no Play needed");
+
+        deck.Play (10);
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Recording, L"Play does nothing while recording");
+
+        deck.Stop (100);
+        Assert::IsTrue  (deck.GetTransport() == TapeTransport::Stopped);
+        Assert::IsFalse (deck.GetSnapshot().isRecordArmed, L"the record key comes back up");
+        Assert::IsTrue  (deck.HasPendingRecording());
+    }
+
+
+    TEST_METHOD (IdleStopWaitsForAReadThenStopsWhenReadingEnds)
+    {
+        TapeDeck  deck;
+        uint64_t  idle = (uint64_t) (2.5 * kClock);
+
+
+
+        Load (deck);
+        deck.SetAutoStop (false);   // the test tape is far shorter than the idle wait
+        deck.Play (0);
+
+        deck.Update (idle);
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Playing, L"nothing has read it yet, so it plays on");
+
+        deck.Stop (idle);
+        deck.Play (idle);
+        deck.ReadInputLevel (idle + 10);
+        deck.Update (idle + 10 + idle);
+
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Stopped, L"read, then left alone, it stops");
+
+        deck.SetIdleStop (false);
+        deck.Play (3 * idle);
+        deck.ReadInputLevel (3 * idle + 10);
+        deck.Update (5 * idle);
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Playing, L"with the setting off, it plays on");
+    }
+
+
     TEST_METHOD (CursorReseeksWhenPositionGoesBackward)
     {
         TapeDeck  deck;
@@ -206,6 +280,7 @@ public:
 
         deck.Stop (450);
         deck.Rewind (450);
+        deck.Update (1000);
         deck.Play (0);
         Assert::IsTrue (deck.ReadInputLevel (150));
     }

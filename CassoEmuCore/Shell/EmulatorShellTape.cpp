@@ -95,10 +95,21 @@ void EmulatorShell::SyncTapeChrome()
     bool           isShown = MachineHasCassettePort() && !DeskSceneActive() && !IsRectEmpty (&drive) &&
                              m_tapeAnchorDpi != 0;
     DxuiDpiScaler  scaler;
+    TapeDeckView   view    = GetTapeView();
 
 
 
-    m_tapeChrome.SyncFromView (GetTapeView());
+    m_tapeChrome.SyncFromView (view);
+
+    // A STATIC GUEST SCREEN PRESENTS NO FRAMES, and a program loading from
+    // tape is exactly that: so while the tape moves, and while a long name may
+    // be scrolling under the pointer, ask for one every UI frame or the
+    // counter stands still.
+    if ((view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped) ||
+        (isShown && m_tapeChrome.GetHover() == TapeDeckRegion::Name))
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
 
     if (!isShown)
     {
@@ -210,14 +221,15 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
 
     switch (region)
     {
-        case TapeDeckRegion::Name:   PickTape();                                         break;
-        case TapeDeckRegion::Rewind: m_tapeManager->Rewind();                            break;
-        case TapeDeckRegion::Play:   m_tapeManager->Play();                              break;
-        case TapeDeckRegion::Stop:   m_tapeManager->Stop();                              break;
-        case TapeDeckRegion::Record: m_tapeManager->SetRecordArmed (!view.isRecordArmed); break;
-        case TapeDeckRegion::Eject:  m_tapeManager->Eject();                             break;
-        case TapeDeckRegion::Counter: PromptTapePosition();                             break;
-        default:                                                                         break;
+        case TapeDeckRegion::Name:        PickTape();                                                                 break;
+        case TapeDeckRegion::Rewind:      m_tapeManager->Rewind();                                                    break;
+        case TapeDeckRegion::FastForward: m_tapeManager->FastForward();                                               break;
+        case TapeDeckRegion::Play:        m_tapeManager->Play();                                                      break;
+        case TapeDeckRegion::Stop:        m_tapeManager->Stop();                                                      break;
+        case TapeDeckRegion::Record:      m_tapeManager->SetRecordArmed (view.transport != TapeTransport::Recording); break;
+        case TapeDeckRegion::Eject:       m_tapeManager->Eject();                                                     break;
+        case TapeDeckRegion::Counter:     PromptTapePosition();                                                       break;
+        default:                                                                                                      break;
     }
 
     m_d3dRenderer.MarkRedrawNeeded();

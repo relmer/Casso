@@ -48,6 +48,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_TAPE_PLAY,                MainMenuId::Disk,    L"Pla&y tape",             nullptr          },
     { IDM_TAPE_STOP,                MainMenuId::Disk,    L"St&op tape",             nullptr          },
     { IDM_TAPE_REWIND,              MainMenuId::Disk,    L"&Rewind tape",           nullptr          },
+    { IDM_TAPE_FASTFORWARD,         MainMenuId::Disk,    L"Fast-for&ward tape",     nullptr          },
     { IDM_TAPE_EJECT,               MainMenuId::Disk,    L"E&ject tape",            nullptr          },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"Ctrl+D"      },

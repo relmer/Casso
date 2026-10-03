@@ -116,6 +116,7 @@ public:
         { L"IDM_TAPE_PLAY",                 IDM_TAPE_PLAY                 },
         { L"IDM_TAPE_STOP",                 IDM_TAPE_STOP                 },
         { L"IDM_TAPE_REWIND",               IDM_TAPE_REWIND               },
+        { L"IDM_TAPE_FASTFORWARD",          IDM_TAPE_FASTFORWARD          },
         { L"IDM_TAPE_RECORD",               IDM_TAPE_RECORD               },
         { L"IDM_VIEW_COLOR",                IDM_VIEW_COLOR                },
         { L"IDM_VIEW_GREEN",                IDM_VIEW_GREEN                },

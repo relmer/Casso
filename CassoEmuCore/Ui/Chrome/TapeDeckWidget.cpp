@@ -227,9 +227,10 @@ RECT TapeDeckWidget::GetButtonRect (TapeDeckRegion region) const
 
 bool TapeDeckWidget::IsRegionEnabled (TapeDeckRegion region, const TapeDeckView & view)
 {
-    bool  hasTape   = view.transport != TapeTransport::Empty;
-    bool  isMoving  = view.transport == TapeTransport::Playing || view.transport == TapeTransport::Recording;
-    bool  isLoading = !view.loadingPath.empty();
+    bool  hasTape     = view.transport != TapeTransport::Empty;
+    bool  isRecording = view.transport == TapeTransport::Recording;
+    bool  isMoving    = view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped;
+    bool  isLoading   = !view.loadingPath.empty();
 
 
 
@@ -242,14 +243,15 @@ bool TapeDeckWidget::IsRegionEnabled (TapeDeckRegion region, const TapeDeckView 
 
     switch (region)
     {
-        case TapeDeckRegion::Name:    return true;
-        case TapeDeckRegion::Rewind:  return hasTape;
-        case TapeDeckRegion::Play:    return view.transport == TapeTransport::Stopped;
-        case TapeDeckRegion::Stop:    return isMoving;
-        case TapeDeckRegion::Record:  return hasTape && view.isWritable && !isMoving;
-        case TapeDeckRegion::Eject:   return hasTape;
-        case TapeDeckRegion::Counter: return hasTape;
-        default:                      return false;
+        case TapeDeckRegion::Name:        return true;
+        case TapeDeckRegion::Rewind:      return hasTape && !isRecording;
+        case TapeDeckRegion::FastForward: return hasTape && !isRecording;
+        case TapeDeckRegion::Play:        return view.transport == TapeTransport::Stopped;
+        case TapeDeckRegion::Stop:        return isMoving;
+        case TapeDeckRegion::Record:      return hasTape && view.isWritable && (isRecording || view.transport == TapeTransport::Stopped);
+        case TapeDeckRegion::Eject:       return hasTape;
+        case TapeDeckRegion::Counter:     return hasTape;
+        default:                          return false;
     }
 }
 
@@ -695,7 +697,10 @@ uint32_t TapeDeckWidget::GetMarkColor (TapeDeckRegion region, const CassoTheme &
 
 
 
-    if (region == TapeDeckRegion::Play && m_view.transport == TapeTransport::Playing)
+    // The key that is down lights.
+    if ((region == TapeDeckRegion::Play        && m_view.transport == TapeTransport::Playing)        ||
+        (region == TapeDeckRegion::FastForward && m_view.transport == TapeTransport::FastForwarding) ||
+        (region == TapeDeckRegion::Rewind      && m_view.transport == TapeTransport::Rewinding))
     {
         return theme.ledActive;
     }
@@ -753,6 +758,11 @@ void TapeDeckWidget::PaintMark (IDxuiPainter & painter, TapeDeckRegion region, c
             painter.FillConvexQuad (r, t, r, b, cx, cy, cx, cy, argb);
             break;
 
+        case TapeDeckRegion::FastForward:
+            painter.FillConvexQuad (l, t, cx, cy, l, b, l, b, argb);
+            painter.FillConvexQuad (cx, t, r, cy, cx, b, cx, b, argb);
+            break;
+
         case TapeDeckRegion::Play:
             painter.FillConvexQuad (l, t, r, cy, l, b, l, b, argb);
             break;
@@ -783,16 +793,17 @@ void TapeDeckWidget::PaintMark (IDxuiPainter & painter, TapeDeckRegion region, c
 //
 //  GetButtonRegion
 //
-//  Left to right, in the order a deck's keys run.
+//  Left to right, in the order the RQ-309DS's own keys run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 TapeDeckRegion TapeDeckWidget::GetButtonRegion (size_t index)
 {
-    static constexpr TapeDeckRegion  kOrder[kButtonCount] = { TapeDeckRegion::Rewind,
+    static constexpr TapeDeckRegion  kOrder[kButtonCount] = { TapeDeckRegion::Record,
+                                                              TapeDeckRegion::Rewind,
+                                                              TapeDeckRegion::FastForward,
                                                               TapeDeckRegion::Play,
                                                               TapeDeckRegion::Stop,
-                                                              TapeDeckRegion::Record,
                                                               TapeDeckRegion::Eject };
 
 

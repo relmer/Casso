@@ -142,6 +142,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.ControlTape (TapeCommand::Seek);
             break;
 
+        case IDM_TAPE_FASTFORWARD:
+            target.ControlTape (TapeCommand::FastForward);
+            break;
+
         default:
             break;
     }

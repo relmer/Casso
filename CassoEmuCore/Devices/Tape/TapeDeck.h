@@ -20,6 +20,8 @@ enum class TapeTransport
     Stopped,
     Playing,
     Recording,
+    FastForwarding,
+    Rewinding,
 };
 
 
@@ -59,9 +61,12 @@ public:
     void  Play           (uint64_t nowCycle);
     void  Stop           (uint64_t nowCycle);
     void  Rewind         (uint64_t nowCycle);
+    void  FastForward    (uint64_t nowCycle);
+    void  Record         (uint64_t nowCycle);
     void  Seek           (uint64_t nowCycle, double seconds);
     void  SetRecordArmed (bool isArmed);
     void  SetAutoStop    (bool isOn) { m_isAutoStop.store (isOn, std::memory_order_relaxed); }
+    void  SetIdleStop    (bool isOn) { m_isIdleStop.store (isOn, std::memory_order_relaxed); }
     void  Update         (uint64_t nowCycle);
 
     bool  ReadInputLevel (uint64_t busCycle) override;
@@ -86,8 +91,12 @@ public:
 
 private:
     static constexpr double  kDefaultCpuClockHz = 1020484.0;   // NTSC Apple II; replaced by the machine's own rate
+    static constexpr double  kWindSpeed         = 20.0;        // fast-forward and rewind, times the playing speed
+    static constexpr double  kIdleStopSeconds   = 2.0;         // unread this long after reading, playback stops
 
     bool    IsMoving         () const;
+    bool    IsWinding        () const;
+    void    StartWinding     (uint64_t nowCycle, TapeTransport direction);
     double  GetSampleAtCycle (uint64_t cycle) const;
     void    Halt             (uint64_t nowCycle);
     void    PublishSnapshot  ();
@@ -103,10 +112,12 @@ private:
     bool              m_isRecordArmed       = false;
     uint64_t          m_lastAccessCycle     = 0;
     bool              m_hasBeenAccessed     = false;
+    bool              m_readSincePlay       = false;
     RecordingCapture  m_capture;
     bool              m_hasPendingRecording = false;
 
     std::atomic<bool>           m_isAutoStop      { true };
+    std::atomic<bool>           m_isIdleStop      { true };
     std::atomic<TapeTransport>  m_shownTransport  { TapeTransport::Empty };
     std::atomic<double>         m_shownPosition   { 0.0 };
     std::atomic<uint64_t>       m_shownLength     { 0 };
