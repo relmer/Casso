@@ -6,6 +6,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -667,5 +668,109 @@ public:
         AssertFailed (BlankDiskBuilder::ValidateSpec (spec));
 
         expect.RequireCount (4);
+    }
+
+
+    static void  BuildAndLoad (const BlankDiskSpec & spec, vector<Byte> & outBytes, DiskImage & outImage)
+    {
+        BootPayload  payload;
+
+        AssertSucceeded (BlankDiskBuilder::Build (spec, payload, outBytes), L"the disk must build");
+        AssertSucceeded (WozLoader::Load (outBytes, outImage), L"and load back");
+    }
+
+    static bool  IsFluxTrack (const DiskImage & image, int track)
+    {
+        int  slot = image.ResolveQuarterTrack (track * DiskImage::kQuarterTracksPerWholeTrack);
+
+        return slot >= 0 && image.GetTrackKind (slot) == TrackKind::Flux;
+    }
+
+    TEST_METHOD (Flux_NeedsAWozContainer)
+    {
+        BlankDiskSpec  spec = MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33);
+
+        spec.fluxTrackMask = 1;
+        Assert::IsTrue (BlankDiskVerdict::FluxNeedsWoz == BlankDiskBuilder::CheckSpec (spec));
+
+        spec.format = DiskFormat::Nib;
+        Assert::IsTrue (BlankDiskVerdict::FluxNeedsWoz == BlankDiskBuilder::CheckSpec (spec));
+
+        spec.format = DiskFormat::Woz;
+        Assert::IsTrue (BlankDiskVerdict::Ok == BlankDiskBuilder::CheckSpec (spec));
+    }
+
+    TEST_METHOD (Flux_EveryTrackIsFluxAndReadsTheSameSectors)
+    {
+        BlankDiskSpec       bitSpec  = MakeSpec (DiskFormat::Woz, BlankDiskContents::Dos33);
+        BlankDiskSpec       fluxSpec = bitSpec;
+        vector<Byte>        bitBytes;
+        vector<Byte>        fluxBytes;
+        DiskImage           bitImage;
+        DiskImage           fluxImage;
+        vector<Byte>        bitSectors;
+        vector<Byte>        fluxSectors;
+        SectorDecodeReport  report;
+        int                 track    = 0;
+
+        fluxSpec.fluxTrackMask = BlankDiskBuilder::kAllFluxTracks;
+
+        BuildAndLoad (bitSpec,  bitBytes,  bitImage);
+        BuildAndLoad (fluxSpec, fluxBytes, fluxImage);
+
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            Assert::IsTrue (IsFluxTrack (fluxImage, track), L"every track is flux");
+        }
+
+        AssertSucceeded (VolumeImage::Load (bitBytes,  "bit.woz",  bitSectors,  report));
+        AssertSucceeded (VolumeImage::Load (fluxBytes, "flux.woz", fluxSectors, report));
+        Assert::IsTrue (bitSectors == fluxSectors, L"and holds the same sectors as the bit-track disk");
+    }
+
+    TEST_METHOD (Flux_OnlyTheListedTracksAreFlux)
+    {
+        BlankDiskSpec  spec  = MakeSpec (DiskFormat::Woz, BlankDiskContents::Dos33);
+        vector<Byte>   bytes;
+        DiskImage      image;
+        int            track = 0;
+
+        spec.fluxTrackMask = 0x7ull | (1ull << 17);
+
+        BuildAndLoad (spec, bytes, image);
+
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            bool  listed = track <= 2 || track == 17;
+
+            Assert::AreEqual (listed, IsFluxTrack (image, track),
+                              std::format (L"track {} must be flux only if listed", track).c_str());
+        }
+    }
+
+    TEST_METHOD (Flux_UnformattedTracksHoldOneTransitionEach)
+    {
+        BlankDiskSpec  spec  = MakeSpec (DiskFormat::Woz, BlankDiskContents::Unformatted);
+        vector<Byte>   bytes;
+        DiskImage      image;
+
+        spec.fluxTrackMask = BlankDiskBuilder::kAllFluxTracks;
+
+        BuildAndLoad (spec, bytes, image);
+
+        Assert::IsTrue (IsFluxTrack (image, 0));
+        Assert::AreEqual (static_cast<size_t> (1), image.GetFluxTrack (0).GetTransitionCount());
+    }
+
+    TEST_METHOD (Flux_OnlyWozCanHoldIt)
+    {
+        size_t              count      = 0;
+        const DiskFormat *  containers = BlankDiskBuilder::GetWritableContainers (count);
+        size_t              i          = 0;
+
+        for (i = 0; i < count; i++)
+        {
+            Assert::AreEqual (containers[i] == DiskFormat::Woz, BlankDiskBuilder::CanHoldFlux (containers[i]));
+        }
     }
 };

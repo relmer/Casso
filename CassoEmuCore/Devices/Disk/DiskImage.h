@@ -3,7 +3,78 @@
 #include "Pch.h"
 
 #include "IDiskImage.h"
+#include "FluxTrack.h"
 #include "Machines/Apple2/Common/WozMetadata.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackKind
+//
+//  How a storage slot holds its track. A bit track is a loop of equal-length
+//  cells; a flux track is a timeline of transitions that keeps how long each
+//  cell actually was. A WOZ 2.1 image can hold both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class TrackKind
+{
+    Bits,
+    Flux,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DamageReason / DamagedTrack
+//
+//  Why a track could not be read from its file. The image still mounts, read
+//  only, with the track blank, and the mount report lists it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DamageReason
+{
+    OutsideFile,           // the track's blocks lie outside the file
+    CountExceedsBlocks,    // its bit or byte count needs more than its blocks hold
+    TruncatedRun,          // flux data ending in a 255 with nothing to end the run
+    V1RecordPastTrks,      // a WOZ 1 track record past the end of TRKS
+};
+
+
+struct DamagedTrack
+{
+    int           trkIndex = 0;
+    bool          isFlux   = false;
+    DamageReason  reason   = DamageReason::OutsideFile;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IPendingWriteOwner
+//
+//  Whoever is holding a write to this image that has not reached it yet -- a
+//  drive in the middle of writing a flux track. A flush asks it to finish
+//  first, or the image would be saved without the write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IPendingWriteOwner
+{
+public:
+    virtual       ~IPendingWriteOwner () = default;
+    virtual void  CommitPendingWrite  () = 0;
+};
 
 
 
@@ -75,6 +146,17 @@ public:
     void             SetSourceCrcMismatch   (bool bad) { m_sourceCrcMismatch = bad; }
     bool             HasSourceCrcMismatch   () const { return m_sourceCrcMismatch; }
 
+    // Tracks that could not be read from the file at load. Like a checksum
+    // mismatch, any of them holds the image read-only: rewriting the file
+    // would replace the damaged tracks with blank ones and hide the damage.
+    void                         AddDamagedTrack     (const DamagedTrack & track) { m_damagedTracks.push_back (track); }
+    const vector<DamagedTrack> & GetDamagedTracks    () const { return m_damagedTracks; }
+    bool                         HasDamagedTracks    () const { return !m_damagedTracks.empty(); }
+
+    // Either kind of damage: what read-only enforcement, salvage and the
+    // mount report all key off.
+    bool                         IsDamaged           () const { return m_sourceCrcMismatch || HasDamagedTracks(); }
+
     // The parts of a source WOZ the track model cannot express -- the INFO
     // chunk's non-geometry fields and every chunk Casso does not parse (META
     // above all). The writer rebuilds INFO/TMAP/TRKS from the live tracks,
@@ -108,6 +190,37 @@ public:
     // track (qt / 4); WOZ images install an explicit map from the TMAP so
     // half/quarter-track-formatted protections resolve to distinct streams.
     int              ResolveQuarterTrack (int quarterTrack) const;
+
+    // The slot the map gives a quarter track, whether or not that slot holds
+    // data -- which a report about tracks that failed to load needs, since a
+    // damaged slot resolves to nothing.
+    int              GetMappedSlot       (int quarterTrack) const;
+
+    // Flux slots. A slot is a flux track when the image's FLUX map refers to
+    // it; its bit buffer then stays empty and every bit-level accessor sees
+    // no data, so only code that asks for the flux reads it.
+    TrackKind           GetTrackKind         (int slot) const;
+    void                SetFluxTrack         (int slot, const vector<Byte> & fluxBytes);
+    const FluxTrack  &  GetFluxTrack         (int slot) const { return m_fluxTracks[slot]; }
+    bool                HasFluxTracks        () const;
+
+    // Puts a write into a flux track at the controller's cell timing and
+    // marks the track dirty. Does nothing on a write-protected image.
+    void                SpliceFluxWrite      (int slot, uint64_t startTick, const vector<uint8_t> & bits);
+
+    // The bulk-writer counterpart, for sector edits made to an image in
+    // memory. Like GetTrackBitsForWrite, it bypasses write-protect.
+    void                SpliceFluxBulk       (int slot, uint64_t startTick, const vector<uint8_t> & bits);
+
+    // Changes whenever what a quarter track resolves to, or a flux track's
+    // bytes, may have changed. A reader that caches a resolved slot or a
+    // flux cursor compares it to know when to look again.
+    uint64_t            GetLayoutGeneration  () const { return m_layoutGeneration; }
+
+    // A drive holding an unfinished write registers itself here, and clears
+    // itself once the write is in. Flush and Eject finish it first.
+    void                SetPendingWriteOwner (IPendingWriteOwner * owner) { m_pendingWriteOwner = owner; }
+    void                CommitPendingWrite   ();
     void             ClearQuarterTrackMap ();
     void             SetQuarterTrackSlot (int quarterTrack, int slot);
     void             EnsureTrackSlots    (int slotCount);
@@ -143,6 +256,11 @@ private:
     vector<size_t>        m_trackBitCounts;
     vector<bool>          m_trackDirty;
     vector<int>           m_quarterTrackMap;
+    vector<TrackKind>     m_slotKind;
+    vector<FluxTrack>     m_fluxTracks;
+    uint64_t              m_layoutGeneration    = 0;
+    IPendingWriteOwner *  m_pendingWriteOwner   = nullptr;
+    vector<DamagedTrack>  m_damagedTracks;
     DiskFormat            m_format              = DiskFormat::Dsk;
     bool                  m_loaded              = false;
     bool                  m_dirty               = false;

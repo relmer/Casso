@@ -345,6 +345,12 @@
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
+    <ClCompile Include="EmuTests\FluxTestImages.cpp" />
+    <ClCompile Include="EmuTests\WozFluxLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\Disk2NibbleEngineFluxTests.cpp" />
+    <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
+    <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />

@@ -404,28 +404,47 @@ public:
                           ComposeWriteProtectTooltip (1, L"foo.dsk", wpNoPerm));
     }
 
-    TEST_METHOD (WriteProtectTooltip_DamagedImageLeadsWithItsOwnSentence)
+    TEST_METHOD (WriteProtectTooltip_DamagedImageShowsTheInsertReport)
     {
         // A damaged image is not a setting anyone chose, so reporting it as
         // plain write-protection would send the user hunting for a toggle that
-        // will refuse them. It says what is wrong and that Casso will not
-        // write, and it leads.
+        // cannot help. The tip is the report shown when the disk went in.
         WriteProtectInfo  wp;
 
         wp.checksumMismatch = true;
 
         Assert::AreEqual (
-            std::wstring (L"\"suspect.woz\" is damaged: its stored checksum does not match "
-                          L"its contents. Casso will not write to it, because rewriting the "
-                          L"file would hide the damage."),
+            std::wstring (L"Casso found problems in suspect.woz:\n\n"
+                          L"\x2022 The stored checksum does not match the contents.\n"
+                          L"\nCasso has loaded the disk so you can read the undamaged portions and has "
+                          L"write-protected it for this session, because rewriting the file would "
+                          L"hide the damage."),
             ComposeWriteProtectTooltip (1, L"suspect.woz", wp));
 
         Assert::AreEqual (
-            std::wstring (L"This disk image is damaged: its stored checksum does not match "
-                          L"its contents. Casso will not write to it, because rewriting the "
-                          L"file would hide the damage."),
+            std::wstring (L"Casso found problems in this disk image:\n\n"
+                          L"\x2022 The stored checksum does not match the contents.\n"
+                          L"\nCasso has loaded the disk so you can read the undamaged portions and has "
+                          L"write-protected it for this session, because rewriting the file would "
+                          L"hide the damage."),
             ComposeWriteProtectTooltip (1, std::wstring(), wp),
-            L"and it still reads as a sentence without an image name");
+            L"and it still reads as a sentence without a file name");
+    }
+
+    TEST_METHOD (WriteProtectTooltip_DamagedTracksListTheirRuns)
+    {
+        WriteProtectInfo  wp;
+
+        wp.damagedTracks        = true;
+        wp.damagedQuarterTracks = { 10, 14, 18, 34 };
+
+        Assert::AreEqual (
+            std::wstring (L"Casso found problems in b.woz:\n\n"
+                          L"\x2022 Unable to read tracks 2.5-4.5, 8.5.\n"
+                          L"\nCasso has loaded the disk so you can read the undamaged portions and has "
+                          L"write-protected it for this session, because rewriting the file would "
+                          L"hide the damage. Unreadable tracks read as blank."),
+            ComposeWriteProtectTooltip (1, L"b.woz", wp));
     }
 
     TEST_METHOD (WriteProtectTooltip_DamageSuppressesTheOtherCauses)
@@ -446,9 +465,7 @@ public:
         wp.userSetting      = true;
 
         Assert::AreEqual (
-            std::wstring (L"\"a.woz\" is damaged: its stored checksum does not match its "
-                          L"contents. Casso will not write to it, because rewriting the file "
-                          L"would hide the damage."),
+            DamagedMountReport::FormatBody (wp, L"a.woz"),
             ComposeWriteProtectTooltip (1, L"a.woz", wp),
             L"damage stands alone, whatever else happens to be true");
     }

@@ -146,5 +146,5 @@ inline bool ShouldEnableWriteProtectMenuItem (
     bool                      isMounted,
     const WriteProtectInfo &  wp) noexcept
 {
-    return isMounted && !wp.checksumMismatch && !wp.noPermission;
+    return isMounted && !wp.IsDamaged() && !wp.noPermission;
 }

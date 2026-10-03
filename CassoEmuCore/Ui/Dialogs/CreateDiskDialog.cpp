@@ -94,7 +94,10 @@ void CreateDiskDialog::OnCreate()
     m_imageTypeDropdown.SetPopupHost (GetPopupHost());
     m_imageTypeDropdown.SetSelect    ([this] (int index) { OnImageTypeChanged (index); });
 
+    m_fluxCheck.SetSingleLineLabel (true);
+
     RebuildImageTypeChoices();
+    UpdateFluxCheck();
 
     m_bootableCheck.SetSingleLineLabel (true);
 
@@ -120,6 +123,7 @@ void CreateDiskDialog::OnCreate()
         kids.format         = &m_formatDropdown;
         kids.imageTypeLabel = &m_imageTypeLabel;
         kids.imageType      = &m_imageTypeDropdown;
+        kids.flux           = &m_fluxCheck;
         kids.bootable       = &m_bootableCheck;
         kids.download       = &m_downloadButton;
         kids.nameLabel      = &m_nameLabel;
@@ -319,6 +323,7 @@ void CreateDiskDialog::OnFormatChanged (int index)
     }
 
     RebuildImageTypeChoices();
+    UpdateFluxCheck();
     UpdateBootableRow();
 
     Invalidate();
@@ -342,6 +347,37 @@ void CreateDiskDialog::OnImageTypeChanged (int index)
         ApplyImageTypeExtension();
     }
 
+    UpdateFluxCheck();
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateFluxCheck
+//
+//  Flux tracks only fit in a WOZ image, so the checkbox is live only while
+//  WOZ is the image type, and clears when it is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateDiskDialog::UpdateFluxCheck()
+{
+    bool  canHold = BlankDiskBuilder::CanHoldFlux (m_imageType);
+
+
+
+    if (!canHold)
+    {
+        m_fluxCheck.SetChecked (false);
+    }
+
+    m_fluxCheck.SetEnabled (canHold);
+    m_fluxCheck.SetLabel   (canHold ? L"Store every track as flux" : L"Store every track as flux (WOZ images only)");
     Invalidate();
 }
 
@@ -610,6 +646,10 @@ void CreateDiskDialog::OnCreateClicked()
             m_result.spec.format   = m_imageType;
             m_result.spec.contents = m_contents;
             m_result.spec.bootable = m_bootableCheck.IsEnabled() && m_bootableCheck.IsChecked();
+
+    m_result.spec.fluxTrackMask = (m_fluxCheck.IsEnabled() && m_fluxCheck.IsChecked())
+                                  ? BlankDiskBuilder::kAllFluxTracks
+                                  : 0;
             m_result.targetPath    = m_model->ComposeTargetPath (name);
             m_result.confirmed     = true;
             EndDialog (IDOK);

@@ -8,6 +8,22 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-10-03: The one with 1.21 gigawatts of WOZ 2.1 flux support
+
+### Added
+
+- GH #159: Support for WOZ 2.1 flux tracks, validated with Bandits, Minotaur,
+  Fly Wars, Cyclod, Lemmings and Jellyfish.
+- GH #159: Support for creating WOZ disks with flux tracks in the create dialog
+  and with `disk create --flux`. The `disk create` command can also mix bit and
+  flux tracks on one disk.
+
+### Changed
+
+- GH #159: Casso now mounts a WOZ disk with unreadable tracks read-only, with
+  those tracks blank, instead of failing to mount it.
+- Each problem in the damaged-disk report now has its own line item, and the
+  drive's tooltip has the same text.
 ### Fixed
 
 - Fixed bug causing incorrect disk image to be picked when scrolling through

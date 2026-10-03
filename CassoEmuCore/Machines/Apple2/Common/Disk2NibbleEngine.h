@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-class DiskImage;
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/FluxTrack.h"
 
 
 
@@ -21,8 +22,13 @@ class DiskImage;
 //
 //  The sequencer runs at 2 MHz (two LSS clocks per CPU cycle). Eight LSS
 //  clocks make one bit cell, so the head advances one bit every four CPU
-//  cycles -- the standard ~250 kbps Disk II data rate at 1.023 MHz. The
-//  read pulse is sampled once per bit cell, at LSS clock 4.
+//  cycles -- the standard ~250 kbps Disk II data rate at 1.023 MHz. On a bit
+//  track the read pulse is sampled once per bit cell, at LSS clock 4.
+//
+//  A flux track is played by time instead. Each transition reaches the
+//  sequencer on the clock where its recorded time falls, so cells written
+//  longer or shorter than nominal stay that way -- which is what copy
+//  protection that times its reads is checking.
 //
 //  References:
 //    - "Understanding the Apple IIe" (Sather), Fig 9.11 (DOS 3.3 / 16-
@@ -40,7 +46,7 @@ class DiskImage;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2NibbleEngine
+class Disk2NibbleEngine : public IPendingWriteOwner
 {
 public:
     static constexpr int   kCyclesPerBit = 4;
@@ -55,6 +61,7 @@ public:
     static constexpr size_t kUnformattedTrackBits = 51200;
 
     Disk2NibbleEngine();
+    ~Disk2NibbleEngine() override;
 
     void       SetDiskImage (DiskImage * disk);
     void       SetMotorOn (bool on);
@@ -97,6 +104,28 @@ public:
     // signal. Does NOT affect ReadLatch's CPU-visible value.
     bool       ConsumeFreshNibble (uint8_t & outNibble);
 
+    // Puts any write the drive is in the middle of on a flux track into the
+    // track now. A write to a flux track is held until it ends -- write mode
+    // off, a step, motor off, a disk change -- and a flush has to end it
+    // first or it would save the track without it.
+    void       CommitPendingWrite() override;
+
+    // Diagnostic / test peek at the flux timeline, in 1/45-tick units.
+    uint64_t   GetFluxTime() const { return m_fluxNow; }
+    uint64_t   GetLastFluxPulseClock() const { return m_fluxPulseClock; }
+    uint64_t   GetFluxPulseCount() const { return m_fluxPulseCount; }
+    bool       IsOnFluxTrack() const { return m_isFluxSlot; }
+
+    // Flux time is kept in exact units of 1/45 of a 125 ns tick. The master
+    // clock is 14.31818 MHz = 315/22 MHz, the CPU runs at 1/14 of it (45/44
+    // MHz) and the sequencer at twice the CPU (45/22 MHz). An 8 MHz flux tick
+    // is therefore 8 / (45/22) = 176/45 of a sequencer clock, and a bit cell of
+    // eight clocks is 1408/45 = 31.29 ticks. Integer units keep that exact, so
+    // a disk spinning for hours never drifts.
+    static constexpr uint64_t  kFluxUnitsPerTick     = 45;
+    static constexpr uint64_t  kFluxUnitsPerLssClock = 176;
+    static constexpr uint64_t  kFluxUnitsPerCell     = 1408;
+
 private:
     // Logic State Sequencer clocking. The P6 sequencer runs at 2 MHz --
     // two LSS clocks per 1.023 MHz CPU cycle. Eight LSS clocks make one
@@ -106,6 +135,10 @@ private:
     // Data-latch MSB ("byte ready" / QA, 74LS323 QH). Doubles as the read
     // "byte ready" signal and the write shift register's serial output.
     static constexpr uint8_t    kLatchMsbMask  = 0x80;
+
+    // The clock within each eight-clock cell where a bit track's pulse is
+    // sampled and a written bit is committed.
+    static constexpr int        kLssReadClock  = 4;
 
     // Sequencer ROM index bit positions (see "Understanding the Apple IIe"
     // Fig 9.11 column ordering): pulse-absent, latch MSB, Q6, Q7, then the
@@ -157,6 +190,13 @@ private:
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
     size_t     GetCurrentTrackBits() const;
+    void       ResolveSlot();
+    void       RefreshSlot();
+    double     GetAngle() const;
+    void       PlaceHead (double angle, bool cameFromFlux);
+    void       SeekFlux (double angle);
+    uint8_t    StepFluxPulse();
+    void       RecordFluxWriteBit (uint8_t bit);
 
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;
@@ -196,4 +236,30 @@ private:
     // to the status-bar tooltip via the controller.
     uint64_t     m_readNibbles   = 0;
     uint64_t     m_writeNibbles  = 0;
+
+    // The slot under the head, resolved when the head, the disk or the
+    // disk's layout changes rather than on every sequencer clock.
+    int          m_slot             = -1;
+    bool         m_isFluxSlot       = false;
+    uint64_t     m_layoutGeneration = UINT64_MAX;
+
+    // Flux playback, in 1/45-tick units. m_fluxDue is when the next
+    // transition reaches the head; m_fluxLastPulse is when the last real one
+    // did, which is what the weak-bit window measures from.
+    uint64_t           m_fluxNow       = 0;
+    uint64_t           m_fluxDue       = UINT64_MAX;
+    uint64_t           m_fluxLastPulse = 0;
+    uint64_t           m_fluxRevUnits  = 0;
+    FluxTrack::Cursor  m_fluxCursor;
+
+    // The clock time of the last pulse handed to the sequencer, real or
+    // weak, and how many there have been. Diagnostics only.
+    uint64_t           m_fluxPulseClock = 0;
+    uint64_t           m_fluxPulseCount = 0;
+
+    // A write to a flux track, held until it ends.
+    bool               m_burstActive    = false;
+    int                m_burstSlot      = -1;
+    uint64_t           m_burstStartTick = 0;
+    vector<uint8_t>    m_burstBits;
 };
