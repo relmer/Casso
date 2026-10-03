@@ -6531,6 +6531,13 @@ void DebuggerWindow::ApplySnapshot()
         rows.push_back ({ { Widen (reg.name) }, value, flags });
     }
 
+    //  The beam follows the registers. It is read, not edited: its rows sit
+    //  past the registers' own, where an edit finds no register.
+    if (m_snapshot->beam.has_value())
+    {
+        rows.push_back ({ { L"Beam" }, { Widen (DebuggerViewState::GetBeamValue (*m_snapshot->beam)) }, { Widen (DebuggerViewState::GetBeamNote (*m_snapshot->beam)) } });
+    }
+
     m_registerList->SetRows (std::move (rows));
 
     //  The console reads as a command prompt in the dialect in force, with

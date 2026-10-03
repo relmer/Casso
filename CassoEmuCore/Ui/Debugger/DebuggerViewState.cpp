@@ -20,6 +20,7 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/TraceLookahead.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
@@ -66,6 +67,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     Reply                 stack       = session.ExecuteViewLine ("STACK", CommandMode::AppleWin);
     Reply                 watches     = session.ExecuteViewLine ("WL",    CommandMode::AppleWin);
     Reply                 calls       = session.ExecuteViewLine ("CALLS", CommandMode::AppleWin);
+    Reply                 video       = session.ExecuteViewLine ("VIDEOINFO", CommandMode::AppleWin);
     MemoryData            memory;
 
 
@@ -100,6 +102,11 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
         {
             snapshot.flags += ((r.p >> bit) & 1) ? kFlagNames[7 - bit] : '.';
         }
+    }
+
+    if (const VideoInfoData * data = std::get_if<VideoInfoData> (&video.data))
+    {
+        snapshot.beam = DebuggerViewSnapshot::BeamState { data->scanline, data->cycleInLine };
     }
 
     if (const BreakpointListData * data = std::get_if<BreakpointListData> (&breakpoints.data))
@@ -798,6 +805,54 @@ DebuggerViewSnapshot::MemoryWindow DebuggerViewState::ReadMemoryWindow (DebugSes
     return window;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetBeamValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetBeamValue (const DebuggerViewSnapshot::BeamState & beam)
+{
+    return std::format ("{:03X}:{:02X}", beam.scanline, beam.cycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetBeamNote
+//
+//  A scanline draws its 40 bytes in its last 40 cycles; the cycles before
+//  them are horizontal blank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetBeamNote (const DebuggerViewSnapshot::BeamState & beam)
+{
+    static constexpr uint32_t  kVisibleCycles = 40;
+    static constexpr uint32_t  kFirstVisible  = VideoTiming::kCyclesPerScanline - kVisibleCycles;
+
+    std::string                note           = std::format ("Scanline {}, cycle {}", beam.scanline, beam.cycle);
+
+
+
+    if (beam.scanline >= VideoTiming::kVblankStartScanline)
+    {
+        note += ", vertical blank";
+    }
+    else if (beam.cycle < kFirstVisible)
+    {
+        note += ", horizontal blank";
+    }
+
+    return note;
+}
 
 
 

@@ -75,6 +75,13 @@ struct DebuggerViewSnapshot
         std::string  value;
     };
 
+    //  Where the video beam is: the scanline, and the cycle within it.
+    struct BeamState
+    {
+        uint32_t  scanline = 0;
+        uint32_t  cycle    = 0;
+    };
+
     struct MemoryLine
     {
         Word         address = 0;
@@ -211,6 +218,7 @@ struct DebuggerViewSnapshot
     int                                   followView    = 0;
     std::vector<RegisterRow>              registers;
     std::string                           flags;
+    std::optional<BeamState>              beam;
     std::vector<MemoryLine>               memory;
     std::vector<MemoryWindow>             memoryWindows;
     std::vector<StackLine>                stack;
@@ -486,6 +494,11 @@ public:
     //  button sends. The cursor actions use the selected code line (toggling
     //  falls back to the PC's line); Pause has no line, since it is the
     //  channel's pause rather than a command.
+    //  The registers pane's beam row: the place in hex, as VIDEOINFO gives it,
+    //  and beside it the same in decimal with the blanking the beam is in.
+    static std::string  GetBeamValue (const DebuggerViewSnapshot::BeamState & beam);
+    static std::string  GetBeamNote  (const DebuggerViewSnapshot::BeamState & beam);
+
     static std::optional<std::string>  GetActionLine (DebuggerKeySchemes::Action   action,
                                                       const DebuggerViewSnapshot * snapshot,
                                                       int                          selectedRow);
