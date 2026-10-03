@@ -36,6 +36,28 @@ MachineHost::MachineHost() :
     m_diskStore (std::make_unique<DiskImageStore>()),
     m_config    (std::make_unique<MachineConfig>())
 {
+    // A disk leaving a bay is stamped with the position, and a disk change is
+    // a boundary in reverse execution's history.
+    m_diskStore->SetPositionSource (&m_position);
+    m_diskStore->SetMediaChangeListener ([this] () { OnMediaChanged(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::OnMediaChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::OnMediaChanged()
+{
+    if (m_historyRecorder != nullptr)
+    {
+        m_historyRecorder->OnMediaChanged (*this);
+    }
 }
 
 
@@ -737,8 +759,9 @@ void MachineHost::PowerCycle()
     // get lost across a power cycle. Mounts persist (matching
     // DiskImageStore::SoftReset semantics -- see the comment block on
     // DiskImageStore::PowerCycle, which is the unmount-everything variant
-    // tests can opt into directly).
-    hrFlush = m_diskStore->FlushAll();
+    // tests can opt into directly). Not while reverse execution holds the
+    // disks, nor during a replay of a recorded power cycle.
+    hrFlush = m_diskStore->FlushAllUnlessHeld();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus->PowerCycleAll (*m_prng);
@@ -835,19 +858,27 @@ Error:
 
 HRESULT MachineHost::LoadState (StateReader & reader)
 {
-    HRESULT                       hr      = S_OK;
-    uint16_t                      version = 0;
+    HRESULT                       hr         = S_OK;
+    uint16_t                      version    = 0;
+    uint32_t                      savedParts = 0;
+    size_t                        partCount  = 0;
     std::vector<IMachineState *>  parts;
 
 
 
-    parts = GetStateParts();
-
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    hr = CheckStateHeader (reader, parts.size());
+    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    hr = CheckStateHeader (reader, savedParts);
     CHR (hr);
+
+    // After the header, which put the saved disks back in their bays.
+    parts     = GetStateParts();
+    partCount = parts.size();
+
+    CBREx (savedParts == partCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     for (IMachineState * part : parts)
     {
@@ -936,40 +967,6 @@ std::vector<IMachineState *> MachineHost::GetStateParts()
     }
 
     return parts;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::GetMountedDiskMask
-//
-//  One bit per drive bay, slot-major.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t MachineHost::GetMountedDiskMask() const
-{
-    uint32_t  mask  = 0;
-    int       slot  = 0;
-    int       drive = 0;
-
-
-
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
-    {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-        {
-            if (m_diskStore->IsMounted (slot, drive))
-            {
-                mask |= 1u << (slot * DiskImageStore::kDriveCount + drive);
-            }
-        }
-    }
-
-    return mask;
 }
 
 
@@ -1078,13 +1075,18 @@ uint64_t MachineHost::HashBytes (uint64_t hash, const std::vector<Byte> & bytes)
 //
 //  MachineHost::WriteStateHeader
 //
-//  Which machine and ROM set, which drive bays hold a disk, how many parts
+//  Which machine and ROM set, which disk each drive bay holds, how many parts
 //  follow, and the power-on Prng.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::WriteStateHeader (StateWriter & writer, size_t partCount) const
 {
+    int  slot  = 0;
+    int  drive = 0;
+
+
+
     writer.WriteUInt32 (static_cast<uint32_t> (m_currentMachineName.size()));
 
     for (wchar_t ch : m_currentMachineName)
@@ -1093,7 +1095,15 @@ void MachineHost::WriteStateHeader (StateWriter & writer, size_t partCount) cons
     }
 
     writer.WriteUInt64 (GetRomIdentity());
-    writer.WriteUInt32 (GetMountedDiskMask());
+
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            writer.WriteUInt64 (m_diskStore->GetMediaId (slot, drive));
+        }
+    }
+
     writer.WriteUInt32 (static_cast<uint32_t> (partCount));
     writer.WriteBool   (m_prng != nullptr);
     writer.WriteUInt64 ((m_prng != nullptr) ? m_prng->GetState() : 0);
@@ -1108,12 +1118,14 @@ void MachineHost::WriteStateHeader (StateWriter & writer, size_t partCount) cons
 //  MachineHost::CheckStateHeader
 //
 //  Fails with ERROR_INVALID_DATA unless the state was saved by a machine of
-//  the same name, ROM set, mounted bays and part count. Only then is the Prng
-//  restored.
+//  the same name and ROM set, and every disk it held is mounted or kept by
+//  the disk store. Only then are the saved disks put back in their bays and
+//  the Prng restored; the part count is the caller's to check, since it
+//  depends on the disks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MachineHost::CheckStateHeader (StateReader & reader, size_t partCount)
+HRESULT MachineHost::CheckStateHeader (StateReader & reader, uint32_t & outParts)
 {
     HRESULT       hr             = S_OK;
     uint32_t      nameLength     = 0;
@@ -1122,8 +1134,8 @@ HRESULT MachineHost::CheckStateHeader (StateReader & reader, size_t partCount)
     Word          ch             = 0;
     uint64_t      romIdentity    = 0;
     uint64_t      expectedRom    = 0;
-    uint32_t      diskMask       = 0;
-    uint32_t      expectedDisks  = 0;
+    MediaIds      mediaIds       = {};
+    bool          canSeat        = false;
     uint32_t      savedParts     = 0;
     bool          hasPrng        = false;
     uint64_t      prngState      = 0;
@@ -1143,7 +1155,12 @@ HRESULT MachineHost::CheckStateHeader (StateReader & reader, size_t partCount)
     }
 
     reader.ReadUInt64 (romIdentity);
-    reader.ReadUInt32 (diskMask);
+
+    for (uint64_t & mediaId : mediaIds)
+    {
+        reader.ReadUInt64 (mediaId);
+    }
+
     reader.ReadUInt32 (savedParts);
     reader.ReadBool   (hasPrng);
     reader.ReadUInt64 (prngState);
@@ -1151,17 +1168,95 @@ HRESULT MachineHost::CheckStateHeader (StateReader & reader, size_t partCount)
     hr = reader.GetResult();
     CHR (hr);
 
-    expectedRom   = GetRomIdentity();
-    expectedDisks = GetMountedDiskMask();
+    expectedRom = GetRomIdentity();
 
     CBREx (name        == m_currentMachineName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx (romIdentity == expectedRom,          HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (diskMask    == expectedDisks,        HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (savedParts  == partCount,            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    canSeat = CanSeatMedia (mediaIds);
+    CBREx (canSeat, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    hr = SeatMedia (mediaIds);
+    CHR (hr);
 
     if (hasPrng && m_prng != nullptr)
     {
         m_prng->SetState (prngState);
+    }
+
+    outParts = savedParts;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::CanSeatMedia
+//
+//  Whether every saved disk is mounted or kept, so the bays can be put back
+//  without failing part way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineHost::CanSeatMedia (const MediaIds & mediaIds) const
+{
+    bool  canSeat = true;
+    int   slot    = 0;
+    int   drive   = 0;
+
+
+
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            canSeat = canSeat && m_diskStore->CanSeatMedia (slot, drive, mediaIds[slot * DiskImageStore::kDriveCount + drive]);
+        }
+    }
+
+    return canSeat;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SeatMedia
+//
+//  Puts each saved disk back in its bay, and points the Disk II at whatever
+//  its bays now hold. Nothing is flushed: a disk that leaves a bay here is
+//  kept by the store with its writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::SeatMedia (const MediaIds & mediaIds)
+{
+    HRESULT  hr        = S_OK;
+    bool     isChanged = false;
+    int      slot      = 0;
+    int      drive     = 0;
+
+
+
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            hr = m_diskStore->SeatMedia (slot, drive, mediaIds[slot * DiskImageStore::kDriveCount + drive], isChanged);
+            CHR (hr);
+
+            if (isChanged && slot == kDiskControllerSlot && m_refs.diskController != nullptr)
+            {
+                m_refs.diskController->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
+            }
+        }
     }
 
 Error:

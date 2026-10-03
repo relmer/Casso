@@ -271,11 +271,11 @@ namespace Disk2State
         for (track = 0; track < expected.GetTrackCount(); track++)
         {
             Assert::AreEqual (expected.GetTrackBitCount (track), actual.GetTrackBitCount (track), L"track bit count");
-            Assert::AreEqual (expected.IsTrackDirty (track),     actual.IsTrackDirty (track),     L"track dirty");
             Assert::IsTrue   (expected.GetTrackBits (track) == actual.GetTrackBits (track),        L"track bits");
         }
 
-        Assert::AreEqual (expected.IsDirty(),               actual.IsDirty(),               L"image dirty");
+        // The dirty flags say what the host file lacks, so a load does not
+        // copy them; DiskDirtyFlagsFollowTheLoadedBits covers them.
         Assert::AreEqual (expected.IsImageWriteProtected(), actual.IsImageWriteProtected(), L"image write protect");
         Assert::AreEqual (expected.IsUserWriteProtected(),  actual.IsUserWriteProtected(),  L"user write protect");
     }
@@ -446,6 +446,39 @@ namespace Disk2State
             Assert::AreEqual (S_OK, hr);
 
             AssertSameMedia (*source, *target);
+        }
+
+
+        //  A load marks dirty every track whose bits it changes, since the host
+        //  file holds what the disk held before it, and clears no flag.
+        TEST_METHOD (DiskDirtyFlagsFollowTheLoadedBits)
+        {
+            constexpr int       kWrittenTrack = 3;
+            constexpr int       kTargetTrack  = 7;
+            constexpr int       kCleanTrack   = 11;
+            constexpr size_t    kRunStart     = 100;
+            constexpr size_t    kRunLength    = 64;
+            auto                source        = std::make_unique<DiskImage>();
+            auto                target        = std::make_unique<DiskImage>();
+            HRESULT             hr            = S_OK;
+
+
+
+            LoadTestDisk (*source);
+            LoadTestDisk (*target);
+
+            WriteRun (*source, kWrittenTrack, kRunStart, kRunLength, 1);
+            source->ClearDirty();
+
+            WriteRun (*target, kTargetTrack, kRunStart, kRunLength, 0);
+
+            hr = LoadFrom (*target, SavePart (*source));
+            Assert::AreEqual (S_OK, hr);
+
+            Assert::IsTrue  (target->IsTrackDirty (kWrittenTrack), L"the load changed this track's bits");
+            Assert::IsTrue  (target->IsTrackDirty (kTargetTrack),  L"a dirty flag is never cleared by a load");
+            Assert::IsFalse (target->IsTrackDirty (kCleanTrack),   L"a track the load left alone stays clean");
+            Assert::IsTrue  (target->IsDirty());
         }
 
 

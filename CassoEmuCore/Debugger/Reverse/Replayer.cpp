@@ -9,6 +9,7 @@
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/UndoRing.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Shell/MachineHost.h"
 
 
@@ -129,6 +130,10 @@ Error:
 //  reported; the replay itself does not stop there. A divergence ends the
 //  replay at once, with the machine at the keyframe that failed.
 //
+//  The disk store is told a replay is running, so no flush reaches a file
+//  and no changed file is taken up; a boundary keyframe the replay reaches
+//  is loaded rather than checked.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Replayer::RunTo (
@@ -159,6 +164,7 @@ HRESULT Replayer::RunTo (
 
     m_machine.SetDebugHook (nullptr);
     m_machine.SetInputJournalOn (false);
+    m_machine.GetDiskStore().SetReplaying (true);
     m_isReplaying = true;
 
     if (m_outputGate)
@@ -172,6 +178,9 @@ HRESULT Replayer::RunTo (
         cycle    = cpu->GetTotalCycles();
 
         hr = ApplyInputs (position, false);
+        CHR (hr);
+
+        hr = LoadBoundaryIfDue();
         CHR (hr);
 
         hr = TakeCheckpointIfDue();
@@ -191,6 +200,7 @@ HRESULT Replayer::RunTo (
 
 Error:
     m_isReplaying = false;
+    m_machine.GetDiskStore().SetReplaying (false);
 
     if (m_outputGate)
     {
@@ -344,25 +354,40 @@ Error:
 //  A record a device holds goes back to that device. A reset or power cycle
 //  is carried out on the machine; a power cycle draws new memory from the
 //  Prng, which no snapshot holds, so the next keyframe's checksum will catch
-//  the difference. A disk change cannot be replayed yet and fails.
+//  the difference. A drive's write-protect switch is set on its disk. A
+//  mount, an eject or a change to an image's write protection is not redone
+//  from the file: the boundary keyframe taken just after it holds the disks
+//  as they were, and LoadBoundaryIfDue loads it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Replayer::ApplyInput (const InputRecord & record)
 {
-    HRESULT  hr           = S_OK;
-    bool     isApplied    = m_machine.ApplyDeviceInput (record);
-    bool     isReset      = record.kind == InputKind::Reset;
-    bool     isPowerCycle = record.kind == InputKind::PowerCycle;
-    bool     isHostState  = record.kind == InputKind::HostState;
+    HRESULT      hr           = S_OK;
+    bool         isApplied    = m_machine.ApplyDeviceInput (record);
+    bool         isReset      = record.kind == InputKind::Reset;
+    bool         isPowerCycle = record.kind == InputKind::PowerCycle;
+    bool         isHostState  = record.kind == InputKind::HostState;
+    bool         isDriveWp    = record.kind == InputKind::DriveWriteProtect;
+    bool         isMedia      = record.kind == InputKind::DiskMount || record.kind == InputKind::DiskEject || record.kind == InputKind::ImageWriteProtect;
+    DiskImage  * image        = nullptr;
 
 
 
-    BAIL_OUT_IF (isApplied, S_OK);
+    BAIL_OUT_IF (isApplied || isMedia, S_OK);
 
-    CBREx (isReset || isPowerCycle || isHostState, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    CBREx (isReset || isPowerCycle || isHostState || isDriveWp, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
-    if (isHostState)
+    if (isDriveWp)
+    {
+        image = m_machine.GetDiskStore().GetImage (kDiskControllerSlot, record.value);
+
+        if (image != nullptr)
+        {
+            image->SetUserWriteProtected (record.detail != 0);
+        }
+    }
+    else if (isHostState)
     {
         hr = m_machine.LoadHostInputState (record.payload);
         CHR (hr);
@@ -375,6 +400,48 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
     {
         m_machine.PowerCycle();
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadBoundaryIfDue
+//
+//  At the position of a boundary keyframe the machine was changed from
+//  outside its recorded inputs (a disk went in or out, or memory was edited),
+//  so the replay takes the keyframe's state instead of computing it. The ring
+//  keeps what the replay has added before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Replayer::LoadBoundaryIfDue()
+{
+    HRESULT       hr       = S_OK;
+    uint64_t      position = m_machine.GetPosition();
+    bool          isDue    = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    KeyframeInfo  info;
+
+
+
+    BAIL_OUT_IF (!isDue, S_OK);
+
+    info = m_keyframes.GetInfo (m_nextKeyframe);
+
+    BAIL_OUT_IF (!info.isBoundary, S_OK);
+
+    hr = m_keyframes.Restore (m_nextKeyframe, m_scratch);
+    CHR (hr);
+
+    hr = LoadState (m_scratch, info.position, info.journalIndex);
+    CHR (hr);
+
+    m_nextKeyframe++;
 
 Error:
     return hr;

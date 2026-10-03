@@ -264,6 +264,8 @@ HRESULT DiskImageStore::MountFromBytes (
         {
             hr = FlushEntry (entry, FlushMoment::Running);
             IGNORE_RETURN_VALUE (hr, S_OK);
+
+            RetireBay (entry);
         }
 
         entry.image   = make_unique<DiskImage> ();
@@ -631,6 +633,11 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  here rather than from the path that called Mount, so a command-line
     //  mount and a picker mount and a machine-switch remount all react alike.
     EmitBayChange (slot, drive, BayChange::Inserted);
+
+    //  After the bay change, which points the drive at the new disk: reverse
+    //  execution snapshots the machine here, and the drive's head state must
+    //  already be what the guest will run on.
+    NotifyMediaChanged();
 
 Error:
     return hr;
@@ -1014,6 +1021,9 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // that wanted one was changing a write-protect flag, and rebuilding a
     // whole image to carry one bit is what SetImageWriteProtect exists to
     // avoid. An API that cannot be asked to do that cannot be misused into it.
+    //  A replay recomputes a past the host already saw; nothing it does
+    //  reaches a file.
+    BAIL_OUT_IF (m_isReplaying, S_OK);
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
     BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
 
@@ -1413,6 +1423,8 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         {
             entry.sharedState.SetIdentity (ReadIdentity (entry.path));
         }
+
+        NotifyMediaChanged();
     }
 
 Error:
@@ -1800,6 +1812,348 @@ HRESULT DiskImageStore::FlushAllForShutdown()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FlushAllUnlessHeld
+//
+//  The motor spinning down, a reset and a power cycle flush through here.
+//  While reverse execution holds the disks, the guest's writes are machine
+//  state that a step back can undo, so these moments leave the file alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::FlushAllUnlessHeld()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_isFlushHeld || m_isReplaying, S_OK);
+
+    hr = FlushAll();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasUnsavedWrites
+//
+//  Whether any mounted disk holds writes its file does not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::HasUnsavedWrites() const
+{
+    bool  hasWrites = false;
+
+
+
+    for (const auto & row : m_entries)
+    {
+        for (const Entry & entry : row)
+        {
+            hasWrites = hasWrites || (entry.mounted && entry.image != nullptr && entry.image->IsDirty());
+        }
+    }
+
+    return hasWrites;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitHeldWrites
+//
+//  Writes every bay as it stands now, through the ordinary flush, which
+//  replaces each file atomically.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::CommitHeldWrites()
+{
+    return FlushAll();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiscardHeldWrites
+//
+//  Reloads every bay holding unsaved writes from its file, through the same
+//  swap a changed file takes, so nothing is flushed on the way. A bay whose
+//  file cannot be read keeps its writes and the first failure is returned.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::DiscardHeldWrites()
+{
+    HRESULT       hr      = S_OK;
+    HRESULT       hrFirst = S_OK;
+    int           slot    = 0;
+    int           drive   = 0;
+    vector<Byte>  bytes;
+
+
+
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            Entry &  entry = GetEntry (slot, drive);
+
+            if (!entry.mounted || entry.image == nullptr || !entry.image->IsDirty() || entry.path.empty())
+            {
+                continue;
+            }
+
+            hr = ReadImageFile (entry.path, bytes);
+
+            if (SUCCEEDED (hr))
+            {
+                hr = MountExternallyModifiedDisk (slot, drive, bytes);
+            }
+
+            if (FAILED (hr) && SUCCEEDED (hrFirst))
+            {
+                hrFirst = hr;
+            }
+        }
+    }
+
+    return hrFirst;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMediaId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DiskImageStore::GetMediaId (int slot, int drive) const
+{
+    if (!IsValidBay (slot, drive))
+    {
+        return 0;
+    }
+
+    {
+        const Entry &  entry = GetEntry (slot, drive);
+
+        return (entry.mounted && entry.image != nullptr) ? entry.image->GetImageId() : 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMediaRetention
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SetMediaRetention (bool isOn)
+{
+    m_isRetaining = isOn;
+
+    if (!isOn)
+    {
+        m_retained.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CanSeatMedia
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::CanSeatMedia (int slot, int drive, uint64_t mediaId) const
+{
+    bool  canSeat = false;
+
+
+
+    if (!IsValidBay (slot, drive))
+    {
+        return false;
+    }
+
+    canSeat = mediaId == 0 || GetMediaId (slot, drive) == mediaId;
+
+    for (const Entry & kept : m_retained)
+    {
+        canSeat = canSeat || kept.image->GetImageId() == mediaId;
+    }
+
+    return canSeat;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SeatMedia
+//
+//  Puts the kept disk with mediaId in the bay, keeping whatever the bay held,
+//  or empties the bay for zero. Used to load a machine snapshot, so it flushes
+//  nothing and reports no bay change: the disks move back to where they were,
+//  with the writes they had, and nothing about the files changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::SeatMedia (int slot, int drive, uint64_t mediaId, bool & outChanged)
+{
+    HRESULT  hr      = S_OK;
+    bool     canSeat = CanSeatMedia (slot, drive, mediaId);
+    size_t   index   = 0;
+    Entry    kept;
+
+
+
+    outChanged = false;
+
+    CBREx (canSeat, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    BAIL_OUT_IF (GetMediaId (slot, drive) == mediaId, S_OK);
+
+    {
+        Entry &  entry = GetEntry (slot, drive);
+
+        if (entry.mounted)
+        {
+            EndWatching (slot, drive);
+            RetireBay (entry);
+        }
+
+        outChanged = true;
+
+        BAIL_OUT_IF (mediaId == 0, S_OK);
+
+        while (m_retained[index].image->GetImageId() != mediaId)
+        {
+            index++;
+        }
+
+        kept = std::move (m_retained[index]);
+        m_retained.erase (m_retained.begin() + static_cast<ptrdiff_t> (index));
+
+        entry.image          = std::move (kept.image);
+        entry.path           = kept.path;
+        entry.format         = kept.format;
+        entry.mounted        = true;
+        entry.salvageOffered = kept.salvageOffered;
+        entry.sharedState    = kept.sharedState;
+
+        BeginWatching (slot, drive);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PruneRetainedMedia
+//
+//  A disk that left its bay at or before the oldest snapshot is in none of
+//  them, so nothing can put it back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::PruneRetainedMedia (uint64_t oldestPosition)
+{
+    std::erase_if (m_retained, [oldestPosition] (const Entry & kept) { return kept.retiredAt <= oldestPosition; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RetireBay
+//
+//  Empties a bay. With retention on, its disk is kept with everything the bay
+//  knew about it, stamped with the position it left at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::RetireBay (Entry & entry)
+{
+    Entry  kept;
+
+
+
+    if (m_isRetaining && entry.image != nullptr)
+    {
+        kept.image          = std::move (entry.image);
+        kept.path           = entry.path;
+        kept.format         = entry.format;
+        kept.mounted        = true;
+        kept.salvageOffered = entry.salvageOffered;
+        kept.sharedState    = entry.sharedState;
+        kept.retiredAt      = (m_positionSource != nullptr) ? *m_positionSource : 0;
+
+        m_retained.push_back (std::move (kept));
+    }
+
+    entry.image.reset();
+    entry.path.clear();
+    entry.mounted        = false;
+    entry.salvageOffered = false;
+    entry.sharedState.Eject();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyMediaChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::NotifyMediaChanged()
+{
+    if (m_mediaChangeListener && !m_isReplaying)
+    {
+        m_mediaChangeListener();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FlushEveryBay
 //
 //  What both of the above are, once the moment is decided.
@@ -1874,14 +2228,14 @@ void DiskImageStore::Eject (int slot, int drive)
         //  image sits in, and there is no finding that from a cleared path.
         EndWatching (slot, drive);
 
-        entry.image.reset();
-        entry.path.clear();
-        entry.mounted = false;
-        entry.sharedState.Eject();
+        //  Kept in memory while reverse execution may still put it back.
+        RetireBay (entry);
 
         //  The disk left. Emitted after the bay is empty, so the handler that
         //  detaches the controller sees the post-eject state.
         EmitBayChange (slot, drive, BayChange::Ejected);
+
+        NotifyMediaChanged();
     }
 }
 
@@ -1900,7 +2254,7 @@ void DiskImageStore::Eject (int slot, int drive)
 
 void DiskImageStore::SoftReset()
 {
-    HRESULT   hr = FlushAll();
+    HRESULT   hr = FlushAllUnlessHeld();
 
 
 
@@ -2297,6 +2651,13 @@ void DiskImageStore::ApplyPendingReload()
     int64_t  now                                  = GetNowMs();
 
 
+
+    //  A replay must not take up a changed file: the disk it swaps in is not
+    //  the one history recorded. The change stays pending for the live run.
+    if (m_isReplaying)
+    {
+        return;
+    }
 
     //  ONE CLOCK READING AND ONE LOCK FOR THE WHOLE WALK, not one of each per
     //  bay. This runs sixty times a second forever, and asking the clock
@@ -3085,6 +3446,8 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     //  because from the user's seat a disk came out and another went in.
     EmitBayChange (slot, drive, BayChange::Swapped);
 
+    NotifyMediaChanged();
+
 Error:
     return hr;
 }
@@ -3419,16 +3782,14 @@ void DiskImageStore::EjectLostImage (int slot, int drive)
 
         EndWatching (slot, drive);
 
-        entry.image.reset();
-        entry.path.clear();
-        entry.mounted        = false;
-        entry.salvageOffered = false;
-        entry.sharedState.Eject();
+        RetireBay (entry);
     }
 
     //  A file that vanished empties the drive the same as a user eject, and
     //  the door and its sound follow the same way.
     EmitBayChange (slot, drive, BayChange::Ejected);
+
+    NotifyMediaChanged();
 
     return;
 }

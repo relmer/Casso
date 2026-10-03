@@ -52,6 +52,7 @@ struct KeyframeInfo
     size_t    stateBytes   = 0;      // unpacked size
     size_t    storedBytes  = 0;      // packed size held in memory
     bool      isWhole      = false;  // false: XOR difference from its group's whole snapshot
+    bool      isBoundary   = false;  // the state does not follow from the one before: a replay loads it
 };
 
 
@@ -100,6 +101,7 @@ public:
     bool      TryFindAtOrBefore (uint64_t cycle, size_t & outIndex) const;
     bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state) const;
     HRESULT   TruncateAfter     (uint64_t cycle);
+    void      MarkNewestBoundary() { m_entries.back().info.isBoundary = true; }
 
     size_t                    GetCount       () const { return m_entries.size(); }
     const KeyframeInfo      & GetInfo        (size_t index) const { return m_entries[index].info; }

@@ -47,7 +47,9 @@ ReverseController::~ReverseController()
 //  Start
 //
 //  Turns the input journal on and takes the first keyframe and checkpoint at
-//  once, so history begins at the moment the journal attaches.
+//  once, so history begins at the moment the journal attaches. The disks are
+//  machine state from here: the automatic flushes are held, and a disk that
+//  leaves its bay is kept in memory while history may put it back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +69,9 @@ HRESULT ReverseController::Start (const ReverseSettings & settings)
     m_machine.SetInputJournalOn  (true);
     m_machine.SetHistoryRecorder (this);
 
+    m_machine.GetDiskStore().SetFlushHold      (true);
+    m_machine.GetDiskStore().SetMediaRetention (true);
+
     m_isRecording = true;
     m_isLive      = true;
 
@@ -85,7 +90,8 @@ Error:
 //
 //  Stop
 //
-//  Detaches from the machine and drops all history.
+//  Detaches from the machine and drops all history. The disks keep any writes
+//  they hold, which the next flush writes as they stand.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,6 +106,9 @@ void ReverseController::Stop()
     {
         m_machine.SetInputJournalOn (false);
         m_machine.GetInputJournal().Clear();
+
+        m_machine.GetDiskStore().SetFlushHold      (false);
+        m_machine.GetDiskStore().SetMediaRetention (false);
     }
 
     m_keyframes.Clear();
@@ -159,8 +168,9 @@ void ReverseController::OnInstructionStart (MachineHost & machine)
 //
 //  Something outside the recorded inputs changed the machine: the recorded
 //  future no longer follows from it, so it is dropped, and the changed state
-//  becomes a keyframe, since no replay from an earlier one would reproduce
-//  the change. The machine is live again where it stands.
+//  becomes a boundary keyframe, which a replay reaching it loads, since no
+//  replay from an earlier one would reproduce the change. The machine is live
+//  again where it stands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,8 +210,40 @@ HRESULT ReverseController::OnMachineChanged()
     hr = CaptureNow (true, true);
     CHR (hr);
 
+    m_keyframes.MarkNewestBoundary();
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMediaChanged
+//
+//  A disk went in or out, or its file's write protection changed. The journal
+//  holds the command, but a replay cannot redo it from the file, which may
+//  have changed since; the boundary keyframe taken here holds the disks as
+//  they now stand instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::OnMediaChanged (MachineHost & machine)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!m_isRecording || m_replayer.IsReplaying() || &machine != &m_machine)
+    {
+        return;
+    }
+
+    hr = OnMachineChanged();
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -940,6 +982,8 @@ HRESULT ReverseController::CaptureNow (
         CHR (hr);
     }
 
+    PruneRetainedMedia();
+
 Error:
     ScheduleCaptures();
 
@@ -1047,6 +1091,44 @@ void ReverseController::BecomeLive()
 void ReverseController::ScheduleCaptures()
 {
     m_nextDueCycle = m_isLive ? std::min (m_keyframes.GetNextDueCycle(), m_ring.GetNextCheckpointCycle()) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PruneRetainedMedia
+//
+//  Lets the disk store drop the disks that left their bays before every
+//  snapshot still held.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::PruneRetainedMedia()
+{
+    uint64_t  oldest    = 0;
+    bool      hasOldest = false;
+
+
+
+    if (m_keyframes.GetCount() > 0)
+    {
+        oldest    = m_keyframes.GetInfo (0).position;
+        hasOldest = true;
+    }
+
+    if (m_ring.GetCheckpointCount() > 0 && (!hasOldest || m_ring.GetCheckpoint (0).position < oldest))
+    {
+        oldest    = m_ring.GetCheckpoint (0).position;
+        hasOldest = true;
+    }
+
+    if (hasOldest)
+    {
+        m_machine.GetDiskStore().PruneRetainedMedia (oldest);
+    }
 }
 
 

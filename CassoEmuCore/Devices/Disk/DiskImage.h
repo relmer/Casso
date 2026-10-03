@@ -137,7 +137,7 @@ public:
     uint64_t         GetTrackGeneration  (int track) const;
 
     // IMachineState: the guest-visible media, that is every track's bits and
-    // length, the dirty flags, and the image and user write-protect flags. The
+    // length, and the image and user write-protect flags. The
     // file path, format, metadata and quarter-track map come from the file and
     // are wiring: the loading machine must have the same medium mounted, and a
     // mismatch in loaded state or track count fails.
@@ -145,7 +145,7 @@ public:
     HRESULT          LoadState           (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('D', 'I', 'S', 'K');
-    static constexpr uint16_t  kStateVersion      = 1;
+    static constexpr uint16_t  kStateVersion      = 2;
     static constexpr uint32_t  kMaxStateTrackSize = 0x100000;
 
 private:

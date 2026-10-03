@@ -125,6 +125,59 @@ public:
     //  the call site rather than inferred from where it happens to be called.
     HRESULT       FlushAllForShutdown ();
 
+    //  The flushes nobody asked for: the motor spinning down, a reset and a
+    //  power cycle. They do nothing while the flush hold is on or a replay is
+    //  running; every other flush (eject, machine switch, exit, an explicit
+    //  save) still writes, and writes the disk as it stands now.
+    HRESULT       FlushAllUnlessHeld ();
+
+    //  Reverse execution keeps guest writes in memory while it records: the
+    //  disk is machine state then, and the file is written only at the moments
+    //  above. Commit writes every bay as it stands now; discard reloads every
+    //  bay holding unsaved writes from its file.
+    void          SetFlushHold      (bool isHeld) { m_isFlushHeld = isHeld; }
+    bool          IsFlushHeld       () const      { return m_isFlushHeld; }
+    bool          HasUnsavedWrites  () const;
+    HRESULT       CommitHeldWrites  ();
+    HRESULT       DiscardHeldWrites ();
+
+    //  Set while a replay re-runs history. No flush of any kind and no reload
+    //  of a changed file happens then: the replay is recomputing a past the
+    //  host already saw, and the host file is never written from it.
+    void          SetReplaying      (bool isReplaying) { m_isReplaying = isReplaying; }
+    bool          IsReplaying       () const           { return m_isReplaying; }
+
+    //  Which medium a bay holds, as DiskImage::GetImageId gives it, or zero
+    //  for an empty bay. A machine snapshot holds these, and loading one puts
+    //  the same media back in the same bays.
+    uint64_t      GetMediaId        (int slot, int drive) const;
+
+    //  With retention on, a disk that leaves a bay is kept in memory, with
+    //  any unsaved writes, so a snapshot taken while it was in the drive can
+    //  put it back. Turning retention off releases every kept disk.
+    void          SetMediaRetention     (bool isOn);
+    size_t        GetRetainedMediaCount () const { return m_retained.size(); }
+
+    //  Whether SeatMedia could put mediaId in the bay, and putting it there:
+    //  the bay's current disk is kept (or dropped, without retention) and the
+    //  kept disk with that identity takes its place. Zero empties the bay.
+    //  Nothing is flushed and nothing is reported as a bay change.
+    bool          CanSeatMedia      (int slot, int drive, uint64_t mediaId) const;
+    HRESULT       SeatMedia         (int slot, int drive, uint64_t mediaId, bool & outChanged);
+
+    //  Drops kept disks that left their bay before oldestPosition, which no
+    //  snapshot still in history can hold.
+    void          PruneRetainedMedia (uint64_t oldestPosition);
+
+    //  The machine's instruction count, which stamps when a disk left its bay.
+    void          SetPositionSource (const uint64_t * source) { m_positionSource = source; }
+
+    //  Told after a disk is mounted, ejected, swapped for a changed file, or
+    //  has its write protection changed in its file: the change reverse
+    //  execution records as a boundary in history. Not told while replaying,
+    //  nor for SeatMedia.
+    void          SetMediaChangeListener (std::function<void ()> listener) { m_mediaChangeListener = std::move (listener); }
+
     //  Sets a mounted WOZ's write-protect flag in its backing file by patching
     //  the single byte that carries it -- read the file, set INFO's flag byte,
     //  recompute the header CRC, write it back atomically -- rather than
@@ -427,7 +480,17 @@ private:
         //  worse answer than the entry knowing where it lives.
         int                    slot    = 0;
         int                    drive   = 0;
+
+        //  For a kept disk, the position at which it left its bay.
+        uint64_t               retiredAt = 0;
     };
+
+    //  Moves a bay's disk into the kept list (or drops it without retention)
+    //  and leaves the bay empty. No flush, no bay change.
+    void           RetireBay (Entry & entry);
+
+    //  Tells the media change listener, unless a replay is running.
+    void           NotifyMediaChanged ();
 
     // Every public accessor takes a caller-supplied slot/drive pair, so each
     // one range-checks before GetEntry() indexes the fixed array.
@@ -635,6 +698,13 @@ private:
     DecisionSink             m_decisionSink;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
+    std::function<void ()>     m_mediaChangeListener;
+
+    std::vector<Entry>       m_retained;
+    const uint64_t *         m_positionSource = nullptr;
+    bool                     m_isFlushHeld    = false;
+    bool                     m_isReplaying    = false;
+    bool                     m_isRetaining    = false;
 
     //  Guards the pending records alone. A watcher thread records a change
     //  while the CPU thread reads it, and those two fields are the whole of

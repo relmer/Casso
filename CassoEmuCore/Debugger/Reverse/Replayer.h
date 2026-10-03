@@ -94,9 +94,13 @@ public:
     void      SetJournalCursor  (size_t cursor)   { m_journalCursor = cursor; }
 
 private:
+    //  The slot whose Disk II drives the journal's drive numbers refer to.
+    static constexpr int  kDiskControllerSlot = 6;
+
     HRESULT   LoadState           (const std::vector<Byte> & state, uint64_t position, size_t journalIndex);
     HRESULT   ApplyInputs         (uint64_t position, bool includeObserved);
     HRESULT   ApplyInput          (const InputRecord & record);
+    HRESULT   LoadBoundaryIfDue   ();
     HRESULT   TakeCheckpointIfDue ();
     HRESULT   CheckKeyframe       (ReplayReport & report);
     HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report);

@@ -800,6 +800,9 @@
     <ClCompile Include="EmuTests\MachineHostStateTests.cpp" />
     <ClCompile Include="EmuTests\JoyportHostSettingStateTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
+    <ClCompile Include="EmuTests\DiskFlushHoldTests.cpp" />
+    <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />
+    <ClCompile Include="EmuTests\DiskHistoryTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
     <ClCompile Include="EmuTests\UndoRingTests.cpp" />

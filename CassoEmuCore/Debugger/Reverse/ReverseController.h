@@ -83,7 +83,12 @@ struct ReverseResult
 //  replays it, and reaching its end makes the machine live again. A change
 //  made in the past (memory, registers, a disk) must be reported through
 //  OnMachineChanged, which drops the future and keyframes the changed state;
-//  running the machine from the past without a seek does the same.
+//  running the machine from the past without a seek does the same. A disk
+//  change reaches it through OnMediaChanged.
+//
+//  While recording, the disk store holds the automatic flushes, so the image
+//  files are written only on an eject, a machine switch, exit or a commit,
+//  each with the disks as they stand at the current position.
 //
 //  The step commands work on positions; the scanline and frame steps and the
 //  seek work on cycles and land on the first instruction boundary at or
@@ -109,6 +114,7 @@ public:
     bool      IsRecording      () const { return m_isRecording; }
 
     void      OnInstructionStart (MachineHost & machine) override;
+    void      OnMediaChanged     (MachineHost & machine) override;
     HRESULT   OnMachineChanged   ();
 
     HRESULT   StepBack         (ReverseResult & result);
@@ -142,6 +148,7 @@ private:
     void      LeaveLive          ();
     void      BecomeLive         ();
     void      ScheduleCaptures   ();
+    void      PruneRetainedMedia ();
     void      FillResult         (ReverseResult & result) const;
 
     bool      TryFindKeyframeAtOrBefore (uint64_t position, size_t & outIndex) const;

@@ -292,7 +292,7 @@ public:
     uint64_t  GetRomIdentity () const;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'A', 'C', 'H');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
     //  Where this machine's pending printer strip persists across a switch
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
@@ -320,11 +320,19 @@ private:
     Byte  FinishStep       ();
     Byte  StepOneAsked     (const DebugHookFilter & filter, Word pc);
 
+    //  The disk each drive bay holds, slot-major, as a snapshot records it.
+    using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
+
+    //  The slot whose Disk II the refs hold, which the drive bays feed.
+    static constexpr int  kDiskControllerSlot = 6;
+
     std::vector<IMachineState *>  GetStateParts       ();
     std::vector<IMachineState *>  GetHostInputParts   ();
-    uint32_t                      GetMountedDiskMask  () const;
     void                          WriteStateHeader    (StateWriter & writer, size_t partCount) const;
-    HRESULT                       CheckStateHeader    (StateReader & reader, size_t partCount);
+    HRESULT                       CheckStateHeader    (StateReader & reader, uint32_t & outParts);
+    bool                          CanSeatMedia        (const MediaIds & mediaIds) const;
+    HRESULT                       SeatMedia           (const MediaIds & mediaIds);
+    void                          OnMediaChanged      ();
 
     static uint64_t  HashBytes (uint64_t hash, const Byte * data, size_t size);
     static uint64_t  HashBytes (uint64_t hash, const std::vector<Byte> & bytes);

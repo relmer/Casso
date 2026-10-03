@@ -886,6 +886,10 @@ uint64_t DiskImage::GetTrackGeneration (int track) const
 //  unchanged tracks with the previous keyframe; this is the form for a state
 //  written to a file.
 //
+//  The dirty flags are not here. They say what the host file lacks, which a
+//  flush changes without the machine changing, so a snapshot that held them
+//  would differ between a run that flushed and its replay that did not.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImage::SaveState (StateWriter & writer) const
@@ -902,12 +906,10 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
     for (track = 0; track < m_trackBits.size(); track++)
     {
         writer.WriteUInt64 (m_trackBitCounts[track]);
-        writer.WriteBool   (m_trackDirty[track]);
         writer.WriteUInt32 (static_cast<uint32_t> (m_trackBits[track].size()));
         writer.WriteBytes  (m_trackBits[track].data(), m_trackBits[track].size());
     }
 
-    writer.WriteBool (m_dirty);
     writer.WriteBool (m_imageWriteProtected);
     writer.WriteBool (m_userWriteProtected);
 
@@ -929,6 +931,11 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
 //  The tracks are read into a staging copy and committed only after the
 //  section closes cleanly.
 //
+//  A track whose bits the load changes is marked dirty, and the dirty flags of
+//  the rest are kept: the host file holds what the disk held before the load,
+//  so a track that now differs from it is one the next flush must write. That
+//  is what makes a flush after a step back write the disk at that position.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImage::LoadState (StateReader & reader)
@@ -941,13 +948,11 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     uint32_t              byteCount           = 0;
     uint64_t              bitCount            = 0;
     uint64_t              maxBits             = 0;
-    bool                  trackDirty          = false;
-    bool                  dirty               = false;
+    bool                  isChanged           = false;
     bool                  imageWriteProtected = false;
     bool                  userWriteProtected  = false;
     vector<vector<Byte>>  trackBits;
     vector<size_t>        trackBitCounts;
-    vector<bool>          trackDirtyFlags;
     uint32_t              diskTracks          = static_cast<uint32_t> (m_trackBits.size());
 
 
@@ -955,20 +960,21 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    // Version 1 carried the dirty flags.
+    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
     reader.ReadBool   (loaded);
     reader.ReadUInt32 (trackCount);
 
     CBREx (loaded     == m_loaded,   HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx (trackCount == diskTracks, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    trackBits.resize       (trackCount);
-    trackBitCounts.resize  (trackCount, 0);
-    trackDirtyFlags.resize (trackCount, false);
+    trackBits.resize      (trackCount);
+    trackBitCounts.resize (trackCount, 0);
 
     for (track = 0; track < trackCount; track++)
     {
         reader.ReadUInt64 (bitCount);
-        reader.ReadBool   (trackDirty);
         reader.ReadUInt32 (byteCount);
 
         maxBits = static_cast<uint64_t> (byteCount) * CHAR_BIT;
@@ -979,22 +985,29 @@ HRESULT DiskImage::LoadState (StateReader & reader)
         trackBits[track].resize (byteCount);
         reader.ReadBytes (trackBits[track].data(), byteCount);
 
-        trackBitCounts[track]  = static_cast<size_t> (bitCount);
-        trackDirtyFlags[track] = trackDirty;
+        trackBitCounts[track] = static_cast<size_t> (bitCount);
     }
 
-    reader.ReadBool (dirty);
     reader.ReadBool (imageWriteProtected);
     reader.ReadBool (userWriteProtected);
 
     hr = reader.EndSection();
     CHR (hr);
 
+    for (track = 0; track < trackCount; track++)
+    {
+        isChanged = trackBitCounts[track] != m_trackBitCounts[track] || trackBits[track] != m_trackBits[track];
+
+        if (isChanged)
+        {
+            m_trackDirty[track] = true;
+            m_dirty             = true;
+        }
+    }
+
     m_trackBits.swap      (trackBits);
     m_trackBitCounts.swap (trackBitCounts);
-    m_trackDirty.swap     (trackDirtyFlags);
 
-    m_dirty               = dirty;
     m_imageWriteProtected = imageWriteProtected;
     m_userWriteProtected  = userWriteProtected;
 

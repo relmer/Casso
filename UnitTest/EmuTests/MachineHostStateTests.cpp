@@ -132,7 +132,7 @@ public:
         AssertSucceeded (hr, L"load");
 
         Assert::AreEqual<uint8_t> (before, image->ReadBit (kTrack, kBit), L"the load must put back the bit the write changed");
-        Assert::IsFalse (image->IsTrackDirty (kTrack), L"and the track's dirty flag");
+        Assert::IsTrue  (image->IsTrackDirty (kTrack), L"the file may hold the written bit, so the next flush writes the track");
     }
 
 

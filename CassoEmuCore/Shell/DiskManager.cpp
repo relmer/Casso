@@ -655,6 +655,14 @@ void DiskManager::RemountSlot6Disks()
 
 
 
+    // A remount flushes the disk and reads its file back. While reverse
+    // execution holds the disks, a reset and a power cycle write nothing and
+    // keep the disks as the machine has them.
+    if (m_diskStore.IsFlushHeld())
+    {
+        return;
+    }
+
     for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
     {
         savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
