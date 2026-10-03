@@ -1234,7 +1234,7 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 
 bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 {
-    constexpr float                                       kTravelMm = 3.0f;   // how far a key goes down
+    constexpr float                                       kTravelMm = 6.0f;   // how far a key goes down
     constexpr int64_t                                     kDipMs    = 160;   // held down long enough to reach the bottom
     constexpr size_t                                      kRecord   = 0, kRewind = 1, kForward = 2, kPlay = 3;
     TapeTransport                                         transport = GetTapeView().transport;

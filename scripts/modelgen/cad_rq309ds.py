@@ -219,11 +219,57 @@ def build():
     kx0, kx1 = x0 + 1.0, x1 - 1.0
     pitch = (kx1 - kx0) / 6.0
     legends = ["RECORD", "REW", "FF", "PLAY", "STOP", "EJECT"]
+    # The legends, as printed: RECORD in reverse -- a black block with the
+    # letters cut through to the silver -- and the transport keys each led by
+    # its glyph. A thin bracket ties RECORD to PLAY, the two pressed together
+    # to record; short risers at each end keep its long run clear of REW and
+    # FF between them.
+    ly, lz = sy0 + 7, top + 0.6
+    LH = 3.0
+    glyph_w = LH * 0.8
     legend = None
+
+    def tri(x, y, w, h, pointing):
+        pts = [(x, y - h / 2), (x, y + h / 2), (x + w, y)] if pointing > 0 \
+              else [(x + w, y - h / 2), (x + w, y + h / 2), (x, y)]
+        return cq.Workplane("XY").workplane(offset=lz).polyline(pts).close().extrude(0.3)
+
+    def glyph(kind, right_x):
+        gh = LH * 0.75
+        if kind == "REW":
+            return tri(right_x - glyph_w, ly, glyph_w / 2, gh, -1).union(tri(right_x - glyph_w / 2, ly, glyph_w / 2, gh, -1))
+        if kind == "FF":
+            return tri(right_x - glyph_w, ly, glyph_w / 2, gh, 1).union(tri(right_x - glyph_w / 2, ly, glyph_w / 2, gh, 1))
+        if kind == "PLAY":
+            return tri(right_x - glyph_w * 0.7, ly, glyph_w * 0.7, gh, 1)
+        return box(right_x - gh * 0.8, right_x, ly - gh * 0.4, ly + gh * 0.4, lz, lz + 0.3)
+
+    tops = {}
     for i, s in enumerate(legends):
-        t = text(s, 3.0, kx0 + pitch * (i + 0.5), sy0 + 7, top + 0.6)
-        legend = t if legend is None else legend.union(t)
-    m.add("legend", legend, BAND)
+        cx = kx0 + pitch * (i + 0.5)
+        if s == "RECORD":
+            t = text(s, LH, cx, ly, lz)
+            bb = t.val().BoundingBox()
+            block = box(bb.xmin - 0.8, bb.xmax + 0.8, ly - LH / 2 - 0.5, ly + LH / 2 + 0.5, lz, lz + 0.3)
+            part = block.cut(text(s, LH, cx, ly, lz - 0.1).union(text(s, LH, cx, ly, lz + 0.1)))
+            tops[s] = (cx, ly + LH / 2 + 0.5)
+        elif s in ("REW", "FF", "PLAY", "STOP"):
+            gap = 0.8
+            t = text(s, LH, cx + (glyph_w + gap) / 2, ly, lz)
+            bb = t.val().BoundingBox()
+            part = t.union(glyph(s, bb.xmin - gap))
+            tops[s] = ((bb.xmin - gap - glyph_w + bb.xmax) / 2, ly + LH / 2)
+        else:
+            part = text(s, LH, cx, ly, lz)
+        legend = part if legend is None else legend.union(part)
+
+    LINE_T = 0.3
+    rise_y = ly + LH / 2 + 1.6
+    (rx, ry), (px, py) = tops["RECORD"], tops["PLAY"]
+    bracket = (box(rx - LINE_T / 2, rx + LINE_T / 2, ry + 0.3, rise_y + LINE_T, lz, lz + 0.3)
+               .union(box(px - LINE_T / 2, px + LINE_T / 2, py + 0.3, rise_y + LINE_T, lz, lz + 0.3))
+               .union(box(rx - LINE_T / 2, px + LINE_T / 2, rise_y, rise_y + LINE_T, lz, lz + 0.3)))
+    m.add("legend", legend.union(bracket), BAND)
 
     # Keys: 5 mm black plates with FLAT tops, flush with the top plates and
     # parallel to the grille. They do not reach down into the slope: each is
