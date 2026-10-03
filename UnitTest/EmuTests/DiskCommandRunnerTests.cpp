@@ -1363,6 +1363,46 @@ public:
                         L"and points at the command that does mean it");
     }
 
+    TEST_METHOD (Create_AppendsTheTypeExtensionToABareName)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("dir.v2\\foo");
+        DiskCommandResult   result;
+
+
+
+        options.disk.containerType = "WOZ";
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue  (io.Exists ("dir.v2\\foo.woz"), L"the extension follows --type");
+        Assert::IsFalse (io.Exists ("dir.v2\\foo"),     L"and the bare name is not written");
+    }
+
+    TEST_METHOD (Create_KeepsAnExtensionOrTrailingDotAsGiven)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  dotted  = MakeCreate ("foo.");
+        CommandLineOptions  named   = MakeCreate ("bar.img");
+        DiskCommandResult   result;
+
+
+
+        dotted.disk.containerType = "dsk";
+        named.disk.containerType  = "dsk";
+
+        result = runner.Run (dotted);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (io.Exists ("foo."), L"a trailing dot means no extension");
+
+        result = runner.Run (named);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue  (io.Exists ("bar.img"),     L"an existing extension is kept");
+        Assert::IsFalse (io.Exists ("bar.img.dsk"), L"and nothing is added to it");
+    }
+
     //  The container follows the name when --type is not given, which is what
     //  makes `disk create mydisk.po` do the obvious thing.
     TEST_METHOD (Create_TakesTheContainerFromTheNameWhenTypeIsNotGiven)

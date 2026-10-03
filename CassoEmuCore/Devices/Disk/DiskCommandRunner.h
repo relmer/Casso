@@ -152,6 +152,8 @@ public:
     static size_t  GetSectorRecordOffset (CommandLineOptions::DiskOptions::Numbering numbering,
                                           size_t                                     running);
 
+    static void  AppendTypeExtension (std::string & imagePath, const std::string & containerType);
+
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 

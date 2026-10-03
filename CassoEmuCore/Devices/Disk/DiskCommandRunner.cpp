@@ -2175,6 +2175,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::AppendTypeExtension
+//
+//  Gives a bare image name the extension --type asked for.
+//
+//  Only a name with no extension gains one. A name that already has an
+//  extension keeps it, and a trailing dot is how a caller says they want no
+//  extension: std::filesystem reports that dot as the extension. The path is
+//  built from the narrow string the same way Win32DiskFileIo builds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::AppendTypeExtension (std::string & imagePath, const std::string & containerType)
+{
+    std::filesystem::path  path      = imagePath;
+    std::string            extension = containerType;
+    bool                   bare      = !containerType.empty() && path.has_filename() && !path.has_extension();
+
+
+
+    if (bare)
+    {
+        for (char & letter : extension)
+        {
+            letter = (char) tolower ((unsigned char) letter);
+        }
+
+        path.replace_extension (extension);
+        imagePath = path.string();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunCreate
 //
 //  A new image file, of a container this tool decides here.
@@ -2188,31 +2225,34 @@ Error:
 
 void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskCommandResult & result)
 {
-    HRESULT     hr              = S_OK;
-    DiskFormat  format          = DiskFormat::Dsk;
-    size_t      nibbleTrackSize = 0;
-    bool        named           = !options.disk.imagePath.empty();
-    bool        alreadyThere    = false;
+    HRESULT             hr              = S_OK;
+    DiskFormat          format          = DiskFormat::Dsk;
+    size_t              nibbleTrackSize = 0;
+    bool                named           = !options.disk.imagePath.empty();
+    bool                alreadyThere    = false;
+    CommandLineOptions  resolved        = options;
 
 
 
     CBRF (named, ReportMissingParameter ("<image>", result));
 
-    alreadyThere = m_fileIo.Exists (options.disk.imagePath);
-    CBRF (!alreadyThere, result.Fail (options.disk.imagePath, "",
+    AppendTypeExtension (resolved.disk.imagePath, resolved.disk.containerType);
+
+    alreadyThere = m_fileIo.Exists (resolved.disk.imagePath);
+    CBRF (!alreadyThere, result.Fail (resolved.disk.imagePath, "",
                                       "is already there, and create will not write over it. "
                                       "Use init to reformat it, or choose another name"));
 
-    hr = ResolveContainer (options, nibbleTrackSize, format, result);
+    hr = ResolveContainer (resolved, nibbleTrackSize, format, result);
     CHR (hr);
 
-    if (!options.disk.directBootFile.empty())
+    if (!resolved.disk.directBootFile.empty())
     {
-        BuildDirectBoot (options, format, nibbleTrackSize, result);
+        BuildDirectBoot (resolved, format, nibbleTrackSize, result);
     }
     else
     {
-        BuildAndWrite (options, format, nibbleTrackSize, false, result);
+        BuildAndWrite (resolved, format, nibbleTrackSize, false, result);
     }
 
 Error:
