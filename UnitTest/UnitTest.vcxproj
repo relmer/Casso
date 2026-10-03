@@ -813,6 +813,7 @@
     <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskHistoryTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
+    <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
     <ClCompile Include="EmuTests\SharedCheckpointTests.cpp" />
     <ClCompile Include="EmuTests\StateWriterReuseTests.cpp" />

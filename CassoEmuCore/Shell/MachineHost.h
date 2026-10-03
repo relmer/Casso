@@ -341,6 +341,7 @@ private:
     HRESULT                       CheckStateHeader    (StateReader & reader, uint32_t & outParts);
     bool                          CanSeatMedia        (const MediaIds & mediaIds) const;
     HRESULT                       SeatMedia           (const MediaIds & mediaIds);
+    void                          BindDiskDrives      ();
     void                          OnMediaChanged      ();
 
     static uint64_t  HashBytes (uint64_t hash, const Byte * data, size_t size);

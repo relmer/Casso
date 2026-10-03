@@ -767,6 +767,11 @@ void MachineHost::PowerCycle()
 
     m_memoryBus->PowerCycleAll (*m_prng);
 
+    // The Disk II's power cycle points each drive at its empty internal
+    // disk, but the mounts persist: the drives go back to the disks in the
+    // bays, which a replayed power cycle must do the same way.
+    BindDiskDrives();
+
     if (m_mmu != nullptr)
     {
         m_mmu->OnPowerCycle (*m_prng);
@@ -1279,8 +1284,9 @@ bool MachineHost::CanSeatMedia (const MediaIds & mediaIds) const
 //  MachineHost::SeatMedia
 //
 //  Puts each saved disk back in its bay, and points the Disk II at whatever
-//  its bays now hold. Nothing is flushed: a disk that leaves a bay here is
-//  kept by the store with its writes.
+//  its bays now hold, whether or not a bay changed: something since the save
+//  may have pointed a drive elsewhere. Nothing is flushed: a disk that leaves
+//  a bay here is kept by the store with its writes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1299,16 +1305,43 @@ HRESULT MachineHost::SeatMedia (const MediaIds & mediaIds)
         {
             hr = m_diskStore->SeatMedia (slot, drive, mediaIds[slot * DiskImageStore::kDriveCount + drive], isChanged);
             CHR (hr);
-
-            if (isChanged && slot == kDiskControllerSlot && m_refs.diskController != nullptr)
-            {
-                m_refs.diskController->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
-            }
         }
     }
 
+    BindDiskDrives();
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::BindDiskDrives
+//
+//  Each drive of the Disk II the refs hold reads the disk in its bay, or its
+//  own empty disk when the bay is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::BindDiskDrives()
+{
+    int  drive = 0;
+
+
+
+    if (m_refs.diskController == nullptr)
+    {
+        return;
+    }
+
+    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    {
+        m_refs.diskController->SetExternalDisk (drive, m_diskStore->GetImage (kDiskControllerSlot, drive));
+    }
 }
 
 
