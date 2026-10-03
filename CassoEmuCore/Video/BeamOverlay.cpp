@@ -15,8 +15,7 @@
 void BeamOverlay::Draw (uint32_t * pixels, int width, int height, uint32_t scanline, uint32_t cycle, uint32_t color)
 {
     static constexpr int  kEdgeMarkWidth = 2;
-    static constexpr int  kMarkReach     = 3;   // scanlines the block reaches above and below the line
-
+    static constexpr int  kMarkReach     = 3;   // scanlines the bar reaches above and below the line
     int                   rowsPerLine    = height / (int) kVisibleScanlines;
     int                   dotsPerCycle   = width  / (int) kVisibleCycles;
     int                   top            = (int) scanline * rowsPerLine;

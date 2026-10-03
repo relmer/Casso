@@ -837,7 +837,6 @@ std::string DebuggerViewState::GetBeamNote (const DebuggerViewSnapshot::BeamStat
 {
     static constexpr uint32_t  kVisibleCycles = 40;
     static constexpr uint32_t  kFirstVisible  = VideoTiming::kCyclesPerScanline - kVisibleCycles;
-
     std::string                note           = std::format ("Scanline {}, cycle {}", beam.scanline, beam.cycle);
 
 
@@ -853,6 +852,7 @@ std::string DebuggerViewState::GetBeamNote (const DebuggerViewSnapshot::BeamStat
 
     return note;
 }
+
 
 
 

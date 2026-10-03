@@ -72,8 +72,8 @@ namespace DebuggerBeamMenuTests
         std::vector<std::string>  inModeLines;
         std::vector<CommandMode>  inModeModes;
         std::vector<int>          emulatorCommands;
-        int                       actions = 0;
-        bool                      beamOverlay = false;
+        int                       actions          = 0;
+        bool                      beamOverlay      = false;
         FakeHostDialogs           dialogs;
     };
 

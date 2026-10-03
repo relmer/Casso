@@ -1265,11 +1265,10 @@ bool EmulatorShell::ComputeFlashOn()
 
 uint64_t EmulatorShell::ComputeColorSig()
 {
-    uint64_t  mode = (uint64_t) m_colorMode.load (memory_order_acquire);
-    uint64_t  argb = (uint64_t) m_colorMonitorTextArgb.load (memory_order_acquire);
-
     // The mode sits in bits 32-39; the beam mark takes the bits above it.
     static constexpr uint64_t  kBeamSigShift = 40;
+    uint64_t                   mode          = (uint64_t) m_colorMode.load (memory_order_acquire);
+    uint64_t                   argb          = (uint64_t) m_colorMonitorTextArgb.load (memory_order_acquire);
 
 
 

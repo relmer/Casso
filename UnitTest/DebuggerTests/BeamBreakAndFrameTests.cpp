@@ -145,8 +145,8 @@ namespace DebuggerTests
         {
             static constexpr uint64_t  kLongestInstruction = 7;
             MachineRig                 rig;
-            uint64_t                   before = 0;
-            uint64_t                   ran    = 0;
+            uint64_t                   before              = 0;
+            uint64_t                   ran                 = 0;
 
 
 
@@ -169,8 +169,8 @@ namespace DebuggerTests
         {
             static constexpr uint64_t  kLongestInstruction = 7;
             MachineRig                 rig;
-            uint64_t                   before = 0;
-            uint64_t                   ran    = 0;
+            uint64_t                   before              = 0;
+            uint64_t                   ran                 = 0;
 
 
 
