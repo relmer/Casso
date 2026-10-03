@@ -500,6 +500,9 @@ private:
     void    ScrollDebugCode    (int lines, int view);
     void    RunDebugActions    ();
 
+    // Whether the heat map pane is shown, and so recording.
+    void    SetDebugHeatMapShown (bool shown) override;
+
     // Rebuilds the window's snapshot when it is showing and due. CPU thread.
     void    PublishDebuggerView ();
 
@@ -517,6 +520,7 @@ private:
     static std::string  GetCodeViewSuffix (int view);
     void    SetDebuggerMemoryWindow  (int id, std::optional<Word> address) override;
     void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;
+    void    SetDebuggerHeatMapShown  (bool shown) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
     void    ScrollDebuggerCode       (int lines, int view) override;
     bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,

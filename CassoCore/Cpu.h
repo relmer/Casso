@@ -32,6 +32,29 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IFetchSink
+//
+//  Told by a Cpu of every opcode it fetches, before the instruction runs, with
+//  the address it came from. Unlike IOpcodeWatcher it takes no table and sees
+//  every opcode; an interrupt taken in place of an instruction is no fetch and
+//  is not reported.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IFetchSink
+{
+public:
+    virtual ~IFetchSink() = default;
+
+    virtual void  OnFetch (Word pc, Byte opcode) = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Cpu
 //
 //  The 6502 core: registers, a private 64 KB memory array, and the microcode
@@ -308,6 +331,9 @@ public:
     // with the fetch after each; null for none. The table is read in place.
     void     SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher);
 
+    // Where every opcode fetch is reported; null for nowhere.
+    void     SetFetchSink   (IFetchSink * sink) { m_fetchSink = sink; UpdateFetchObserved(); }
+
     // The entries the ring holds, oldest first.
     size_t   GetTraceSize     () const;
     bool     TryGetTraceEntry (size_t index, TraceEntry & entry) const;
@@ -332,8 +358,8 @@ protected:
     static constexpr OpcodeTable  s_kNoOpcodes  = {};
     static constexpr OpcodeTable  s_kAllOpcodes = [] { OpcodeTable all {}; all.fill (true); return all; }();
 
-    // Whether a fetch is looked at at all: the trace is on, or an opcode watch
-    // is set. One test per instruction while neither is.
+    // Whether a fetch is looked at at all: the trace is on, an opcode watch
+    // is set, or a fetch sink is. One test per instruction while none is.
     bool                     m_isFetchObserved  = false;
 
     // The watcher's table, and the one the next fetch is looked up in: the
@@ -341,8 +367,9 @@ protected:
     const bool             * m_watchOpcodes     = nullptr;
     const bool             * m_watchFetch       = s_kNoOpcodes.data();
     IOpcodeWatcher         * m_watcher          = nullptr;
+    IFetchSink             * m_fetchSink        = nullptr;
 
-    void UpdateFetchObserved () { m_isFetchObserved = m_traceEnabled || m_watcher != nullptr; }
+    void UpdateFetchObserved () { m_isFetchObserved = m_traceEnabled || m_watcher != nullptr || m_fetchSink != nullptr; }
     void ReportWatchedFetch  (Byte opcode);
 
     // Forced inline: it runs once per instruction while a fetch is observed.
@@ -356,6 +383,11 @@ protected:
         if (m_traceEnabled)
         {
             TracePush (opcode);
+        }
+
+        if (m_fetchSink != nullptr)
+        {
+            m_fetchSink->OnFetch (PC, opcode);
         }
     }
 

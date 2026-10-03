@@ -183,6 +183,11 @@
     <ClCompile Include="DebuggerTests\DebugFileWriterTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileRoundTripTests.cpp" />
     <ClCompile Include="DebuggerTests\MachineDebugTargetTests.cpp" />
+    <ClCompile Include="DebuggerTests\AccessHeatMapTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatMapMachineTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatMapViewTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatMapPaneWindowTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatMapViewStateTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryMapTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />

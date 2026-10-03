@@ -195,7 +195,8 @@ void DebuggerWindow::OnCreate()
     m_consoleView       = CreateChild<DxuiTextView>  ();
     m_traceList         = CreateChild<DxuiListView>  ();
     m_traceHint         = CreateChild<KeyHintLine>   ();
-    m_commandBox        = CreateChild<DxuiTextInput> ();
+    m_heatMapView       = CreateChild<HeatMapView>   ();
+    m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     //  The memory bar before its Address box, so the box paints over the strip.
     m_memoryBar         = CreateChild<DxuiToolbar>   ();
@@ -4624,6 +4625,12 @@ void DebuggerWindow::ConfigureDockSite()
     m_traceFrame->AddPart (m_traceHint, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); });
     m_traceFrame->AddPart (m_traceList);
 
+    //  The heat map is closed until the View menu opens it, and records only
+    //  while it shows.
+    m_heatMapFrame = std::make_unique<DebuggerPaneFrame> (L"Heat map");
+    m_heatMapFrame->AddPart (m_heatMapView);
+    m_heatMapView->SetVisible (false);
+
     //  The breakpoints pane is its toolbar over its rows (FR-119). The bar is a
     //  place held at the pane's top, which PlaceBreakpointBar fills.
     m_breakpointSlot  = std::make_unique<DebuggerPaneFrame> (L"Breakpoint commands");
@@ -4665,6 +4672,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_undoBars[kStackUndoBar].frame.get());
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
+    m_dockSite->AddPane (DebuggerLayout::kHeatMap,     L"Heat map",    m_heatMapFrame.get());
 
     //  A memory pane is its command bar over its bytes (FR-089). The bar is a
     //  place held at the pane's top; the controls, shared by every memory
@@ -4764,6 +4772,11 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
     {
         return m_diagOpen.contains (diagnosticsId);
+    }
+
+    if (pane == DebuggerLayout::kHeatMap)
+    {
+        return m_isHeatMapOpen;
     }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
@@ -5132,7 +5145,7 @@ bool DebuggerWindow::IsFixedPane (const std::wstring & pane) const
         }
     }
 
-    return GetSourceSlotOf (pane) < 0 && !DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId);
+    return GetSourceSlotOf (pane) < 0 && !DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId) && pane != DebuggerLayout::kHeatMap;
 }
 
 
@@ -5180,6 +5193,7 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
     panes.push_back (DebuggerLayout::kBreakpoints);
     panes.push_back (DebuggerLayout::kWatches);
     panes.push_back (DebuggerLayout::kTrace);
+    panes.push_back (DebuggerLayout::kHeatMap);
     panes.push_back (DebuggerLayout::kConsole);
 
     if (m_snapshot != nullptr)
@@ -5242,6 +5256,11 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
         if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
         {
             RunAction (DebuggerActions::GetPanel (diagnosticsId, true, GetMode()));
+        }
+
+        if (pane == DebuggerLayout::kHeatMap)
+        {
+            m_isHeatMapOpen = true;
         }
     }
 
@@ -5329,6 +5348,16 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
     if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
     {
         RunAction (DebuggerActions::GetPanel (diagnosticsId, false, GetMode()));
+        return;
+    }
+
+    if (pane == DebuggerLayout::kHeatMap)
+    {
+        m_isHeatMapOpen = false;
+        m_syncFloats    = true;
+        m_dockSite->Relayout();
+        SetWindowMenus();
+        Invalidate();
         return;
     }
 
@@ -6010,6 +6039,8 @@ void DebuggerWindow::RenderFrame()
         pane->Tick (now);
     }
 
+    SyncHeatMapRecording();
+
     //  Focus moves by click, key and command alike, so the group the user is
     //  working in is found once a frame rather than at each of them.
     m_dockSite->SetFocusedPane (GetPaneOfFocus());
@@ -6313,6 +6344,103 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::SyncHeatMapRecording
+//
+//  The machine records for the heat map only while its pane is open and on
+//  screen, not behind another tab; the host is told when that changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SyncHeatMapRecording()
+{
+    bool  isWanted = m_isHeatMapOpen && m_heatMapView->IsVisible();
+
+
+
+    if (isWanted == m_isHeatMapRecording || m_host == nullptr)
+    {
+        return;
+    }
+
+    m_isHeatMapRecording = isWanted;
+    m_host->SetDebuggerHeatMapShown (isWanted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteHeatMapMouse
+//
+//  The heat map takes a press on its modes, and follows the mouse over its
+//  map for its readout; a move anywhere else clears the readout. Only a press
+//  it acts on is used up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
+{
+    DxuiMouseEvent  leave  = ev;
+    bool            isOver = IsRoutable (m_heatMapView) && m_heatMapView->IsVisible() &&
+                             DxuiDockSite::Contains (m_heatMapView->GetBounds(), ev.positionDip);
+    bool            isUsed = false;
+
+
+
+    if (!isOver)
+    {
+        leave.kind = DxuiMouseEventKind::Leave;
+        m_heatMapView->OnMouse (leave);
+        return false;
+    }
+
+    isUsed = m_heatMapView->OnMouse (ev);
+
+    if (ev.kind == DxuiMouseEventKind::Move || isUsed)
+    {
+        Invalidate();
+    }
+
+    return isUsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyHeatMap
+//
+//  Code in the disassembly's instruction color, reads in the annotation
+//  green and writes in the changed red, over the page the panes are drawn on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyHeatMap()
+{
+    DebuggerTextColors::Set  colors  = GetTextColors();
+    HeatMapView::Palette     palette;
+
+
+
+    palette.background = (m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000;
+    palette.execute    = colors.syntax.mnemonic;
+    palette.read       = colors.annotation;
+    palette.write      = colors.changed;
+
+    m_heatMapView->SetPalette (palette);
+    m_heatMapView->SetLevels  (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplySnapshot
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -6420,6 +6548,8 @@ void DebuggerWindow::ApplySnapshot()
 
     m_tracePane->SetColors  (GetTextColors());
     m_tracePane->Apply      (m_snapshot->trace);
+
+    ApplyHeatMap();
 
     ApplyBreakpoints();
 
@@ -9595,6 +9725,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    if (RouteHeatMapMouse (ev))
+    {
+        return true;
+    }
+
     for (DxuiListView * list : GetLists())
     {
         if (IsRoutable (list) && list->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
@@ -9797,6 +9932,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
+    if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapView };                }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
@@ -9858,6 +9994,11 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return m_traceFrame.get();
     }
 
+    if (pane == DebuggerLayout::kHeatMap)
+    {
+        return m_heatMapFrame.get();
+    }
+
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
@@ -9912,6 +10053,7 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kStack)       { return L"Stack";       }
     if (pane == DebuggerLayout::kCallStack)   { return L"Call stack";  }
     if (pane == DebuggerLayout::kTrace)       { return L"Trace";       }
+    if (pane == DebuggerLayout::kHeatMap)     { return L"Heat map";    }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {

@@ -141,7 +141,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap };
 
 
 
@@ -339,7 +339,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kStack;
     }
 
-    if (pane == kTrace && layout.Contains (kConsole))
+    if ((pane == kTrace || pane == kHeatMap) && layout.Contains (kConsole))
     {
         return kConsole;
     }
@@ -395,7 +395,8 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
         layout.Add (GetCodePaneId (view), kCode);
     }
 
-    layout.Add (kTrace, kConsole);
+    layout.Add (kTrace,   kConsole);
+    layout.Add (kHeatMap, kConsole);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

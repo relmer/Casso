@@ -763,6 +763,21 @@ void EmulatorShell::SetDebuggerTraceTop (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerHeatMapShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerHeatMapShown (bool shown)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatmap on") : std::string ("heatmap off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ScrollDebuggerCode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1102,6 +1117,22 @@ void EmulatorShell::SetDebugTraceView (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebugHeatMapShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebugHeatMapShown (bool shown)
+{
+    m_debugViewState.SetHeatMapShown (shown);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PublishDebuggerView
 //
 //  Once a frame while the machine runs, and at once after anything the window
@@ -1117,12 +1148,20 @@ void EmulatorShell::PublishDebuggerView()
 
 
 
-    if (m_debugger == nullptr || !m_isDebugWindowShown.load())
+    if (m_debugger == nullptr)
     {
         return;
     }
 
-    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
+    //  The heat map records for its pane alone, which no one sees while the
+    //  window is closed.
+    if (!m_isDebugWindowShown.load())
+    {
+        m_debugger->GetSession().GetTarget().SetHeatMapOn (false);
+        return;
+    }
+
+    isDue =DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
                                            now, m_debugViewBuiltAt);
 
     if (!isDue)

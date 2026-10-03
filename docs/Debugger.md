@@ -592,8 +592,24 @@ including floating windows and the monitor each is on, is kept between
 sessions.
 
 The panes are the disassembly, the source, the console, registers,
-breakpoints, watches, the stack, the call stack, the trace, up to four memory
-windows, and one panel for each device the machine has.
+breakpoints, watches, the stack, the call stack, the trace, the heat map, up to
+four memory windows, and one panel for each device the machine has.
+
+### The heat map
+
+**View > Heat map** opens a pane that shows the whole 64 KB address space as
+a square: one row a page, $00 at the top and $FF at the bottom, and one
+dot an address. Each address is drawn in the color of what touched it over the
+last few frames, brighter the more it was touched, and fades back to the
+background within about a second after the program stops touching it:
+code (the bytes of every instruction run) in the disassembly's instruction
+color, reads in green and writes in red. **All**, **Code** and **Data** above
+the map choose what it shows: everything, with code ahead of data where an
+address is both; executes alone; or reads and writes alone. Hovering over the
+map shows the address under the mouse and what touched it.
+
+The machine records for the heat map only while its pane is open and in
+front. Closed, or behind another tab, it records nothing and costs nothing.
 
 ### Memory windows
 

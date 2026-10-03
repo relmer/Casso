@@ -1246,6 +1246,7 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_isStepPending = false;
     m_state         = isPaused ? RunState::Paused : RunState::FreeRunning;
     m_target.ClearTrace();
+    m_target.ClearHeatMap();
     m_isStepOutOnRecord = false;
 
     if (m_isRecordingEndDeferred)

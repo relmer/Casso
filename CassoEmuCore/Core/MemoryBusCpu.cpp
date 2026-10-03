@@ -64,13 +64,28 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
 //  the read-page table wired up in the constructor. UpdateBusCycle refreshes
 //  the sub-instruction cycle estimate the disk controller samples at $C0Ex.
 //
+//  While an access sink is set, every page is on the bus's watched path, so
+//  every read the CPU makes comes here and is reported. Reads the bus serves
+//  for anyone else, such as the video modes reading the screen, are not.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte MemoryBusCpu::ReadByteSlow (Word address)
 {
+    Byte  value = 0;
+
+
+
     UpdateBusCycle();
 
-    return m_memoryBus.ReadByte (address);
+    value = m_memoryBus.ReadByte (address);
+
+    if (m_accessSink != nullptr)
+    {
+        m_accessSink->OnWatchedAccess (address, value, BusAccess::Read, std::nullopt);
+    }
+
+    return value;
 }
 
 
@@ -81,6 +96,9 @@ Byte MemoryBusCpu::ReadByteSlow (Word address)
 //
 //  WriteByte
 //
+//  Every write the CPU makes comes here, and is reported while an access
+//  sink is set.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryBusCpu::WriteByte (Word address, Byte value)
@@ -88,6 +106,11 @@ void MemoryBusCpu::WriteByte (Word address, Byte value)
     UpdateBusCycle();
 
     m_memoryBus.WriteByte (address, value);
+
+    if (m_accessSink != nullptr)
+    {
+        m_accessSink->OnWatchedAccess (address, value, BusAccess::Write, std::nullopt);
+    }
 }
 
 

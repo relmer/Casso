@@ -144,6 +144,12 @@ public:
     bool   IsTracingAllPages  () const                  { return m_traceAllPages; }
     int    GetWatchedPageCount () const;
 
+    // The access heat map: while on, every page takes the watched path, so the
+    // CPU reaches the bus, and can report, for every read; off publishes the
+    // pages as the watch mask and the trace have them.
+    void   SetAllPagesWatched (bool on);
+    bool   AreAllPagesWatched () const                  { return m_allPagesWatched; }
+
     // Video-dirty tracking. Pages the renderer reads (text/hi-res, main +
     // aux, since aux is re-pointed at the same page index) are marked
     // "watched"; a write into any of them, or any banking change, raises
@@ -237,6 +243,7 @@ private:
     bool                    m_pathWatched    [0x100] = {};
     IWatchSink *            m_watchSink              = nullptr;
     IWatchSink *            m_traceSink              = nullptr;
+    bool                    m_allPagesWatched        = false;
     bool                    m_traceAllPages          = false;
 
     BankingChangedFn        m_bankingChanged;

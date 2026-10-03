@@ -5,6 +5,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/InstructionEffect.h"
 
+#include "Debugger/AccessHeatMap.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -203,11 +204,46 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
         BuildAutoWatches (session, snapshot);
     }
 
-    BuildSource (session, snapshot);
-    BuildTrace  (session, snapshot);
-    BuildPanels (session, snapshot);
+    BuildSource  (session, snapshot);
+    BuildTrace   (session, snapshot);
+    BuildPanels  (session, snapshot);
+    BuildHeatMap (session, snapshot);
 
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildHeatMap
+//
+//  The map records only while its pane is shown, so the build that first
+//  sees the pane hidden turns it off; the one that sees it shown turns it on
+//  and carries what it has counted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    IDebugTarget         & target = session.GetTarget();
+    const AccessHeatMap  * map    = nullptr;
+
+
+
+    target.SetHeatMapOn (m_isHeatMapShown);
+    map = target.FoldHeatMap();
+
+    if (map == nullptr)
+    {
+        return;
+    }
+
+    map->GetLevels (HeatKind::Execute, snapshot.heatMap.execute);
+    map->GetLevels (HeatKind::Read,    snapshot.heatMap.read);
+    map->GetLevels (HeatKind::Write,   snapshot.heatMap.write);
 }
 
 

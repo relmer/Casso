@@ -2,6 +2,7 @@
 
 #include "Debugger/Reply.h"
 
+class AccessHeatMap;
 class DebugHook;
 class IDiagnosticsProvider;
 class IOpcodeWatcher;
@@ -116,6 +117,15 @@ public:
     virtual void                ClearTrace        () = 0;
     virtual size_t              GetTraceSize      () const = 0;
     virtual void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const = 0;
+
+    // The access heat map. On, every bus access and opcode fetch is counted;
+    // off frees it, and the machine does no work for it. Fold brings the heat
+    // up to the current cycle and gives the map, or null while it is off.
+    // Clear forgets it without touching the machine, for a machine switch. A
+    // target with no machine has none.
+    virtual void                    SetHeatMapOn (bool on) { (void) on; }
+    virtual void                    ClearHeatMap ()        {}
+    virtual const AccessHeatMap   * FoldHeatMap  ()        { return nullptr; }
 
     // The devices that publish debugger panels. A target with no devices has
     // none, which is the default.

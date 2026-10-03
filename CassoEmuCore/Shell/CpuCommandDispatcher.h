@@ -71,6 +71,10 @@ public:
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void     SetDebugTraceView        (std::optional<uint64_t> first)                   = 0;
 
+    //  Whether the heat map pane is shown, which is whether the machine
+    //  records its accesses.
+    virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
+
     //  A memory window's Go to, as typed, to resolve against the machine.
     virtual void     GoToDebugMemory          (int window, const std::string & text)           = 0;
 
@@ -109,6 +113,9 @@ public:
     //  Whether the command is a host input the input journal records, and
     //  the kind, drive or flags, and path to record for it.
     static bool  TryGetJournalInput (const EmulatorCommand & cmd, InputRecord & input);
+
+    //  "on" or "off" after "heatmap": whether the heat map pane is shown.
+    static bool  TryGetHeatMapShown (const std::string & where, bool & shown);
 
     static constexpr uint16_t  kResetHoldsOpenApple   = 1;
     static constexpr uint16_t  kResetHoldsClosedApple = 2;

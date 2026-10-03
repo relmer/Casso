@@ -38,6 +38,115 @@ MachineDebugTarget::MachineDebugTarget (MachineHost & host) :
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineDebugTarget::~MachineDebugTarget
+//
+//  The bus and the CPU hold the heat map while it is on, so it goes off with
+//  this target.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MachineDebugTarget::~MachineDebugTarget()
+{
+    SetHeatMapOn (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::SetHeatMapOn
+//
+//  On, the bus puts every page on its watched path, so every read the CPU
+//  makes reaches it, and the CPU reports each fetch, read and write to the
+//  map; the bus's own readers, such as the video modes, are not counted. Off
+//  gives both back, so the CPU reads its pages inline again and reports to
+//  nobody. A CPU not on the bus has nothing to report.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::SetHeatMapOn (bool on)
+{
+    MemoryBus     & bus    = m_host.GetMemoryBus();
+    EmuCpu        * cpu    = m_host.GetCpu();
+    MemoryBusCpu  * busCpu = nullptr;
+
+
+
+    if (on == m_heat.IsOn() || cpu == nullptr)
+    {
+        return;
+    }
+
+    busCpu = dynamic_cast<MemoryBusCpu *> (cpu->GetCpu());
+
+    if (busCpu == nullptr)
+    {
+        return;
+    }
+
+    if (on)
+    {
+        m_heat.Start (GetInstructionSet(), GetCycleCount());
+        bus.SetAllPagesWatched (true);
+        busCpu->SetAccessSink (&m_heat);
+        busCpu->SetFetchSink  (&m_heat);
+        return;
+    }
+
+    busCpu->SetFetchSink  (nullptr);
+    busCpu->SetAccessSink (nullptr);
+    bus.SetAllPagesWatched (false);
+    m_heat.Stop();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::ClearHeatMap
+//
+//  After a machine switch the CPU that held the map is gone; the new bus is
+//  given back its pages and the map is forgotten.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::ClearHeatMap()
+{
+    m_host.GetMemoryBus().SetAllPagesWatched (false);
+    m_heat.Stop();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::FoldHeatMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const AccessHeatMap * MachineDebugTarget::FoldHeatMap()
+{
+    if (!m_heat.IsOn())
+    {
+        return nullptr;
+    }
+
+    m_heat.Fold (GetCycleCount());
+    return &m_heat;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineDebugTarget::SetRunDriver
 //
 ////////////////////////////////////////////////////////////////////////////////

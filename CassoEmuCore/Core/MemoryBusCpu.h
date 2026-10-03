@@ -37,6 +37,12 @@ public:
     Word    ReadWord         (Word address) override;
     void    WriteWord        (Word address, Word value) override;
 
+    // Where every read and write the CPU itself makes is reported, for the
+    // heat map; null for nowhere. Reads reach here only from pages off the
+    // inline read table, so the bus must put every page on its watched path.
+    void          SetAccessSink (IWatchSink * sink) { m_accessSink = sink; }
+    IWatchSink  * GetAccessSink () const            { return m_accessSink; }
+
     // Randomize main RAM from the shared Prng (DRAM power-on simulation),
     // set initial register state and load PC from the reset vector via the
     // bus. Uses the same Prng as PowerCycle so the deterministic-seed knob
@@ -67,6 +73,7 @@ public:
     static constexpr size_t    kStateRamSize = 0xC000;
 
 private:
-    MemoryBus &  m_memoryBus;
-    RamPages     m_pages;           // marks memory[]'s written pages; see RamPages
+    MemoryBus   & m_memoryBus;
+    RamPages      m_pages;                  // marks memory[]'s written pages; see RamPages
+    IWatchSink  * m_accessSink = nullptr;
 };

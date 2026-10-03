@@ -591,6 +591,31 @@ void MemoryBus::SetTraceAllPages (bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetAllPagesWatched
+//
+//  For the heat map, which the CPU reports its accesses to: on, every page
+//  takes the watched path, so no read or write is served from a page table
+//  the CPU reads inline; off, each page goes back to what the watch mask and
+//  the trace say.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::SetAllPagesWatched (bool on)
+{
+    m_allPagesWatched = on;
+
+    for (int pageIndex = 0; pageIndex < 0x100; pageIndex++)
+    {
+        PublishPage (pageIndex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PublishPage
 //
 //  A page on the watched path is published as null in both tables; any other
@@ -600,7 +625,7 @@ void MemoryBus::SetTraceAllPages (bool on)
 
 void MemoryBus::PublishPage (int pageIndex)
 {
-    bool  watched = m_debugWatched[pageIndex] || m_traceAllPages;
+    bool  watched = m_debugWatched[pageIndex] || m_traceAllPages || m_allPagesWatched;
 
 
 

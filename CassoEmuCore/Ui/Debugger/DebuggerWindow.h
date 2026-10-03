@@ -29,6 +29,7 @@
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/FindWidgetPlate.h"
+#include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
@@ -78,6 +79,10 @@ public:
 
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void  SetDebuggerTraceTop     (std::optional<uint64_t> first) = 0;
+
+    //  Whether the heat map pane is shown; the machine records its accesses
+    //  only while it is. A host with no machine, as a test's is, records none.
+    virtual void  SetDebuggerHeatMapShown (bool shown)                     { (void) shown; }
 
     //  A memory window's Go to text, resolved on the CPU thread; the window
     //  acts on it when a snapshot carries the answer.
@@ -348,6 +353,14 @@ protected:
     void                       ShowPane         (const std::wstring & pane);
     void                       ClosePane        (const std::wstring & pane);
     bool                       IsPaneShown      (const std::wstring & pane) const;
+
+    //  The heat map pane: its view, whether the host was last told to record
+    //  for it, and the two steps that keep the view and the recording current.
+    HeatMapView              * GetHeatMapView       () const { return m_heatMapView; }
+    bool                       IsHeatMapRecording   () const { return m_isHeatMapRecording; }
+    void                       SyncHeatMapRecording ();
+    void                       ApplyHeatMap         ();
+    bool                       RouteHeatMapMouse    (const DxuiMouseEvent & ev);
 
     //  Protected so a test can read the breakpoints pane's columns (FR-117)
     //  and the breakpoint each row shows once sorted.
@@ -855,6 +868,10 @@ private:
     std::unique_ptr<TracePane>                                                       m_tracePane;
     KeyHintLine                                                                    * m_traceHint          = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_traceFrame;
+    HeatMapView                                                                    * m_heatMapView        = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapFrame;
+    bool                                                                             m_isHeatMapOpen      = false;
+    bool                                                                             m_isHeatMapRecording = false;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;

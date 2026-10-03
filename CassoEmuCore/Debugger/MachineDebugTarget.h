@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/AccessHeatMap.h"
 #include "Debugger/DebugMemoryView.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/RunStopHook.h"
@@ -26,6 +27,7 @@ class MachineDebugTarget : public IDebugTarget
 {
 public:
     explicit MachineDebugTarget (MachineHost & host);
+    ~MachineDebugTarget() override;
 
     void                SetRunDriver      (IRunDriver * driver);
     RunStopHook       & GetRunHook        () { return m_runHook; }
@@ -67,6 +69,10 @@ public:
 
     TraceController   & GetTrace          () { return m_trace; }
 
+    void                    SetHeatMapOn (bool on) override;
+    void                    ClearHeatMap () override;
+    const AccessHeatMap   * FoldHeatMap  () override;
+
     std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override;
     bool                                       TryGetMockingboardBase  (Word & base) const override;
 
@@ -75,6 +81,7 @@ private:
     DebugMemoryView     m_view;
     RunStopHook         m_runHook;
     TraceController     m_trace;
+    AccessHeatMap       m_heat;
     IRunDriver        * m_driver        = nullptr;
     IRunObserver      * m_observer      = nullptr;
 };

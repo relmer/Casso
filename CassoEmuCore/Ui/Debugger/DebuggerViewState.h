@@ -225,6 +225,17 @@ struct DebuggerViewSnapshot
     std::optional<SourceState>            source;
     TraceState                            trace;
 
+    //  The heat map pane's levels, one per address and kind, 0 for cold;
+    //  empty while the pane is hidden and nothing is recorded.
+    struct HeatMapState
+    {
+        std::vector<Byte>  execute;
+        std::vector<Byte>  read;
+        std::vector<Byte>  write;
+    };
+
+    HeatMapState                          heatMap;
+
     //  The pane CODE, DATA or CONSOLE last asked to bring forward. The
     //  window acts on it once, when the serial changes.
     std::wstring                          showPane;
@@ -370,6 +381,12 @@ public:
     static uint64_t     GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows);
     static std::string  GetHistoryLine      (uint64_t first, int rows);
     static std::string  GetTraceToggleLine  (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
+
+    //  The heat map pane: while it is shown the machine's accesses are
+    //  counted and each snapshot carries their levels; hidden, the machine
+    //  records nothing.
+    void                 SetHeatMapShown (bool shown) { m_isHeatMapShown = shown; }
+    bool                 IsHeatMapShown  () const     { return m_isHeatMapShown; }
 
     //  Device panels by provider id. A panel stays open until closed or until
     //  its device leaves the machine; only open panels cost the devices
@@ -570,6 +587,7 @@ private:
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTraceNext (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildHeatMap   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
     Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
     Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
@@ -639,9 +657,10 @@ private:
     };
 
     mutable std::array<CodeView, kMaxCodeViews>  m_code;
-    int                                          m_follow        = 0;
-    Word                                         m_memoryAddress = 0x0000;
+    int                                          m_follow         = 0;
+    Word                                         m_memoryAddress  = 0x0000;
     std::optional<uint64_t>                      m_traceTop;
+    bool                                         m_isHeatMapShown = false;
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
     std::wstring  m_showPane;
     uint32_t      m_showPaneSerial   = 0;

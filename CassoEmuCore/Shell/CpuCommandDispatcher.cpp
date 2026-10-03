@@ -394,13 +394,35 @@ bool CpuCommandDispatcher::TryGetCodeView (const std::string & view, const std::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetHeatMapShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetHeatMapShown (const std::string & where, bool & shown)
+{
+    if (where != "on" && where != "off")
+    {
+        return false;
+    }
+
+    shown = (where == "on");
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchDebugView
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
 //  "memory2" to "memory4" with a hex address or "close" for the others, which
 //  is passed on as no address. "lines <hex>" is how many lines the code pane
 //  has room for. "trace <decimal>" and "trace end" place the trace pane.
-//  "goto <window> <text>" is a memory window's Go to, as typed.
+//  "goto <window> <text>" is a memory window's Go to, as typed. "heatmap on"
+//  and "heatmap off" say whether the heat map pane is shown.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
 //
@@ -417,8 +439,19 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
     size_t                   used       = 0;
     int                      index      = 0;
     bool                     isCode     = false;
+    bool                     isShown    = false;
 
 
+
+    if (view == "heatmap")
+    {
+        if (TryGetHeatMapShown (where, isShown))
+        {
+            target.SetDebugHeatMapShown (isShown);
+        }
+
+        return;
+    }
 
     if (view == "trace")
     {
