@@ -438,6 +438,7 @@ private:
     uint32_t  ComputeVideoModeSig ();
     bool      ComputeFlashOn      ();
     uint64_t  ComputeColorSig     ();
+    uint64_t  ComputeBeamOverlaySig ();
 
     // Stores the live drive-audio gains and applies them to every
     // registered Disk2AudioSource. Must run on the CPU thread (the same
@@ -548,6 +549,8 @@ private:
     std::string  GetDebuggerKeyScheme () override;
     void         SetDebuggerKeyScheme (const std::string & name) override;
     std::string  GetDebuggerTheme     () override;
+    bool         IsBeamOverlayOn      () override { return m_isBeamOverlayOn.load (memory_order_acquire); }
+    void         SetBeamOverlayOn     (bool on) override { m_isBeamOverlayOn.store (on, memory_order_release); }
     void         SetDebuggerTheme     (const std::string & name) override;
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;
@@ -2248,6 +2251,10 @@ private:
     // monitor is active. Defaults to white.
     atomic<uint32_t>              m_colorMonitorTextArgb{ColorUtil::kWhiteArgb};
 
+    // The debugger's mark of where the beam is, drawn over the picture
+    // while the debugger has the machine stopped.
+    atomic<bool>                  m_isBeamOverlayOn{false};
+
     // Double framebuffer (CPU renders, UI presents, protected by m_framebufferMutex)
     mutex                         m_framebufferMutex;
     vector<uint32_t>              m_cpuFramebuffer;
@@ -2268,6 +2275,7 @@ private:
     uint32_t                      m_lastRenderModeSig  = 0;
     bool                          m_lastRenderFlashOn  = false;
     uint64_t                      m_lastRenderColorSig = 0;
+    uint64_t                      m_lastBeamOverlaySig = 0;
 
     // Which video mode composed the previous frame. AppleTextMode's dirty-row
     // cache may only reuse a row when the framebuffer still holds that row's

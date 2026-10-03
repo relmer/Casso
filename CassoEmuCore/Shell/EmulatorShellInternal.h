@@ -212,6 +212,10 @@ static constexpr Byte    s_kPaddleCenterByte         = 127;
 // lives in m_colorMonitorTextArgb instead.
 static constexpr uint32_t s_kMonoSourceTextBgra       = 0xFF00FF00;   // green
 
+// The debugger's beam mark over the picture. The picture has no theme, so
+// the mark takes a red no Apple II color or phosphor comes near.
+static constexpr uint32_t s_kBeamOverlayArgb          = 0xFFFF2050;
+
 // Chrome keyboard-focus ring indices (see EmulatorShell::m_chromeFocusIndex).
 // -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7..16 =
 // the ten toolbar entries in strip order; 17/18 = drive widgets 1/2. The ring

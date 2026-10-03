@@ -306,6 +306,17 @@ void DebuggerWindow::SetWindowMenus()
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepOut,     L"Step out"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunToCursor, L"Run to cursor"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunFrame,    L"Run one frame"));
+
+    row = MakeMenuCommand (L"Show beam on screen", false, [this]
+    {
+        if (m_host != nullptr)
+        {
+            m_host->SetBeamOverlayOn (!m_host->IsBeamOverlayOn());
+        }
+    });
+    row->isChecked = [this] { return m_host != nullptr && m_host->IsBeamOverlayOn(); };
+    add (debug, row);
+
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kShowNext,    L"Show next statement"));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
 

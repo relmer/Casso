@@ -44,6 +44,8 @@
 #include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
 #include "Video/PixelFormat.h"
 #include "Video/MonochromeTint.h"
+#include "Video/BeamOverlay.h"
+#include "Debugger/DebugSession.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
@@ -1266,9 +1268,41 @@ uint64_t EmulatorShell::ComputeColorSig()
     uint64_t  mode = (uint64_t) m_colorMode.load (memory_order_acquire);
     uint64_t  argb = (uint64_t) m_colorMonitorTextArgb.load (memory_order_acquire);
 
+    // The mode sits in bits 32-39; the beam mark takes the bits above it.
+    static constexpr uint64_t  kBeamSigShift = 40;
 
 
-    return (mode << 32) | argb;
+
+    return (mode << 32) | argb | (ComputeBeamOverlaySig() << kBeamSigShift);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeBeamOverlaySig
+//
+//  Zero unless the beam is marked on the picture, which it is only while the
+//  debugger has the machine stopped; then one past the beam's cycle in the
+//  frame, so a stop at another place re-renders the frame with the mark moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t EmulatorShell::ComputeBeamOverlaySig()
+{
+    const VideoTiming  * timing = m_machine.GetVideoTiming();
+
+
+
+    if (!m_isBeamOverlayOn.load (memory_order_acquire) || timing == nullptr ||
+        m_debugSession == nullptr || m_debugSession->GetRunState() != RunState::Paused)
+    {
+        return 0;
+    }
+
+    return 1 + (uint64_t) timing->GetCycleInFrame();
 }
 
 
@@ -1905,7 +1939,8 @@ void EmulatorShell::RenderFramebuffer()
     // color text hits neither and lets AppleTextMode redraw only changed rows.
     {
         bool forceFullText = (color != ColorMode::Color)
-                          || (m_machine.GetRefs().activeVideoMode != m_prevActiveVideoMode);
+                          || (m_machine.GetRefs().activeVideoMode != m_prevActiveVideoMode)
+                          || (ComputeBeamOverlaySig() != m_lastBeamOverlaySig);
 
         if (forceFullText)
         {
@@ -1987,5 +2022,19 @@ void EmulatorShell::RenderFramebuffer()
                     break;
             }
         }
+    }
+
+    // The debugger's beam mark goes on last, so a monochrome tint leaves it
+    // in its own color.
+    // A text row the cache skips keeps whatever mark was drawn over it, so a
+    // mark that moves or goes away re-rasterizes every row (above).
+    m_lastBeamOverlaySig = ComputeBeamOverlaySig();
+
+    if (m_lastBeamOverlaySig != 0)
+    {
+        BeamOverlay::Draw (m_cpuFramebuffer.data(), kFramebufferWidth, kFramebufferHeight,
+                           m_machine.GetVideoTiming()->GetCurrentScanline(),
+                           m_machine.GetVideoTiming()->GetHorizontalPos(),
+                           s_kBeamOverlayArgb);
     }
 }

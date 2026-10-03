@@ -409,6 +409,7 @@
     <ClCompile Include="Machines\Apple2\Common\Apple80ColTextMode.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleDoubleHiResMode.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VideoTiming.cpp" />
+    <ClCompile Include="Video\BeamOverlay.cpp" />
     <ClCompile Include="Audio\AudioEndpointNotifier.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
@@ -895,6 +896,7 @@
     <ClInclude Include="Machines\Apple2\Common\AppleDoubleHiResMode.h" />
     <ClInclude Include="Machines\Apple2\Common\NtscColorTable.h" />
     <ClInclude Include="Video\PixelFormat.h" />
+    <ClInclude Include="Video\BeamOverlay.h" />
     <ClInclude Include="Video\MonochromeTint.h" />
     <ClInclude Include="Machines\Apple2\Common\CharacterRom.h" />
     <ClInclude Include="Audio\AudioEndpointNotifier.h" />

@@ -114,6 +114,11 @@ public:
     //  The window's own theme, by DebuggerThemes name, kept the same way. A
     //  host that keeps no preferences, as a test's is, follows the emulator.
     virtual std::string  GetDebuggerTheme     ()                           { return {}; }
+
+    //  Whether the emulator's screen marks where the video beam is while the
+    //  machine is stopped. A host with no screen, as a test's is, has none.
+    virtual bool         IsBeamOverlayOn      ()                           { return false; }
+    virtual void         SetBeamOverlayOn     (bool on)                    { (void) on; }
     virtual void         SetDebuggerTheme     (const std::string &)        {}
 
     //  The pane arrangement as DxuiPaneLayout text, kept the same way.

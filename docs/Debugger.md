@@ -192,6 +192,7 @@ These are Casso's own additions to AppleWin's set:
 | `T [n]` | steps into `n` instructions (default 1) |
 | `P [n]` | steps over `n` instructions, running a `JSR` to its return |
 | `RTS [n]` | steps out of `n` subroutines |
+| `FRAME [n]` | runs `n` video frames (default 1), 17,030 cycles each |
 
 A stop is reported with its reason and address, for example
 `Breakpoint #0 at $FDED` or `Step at $0302`. In the Monitor output format a stop prints the
@@ -206,6 +207,21 @@ way; another Monitor `addrG`, a reset or a machine change replaces or clears it.
 Breakpoints (`BP`, `BPM`, `BPMR`, `BPMW`, `BPR`, `BPL`, `BPC`, `BPD`, `BPE`),
 watches (`W`, `WL`, `WC`) and the rest of AppleWin's commands are listed by
 `HELP`.
+
+## The video beam
+
+`VIDEOINFO` shows where the beam is: the scanline (0 to 261) and the cycle within it (0 to 64), in hex. The registers pane shows the same on its **Beam** row, with the place in decimal beside it and whether the beam is in horizontal or vertical blank. A scanline draws in its last 40 cycles; the 25 before them are horizontal blank, and scanlines 192 to 261 are vertical blank.
+
+| Command | Effect |
+|---|---|
+| `BPBEAM line cycle` | stops when the beam reaches that scanline and cycle |
+| `BPBEAM VBL` | stops where vertical blank starts, scanline `C0` |
+| `BPV line[,len]` | stops when the beam enters a scanline |
+| `FRAME [n]` | runs until the beam comes back to where it is, `n` times |
+
+An instruction takes several cycles, so `BPBEAM` stops at the first instruction at or past the place it was given. It fires once and then clears, as `BPV` does, and `BPC *` clears it. `FRAME` stops early when anything else stops the machine first, and its frame break goes with that stop.
+
+**Debug > Run one frame**, or F6 in every key scheme, runs `FRAME` in Casso mode whatever the console's mode. **Debug > Show beam on screen** marks the beam on the emulator's screen while the machine is stopped: its scanline is a red line across the picture, and the cycle it is on a bar across that line. A beam in horizontal blank is marked at the left edge, and one in vertical blank along the bottom edge.
 
 ## Symbols
 
@@ -564,7 +580,7 @@ The menu bar holds **File** (open a source file, open a symbol or debug file,
 load and save breakpoints, save the trace), **Edit** (copy, select all, find,
 find next and find previous), **View** (every pane, the device panels, and
 **Reset window layout**), **Debug** (run, break,
-detach, the steps, run to cursor, show next statement, step by source
+detach, the steps, run to cursor, run one frame, show beam on screen, show next statement, step by source
 line and trace, then reset, power cycle and restart under debugger) and **Tools**
 (**Keyboard scheme**). The command bar below it holds the run and step buttons as icons,
 each tip giving the command and its key in the scheme in force, and Trace.
