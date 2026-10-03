@@ -35,8 +35,8 @@ Byte AppleSpeaker::Read (Word address)
     // Toggle speaker state (use +/-1.0 to match audio pipeline expectations)
     m_speakerState = (m_speakerState > 0.0f) ? -0.25f : 0.25f;
 
-    // Record frame-relative timestamp
-    if (m_pTotalCycles != nullptr)
+    // Record frame-relative timestamp, unless muted
+    if (m_pTotalCycles != nullptr && !m_isMuted)
     {
         uint32_t relCycle = static_cast<uint32_t> (*m_pTotalCycles - m_frameCycleStart);
         m_toggleTimestamps.push_back (relCycle);

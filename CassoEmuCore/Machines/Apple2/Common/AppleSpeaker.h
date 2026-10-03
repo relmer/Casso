@@ -40,6 +40,11 @@ public:
 
     void SetCycleCounter (uint64_t * pCycles) { m_pTotalCycles = pCycles; }
 
+    // While muted the cone still moves, but no toggle is recorded for the
+    // audio pipeline to play. Reverse execution mutes it during a replay.
+    void SetMuted (bool isMuted) { m_isMuted = isMuted; }
+    bool IsMuted  () const       { return m_isMuted; }
+
     // Call at the start of each frame so timestamps are frame-relative
     void BeginFrame ()
     {
@@ -69,4 +74,5 @@ private:
     vector<uint32_t>    m_toggleTimestamps;
     uint64_t          * m_pTotalCycles      = nullptr;
     uint64_t            m_frameCycleStart   = 0;
+    bool                m_isMuted           = false;
 };

@@ -27,6 +27,7 @@ class AppleMouse;
 class DebugHook;
 struct DebugHookFilter;
 class HistoryRecorder;
+class IDriveAudioSink;
 class SiriusJoyport;
 class IDisk2EventSink;
 class IInputEventSink;
@@ -267,6 +268,12 @@ public:
     //  the history recorder is told so.
     void  NoteDebuggerEdit();
 
+    //  Silences what the machine sends to the host while it runs: speaker
+    //  clicks, the Disk II drive sounds and printer bytes. Reverse execution
+    //  mutes a replay, since what it replays was heard and printed live.
+    void  SetOutputMuted (bool isMuted);
+    bool  IsOutputMuted  () const noexcept { return m_isOutputMuted; }
+
     //  The opcodes, a 256-entry table read in place, whose fetches the CPU
     //  tells the watcher of (see IOpcodeWatcher); null for none. It survives
     //  the CPU being replaced.
@@ -298,6 +305,12 @@ public:
     //  that runs the machine.
     HRESULT   SaveState      (StateWriter & writer) const;
     HRESULT   LoadState      (StateReader & reader);
+
+    //  The same load for a state read back from a file, in a session that
+    //  never held the saved disks: the caller has mounted them, and each bay
+    //  that held a disk at the save must hold one now, and each empty bay
+    //  must be empty.
+    HRESULT   LoadStateOverMountedMedia (StateReader & reader);
 
     //  Debug builds only: asserts that a sharing save, flattened, is the
     //  same blob a full save of the machine gives now, which catches a RAM
@@ -348,8 +361,10 @@ private:
     void                          GetStateParts       (std::vector<IMachineState *> & outParts);
     void                          GetHostInputParts   (std::vector<IMachineState *> & outParts);
     void                          WriteStateHeader    (StateWriter & writer, size_t partCount) const;
-    HRESULT                       CheckStateHeader    (StateReader & reader, uint32_t & outParts);
+    HRESULT                       LoadStateSeating    (StateReader & reader, bool isOverMounted);
+    HRESULT                       CheckStateHeader    (StateReader & reader, bool isOverMounted, uint32_t & outParts);
     bool                          CanSeatMedia        (const MediaIds & mediaIds) const;
+    bool                          AreBaysAsSaved      (const MediaIds & mediaIds) const;
     HRESULT                       SeatMedia           (const MediaIds & mediaIds);
     void                          BindDiskDrives      ();
     void                          OnMediaChanged      ();
@@ -370,11 +385,14 @@ private:
     std::unique_ptr<EmuCpu>  m_cpu;
     std::unique_ptr<Prng>    m_prng;
 
-    DebugHook         *  m_debugHook       = nullptr;
-    const bool        *  m_watchOpcodes    = nullptr;
-    IOpcodeWatcher    *  m_watcher         = nullptr;
-    HistoryRecorder   *  m_historyRecorder = nullptr;
-    uint64_t             m_position        = 0;
+    DebugHook         *  m_debugHook        = nullptr;
+    const bool        *  m_watchOpcodes     = nullptr;
+    IOpcodeWatcher    *  m_watcher          = nullptr;
+    HistoryRecorder   *  m_historyRecorder  = nullptr;
+    IDriveAudioSink   *  m_mutedDiskAudio   = nullptr;  // the Disk II's sound sink, held while muted
+    uint64_t             m_position         = 0;
+    bool                 m_isOutputMuted    = false;
+    bool                 m_wasMotorOnAtMute = false;
 
     mutable uint64_t  m_romIdentity           = 0;
     mutable uint64_t  m_romIdentityGeneration = 0;

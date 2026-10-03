@@ -81,6 +81,11 @@ public:
 
     int  GetSlot() const { return m_slot; }
 
+    // While muted, a data byte the guest writes reaches neither the printer
+    // nor the text copy. Reverse execution mutes it during a replay.
+    void SetMuted (bool isMuted) { m_isMuted = isMuted; }
+    bool IsMuted  () const       { return m_isMuted; }
+
     // The printer panel: the card's status and the bytes waiting for the printer.
     std::string  GetDiagnosticsId    () const override { return "printer"; }
     std::string  GetDiagnosticsTitle () const override { return "Printer"; }
@@ -104,6 +109,7 @@ private:
     void  WriteTextCopy (Byte value);
 
     bool              m_everTouched = false;
+    bool              m_isMuted     = false;
     PrinterByteRing   m_ring;
     std::string       m_textPath;
     std::ofstream     m_text;

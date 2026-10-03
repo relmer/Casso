@@ -11,6 +11,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/RomDevice.h"
 #include "Devices/RomGeneration.h"
+#include "Audio/IDriveAudioSink.h"
+#include "Machines/Apple2/Common/AppleSpeaker.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -78,6 +80,71 @@ void MachineHost::NoteDebuggerEdit()
     {
         m_historyRecorder->OnMachineEdited (*this);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetOutputMuted
+//
+//  The speaker and the printer card hold their own flag. The Disk II's
+//  drive sounds go out through its audio sink, which is held here and
+//  detached while muted. Muting twice, or unmuting twice, changes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetOutputMuted (bool isMuted)
+{
+    if (isMuted == m_isOutputMuted)
+    {
+        return;
+    }
+
+    m_isOutputMuted = isMuted;
+
+    if (m_refs.speaker != nullptr)
+    {
+        m_refs.speaker->SetMuted (isMuted);
+    }
+
+    if (m_refs.printerCard != nullptr)
+    {
+        m_refs.printerCard->SetMuted (isMuted);
+    }
+
+    if (m_refs.diskController == nullptr)
+    {
+        return;
+    }
+
+    if (isMuted)
+    {
+        m_mutedDiskAudio   = m_refs.diskController->GetAudioSink();
+        m_wasMotorOnAtMute = m_refs.diskController->IsMotorOn();
+        m_refs.diskController->SetAudioSink (nullptr);
+        return;
+    }
+
+    m_refs.diskController->SetAudioSink (m_mutedDiskAudio);
+
+    // The motor's hum follows the drive's state, so a motor that started or
+    // stopped while muted is told to the sink now.
+    if (m_mutedDiskAudio != nullptr && m_refs.diskController->IsMotorOn() != m_wasMotorOnAtMute)
+    {
+        if (m_wasMotorOnAtMute)
+        {
+            m_mutedDiskAudio->OnMotorDisengaged();
+        }
+        else
+        {
+            m_mutedDiskAudio->OnMotorEngaged();
+        }
+    }
+
+    m_mutedDiskAudio = nullptr;
 }
 
 
@@ -881,6 +948,44 @@ Error:
 
 HRESULT MachineHost::LoadState (StateReader & reader)
 {
+    return LoadStateSeating (reader, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::LoadStateOverMountedMedia
+//
+//  A state file's disks are mounted from the file before the load, so they
+//  are new media to the disk store, which has never seen the ones the state
+//  recorded. The bays are checked against the state instead, as occupied or
+//  empty, and the Disk II is pointed at what they hold.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::LoadStateOverMountedMedia (StateReader & reader)
+{
+    return LoadStateSeating (reader, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::LoadStateSeating
+//
+//  The load behind both entry points; isOverMounted picks how the saved
+//  disks are found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::LoadStateSeating (StateReader & reader, bool isOverMounted)
+{
     HRESULT   hr         = S_OK;
     uint16_t  version    = 0;
     uint32_t  savedParts = 0;
@@ -893,7 +998,7 @@ HRESULT MachineHost::LoadState (StateReader & reader)
 
     CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    hr = CheckStateHeader (reader, savedParts);
+    hr = CheckStateHeader (reader, isOverMounted, savedParts);
     CHR (hr);
 
     // After the header, which put the saved disks back in their bays.
@@ -1196,7 +1301,10 @@ void MachineHost::WriteStateHeader (StateWriter & writer, size_t partCount) cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MachineHost::CheckStateHeader (StateReader & reader, uint32_t & outParts)
+HRESULT MachineHost::CheckStateHeader (
+    StateReader  & reader,
+    bool           isOverMounted,
+    uint32_t     & outParts)
 {
     HRESULT       hr             = S_OK;
     uint32_t      nameLength     = 0;
@@ -1244,11 +1352,18 @@ HRESULT MachineHost::CheckStateHeader (StateReader & reader, uint32_t & outParts
     CBREx (name        == m_currentMachineName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx (romIdentity == expectedRom,          HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    canSeat = CanSeatMedia (mediaIds);
+    canSeat = isOverMounted ? AreBaysAsSaved (mediaIds) : CanSeatMedia (mediaIds);
     CBREx (canSeat, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    hr = SeatMedia (mediaIds);
-    CHR (hr);
+    if (isOverMounted)
+    {
+        BindDiskDrives();
+    }
+    else
+    {
+        hr = SeatMedia (mediaIds);
+        CHR (hr);
+    }
 
     if (hasPrng && m_prng != nullptr)
     {
@@ -1291,6 +1406,40 @@ bool MachineHost::CanSeatMedia (const MediaIds & mediaIds) const
     }
 
     return canSeat;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AreBaysAsSaved
+//
+//  Whether every bay that held a disk at the save holds one now, and every
+//  bay that was empty is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineHost::AreBaysAsSaved (const MediaIds & mediaIds) const
+{
+    bool  isSame    = true;
+    bool  wasLoaded = false;
+    int   slot      = 0;
+    int   drive     = 0;
+
+
+
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            wasLoaded = mediaIds[slot * DiskImageStore::kDriveCount + drive] != 0;
+            isSame    = isSame && wasLoaded == m_diskStore->IsMounted (slot, drive);
+        }
+    }
+
+    return isSame;
 }
 
 

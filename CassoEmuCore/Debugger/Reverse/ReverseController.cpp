@@ -15,12 +15,16 @@
 //
 //  ReverseController::ReverseController
 //
+//  Every replay runs muted: the sound and printout it reproduces were heard
+//  and printed when the machine first ran them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ReverseController::ReverseController (MachineHost & machine) :
     m_machine  (machine),
     m_replayer (machine, m_keyframes)
 {
+    m_replayer.SetOutputGate ([&machine] (bool isMuted) { machine.SetOutputMuted (isMuted); });
 }
 
 

@@ -106,7 +106,13 @@ void PrinterCard::Write (Word address, Byte value)
     }
 
     m_everTouched = true;
-    pushed        = m_ring.TryPush (value);
+
+    if (m_isMuted)
+    {
+        return;
+    }
+
+    pushed       = m_ring.TryPush (value);
     ASSERT (pushed);
     WriteTextCopy (value);
 }
