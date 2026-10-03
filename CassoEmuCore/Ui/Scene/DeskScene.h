@@ -175,6 +175,18 @@ public:
     // box, this far above its floor (half the struts' breadth).
     static constexpr float  kLidHingeAboveMm  = 5.0f;
 
+    // The made-up room chrome reflects: how far above or below level a
+    // reflected ray must point to reach the ceiling or the desk rather than
+    // the walls; the ceiling's light panels, how many per unit of slope and
+    // how much of each cell they fill; and how bright each surface shows.
+    static constexpr float  kChromeHorizon       = 0.25f;
+    static constexpr float  kChromePanelsPerUnit = 1.6f;
+    static constexpr float  kChromePanelFadeRise = 0.35f;    // above the horizon blend, to full panels
+    static constexpr float  kChromeCeilingGlow   = 0.22f;
+    static constexpr float  kChromePanelGlow     = 0.75f;
+    static constexpr float  kChromeWallGlow      = 0.14f;
+    static constexpr float  kChromeDeskGlow      = 0.03f;
+
     // How much of the room the smoked pane lets through.
     static constexpr float  kLidGlassAlpha    = 0.35f;
 
@@ -486,6 +498,11 @@ private:
     static void  AppendHinged (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotY, float pivotZ,
                                float angleRad, std::vector<Dxui3DRenderer::Vertex> & out);
 
+    // Copies chrome and lights each vertex with what a mirror there would
+    // show of a made-up room, seen from the eye.
+    static void  RelightChrome (const std::vector<Dxui3DRenderer::Vertex> & source, const float world[16],
+                                const float view[16], std::vector<Dxui3DRenderer::Vertex> & out);
+
     // The mounted-image names, drawn after every opaque body so the depth
     // they test against is the whole scene's.
     HRESULT  DrawDiskLabels   (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
@@ -648,6 +665,7 @@ private:
     std::vector<Dxui3DRenderer::Vertex>                   m_driveDoorVerts[2];
     std::vector<Dxui3DRenderer::Vertex>                   m_recorderKeyVerts;
     std::vector<Dxui3DRenderer::Vertex>                   m_recorderGlassVerts;
+    std::vector<Dxui3DRenderer::Vertex>                   m_recorderChromeVerts;
     std::array<float, DeskSceneModel::kRecorderKeyCount>  m_recorderKeyDepth  = {};
     float                                                 m_recorderLidRad    = 0.0f;
     bool                                                  m_recorderCassette  = true;

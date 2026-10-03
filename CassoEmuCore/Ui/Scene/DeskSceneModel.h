@@ -182,6 +182,11 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   CassetteVerts () const { return m_cassette; }
     const std::vector<Dxui3DRenderer::Vertex> &   LidGlassVerts () const { return m_lidGlass; }
     const float *                                 LidBox        () const { return m_lidBox.data(); }
+
+    // Polished chrome (the recorder's handle), which the scene relights from
+    // the eye's position, since what a mirror shows depends on where it is
+    // seen from.
+    const std::vector<Dxui3DRenderer::Vertex> &   ChromeVerts   () const { return m_chrome; }
     const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
     const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
@@ -609,6 +614,7 @@ private:
     std::vector<Dxui3DRenderer::Vertex>                                 m_lid;
     std::vector<Dxui3DRenderer::Vertex>                                 m_cassette;
     std::vector<Dxui3DRenderer::Vertex>                                 m_lidGlass;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_chrome;
     std::array<float, 6>                                                m_lidBox     = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
     std::vector<Dxui3DRenderer::Vertex>                                 m_tiltable;
     std::vector<DeskTiltGrip>                                           m_tiltGrips;

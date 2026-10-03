@@ -146,13 +146,7 @@ static constexpr float   s_kDriveLabelTopZMm = s_kFaceHmm - s_kFaceMarginMm;
 // room -- this small constant emissive stands in for that environment
 // reflection, enough to read as bright metal and far too dim to read as a
 // lamp.
-static constexpr float   s_kAcPinGlintRgb[3] = { 0.100f, 0.105f, 0.115f };
-
-// Chrome's sheen: what an upward face reflects of the ceiling lights, and
-// what a sideways one reflects of the room.
-static constexpr float   s_kChromeSkyGlow  = 0.75f;
-static constexpr float   s_kChromeRoomGlow = 0.18f;
-static constexpr float   s_kDriveLabelCapMm  = 3.1f;
+static constexpr float   s_kAcPinGlintRgb[3] = { 0.100f, 0.105f, 0.115f };static constexpr float   s_kDriveLabelCapMm  = 3.1f;
 static constexpr float   s_kDriveLabelFrontY = -1.8f;
 
 // The NUMBER is what the legend is actually for -- which drive this is -- so
@@ -679,27 +673,11 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
         }
         else if (part.rfind (s_kpszChromePrefix, 0) == 0)
         {
-            // POLISHED CHROME MIRRORS THE ROOM, and the renderer has no room
-            // to mirror: so each face takes the light of what it would see.
-            // Facing up it shows the ceiling lights and blazes; facing the
-            // side it shows the dim room; facing down, the dark desk. Baked
-            // per vertex from the normal, which is what makes the rounded
-            // edges band like real chrome rather than glow evenly.
-            size_t  first = m_opaque.size();
-
+            // Polished chrome, kept apart: what it mirrors depends on where
+            // the eye is, so the scene relights it whenever the view moves.
+            // It still casts a shadow like any other solid part.
             opaqueTris.push_back (t);
-            AppendLitTri (m_opaque, tri, corners);
-
-            for (size_t i = first; i < m_opaque.size(); i++)
-            {
-                float  up     = (std::max) (0.0f, m_opaque[i].nz);
-                float  side   = 1.0f - std::abs (m_opaque[i].nz);
-                float  sheen  = s_kChromeSkyGlow * up * up * up + s_kChromeRoomGlow * side * side;
-
-                m_opaque[i].er = sheen;
-                m_opaque[i].eg = sheen;
-                m_opaque[i].eb = sheen * 1.04f;
-            }
+            AppendLitTri (m_chrome, tri, corners);
         }
         else if (part.rfind (s_kpszAcPinPrefix, 0) == 0)
         {
