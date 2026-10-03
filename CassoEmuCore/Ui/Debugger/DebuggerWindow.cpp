@@ -9803,6 +9803,18 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Then the history bands, whose Go live link takes a press.
+    for (const auto & [band, bandPane] : { std::pair { m_codeHistoryBand, DebuggerLayout::GetCodePaneId (0) },
+                                           std::pair { m_regHistoryBand,  std::wstring (DebuggerLayout::kRegisters) } })
+    {
+        bool  isOver = band->IsVisible() && DxuiDockSite::Contains (band->GetBounds(), POINT { x, y });
+
+        if (isOver && m_routingPane == GetBarRoutingPane (bandPane) && band->OnMouse (ev))
+        {
+            return true;
+        }
+    }
+
     //  And the console's.
     if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kConsole) && RouteConsoleBarMouse (ev))
     {

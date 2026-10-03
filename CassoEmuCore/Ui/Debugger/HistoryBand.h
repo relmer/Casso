@@ -44,6 +44,8 @@ public:
     //  The band's text: the outcome first, then the distance behind live.
     static std::wstring  GetText       (const HistoryStatus & status);
     static std::wstring  GetOutcomeText (ReverseOutcome outcome);
+    static std::wstring  GetShortText  (const HistoryStatus & status);
+    static std::wstring  GetCompactText (const HistoryStatus & status);
     static std::wstring  GetDistanceText (uint64_t instructions, uint64_t cycles);
     static std::wstring  GroupDigits   (uint64_t value);
 

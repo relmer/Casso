@@ -56,6 +56,63 @@ std::wstring HistoryBand::GetText (const HistoryStatus & status)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryBand::GetCompactText
+//
+//  The short outcome and the distance behind live, for a pane too narrow for
+//  the outcome in full.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HistoryBand::GetCompactText (const HistoryStatus & status)
+{
+    std::wstring  text;
+    bool          isStoppedShort = status.outcome.has_value() && *status.outcome != ReverseOutcome::Moved;
+
+
+
+    if (isStoppedShort)
+    {
+        text = GetShortText (status) + L".";
+    }
+
+    if (status.isBehindLive)
+    {
+        text += (text.empty() ? L"" : L" ") + GetDistanceText (status.instructionsBehind, status.cyclesBehind);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryBand::GetShortText
+//
+//  For a pane too narrow for the whole text: what stopped the command short,
+//  or only that the machine is behind live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HistoryBand::GetShortText (const HistoryStatus & status)
+{
+    switch (status.outcome.value_or (ReverseOutcome::Moved))
+    {
+    case ReverseOutcome::AtHistoryStart: return L"Start of history";
+    case ReverseOutcome::AtHistoryGap:   return L"Gap in history";
+    case ReverseOutcome::HistoryCut:     return L"History cut";
+    default:                             return status.isBehindLive ? L"Behind live" : L"";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryBand::GetOutcomeText
 //
 //  What happened, in plain words, for each way a reverse command can stop
@@ -89,7 +146,8 @@ std::wstring HistoryBand::GetOutcomeText (ReverseOutcome outcome)
 //
 //  HistoryBand::GetDistanceText
 //
-//  Time at the Apple II's clock: milliseconds under a second, seconds above.
+//  Time at the Apple II's clock: milliseconds under a second, to three places
+//  under one millisecond, and seconds above.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,8 +159,18 @@ std::wstring HistoryBand::GetDistanceText (uint64_t instructions, uint64_t cycle
 
 
 
-    time = (seconds < 1.0) ? std::format (L"{:.1f} ms", seconds * kMsPerSecond)
-                           : std::format (L"{:.2f} s", seconds);
+    if (seconds * kMsPerSecond < 1.0)
+    {
+        time = std::format (L"{:.3f} ms", seconds * kMsPerSecond);
+    }
+    else if (seconds < 1.0)
+    {
+        time = std::format (L"{:.1f} ms", seconds * kMsPerSecond);
+    }
+    else
+    {
+        time = std::format (L"{:.2f} s", seconds);
+    }
 
     return std::format (L"{} {} ({}) behind live.", GroupDigits (instructions), (instructions == 1) ? L"instruction" : L"instructions", time);
 }
@@ -189,6 +257,8 @@ void HistoryBand::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     float            linkWidth   = 0.0f;
     float            linkHeight  = 0.0f;
     float            linkLeft    = left + width;
+    float            textWidth   = 0.0f;
+    float            textHeight  = 0.0f;
     std::wstring     message     = GetText (m_status);
 
 
@@ -208,6 +278,24 @@ void HistoryBand::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         hr = text.DrawString (kGoLiveText, linkLeft, top, linkWidth, height, theme.Accent(), sizePx, font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Bold, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    hr = text.MeasureString (message.c_str(), sizePx, font.face, textWidth, textHeight);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  Too wide for the pane: the short outcome with the distance, then the
+    //  short text alone.
+    if (textWidth > linkLeft - left - pad - pad)
+    {
+        message = GetCompactText (m_status);
+
+        hr = text.MeasureString (message.c_str(), sizePx, font.face, textWidth, textHeight);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (textWidth > linkLeft - left - pad - pad)
+    {
+        message = GetShortText (m_status);
     }
 
     hr = text.DrawString (message.c_str(), left + pad, top, (std::max) (0.0f, linkLeft - left - pad - pad), height,

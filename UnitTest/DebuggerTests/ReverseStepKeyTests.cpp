@@ -134,12 +134,19 @@ public:
         Assert::AreEqual (std::wstring (L"1,234,567 instructions (2.00 s) behind live."), HistoryBand::GetText (status));
 
         status.instructionsBehind = 1;
-        status.cyclesBehind       = 1020;
-        Assert::AreEqual (std::wstring (L"1 instruction (1.0 ms) behind live."), HistoryBand::GetText (status));
+        status.cyclesBehind       = 2041;
+        Assert::AreEqual (std::wstring (L"1 instruction (2.0 ms) behind live."), HistoryBand::GetText (status));
+
+        status.cyclesBehind       = 3;
+        Assert::AreEqual (std::wstring (L"1 instruction (0.003 ms) behind live."), HistoryBand::GetText (status), L"under a millisecond, to three places");
+
+        Assert::AreEqual (std::wstring (L"Behind live"), HistoryBand::GetShortText (status), L"the narrow pane's text");
 
         status.outcome = ReverseOutcome::AtHistoryStart;
         Assert::IsTrue (HistoryBand::GetText (status).starts_with (L"Stopped at the start of the recorded history"), HistoryBand::GetText (status).c_str());
         Assert::IsTrue (HistoryBand::GetText (status).ends_with   (L"behind live."), L"and how far behind, after it");
+        Assert::AreEqual (std::wstring (L"Start of history. 1 instruction (0.003 ms) behind live."), HistoryBand::GetCompactText (status), L"the compact text");
+        Assert::AreEqual (std::wstring (L"Start of history"), HistoryBand::GetShortText (status));
 
         for (ReverseOutcome outcome : { ReverseOutcome::AtHistoryStart, ReverseOutcome::AtHistoryGap, ReverseOutcome::HistoryCut })
         {
