@@ -161,8 +161,8 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 TapeDeckRegion TapeDeckWidget::HitTest (int x, int y) const
 {
-    RECT   rects[kButtonCount + 1]  = {};
-    float  scales[kButtonCount + 1] = {};
+    ControlBox  rects[kButtonCount + 1]  = {};
+    float       scales[kButtonCount + 1] = {};
 
 
 
@@ -176,13 +176,13 @@ TapeDeckRegion TapeDeckWidget::HitTest (int x, int y) const
 
     for (size_t i = 0; i < kButtonCount; i++)
     {
-        if (IsPointInRect (rects[i], x, y))
+        if (rects[i].Contains (x, y))
         {
             return GetButtonRegion (i);
         }
     }
 
-    if (IsPointInRect (rects[kButtonCount], x, y))
+    if (rects[kButtonCount].Contains (x, y))
     {
         return TapeDeckRegion::Counter;
     }
@@ -562,13 +562,13 @@ float TapeDeckWidget::GetPresence (int64_t nowMs) const
 
 bool TapeDeckWidget::IsNearControls (int x, int y) const
 {
-    RECT   rects[kButtonCount + 1]  = {};
-    float  scales[kButtonCount + 1] = {};
-    int    button = m_buttons[0].bottom - m_buttons[0].top;
-    int    left   = m_buttons[0].left;
-    int    right  = m_counterRect.right;
-    int    top    = m_buttons[0].top - (int) ((kMagnifyMax - 1.0f) * (float) button);
-    int    bottom = m_counterRect.bottom + Scale (kLabelStripPx, m_dpi);
+    ControlBox  rects[kButtonCount + 1]  = {};
+    float       scales[kButtonCount + 1] = {};
+    int         button = m_buttons[0].bottom - m_buttons[0].top;
+    int         left   = m_buttons[0].left;
+    int         right  = m_counterRect.right;
+    int         top    = m_buttons[0].top - (int) ((kMagnifyMax - 1.0f) * (float) button);
+    int         bottom = m_counterRect.bottom + Scale (kLabelStripPx, m_dpi);
 
 
 
@@ -579,8 +579,8 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
 
     ComputeControlRects (GetNowMs(), rects, scales);
 
-    left  = min (left,  (int) rects[0].left);
-    right = max (right, (int) rects[kButtonCount].right);
+    left  = min (left,  (int) floorf (rects[0].left));
+    right = max (right, (int) ceilf  (rects[kButtonCount].right));
 
     return x >= left && x < right && y >= top && y < bottom;
 }
@@ -600,7 +600,7 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TapeDeckWidget::ComputeControlRects (int64_t nowMs, RECT (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const
+void TapeDeckWidget::ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const
 {
     constexpr size_t  kCount         = kButtonCount + 1;
     RECT              base[kCount]   = {};
@@ -640,8 +640,7 @@ void TapeDeckWidget::ComputeControlRects (int64_t nowMs, RECT (& rects)[kButtonC
     {
         float  height = (float) (base[i].bottom - base[i].top) * scales[i];
 
-        rects[i] = { (LONG) lroundf (x), (LONG) lroundf (bottom - height),
-                     (LONG) lroundf (x + widths[i]), (LONG) lroundf (bottom) };
+        rects[i] = { x, bottom - height, x + widths[i], bottom };
         x       += widths[i] + gaps[i];
     }
 
@@ -660,10 +659,10 @@ void TapeDeckWidget::ComputeControlRects (int64_t nowMs, RECT (& rects)[kButtonC
         {
             float  restL = (float) base[i].left;
             float  restR = (float) base[i].right;
-            float  magL  = (float) rects[i].left;
-            float  magR  = (float) rects[i].right;
+            float  magL  = rects[i].left;
+            float  magR  = rects[i].right;
             float  nextL = (i + 1 < kCount) ? (float) base[i + 1].left  : restR;
-            float  magN  = (i + 1 < kCount) ? (float) rects[i + 1].left : magR;
+            float  magN  = (i + 1 < kCount) ? rects[i + 1].left : magR;
 
             if (mouse >= restL && mouse < restR)
             {
@@ -680,10 +679,10 @@ void TapeDeckWidget::ComputeControlRects (int64_t nowMs, RECT (& rects)[kButtonC
 
         shift = mouse - mapped;
 
-        for (RECT & r : rects)
+        for (ControlBox & r : rects)
         {
-            r.left  += (LONG) lroundf (shift);
-            r.right += (LONG) lroundf (shift);
+            r.left  += shift;
+            r.right += shift;
         }
     }
 }
@@ -812,9 +811,9 @@ void TapeDeckWidget::Paint (
     bool                hasTape    = m_view.transport != TapeTransport::Empty;
     std::wstring        name       = GetDisplayName (m_view);
     std::wstring        counter    = FormatCounter (m_view);
-    RECT                rects[kButtonCount + 1]  = {};
+    ControlBox          rects[kButtonCount + 1]  = {};
     float               scales[kButtonCount + 1] = {};
-    const RECT        & counterBox = rects[kButtonCount];
+    const ControlBox  & counterBox = rects[kButtonCount];
 
 
 
@@ -834,16 +833,7 @@ void TapeDeckWidget::Paint (
                           theme.buttonHover);
     }
 
-    if (m_hover == TapeDeckRegion::Counter && IsRegionEnabled (TapeDeckRegion::Counter, m_view))
-    {
-        painter.FillRect ((float) counterBox.left, (float) counterBox.top,
-                          (float) (counterBox.right - counterBox.left),
-                          (float) (counterBox.bottom - counterBox.top),
-                          theme.buttonHover);
-    }
-
-    PaintRail    (painter, theme);
-    PaintButtons (painter, theme, rects);
+    PaintRail (painter, theme);
 
     hr = text.DrawString (kCaption,
                           (float) m_captionRect.left, (float) m_captionRect.top,
@@ -855,6 +845,34 @@ void TapeDeckWidget::Paint (
 
     PaintName (text, name, hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel);
 
+    // THE CONTROLS GO LAST, IN FRONT. A magnified control stands up over the
+    // rail and the name, and stands on the band's own color so what it covers
+    // does not show through its mark.
+    for (size_t i = 0; i <= kButtonCount; i++)
+    {
+        if (scales[i] > 1.0f)
+        {
+            painter.FillRect (rects[i].left, rects[i].top, rects[i].right - rects[i].left,
+                              rects[i].bottom - rects[i].top, theme.navStrip);
+        }
+    }
+
+    if (m_hover == TapeDeckRegion::Counter && IsRegionEnabled (TapeDeckRegion::Counter, m_view))
+    {
+        painter.FillRect (counterBox.left, counterBox.top,
+                          counterBox.right - counterBox.left, counterBox.bottom - counterBox.top,
+                          theme.buttonHover);
+    }
+
+    PaintButtons (painter, theme, rects);
+
+    hr = text.DrawString (counter.c_str(),
+                          counterBox.left, counterBox.top,
+                          counterBox.right - counterBox.left, counterBox.bottom - counterBox.top,
+                          theme.dropdownAccel, kCounterFontDip * dipScale * scales[kButtonCount], kFontFamily,
+                          DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     // THE NEAREST CONTROL SAYS WHAT IT IS, under itself, while the pointer is
     // near the row. One label only: under a magnified row, several at once
     // would run into each other.
@@ -862,7 +880,7 @@ void TapeDeckWidget::Paint (
     {
         size_t  nearest = 0;
         float   best    = FLT_MAX;
-        float   labelW  = 0.0f;
+        float   labelW  = (float) Scale (kLabelWidthPx, m_dpi);
         float   cx      = 0.0f;
 
         for (size_t i = 0; i <= kButtonCount; i++)
@@ -877,8 +895,7 @@ void TapeDeckWidget::Paint (
             }
         }
 
-        labelW = (float) Scale (kLabelWidthPx, m_dpi);
-        cx     = (float) (rects[nearest].left + rects[nearest].right) * 0.5f;
+        cx = (rects[nearest].left + rects[nearest].right) * 0.5f;
 
         hr = text.DrawString (GetControlLabel (nearest),
                               cx - labelW * 0.5f, (float) m_counterRect.bottom,
@@ -887,14 +904,6 @@ void TapeDeckWidget::Paint (
                               DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
-
-    hr = text.DrawString (counter.c_str(),
-                          (float) counterBox.left, (float) counterBox.top,
-                          (float) (counterBox.right - counterBox.left),
-                          (float) (counterBox.bottom - counterBox.top),
-                          theme.dropdownAccel, kCounterFontDip * dipScale * scales[kButtonCount], kFontFamily,
-                          DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 
 Error:
     return;
@@ -941,19 +950,19 @@ void TapeDeckWidget::PaintRail (IDxuiPainter & painter, const CassoTheme & theme
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TapeDeckWidget::PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const RECT (& rects)[kButtonCount + 1])
+void TapeDeckWidget::PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const ControlBox (& rects)[kButtonCount + 1])
 {
     for (size_t i = 0; i < kButtonCount; i++)
     {
-        TapeDeckRegion  region = GetButtonRegion (i);
-        const RECT    & box    = rects[i];
+        TapeDeckRegion      region = GetButtonRegion (i);
+        const ControlBox  & box    = rects[i];
 
 
 
         if (m_hover == region && IsRegionEnabled (region, m_view))
         {
-            painter.FillRect ((float) box.left, (float) box.top,
-                              (float) (box.right - box.left), (float) (box.bottom - box.top),
+            painter.FillRect (box.left, box.top,
+                              box.right - box.left, box.bottom - box.top,
                               theme.buttonHover);
         }
 
@@ -1017,16 +1026,16 @@ uint32_t TapeDeckWidget::GetMarkColor (TapeDeckRegion region, const CassoTheme &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TapeDeckWidget::PaintMark (IDxuiPainter & painter, TapeDeckRegion region, const RECT & box, uint32_t argb)
+void TapeDeckWidget::PaintMark (IDxuiPainter & painter, TapeDeckRegion region, const ControlBox & box, uint32_t argb)
 {
     constexpr float  kHalf      = 0.5f;
     constexpr float  kEjectBar  = 0.22f;    // of the mark height, under the eject triangle
-    float            size       = (float) (box.right - box.left);
+    float            size       = box.right - box.left;
     float            inset      = size * kMarkInsetRatio;
-    float            l          = (float) box.left + inset;
-    float            t          = (float) box.top  + inset;
-    float            r          = (float) box.right  - inset;
-    float            b          = (float) box.bottom - inset;
+    float            l          = box.left + inset;
+    float            t          = box.top  + inset;
+    float            r          = box.right  - inset;
+    float            b          = box.bottom - inset;
     float            cx         = (l + r) * kHalf;
     float            cy         = (t + b) * kHalf;
     float            barTop     = b - (b - t) * kEjectBar;

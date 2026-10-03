@@ -88,6 +88,20 @@ public:
     static constexpr size_t  kButtonCount = 6;
 
 private:
+    // A control as drawn this moment. Kept in floating point all the way to
+    // the painter: rounded to whole pixels, a control growing a fraction of a
+    // pixel a frame stood still and then jumped, and the magnification
+    // stuttered.
+    struct ControlBox
+    {
+        float  left   = 0.0f;
+        float  top    = 0.0f;
+        float  right  = 0.0f;
+        float  bottom = 0.0f;
+
+        bool  Contains (int x, int y) const { return (float) x >= left && (float) x < right && (float) y >= top && (float) y < bottom; }
+    };
+
     static constexpr int              kBaseDpi           = 96;
     static constexpr const wchar_t  * kFontFamily        = DxuiTheme::kBodyFace;
     static constexpr const wchar_t  * kCaption           = L"TAPE";
@@ -138,11 +152,11 @@ private:
     static int64_t  GetNowMs       ();
 
     void      PaintRail    (IDxuiPainter & painter, const CassoTheme & theme);
-    void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const RECT (& rects)[kButtonCount + 1]);
+    void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const ControlBox (& rects)[kButtonCount + 1]);
     float     GetPresence  (int64_t nowMs) const;
-    void      ComputeControlRects (int64_t nowMs, RECT (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const;
+    void      ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const;
     bool      IsNearControls (int x, int y) const;
-    void      PaintMark    (IDxuiPainter & painter, TapeDeckRegion region, const RECT & box, uint32_t argb);
+    void      PaintMark    (IDxuiPainter & painter, TapeDeckRegion region, const ControlBox & box, uint32_t argb);
     uint32_t  GetMarkColor (TapeDeckRegion region, const CassoTheme & theme) const;
     void      PaintName    (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
 
