@@ -357,17 +357,18 @@ def build():
     # Built in the wall's own frame -- x across, z up it, -y out of it -- then
     # moved onto it.
     CHIN_INSET = 5.0
-    chin = box(CHIN_INSET, W - CHIN_INSET, -1.0, BOT_Y, -1.0, HANDLE_Z0 - CHIN_INSET)
+    CHIN_TOP   = FACE_Z0 - 2.0           # clear of the slope's top edge: a cut level with it leaves a broken solid
+    chin = box(CHIN_INSET, W - CHIN_INSET, -1.0, BOT_Y, -1.0, CHIN_TOP)
     m.parts[0].solid = m.parts[0].solid.cut(chin)
 
     # Round over the cutout's edges: every edge the cut left, but not the
     # case's own bottom edge, which the cutout runs out through.
     CUT_R    = 1.0
     cut_zone = cq.selectors.BoxSelector((CHIN_INSET - 0.5, -1.0, 0.5),
-                                        (W - CHIN_INSET + 0.5, BOT_Y + 0.5, HANDLE_Z0 - CHIN_INSET + 0.5))
+                                        (W - CHIN_INSET + 0.5, BOT_Y + 0.5, CHIN_TOP + 0.5))
     m.parts[0].solid = m.parts[0].solid.edges(cut_zone).fillet(CUT_R)
 
-    origin = (BOT_Y, (HANDLE_Z0 - CHIN_INSET) / 2)
+    origin = (BOT_Y, CHIN_TOP / 2)
 
     def on_face(solid):
         return solid.translate((0, origin[0], origin[1]))
