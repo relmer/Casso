@@ -42,9 +42,9 @@ public:
     };
 
 
-    //  The motor stopping is a flush nobody asked for; while history is
-    //  recording, the guest's writes stay in memory instead.
-    TEST_METHOD (MotorStoppingWhileRecordingLeavesTheFileAlone)
+    //  Recording alone holds nothing back: live, the motor stopping writes the
+    //  guest's changes to the file as it does without history.
+    TEST_METHOD (MotorStoppingWhileLiveAndRecordingWritesTheFile)
     {
         TestMachine        machine    ("Apple2e");
         ReverseController  controller (machine);
@@ -60,8 +60,88 @@ public:
 
         machine.RunCycles (s_kPastSpindown);
 
-        Assert::AreEqual<size_t> (0, log.count, L"the motor stopped and nothing reached the file");
-        Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest's writes are still held");
+        Assert::IsFalse (controller.IsInHistory(), L"the machine is live");
+        Assert::AreEqual<size_t> (1, log.count, L"the motor stopped and the file was written");
+        Assert::IsFalse (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"nothing is left unwritten");
+    }
+
+
+    //  Behind live, the guest's writes are machine state a step forward can
+    //  change again, so an automatic flush leaves the file alone.
+    TEST_METHOD (FlushingBehindLiveLeavesTheFileAlone)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        size_t             liveCount  = 0;
+
+
+
+        PrepareMotorProgram (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        liveCount = log.count;
+
+        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        AssertSucceeded (hr, L"SeekToPosition back to the start");
+
+        Assert::IsTrue (controller.IsInHistory(), L"the machine is behind live");
+
+        hr = machine.GetDiskStore().FlushAllUnlessHeld();
+        AssertSucceeded (hr, L"FlushAllUnlessHeld behind live");
+
+        Assert::AreEqual<size_t> (liveCount, log.count, L"nothing reached the file behind live");
+    }
+
+
+    //  Going live again lifts the hold, and the next flush writes the disk as
+    //  it stands at the live position.
+    TEST_METHOD (FlushingAfterGoingLiveWritesTheLiveDisk)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           liveEnd    = 0;
+        std::vector<Byte>  atLive;
+
+
+
+        PrepareMotorProgram (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        Assert::AreEqual<size_t> (0, log.count, L"the motor has not stopped yet");
+        Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the disk");
+
+        liveEnd = machine.GetPosition();
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (atLive);
+        AssertSucceeded (hr, L"Serialize at the live position");
+
+        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        AssertSucceeded (hr, L"SeekToPosition back to the start");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition back to live");
+
+        Assert::IsFalse (controller.IsInHistory(), L"the machine is live again");
+
+        hr = machine.GetDiskStore().FlushAllUnlessHeld();
+        AssertSucceeded (hr, L"FlushAllUnlessHeld at live");
+
+        Assert::AreEqual<size_t> (1, log.count, L"the flush at live wrote the file");
+        Assert::IsTrue (atLive == log.last, L"with the disk as it stood at the live position");
     }
 
 
@@ -137,7 +217,7 @@ public:
         Assert::AreEqual<size_t>   (liveCount, log.count, L"the replayed power cycle wrote nothing to the file");
         Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
         Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
-        Assert::AreEqual<size_t>   (0, liveCount, L"nor did the live power cycle while recording");
+        Assert::AreEqual<size_t>   (1, liveCount, L"the live power cycle wrote once, as it does without history");
     }
 
 

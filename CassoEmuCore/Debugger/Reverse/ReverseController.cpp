@@ -48,10 +48,10 @@ ReverseController::~ReverseController()
 //
 //  Turns the input journal on and takes the first keyframe at once, so
 //  history begins at the moment the journal attaches; the keyframe store
-//  takes its whole budget there. The disks are machine state from here: the
-//  automatic flushes are held, and a disk that leaves its bay is kept in
-//  memory while history may put it back. A pause chosen before the start
-//  holds from the first keyframe on.
+//  takes its whole budget there. The disks are machine state from here: a
+//  disk that leaves its bay is kept in memory while history may put it back,
+//  and the automatic flushes are held whenever the machine is behind live.
+//  A pause chosen before the start holds from the first keyframe on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +77,7 @@ HRESULT ReverseController::Start (const ReverseSettings & settings)
     m_machine.SetInputJournalOn  (true);
     m_machine.SetHistoryRecorder (this);
 
-    m_machine.GetDiskStore().SetFlushHold      (true);
+    m_machine.GetDiskStore().SetFlushHold      (false);
     m_machine.GetDiskStore().SetMediaRetention (true);
 
     m_isRecording = true;
@@ -1388,6 +1388,8 @@ HRESULT ReverseController::LeaveLive()
         m_liveEndPosition = position;
         m_liveEndCycle    = m_machine.GetCpu()->GetTotalCycles();
         m_isLive          = false;
+
+        m_machine.GetDiskStore().SetFlushHold (true);
     }
 
     m_nextDueCycle = 0;
@@ -1406,13 +1408,15 @@ Error:
 //
 //  The machine is at the end of history: the journal records again and the
 //  keyframes fall due on their own schedule, or, while paused, recording
-//  stops where the machine stands.
+//  stops where the machine stands. The automatic disk flushes resume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReverseController::BecomeLive()
 {
     m_isLive = true;
+
+    m_machine.GetDiskStore().SetFlushHold (false);
 
     DiscardStepTable();
 

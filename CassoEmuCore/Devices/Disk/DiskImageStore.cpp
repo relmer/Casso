@@ -1815,8 +1815,9 @@ HRESULT DiskImageStore::FlushAllForShutdown()
 //  FlushAllUnlessHeld
 //
 //  The motor spinning down, a reset and a power cycle flush through here.
-//  While reverse execution holds the disks, the guest's writes are machine
-//  state that a step back can undo, so these moments leave the file alone.
+//  While the machine is behind live in its recorded history, or a replay is
+//  running, the guest's writes are machine state that a step can still
+//  change, so these moments leave the file alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
