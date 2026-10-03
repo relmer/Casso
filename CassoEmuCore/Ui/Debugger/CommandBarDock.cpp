@@ -318,3 +318,22 @@ bool CommandBarDock::PickFloatVertical (POINT pointer, const RECT & area, int ba
 
     return nearest == toLeft || nearest == toRight;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandBarDock::GrabForDocking
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT CommandBarDock::GrabForDocking (POINT grabPx, bool vertical, int marginPx)
+{
+    int  along = vertical ? grabPx.y : grabPx.x;
+
+
+
+    return POINT { along + marginPx, along };
+}

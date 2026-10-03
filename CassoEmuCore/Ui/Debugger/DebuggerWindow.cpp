@@ -9213,11 +9213,12 @@ void DebuggerWindow::FloatCommandBar()
     m_commandBar->OnToolbarMouseLeave();
 
     window->SetToolbar          (m_commandBar);
-    window->SetOnContentMouse   ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
-    window->SetOnCaptionDrag    ([this] (POINT screen)              { OnCommandBarFloatDrag (screen); });
-    window->SetOnCaptionDragEnd ([this] (POINT screen)              { OnCommandBarDragEnd (screen); });
-    window->SetOnMoveLoopFrame  ([this]                             { RunModalLoopTick(); });
-    window->SetScreenRect       (rect);
+    window->SetOnContentMouse      ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
+    window->SetOnCaptionDrag       ([this] (POINT screen)              { OnCommandBarFloatDrag (screen); });
+    window->SetOnCaptionDragEnd    ([this] (POINT screen)              { OnCommandBarDragEnd (screen); });
+    window->SetOnCaptionDragCancel ([this]                             { FinishCommandBarSnap(); });
+    window->SetOnMoveLoopFrame     ([this]                             { RunModalLoopTick(); });
+    window->SetScreenRect          (rect);
 
     tip->SetPopupHost (window->GetPopupHost());
     tip->SetTheme     (*m_theme);
@@ -9313,6 +9314,19 @@ void DebuggerWindow::SyncCommandBarFloat()
     else if (!m_barDock.floating && m_barFloat != nullptr)
     {
         DockCommandBarBack();
+
+        //  A bar that snapped into a band while the button is still down
+        //  goes on sliding along it with the pointer.
+        if (m_barSnapDragOn)
+        {
+            m_barSnapDragOn = false;
+
+            if ((GetKeyState (VK_LBUTTON) & 0x8000) != 0)
+            {
+                SetCapture (GetHwnd());
+                m_barDragging = true;
+            }
+        }
     }
 
     if (m_barFloat == nullptr)
@@ -9401,6 +9415,12 @@ void DebuggerWindow::OnCommandBarDragEnd (POINT screenPx)
 
     ScreenToClient (GetHwnd(), &client);
 
+    if (m_barSnapping)
+    {
+        FinishCommandBarSnap();
+        return;
+    }
+
     if (IsWindowVisible (GetHwnd()) && CommandBarDock::IsInDockBand (client, m_barArea, reach))
     {
         //  Across the top or bottom the bar starts a margin in from the
@@ -9412,6 +9432,33 @@ void DebuggerWindow::OnCommandBarDragEnd (POINT screenPx)
         m_barDock.floating = true;
         m_barDock.floatPx  = POINT { rect.left, rect.top };
     }
+
+    SaveCommandBarDock();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FinishCommandBarSnap
+//
+//  The move loop a snap ended has ended: the bar takes the place it snapped
+//  to, and the frame docks it and carries the drag on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FinishCommandBarSnap()
+{
+    if (!m_barSnapping)
+    {
+        return;
+    }
+
+    m_barSnapping   = false;
+    m_barSnapDragOn = true;
+    m_barDock       = m_barSnapDock;
 
     SaveCommandBarDock();
 }
@@ -9446,6 +9493,27 @@ void DebuggerWindow::OnCommandBarFloatDrag (POINT screenPx)
 
     ScreenToClient (GetHwnd(), &client);
 
+    if (m_barSnapping)
+    {
+        return;
+    }
+
+    rect = m_barFloat->GetScreenRect();
+
+    //  Into a band, the bar snaps in where the pointer holds it: the move
+    //  loop ends here, and once it has, the frame docks the bar and carries
+    //  the drag on as a drag of the docked bar, which slides along the band
+    //  and leaves it only past the pull.
+    if (CommandBarDock::IsInDockBand (client, m_barArea, reach))
+    {
+        m_barGrab     = CommandBarDock::GrabForDocking (POINT { screenPx.x - rect.left, screenPx.y - rect.top }, m_barDock.floatVertical, m_scaler.ToPx (8));
+        m_barSnapDock = CommandBarDock::PickForDrop (client, m_barGrab, m_barArea, m_scaler.GetDpi());
+        m_barSnapping = true;
+
+        ReleaseCapture();
+        return;
+    }
+
     vertical = CommandBarDock::PickFloatVertical (client, m_barArea, reach, m_barDock.floatVertical);
 
     if (vertical == m_barDock.floatVertical)
@@ -9453,7 +9521,6 @@ void DebuggerWindow::OnCommandBarFloatDrag (POINT screenPx)
         return;
     }
 
-    rect                    = m_barFloat->GetScreenRect();
     m_barDock.floatVertical = vertical;
     m_barDock.floatPx       = POINT { rect.left, rect.top };
 

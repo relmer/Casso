@@ -726,6 +726,7 @@
     <ClCompile Include="Dxui\DxuiToolbarVerticalTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarEndEdgesTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandBarDockDragTests.cpp" />
+    <ClCompile Include="DebuggerTests\CommandBarDockSnapInTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandBarDockTests.cpp" />
     <ClCompile Include="DebuggerTests\CommandBarFloatTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarLabelsTests.cpp" />

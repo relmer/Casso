@@ -563,6 +563,7 @@ private:
     bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);
     RECT     GetFloatingBarRect   (POINT topLeftPx);
     void     SaveCommandBarDock   ();
+    void     FinishCommandBarSnap ();
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -968,6 +969,13 @@ private:
     RECT                                                                             m_barArea     = {};
     bool                                                                             m_barDragging = false;
     POINT                                                                            m_barGrab     = {};
+
+    //  A floating bar dragged into a band snaps into it: the place it takes
+    //  once the move loop has ended, and, until the frame docks it, whether
+    //  the drag goes on in this window.
+    CommandBarDock                                                                   m_barSnapDock;
+    bool                                                                             m_barSnapping   = false;
+    bool                                                                             m_barSnapDragOn = false;
 
     //  The window the command bar floats in while it is torn off, and its
     //  tooltip, which shows only over that window. Events from it route

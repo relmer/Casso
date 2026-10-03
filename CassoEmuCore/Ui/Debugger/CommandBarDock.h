@@ -87,6 +87,12 @@ struct CommandBarDock
     //  bottom, and `current` anywhere else.
     static bool            PickFloatVertical (POINT pointer, const RECT & area, int bandPx, bool current);
 
+    //  Where a floating bar was grabbed, from its window's top left, as the
+    //  grab a drag of the docked bar keeps: the distance along the bar, plus
+    //  marginPx across the top or bottom, where the docked bar starts that
+    //  far in from the window's edge. A bar standing on end measures down.
+    static POINT           GrabForDocking (POINT grabPx, bool vertical, int marginPx);
+
 private:
     static CommandBarDock  ReadFloating (const std::wstring & text);
 };

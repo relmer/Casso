@@ -568,6 +568,11 @@ detach, the steps, run to cursor, show next statement, step by source
 line and trace, then reset, power cycle and restart under debugger) and **Tools**
 (**Keyboard scheme**). The command bar below it holds the run and step buttons as icons,
 each tip giving the command and its key in the scheme in force, and Trace.
+Drag its grab handle to move it along its edge or, pulled well away, to float
+it in a window of its own, icons alone. Dragged back over any edge of the
+window, a floating bar snaps into that edge, which makes room for it, and
+slides along it with the pointer until the button is let go. Its place is
+kept between sessions.
 **Detach** closes the debugger and leaves the machine running, resuming it
 first if it is stopped.
 The console has a toolbar of its own with **Dialect**, which sets the words
