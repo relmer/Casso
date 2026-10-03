@@ -347,31 +347,34 @@ def build():
     m.parts[0].solid = (m.parts[0].solid
                         .cut(box(-1.0, W + 1.0, seam_y, D + 1.0, zc - 1.0, zc + 1.0).cut(inner)))
 
-    # THE TONE AND VOLUME THUMBWHEELS, in a recess in the lower front face,
-    # under the handle. Each is a knurled disc lying flat behind its window,
-    # so a thumb rolls it left and right; an embossed arrow above each window
-    # points down at it, and the legend runs under both.
+    # THE TONE AND VOLUME THUMBWHEELS, in a cutout taken out of the sloping
+    # chin under the handle: 5 mm in from the sides and from the handle, back
+    # to an upright wall straight above where the chin meets the bottom. Each
+    # is a knurled disc lying flat behind its window in that wall, so a thumb
+    # rolls it left and right; an embossed arrow above each window points down
+    # at it, and the legend runs under both.
     #
-    # Built in the face's own frame -- x across, z up the face, -y out of it --
-    # then tilted onto the slope.
-    tilt   = math.atan2(BOT_Y - YF, FACE_Z0)
-    origin = ((YF + BOT_Y) / 2, FACE_Z0 / 2)
+    # Built in the wall's own frame -- x across, z up it, -y out of it -- then
+    # moved onto it.
+    CHIN_INSET = 5.0
+    chin = box(CHIN_INSET, W - CHIN_INSET, -1.0, BOT_Y, -1.0, HANDLE_Z0 - CHIN_INSET)
+    m.parts[0].solid = m.parts[0].solid.cut(chin)
+
+    origin = (BOT_Y, (HANDLE_Z0 - CHIN_INSET) / 2)
 
     def on_face(solid):
-        return (solid.rotate((0, 0, 0), (1, 0, 0), math.degrees(tilt))
-                     .translate((0, origin[0], origin[1])))
+        return solid.translate((0, origin[0], origin[1]))
 
-    REC_HW, REC_V0, REC_V1, REC_D = 46.0, -10.0, 10.0, 3.0
-    WIN_HW, WIN_V0, WIN_V1        = 12.0, -2.0, 5.0
-    WHEEL_R, TEETH                = 11.0, 72
+    REC_D                  = 0.0
+    WIN_HW, WIN_V0, WIN_V1 = 12.0, -2.0, 5.0
+    WHEEL_R, TEETH         = 11.0, 72
     wheel_x = (W / 2 - 22.0, W / 2 + 22.0)
 
-    recess = box(W / 2 - REC_HW, W / 2 + REC_HW, -1.0, REC_D, REC_V0, REC_V1).edges("|Y").fillet(1.5)
     pockets = None
     for wx in wheel_x:
         pocket = box(wx - WIN_HW, wx + WIN_HW, REC_D - 0.1, REC_D + 2 * WHEEL_R + 1, WIN_V0, WIN_V1)
         pockets = pocket if pockets is None else pockets.union(pocket)
-    m.parts[0].solid = m.parts[0].solid.cut(on_face(recess.union(pockets)))
+    m.parts[0].solid = m.parts[0].solid.cut(on_face(pockets))
 
     wheels = None
     for wx in wheel_x:
