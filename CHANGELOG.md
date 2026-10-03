@@ -13,6 +13,10 @@ Entries before versioning was introduced use dates only.
 - `disk create` appends the default file extension for `--type` if one is not
   specified
 
+### Changed
+
+- The usage text lists `--title`, which adds a label to the window title.
+
 ### Fixed
 
 - Casso and CassoCli now open disk images with non-ASCII file names
