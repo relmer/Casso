@@ -11,6 +11,26 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ~KeyframeStore
+//
+//  Waits for the work in flight, which writes into this store's buffers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+KeyframeStore::~KeyframeStore()
+{
+    if (m_queue != nullptr && m_pendingCount != 0)
+    {
+        m_queue->WaitAll();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Configure
 //
 //  Takes new settings and empties the store, since keyframes taken on the old
@@ -33,17 +53,53 @@ void KeyframeStore::Configure (const KeyframeSettings & settings)
 //
 //  Clear
 //
+//  Waits for the work in flight and drops it with everything else.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void KeyframeStore::Clear()
 {
+    if (m_queue != nullptr && m_pendingCount != 0)
+    {
+        m_queue->WaitAll();
+    }
+
+    m_pendingCount = 0;
+
     m_entries.clear();
     m_latestWhole.clear();
     m_latestWhole.shrink_to_fit();
 
     m_storedBytes  = 0;
     m_groupLength  = 0;
+    m_wholeBytes   = 0;
     m_nextDueCycle = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetWorkQueue
+//
+//  Where the checksum, XOR and packing of each keyframe run from here on;
+//  null runs them inside Add. Any work in flight on the old queue finishes
+//  first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::SetWorkQueue (IWorkQueue * queue)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = WaitForPending();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_queue = queue;
 }
 
 
@@ -70,36 +126,54 @@ HRESULT KeyframeStore::Add (
     size_t                     journalIndex,
     const std::vector<Byte>  & state)
 {
-    HRESULT       hr          = S_OK;
-    KeyframeInfo  info;
-    bool          isEmpty     = m_entries.empty();
-    bool          isLater     = isEmpty || cycle > m_entries.back().info.cycle;
-    bool          isSameSize  = state.size() == m_latestWhole.size();
-    bool          isGroupFull = m_groupLength >= m_settings.wholeEvery;
+    HRESULT   hr  = S_OK;
+    Job     * job = nullptr;
 
 
 
-    CBRAEx (isLater, E_INVALIDARG);
+    hr = TakeJob (job);
+    CHR (hr);
 
-    info.position     = position;
-    info.cycle        = cycle;
-    info.journalIndex = journalIndex;
-    info.checksum     = ComputeChecksum (state.data(), state.size());
-    info.stateBytes   = state.size();
+    job->state.assign (state.begin(), state.end());
 
-    if (isEmpty || !isSameSize || isGroupFull)
-    {
-        hr = AddWhole (info, state);
-        CHR (hr);
-    }
-    else
-    {
-        hr = AddDifference (info, state);
-        CHR (hr);
-    }
+    hr = SubmitJob (*job, position, cycle, journalIndex);
+    CHR (hr);
 
-    ScheduleAfter (cycle);
-    DropOldestGroups();
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Add (from a writer)
+//
+//  As Add, with the state a writer holds, flattened straight into the job's
+//  buffer, so a sharing save needs no copy of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::Add (
+    uint64_t              position,
+    uint64_t              cycle,
+    size_t                journalIndex,
+    const StateWriter   & writer)
+{
+    HRESULT   hr  = S_OK;
+    Job     * job = nullptr;
+
+
+
+    hr = TakeJob (job);
+    CHR (hr);
+
+    writer.FlattenInto (job->state);
+
+    hr = SubmitJob (*job, position, cycle, journalIndex);
+    CHR (hr);
 
 Error:
     return hr;
@@ -133,7 +207,7 @@ HRESULT KeyframeStore::Capture (
     hr = machine.SaveState (writer);
     CHR (hr);
 
-    hr = Add (position, cpu->GetTotalCycles(), machine.GetInputJournal().GetEndIndex(), writer.GetBytes());
+    hr = Add (position, cpu->GetTotalCycles(), machine.GetInputJournal().GetEndIndex(), writer);
     CHR (hr);
 
 Error:
@@ -146,31 +220,107 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AddWhole
+//  TakeJob
+//
+//  The next job, whose buffer the state is written into. Results already in
+//  are collected first; when every job is still in flight, this waits for
+//  them rather than allocate another buffer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT KeyframeStore::AddWhole (
-    const KeyframeInfo       & info,
-    const std::vector<Byte>  & state)
+HRESULT KeyframeStore::TakeJob (Job *& outJob)
 {
-    HRESULT  hr    = S_OK;
-    Entry    entry;
+    HRESULT  hr = S_OK;
 
 
 
-    hr = m_compressor.Compress (state.data(), state.size(), entry.packed);
+    hr = Collect();
     CHR (hr);
 
-    entry.info             = info;
-    entry.info.isWhole     = true;
-    entry.info.storedBytes = entry.packed.size();
+    if (m_pendingCount == m_jobs.size())
+    {
+        hr = WaitForPending();
+        CHR (hr);
+    }
 
-    m_storedBytes += entry.info.storedBytes;
+    outJob        = &m_jobs[m_nextJob];
+    outJob->store = this;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SubmitJob
+//
+//  Lists the keyframe with what is known now, whole or difference decided
+//  here, and hands its packing over: to the queue, or run at once without
+//  one. The checksum and packed bytes arrive when it is collected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::SubmitJob (
+    Job       & job,
+    uint64_t    position,
+    uint64_t    cycle,
+    size_t      journalIndex)
+{
+    HRESULT  hr          = S_OK;
+    Entry    entry;
+    bool     isEmpty     = m_entries.empty();
+    bool     isLater     = isEmpty || cycle > m_entries.back().info.cycle;
+    bool     isSameSize  = job.state.size() == m_wholeBytes;
+    bool     isGroupFull = m_groupLength >= m_settings.wholeEvery;
+
+
+
+    CBRAEx (isLater, E_INVALIDARG);
+
+    entry.info.position     = position;
+    entry.info.cycle        = cycle;
+    entry.info.journalIndex = journalIndex;
+    entry.info.stateBytes   = job.state.size();
+    entry.info.isWhole      = isEmpty || !isSameSize || isGroupFull;
+
+    if (entry.info.isWhole)
+    {
+        m_wholeBytes  = job.state.size();
+        m_groupLength = 1;
+    }
+    else
+    {
+        m_groupLength++;
+    }
+
     m_entries.push_back (std::move (entry));
 
-    m_latestWhole = state;
-    m_groupLength = 1;
+    job.isWhole = m_entries.back().info.isWhole;
+    job.isDone.store (false, std::memory_order_relaxed);
+
+    m_nextJob = (m_nextJob + 1) % m_jobs.size();
+    m_pendingCount++;
+
+    ScheduleAfter (cycle);
+
+    if (m_queue != nullptr)
+    {
+        hr = m_queue->Submit (RunJob, &job);
+        CHR (hr);
+    }
+    else
+    {
+        RunJob (&job);
+    }
+
+    hr = Collect();
+    CHR (hr);
+
+    DropOldestGroups();
 
 Error:
     return hr;
@@ -182,40 +332,151 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AddDifference
+//  RunJob
 //
-//  XORs the state against the group's whole snapshot, so bytes that did not
-//  change since it become zero and pack to almost nothing, then packs that.
+//  The work function a queue runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT KeyframeStore::AddDifference (
-    const KeyframeInfo       & info,
-    const std::vector<Byte>  & state)
+void KeyframeStore::RunJob (void * context)
+{
+    Job  * job = static_cast<Job *> (context);
+
+
+
+    job->store->Pack (*job);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Pack
+//
+//  The work: the checksum of the state, then the state packed whole, which
+//  becomes the newest whole snapshot, or its XOR against that snapshot
+//  packed. Runs on the queue, one job at a time and in order, and touches
+//  nothing the caller's thread reads while a job is in flight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::Pack (Job & job)
 {
     HRESULT  hr         = S_OK;
-    Entry    entry;
-    bool     isSameSize = state.size() == m_latestWhole.size();
+    bool     isSameSize = false;
 
 
 
-    CBRA (isSameSize);
+    job.checksum = ComputeChecksum (job.state.data(), job.state.size());
 
-    m_scratch.resize (state.size());
+    if (job.isWhole)
+    {
+        hr = m_compressor.Compress (job.state.data(), job.state.size(), job.packed);
+        CHR (hr);
 
-    XorBytes (state.data(), m_latestWhole.data(), m_scratch.data(), state.size());
+        // The job's buffer becomes the newest whole snapshot, and the old
+        // one's buffer goes back to the job, so neither is copied.
+        m_latestWhole.swap (job.state);
+    }
+    else
+    {
+        isSameSize = job.state.size() == m_latestWhole.size();
+        CBRA (isSameSize);
 
-    hr = m_compressor.Compress (m_scratch.data(), m_scratch.size(), entry.packed);
+        m_scratch.resize (job.state.size());
+
+        XorBytes (job.state.data(), m_latestWhole.data(), m_scratch.data(), job.state.size());
+
+        hr = m_compressor.Compress (m_scratch.data(), m_scratch.size(), job.packed);
+        CHR (hr);
+    }
+
+Error:
+    job.hr = hr;
+    job.isDone.store (true, std::memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Collect
+//
+//  Moves the results of finished jobs, oldest first, into the newest entries
+//  they belong to. Stops at the first job still in flight, since jobs finish
+//  in the order they were handed over. It drops nothing, so a wait never
+//  moves the index of a keyframe a caller holds; only Add enforces the
+//  budget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::Collect()
+{
+    HRESULT   hr     = S_OK;
+    Job     * job    = nullptr;
+    Entry   * entry  = nullptr;
+    bool      isDone = false;
+
+
+
+    while (m_pendingCount != 0)
+    {
+        job    = &m_jobs[(m_nextJob + m_jobs.size() - m_pendingCount) % m_jobs.size()];
+        isDone = job->isDone.load (std::memory_order_acquire);
+
+        if (!isDone)
+        {
+            break;
+        }
+
+        entry = &m_entries[m_entries.size() - m_pendingCount];
+
+        entry->info.checksum    = job->checksum;
+        entry->info.storedBytes = job->packed.size();
+        entry->packed           = std::move (job->packed);
+
+        m_storedBytes += entry->info.storedBytes;
+        m_pendingCount--;
+
+        CHR (job->hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WaitForPending
+//
+//  Waits for every job in flight and collects them all, so every keyframe
+//  listed has its checksum and packed bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::WaitForPending()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_queue != nullptr && m_pendingCount != 0)
+    {
+        m_queue->WaitAll();
+    }
+
+    hr = Collect();
     CHR (hr);
 
-    entry.info             = info;
-    entry.info.isWhole     = false;
-    entry.info.storedBytes = entry.packed.size();
-
-    m_storedBytes += entry.info.storedBytes;
-    m_entries.push_back (std::move (entry));
-
-    m_groupLength++;
+    CBRA (m_pendingCount == 0);
 
 Error:
     return hr;
@@ -240,7 +501,7 @@ HRESULT KeyframeStore::Restore (
     std::vector<Byte>  & outState)
 {
     HRESULT              hr          = S_OK;
-    size_t               count       = m_entries.size();
+    size_t               count       = 0;
     size_t               groupStart  = 0;
     bool                 isNewest    = false;
     std::vector<Byte>    olderWhole;
@@ -250,6 +511,10 @@ HRESULT KeyframeStore::Restore (
 
 
 
+    hr = WaitForPending();
+    CHR (hr);
+
+    count = m_entries.size();
     CBRAEx (index < count, E_INVALIDARG);
 
     entry      = &m_entries[index];
@@ -325,21 +590,29 @@ bool KeyframeStore::TryFindAtOrBefore (
 //  DoesStateMatch
 //
 //  Whether state, saved from a machine that replayed to keyframe index, has
-//  that keyframe's checksum. A mismatch means the replay diverged.
+//  that keyframe's checksum. A mismatch means the replay diverged. Waits for
+//  the keyframes in flight, whose checksums are not in yet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool KeyframeStore::DoesStateMatch (
     size_t                     index,
-    const std::vector<Byte>  & state) const
+    const std::vector<Byte>  & state)
 {
-    bool  isValid = index < m_entries.size();
+    HRESULT  hr      = S_OK;
+    bool     isMatch = false;
 
 
 
-    return isValid
-        && state.size() == m_entries[index].info.stateBytes
-        && ComputeChecksum (state.data(), state.size()) == m_entries[index].info.checksum;
+    hr = WaitForPending();
+    CHR (hr);
+
+    isMatch = index < m_entries.size()
+              && state.size() == m_entries[index].info.stateBytes
+              && ComputeChecksum (state.data(), state.size()) == m_entries[index].info.checksum;
+
+Error:
+    return isMatch;
 }
 
 
@@ -353,7 +626,8 @@ bool KeyframeStore::DoesStateMatch (
 //  Drops every keyframe taken after cycle: the recorded future once the user
 //  changes something, or history past the last keyframe a replay matched.
 //  The next keyframe falls due on the first boundary after the newest one
-//  left, or at once when none is left.
+//  left, or at once when none is left. Waits for the keyframes in flight
+//  first, since the newest whole snapshot may be among them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,6 +638,9 @@ HRESULT KeyframeStore::TruncateAfter (uint64_t cycle)
     bool     isEmpty = false;
 
 
+
+    hr = WaitForPending();
+    CHR (hr);
 
     while (!m_entries.empty() && m_entries.back().info.cycle > cycle)
     {
@@ -423,6 +700,7 @@ HRESULT KeyframeStore::ReloadLatestWhole()
     CHR (hr);
 
     m_groupLength = count - groupStart;
+    m_wholeBytes  = whole->info.stateBytes;
 
 Error:
     return hr;
@@ -461,25 +739,29 @@ size_t KeyframeStore::FindGroupStart (size_t index) const
 //
 //  While over the budget, drops the oldest group: its whole snapshot and
 //  every difference against it. The newest group stays even over budget.
+//  Only a group followed by a collected whole snapshot goes, so no keyframe
+//  in flight is ever dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void KeyframeStore::DropOldestGroups()
 {
     size_t  nextGroup = 0;
+    size_t  collected = 0;
 
 
 
     while (GetByteCount() > m_settings.budgetBytes)
     {
         nextGroup = 1;
+        collected = m_entries.size() - m_pendingCount;
 
-        while (nextGroup < m_entries.size() && !m_entries[nextGroup].info.isWhole)
+        while (nextGroup < collected && !m_entries[nextGroup].info.isWhole)
         {
             nextGroup++;
         }
 
-        if (nextGroup >= m_entries.size())
+        if (nextGroup >= collected)
         {
             break;
         }

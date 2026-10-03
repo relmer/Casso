@@ -67,6 +67,9 @@ HRESULT ReverseController::Start (const ReverseSettings & settings)
 
     m_keyframes.Configure (settings.keyframes);
 
+    hr = UseWorkQueue();
+    CHR (hr);
+
     m_machine.GetInputJournal().Clear();
     m_machine.SetInputJournalOn  (true);
     m_machine.SetHistoryRecorder (this);
@@ -547,6 +550,11 @@ HRESULT ReverseController::Seek (
     CBRA (cpu);
     CBRAEx (m_isRecording, E_UNEXPECTED);
 
+    // The keyframes in flight are finished first, so nothing a seek reads
+    // or replays past is still being packed.
+    hr = m_keyframes.WaitForPending();
+    CHR (hr);
+
     isForward = isByCycle ? target.cycle >= cpu->GetTotalCycles() : target.position >= m_machine.GetPosition();
 
     result.outcome = ReverseOutcome::Moved;
@@ -616,6 +624,9 @@ HRESULT ReverseController::RestoreAtOrBefore (
 
 
     CBRAEx (hasAny, E_UNEXPECTED);
+
+    hr = m_keyframes.WaitForPending();
+    CHR (hr);
 
     useCheckpoint = hasCheckpoint && (!hasKeyframe || m_ring.GetCheckpoint (checkpoint).position >= m_keyframes.GetInfo (keyframe).position);
 
@@ -896,9 +907,9 @@ Error:
 //  with them.
 //
 //  The save shares the disk tracks that have not changed, as a checkpoint
-//  holds them; a keyframe needs the whole blob in one buffer, so it is
-//  flattened into one kept at full size. Every buffer, list and writer here
-//  is reused, so once the ring is full a capture allocates nothing.
+//  holds them; the keyframe store flattens it into a buffer of its own and
+//  packs it on its work queue. Every buffer, list and writer here is reused,
+//  so once the ring is full a capture allocates nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -943,9 +954,7 @@ HRESULT ReverseController::CaptureNow (
 
     if (takeKeyframe)
     {
-        writer.FlattenInto (m_keyframeState);
-
-        hr = m_keyframes.Add (position, cycle, journalEnd, m_keyframeState);
+        hr = m_keyframes.Add (position, cycle, journalEnd, writer);
         CHR (hr);
 
         journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);
@@ -1111,6 +1120,45 @@ void ReverseController::PruneRetainedMedia()
     {
         m_machine.GetDiskStore().PruneRetainedMedia (oldest);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UseWorkQueue
+//
+//  Keyframes are packed on the queue a test set, or on the thread pool,
+//  whose queue is created on first use with room for every buffer the store
+//  can have in flight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::UseWorkQueue()
+{
+    HRESULT  hr        = S_OK;
+    bool     isCreated = m_workQueue.IsCreated();
+
+
+
+    if (m_workQueueOverride != nullptr)
+    {
+        m_keyframes.SetWorkQueue (m_workQueueOverride);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (!isCreated)
+    {
+        hr = m_workQueue.Create (KeyframeStore::kBufferCount);
+        CHR (hr);
+    }
+
+    m_keyframes.SetWorkQueue (&m_workQueue);
+
+Error:
+    return hr;
 }
 
 

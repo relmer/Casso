@@ -2,9 +2,11 @@
 
 #include "Pch.h"
 
+#include "Core/IWorkQueue.h"
 #include "Debugger/Reverse/SnapshotCompressor.h"
 
 class MachineHost;
+class StateWriter;
 
 
 
@@ -83,29 +85,51 @@ struct KeyframeInfo
 //  because its differences cannot be restored without it. The newest group
 //  is never dropped.
 //
+//  Given a work queue, the checksum, the XOR and the packing run there: Add
+//  copies the state into one of a few buffers kept at full size, lists the
+//  keyframe at once with everything but its checksum and packed bytes, and
+//  returns. The results are collected on the caller's thread, oldest first,
+//  at the next Add or wait. When every buffer is in flight, Add waits for
+//  them rather than allocate another. Restore, DoesStateMatch, TruncateAfter
+//  and Clear wait for every keyframe in flight first. Without a queue the
+//  work runs inside Add. Everything but the work itself is called on one
+//  thread, the one that runs the machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class KeyframeStore
 {
 public:
+    static constexpr size_t  kBufferCount = 2;
+
+              KeyframeStore     () = default;
+              ~KeyframeStore    ();
+
+              KeyframeStore     (const KeyframeStore &) = delete;
+    KeyframeStore & operator=   (const KeyframeStore &) = delete;
+
     void      Configure         (const KeyframeSettings & settings);
     void      Clear             ();
+    void      SetWorkQueue      (IWorkQueue * queue);
 
     bool      IsDue             (uint64_t cycle) const { return cycle >= m_nextDueCycle; }
 
     HRESULT   Add               (uint64_t position, uint64_t cycle, const std::vector<Byte> & state) { return Add (position, cycle, 0, state); }
     HRESULT   Add               (uint64_t position, uint64_t cycle, size_t journalIndex, const std::vector<Byte> & state);
+    HRESULT   Add               (uint64_t position, uint64_t cycle, size_t journalIndex, const StateWriter & writer);
     HRESULT   Capture           (const MachineHost & machine, uint64_t position);
+    HRESULT   WaitForPending    ();
 
     HRESULT   Restore           (size_t index, std::vector<Byte> & outState);
     bool      TryFindAtOrBefore (uint64_t cycle, size_t & outIndex) const;
-    bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state) const;
+    bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state);
     HRESULT   TruncateAfter     (uint64_t cycle);
     void      MarkNewestBoundary() { m_entries.back().info.isBoundary = true; }
 
     size_t                    GetCount       () const { return m_entries.size(); }
+    size_t                    GetPendingCount() const { return m_pendingCount; }
     const KeyframeInfo      & GetInfo        (size_t index) const { return m_entries[index].info; }
-    size_t                    GetByteCount   () const { return m_storedBytes + m_latestWhole.size(); }
+    size_t                    GetByteCount   () const { return m_storedBytes + m_wholeBytes; }
     const KeyframeSettings  & GetSettings    () const { return m_settings; }
     uint64_t                  GetNextDueCycle() const { return m_nextDueCycle; }
 
@@ -118,21 +142,43 @@ private:
         std::vector<Byte>  packed;
     };
 
-    HRESULT   AddWhole          (const KeyframeInfo & info, const std::vector<Byte> & state);
-    HRESULT   AddDifference     (const KeyframeInfo & info, const std::vector<Byte> & state);
+    //  One keyframe's work: the state handed over, and what packing it gave.
+    struct Job
+    {
+        KeyframeStore      * store    = nullptr;
+        std::vector<Byte>    state;
+        std::vector<Byte>    packed;
+        uint64_t             checksum = 0;
+        bool                 isWhole  = false;
+        HRESULT              hr       = S_OK;
+        std::atomic<bool>    isDone   = false;
+    };
+
+    HRESULT   TakeJob           (Job *& outJob);
+    HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
+    HRESULT   Collect           ();
+    void      Pack              (Job & job);
     HRESULT   ReloadLatestWhole ();
     size_t    FindGroupStart    (size_t index) const;
     void      DropOldestGroups  ();
     void      ScheduleAfter     (uint64_t cycle);
 
+    static void  RunJob   (void * context);
     static void  XorBytes (const Byte * a, const Byte * b, Byte * out, size_t count);
 
-    KeyframeSettings    m_settings;
-    std::deque<Entry>   m_entries;
-    std::vector<Byte>   m_latestWhole;          // unpacked copy of the newest whole snapshot
-    std::vector<Byte>   m_scratch;
-    size_t              m_storedBytes  = 0;
-    size_t              m_groupLength  = 0;     // keyframes in the newest group
-    uint64_t            m_nextDueCycle = 0;
-    SnapshotCompressor  m_compressor;
+    KeyframeSettings               m_settings;
+    std::deque<Entry>              m_entries;
+    size_t                         m_storedBytes  = 0;
+    size_t                         m_groupLength  = 0;     // keyframes in the newest group
+    size_t                         m_wholeBytes   = 0;     // size of the newest whole snapshot
+    uint64_t                       m_nextDueCycle = 0;
+    IWorkQueue                   * m_queue        = nullptr;
+    std::array<Job, kBufferCount>  m_jobs;
+    size_t                         m_nextJob      = 0;     // the job the next Add takes
+    size_t                         m_pendingCount = 0;     // jobs handed over and not yet collected, the newest entries
+
+    // Used by the work, so touched by the caller's thread only while none is in flight.
+    std::vector<Byte>              m_latestWhole;          // unpacked copy of the newest whole snapshot
+    std::vector<Byte>              m_scratch;
+    SnapshotCompressor             m_compressor;
 };

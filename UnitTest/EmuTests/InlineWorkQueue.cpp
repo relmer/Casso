@@ -1,0 +1,79 @@
+#include "Pch.h"
+
+#include "EmuTests/InlineWorkQueue.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Submit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InlineWorkQueue::Submit (
+    WorkFunction    function,
+    void          * context)
+{
+    m_items.push_back (Item { function, context });
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WaitAll
+//
+//  Runs every item waiting, oldest first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InlineWorkQueue::WaitAll()
+{
+    m_waits++;
+
+    while (TryRunNext())
+    {
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryRunNext
+//
+//  Runs the oldest item; false when none is waiting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InlineWorkQueue::TryRunNext()
+{
+    Item  item;
+    bool  hasItem = !m_items.empty();
+
+
+
+    if (hasItem)
+    {
+        item = m_items.front();
+        m_items.pop_front();
+
+        m_runs++;
+        item.function (item.context);
+    }
+
+    return hasItem;
+}
+
+
+
+
+

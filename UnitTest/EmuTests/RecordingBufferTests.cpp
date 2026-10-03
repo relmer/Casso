@@ -28,8 +28,8 @@ static constexpr size_t    s_kJournalKeep       = 5;
 //
 //  Recording reuses its buffers: once the ring and the keyframe store have
 //  reached their working size, a capture allocates nothing on the thread that
-//  runs the machine, and a keyframe falls on a checkpoint's capture, so one
-//  save serves both.
+//  runs the machine, keyframes being packed on the work queue; and a
+//  keyframe falls on a checkpoint's capture, so one save serves both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +74,7 @@ public:
         Logger::WriteMessage (std::format ("{} allocations over {} frames, {} keyframes\n", allocated, s_kBufferCountFrames, keyframes).c_str());
 
         Assert::IsTrue (keyframes >= s_kBufferCountFrames, L"a keyframe was taken every frame");
-        Assert::AreEqual<uint64_t> (keyframes, allocated, L"each keyframe allocates its packed bytes and nothing else does");
+        Assert::AreEqual<uint64_t> (0, allocated, L"nothing allocates on the machine thread; a keyframe's packed bytes are made on the work queue");
     }
 #endif
 

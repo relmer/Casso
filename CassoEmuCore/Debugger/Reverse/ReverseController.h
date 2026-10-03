@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/Replayer.h"
@@ -110,6 +111,7 @@ public:
     ReverseController & operator= (const ReverseController &) = delete;
 
     HRESULT   Start            (const ReverseSettings & settings);
+    void      SetWorkQueue     (IWorkQueue * queue) { m_workQueueOverride = queue; }
     void      Stop             ();
     bool      IsRecording      () const { return m_isRecording; }
 
@@ -148,18 +150,20 @@ private:
     void      BecomeLive         ();
     void      ScheduleCaptures   ();
     void      PruneRetainedMedia ();
+    HRESULT   UseWorkQueue       ();
     void      FillResult         (ReverseResult & result) const;
 
     bool      TryFindKeyframeAtOrBefore (uint64_t position, size_t & outIndex) const;
 
     MachineHost        & m_machine;
+    ThreadPoolWorkQueue  m_workQueue;              // before the store, which waits on it as it goes
     KeyframeStore        m_keyframes;
     Replayer             m_replayer;
     StateWriter          m_writer;                 // kept so its section and segment lists keep their capacity
     StateWriter          m_hostWriter;             // the host input state taken with every capture
-    std::vector<Byte>    m_keyframeState;          // a keyframe's whole blob, kept at full size
-    bool                 m_isRecording     = false;
-    bool                 m_isLive          = true;
-    uint64_t             m_liveEndPosition = 0;
-    uint64_t             m_liveEndCycle    = 0;
+    IWorkQueue         * m_workQueueOverride = nullptr;  // set by a test
+    bool                 m_isRecording       = false;
+    bool                 m_isLive            = true;
+    uint64_t             m_liveEndPosition   = 0;
+    uint64_t             m_liveEndCycle      = 0;
 };
