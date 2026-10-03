@@ -99,9 +99,9 @@ def body():
             .moveTo(YF, FACE_Z0)
             .lineTo(BOT_Y, 0)
             .lineTo(*lo0)
-            .threePointArc(_bulge(lo0, lo1, -BACK_BULGE), lo1)
+            .threePointArc(_bulge(lo0, lo1, BACK_BULGE), lo1)
             .lineTo(*hi0)
-            .threePointArc(_bulge(hi0, hi1, -BACK_BULGE), hi1)
+            .threePointArc(_bulge(hi0, hi1, BACK_BULGE), hi1)
             .lineTo(TOP_Y, H)
             .lineTo(YF, FACE_Z1)
             .close()
@@ -260,31 +260,43 @@ def build():
         m.add(f"keys_{i}", key.union(hinge), KEY, angular=0.25)
     # THE CARRY HANDLE, polished chrome: a bar across the front, standing
     # proud of the front face by its own depth, on two arms that run back
-    # along the sides into the case. Measured from the side profile.
+    # along the sides into the case.
     #
-    # Every edge rounded over, and each arm ends in a rounded point, almost a
-    # shovel's, where it disappears into the case.
+    # ONE SOLID, made from one side profile pushed across the whole width --
+    # the stretch between the arms runs inside the case and never shows. Built
+    # from separate bar and arm pieces it showed a seam where they met.
+    #
+    # Both ends of the profile close the same way: top and bottom curve toward
+    # each other, leaving the straight edges with no kink, into a blunt rounded
+    # tip -- over 3 mm at the front, and as a longer shovel-like nose at the
+    # back of each arm, whose taper starts directly below the door's front
+    # edge. Every edge is then rounded over.
     HANDLE_Z0, HANDLE_Z1 = 30.0, 37.0
-    ARM_T, ARM_BACK      = 2.0, YF + 43.0
-    zc = (HANDLE_Z0 + HANDLE_Z1) / 2
+    zc                   = (HANDLE_Z0 + HANDLE_Z1) / 2
+    ARM_T                = 2.0
+    FRONT_Y, FRONT_RUN   = 2.0, 3.0
+    NOSE_Y, NOSE_RUN     = dy0, 9.0
 
-    bar = box(-ARM_T, W + ARM_T, 2.0, YF + 1.0, HANDLE_Z0, HANDLE_Z1)
-    bar = bar.edges("|Z").fillet(4.0).edges().fillet(1.2)
-
-    def arm(x):
-        shoulder = ARM_BACK - 9.0
-        prof = (cq.Workplane("YZ")
-                .moveTo(YF - 2.0, HANDLE_Z0)
-                .lineTo(shoulder, HANDLE_Z0)
-                .threePointArc((ARM_BACK - 2.5, zc - 2.2), (ARM_BACK, zc))
-                .threePointArc((ARM_BACK - 2.5, zc + 2.2), (shoulder, HANDLE_Z1))
-                .lineTo(YF - 2.0, HANDLE_Z1)
-                .close()
-                .extrude(ARM_T))
-        return prof.translate((x, 0, 0)).edges().fillet(0.6)
-
-    handle = bar.union(arm(-ARM_T)).union(arm(W))
+    profile = (cq.Workplane("YZ")
+               .moveTo(FRONT_Y + FRONT_RUN, HANDLE_Z0)
+               .lineTo(NOSE_Y, HANDLE_Z0)
+               .spline([(NOSE_Y + NOSE_RUN, zc), (NOSE_Y, HANDLE_Z1)],
+                       tangents=[(1, 0), (0, 1), (-1, 0)], includeCurrent=True)
+               .lineTo(FRONT_Y + FRONT_RUN, HANDLE_Z1)
+               .spline([(FRONT_Y, zc), (FRONT_Y + FRONT_RUN, HANDLE_Z0)],
+                       tangents=[(-1, 0), (0, -1), (1, 0)], includeCurrent=True)
+               .close()
+               .extrude(W + 2 * ARM_T)
+               .translate((-ARM_T, 0, 0)))
+    handle = profile.edges().fillet(0.8)
     m.add("chrome_handle", handle, CHROME, angular=0.12)
+
+    # THE SHELL'S SEAM: a 2 mm channel where its top and bottom halves meet,
+    # level with the arms' tips, from one tip round the back to the other.
+    seam_y = NOSE_Y + NOSE_RUN
+    m.parts[0].solid = (m.parts[0].solid
+                        .cut(box(-1.0, W + 1.0, seam_y, D + 1.0, zc - 1.0, zc + 1.0)
+                             .cut(box(1.0, W - 1.0, seam_y - 1.0, D - 1.0, zc - 2.0, zc + 2.0))))
 
     # The tone and volume thumbwheels in a recess in the back end.
     m.add("wheel_well", box(W / 2 - 34, W / 2 + 34, D - 0.3, D + 0.2, 26.0, 46.0), KEY)
