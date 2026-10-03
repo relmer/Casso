@@ -29,6 +29,9 @@ class MachineHost;
 //  the machine holds do not follow from its earlier state, so history marks
 //  the change as a boundary there. This is rare, so it stays virtual.
 //
+//  Also told when the debugger edits memory, registers or I/O state, which
+//  no recorded input reproduces.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class HistoryRecorder
@@ -48,7 +51,8 @@ public:
         }
     }
 
-    virtual void  OnMediaChanged (MachineHost & machine) = 0;
+    virtual void  OnMediaChanged  (MachineHost & machine) = 0;
+    virtual void  OnMachineEdited (MachineHost & machine) = 0;
 
 protected:
     virtual void        OnCaptureDue (uint64_t cycle) = 0;

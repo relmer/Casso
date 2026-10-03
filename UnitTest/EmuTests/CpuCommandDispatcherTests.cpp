@@ -502,6 +502,11 @@ private:
         {
             calls.push_back (std::format ("ScrollDebugCode {} {}", lines, view));
         }
+
+        void     RunReverseCommand (ReverseCommand command, uint64_t argument) override
+        {
+            calls.push_back (std::format ("RunReverseCommand {} {}", static_cast<int> (command), argument));
+        }
     };
 
 

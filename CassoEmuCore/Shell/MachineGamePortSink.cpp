@@ -16,7 +16,9 @@
 //  MachineGamePortSink
 //
 //  getTargets is asked for the devices on every write, under the lifetime
-//  lock, so the sink never holds a pointer across a machine rebuild.
+//  lock, so the sink never holds a pointer across a machine rebuild. Writes
+//  pass through the input gate when one is set, which reverse execution holds
+//  while the machine is behind live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,19 +38,23 @@ MachineGamePortSink::MachineGamePortSink (
 //
 //  TryApply
 //
-//  Returns false only when a machine rebuild holds the devices, in which case
-//  nothing is written and the mixer keeps the state pending. A machine with no
-//  game port accepts the state and writes nothing (FR-017).
+//  Returns false when a machine rebuild holds the devices, or while reverse
+//  execution has the machine behind live, in which case nothing is written
+//  and the mixer keeps the state pending until the machine is live again. A
+//  machine with no game port accepts the state and writes nothing (FR-017).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MachineGamePortSink::TryApply (const GamePortState & target, const GamePortState * lastApplied)
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_lifetimeLock, std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  gate;
     GamePortTargets                      targets;
     bool                                 isAvailable = lifetime.owns_lock();
 
 
+
+    isAvailable = isAvailable && (m_inputGate == nullptr || m_inputGate->TryEnter (gate));
 
     if (isAvailable)
     {

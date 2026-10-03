@@ -2,6 +2,7 @@
 
 #include "I6502DebugInfo.h"
 #include "Debugger/DebugCommand.h"
+#include "Debugger/Reverse/ReverseOutcome.h"
 #include "Disassembler.h"
 
 class LineTable;
@@ -589,6 +590,10 @@ struct StopEvent
     //  machine, and its value at the hit. An empty condition means none.
     std::string              condition;
     std::optional<int32_t>   conditionValue;
+
+    //  Present when a reverse execution command moved the machine through its
+    //  history: how the command ended. The reason is Step.
+    std::optional<ReverseOutcome>  history;
 };
 
 

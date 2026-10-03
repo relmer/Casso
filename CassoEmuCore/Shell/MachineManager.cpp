@@ -395,6 +395,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     m_shell.AdoptInputModeForMachine (inputUiPrefs, newConfig.machineId);
     m_shell.ApplyDefaultPointerForMachine();
 
+    // Reverse execution's history belongs to the machine being left, whose
+    // devices are about to go; stopping it also lets the flush below write.
+    m_shell.StopReverseRecording();
+
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
     {
@@ -599,6 +603,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
+
+    // The new machine's history starts here, built, power cycled and with
+    // its disks in.
+    m_shell.StartReverseRecording();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.

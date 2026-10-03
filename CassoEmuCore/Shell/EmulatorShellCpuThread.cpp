@@ -5,6 +5,7 @@
 #include "Debugger/CpuManagerRunDriver.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/DebuggerController.h"
+#include "Debugger/Reverse/ReverseHost.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/Channel/PipeSecurity.h"
 #include "Debugger/Channel/Win32NamedPipeApi.h"
@@ -205,6 +206,15 @@ void EmulatorShell::OnCpuThreadStart()
 
     LoadAudioAssetsForDeviceRate();
 
+    // Reverse execution records from here, on the thread that runs the
+    // machine, which is built and power cycled by now. The settings are read
+    // once, here, and hold for every machine built after.
+    m_isReverseOn           = m_globalPrefs.reverseRecording;
+    m_reverseBudgetMb       = m_globalPrefs.reverseBudgetMb;
+    m_reverseIntervalFrames = m_globalPrefs.reverseIntervalFrames;
+
+    StartReverseRecording();
+
     // On the CPU thread, which is where the debugger lives from here on.
     if (m_openDebuggerAtStart)
     {
@@ -305,6 +315,9 @@ Error:
 
 void EmulatorShell::OnCpuThreadStop()
 {
+    // First, so the disks' held writes reach their files at shutdown.
+    StopReverseRecording();
+
     CloseDebugger();
     m_wasapiAudio.Shutdown();
 }
@@ -892,6 +905,12 @@ void EmulatorShell::ServiceDebugger()
         m_debugger->Pump();
         PublishDebuggerView();
     }
+
+    // A debugger edit can make a paused machine live again.
+    if (m_reverseHost != nullptr)
+    {
+        m_reverseHost->SyncInputGate();
+    }
 }
 
 
@@ -929,11 +948,20 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
+    HRESULT         hr          = S_OK;
     FrameSignature  current;
     FrameSignature  lastRendered;
     bool            needsRender = false;
 
 
+
+    // Recording pauses at a Maximum speed the user chose, and running the
+    // machine from the past makes it live again.
+    if (m_reverseHost != nullptr)
+    {
+        hr = m_reverseHost->OnFrame (m_cpuManager.IsUserMaximumSpeed());
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();

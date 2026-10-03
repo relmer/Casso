@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/DebuggerController.h"
+#include "Debugger/Reverse/ReverseHost.h"
 #include "Debugger/Channel/Win32NamedPipeApi.h"
 #include "Debugger/Channel/Win32PipeTransport.h"
 #include "AssetBootstrap.h"
@@ -443,6 +444,9 @@ HRESULT EmulatorShell::Initialize (
 
         return targets;
     });
+
+    // Held back while reverse execution has the machine behind live.
+    m_gamePortSink->SetInputGate (&m_machine.GetHostInputGate());
 
     m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]
     {

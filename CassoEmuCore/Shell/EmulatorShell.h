@@ -79,6 +79,8 @@ class DebuggerController;
 class Win32NamedPipeApi;
 class Win32PipeTransport;
 class DebugSession;
+class IReverseStopTest;
+class ReverseHost;
 struct MonitorSpec;
 
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
@@ -467,6 +469,22 @@ private:
     // only; each is a no-op when no session is attached.
     void NotifyDebugReset          (bool isPowerCycle);
     void NotifyDebugMachineChanged (const std::string & machineName);
+
+    // Reverse execution. Recording starts once a machine is built and power
+    // cycled, from the settings read at start, and stops before a machine is
+    // torn down and at exit; all three run on the CPU thread.
+    // PostReverseCommand is the UI thread's way in: the command runs on the
+    // CPU thread, and its outcome is announced as a step's stop, with the
+    // StopEvent's history set. ReverseContinue stops where the stop test
+    // given to SetReverseStopTest fires; without one it fails and the machine
+    // stays where it is.
+    void  StartReverseRecording ();
+    void  StopReverseRecording  ();
+    void  PostReverseCommand    (ReverseCommand command, uint64_t argument = 0);
+    void  RunReverseCommand     (ReverseCommand command, uint64_t argument) override;
+    void  SetReverseStopTest    (IReverseStopTest * stopTest) { m_reverseStopTest = stopTest; }
+
+    const ReverseHost *  GetReverseHost() const { return m_reverseHost.get(); }
 
     // Where debugger commands go. The session machine events go to is set
     // with SetDebugSession.
@@ -2183,6 +2201,15 @@ private:
     CpuManagerRunDriver         * m_debugRunDriver = nullptr;
     DebugSession                * m_debugSession   = nullptr;
     DebugCommandHandler           m_debugCommandHandler;
+
+    // Reverse execution's history of this machine, recording while a machine
+    // is built; null until the CPU thread first starts it. The stop test is
+    // the debugger's, for reverse continue, or null. CPU thread only.
+    std::unique_ptr<ReverseHost>  m_reverseHost;
+    IReverseStopTest            * m_reverseStopTest       = nullptr;
+    bool                          m_isReverseOn           = false;   // the settings, read when the CPU thread starts
+    int                           m_reverseBudgetMb       = 0;
+    int                           m_reverseIntervalFrames = 0;
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.

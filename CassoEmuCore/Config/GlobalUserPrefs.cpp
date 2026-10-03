@@ -83,6 +83,9 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "masterMuted",
     "settingsWidthDip",
     "settingsHeightDip",
+    "reverseRecording",
+    "reverseBudgetMb",
+    "reverseIntervalFrames",
     "screenshotMode",
     "screenshotSaveFile",
     "screenshotFolder",
@@ -1285,6 +1288,11 @@ JsonValue GlobalUserPrefs::ToJson() const
         root.emplace_back ("settingsHeightDip", JsonValue ((double) settingsHeightDip));
     }
 
+    // Reverse execution's history.
+    root.emplace_back ("reverseRecording",      JsonValue (reverseRecording));
+    root.emplace_back ("reverseBudgetMb",       JsonValue ((double) reverseBudgetMb));
+    root.emplace_back ("reverseIntervalFrames", JsonValue ((double) reverseIntervalFrames));
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -1533,6 +1541,13 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // The Settings sheet's size; a negative one reads as never resized.
     settingsWidthDip  = std::max (GetIntOpt (v, "settingsWidthDip",  settingsWidthDip),  0);
     settingsHeightDip = std::max (GetIntOpt (v, "settingsHeightDip", settingsHeightDip), 0);
+
+    // Reverse execution's history: a budget below a few megabytes holds
+    // almost nothing, and a keyframe more than ten seconds apart makes every
+    // step back replay that long.
+    reverseRecording      = TryGetBoolOpt (v, "reverseRecording", reverseRecording);
+    reverseBudgetMb       = std::clamp (GetIntOpt (v, "reverseBudgetMb",       reverseBudgetMb),       kMinReverseBudgetMb, kMaxReverseBudgetMb);
+    reverseIntervalFrames = std::clamp (GetIntOpt (v, "reverseIntervalFrames", reverseIntervalFrames), 1,                   kMaxReverseIntervalFrames);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

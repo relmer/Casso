@@ -130,9 +130,10 @@ void ReverseController::Stop()
     DiscardStepTable();
     m_steps = std::vector<ReplayStep>();
 
-    m_isRecording  = false;
-    m_isLive       = true;
-    m_nextDueCycle = 0;
+    m_isRecording   = false;
+    m_isLive        = true;
+    m_isEditPending = false;
+    m_nextDueCycle  = 0;
 }
 
 
@@ -206,7 +207,6 @@ HRESULT ReverseController::OnMachineChanged()
 {
     HRESULT   hr         = S_OK;
     EmuCpu  * cpu        = m_machine.GetCpu();
-    uint64_t  cycle      = 0;
     uint64_t  position   = m_machine.GetPosition();
     uint64_t  gapStart   = m_pauseStart;
     bool      isAfterGap = false;
@@ -216,7 +216,6 @@ HRESULT ReverseController::OnMachineChanged()
     CBRA (cpu);
     BAIL_OUT_IF (!m_isRecording, S_OK);
 
-    cycle      = cpu->GetTotalCycles();
     isAfterGap = m_isLive && m_isPaused && position > gapStart;
 
     if (!m_isLive)
@@ -224,13 +223,15 @@ HRESULT ReverseController::OnMachineChanged()
         m_machine.GetInputJournal().Truncate (m_replayer.GetJournalCursor());
     }
 
-    if (cycle == 0)
+    // By position: a power cycle restarts the cycle counter, and every
+    // keyframe from before it would look newer than the machine.
+    if (position == 0)
     {
         m_keyframes.Clear();
     }
     else
     {
-        hr = m_keyframes.TruncateAfter (cycle - 1);
+        hr = m_keyframes.DropAfterPosition (position - 1);
         CHR (hr);
     }
 
@@ -271,6 +272,43 @@ void ReverseController::OnMediaChanged (MachineHost & machine)
 
     hr = OnMachineChanged();
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMachineEdited
+//
+//  The debugger changed memory, registers or I/O state. In the past that
+//  drops the recorded future at once. Live, the change becomes one boundary
+//  keyframe before the next instruction or reverse command, so a fill or a
+//  run of pokes costs one capture rather than one each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::OnMachineEdited (MachineHost & machine)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!m_isRecording || m_replayer.IsReplaying() || &machine != &m_machine)
+    {
+        return;
+    }
+
+    if (!m_isLive)
+    {
+        hr = OnMachineChanged();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    m_isEditPending = true;
+    m_nextDueCycle  = 0;
 }
 
 
@@ -828,7 +866,7 @@ HRESULT ReverseController::HandleDivergence (
     hr = m_replayer.RestoreKeyframe (good);
     CHR (hr);
 
-    hr = m_keyframes.TruncateAfter (info.cycle);
+    hr = m_keyframes.DropAfterPosition (info.position);
     CHR (hr);
 
     m_machine.GetInputJournal().Truncate (info.journalIndex);
@@ -1178,6 +1216,15 @@ HRESULT ReverseController::CaptureNow()
 
     cycle = cpu->GetTotalCycles();
 
+    // The store orders keyframes by cycle, which a power cycle restarts. A
+    // capture before the cycle count passes the newest keyframe's again (a
+    // debugger edit or a disk change soon after a power cycle) cannot follow
+    // it, so history before the power cycle goes and starts over here.
+    if (m_keyframes.GetCount() > 0 && m_keyframes.GetInfo (m_keyframes.GetCount() - 1).cycle >= cycle)
+    {
+        m_keyframes.Clear();
+    }
+
     // A host write no read has seen yet is in the snapshot; the sync record
     // puts it in front of any replay that crosses this point as well.
     m_hostWriter.Reuse (m_hostWriter.TakeBytes());
@@ -1283,8 +1330,10 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
         return;
     }
 
-    if (!m_isLive)
+    if (!m_isLive || m_isEditPending)
     {
+        m_isEditPending = false;
+
         hr = OnMachineChanged();
     }
     else
@@ -1317,6 +1366,16 @@ HRESULT ReverseController::LeaveLive()
     uint64_t  position = m_machine.GetPosition();
 
 
+
+    // A debugger edit made here, live, is kept first, so going back and then
+    // forward again comes back to the edited machine.
+    if (m_isLive && m_isEditPending)
+    {
+        m_isEditPending = false;
+
+        hr = OnMachineChanged();
+        CHR (hr);
+    }
 
     if (m_isLive && m_isPaused && position > m_pauseStart)
     {

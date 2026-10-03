@@ -979,6 +979,44 @@ void KeyframeStore::MarkNewestGap (uint64_t gapStart)
 
 HRESULT KeyframeStore::TruncateAfter (uint64_t cycle)
 {
+    return DropNewerThan (false, cycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropAfterPosition
+//
+//  TruncateAfter by position, which unlike the cycle counter never restarts:
+//  after a power cycle every keyframe from before it has a higher cycle than
+//  the machine, and truncating by cycle would drop them all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::DropAfterPosition (uint64_t position)
+{
+    return DropNewerThan (true, position);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropNewerThan
+//
+//  The newest keyframes whose position, or cycle, is past limit go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::DropNewerThan (
+    bool      isByPosition,
+    uint64_t  limit)
+{
     HRESULT        hr      = S_OK;
     bool           dropped = false;
     const Entry  * newest  = nullptr;
@@ -988,7 +1026,7 @@ HRESULT KeyframeStore::TruncateAfter (uint64_t cycle)
     hr = WaitForPending();
     CHR (hr);
 
-    while (m_count > 0 && GetEntry (m_count - 1).info.cycle > cycle)
+    while (m_count > 0 && (isByPosition ? GetEntry (m_count - 1).info.position : GetEntry (m_count - 1).info.cycle) > limit)
     {
         m_storedBytes -= GetEntry (m_count - 1).info.storedBytes;
         m_count--;

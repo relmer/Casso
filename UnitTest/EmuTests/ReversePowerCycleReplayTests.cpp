@@ -103,4 +103,43 @@ public:
         Assert::AreEqual<uint64_t> (oldest, machine.GetPosition(), L"at the oldest position");
         Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetCount(), L"no keyframe was dropped");
     }
+
+
+    //  The keyframes are ordered by cycle, which the power cycle restarts; a
+    //  debugger edit soon after it is kept as a keyframe all the same, and
+    //  history goes on from there.
+    TEST_METHOD (AnEditJustAfterAPowerCycleIsKeptAndHistoryGoesOn)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           edited     = 0;
+
+
+
+        ReverseSessionRig::Prepare (machine);
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kPowerCycleWarmupCycles);
+
+        machine.RecordInput (InputKind::PowerCycle, 0, 0, {});
+        machine.PowerCycle();
+        machine.RunCycles (KeyframeSettings::kFrameCycles);
+
+        machine.NoteDebuggerEdit();
+        machine.StepOne();
+
+        edited = machine.GetPosition();
+
+        machine.RunCycles (s_kPowerCycleAfterCycles);
+
+        hr = controller.SeekToPosition (edited, result);
+        AssertSucceeded (hr, L"SeekToPosition back past the edit");
+
+        Assert::AreEqual<uint64_t> (edited, machine.GetPosition(), L"history after the edit is there to go back into");
+        Assert::IsTrue (controller.GetOldestPosition() < edited, L"and starts before it");
+    }
 };

@@ -219,6 +219,9 @@
     <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
     <ClCompile Include="Debugger\Reverse\Replayer.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
+    <ClCompile Include="Shell\EmulatorShellReverse.cpp" />
+    <ClCompile Include="Shell\HostInputGate.cpp" />
     <ClCompile Include="Debugger\Reverse\SnapshotCompressor.cpp" />
     <ClCompile Include="Debugger\Handlers\TraceHandlers.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\TracePane.cpp" />
@@ -655,6 +658,10 @@
     <ClInclude Include="Debugger\Reverse\KeyframeStore.h" />
     <ClInclude Include="Debugger\Reverse\Replayer.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseHost.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseOutcome.h" />
+    <ClInclude Include="Shell\HostInputGate.h" />
     <ClInclude Include="Debugger\Reverse\SnapshotCompressor.h" />
     <ClInclude Include="Debugger\Handlers\TraceHandlers.h" />
     <ClInclude Include="Ui\Debugger\Panes\TracePane.h" />

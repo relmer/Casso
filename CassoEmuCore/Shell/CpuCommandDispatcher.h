@@ -4,6 +4,7 @@
 
 #include "Debugger/DebugCommand.h"
 #include "Debugger/Reverse/InputJournal.h"
+#include "Debugger/Reverse/ReverseCommand.h"
 #include "Shell/CpuManager.h"
 
 
@@ -80,6 +81,9 @@ public:
 
     //  Scrolls a code view by instructions: down when positive.
     virtual void     ScrollDebugCode          (int lines, int view)                             = 0;
+
+    //  A reverse execution command; argument is Seek's position.
+    virtual void     RunReverseCommand        (ReverseCommand command, uint64_t argument)       = 0;
 };
 
 
@@ -117,6 +121,10 @@ public:
     //  "on" or "off" after "heatmap": whether the heat map pane is shown.
     static bool  TryGetHeatMapShown (const std::string & where, bool & shown);
 
+    //  The payload of an IDM_DEBUG_REVERSE command, and back.
+    static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
+    static bool         TryParseReversePayload (const std::string & payload, ReverseCommand & command, uint64_t & argument);
+
     static constexpr uint16_t  kResetHoldsOpenApple   = 1;
     static constexpr uint16_t  kResetHoldsClosedApple = 2;
 
@@ -127,4 +135,5 @@ private:
     static void  DispatchDrivePan      (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDriveTest     (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDebugView     (const std::string & payload, ICpuCommandTarget & target);
+    static void  DispatchReverse       (const std::string & payload, ICpuCommandTarget & target);
 };

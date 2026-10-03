@@ -9,6 +9,23 @@
 
 
 
+//  The words of an IDM_DEBUG_REVERSE payload. Seek is followed by its
+//  position in decimal.
+static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
+{
+    { ReverseCommand::StepBack,        "back"      },
+    { ReverseCommand::StepBackOver,    "back-over" },
+    { ReverseCommand::StepBackOut,     "back-out"  },
+    { ReverseCommand::ReverseContinue, "continue"  },
+    { ReverseCommand::StepForward,     "forward"   },
+    { ReverseCommand::Seek,            "seek"      },
+    { ReverseCommand::GoLive,          "live"      },
+};
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Dispatch
@@ -149,6 +166,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
         case IDM_DEBUG_VIEW:
             DispatchDebugView (cmd.payload, target);
+            break;
+
+        case IDM_DEBUG_REVERSE:
+            DispatchReverse (cmd.payload, target);
             break;
 
         default:
@@ -522,3 +543,124 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
     value = std::stoul (where, &used, 16);
     target.SetDebugView (view, (Word) value);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatReversePayload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CpuCommandDispatcher::FormatReversePayload (
+    ReverseCommand  command,
+    uint64_t        argument)
+{
+    std::string  payload;
+
+
+
+    for (const auto & entry : s_kReverseWords)
+    {
+        if (entry.first == command)
+        {
+            payload = entry.second;
+        }
+    }
+
+    if (command == ReverseCommand::Seek)
+    {
+        payload += std::format (" {}", argument);
+    }
+
+    return payload;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryParseReversePayload
+//
+//  A word from the table, and for seek a decimal position after one space;
+//  anything else asks for nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryParseReversePayload (
+    const std::string  & payload,
+    ReverseCommand     & command,
+    uint64_t           & argument)
+{
+    size_t                  space    = payload.find (' ');
+    std::string             word     = payload.substr (0, space);
+    std::string             rest     = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
+    bool                    isFound  = false;
+    bool                    isSeek   = false;
+    std::from_chars_result  parsed   = {};
+
+
+
+    argument = 0;
+
+    for (const auto & entry : s_kReverseWords)
+    {
+        if (word == entry.second)
+        {
+            command = entry.first;
+            isFound = true;
+        }
+    }
+
+    if (!isFound)
+    {
+        return false;
+    }
+
+    isSeek = command == ReverseCommand::Seek;
+
+    if (isSeek != !rest.empty())
+    {
+        return false;
+    }
+
+    if (!isSeek)
+    {
+        return true;
+    }
+
+    parsed = std::from_chars (rest.data(), rest.data() + rest.size(), argument);
+
+    return parsed.ec == std::errc() && parsed.ptr == rest.data() + rest.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchReverse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchReverse (const std::string & payload, ICpuCommandTarget & target)
+{
+    ReverseCommand  command  = ReverseCommand::StepBack;
+    uint64_t        argument = 0;
+
+
+
+    if (TryParseReversePayload (payload, command, argument))
+    {
+        target.RunReverseCommand (command, argument);
+    }
+}
+
+
+
+

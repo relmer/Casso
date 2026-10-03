@@ -189,6 +189,7 @@ Cpu6502Registers MachineDebugTarget::GetRegisters() const
 void MachineDebugTarget::SetRegisters (const Cpu6502Registers & registers)
 {
     m_host.GetCpu()->GetCpu6502()->SetRegisters (registers);
+    m_host.NoteDebuggerEdit();
 }
 
 
@@ -220,7 +221,16 @@ bool MachineDebugTarget::TryPeek (Word address, Byte & value) const
 
 bool MachineDebugTarget::TryPoke (Word address, Byte value)
 {
-    return m_view.TryPoke (address, value);
+    bool  isPoked = m_view.TryPoke (address, value);
+
+
+
+    if (isPoked)
+    {
+        m_host.NoteDebuggerEdit();
+    }
+
+    return isPoked;
 }
 
 
@@ -235,7 +245,16 @@ bool MachineDebugTarget::TryPoke (Word address, Byte value)
 
 bool MachineDebugTarget::TryPatch (Word address, Byte value)
 {
-    return m_view.TryPatch (address, value);
+    bool  isPatched = m_view.TryPatch (address, value);
+
+
+
+    if (isPatched)
+    {
+        m_host.NoteDebuggerEdit();
+    }
+
+    return isPatched;
 }
 
 
@@ -310,6 +329,8 @@ void MachineDebugTarget::WriteIo (Word address, Byte value)
     bus.WriteByte (address, value);
     bus.SetWatchSink (sink);
     m_trace.SetHostAccess (false);
+
+    m_host.NoteDebuggerEdit();
 }
 
 
@@ -670,6 +691,7 @@ void MachineDebugTarget::InjectKey (Byte key)
     if (m_host.GetRefs().keyboard != nullptr)
     {
         m_host.GetRefs().keyboard->PressKey (key);
+        m_host.NoteDebuggerEdit();
     }
 }
 

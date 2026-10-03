@@ -132,6 +132,7 @@ public:
     bool      TryFindByPosition (uint64_t position, size_t & outIndex) const;
     bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state);
     HRESULT   TruncateAfter     (uint64_t cycle);
+    HRESULT   DropAfterPosition (uint64_t position);
     void      MarkNewestBoundary()                    { GetEntry (m_count - 1).info.isBoundary = true; }
     void      MarkNewestGap     (uint64_t gapStart);
 
@@ -180,6 +181,7 @@ private:
     bool      TryFindRoom       (size_t size, size_t & outOffset) const;
     void      Pack              (Job & job);
     HRESULT   ReloadLatestWhole ();
+    HRESULT   DropNewerThan     (bool isByPosition, uint64_t limit);
     size_t    FindGroupStart    (size_t index) const;
     bool      TryDropOldestGroup();
     void      DropOldestGroups  ();

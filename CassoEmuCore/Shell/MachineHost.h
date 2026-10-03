@@ -15,6 +15,7 @@
 #include "Devices/IAciaEndpoint.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
+#include "Shell/HostInputGate.h"
 #include "Shell/MachineRefs.h"
 #include "Ui/UiCommandTypes.h"
 #include "Video/VideoOutput.h"
@@ -257,6 +258,15 @@ public:
     HRESULT  SaveHostInputState (StateWriter & writer) const;
     HRESULT  LoadHostInputState (std::string_view blob);
 
+    //  Whether the host may write its input into the devices; held while
+    //  reverse execution has the machine behind live (see HostInputGate).
+    HostInputGate  &  GetHostInputGate() noexcept { return m_hostInputGate; }
+
+    //  The debugger changed memory, registers or I/O state from outside the
+    //  program: reverse execution's recorded future no longer follows, and
+    //  the history recorder is told so.
+    void  NoteDebuggerEdit();
+
     //  The opcodes, a 256-entry table read in place, whose fetches the CPU
     //  tells the watcher of (see IOpcodeWatcher); null for none. It survives
     //  the CPU being replaced.
@@ -410,4 +420,6 @@ private:
     SpeedMode     m_speedMode = SpeedMode::Authentic;
 
     InputJournal  m_inputJournal;
+
+    HostInputGate  m_hostInputGate;
 };

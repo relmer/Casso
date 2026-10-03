@@ -7,6 +7,7 @@
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/Replayer.h"
+#include "Debugger/Reverse/ReverseOutcome.h"
 
 class IReverseStopTest;
 class MachineHost;
@@ -24,32 +25,6 @@ class MachineHost;
 struct ReverseSettings
 {
     KeyframeSettings  keyframes;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReverseOutcome
-//
-//  How a reverse command ended. Moved: the machine is at the target.
-//  AtHistoryStart: no earlier position satisfied the command, so the machine
-//  is at the oldest position history holds. AtHistoryGap: the target lay in
-//  a stretch recording skipped (Maximum speed chosen by the user), so the
-//  machine stopped at the edge of it. HistoryCut: a replay diverged from a
-//  keyframe's checksum, history after the last good keyframe was dropped,
-//  and the machine is live at that keyframe.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class ReverseOutcome
-{
-    Moved,
-    AtHistoryStart,
-    AtHistoryGap,
-    HistoryCut,
 };
 
 
@@ -95,7 +70,9 @@ struct ReverseResult
 //  made in the past (memory, registers, a disk) must be reported through
 //  OnMachineChanged, which drops the future and keyframes the changed state;
 //  running the machine from the past without a seek does the same. A disk
-//  change reaches it through OnMediaChanged.
+//  change reaches it through OnMediaChanged, and a debugger edit through
+//  OnMachineEdited: in the past at once, and while live once, before the next
+//  instruction or reverse command, however many edits came first.
 //
 //  While the user has chosen Maximum speed, recording pauses, leaving a gap
 //  in history from where it paused to the keyframe taken where it resumed;
@@ -133,6 +110,7 @@ public:
     bool      IsPaused            () const { return m_isPaused; }
 
     void      OnMediaChanged      (MachineHost & machine) override;
+    void      OnMachineEdited     (MachineHost & machine) override;
     HRESULT   OnMachineChanged    ();
 
     HRESULT   StepBack            (ReverseResult & result);
@@ -203,6 +181,7 @@ private:
     bool                       m_isRecording       = false;
     bool                       m_isLive            = true;
     bool                       m_isPaused          = false;
+    bool                       m_isEditPending     = false;  // a debugger edit while live, kept as a boundary before the next instruction
     uint64_t                   m_pauseStart        = 0;      // while paused and live: where recording stopped
     uint64_t                   m_liveEndPosition   = 0;
     uint64_t                   m_liveEndCycle      = 0;

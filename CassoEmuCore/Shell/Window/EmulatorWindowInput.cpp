@@ -690,16 +690,21 @@ bool EmulatorShell::IsGuestMouseLive() const
 
 void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 {
-    const RECT & vp        = m_viewportBoundsPx;
-    int          vpW       = vp.right  - vp.left;
-    int          vpH       = vp.bottom - vp.top;
-    bool         isLive    = IsGuestMouseLive() && vpW > 1 && vpH > 1;
-    uint16_t     fx        = 0;
-    uint16_t     fy        = 0;
-    bool         isInside  = xPx >= vp.left && xPx < vp.right &&
-                             yPx >= vp.top  && yPx < vp.bottom;
+    const RECT                          & vp        = m_viewportBoundsPx;
+    int                                   vpW       = vp.right  - vp.left;
+    int                                   vpH       = vp.bottom - vp.top;
+    bool                                  isLive    = IsGuestMouseLive() && vpW > 1 && vpH > 1;
+    uint16_t                              fx        = 0;
+    uint16_t                              fy        = 0;
+    bool                                  isInside  = xPx >= vp.left && xPx < vp.right &&
+                                                      yPx >= vp.top  && yPx < vp.bottom;
+    std::shared_lock<std::shared_mutex>   gate;
 
 
+
+    // Behind live in reverse execution's history the mouse holds a recorded
+    // position, so the host pointer leaves it alone.
+    isLive = isLive && m_machine.GetHostInputGate().TryEnter (gate);
 
     if (isLive && CrtMonitorActive())
     {
@@ -1139,13 +1144,14 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    HRESULT            hr          = S_OK;
-    DxuiMessageResult  result      = DxuiMessageResult::NotHandled;
-    int                x           = ((int) (short) LOWORD (lParam));
-    int                y           = ((int) (short) HIWORD (lParam));
-    bool               consumed    = false;
-    bool               toolbarTook = false;
-    bool               chromeTook  = false;
+    HRESULT                              hr          = S_OK;
+    DxuiMessageResult                    result      = DxuiMessageResult::NotHandled;
+    int                                  x           = ((int) (short) LOWORD (lParam));
+    int                                  y           = ((int) (short) HIWORD (lParam));
+    bool                                 consumed    = false;
+    bool                                 toolbarTook = false;
+    bool                                 chromeTook  = false;
+    std::shared_lock<std::shared_mutex>  gate;
 
 
 
@@ -1246,7 +1252,9 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
                        && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom;
         }
 
-        if (overDisplay)
+        // Not behind live in reverse execution's history, where the mouse
+        // holds a recorded position.
+        if (overDisplay && m_machine.GetHostInputGate().TryEnter (gate))
         {
             m_machine.GetMouse()->SetButton (true);
         }
@@ -1395,18 +1403,19 @@ Error:
 
 DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 {
-    HRESULT                 hr            = S_OK;
-    DxuiMessageResult       result        = DxuiMessageResult::NotHandled;
-    int                     x             = ((int) (short) LOWORD (lParam));
-    int                     y             = ((int) (short) HIWORD (lParam));
-    DriveWidgetRegion       region        = DriveWidgetRegion::None;
-    Apple2cSwitchBar::Part  switchPart    = Apple2cSwitchBar::Part::None;
-    bool                    toolbarTook   = false;
-    bool                    shellTook     = false;
-    bool                    onSwitchPart  = false;
-    bool                    wasSuppressed = false;
-    bool                    driveTook     = false;
-    bool                    canGrabPaddle = false;
+    HRESULT                              hr            = S_OK;
+    DxuiMessageResult                    result        = DxuiMessageResult::NotHandled;
+    int                                  x             = ((int) (short) LOWORD (lParam));
+    int                                  y             = ((int) (short) HIWORD (lParam));
+    DriveWidgetRegion                    region        = DriveWidgetRegion::None;
+    Apple2cSwitchBar::Part               switchPart    = Apple2cSwitchBar::Part::None;
+    bool                                 toolbarTook   = false;
+    bool                                 shellTook     = false;
+    bool                                 onSwitchPart  = false;
+    bool                                 wasSuppressed = false;
+    bool                                 driveTook     = false;
+    bool                                 canGrabPaddle = false;
+    std::shared_lock<std::shared_mutex>  gate;
 
 
 
@@ -1621,7 +1630,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // //c Mouse mode: any left-release drops the guest mouse button --
     // unconditionally (not viewport-gated), so a press inside the viewport
     // released outside it can never leave the guest button stuck.
-    if (IsGuestMouseActive())
+    if (IsGuestMouseActive() && m_machine.GetHostInputGate().TryEnter (gate))
     {
         m_machine.GetMouse()->SetButton (false);
     }
@@ -1743,6 +1752,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 void EmulatorShell::ReleaseGuestKeys()
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::defer_lock);
+    std::shared_lock<std::shared_mutex>  gate;
 
 
 
@@ -1756,6 +1766,13 @@ void EmulatorShell::ReleaseGuestKeys()
     // A machine switch holds the lock exclusively while it replaces the
     // devices; the new machine starts with every key up anyway.
     if (!lifetime.try_lock())
+    {
+        return;
+    }
+
+    // Behind live in reverse execution's history the keyboard holds a
+    // recorded position, which a release must not change.
+    if (!m_machine.GetHostInputGate().TryEnter (gate))
     {
         return;
     }
@@ -2223,6 +2240,7 @@ static bool HostKeyboardLayoutIsDvorak()
 bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  gate;
     bool                                 hasKeyboard = false;
 
 
@@ -2232,6 +2250,13 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     if (!lifetime.owns_lock())
     {
         return false;
+    }
+
+    // Behind live in reverse execution's history the devices hold a recorded
+    // position, so the guest gets no keys until the machine is live again.
+    if (!m_machine.GetHostInputGate().TryEnter (gate))
+    {
+        return true;
     }
 
     // Arrow keys double as the emulated joystick axes / the X / Z keys as

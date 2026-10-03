@@ -82,6 +82,10 @@
 //  is recorded from the first instruction the machine runs.
 #define IDM_DEBUG_RESTART           40157
 
+//  A reverse execution command for the CPU thread; the payload is the
+//  command's word (see CpuCommandDispatcher::FormatReversePayload).
+#define IDM_DEBUG_REVERSE           40180
+
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
 #define IDM_VIEW_AMBER              40032

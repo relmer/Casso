@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Controllers/GamePortInputMixer.h"
+#include "Shell/HostInputGate.h"
 
 class AppleGamePort;
 class Apple2eSoftSwitchBank;
@@ -57,6 +58,8 @@ public:
 
     MachineGamePortSink (std::shared_mutex & lifetimeLock, TargetsFn getTargets);
 
+    void SetInputGate (HostInputGate * inputGate) { m_inputGate = inputGate; }
+
     bool TryApply (const GamePortState & target, const GamePortState * lastApplied) override;
 
 private:
@@ -66,5 +69,6 @@ private:
     static void WriteJacks   (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
 
     std::shared_mutex  & m_lifetimeLock;
+    HostInputGate      * m_inputGate = nullptr;
     TargetsFn            m_getTargets;
 };
