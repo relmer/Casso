@@ -210,6 +210,48 @@ void EmulatorShell::SetDebuggerTheme (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetReverseOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReverseOptions EmulatorShell::GetReverseOptions()
+{
+    ReverseOptions  options;
+
+
+
+    options.isRecording    = m_globalPrefs.reverseRecording;
+    options.budgetMb       = m_globalPrefs.reverseBudgetMb;
+    options.intervalFrames = m_globalPrefs.reverseIntervalFrames;
+    return options;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetReverseOptions
+//
+//  Saved for the next start, which is when the CPU thread reads them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetReverseOptions (const ReverseOptions & options)
+{
+    m_globalPrefs.reverseRecording      = options.isRecording;
+    m_globalPrefs.reverseBudgetMb       = options.budgetMb;
+    m_globalPrefs.reverseIntervalFrames = options.intervalFrames;
+    SaveGlobalPrefsDeferred();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDebuggerLayout
 //
 ////////////////////////////////////////////////////////////////////////////////

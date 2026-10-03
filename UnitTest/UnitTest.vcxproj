@@ -821,6 +821,7 @@
     <ClCompile Include="EmuTests\ReverseSessionStopTestTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" />
+    <ClCompile Include="DebuggerTests\ReverseOptionsDialogTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseHostTests.cpp" />

@@ -24,6 +24,7 @@
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/ReverseOptionsDialog.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -121,6 +122,11 @@ public:
     virtual bool         IsBeamOverlayOn      ()                           { return false; }
     virtual void         SetBeamOverlayOn     (bool on)                    { (void) on; }
     virtual void         SetDebuggerTheme     (const std::string &)        {}
+
+    //  Reverse execution's settings, kept the same way. A host that keeps no
+    //  preferences, as a test's is, has the defaults and keeps nothing.
+    virtual ReverseOptions  GetReverseOptions ()                        { return {}; }
+    virtual void            SetReverseOptions (const ReverseOptions &)  {}
 
     //  The pane arrangement as DxuiPaneLayout text, kept the same way.
     virtual std::string  GetDebuggerLayout    ()                           = 0;
@@ -579,6 +585,7 @@ private:
     std::shared_ptr<DxuiCommand>  MakeEditMenuCommand  (DxuiStandardCommand command, const std::wstring & label, const std::wstring & accelerator);
     void     ResetPaneLayout      ();
     void     OpenSourceFile       ();
+    void     OpenReverseOptions   ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
     void     ConfigureCodeBars    ();

@@ -394,6 +394,10 @@ void DebuggerWindow::SetWindowMenus()
     m_menuCommands.push_back (row);
     tools.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (themes)));
 
+    //  Tools: the settings that have no place in a menu of their own.
+    tools.push_back (DxuiPopupMenuItem::ForSeparator());
+    add (tools, MakeMenuCommand (L"Options...", false, [this] { OpenReverseOptions(); }));
+
     m_menuBarItems =
     {
         { L"&File",   0, std::move (file)   },
@@ -406,6 +410,37 @@ void DebuggerWindow::SetWindowMenus()
     if (m_menuBar != nullptr && !m_menuBar->IsOpen())
     {
         m_menuBar->SetItems (m_menuBarItems);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenReverseOptions
+//
+//  Tools > Options: reverse execution's settings, saved by the host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenReverseOptions()
+{
+    std::optional<ReverseOptions>  chosen;
+
+
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    chosen = ReverseOptionsDialog::Ask (GetHwnd(), m_theme, m_host->GetReverseOptions());
+
+    if (chosen.has_value())
+    {
+        m_host->SetReverseOptions (*chosen);
     }
 }
 

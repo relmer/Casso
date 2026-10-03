@@ -559,6 +559,8 @@ private:
     bool         IsBeamOverlayOn      () override { return m_isBeamOverlayOn.load (memory_order_acquire); }
     void         SetBeamOverlayOn     (bool on) override;
     void         SetDebuggerTheme     (const std::string & name) override;
+    ReverseOptions  GetReverseOptions () override;
+    void            SetReverseOptions (const ReverseOptions & options) override;
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;
     std::string  GetDebuggerClosedPanes () override;
