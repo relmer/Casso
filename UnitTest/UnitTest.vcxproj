@@ -542,6 +542,7 @@
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiToggleTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewFocusClickTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
