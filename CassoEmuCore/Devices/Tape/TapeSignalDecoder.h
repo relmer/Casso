@@ -50,12 +50,13 @@ private:
     static constexpr double  kThresholdFloor    = 0.02;      // about -34 dBFS; quieter is treated as silence
 
     // Where the comparator switches, as a fraction of the peak envelope.
-    // A CLEAN recording switches close to zero, as the Apple's own input
-    // does: a real tape's half-cycles vary in height, and the weakest of them
-    // -- a fifth of their neighbors' peak on one Internet Archive tape -- are
-    // missed by anything higher. A NOISY one is smoothed and switches higher,
-    // or hiss would flip it between the tones' own crossings.
-    static constexpr double  kCleanThreshold    = 0.04;
+    // A CLEAN recording switches as close to zero as the silence floor
+    // allows, as the Apple's own input does. Real transfers need it: one
+    // tape's half-cycles drop to a fifth of their neighbors' peak, and
+    // another has a glitch inside its sync bit that merged the sync into the
+    // leader at anything higher. A NOISY one is smoothed and switches
+    // higher, or hiss would flip it between the tones' own crossings.
+    static constexpr double  kCleanThreshold    = 0.02;
     static constexpr double  kNoisyThreshold    = 0.12;
 
     // How a recording is judged noisy: switching close to zero, more than
