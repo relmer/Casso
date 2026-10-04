@@ -136,6 +136,7 @@ public:
     HRESULT   WaitForPending    ();
 
     HRESULT   Restore           (size_t index, std::vector<Byte> & outState);
+    HRESULT   RestoreAtPosition (uint64_t position, std::vector<Byte> & outState, bool & outIsFound);
     bool      TryFindAtOrBefore (uint64_t cycle, size_t & outIndex) const;
     bool      TryFindByPosition (uint64_t position, size_t & outIndex) const;
     bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state);

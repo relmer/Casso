@@ -247,7 +247,6 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     std::vector<HistoryThumbnailCell>  cells;
     int                                count    = 0;
     uint64_t                           position = 0;
-    size_t                             index    = 0;
     bool                               isFound  = false;
     bool                               isIdle   = false;
     LARGE_INTEGER                      start    = {};
@@ -284,16 +283,19 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     isFound = TryPickWanted (position);
     BAIL_OUT_IF (!isFound, S_OK);
 
-    isFound = keyframes.TryFindByPosition (position, index);
-    BAIL_OUT_IF (!isFound, S_OK);
-
     QueryPerformanceFrequency (&freq);
     QueryPerformanceCounter   (&start);
 
-    hr = keyframes.Restore (index, m_job.state);
+    hr = keyframes.RestoreAtPosition (position, m_job.state, isFound);
     CHR (hr);
 
     QueryPerformanceCounter (&end);
+
+    if (!isFound)
+    {
+        ForgetPoint (position);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     if (m_queue == nullptr)
     {
@@ -758,6 +760,32 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::ForgetPoint
+//
+//  The keyframe at position is gone from history. A preview asked for there
+//  is dropped, or it would be picked again every turn; the cells are laid
+//  out again over what history still holds on the next turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::ForgetPoint (uint64_t position)
+{
+    std::lock_guard<std::mutex>  held (m_lock);
+
+
+
+    if (m_wantedPreview == position)
+    {
+        m_wantedPreview.reset();
+    }
 }
 
 

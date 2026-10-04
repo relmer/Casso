@@ -16,6 +16,8 @@ static constexpr uint64_t  s_kThumbStride     = 100;
 static constexpr int       s_kFakeWidth       = 8;
 static constexpr int       s_kFakeHeight      = 4;
 static constexpr SIZE      s_kThumbCell       = { 4, 2 };
+static constexpr size_t    s_kNoiseStateBytes = 4096;
+static constexpr uint32_t  s_kThumbOpaque     = 0xFF000000u;
 
 
 
@@ -340,6 +342,99 @@ public:
         Assert::AreEqual (2, seeks, L"no cell, no seek");
     }
 
+
+    //  The keyframes in flight are collected when one is unpacked, and
+    //  collecting them can drop the oldest groups, which moves every index.
+    //  The picture must still come from the keyframe at its point.
+    TEST_METHOD (APictureComesFromItsPointWhenCollectingDropsTheOldest)
+    {
+        constexpr size_t  kRounds   = 200;
+        constexpr int     kLiveCell = 2;
+
+        FakeHistoryFrameRenderer           renderer;
+        InlineWorkQueue                    thumbQueue;
+        InlineWorkQueue                    storeQueue;
+        HistoryThumbnails                  thumbnails (renderer);
+        KeyframeStore                      store;
+        std::vector<HistoryThumbnailCell>  cells;
+        HistoryThumbnails::Image           image;
+        uint64_t                           now      = 0;
+        uint64_t                           position = 0;
+        uint32_t                           seed     = 1;
+        size_t                             round    = 0;
+        HRESULT                            hr       = S_OK;
+
+
+
+        PrepareTight (thumbnails, thumbQueue, store, storeQueue, now);
+        thumbnails.SetVisible (true);
+
+        for (round = 0; round < kRounds; round++)
+        {
+            AddInFlight (store, position, seed);
+
+            hr = thumbnails.Service (store);
+            AssertSucceeded (hr, L"Service");
+
+            Assert::IsTrue (thumbQueue.TryRunNext(), L"a picture was handed to the worker");
+
+            thumbnails.GetCells (cells);
+            image = thumbnails.GetCellImage (kLiveCell);
+
+            Assert::IsNotNull (image.get(), L"the live end is drawn");
+            Assert::AreEqual<uint32_t> (s_kThumbOpaque | GetTag (cells[kLiveCell].position), image->bgraPremul[0], L"from the keyframe at the live end");
+
+            now += 1000 / HistoryThumbnails::kRendersPerSecond;
+        }
+
+        Assert::IsTrue (store.GetInfo (0).position > 0, L"and the oldest keyframes were dropped along the way");
+    }
+
+
+    TEST_METHOD (APreviewOfADroppedPointIsForgotten)
+    {
+        constexpr int  kOldestCell = 0;
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           thumbQueue;
+        InlineWorkQueue           storeQueue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        uint64_t                  now      = 0;
+        uint64_t                  position = 0;
+        uint32_t                  seed     = 1;
+        HRESULT                   hr       = S_OK;
+
+
+
+        PrepareTight (thumbnails, thumbQueue, store, storeQueue, now);
+
+        AddInFlight (store, position, seed);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service while hidden lays the points out");
+
+        Assert::IsNull (thumbnails.GetPreviewImage (kOldestCell).get(), L"the oldest point is asked for");
+
+        while (store.GetInfo (0).position == 0)
+        {
+            AddInFlight (store, position, seed);
+        }
+
+        thumbnails.SetVisible (true);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service with the point dropped");
+
+        now += 1000 / HistoryThumbnails::kRendersPerSecond;
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service once due");
+
+        Assert::IsTrue (thumbQueue.TryRunNext(), L"the strip moved on to a point history still holds");
+        Assert::AreEqual (1, renderer.calls, L"drawn");
+    }
+
 private:
 
     static void Fill (KeyframeStore & store, size_t count)
@@ -371,5 +466,69 @@ private:
         thumbnails.SetWorkQueue  (&queue);
         thumbnails.SetClock      ([&now] { return now; });
         thumbnails.SetCellLayout (3, s_kThumbCell);
+    }
+
+
+    //  A budget the arena binds, unlike Fill's, so placing the keyframes in
+    //  flight drops the oldest groups.
+    static void PrepareTight (HistoryThumbnails & thumbnails, InlineWorkQueue & thumbQueue, KeyframeStore & store, InlineWorkQueue & storeQueue, uint64_t & now)
+    {
+        constexpr uint32_t  kWholeEvery   = 2;
+        constexpr size_t    kBudgetStates = 64;
+
+        KeyframeSettings  settings;
+
+
+
+        settings.intervalCycles = s_kThumbInterval;
+        settings.wholeEvery     = kWholeEvery;
+        settings.budgetBytes    = s_kNoiseStateBytes * kBudgetStates;
+
+        store.Configure    (settings);
+        store.SetWorkQueue (&storeQueue);
+
+        thumbnails.SetWorkQueue  (&thumbQueue);
+        thumbnails.SetClock      ([&now] { return now; });
+        thumbnails.SetCellLayout (3, s_kThumbCell);
+    }
+
+
+    //  Adds a keyframe for every work buffer and leaves them all in flight.
+    //  Noise does not pack, so the arena fills; the first byte is the tag
+    //  GetTag gives for the keyframe's position.
+    static void AddInFlight (KeyframeStore & store, uint64_t & position, uint32_t & seed)
+    {
+        constexpr uint32_t  kLcgMultiplier = 1664525u;
+        constexpr uint32_t  kLcgIncrement  = 1013904223u;
+        constexpr int       kLcgHighByte   = 24;
+
+        std::vector<Byte>  state (s_kNoiseStateBytes);
+        HRESULT            hr = S_OK;
+        size_t             i  = 0;
+        size_t             j  = 0;
+
+
+
+        for (j = 0; j < KeyframeStore::kBufferCount; j++)
+        {
+            for (i = 0; i < state.size(); i++)
+            {
+                seed     = seed * kLcgMultiplier + kLcgIncrement;
+                state[i] = static_cast<Byte> (seed >> kLcgHighByte);
+            }
+
+            state[0] = GetTag (position);
+
+            hr = store.Add (position, position / s_kThumbStride * s_kThumbInterval, state);
+            AssertSucceeded (hr, L"Add");
+
+            position += s_kThumbStride;
+        }
+    }
+
+
+    static Byte GetTag (uint64_t position)
+    {
+        return static_cast<Byte> (position / s_kThumbStride + 1);
     }
 };

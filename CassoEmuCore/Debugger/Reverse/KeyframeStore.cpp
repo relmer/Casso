@@ -1120,6 +1120,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RestoreAtPosition
+//
+//  Unpacks the keyframe taken at position into outState. For a caller that
+//  holds a keyframe across time: its index moves as the oldest groups are
+//  dropped, including while the keyframes in flight are collected, so the
+//  index is found only after that wait. outIsFound is false, and outState
+//  untouched, when no keyframe at position is held any more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::RestoreAtPosition (
+    uint64_t             position,
+    std::vector<Byte>  & outState,
+    bool               & outIsFound)
+{
+    HRESULT  hr    = S_OK;
+    size_t   index = 0;
+
+
+
+    outIsFound = false;
+
+    hr = WaitForPending();
+    CHR (hr);
+
+    outIsFound = TryFindByPosition (position, index) && GetEntry (index).info.position == position;
+    BAIL_OUT_IF (!outIsFound, S_OK);
+
+    hr = Restore (index, outState);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryFindAtOrBefore
 //
 //  The newest keyframe taken at or before cycle; false when every keyframe

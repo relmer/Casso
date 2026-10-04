@@ -126,6 +126,7 @@ private:
     static void        RunJob        (void * context);
     void               Draw          (Job & job);
     bool               TryPickWanted (uint64_t & outPosition);
+    void               ForgetPoint   (uint64_t position);
     bool               IsRenderDue   ();
     uint64_t           GetNowMs      () const;
     void               Bump          ()              { m_version.fetch_add (1, std::memory_order_acq_rel); }
