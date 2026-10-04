@@ -53,11 +53,11 @@ public:
 private:
     static bool IsLeaderHalf (double us) { return us > kLeaderMinUs && us < kLeaderMaxUs; }
 
-    static constexpr double  kLeaderMinUs   = 550.0;    // a leader half-cycle is about 650 us
-    static constexpr double  kLeaderMaxUs   = 800.0;
-    static constexpr size_t  kLeaderMinRun  = 500;      // about a third of a second of leader
-    static constexpr size_t  kLeaderMaxBurst = 3;       // odd half-cycles in a row a leader may hold
-    static constexpr double  kOneMinCycleUs = 750.0;    // a full cycle longer than this is a 1 bit
-    static constexpr double  kGapCycleUs    = 1200.0;   // and longer than this, the record has ended
-    static constexpr Byte    kChecksumSeed  = 0xFF;
+    static constexpr double  kLeaderMinUs    = 550.0;    // a leader half-cycle is about 650 us
+    static constexpr double  kLeaderMaxUs    = 800.0;
+    static constexpr size_t  kLeaderMinRun   = 500;      // about a third of a second of leader
+    static constexpr size_t  kLeaderMaxBurst = 3;        // odd half-cycles in a row a leader may hold
+    static constexpr double  kOneMinCycleUs  = 750.0;    // a full cycle longer than this is a 1 bit
+    static constexpr double  kGapCycleUs     = 1200.0;   // and longer than this, the record has ended
+    static constexpr Byte    kChecksumSeed   = 0xFF;
 };
