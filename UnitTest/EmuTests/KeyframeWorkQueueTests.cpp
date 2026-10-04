@@ -220,6 +220,7 @@ public:
 
         settings.intervalCycles = s_kStressInterval;
         settings.wholeEvery     = 8;
+        settings.longestGroup   = 8;
         settings.budgetBytes    = s_kStressBudget;
 
         hr = queue.Create (KeyframeStore::kBufferCount);

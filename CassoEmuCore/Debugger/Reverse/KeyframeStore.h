@@ -19,17 +19,24 @@ class StateWriter;
 //  How often a keyframe is taken, how many keyframes share one whole
 //  snapshot, and how much memory the store may hold.
 //
+//  A group holds at least wholeEvery keyframes. Past that, it goes on while
+//  its differences together pack smaller than its whole snapshot, up to
+//  longestGroup keyframes, so a machine that changes little does not pay for
+//  a whole snapshot, most of it unchanged disk tracks, every few seconds.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct KeyframeSettings
 {
-    static constexpr uint64_t  kFrameCycles        = 17030;
-    static constexpr uint64_t  kDefaultFrames      = 10;
-    static constexpr uint32_t  kDefaultWholeEvery  = 30;
-    static constexpr size_t    kDefaultBudgetBytes = 64ull * 1024 * 1024;
+    static constexpr uint64_t  kFrameCycles         = 17030;
+    static constexpr uint64_t  kDefaultFrames       = 10;
+    static constexpr uint32_t  kDefaultWholeEvery   = 30;
+    static constexpr uint32_t  kDefaultLongestGroup = 1800;
+    static constexpr size_t    kDefaultBudgetBytes  = 64ull * 1024 * 1024;
 
     uint64_t  intervalCycles = kFrameCycles * kDefaultFrames;
     uint32_t  wholeEvery     = kDefaultWholeEvery;
+    uint32_t  longestGroup   = kDefaultLongestGroup;
     size_t    budgetBytes    = kDefaultBudgetBytes;
 };
 
@@ -198,6 +205,7 @@ private:
     void      ComputeLayout     (size_t stateBytes, size_t & outSlotCount, size_t & outArenaBytes) const;
     void      ComputeFitLayout  (size_t & outSlotCount, size_t & outArenaBytes) const;
     size_t    GetGroupSlots     () const;
+    bool      IsGroupDone       () const;
     size_t    GetLeastArena     (size_t stateBytes) const;
     HRESULT   Relayout          (size_t slotCount, size_t arenaBytes);
     HRESULT   TryGrowTable      (bool & outGrew);
@@ -229,6 +237,8 @@ private:
     size_t                         m_storedBytes  = 0;
     size_t                         m_groupLength  = 0;     // keyframes in the newest group
     size_t                         m_wholeBytes   = 0;     // size of the newest whole snapshot
+    size_t                         m_groupWhole   = 0;     // packed size of the newest collected whole snapshot
+    size_t                         m_groupDiffs   = 0;     // packed size of the differences collected against it
     bool                           m_isFull       = false; // the oldest have been dropped for room since the store last had room to spare
     uint64_t                       m_nextDueCycle = 0;
     IWorkQueue                   * m_queue        = nullptr;

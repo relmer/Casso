@@ -108,6 +108,7 @@ public:
 
         settings.intervalCycles = s_kInterval;
         settings.wholeEvery     = 4;
+        settings.longestGroup   = 4;
         store.Configure (settings);
 
         for (i = 0; i < 9; i++)
@@ -268,6 +269,7 @@ public:
 
         settings.intervalCycles = s_kInterval;
         settings.wholeEvery     = 3;
+        settings.longestGroup   = 3;
         store.Configure (settings);
 
         for (i = 0; i < 8; i++)

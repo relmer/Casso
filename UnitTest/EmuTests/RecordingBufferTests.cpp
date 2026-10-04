@@ -96,6 +96,7 @@ public:
 
         settings.keyframes.intervalCycles = KeyframeSettings::kFrameCycles;
         settings.keyframes.wholeEvery     = 2;
+        settings.keyframes.longestGroup   = 2;
         settings.keyframes.budgetBytes    = s_kBufferBudget;
 
         hr = controller.Start (settings);

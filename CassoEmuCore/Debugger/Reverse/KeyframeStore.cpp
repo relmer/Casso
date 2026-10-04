@@ -188,6 +188,8 @@ void KeyframeStore::Clear()
     m_storedBytes  = 0;
     m_groupLength  = 0;
     m_wholeBytes   = 0;
+    m_groupWhole   = 0;
+    m_groupDiffs   = 0;
     m_nextDueCycle = 0;
     m_isFull       = false;
 }
@@ -260,8 +262,8 @@ void KeyframeStore::SetWorkQueue (IWorkQueue * queue)
 //  Stores one machine state taken at the given position and cycle, which
 //  must be later than the newest keyframe's, with the input journal's end
 //  index at that moment, where a replay from it starts reading inputs. It
-//  is stored whole when it opens a group (the store is empty, the group
-//  holds wholeEvery keyframes already, or the state's size changed) and as
+//  is stored whole when it opens a group (the store is empty, IsGroupDone,
+//  or the state's size changed) and as
 //  a difference otherwise.
 //  Then the next keyframe is scheduled and the budget enforced.
 //
@@ -445,12 +447,13 @@ void KeyframeStore::ComputeLayout (
     size_t  & outSlotCount,
     size_t  & outArenaBytes) const
 {
-    size_t  groupSlots   = GetGroupSlots();
+    size_t  groupSlots   = std::max (GetGroupSlots(), m_groupLength + kBufferCount + 2);
     size_t  minimumArena = GetLeastArena (stateBytes);
     size_t  overhead     = 0;
 
 
 
+    // The newest group, however long, stays within half the table.
     outSlotCount  = std::max (m_settings.budgetBytes / kBudgetPerEntry, 2 * groupSlots);
     overhead      = outSlotCount * sizeof (Entry) + stateBytes;
     outArenaBytes = (m_settings.budgetBytes > overhead) ? m_settings.budgetBytes - overhead : 0;
@@ -465,7 +468,7 @@ void KeyframeStore::ComputeLayout (
 //
 //  GetGroupSlots
 //
-//  The keyframes the newest group can need at once: a full group, every
+//  The keyframes the newest group can need at once: a group of wholeEvery, every
 //  keyframe in flight, and two more.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -481,21 +484,56 @@ size_t KeyframeStore::GetGroupSlots() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsGroupDone
+//
+//  Whether the next keyframe starts a new group: the newest holds
+//  longestGroup keyframes, or it holds wholeEvery and the differences
+//  collected in it pack to at least its whole snapshot, so another whole
+//  snapshot costs no more than the group already does. A group also ends
+//  before it fills half the table, so a full table always holds an older
+//  group to drop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KeyframeStore::IsGroupDone() const
+{
+    size_t  halfTable = m_entries.size() / 2;
+    size_t  inFlight  = kBufferCount + 2;
+    bool    isLongest = m_groupLength >= m_settings.longestGroup || m_groupLength + inFlight >= halfTable;
+    bool    isLeast   = m_groupLength >= m_settings.wholeEvery;
+    bool    isPaid    = m_groupDiffs >= m_groupWhole;
+
+
+
+    return isLongest || (isLeast && isPaid);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetLeastArena
 //
-//  The smallest arena that always fits the newest group: every slot it can
-//  need at the packer's worst case for a state of stateBytes.
+//  The smallest arena that always fits the newest group at the packer's
+//  worst case for a state of stateBytes: its first wholeEvery keyframes,
+//  every keyframe in flight, and two more for the room lost where the arena
+//  wraps. Past wholeEvery its differences together pack smaller than its
+//  whole snapshot until the last one, which adds two more.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t KeyframeStore::GetLeastArena (size_t stateBytes) const
 {
-    size_t  stateRoom   = stateBytes + stateBytes / kStateGrowth;
-    size_t  packedBound = stateRoom + stateRoom / kPackOverhead + kPackSlack;
+    constexpr size_t  kPastLeast  = 2;
+    size_t            stateRoom   = stateBytes + stateBytes / kStateGrowth;
+    size_t            packedBound = stateRoom + stateRoom / kPackOverhead + kPackSlack;
+    size_t            slots       = static_cast<size_t> (m_settings.wholeEvery) + kBufferCount + 2 + kPastLeast;
 
 
 
-    return GetGroupSlots() * packedBound;
+    return slots * packedBound;
 }
 
 
@@ -583,18 +621,25 @@ Error:
 //  The bytes held against the budget, for a meter of how full it is: all of
 //  it once the oldest have been dropped for room, since the store then holds
 //  all it can, even where a group dropped whole or the room lost where the
-//  arena wraps leaves the bytes held short of the budget.
+//  arena wraps leaves the bytes held short of the budget. The table counts
+//  from the first keyframe on: its slots come out of the budget, so the
+//  arena fills, and the oldest start being dropped, with the snapshots alone
+//  short of the budget by the table's size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t KeyframeStore::GetUsedBytes() const
 {
+    size_t  tableBytes = (m_count > 0) ? m_entries.size() * sizeof (Entry) : 0;
+
+
+
     if (m_isFull)
     {
         return m_settings.budgetBytes;
     }
 
-    return std::min (GetByteCount(), m_settings.budgetBytes);
+    return std::min (GetByteCount() + tableBytes, m_settings.budgetBytes);
 }
 
 
@@ -688,7 +733,7 @@ HRESULT KeyframeStore::SubmitJob (
     bool      isEmpty     = m_count == 0;
     bool      isLater     = isEmpty || cycle > GetEntry (m_count - 1).info.cycle;
     bool      isSameSize  = job.state.size() == m_wholeBytes;
-    bool      isGroupFull = m_groupLength >= m_settings.wholeEvery;
+    bool      isGroupFull = IsGroupDone();
     bool      isDropped   = false;
     bool      isGrown     = false;
 
@@ -908,6 +953,16 @@ HRESULT KeyframeStore::Collect()
 
         m_storedBytes += entry->info.storedBytes;
         m_pendingCount--;
+
+        if (entry->info.isWhole)
+        {
+            m_groupWhole = entry->info.storedBytes;
+            m_groupDiffs = 0;
+        }
+        else
+        {
+            m_groupDiffs += entry->info.storedBytes;
+        }
     }
 
 Error:
@@ -1437,6 +1492,13 @@ HRESULT KeyframeStore::ReloadLatestWhole()
 
     m_groupLength = count - groupStart;
     m_wholeBytes  = whole->info.stateBytes;
+    m_groupWhole  = whole->info.storedBytes;
+    m_groupDiffs  = 0;
+
+    for (size_t i = groupStart + 1; i < count; i++)
+    {
+        m_groupDiffs += GetEntry (i).info.storedBytes;
+    }
 
 Error:
     return hr;

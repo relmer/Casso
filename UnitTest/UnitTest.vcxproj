@@ -832,6 +832,7 @@
     <ClCompile Include="EmuTests\DiskFlushHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskHistoryTests.cpp" />
+    <ClCompile Include="EmuTests\IdleHistoryRateTests.cpp" />
     <ClCompile Include="EmuTests\MachineStateFileTests.cpp" />
     <ClCompile Include="EmuTests\ReplayOutputGateTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
