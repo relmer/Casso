@@ -63,8 +63,8 @@ public:
 
     TEST_METHOD (HistoryText_ShowsTheBufferRemainingWhileFilling)
     {
-        Assert::AreEqual (std::wstring (L"History buffer remaining: 37%"),  DebuggerStatusText::GetHistoryText (MakeRecording (63, 100)));
-        Assert::AreEqual (std::wstring (L"History buffer remaining: 100%"), DebuggerStatusText::GetHistoryText (MakeRecording (0, 100)));
+        Assert::AreEqual (std::wstring (L"History buffer remaining 37%"),  DebuggerStatusText::GetHistoryText (MakeRecording (63, 100)));
+        Assert::AreEqual (std::wstring (L"History buffer remaining 100%"), DebuggerStatusText::GetHistoryText (MakeRecording (0, 100)));
     }
 
 

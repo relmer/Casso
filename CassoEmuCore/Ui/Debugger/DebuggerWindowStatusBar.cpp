@@ -14,8 +14,8 @@
 //  The status bar along the bottom of the window: a replay note at the left,
 //  which takes whatever width the fixed parts leave and so leaves room for
 //  more, then where the beam is, which a press turns its mark on the screen
-//  on and off, then the history section, which fills as the history budget
-//  does, and the text zoom at the right. Pressing the zoom opens a slider over
+//  on and off, then the history section, whose bar under its text fills as
+//  the history budget does, and the text zoom at the right. Pressing the zoom opens a slider over
 //  it, from the smallest text size to the largest in the steps the keys take.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,18 +63,24 @@ int DebuggerWindow::PlaceStatusBar (
     int  width,
     int  height)
 {
-    int   bandPx  = m_scaler.ToPx (DxuiStatusBar::GetBandDp());
-    int   top     = (std::max) (0, height - bandPx);
-    int   popupW  = m_scaler.ToPx (kZoomPopupWidthDip);
-    int   popupH  = m_scaler.ToPx (kZoomPopupHeightDip);
-    int   pad     = m_scaler.ToPx (DxuiStatusBar::kFieldPadDip);
-    RECT  field   = {};
+    int                   bandPx  = m_scaler.ToPx (DxuiStatusBar::GetBandDp());
+    int                   top     = (std::max) (0, height - bandPx);
+    int                   popupW  = m_scaler.ToPx (kZoomPopupWidthDip);
+    int                   popupH  = m_scaler.ToPx (kZoomPopupHeightDip);
+    int                   pad     = m_scaler.ToPx (DxuiStatusBar::kFieldPadDip);
+    RECT                  field   = {};
+    IDxuiTextRenderer   * text    = GetTextRenderer();
 
 
 
     if (m_statusBar == nullptr)
     {
         return height;
+    }
+
+    if (!m_isHistoryFitted && text != nullptr)
+    {
+        FitHistoryField (*text);
     }
 
     m_statusBar->Layout (RECT { 0, top, width, height }, m_scaler);
@@ -85,6 +91,37 @@ int DebuggerWindow::PlaceStatusBar (
     m_zoomSlider.Layout (RECT { m_zoomRect.left + pad, m_zoomRect.top, m_zoomRect.right - pad, m_zoomRect.bottom }, m_scaler);
     m_zoomSlider.SetDpi (m_scaler.GetDpi());
     return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FitHistoryField
+//
+//  The history item at the width of the longest text it can show in the
+//  user's locale, measured once the window has a renderer and before it
+//  first draws, so the item never changes width as its text does. Without
+//  a measurement it keeps its default width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FitHistoryField (IDxuiTextRenderer & text)
+{
+    int  widthDip = DxuiStatusBar::MeasureFieldWidthDip (text, DebuggerStatusText::GetHistoryFitTexts (LOCALE_NAME_USER_DEFAULT));
+
+
+
+    m_isHistoryFitted = true;
+
+    if (m_statusBar == nullptr || widthDip <= 0)
+    {
+        return;
+    }
+
+    m_statusBar->SetWidth (kStatusHistory, widthDip);
 }
 
 
@@ -121,7 +158,7 @@ void DebuggerWindow::UpdateStatusBar()
     m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress));
     m_statusBar->SetText  (kStatusBeam,    DebuggerStatusText::GetBeamText (beam, isPaused));
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
-    m_statusBar->SetFill  (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
+    m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
     m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZoom));
 }
 

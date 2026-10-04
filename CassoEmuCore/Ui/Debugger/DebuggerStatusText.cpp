@@ -90,9 +90,10 @@ std::wstring DebuggerStatusText::GetBeamText (const std::optional<DebuggerViewSn
 //
 //  DebuggerStatusText::GetHistoryText
 //
-//  Once full, the host's local time of day the oldest snapshot was taken at,
-//  then the emulated time since power-on and the cycle count there, in
-//  parentheses. Without a host time, the emulated time and cycle alone.
+//  While filling, the host's local time of day the oldest snapshot was taken
+//  at and how much of the budget is left. Once full, that time, then the
+//  emulated time since power-on and the cycle count there, in parentheses.
+//  Without a host time, each form leaves the time out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,17 +101,11 @@ std::wstring DebuggerStatusText::GetHistoryText (
     const HistoryStatus  & status,
     LPCWSTR                locale)
 {
-    HRESULT         hr        = S_OK;
-    float           fill      = GetHistoryFill (status);
-    std::wstring    emulated;
-    std::wstring    cycle;
-    std::wstring    clock;
-    ULARGE_INTEGER  wall      = {};
-    FILETIME        utc       = {};
-    SYSTEMTIME      utcTime   = {};
-    SYSTEMTIME      localTime = {};
-    BOOL            converted = FALSE;
-    bool            hasClock  = false;
+    float         fill  = GetHistoryFill (status);
+    std::wstring  clock;
+    std::wstring  emulated;
+    std::wstring  cycle;
+    long          left  = 0;
 
 
 
@@ -119,13 +114,58 @@ std::wstring DebuggerStatusText::GetHistoryText (
         return L"History off";
     }
 
+    clock = GetBeginClock (status, locale);
+
     if (fill >= 0.0f)
     {
-        return std::format (L"History buffer remaining: {}%", 100 - std::lround (fill * kPercent));
+        left = std::lround (kPercent) - std::lround (fill * kPercent);
+
+        if (clock.empty())
+        {
+            return std::format (L"History buffer remaining {}%", left);
+        }
+
+        return std::format (L"History since {}, buffer remaining {}%", clock, left);
     }
 
     emulated = FormatTime (status.beginCycle, locale);
     cycle    = FormatCount (status.beginCycle, locale);
+
+    if (clock.empty())
+    {
+        return std::format (L"History begins at Power + {} (cycle {})", emulated, cycle);
+    }
+
+    return std::format (L"History begins at {} (Power + {}, cycle {})", clock, emulated, cycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::GetBeginClock
+//
+//  The host's local time of day the oldest snapshot was taken at, or empty
+//  without one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::GetBeginClock (
+    const HistoryStatus  & status,
+    LPCWSTR                locale)
+{
+    HRESULT         hr        = S_OK;
+    ULARGE_INTEGER  wall      = {};
+    FILETIME        utc       = {};
+    SYSTEMTIME      utcTime   = {};
+    SYSTEMTIME      localTime = {};
+    BOOL            converted = FALSE;
+    std::wstring    clock;
+
+
+
     CBR (status.beginWallTime != 0);
 
     wall.QuadPart      = status.beginWallTime;
@@ -138,17 +178,59 @@ std::wstring DebuggerStatusText::GetHistoryText (
     converted = SystemTimeToTzSpecificLocalTime (nullptr, &utcTime, &localTime);
     CWR (converted);
 
-    clock    = FormatClock (localTime, locale);
-    hasClock = !clock.empty();
-    CBR (hasClock);
+    clock = FormatClock (localTime, locale);
 
 Error:
-    if (FAILED (hr))
+    return SUCCEEDED (hr) ? clock : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::GetHistoryFitTexts
+//
+//  Every hour of the day at 58:58, so the locale's widest clock is among
+//  them whatever its markers and digits; with each, the full form at a
+//  long emulated time and a thirteen-digit cycle count, and the filling form
+//  at 100%; then "History off".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerStatusText::GetHistoryFitTexts (LPCWSTR locale)
+{
+    constexpr WORD             kHoursPerDay = 24;
+    constexpr WORD             kLongMinute  = 58;
+    constexpr WORD             kAnyYear     = 2026;
+    constexpr uint64_t         kLongSeconds = 359999;              // 99:59:59
+    constexpr uint64_t         kLongCycle   = 9999999999999ull;
+    std::vector<std::wstring>  texts;
+    SYSTEMTIME                 time         = {};
+    std::wstring               emulated     = FormatTime ((uint64_t) ((double) kLongSeconds * kCyclesPerSecond) + 1, locale);
+    std::wstring               cycle        = FormatCount (kLongCycle, locale);
+    std::wstring               clock;
+
+
+
+    time.wYear   = kAnyYear;
+    time.wMonth  = 1;
+    time.wDay    = 1;
+    time.wMinute = kLongMinute;
+    time.wSecond = kLongMinute;
+
+    for (WORD hour = 0; hour < kHoursPerDay; hour++)
     {
-        return std::format (L"History begins at Power + {} (cycle {})", emulated, cycle);
+            time.wHour = hour;
+        clock      = FormatClock (time, locale);
+
+        texts.push_back (std::format (L"History begins at {} (Power + {}, cycle {})", clock, emulated, cycle));
+        texts.push_back (std::format (L"History since {}, buffer remaining 100%", clock));
     }
 
-    return std::format (L"History begins at {} (Power + {}, cycle {})", clock, emulated, cycle);
+    texts.push_back (L"History off");
+    return texts;
 }
 
 

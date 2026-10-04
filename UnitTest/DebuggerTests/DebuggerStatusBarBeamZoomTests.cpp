@@ -222,7 +222,7 @@ namespace DebuggerStatusBarBeamZoomTests
             window.SetSnapshotForTest (snapshot);
             window.UpdateStatusBar();
 
-            Assert::IsTrue (AreChannelsNear (DebuggerStatusText::kFullArgb, window.GetStatusBar()->GetField (window.kStatusHistory).fillToArgb));
+            Assert::IsTrue (AreChannelsNear (DebuggerStatusText::kFullArgb, window.GetStatusBar()->GetField (window.kStatusHistory).barToArgb));
         }
 
 

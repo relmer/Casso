@@ -53,6 +53,14 @@ public:
         uint32_t      fillFromArgb  = 0;
         uint32_t      fillToArgb    = 0;
 
+        //  A thin bar along the field's bottom, under its text, filled from
+        //  the left to bar (0 to 1), blending from barFromArgb at the left
+        //  edge to barToArgb at the bar's end. The text stays as usual. A
+        //  negative bar draws none.
+        float         bar           = -1.0f;
+        uint32_t      barFromArgb   = 0;
+        uint32_t      barToArgb     = 0;
+
         //  Called with the field's rectangle, in the bounds' pixels, when the
         //  field is pressed; a field without one ignores the mouse.
         std::function<void (const RECT &)>  onClick;
@@ -65,6 +73,13 @@ public:
     void  SetText   (size_t index, std::wstring text);
     void  SetMeter  (size_t index, float fraction, uint32_t argb);
     void  SetFill   (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb);
+    void  SetBar    (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb);
+    void  SetWidth  (size_t index, int widthDip);
+
+    //  The width in DIPs a fixed field needs to show the widest of texts
+    //  whole at the bar's font, padding included, or 0 when the renderer
+    //  cannot measure.
+    static int  MeasureFieldWidthDip (IDxuiTextRenderer & text, const std::vector<std::wstring> & texts);
 
     //  The field under a point in the bounds' pixels, or -1.
     int   FindFieldAt (POINT point) const;
@@ -89,10 +104,13 @@ public:
     static constexpr float     kFontDip        = 12.0f;
     static constexpr int       kMeterHeightDip = 8;
     static constexpr int       kShadowReachDip = 3;
+    static constexpr float     kBarHeightDip   = 3.0f;
+    static constexpr float     kBarInsetDip    = 2.0f;
     static constexpr uint32_t  kFillTextArgb   = 0xFFFFFFFFu;
 
 private:
     void  PaintMeter (IDxuiPainter & painter, const Field & field, const RECT & fieldRect, const IDxuiTheme & theme) const;
+    void  PaintBar   (IDxuiPainter & painter, const Field & field, const RECT & fieldRect) const;
 
     std::vector<Field>  m_fields;
     std::vector<RECT>   m_fieldRects;

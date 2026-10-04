@@ -107,6 +107,84 @@ void DxuiStatusBar::SetFill (size_t index, float fraction, uint32_t fromArgb, ui
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiStatusBar::SetBar
+//
+//  The bar is clamped to the field; a negative fraction removes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::SetBar (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb)
+{
+    if (index < m_fields.size())
+    {
+        m_fields[index].bar         = (fraction < 0.0f) ? -1.0f : (std::min) (fraction, 1.0f);
+        m_fields[index].barFromArgb = fromArgb;
+        m_fields[index].barToArgb   = toArgb;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::SetWidth
+//
+//  Takes effect at the next layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::SetWidth (size_t index, int widthDip)
+{
+    if (index < m_fields.size())
+    {
+        m_fields[index].widthDip = widthDip;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::MeasureFieldWidthDip
+//
+//  Measured at the font's DIP size, so the width is in DIPs; rounded up so
+//  the widest text is never elided, with the padding on both sides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiStatusBar::MeasureFieldWidthDip (IDxuiTextRenderer & text, const std::vector<std::wstring> & texts)
+{
+    HRESULT  hr      = S_OK;
+    float    widest  = 0.0f;
+    float    width   = 0.0f;
+    float    height  = 0.0f;
+
+
+
+    for (const std::wstring & candidate : texts)
+    {
+        hr = text.MeasureString (candidate.c_str(), kFontDip, DxuiTheme::kBodyFace, width, height);
+        CHR (hr);
+
+        widest = (std::max) (widest, width);
+    }
+
+    CBR (widest > 0.0f);
+
+Error:
+    return SUCCEEDED (hr) ? (int) std::ceil (widest) + 2 * kFieldPadDip : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiStatusBar::GetFieldRect
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,6 +328,11 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                                                 m_fields[i].fillFromArgb, m_fields[i].fillToArgb);
         }
 
+        if (m_fields[i].bar >= 0.0f)
+        {
+            PaintBar (painter, m_fields[i], r);
+        }
+
         if (boxW <= 0.0f || m_fields[i].text.empty())
         {
             continue;
@@ -306,6 +389,38 @@ void DxuiStatusBar::PaintMeter (IDxuiPainter & painter, const Field & field, con
     painter.FillRect    (left, top, widthPx, highPx, theme.ControlBackground());
     painter.FillRect    (left, top, widthPx * field.meter, highPx, field.meterArgb);
     painter.OutlineRect (left, top, widthPx, highPx, lineW, theme.Border());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::PaintBar
+//
+//  A thin strip near the field's bottom, inset by the field padding at each
+//  side, filled from its left; at least a pixel tall at any DPI.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::PaintBar (IDxuiPainter & painter, const Field & field, const RECT & fieldRect) const
+{
+    float  padPx   = m_scaler.ToPxf ((float) kFieldPadDip);
+    float  highPx  = (float) (std::max) (1L, std::lround (m_scaler.ToPxf (kBarHeightDip)));
+    float  insetPx = (float) std::lround (m_scaler.ToPxf (kBarInsetDip));
+    float  trackPx = (float) (fieldRect.right - fieldRect.left) - 2.0f * padPx;
+    float  top     = (float) fieldRect.bottom - insetPx - highPx;
+
+
+
+    if (trackPx <= 0.0f || field.bar <= 0.0f)
+    {
+        return;
+    }
+
+    painter.FillHorizontalGradientRect ((float) fieldRect.left + padPx, top, trackPx * field.bar, highPx,
+                                        field.barFromArgb, field.barToArgb);
 }
 
 

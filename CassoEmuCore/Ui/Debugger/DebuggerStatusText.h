@@ -15,8 +15,8 @@
 //
 //  What the debugger window's status bar shows, worked out from the history
 //  status the CPU thread published and the window's own text zoom: the zoom
-//  as a percentage, how full the history budget is and the color its fill
-//  takes, or once full, where history begins, and a
+//  as a percentage, when history began and how much of its budget is left,
+//  with the color its bar takes, or once full, where history begins, and a
 //  note while a replay is running to reach a point in history.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,11 +50,16 @@ public:
     //  evenly to kFullArgb when full.
     static uint32_t      GetBudgetColor  (float fill);
 
-    //  "History off" while not recording; "History buffer remaining: 37%"
-    //  while the budget fills; once full, where history begins: "History
-    //  begins at 7:15:33 AM (Power + 6:48.1, cycle 416,512,334)".
+    //  "History off" while not recording; "History since 10:12:43 AM, buffer
+    //  remaining 37%" while the budget fills; once full, where history
+    //  begins: "History begins at 7:15:33 AM (Power + 6:48.1, cycle
+    //  416,512,334)".
     static std::wstring  GetHistoryText  (const HistoryStatus & status) { return GetHistoryText (status, LOCALE_NAME_USER_DEFAULT); }
     static std::wstring  GetHistoryText  (const HistoryStatus & status, LPCWSTR locale);
+    //  Every text the history item can show at its longest, in the locale:
+    //  the widest of them is the width the item needs.
+    static std::vector<std::wstring>  GetHistoryFitTexts (LPCWSTR locale);
+
     static std::wstring  GetReplayText   (bool isReplaying);
     static std::wstring  GetReplayText   (const ReplayProgress & progress);
 
@@ -75,4 +80,5 @@ private:
     static constexpr size_t  kMaxSeparator      = 8;
 
     static std::wstring  FormatTenths    (uint64_t whole, uint64_t tenth, LPCWSTR locale);
+    static std::wstring  GetBeginClock   (const HistoryStatus & status, LPCWSTR locale);
 };

@@ -475,6 +475,7 @@ protected:
     RECT             GetZoomPopupRect    () const { return m_zoomRect; }
     void             UpdateStatusBar     ();
     bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
+    void             FitHistoryField     (IDxuiTextRenderer & text);
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
@@ -899,6 +900,7 @@ private:
     DxuiSlider                            m_zoomSlider;
     bool                                  m_zoomOpen            = false;
     RECT                                  m_zoomRect            = {};
+    bool                                  m_isHistoryFitted     = false;
 
     std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
     uint32_t                              m_breakpointIconArgb  = 0;
