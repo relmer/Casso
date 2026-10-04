@@ -792,6 +792,34 @@ void DxuiPainter::FillGradientRect (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillHorizontalGradientRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillHorizontalGradientRect (
+    float     xPx,
+    float     yPx,
+    float     widthPx,
+    float     heightPx,
+    uint32_t  argbLeft,
+    uint32_t  argbRight)
+{
+    Vertex  left  = MakeVertex (argbLeft,  m_globalAlpha);
+    Vertex  right = MakeVertex (argbRight, m_globalAlpha);
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    PushQuad (xPx, yPx, widthPx, heightPx, left, right, left, right);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OutlineRect
 //
 //  Draws four thin filled rects on the inside of the requested rect.

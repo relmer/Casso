@@ -25,6 +25,7 @@ enum class RecordedPaintKind
 {
     FillRect,
     FillGradientRect,
+    FillHorizontalGradientRect,
     OutlineRect,
     OutlineRoundedRect,
     FillRoundedRect,
@@ -45,7 +46,7 @@ struct RecordedPaintCall
     float              thickness    = 0.0f;     // the outline kinds only
     float              radius       = 0.0f;     // the rounded kinds only
     uint32_t           argb         = 0;
-    uint32_t           argbSecond   = 0;        // FillGradientRect bottom
+    uint32_t           argbSecond   = 0;        // a gradient's bottom or right
     bool               isClipped    = false;    // a clip was in force
     RECT               clip         = {};
 };
@@ -63,6 +64,7 @@ public:
 
     void  FillRect          (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbColor) override;
     void  FillGradientRect  (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbTop, uint32_t argbBottom) override;
+    void  FillHorizontalGradientRect (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbLeft, uint32_t argbRight) override;
     void  OutlineRect       (float xPx, float yPx, float widthPx, float heightPx, float thicknessPx, uint32_t argbColor) override;
     void  OutlineRoundedRect (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, float thicknessPx, uint32_t argbColor) override;
     void  FillRoundedRect   (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, uint32_t argbColor) override;

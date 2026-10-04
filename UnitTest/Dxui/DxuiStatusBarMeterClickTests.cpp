@@ -78,6 +78,79 @@ public:
     }
 
 
+    TEST_METHOD (Fill_GrowsFromTheLeftAsAGradientWithShadowedTextOverIt)
+    {
+        constexpr uint32_t  kFrom = 0xFF112233u;
+        constexpr uint32_t  kTo   = 0xFF445566u;
+
+        DxuiStatusBar         bar;
+        DxuiStatusBar::Field  field;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        size_t                fills = 0;
+        size_t                draws = 0;
+
+
+
+        field.text     = L"History";
+        field.widthDip = 200;
+        bar.SetFields ({ { L"left", 0, true }, field });
+        bar.SetFill   (1, 0.25f, kFrom, kTo);
+        LayOut (bar);
+
+        bar.Paint (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::FillHorizontalGradientRect)
+            {
+                fills++;
+                Assert::AreEqual (400.0f, call.x);
+                Assert::AreEqual (50.0f,  call.width);
+                Assert::AreEqual (kFrom,  call.argb);
+                Assert::AreEqual (kTo,    call.argbSecond);
+            }
+        }
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            draws += (call.text == L"History") ? 1 : 0;
+        }
+
+        Assert::AreEqual ((size_t) 1, fills);
+        Assert::IsTrue (draws > 1, L"the text is drawn over its shadow");
+    }
+
+
+    TEST_METHOD (Fill_IsClampedAndRemovedWhenNegative)
+    {
+        DxuiStatusBar         bar;
+        DxuiStatusBar::Field  field;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+
+
+        field.widthDip = 200;
+        bar.SetFields ({ field });
+
+        bar.SetFill (0, 1.5f, 0, 0);
+        Assert::AreEqual (1.0f, bar.GetField (0).fill);
+
+        bar.SetFill (0, -0.5f, 0, 0);
+        Assert::AreEqual (-1.0f, bar.GetField (0).fill);
+
+        LayOut (bar);
+        bar.Paint (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            Assert::IsTrue (call.kind != RecordedPaintKind::FillHorizontalGradientRect);
+        }
+    }
+
     TEST_METHOD (Meter_IsClampedAndHiddenWhenNegative)
     {
         DxuiStatusBar         bar;

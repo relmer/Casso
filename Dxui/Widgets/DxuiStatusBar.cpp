@@ -5,6 +5,7 @@
 #include "Core/DxuiTextElide.h"
 #include "Theme/DxuiTheme.h"
 #include "Widgets/DxuiMenuBar.h"
+#include "Widgets/DxuiShadowedText.h"
 
 
 
@@ -75,6 +76,28 @@ void DxuiStatusBar::SetMeter (size_t index, float fraction, uint32_t argb)
     {
         m_fields[index].meter     = (fraction < 0.0f) ? -1.0f : (std::min) (fraction, 1.0f);
         m_fields[index].meterArgb = argb;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::SetFill
+//
+//  The fill is clamped to the field; a negative fraction removes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::SetFill (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb)
+{
+    if (index < m_fields.size())
+    {
+        m_fields[index].fill         = (fraction < 0.0f) ? -1.0f : (std::min) (fraction, 1.0f);
+        m_fields[index].fillFromArgb = fromArgb;
+        m_fields[index].fillToArgb   = toArgb;
     }
 }
 
@@ -178,7 +201,9 @@ void DxuiStatusBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 //  DxuiStatusBar::Paint
 //
 //  The band, a divider along its top, a divider between fields, and each
-//  field's text elided to fit.
+//  field's text elided to fit. A field that is a meter has its fill drawn
+//  first and its text over it with a shadow, so the text reads on the fill's
+//  colors and on the band alike.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,12 +242,29 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             boxW -= m_scaler.ToPxf ((float) (m_fields[i].meterWidthDip + kFieldPadDip));
         }
 
+        if (m_fields[i].fill >= 0.0f)
+        {
+            painter.FillHorizontalGradientRect ((float) r.left, (float) r.top + lineW,
+                                                (float) (r.right - r.left) * m_fields[i].fill,
+                                                (float) (r.bottom - r.top) - lineW,
+                                                m_fields[i].fillFromArgb, m_fields[i].fillToArgb);
+        }
+
         if (boxW <= 0.0f || m_fields[i].text.empty())
         {
             continue;
         }
 
         shown = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::kBodyFace, boxW, DxuiElide::Tail);
+
+        if (m_fields[i].fill >= 0.0f)
+        {
+            DxuiShadowedText::PaintShadowed (text, shown.c_str(), (float) r.left + padPx, (float) r.top, boxW,
+                                             (float) (r.bottom - r.top), kFillTextArgb, fontPx,
+                                             DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                                             (std::max) (1, m_scaler.ToPx (kShadowReachDip)));
+            continue;
+        }
 
         hr = text.DrawString (shown.c_str(), (float) r.left + padPx, (float) r.top, boxW,
                               (float) (r.bottom - r.top), theme.ForegroundMuted(), fontPx,

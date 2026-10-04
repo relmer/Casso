@@ -40,6 +40,18 @@ public:
                                      uint32_t argbTop,
                                      uint32_t argbBottom)                       = 0;
 
+    // The same blend run left to right, for a fill that grows across a
+    // field. Defaulted to the left color, solid, on the same terms as the
+    // rounded shapes below: a painter without it still shows how far the fill
+    // reaches, which is the part that holds the meaning.
+    virtual void  FillHorizontalGradientRect (float    xPx,
+                                              float    yPx,
+                                              float    widthPx,
+                                              float    heightPx,
+                                              uint32_t argbLeft,
+                                              uint32_t argbRight)
+    { (void) argbRight; FillRect (xPx, yPx, widthPx, heightPx, argbLeft); }
+
     virtual void  OutlineRect       (float    xPx,
                                      float    yPx,
                                      float    widthPx,

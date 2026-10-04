@@ -59,6 +59,32 @@ void MockDxuiPainter::FillGradientRect (float xPx, float yPx, float widthPx, flo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillHorizontalGradientRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockDxuiPainter::FillHorizontalGradientRect (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbLeft, uint32_t argbRight)
+{
+    RecordedPaintCall  call;
+
+
+
+    call.kind       = RecordedPaintKind::FillHorizontalGradientRect;
+    call.x          = xPx;
+    call.y          = yPx;
+    call.width      = widthPx;
+    call.height     = heightPx;
+    call.argb       = argbLeft;
+    call.argbSecond = argbRight;
+    Record (call);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OutlineRect
 //
 ////////////////////////////////////////////////////////////////////////////////

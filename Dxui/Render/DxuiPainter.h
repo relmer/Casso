@@ -56,6 +56,13 @@ public:
                               uint32_t argbTop,
                               uint32_t argbBottom) override;
 
+    void    FillHorizontalGradientRect (float xPx,
+                                        float yPx,
+                                        float widthPx,
+                                        float heightPx,
+                                        uint32_t argbLeft,
+                                        uint32_t argbRight) override;
+
     void    OutlineRect      (float xPx,
                               float yPx,
                               float widthPx,
