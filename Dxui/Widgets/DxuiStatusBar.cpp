@@ -63,6 +63,27 @@ void DxuiStatusBar::SetText (size_t index, std::wstring text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiStatusBar::SetMeter
+//
+//  The fill is clamped to the meter; a negative fraction hides it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::SetMeter (size_t index, float fraction, uint32_t argb)
+{
+    if (index < m_fields.size())
+    {
+        m_fields[index].meter     = (fraction < 0.0f) ? -1.0f : (std::min) (fraction, 1.0f);
+        m_fields[index].meterArgb = argb;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiStatusBar::GetFieldRect
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +91,31 @@ void DxuiStatusBar::SetText (size_t index, std::wstring text)
 RECT DxuiStatusBar::GetFieldRect (size_t index) const
 {
     return (index < m_fieldRects.size()) ? m_fieldRects[index] : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::FindFieldAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiStatusBar::FindFieldAt (POINT point) const
+{
+    for (size_t i = 0; i < m_fieldRects.size(); i++)
+    {
+        const RECT &  r = m_fieldRects[i];
+
+        if (point.x >= r.left && point.x < r.right && point.y >= r.top && point.y < r.bottom)
+        {
+            return (int) i;
+        }
+    }
+
+    return -1;
 }
 
 
@@ -165,6 +211,12 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                               (float) (r.bottom - r.top) - lineW * 8.0f, theme.Divider());
         }
 
+        if (m_fields[i].meter >= 0.0f)
+        {
+            PaintMeter (painter, m_fields[i], r, theme);
+            boxW -= m_scaler.ToPxf ((float) (m_fields[i].meterWidthDip + kFieldPadDip));
+        }
+
         if (boxW <= 0.0f || m_fields[i].text.empty())
         {
             continue;
@@ -178,6 +230,90 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::PaintMeter
+//
+//  A track at the field's right end, inset by the field padding and centered
+//  on the band, with the filled part from its left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::PaintMeter (IDxuiPainter & painter, const Field & field, const RECT & fieldRect, const IDxuiTheme & theme) const
+{
+    float  padPx   = m_scaler.ToPxf ((float) kFieldPadDip);
+    float  widthPx = m_scaler.ToPxf ((float) field.meterWidthDip);
+    float  highPx  = m_scaler.ToPxf ((float) kMeterHeightDip);
+    float  lineW   = (float) (std::max) (1L, std::lround (m_scaler.ToPxf (1.0f)));
+    float  left    = (float) fieldRect.right - padPx - widthPx;
+    float  top     = (float) fieldRect.top + ((float) (fieldRect.bottom - fieldRect.top) - highPx) / 2.0f;
+
+
+
+    if (widthPx <= 0.0f || left < (float) fieldRect.left)
+    {
+        return;
+    }
+
+    painter.FillRect    (left, top, widthPx, highPx, theme.ControlBackground());
+    painter.FillRect    (left, top, widthPx * field.meter, highPx, field.meterArgb);
+    painter.OutlineRect (left, top, widthPx, highPx, lineW, theme.Border());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::OnMouse
+//
+//  A left press on a field with a click action runs it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiStatusBar::OnMouse (const DxuiMouseEvent & ev)
+{
+    int  index = FindFieldAt (ev.positionDip);
+
+
+
+    if (index < 0 || !m_fields[(size_t) index].onClick)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    {
+        m_fields[(size_t) index].onClick (m_fieldRects[(size_t) index]);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiStatusBar::GetCursorForPoint (POINT clientPx) const
+{
+    int  index = FindFieldAt (clientPx);
+
+
+
+    return (index >= 0 && m_fields[(size_t) index].onClick) ? IDC_HAND : nullptr;
 }
 
 

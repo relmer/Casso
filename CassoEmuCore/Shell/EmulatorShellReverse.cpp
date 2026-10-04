@@ -121,7 +121,13 @@ void EmulatorShell::RunReverseCommand (
 
     BAIL_OUT_IF (m_reverseHost == nullptr || cpu == nullptr, S_OK);
 
+    //  The debugger's status bar reads this while the replay runs, since no
+    //  snapshot is built until it ends.
+    m_isReplayingHistory.store (true, memory_order_release);
+
     hr = m_reverseHost->Execute (command, argument, m_reverseStopTest, result);
+
+    m_isReplayingHistory.store (false, memory_order_release);
     CHR (hr);
 
     if (speaker != nullptr)

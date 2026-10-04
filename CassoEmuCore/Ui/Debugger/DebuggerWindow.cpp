@@ -4,6 +4,7 @@
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Config/WindowPlacementProfile.h"
@@ -206,6 +207,7 @@ void DebuggerWindow::OnCreate()
     m_memoryBar         = CreateChild<DxuiToolbar>   ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_breakpointBar     = CreateChild<DxuiToolbar>   ();
+    CreateStatusBar();
 
     //  All four windows exist from the start; the ones not open are hidden.
     for (int id = 1; id <= DebuggerViewState::kMaxMemoryWindows; id++)
@@ -1126,6 +1128,11 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
     }
 
     m_consoleView->SetZoom (m_textZoom);
+
+    //  The status bar's zoom and its slider follow a change from the keys or
+    //  the wheel as well as from the slider itself.
+    m_zoomSlider.SetValue (m_textZoom * DebuggerStatusText::kPercent);
+    UpdateStatusBar();
 
     LayoutWidgets();
     Invalidate();
@@ -4094,6 +4101,7 @@ void DebuggerWindow::LayoutWidgets()
     //  the bottom edge does not have.
     int   rowY     = captionH;
     int   top      = 0;
+    int   bottom   = height;
     int   barY     = 0;
     int   x        = pad;
 
@@ -4121,10 +4129,13 @@ void DebuggerWindow::LayoutWidgets()
     m_tooltip.SetDpi          (m_scaler.GetDpi());
     m_tooltip.SetViewportSize (width, height);
 
-    top  = rowY;
-    barY = height - pad;
+    //  The status bar along the bottom edge; everything else ends above it.
+    bottom = PlaceStatusBar (width, height);
 
-    m_barHost.Layout (RECT { 0, rowY, width, height }, RECT { 0, 0, width, height }, m_scaler);
+    top  = rowY;
+    barY = bottom - pad;
+
+    m_barHost.Layout (RECT { 0, rowY, width, bottom }, RECT { 0, 0, width, height }, m_scaler);
 
     m_dockSite->Layout (RECT { pad, top, width - pad, barY }, m_scaler);
 
@@ -4781,7 +4792,7 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 //  DebuggerWindow::PaintTopLayer
 //
 //  The slid-out pane over the page: its background, its controls, then its
-//  title bar and outline.
+//  title bar and outline; then the status bar's zoom popup over all of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4796,6 +4807,7 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
     m_dockSite->PaintSlidUnder (painter, theme);
     DxuiWindow::PaintTopLayer  (painter, text, theme);
     m_dockSite->PaintSlidOver  (painter, text, theme);
+    PaintZoomPopup             (painter, text, theme);
 }
 
 
@@ -4806,14 +4818,15 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
 //
 //  DebuggerWindow::HasTopLayer
 //
-//  A slid-out pane, or the PC on a branch with its arrow to draw. The top
+//  A slid-out pane, the status bar's zoom popup, or the PC on a branch with
+//  its arrow to draw. The top
 //  layer is a second flush of the frame, so it is asked for only then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::HasTopLayer() const
 {
-    if (DxuiWindow::HasTopLayer())
+    if (DxuiWindow::HasTopLayer() || m_zoomOpen)
     {
         return true;
     }
@@ -6010,6 +6023,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     RefreshCommandGhost();
+    UpdateStatusBar();
 
     for (DxuiListView * list : GetLists())
     {
@@ -9260,6 +9274,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The status bar's zoom popup lies over everything while it is open, and
+    //  the status bar owns its band.
+    if (m_routingPane.empty() && RouteStatusBarMouse (ev))
+    {
+        return true;
+    }
+
     //  The menu bar first, then the command bar: each owns its strip and
     //  whatever menu it has open.
     if (m_routingPane.empty() && RouteMenuBarMouse (ev))
@@ -11258,6 +11279,23 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (RouteMenuBarKey (ev, handled))
     {
         return handled;
+    }
+
+    //  The zoom popup, while open, takes Escape to close and the keys its
+    //  slider moves by.
+    if (m_zoomOpen && ev.kind == DxuiKeyEventKind::Down)
+    {
+        if (ev.vk == VK_ESCAPE)
+        {
+            CloseZoomPopup();
+            return true;
+        }
+
+        if (m_zoomSlider.OnKey (ev))
+        {
+            Invalidate();
+            return true;
+        }
     }
 
     //  A watch being edited takes every key: Enter keeps what was typed,

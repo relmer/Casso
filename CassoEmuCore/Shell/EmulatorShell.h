@@ -579,6 +579,7 @@ private:
     void         SetDebuggerTheme     (const std::string & name) override;
     ReverseOptions  GetReverseOptions () override;
     void            SetReverseOptions (const ReverseOptions & options) override;
+    bool            IsReplayingHistory () override { return m_isReplayingHistory.load (memory_order_acquire); }
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;
     std::string  GetDebuggerClosedPanes () override;
@@ -2283,6 +2284,7 @@ private:
     // The debugger's mark of where the beam is, drawn over the picture
     // while the debugger has the machine stopped.
     atomic<bool>                  m_isBeamOverlayOn{false};
+    atomic<bool>                  m_isReplayingHistory{false};      // set by the CPU thread while a reverse command runs
 
     // Double framebuffer (CPU renders, UI presents, protected by m_framebufferMutex)
     mutex                         m_framebufferMutex;

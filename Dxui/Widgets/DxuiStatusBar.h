@@ -18,6 +18,9 @@
 //  into its neighbor. The band is as tall as the menu bar's strip, so a window
 //  with both reads as one set of chrome.
 //
+//  A field can also hold a meter at its right end, and run an action when
+//  it is pressed, such as opening a popup above it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiStatusBar : public IDxuiControl
@@ -32,6 +35,17 @@ public:
         //  A width in pixels, used instead of widthDip when not negative, for
         //  a field that has to line up with an edge elsewhere in the window.
         int           widthPx  = -1;
+
+        //  A meter along the field's right end, meterWidthDip wide, filled
+        //  to meter (0 to 1) in meterArgb; the text takes the rest. A
+        //  negative meter draws none.
+        float         meter         = -1.0f;
+        uint32_t      meterArgb     = 0;
+        int           meterWidthDip = 0;
+
+        //  Called with the field's rectangle, in the bounds' pixels, when the
+        //  field is pressed; a field without one ignores the mouse.
+        std::function<void (const RECT &)>  onClick;
     };
 
     DxuiStatusBar() = default;
@@ -39,6 +53,10 @@ public:
 
     void  SetFields (std::vector<Field> fields);
     void  SetText   (size_t index, std::wstring text);
+    void  SetMeter  (size_t index, float fraction, uint32_t argb);
+
+    //  The field under a point in the bounds' pixels, or -1.
+    int   FindFieldAt (POINT point) const;
 
     size_t               GetFieldCount () const             { return m_fields.size(); }
     const Field &        GetField      (size_t index) const { return m_fields[index]; }
@@ -51,13 +69,18 @@ public:
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
     std::wstring        GetAccessibleName () const override;
 
-    static constexpr int    kFieldPadDip = 8;
-    static constexpr float  kFontDip     = 12.0f;
+    static constexpr int    kFieldPadDip    = 8;
+    static constexpr float  kFontDip        = 12.0f;
+    static constexpr int    kMeterHeightDip = 8;
 
 private:
+    void  PaintMeter (IDxuiPainter & painter, const Field & field, const RECT & fieldRect, const IDxuiTheme & theme) const;
+
     std::vector<Field>  m_fields;
     std::vector<RECT>   m_fieldRects;
     DxuiDpiScaler       m_scaler;

@@ -606,6 +606,24 @@ first if it is stopped.
 The console has a toolbar of its own with **Dialect**, which sets the words
 the console and the memory Address box read.
 
+### The status bar
+
+A status bar runs along the bottom of the window. From the right:
+
+- **Text size**, as a percentage. Clicking it opens a slider from 50% to 300%
+  in steps of 10%, the same size Ctrl+Plus, Ctrl+Minus and Ctrl+wheel set.
+  A click anywhere else, or Escape, closes the slider; the arrow keys move it
+  while it is open.
+- **History full**, how much of the reverse-execution memory budget the
+  recorded history holds, with a meter that is green while there is room,
+  turns yellow with 20% left and red with 10% left, blending smoothly between
+  them. It reads "History off" while history is not recorded.
+- **Begins at**, the emulated time since the machine started at which the
+  recorded history begins. Once the budget is full the oldest snapshots are
+  dropped to make room, so this time moves forward as the machine runs.
+- At the left, **Replaying history** while a reverse command or a seek is
+  replaying recorded history to reach its point.
+
 ### Panes and docking
 
 Every pane can be moved. Drag a tab onto the drop zones that appear to dock it

@@ -311,6 +311,11 @@ HistoryStatus ReverseHost::GetStatus() const
     status.isRecording  = m_controller.IsRecording();
     status.isBehindLive = m_controller.IsInHistory();
 
+    if (status.isRecording)
+    {
+        FillBudget (m_controller.GetKeyframes(), status);
+    }
+
     if (status.isBehindLive)
     {
         status.instructionsBehind = (endPos   > position) ? endPos   - position : 0;
@@ -319,6 +324,35 @@ HistoryStatus ReverseHost::GetStatus() const
     }
 
     return status;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillBudget
+//
+//  The bytes the store holds against its budget, never more than the budget,
+//  and the cycle of its oldest keyframe, which moves forward as the oldest
+//  groups are dropped to stay within it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseHost::FillBudget (
+    const KeyframeStore  & store,
+    HistoryStatus        & status)
+{
+    size_t  budget = store.GetSettings().budgetBytes;
+    size_t  count  = store.GetCount();
+
+
+
+    status.budgetBytes = budget;
+    status.usedBytes   = (std::min) (store.GetByteCount(), budget);
+    status.hasHistory  = count > 0;
+    status.beginCycle  = (count > 0) ? store.GetInfo (0).cycle : 0;
 }
 
 

@@ -59,6 +59,9 @@ public:
 
     static ReverseSettings  MakeSettings (int budgetMb, int intervalFrames);
 
+    //  How full the store's budget is and where its history begins.
+    static void             FillBudget   (const KeyframeStore & store, HistoryStatus & status);
+
 private:
     HRESULT  Move (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
 

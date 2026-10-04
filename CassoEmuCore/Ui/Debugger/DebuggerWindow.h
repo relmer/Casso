@@ -127,6 +127,11 @@ public:
     virtual ReverseOptions  GetReverseOptions ()                        { return {}; }
     virtual void            SetReverseOptions (const ReverseOptions &)  {}
 
+    //  Whether the CPU thread is replaying history to reach a point in it
+    //  right now, which no snapshot can report since none is built until it
+    //  ends. A host with no machine, as a test's is, never is.
+    virtual bool            IsReplayingHistory ()                       { return false; }
+
     //  The pane arrangement as DxuiPaneLayout text, kept the same way.
     virtual std::string  GetDebuggerLayout    ()                           = 0;
     virtual void         SetDebuggerLayout    (const std::string & text)   = 0;
@@ -420,6 +425,20 @@ protected:
     const DxuiTooltip &  GetTooltip    () const { return m_tooltip; }
     bool                 IsAnyMenuOpen () const;
 
+    //  Protected so a test can read the status bar as a frame leaves it, and
+    //  work its zoom popup as a click does.
+    static constexpr size_t  kStatusReplay = 0;
+    static constexpr size_t  kStatusBegin  = 1;
+    static constexpr size_t  kStatusBudget = 2;
+    static constexpr size_t  kStatusZoom   = 3;
+
+    DxuiStatusBar *  GetStatusBar        () const { return m_statusBar; }
+    DxuiSlider &     GetZoomSlider       ()       { return m_zoomSlider; }
+    bool             IsZoomPopupOpen     () const { return m_zoomOpen; }
+    RECT             GetZoomPopupRect    () const { return m_zoomRect; }
+    void             UpdateStatusBar     ();
+    bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     //  m_theme is the one in force, m_emulatorTheme the emulator's, which a
@@ -521,6 +540,11 @@ private:
 
     void     ConfigureWidgets ();
     void     LayoutWidgets    ();
+    void     CreateStatusBar  ();
+    int      PlaceStatusBar   (int width, int height);
+    void     OpenZoomPopup    ();
+    void     CloseZoomPopup   ();
+    void     PaintZoomPopup   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void     ApplySnapshot    ();
     void     ApplyHistory     ();
     void     UpdateChanges    ();
@@ -807,6 +831,20 @@ private:
     int                                   m_openViewsSettling   = 0;
     float                                 m_textZoom            = 1.0f;
     DxuiTooltip                           m_tooltip;
+
+    //  The status bar along the bottom, and the zoom popup its zoom field
+    //  opens above it, drawn on the top layer.
+    static constexpr int                  kZoomPopupWidthDip    = 240;
+    static constexpr int                  kZoomPopupHeightDip   = 52;
+    static constexpr int                  kStatusZoomDip        = 64;
+    static constexpr int                  kStatusBudgetDip      = 220;
+    static constexpr int                  kStatusMeterDip       = 80;
+    static constexpr int                  kStatusBeginDip       = 150;
+    DxuiStatusBar                       * m_statusBar           = nullptr;
+    DxuiSlider                            m_zoomSlider;
+    bool                                  m_zoomOpen            = false;
+    RECT                                  m_zoomRect            = {};
+
     std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
     uint32_t                              m_breakpointIconArgb  = 0;
     std::shared_ptr<const DxuiIconImage>  m_hoverBreakpointIcon;

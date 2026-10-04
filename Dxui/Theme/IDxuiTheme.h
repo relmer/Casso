@@ -258,6 +258,11 @@ public:
     //
     virtual uint32_t  WarningAccent () const { return 0xFFE8A317u; }
 
+    //  The healthy end of a gauge that runs through the warning color to the
+    //  error color as it nears a limit. Its own hue for the same reason the
+    //  warning has one.
+    virtual uint32_t  SuccessAccent () const { return 0xFF3FB950u; }
+
     virtual uint32_t  WarningEdge   () const { return 0xFF7A4E00u; }
 
     virtual uint32_t  WarningMark   () const { return 0xFF241500u; }

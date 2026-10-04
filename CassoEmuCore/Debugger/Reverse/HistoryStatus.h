@@ -17,6 +17,11 @@
 //  reverse command ended, kept until the machine next runs; empty when no
 //  reverse command has run since.
 //
+//  While recording, how much of the memory budget history holds, and the CPU
+//  cycle its oldest snapshot was taken at, where history begins. Once the
+//  budget is full the oldest snapshots are dropped, so that cycle moves
+//  forward.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct HistoryStatus
@@ -27,4 +32,9 @@ struct HistoryStatus
     uint64_t                       cyclesBehind       = 0;
     int                            unsavedDisks       = 0;
     std::optional<ReverseOutcome>  outcome;
+
+    bool                           hasHistory         = false;
+    uint64_t                       beginCycle         = 0;
+    size_t                         budgetBytes        = 0;
+    size_t                         usedBytes          = 0;
 };
