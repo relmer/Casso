@@ -1057,7 +1057,7 @@ void EmulatorShell::SyncSceneDriveLabels()
     bool                                          inScene   = visible && !onStrip;
     std::array<std::wstring, 2>                   names;
     std::array<std::wstring, s_kSceneLabelCount>  fullNames;
-    int                                           halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                                           halfW     = GetSceneLabelHalfWidthPx (comp);
     int                                           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     int                                           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
     SIZE                                          cellPx    = { halfW * 2, stripH };
@@ -1184,7 +1184,7 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
                                          const std::array<std::wstring, s_kSceneLabelCount> & names)
 {
     static constexpr int  kCells[3] = { s_kSceneTapeNameCell, s_kSceneCounterCell, s_kSceneKeyCell };
-    int                   halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                   halfW     = GetSceneLabelHalfWidthPx (comp);
     int                   stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     int                   gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
 
@@ -1515,7 +1515,7 @@ void EmulatorShell::SyncSceneTapeLabel()
     TapeDeckView                  view      = GetTapeView();
     float                         anchor[3] = {};
     float                         screen[2] = {};
-    int                           halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                           halfW     = GetSceneLabelHalfWidthPx (comp);
     int                           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     int                           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
     std::wstring                  shown;
@@ -1598,6 +1598,52 @@ bool EmulatorShell::GetRecorderLabelAnchor (const DeskSceneComposition & comp, i
     }
 
     return SceneCamera::TransformPoint (comp.recorderWorld, model, anchor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetSceneLabelHalfWidthPx
+//
+//  Half the width every name under the devices gets: the full label width,
+//  but never more than half the space between two neighbors' names, so a
+//  small scene -- a narrow window, the fullscreen strip -- cannot run one
+//  name into the next. What no longer fits scrolls under the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
+{
+    std::vector<float>  centers;
+    float               anchor[3] = {};
+    float               screen[2] = {};
+    int                 halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                 margin    = m_scaler.ToPx (s_kSceneLabelNeighborGapDp);
+
+
+
+    for (int i = 0; i < comp.driveCount; i++)
+    {
+        centers.push_back ((float) comp.driveLabelPx[i].x);
+    }
+
+    if (comp.hasRecorder != 0 && m_deskScene.HasRecorder() && GetRecorderLabelAnchor (comp, -1, anchor) &&
+        SceneCamera::ProjectToScreen (comp.viewProj, anchor, comp.viewportPx, screen))
+    {
+        centers.push_back (screen[0]);
+    }
+
+    std::sort (centers.begin(), centers.end());
+
+    for (size_t i = 1; i < centers.size(); i++)
+    {
+        halfW = std::min (halfW, (int) ((centers[i] - centers[i - 1]) / 2.0f) - margin);
+    }
+
+    return std::max (halfW, margin);
 }
 
 

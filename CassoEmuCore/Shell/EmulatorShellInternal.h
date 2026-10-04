@@ -145,6 +145,11 @@ static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 // that keeps changing size while it moves reads as chrome coming unglued.
 static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 
+// Except where the devices crowd closer than that: then each name narrows to
+// half the space to its neighbor, less this much, so names never run into
+// each other.
+static constexpr int     s_kSceneLabelNeighborGapDp = 6;
+
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //

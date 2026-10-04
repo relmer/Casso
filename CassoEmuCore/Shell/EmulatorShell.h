@@ -1132,6 +1132,7 @@ private:
     void    SyncStripTapeLabels    (const DeskSceneComposition & comp, bool onStrip,
                                     const std::array<std::wstring, s_kSceneLabelCount> & names);
     void    SetStripLabelMarquee   (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
+    int     GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
 
     // Hands each drive's name to the scene as a depth-tested quad: bakes the
     // two strings into one texture when either has changed, then re-solves
