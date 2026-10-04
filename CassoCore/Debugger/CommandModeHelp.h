@@ -51,6 +51,7 @@ public:
 
     //  What goes ahead of a Casso command's name in the mode: "/", "!" or "".
     static const char            * GetMarker      (CommandMode mode);
+    static const char            * GetNumberNote  (CommandMode mode);
 
     //  Whether the mode runs a Casso command -- a name or alias from the
     //  AppleWin command table -- typed after its marker.

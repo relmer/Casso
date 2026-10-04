@@ -399,6 +399,9 @@ std::vector<std::string> CommandModeHelp::BuildSectionIndex (CommandMode mode)
         lines.push_back (std::format ("  {:<{}}  {}", forms[i], width, texts[i]));
     }
 
+    lines.push_back ("");
+    lines.push_back (GetNumberNote (mode));
+
     return lines;
 }
 
@@ -614,6 +617,28 @@ bool CommandModeHelp::TryBuildWordHelp (CommandMode mode, const std::string & te
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandModeHelp::GetNumberNote
+//
+//  How the mode reads a number: hex unless a prefix marks it decimal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * CommandModeHelp::GetNumberNote (CommandMode mode)
+{
+    switch (mode)
+    {
+        case CommandMode::Monitor:   return "Numbers are hex digits, with no prefix.";
+        case CommandMode::GSSquared: return "A bare number is hex; 0n marks decimal, as in 0n192.";
+        case CommandMode::WinDbg:    return "A bare number is hex; 0x or $ also marks hex, and 0n marks decimal, as in 0n192.";
+        default:                     return "A bare number is hex; $ also marks hex, and # or 0n marks decimal, as in 0n192.";
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandModeHelp::BuildReference
 //
 //  Every mode's HELP ALL, each under its own heading, in a fenced block so
@@ -635,7 +660,7 @@ std::string CommandModeHelp::BuildReference()
 
     for (CommandMode mode : s_kModes)
     {
-        text += std::format ("\n## {} mode\n\n```text\n", GetTitle (mode));
+        text += std::format ("\n## {} mode\n\n{}\n\n```text\n", GetTitle (mode), GetNumberNote (mode));
 
         for (const std::string & line : BuildHelp (mode))
         {

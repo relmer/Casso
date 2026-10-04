@@ -20,7 +20,9 @@ up in the other. The channel is documented in [DebugChannel.md](DebugChannel.md)
 The debugger reads each line in one of five modes.
 
 - **AppleWin** (the default) uses AppleWin's debugger command names: `BP`, `G`,
-  `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols.
+  `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols. A
+  bare number is hex; `$` also marks hex, and `#` or `0n` marks decimal, as in
+  `0n192`. Casso mode reads numbers the same way.
 - **Monitor** uses the Apple II Monitor's own syntax: `300.30F`,
   `300: A9 41`, `300L`, `300G`, `^E`. Values are plain hex digits; there are
   no expressions or symbols. Control-key commands are typed as `^` and a letter.
@@ -64,8 +66,10 @@ reaches everything the Monitor has no command for:
 | `sload "file"`, `slookup addr`, `sclear` | load, look up and clear symbols |
 | `s`, `o`, `r`, `g` | step into, step over, step out, run |
 
-- Addresses are hex with no prefix, and names are case-insensitive. `bp`,
-  `bpd` and `bpi` take a trailing `IF expression`, as in AppleWin mode.
+- Addresses and bytes are hex with no prefix, and `0n` marks a decimal one, as
+  in `bp 0n768`; ids are decimal and may also carry `0n`. Names are
+  case-insensitive. `bp`, `bpd` and `bpi` take a trailing `IF expression`, as in
+  AppleWin mode.
 - An address may carry a bank, as on a IIgs: `00/300` is $0300. Any other bank
   is refused, since only bank 00 exists on these machines.
 - `map` shows the current machine's memory map, as `MAP` does. `m`, `x`,

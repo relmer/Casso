@@ -161,7 +161,7 @@ bool GSSquaredParser::TryParseForm (Line & line)
         return true;
     }
 
-    if (last == 'l' && !front.empty() && front.find_first_not_of ("0123456789ABCDEFabcdef/") == std::string::npos)
+    if (last == 'l' && !front.empty() && IsAddressText (front))
     {
         if (line.tokens.size() > 1)
         {
@@ -175,7 +175,7 @@ bool GSSquaredParser::TryParseForm (Line & line)
         return true;
     }
 
-    if (first.find_first_not_of ("0123456789ABCDEFabcdef/") != std::string::npos)
+    if (!IsAddressText (first))
     {
         return false;
     }
@@ -327,7 +327,7 @@ void GSSquaredParser::ParseDeposit (Line & line, const std::string & address, co
 
     for (const std::string & text : values)
     {
-        if (!TryParseHex (text, kByteDigits, value))
+        if (!TryParseNumber (text, kByteDigits, value))
         {
             SetInvalid (line, std::format ("{} is not a byte. A deposit takes hex bytes, 00-FF.", text));
             return;
@@ -537,12 +537,13 @@ void GSSquaredParser::ParseDataBreakpoint (Line & line, bool isIo)
 
 void GSSquaredParser::ParseClearBreakpoint (Line & line)
 {
-    static constexpr size_t  kAddressDigits = 4;
-    static constexpr size_t  kMaxIdDigits   = 9;
-    DebugCommand             command        = MakeCommand (DebugVerb::ClearBreakpoint, "nobp");
-    std::string              token;
-    bool                     isDecimal      = false;
-    bool                     hasBank        = false;
+    static constexpr size_t    kAddressDigits = 4;
+    static constexpr uint32_t  kMaxId         = 999999999;
+    DebugCommand               command        = MakeCommand (DebugVerb::ClearBreakpoint, "nobp");
+    std::string                token;
+    uint32_t                   id             = 0;
+    bool                       isDecimal      = false;
+    bool                       hasBank        = false;
 
 
 
@@ -553,7 +554,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
     }
 
     token     = line.tokens[1];
-    isDecimal = token.find_first_not_of ("0123456789") == std::string::npos && token.size() <= kMaxIdDigits;
+    isDecimal = TryParseId (token, id) && !token.starts_with ('#') && id <= kMaxId;
     hasBank   = token.find ('/') != std::string::npos;
 
     command.text = token;
@@ -569,7 +570,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
     }
     else
     {
-        command.hasA1 = TryParseHex (token, kAddressDigits, command.a1);
+        command.hasA1 = TryParseNumber (token, kAddressDigits, command.a1);
     }
 
     if (!isDecimal && !command.hasA1)
@@ -580,7 +581,7 @@ void GSSquaredParser::ParseClearBreakpoint (Line & line)
 
     if (isDecimal)
     {
-        command.count = (uint32_t) std::stoul (token);
+        command.count = id;
     }
 
     AddCommand (line, command);
@@ -1097,14 +1098,15 @@ bool GSSquaredParser::TryParseIdOrAll (Line & line, const std::string & token, D
 //
 //  GSSquaredParser::TryParseId
 //
-//  Decimal digits, with or without a leading #, that fit in 32 bits.
+//  Decimal digits, with or without a leading # or 0n, that fit in 32 bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool GSSquaredParser::TryParseId (const std::string & text, uint32_t & value)
 {
     static constexpr size_t  kMaxDigits = 18;
-    std::string              digits     = text.starts_with ('#') ? text.substr (1) : text;
+    bool                     hasPrefix  = text.size() > 2 && text[0] == '0' && (text[1] == 'n' || text[1] == 'N');
+    std::string              digits     = text.starts_with ('#') ? text.substr (1) : (hasPrefix ? text.substr (2) : text);
     uint64_t                 wide       = 0;
 
 
@@ -1197,7 +1199,7 @@ bool GSSquaredParser::TryParseAddress (Line & line, const std::string & token, W
 
     if (slash == std::string::npos)
     {
-        if (!TryParseHex (token, kAddressDigits, address))
+        if (!TryParseNumber (token, kAddressDigits, address))
         {
             SetInvalid (line, std::format ("{} is not an address. An address is one to four hex digits.", token));
             return false;
@@ -1206,7 +1208,7 @@ bool GSSquaredParser::TryParseAddress (Line & line, const std::string & token, W
         return true;
     }
 
-    if (!TryParseHex (token.substr (0, slash), kBankDigits, bank) || !TryParseHex (token.substr (slash + 1), kAddressDigits, address))
+    if (!TryParseNumber (token.substr (0, slash), kBankDigits, bank) || !TryParseNumber (token.substr (slash + 1), kAddressDigits, address))
     {
         SetInvalid (line, std::format ("{} is not an address. A bank-qualified address is bank/addr in hex.", token));
         return false;
@@ -1263,7 +1265,7 @@ bool GSSquaredParser::TryParseRange (Line & line, const std::string & token, Wor
         return false;
     }
 
-    if (!TryParseHex (token.substr (period + 1), kAddressDigits, last))
+    if (!TryParseNumber (token.substr (period + 1), kAddressDigits, last))
     {
         SetInvalid (line, std::format ("{} is not a range. A range is first.last in hex.", token));
         return false;
@@ -1284,23 +1286,88 @@ bool GSSquaredParser::TryParseRange (Line & line, const std::string & token, Wor
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GSSquaredParser::TryParseHex
+//  GSSquaredParser::IsAddressText
+//
+//  Hex digits and a bank's slash, where the bank and the address may each
+//  carry 0n; text that reads as an address rather than a command word.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GSSquaredParser::TryParseHex (const std::string & text, size_t maxDigits, Word & value)
+bool GSSquaredParser::IsAddressText (const std::string & text)
 {
-    bool  isHex = !text.empty() && text.size() <= maxDigits &&
-                  text.find_first_not_of ("0123456789ABCDEFabcdef") == std::string::npos;
+    std::string  rest;
+    std::string  part;
+    size_t       start = 0;
+    size_t       slash = 0;
 
 
 
-    if (isHex)
+    for (;;)
     {
-        value = (Word) std::stoul (text, nullptr, 16);
+        slash = text.find ('/', start);
+        part  = text.substr (start, slash == std::string::npos ? std::string::npos : slash - start);
+
+        if (part.size() > 1 && part[0] == '0' && (part[1] == 'n' || part[1] == 'N'))
+        {
+            part.erase (0, 2);
+        }
+
+        rest += part;
+
+        if (slash == std::string::npos)
+        {
+            break;
+        }
+
+        rest  += '/';
+        start  = slash + 1;
     }
 
-    return isHex;
+    return !rest.empty() && rest.find_first_not_of ("0123456789ABCDEFabcdef/") == std::string::npos;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::TryParseNumber
+//
+//  Hex, up to maxDigits digits, or 0n and a decimal number no larger than
+//  that many hex digits can hold.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GSSquaredParser::TryParseNumber (const std::string & text, size_t maxDigits, Word & value)
+{
+    static constexpr size_t  kMaxDecimalDigits = 5;
+    static constexpr int     kBitsPerDigit     = 4;
+    bool                     isDecimal         = text.size() > 2 && text[0] == '0' && (text[1] == 'n' || text[1] == 'N');
+    std::string              digits            = isDecimal ? text.substr (2) : text;
+    uint32_t                 limit             = (1u << (kBitsPerDigit * maxDigits)) - 1;
+    uint32_t                 wide              = 0;
+    bool                     isNumber          = false;
+
+
+
+    if (isDecimal)
+    {
+        isNumber = digits.size() <= kMaxDecimalDigits && digits.find_first_not_of ("0123456789") == std::string::npos;
+        wide     = isNumber ? (uint32_t) std::stoul (digits) : 0;
+        isNumber = isNumber && wide <= limit;
+    }
+    else
+    {
+        isNumber = !digits.empty() && digits.size() <= maxDigits &&
+                   digits.find_first_not_of ("0123456789ABCDEFabcdef") == std::string::npos;
+        wide     = isNumber ? (uint32_t) std::stoul (digits, nullptr, 16) : 0;
+    }
+
+    if (isNumber)
+    {
+        value = (Word) wide;
+    }
+
+    return isNumber;
 }
 
 

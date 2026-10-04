@@ -6,6 +6,8 @@ fails when this file and `help all` differ. Regenerate it with
 
 ## AppleWin mode
 
+A bare number is hex; $ also marks hex, and # or 0n marks decimal, as in 0n192.
+
 ```text
 AppleWin commands:
   Running and stepping
@@ -221,6 +223,8 @@ Casso commands:
 ```
 
 ## Monitor mode
+
+Numbers are hex digits, with no prefix.
 
 ```text
 Monitor commands:
@@ -448,6 +452,8 @@ Casso commands:
 
 ## GSSquared mode
 
+A bare number is hex; 0n marks decimal, as in 0n192.
+
 ```text
 GSSquared commands:
   Running and stepping
@@ -624,6 +630,8 @@ Casso commands:
 ```
 
 ## WinDbg mode
+
+A bare number is hex; 0x or $ also marks hex, and 0n marks decimal, as in 0n192.
 
 ```text
 WinDbg commands:
@@ -818,6 +826,8 @@ Casso commands:
 ```
 
 ## Casso mode
+
+A bare number is hex; $ also marks hex, and # or 0n marks decimal, as in 0n192.
 
 ```text
 Casso commands:

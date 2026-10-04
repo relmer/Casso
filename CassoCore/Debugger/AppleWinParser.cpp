@@ -1609,8 +1609,8 @@ bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value, 
 //
 //  AppleWinParser::TryParseDecimal
 //
-//  Digits, with or without the # that marks a decimal number elsewhere. In
-//  WinDbg's syntax 0n also marks decimal, and 0x or $ marks hex.
+//  Digits, with or without the # or 0n that marks a decimal number elsewhere.
+//  In WinDbg's syntax 0x or $ marks hex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1625,10 +1625,13 @@ bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value
 
 
 
-    if (syntax == NumberSyntax::WinDbg)
+    if (upper.starts_with ("0N"))
     {
-        if      (upper.starts_with ("0N")) { digits = text.substr (2); }
-        else if (upper.starts_with ("0X")) { digits = text.substr (2); radix = kHex; }
+        digits = text.substr (2);
+    }
+    else if (syntax == NumberSyntax::WinDbg)
+    {
+        if      (upper.starts_with ("0X")) { digits = text.substr (2); radix = kHex; }
         else if (upper.starts_with ("$"))  { digits = text.substr (1); radix = kHex; }
     }
 
@@ -1650,8 +1653,8 @@ bool AppleWinParser::TryParseDecimal (const std::string & text, uint64_t & value
 //
 //  AppleWinParser::IsNumberOrRange
 //
-//  Text made of digits, $ prefixes and a range's period, rather than a name;
-//  in WinDbg's syntax each end may also carry 0x or 0n.
+//  Text made of digits, $ or 0n prefixes and a range's period, rather than a
+//  name; in WinDbg's syntax each end may also carry 0x.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1663,9 +1666,9 @@ bool AppleWinParser::IsNumberOrRange (const std::string & text, NumberSyntax syn
 
 
 
-    while (syntax == NumberSyntax::WinDbg)
+    for (;;)
     {
-        prefix = upper.find ("0X");
+        prefix = (syntax == NumberSyntax::WinDbg) ? upper.find ("0X") : std::string::npos;
         prefix = (prefix == std::string::npos) ? upper.find ("0N") : prefix;
 
         if (prefix == std::string::npos || (prefix > 0 && upper[prefix - 1] != '.'))

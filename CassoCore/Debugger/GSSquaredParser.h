@@ -125,7 +125,8 @@ private:
     static bool         TryParseIfExpression (Line & line, bool hasIf, const std::string & expression, DebugCommand & command);
     static bool         TryParseAddress    (Line & line, const std::string & token, Word & address);
     static bool         TryParseRange      (Line & line, const std::string & token, Word & first, Word & last);
-    static bool         TryParseHex        (const std::string & text, size_t maxDigits, Word & value);
+    static bool         IsAddressText      (const std::string & text);
+    static bool         TryParseNumber     (const std::string & text, size_t maxDigits, Word & value);
     static bool         TryGetIfClause     (const Tokens & tokens, size_t first, std::string & expression);
     static void         SetInvalid         (Line & line, const std::string & error);
     static void         SetNotAvailable    (Line & line, const std::string & error);

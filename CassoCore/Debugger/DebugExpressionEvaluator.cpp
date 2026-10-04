@@ -62,7 +62,7 @@ const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUn
 //  Converts infix text to postfix. A bare name that matches a register is the
 //  register, a bare name made only of hex digits is a number, and any other
 //  name is a symbol, resolved when the expression is evaluated. $ forces hex
-//  and # forces decimal; in WinDbg's syntax 0x and 0n do the same.
+//  and # or 0n forces decimal; in WinDbg's syntax 0x also forces hex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -409,7 +409,7 @@ bool DebugExpressionEvaluator::TryReadOperand (
         return isNumber;
     }
 
-    if (syntax == NumberSyntax::WinDbg && upper.size() > 2 && (upper.starts_with ("0X") || upper.starts_with ("0N")))
+    if (upper.size() > 2 && (upper.starts_with ("0N") || (syntax == NumberSyntax::WinDbg && upper.starts_with ("0X"))))
     {
         isNumber = TryParseNumber (word.substr (2), upper[1] == 'N' ? 10 : 16, token.value);
 
