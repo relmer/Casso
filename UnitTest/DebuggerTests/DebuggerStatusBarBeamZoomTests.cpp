@@ -175,9 +175,16 @@ namespace DebuggerStatusBarBeamZoomTests
 
         TEST_METHOD (BeamText_IsDecimalThenHex)
         {
-            Assert::AreEqual (std::wstring (L"Scanline:cycle 192:1 ($0C0:01)"), DebuggerStatusText::GetBeamText (Beam { 192, 1 }));
-            Assert::AreEqual (std::wstring (L"Scanline:cycle 261:64 ($105:40)"), DebuggerStatusText::GetBeamText (Beam { 261, 64 }));
-            Assert::AreEqual (std::wstring(), DebuggerStatusText::GetBeamText (std::nullopt));
+            Assert::AreEqual (std::wstring (L"Scanline:cycle 192:1 ($0C0:01)"), DebuggerStatusText::GetBeamText (Beam { 192, 1 }, true));
+            Assert::AreEqual (std::wstring (L"Scanline:cycle 261:64 ($105:40)"), DebuggerStatusText::GetBeamText (Beam { 261, 64 }, true));
+            Assert::AreEqual (std::wstring(), DebuggerStatusText::GetBeamText (std::nullopt, true));
+        }
+
+
+        TEST_METHOD (BeamText_HasNoPositionWhileRunning)
+        {
+            Assert::AreEqual (std::wstring (L"Scanline:cycle running"), DebuggerStatusText::GetBeamText (Beam { 192, 1 }, false));
+            Assert::AreEqual (std::wstring(), DebuggerStatusText::GetBeamText (std::nullopt, false));
         }
 
 
@@ -234,7 +241,12 @@ namespace DebuggerStatusBarBeamZoomTests
             window.SetSnapshotForTest (snapshot);
             window.UpdateStatusBar();
 
-            Assert::AreEqual (std::wstring (L"Scanline:cycle 192:1 ($0C0:01)"), window.GetStatusBar()->GetField (window.kStatusBeam).text);
+            Assert::AreEqual (std::wstring (L"Scanline:cycle running"), window.GetStatusBar()->GetField (window.kStatusBeam).text, L"no position while it runs");
+
+            snapshot->isPaused = true;
+            window.UpdateStatusBar();
+
+            Assert::AreEqual (std::wstring (L"Scanline:cycle 192:1 ($0C0:01)"), window.GetStatusBar()->GetField (window.kStatusBeam).text, L"the position once it stops");
 
             window.Press (window.GetBeamFieldCenter());
             Assert::IsTrue (host.beamOverlay, L"a press turns the mark on");

@@ -107,8 +107,9 @@ void DebuggerWindow::UpdateStatusBar()
 {
     using Beam = std::optional<DebuggerViewSnapshot::BeamState>;
 
-    HistoryStatus  status      = (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus();
-    Beam           beam        = (m_snapshot != nullptr) ? m_snapshot->beam    : std::nullopt;
+    HistoryStatus  status      = (m_snapshot != nullptr) ? m_snapshot->history  : HistoryStatus();
+    Beam           beam        = (m_snapshot != nullptr) ? m_snapshot->beam     : std::nullopt;
+    bool           isPaused    = (m_snapshot != nullptr) && m_snapshot->isPaused;
     ReplayProgress progress    = (m_host != nullptr) ? m_host->GetReplayProgress() : ReplayProgress();
     float          fill        = DebuggerStatusText::GetBudgetFill (status);
 
@@ -120,7 +121,7 @@ void DebuggerWindow::UpdateStatusBar()
     }
 
     m_statusBar->SetText  (kStatusReplay, DebuggerStatusText::GetReplayText (progress));
-    m_statusBar->SetText  (kStatusBeam,   DebuggerStatusText::GetBeamText (beam));
+    m_statusBar->SetText  (kStatusBeam,   DebuggerStatusText::GetBeamText (beam, isPaused));
     m_statusBar->SetText  (kStatusBegin,  DebuggerStatusText::GetBeginText (status));
     m_statusBar->SetText  (kStatusBudget, DebuggerStatusText::GetBudgetText (status));
     m_statusBar->SetMeter (kStatusBudget, fill, DebuggerStatusText::GetBudgetColor (fill));

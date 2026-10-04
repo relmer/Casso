@@ -60,13 +60,23 @@ uint32_t DebuggerStatusText::GetBudgetColor (float fill)
 //
 //  DebuggerStatusText::GetBeamText
 //
+//  The position only while the machine is stopped. While it runs, the view
+//  is built at the end of each frame's run of cycles, which overshoots the
+//  frame by a cycle or two, so a position read then creeps along by about a
+//  scanline a second and says nothing about where the beam is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerStatusText::GetBeamText (const std::optional<DebuggerViewSnapshot::BeamState> & beam)
+std::wstring DebuggerStatusText::GetBeamText (const std::optional<DebuggerViewSnapshot::BeamState> & beam, bool isPaused)
 {
     if (!beam.has_value())
     {
         return {};
+    }
+
+    if (!isPaused)
+    {
+        return L"Scanline:cycle running";
     }
 
     return std::format (L"Scanline:cycle {}:{} (${:03X}:{:02X})", beam->scanline, beam->cycle, beam->scanline, beam->cycle);

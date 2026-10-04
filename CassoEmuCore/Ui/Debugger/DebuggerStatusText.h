@@ -39,7 +39,7 @@ public:
 
     //  Where the beam is: "Scanline:cycle 192:1 ($0C0:01)", the place in
     //  decimal and then in hex as VIDEOINFO gives it, or empty with no beam.
-    static std::wstring  GetBeamText     (const std::optional<DebuggerViewSnapshot::BeamState> & beam);
+    static std::wstring  GetBeamText     (const std::optional<DebuggerViewSnapshot::BeamState> & beam, bool isPaused);
 
     //  The fraction of the budget history holds, or -1 while not recording.
     static float         GetBudgetFill   (const HistoryStatus & status);
