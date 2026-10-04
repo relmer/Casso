@@ -46,12 +46,21 @@ spec.
 - Q: Can a tape be named on the command line? → A: Yes, `--tape <file>`, which replaces the remembered tape as `--disk1` does; on the //c it posts a notice and inserts nothing.
 - Q: How does recording start when two keys cannot be pressed at once? → A: RECORD alone starts recording (no Play); clicking it again or Stop ends it and writes the tape. Play is unavailable while recording.
 - Q: What do fast-forward and rewind do? → A: Both wind at 20x tape speed until Stop or the end of the tape, as on the deck; rewind no longer jumps to the start.
-- Q: Should the deck stop when a load finishes? → A: The Apple II has no motor control, so on real hardware a person pressed Stop. A Storage setting, Stop when loading ends (on by default), stops playback 2 s after the guest last read the tape, but only once it has started reading.
+- Q: Should the deck stop when a load finishes? → A: The Apple II has no motor control, so on real hardware a person pressed Stop. A Storage setting, Stop when loading ends (on by default), stops playback 6 s after the guest last read the tape, but only once it has started reading. (Was 2 s; the Monitor's READ waits about 3.5 s unread between finding a record and reading it, twice per BASIC LOAD, so 2 s stopped every load mid-way.)
 - Q: What units does the counter use? → A: Minutes and seconds of tape from the start, truncated, not the RQ-309DS's mechanical reel count. The position dialog takes seconds, m:ss or h:mm:ss.
 - Q: How does the flat widget look and behave? → A: TAPE caption, name and rail as on a drive; under the rail and no wider than it, six buttons in the deck's own order (RECORD, REW, FF, PLAY, STOP, EJECT) and the counter. The recorder sits right of the drives and the row centers as a unit, top-aligned. Hover highlights only the name and rail. Clicking the name opens the picker; clicking the counter opens the position dialog. The controls magnify like the macOS dock (up to 2x, a raised cosine reaching two pitches so the row never slides), in front of the rail, with the nearest control's name under it.
 - Q: How do long names behave? → A: They scroll only while the pointer is over them, in the flat widgets and on the desk (a drive's face or its name); at rest they show their head.
 - Q: How does the 3D recorder act? → A: Each key is clickable and travels down and back; PLAY latches while playing, RECORD and PLAY while recording, REW or FF while winding. A key's name shows over it under the pointer. The tape name and a position / length counter hang under the recorder; the name opens the picker and the counter the position dialog.
 - Q: How should Reset view (Ctrl+0) size a flat-theme window? → A: Never narrower than the drive row with the recorder in it.
+
+### Session 2026-10-03 (real-tape validation)
+
+- Q: How should the decoder read real archive transfers? → A: Clean recordings (judged by a pre-pass: under 0.5% of crossings closer than 100 us) switch at the silence floor (0.02, about -34 dBFS), close to a bare zero crossing as the hardware and MAME read; noisy ones are smoothed and switch at an eighth of the envelope. Weak half-cycles and a glitch inside one tape's sync bit were missed by anything higher.
+- Q: May the decoder use knowledge of the record format? → A: Yes, to check its own work only. A record whose checksum fails is decoded again on its own with a few other settings, and the first that gives it a good checksum replaces that stretch of transitions. The guest still decodes every byte through its own ROM from transitions; nothing pre-decoded is handed to it, so the ROM-trap rejection below stands. The list stays short because an 8-bit checksum passes a damaged record about one time in 256.
+- Q: Should the silence floor follow each tape's measured hiss? → A: No. Many archive transfers are cut to a segment with no silence to measure, the one tape that motivated it (Softape Appletalker) is one of them, and every tape with measurable hiss already reads at the fixed floor. The checksum rescue covers that tape instead.
+- Q: What did validation against real tapes find? → A: The 25 most-downloaded Apple II cassette titles on the Internet Archive (54 recordings) were loaded through the ROM: every program arrives intact. Six recordings carry junk before their leader and load once started at the leader, as on hardware; Programma's tapes load at $200 across the text screen by design.
+- Q: Should a tape show in the 3D recorder? → A: Yes, a compact cassette (shell, cream label with a stripe and writing lines, white toothed hubs, brown tape on the spools) whenever one is in; none when empty.
+- Q: Should the chrome handle reflect the scene? → A: Yes, from a cube map of the scene captured around the handle whenever the plate redraws, set in a room (desk, walls, ceiling, a fixture over each room light) that agrees with the scene's lighting.
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Load a program from a tape recording (Priority: P1)
@@ -271,6 +280,9 @@ on the //c.
 
 - A decode-only diagnostic that lists what a recording contains. It would be
   a separate tool and never a load path.
+- **A visual tape tuner** (fast follow, tasks T088): a per-tape view of how
+  the recording decodes, with controls for the silence floor, switch point
+  and smoothing, for the tape a user cannot otherwise read. See T088.
 
 ### Key Entities
 
