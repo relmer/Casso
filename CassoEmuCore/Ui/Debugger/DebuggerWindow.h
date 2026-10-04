@@ -5,6 +5,7 @@
 #include "Ui/Debugger/MemoryAddressEntry.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Seams/IHostDialogs.h"
+#include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ByteChanges.h"
@@ -137,6 +138,12 @@ public:
     //  ends. A host with no machine, as a test's is, never is.
     virtual bool            IsReplayingHistory ()                       { return false; }
 
+    //  The replay's progress, read the same way, and a request to stop it,
+    //  which the CPU thread sees between stretches of history without
+    //  waiting for the command queue.
+    virtual ReplayProgress  GetReplayProgress  ()                       { return ReplayProgress { IsReplayingHistory() }; }
+    virtual void            StopReplay         ()                       {}
+
     //  The pane arrangement as DxuiPaneLayout text, kept the same way.
     virtual std::string  GetDebuggerLayout    ()                           = 0;
     virtual void         SetDebuggerLayout    (const std::string & text)   = 0;
@@ -232,6 +239,8 @@ protected:
     bool     OnMouse         (const DxuiMouseEvent & ev) override;
     bool     OnKey           (const DxuiKeyEvent   & ev) override;
     bool     OnMappedCommand (int commandId) override;
+    bool     IsCommandBarEntryEnabled (int id) const;
+    bool     TryStopReplay   ();
     bool     OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -594,7 +603,6 @@ private:
     void     ConfigureCommandBar ();
     std::string  GetMenuState   () const;
     void     RunCommandBarEntry  (int id);
-    bool     IsCommandBarEntryEnabled (int id) const;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
     void     ConfigureCommandBarHost ();
     void     SyncCommandBarFloatTip  ();

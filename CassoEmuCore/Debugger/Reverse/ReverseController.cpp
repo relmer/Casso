@@ -405,7 +405,8 @@ HRESULT ReverseController::StepBackOver (ReverseResult & result)
 
 
 
-    m_isCut = false;
+    m_isCut     = false;
+    m_isStopped = false;
 
     hr = FindStepOverTarget (m_machine.GetPosition(), isFound, target, isGap);
     CHR (hr);
@@ -417,6 +418,7 @@ HRESULT ReverseController::StepBackOver (ReverseResult & result)
     }
 
     outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
+    outcome = m_isStopped ? ReverseOutcome::Stopped : outcome;
 
     hr = LandAt (isFound ? target : GetOldestPosition(), outcome, result);
     CHR (hr);
@@ -447,7 +449,8 @@ HRESULT ReverseController::StepBackOut (ReverseResult & result)
 
 
 
-    m_isCut = false;
+    m_isCut     = false;
+    m_isStopped = false;
 
     hr = FindStepOutTarget (m_machine.GetPosition(), isFound, target, isGap);
     CHR (hr);
@@ -459,6 +462,7 @@ HRESULT ReverseController::StepBackOut (ReverseResult & result)
     }
 
     outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
+    outcome = m_isStopped ? ReverseOutcome::Stopped : outcome;
 
     hr = LandAt (isFound ? target : GetOldestPosition(), outcome, result);
     CHR (hr);
@@ -552,6 +556,15 @@ HRESULT ReverseController::ReverseContinue (
 
     while (end > oldest)
     {
+        //  Stopped, the run lands on the oldest position it searched, which
+        //  no stop came after.
+        if (IsStopDue (from, end))
+        {
+            hr = LandAt (end, ReverseOutcome::Stopped, result);
+            CHR (hr);
+            BAIL_OUT_IF (true, S_OK);
+        }
+
         hr = RestoreAtOrBefore (end - 1, 0, false, stretch);
         CHR (hr);
 
@@ -1145,6 +1158,14 @@ HRESULT ReverseController::FindStepOverTarget (
 
     for (q = current - 1; q > oldest && !outFound; q--)
     {
+        if (IsStopDue (current, q))
+        {
+            outFound    = true;
+            outTarget   = q;
+            m_isStopped = true;
+            break;
+        }
+
         hr = GetStep (q - 1, step, isInGap, gapStart);
         CHR (hr);
 
@@ -1203,6 +1224,14 @@ HRESULT ReverseController::FindStepOutTarget (
 
     for (q = current; q > oldest && !outFound; q--)
     {
+        if (IsStopDue (current, q))
+        {
+            outFound    = true;
+            outTarget   = q;
+            m_isStopped = true;
+            break;
+        }
+
         hr = GetStep (q - 1, step, isInGap, gapStart);
         CHR (hr);
 
@@ -1486,6 +1515,40 @@ HRESULT ReverseController::LeaveLive()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsStopDue
+//
+//  A search for where a command lands, which began at from and has reached
+//  back to reached, reports how much of history it has covered and whether
+//  it has been asked to stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReverseController::IsStopDue (
+    uint64_t  from,
+    uint64_t  reached)
+{
+    uint64_t  oldest = GetOldestPosition();
+    uint64_t  span   = (from > oldest) ? from - oldest : 0;
+    uint64_t  done   = (from > reached) ? from - reached : 0;
+
+
+
+    if (m_control == nullptr)
+    {
+        return false;
+    }
+
+    m_control->progress.store ((span > 0) ? (float) done / (float) span : 1.0f, std::memory_order_relaxed);
+
+    return m_control->isStopRequested.load (std::memory_order_acquire);
 }
 
 

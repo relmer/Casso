@@ -137,6 +137,36 @@ std::wstring DebuggerStatusText::GetReplayText (bool isReplaying)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerStatusText::GetReplayText
+//
+//  Once a replay has run long enough to notice, the note adds how much of
+//  history it has covered and how to stop it, for a command that reports
+//  its progress; a command that reports none cannot be stopped either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::GetReplayText (const ReplayProgress & progress)
+{
+    std::wstring  text      = GetReplayText (progress.isReplaying);
+    bool          isLong    = progress.elapsedMs >= kProgressDelayMs;
+    bool          hasReport = progress.fraction >= 0.0f;
+
+
+
+    if (!progress.isReplaying || !isLong || !hasReport)
+    {
+        return text;
+    }
+
+    return std::format (L"{} {}%. Press Escape or Pause to stop.", text, std::lround (std::min (progress.fraction, 1.0f) * kPercent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerStatusText::FormatTime
 //
 //  Tenths of a second, rounded down, so a time never reads later than the

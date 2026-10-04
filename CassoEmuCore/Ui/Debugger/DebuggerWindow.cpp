@@ -934,9 +934,10 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
         return paused;
     }
 
+    //  A replay runs with the machine stopped, and Pause stops it.
     if (id == DebuggerCommands::kPause)
     {
-        return !paused;
+        return !paused || (m_host != nullptr && m_host->IsReplayingHistory());
     }
 
     if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
@@ -2722,6 +2723,7 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
     {
         if (m_host != nullptr)
         {
+            TryStopReplay();
             m_host->PauseDebugger();
         }
 
@@ -11300,6 +11302,12 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
             Invalidate();
             return true;
         }
+    }
+
+    //  While a replay runs, Escape stops it where it has reached.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && TryStopReplay())
+    {
+        return true;
     }
 
     //  A watch being edited takes every key: Enter keeps what was typed,

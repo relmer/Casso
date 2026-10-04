@@ -14,7 +14,8 @@
 //  a stretch recording skipped (Maximum speed chosen by the user), so the
 //  machine stopped at the edge of it. HistoryCut: a replay diverged from a
 //  keyframe's checksum, history after the last good keyframe was dropped,
-//  and the machine is live at that keyframe.
+//  and the machine is live at that keyframe. Stopped: the user stopped the
+//  search for the target, and the machine is at the last position it reached.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,4 +25,5 @@ enum class ReverseOutcome
     AtHistoryStart,
     AtHistoryGap,
     HistoryCut,
+    Stopped,
 };

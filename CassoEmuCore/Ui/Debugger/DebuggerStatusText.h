@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Debugger/Reverse/HistoryStatus.h"
+#include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
 
@@ -31,6 +32,9 @@ public:
     static constexpr double    kCyclesPerSecond = 1020484.0;
     static constexpr float     kPercent         = 100.0f;
 
+    //  How long a replay runs before the note adds its progress.
+    static constexpr uint64_t  kProgressDelayMs = 200;
+
     static std::wstring  GetZoomText     (float zoom);
 
     //  Where the beam is: "Scanline:cycle 192:1 ($0C0:01)", the place in
@@ -47,6 +51,7 @@ public:
     static std::wstring  GetBudgetText   (const HistoryStatus & status);
     static std::wstring  GetBeginText    (const HistoryStatus & status);
     static std::wstring  GetReplayText   (bool isReplaying);
+    static std::wstring  GetReplayText   (const ReplayProgress & progress);
 
     //  Emulated time for a cycle count: seconds to a tenth under a minute,
     //  then minutes and seconds, then hours, minutes and seconds.

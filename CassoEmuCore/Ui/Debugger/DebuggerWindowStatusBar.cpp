@@ -98,8 +98,8 @@ int DebuggerWindow::PlaceStatusBar (
 //  DebuggerWindow::UpdateStatusBar
 //
 //  From the newest snapshot's history, which the CPU thread built, and the
-//  host's replay flag, which it sets while a replay runs, since no snapshot
-//  is built until the replay ends.
+//  host's replay progress, which it reports while a replay runs, since no
+//  snapshot is built until the replay ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,7 +109,7 @@ void DebuggerWindow::UpdateStatusBar()
 
     HistoryStatus  status      = (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus();
     Beam           beam        = (m_snapshot != nullptr) ? m_snapshot->beam    : std::nullopt;
-    bool           isReplaying = m_host != nullptr && m_host->IsReplayingHistory();
+    ReplayProgress progress    = (m_host != nullptr) ? m_host->GetReplayProgress() : ReplayProgress();
     float          fill        = DebuggerStatusText::GetBudgetFill (status);
 
 
@@ -119,7 +119,7 @@ void DebuggerWindow::UpdateStatusBar()
         return;
     }
 
-    m_statusBar->SetText  (kStatusReplay, DebuggerStatusText::GetReplayText (isReplaying));
+    m_statusBar->SetText  (kStatusReplay, DebuggerStatusText::GetReplayText (progress));
     m_statusBar->SetText  (kStatusBeam,   DebuggerStatusText::GetBeamText (beam));
     m_statusBar->SetText  (kStatusBegin,  DebuggerStatusText::GetBeginText (status));
     m_statusBar->SetText  (kStatusBudget, DebuggerStatusText::GetBudgetText (status));
@@ -268,4 +268,32 @@ void DebuggerWindow::PaintZoomPopup (IDxuiPainter & painter, IDxuiTextRenderer &
     painter.FillRect    (left, top, w, h, theme.BackgroundElevated());
     painter.OutlineRect (left, top, w, h, lineW, theme.Border());
     m_zoomSlider.Paint  (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryStopReplay
+//
+//  Asks the host to stop a replay that is running, which reaches the CPU
+//  thread without waiting behind the replay in its command queue. False
+//  when no replay is running, so the key that asked can do its usual work.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryStopReplay()
+{
+    bool  isReplaying = m_host != nullptr && m_host->IsReplayingHistory();
+
+
+
+    if (isReplaying)
+    {
+        m_host->StopReplay();
+    }
+
+    return isReplaying;
 }

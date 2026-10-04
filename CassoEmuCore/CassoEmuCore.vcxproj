@@ -668,6 +668,7 @@
     <ClInclude Include="Debugger\Reverse\ReverseStopTest.h" />
     <ClInclude Include="Debugger\Reverse\HistoryStatus.h" />
     <ClInclude Include="Debugger\Reverse\ReverseOutcome.h" />
+    <ClInclude Include="Debugger\Reverse\ReplayControl.h" />
     <ClInclude Include="Shell\HeldHostInputs.h" />
     <ClInclude Include="Shell\HostInputGate.h" />
     <ClInclude Include="Debugger\Reverse\SnapshotCompressor.h" />

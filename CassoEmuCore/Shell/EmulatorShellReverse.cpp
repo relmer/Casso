@@ -40,6 +40,7 @@ void EmulatorShell::StartReverseRecording()
     if (m_reverseHost == nullptr)
     {
         m_reverseHost = std::make_unique<ReverseHost> (m_machine);
+        m_reverseHost->GetController().SetReplayControl (&m_replayControl);
 
         m_reverseHost->SetLiveCallback ([this] ()
         {
@@ -82,6 +83,7 @@ void EmulatorShell::StopReverseRecording()
 //  PostReverseCommand
 //
 //  UI thread: queues the command for the CPU thread, which owns the machine.
+//  A stop asked for before now belongs to an earlier command, and is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +91,8 @@ void EmulatorShell::PostReverseCommand (
     ReverseCommand  command,
     uint64_t        argument)
 {
+    m_replayControl.isStopRequested.store (false, memory_order_release);
+
     PostCommand (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (command, argument));
 }
 
@@ -121,8 +125,10 @@ void EmulatorShell::RunReverseCommand (
 
     BAIL_OUT_IF (m_reverseHost == nullptr || cpu == nullptr, S_OK);
 
-    //  The debugger's status bar reads this while the replay runs, since no
+    //  The debugger's status bar reads these while the replay runs, since no
     //  snapshot is built until it ends.
+    m_replayControl.progress.store (ReplayControl::kNoProgress, memory_order_relaxed);
+    m_replayStartedAt.store (GetTickCount64(), memory_order_relaxed);
     m_isReplayingHistory.store (true, memory_order_release);
 
     hr = m_reverseHost->Execute (command, argument, m_reverseStopTest, result);
@@ -159,6 +165,36 @@ Error:
     {
         DEBUGMSG (L"Reverse execution command %d failed: 0x%08X\n", static_cast<int> (command), hr);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReplayProgress
+//
+//  UI thread: how long the running reverse command has run and how much of
+//  history it has searched, read from what the CPU thread sets as it goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReplayProgress EmulatorShell::GetReplayProgress()
+{
+    ReplayProgress  progress;
+
+
+
+    progress.isReplaying = m_isReplayingHistory.load (memory_order_acquire);
+
+    if (progress.isReplaying)
+    {
+        progress.elapsedMs = GetTickCount64() - m_replayStartedAt.load (memory_order_relaxed);
+        progress.fraction  = m_replayControl.progress.load (memory_order_relaxed);
+    }
+
+    return progress;
 }
 
 

@@ -6,6 +6,7 @@
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
+#include "Debugger/Reverse/ReplayControl.h"
 #include "Debugger/Reverse/Replayer.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
 
@@ -104,6 +105,7 @@ public:
 
     HRESULT   Start               (const ReverseSettings & settings);
     void      SetWorkQueue        (IWorkQueue * queue) { m_workQueueOverride = queue; }
+    void      SetReplayControl    (ReplayControl * control) { m_control = control; }
     void      Stop                ();
     bool      IsRecording         () const { return m_isRecording; }
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
@@ -158,6 +160,7 @@ private:
     HRESULT   CaptureBoundary    (bool isAfterGap, uint64_t gapStart);
     void      OnCaptureDue       (uint64_t cycle) override;
     HRESULT   LeaveLive          ();
+    bool      IsStopDue          (uint64_t from, uint64_t reached);
     void      BecomeLive         ();
     void      ScheduleCaptures   ();
     void      DiscardStepTable   ();
@@ -175,12 +178,14 @@ private:
     StateWriter                m_writer;                 // kept so its section and segment lists keep their capacity
     StateWriter                m_hostWriter;             // the host input state taken with every capture
     IWorkQueue               * m_workQueueOverride = nullptr;  // set by a test
+    ReplayControl            * m_control           = nullptr;  // the shell's, read and set from another thread
     std::vector<ReplayStep>    m_steps;                  // one stretch's registers and bytes per position
     uint64_t                   m_stepsStart        = 0;
     uint64_t                   m_stepsEnd          = 0;
     size_t                     m_tableBuilds       = 0;
     bool                       m_hasSteps          = false;
     bool                       m_isCut             = false;  // a table's replay diverged and cut history; m_cutResult says where
+    bool                       m_isStopped         = false;  // a search for a step's target was stopped short
     ReverseResult              m_cutResult;
     bool                       m_isRecording       = false;
     bool                       m_isLive            = true;

@@ -580,6 +580,8 @@ private:
     ReverseOptions  GetReverseOptions () override;
     void            SetReverseOptions (const ReverseOptions & options) override;
     bool            IsReplayingHistory () override { return m_isReplayingHistory.load (memory_order_acquire); }
+    ReplayProgress  GetReplayProgress  () override;
+    void            StopReplay         () override { m_replayControl.isStopRequested.store (true, memory_order_release); }
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;
     std::string  GetDebuggerClosedPanes () override;
@@ -2287,6 +2289,8 @@ private:
     // while the debugger has the machine stopped.
     atomic<bool>                  m_isBeamOverlayOn{false};
     atomic<bool>                  m_isReplayingHistory{false};      // set by the CPU thread while a reverse command runs
+    atomic<uint64_t>              m_replayStartedAt{0};             // the tick count the running reverse command began at
+    ReplayControl                 m_replayControl;                  // the running command's progress, and the UI thread's request to stop it
 
     // Double framebuffer (CPU renders, UI presents, protected by m_framebufferMutex)
     mutex                         m_framebufferMutex;

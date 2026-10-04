@@ -631,7 +631,12 @@ A status bar runs along the bottom of the window. From the right:
   as `VIDEOINFO` gives it, for example `192:1 ($0C0:01)`. Clicking it turns
   **Show beam on screen** on and off.
 - At the left, **Replaying history** while a reverse command or a seek is
-  replaying recorded history to reach its point.
+  replaying recorded history to reach its point. Once a reverse run, a step
+  back over or a step back out has searched for longer than about 200 ms, the
+  note adds how much of the history it has covered. Escape or Pause stops
+  the search, and the machine stays at the last position it reached, with
+  **Stopped** in the history band. The window keeps answering throughout;
+  commands typed meanwhile run once the replay ends.
 
 ### Panes and docking
 
