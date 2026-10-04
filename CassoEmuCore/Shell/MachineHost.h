@@ -318,6 +318,13 @@ public:
     //  must be empty.
     HRESULT   LoadStateOverMountedMedia (StateReader & reader);
 
+    //  Enough of a state to draw its screen, into a machine built from the
+    //  same configuration that holds no disks: the disks the state holds, and
+    //  any part this machine has no counterpart for, are passed over. The
+    //  machine and ROM set must still match. The machine is for drawing only
+    //  afterwards; running it is undefined.
+    HRESULT   LoadStateForPicture       (StateReader & reader);
+
     //  Debug builds only: asserts that a sharing save, flattened, is the
     //  same blob a full save of the machine gives now, which catches a RAM
     //  write no page marking saw. Call it right after the save.
@@ -369,6 +376,8 @@ private:
     void                          WriteStateHeader    (StateWriter & writer, size_t partCount) const;
     HRESULT                       LoadStateSeating    (StateReader & reader, bool isOverMounted);
     HRESULT                       CheckStateHeader    (StateReader & reader, bool isOverMounted, uint32_t & outParts);
+    HRESULT                       ReadPictureHeader   (StateReader & reader, uint32_t & outParts) const;
+    static HRESULT                GetPartTag          (const IMachineState & part, uint32_t & outTag);
     bool                          CanSeatMedia        (const MediaIds & mediaIds) const;
     bool                          AreBaysAsSaved      (const MediaIds & mediaIds) const;
     HRESULT                       SeatMedia           (const MediaIds & mediaIds);

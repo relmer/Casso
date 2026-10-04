@@ -1080,6 +1080,182 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::LoadStateForPicture
+//
+//  Each saved part is matched by its section tag against this machine's
+//  parts, in order: a match loads, anything else is skipped whole. The
+//  saved disks never match, since this machine holds none, so no disk is
+//  seated and no image is touched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::LoadStateForPicture (StateReader & reader)
+{
+    HRESULT                 hr         = S_OK;
+    uint16_t                version    = 0;
+    uint32_t                savedParts = 0;
+    uint32_t                i          = 0;
+    uint32_t                tag        = 0;
+    size_t                  next       = 0;
+    std::vector<uint32_t>   tags;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    hr = ReadPictureHeader (reader, savedParts);
+    CHR (hr);
+
+    GetStateParts (m_stateParts);
+    tags.resize (m_stateParts.size());
+
+    for (next = 0; next < tags.size(); next++)
+    {
+        hr = GetPartTag (*m_stateParts[next], tags[next]);
+        CHR (hr);
+    }
+
+    next = 0;
+
+    for (i = 0; i < savedParts; i++)
+    {
+        hr = reader.PeekSectionTag (tag);
+        CHR (hr);
+
+        if (next < tags.size() && tags[next] == tag)
+        {
+            hr = m_stateParts[next]->LoadState (reader);
+            CHR (hr);
+
+            next++;
+            continue;
+        }
+
+        hr = reader.SkipSection();
+        CHR (hr);
+    }
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ReadPictureHeader
+//
+//  The header as CheckStateHeader reads it, holding the state to the same
+//  machine and ROM set, with the drive bays and the Prng left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::ReadPictureHeader (
+    StateReader  & reader,
+    uint32_t     & outParts) const
+{
+    HRESULT       hr          = S_OK;
+    uint32_t      nameLength  = 0;
+    std::wstring  name;
+    Word          ch          = 0;
+    uint64_t      romIdentity = 0;
+    uint64_t      mediaId     = 0;
+    bool          hasPrng     = false;
+    uint64_t      prngState   = 0;
+    uint32_t      i           = 0;
+    size_t        bayCount    = (size_t) DiskImageStore::kSlotCount * DiskImageStore::kDriveCount;
+    size_t        ownLength   = m_currentMachineName.size();
+    uint64_t      ownRom      = GetRomIdentity();
+
+
+
+    outParts = 0;
+
+    reader.ReadUInt32 (nameLength);
+    CBREx (nameLength == ownLength, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (i = 0; i < nameLength; i++)
+    {
+        reader.ReadWord (ch);
+        name.push_back (static_cast<wchar_t> (ch));
+    }
+
+    reader.ReadUInt64 (romIdentity);
+
+    for (i = 0; i < bayCount; i++)
+    {
+        reader.ReadUInt64 (mediaId);
+    }
+
+    reader.ReadUInt32 (outParts);
+    reader.ReadBool   (hasPrng);
+    reader.ReadUInt64 (prngState);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (name        == m_currentMachineName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (romIdentity == ownRom,               HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::GetPartTag
+//
+//  A part's section tag: the first four bytes of what it saves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::GetPartTag (
+    const IMachineState  & part,
+    uint32_t             & outTag)
+{
+    HRESULT                    hr      = S_OK;
+    StateWriter                writer;
+    const std::vector<Byte>  & bytes   = writer.GetBytes();
+    bool                       hasTag  = false;
+    size_t                     i       = 0;
+
+
+
+    outTag = 0;
+
+    hr = part.SaveState (writer);
+    CHR (hr);
+
+    hasTag = bytes.size() >= sizeof (outTag);
+    CBRA (hasTag);
+
+    for (i = 0; i < sizeof (outTag); i++)
+    {
+        outTag |= static_cast<uint32_t> (bytes[i]) << (CHAR_BIT * i);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::CheckSharedSave
 //
 //  A sharing save keeps each RAM chunk nobody wrote since the last one by

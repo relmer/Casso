@@ -41,6 +41,7 @@
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
+#include "Shell/ScratchMachineRenderer.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
 #include "Ui/Chrome/Apple2cSwitchBar.h"
@@ -590,6 +591,11 @@ private:
     void         SetDebuggerClosedPanes (const std::string & text) override;
     std::string  GetDebuggerCommandBarDock () override;
     void         SetDebuggerCommandBarDock (const std::string & text) override;
+    std::string  GetDebuggerTimelineDock   () override;
+    void         SetDebuggerTimelineDock   (const std::string & text) override;
+
+    HistoryThumbnails *  GetHistoryThumbnails () override { return &m_historyThumbnails; }
+    void                 SeekHistory          (uint64_t position) override;
     std::string  GetDebuggerFocusedPane () override;
     void         SetDebuggerFocusedPane (const std::string & text) override;
     int          GetDebuggerTextZoomPercent () override;
@@ -2253,6 +2259,14 @@ private:
     int                           m_reverseIntervalFrames = 0;
     std::optional<ReverseOutcome> m_lastReverseOutcome;                // the last reverse command's, for the history band
     uint64_t                      m_lastReversePosition   = 0;       // where it landed
+
+    // Pictures of history for the debugger's timeline, drawn on a scratch
+    // machine of the running one's configuration. The renderer is declared
+    // first, so it outlives the pictures drawing through it.
+    ScratchMachineRenderer        m_historyRenderer;
+    HistoryThumbnails             m_historyThumbnails     { m_historyRenderer };
+
+    void            ServiceHistoryThumbnails();
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.

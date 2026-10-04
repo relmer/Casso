@@ -87,6 +87,74 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PeekSectionTag
+//
+//  Leaves the read position where it was, so the section can still be read
+//  or skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT StateReader::PeekSectionTag (uint32_t & outTag)
+{
+    HRESULT  hr    = S_OK;
+    size_t   start = m_offset;
+
+
+
+    outTag = 0;
+
+    ReadUInt32 (outTag);
+    CHR (m_hr);
+
+Error:
+    m_offset = start;
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SkipSection
+//
+//  Reads the section's header and moves past its payload, which must fit in
+//  what is left of the stream or the enclosing section.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT StateReader::SkipSection()
+{
+    HRESULT   hr          = S_OK;
+    uint32_t  tag         = 0;
+    Word      version     = 0;
+    uint32_t  payloadSize = 0;
+    bool      fits        = false;
+
+
+
+    ReadUInt32 (tag);
+    ReadWord   (version);
+    ReadUInt32 (payloadSize);
+    CHR (m_hr);
+
+    fits = TryConsume (payloadSize);
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_offset += payloadSize;
+
+Error:
+    m_hr = hr;
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EndSection
 //
 //  Closes the innermost open section. Returns the sticky error if any read

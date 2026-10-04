@@ -24,6 +24,7 @@
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/HistoryBand.h"
+#include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Ui/Debugger/ReverseOptionsDialog.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
@@ -158,6 +159,16 @@ public:
     //  same way. A host with no preferences keeps it across the top.
     virtual std::string  GetDebuggerCommandBarDock ()                      { return {}; }
     virtual void         SetDebuggerCommandBarDock (const std::string &)   {}
+
+    //  Where the history timeline is docked, kept the same way.
+    virtual std::string  GetDebuggerTimelineDock   ()                      { return {}; }
+    virtual void         SetDebuggerTimelineDock   (const std::string &)   {}
+
+    //  The history timeline's pictures, and a seek to a position in history
+    //  for a stopped machine. A host that records no history, as a test's
+    //  does not, has no pictures and moves nowhere.
+    virtual HistoryThumbnails *  GetHistoryThumbnails ()                   { return nullptr; }
+    virtual void                 SeekHistory          (uint64_t position)  { (void) position; }
 
     //  The pane that had the keys when the window closed, by its layout id,
     //  kept the same way. A host with no preferences has none saved.
@@ -617,6 +628,14 @@ private:
     void     ConfigureCommandBarHost ();
     void     SyncCommandBarFloatTip  ();
     bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);
+
+    //  The history timeline: a toolbar of history thumbnails docked and
+    //  floated as the command bar is, and the click that seeks there.
+    void     ConfigureTimeline     ();
+    void     PlaceTimeline         (RECT & area);
+    bool     RouteTimelineMouse    (const DxuiMouseEvent & ev);
+    void     SyncTimeline          ();
+    void     OnTimelineSeek        (const HistoryThumbnailCell & cell);
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -1044,4 +1063,12 @@ private:
     //  no pane has, with that window's own tooltip, which shows only over it.
     DxuiToolbarHost                                                                  m_barHost;
     static constexpr wchar_t                                                         kBarFloatKey[] = L"~commandBar";
+
+    //  The history timeline, its one entry the strip of thumbnails, its own
+    //  dock, and a seek asked for while the machine ran, made once it stops.
+    DxuiToolbar                                                                    * m_timelineBar        = nullptr;
+    DxuiImageStrip                                                                   m_timelineStrip;
+    DxuiToolbarHost                                                                  m_timelineHost;
+    std::shared_ptr<DxuiCommand>                                                     m_timelineCommand;
+    std::optional<HistoryThumbnailCell>                                              m_pendingSeek;
 };

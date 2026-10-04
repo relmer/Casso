@@ -652,6 +652,7 @@ void DebuggerWindow::ResetPaneLayout()
     //  The command bar goes back to its default place too: the top band,
     //  at the start of it, under the menu bar.
     m_barHost.ResetDock();
+    m_timelineHost.ResetDock();
     LayoutWidgets();
 
     SetWindowMenus();

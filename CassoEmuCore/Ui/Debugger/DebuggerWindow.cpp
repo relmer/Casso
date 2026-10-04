@@ -184,6 +184,7 @@ void DebuggerWindow::OnCreate()
 {
     m_menuBar           = CreateChild<DxuiMenuBar>   ();
     m_commandBar        = CreateChild<DxuiToolbar>   ();
+    m_timelineBar       = CreateChild<DxuiToolbar>   ();
     m_codeList          = CreateChild<DxuiListView>  ();
     m_codeLists[0]      = m_codeList;
 
@@ -520,6 +521,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetEntries      (m_commands->BuildEntries());
 
     ConfigureCommandBarHost();
+    ConfigureTimeline();
     SetWindowMenus();
 }
 
@@ -2640,6 +2642,11 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
         m_barHost.GetFloatWindow()->SetTheme (m_theme);
     }
 
+    if (m_timelineHost.GetFloatWindow() != nullptr)
+    {
+        m_timelineHost.GetFloatWindow()->SetTheme (m_theme);
+    }
+
     if (m_commandBar != nullptr)
     {
         SetWindowMenus();
@@ -2678,6 +2685,11 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
     if (m_barHost.GetFloatWindow() != nullptr)
     {
         m_barHost.GetFloatWindow()->SetKeyMap (&map);
+    }
+
+    if (m_timelineHost.GetFloatWindow() != nullptr)
+    {
+        m_timelineHost.GetFloatWindow()->SetKeyMap (&map);
     }
 
     if (m_commands != nullptr)
@@ -4069,6 +4081,13 @@ void DebuggerWindow::OnWindowClose()
     }
 
     m_barHost.Hide();
+    m_timelineHost.Hide();
+    m_timelineStrip.HidePreview();
+
+    if (m_host != nullptr && m_host->GetHistoryThumbnails() != nullptr)
+    {
+        m_host->GetHistoryThumbnails()->SetVisible (false);
+    }
 
     if (m_host != nullptr)
     {
@@ -4134,6 +4153,7 @@ void DebuggerWindow::LayoutWidgets()
     int   bottom   = height;
     int   barY     = 0;
     int   x        = pad;
+    RECT  area     = {};
 
 
 
@@ -4162,12 +4182,17 @@ void DebuggerWindow::LayoutWidgets()
     //  The status bar along the bottom edge; everything else ends above it.
     bottom = PlaceStatusBar (width, height);
 
-    top  = rowY;
-    barY = bottom - pad;
+    //  The history timeline takes its band first, across the top under the
+    //  menu bar by default, and the command bar and the panes share the rest.
+    area = RECT { 0, rowY, width, bottom };
+    PlaceTimeline (area);
 
-    m_barHost.Layout (RECT { 0, rowY, width, bottom }, RECT { 0, 0, width, height }, m_scaler);
+    top  = area.top;
+    barY = area.bottom - pad;
 
-    m_dockSite->Layout (RECT { pad, top, width - pad, barY }, m_scaler);
+    m_barHost.Layout (area, RECT { 0, 0, width, height }, m_scaler);
+
+    m_dockSite->Layout (RECT { area.left + pad, top, area.right - pad, barY }, m_scaler);
 
     UpdateCodeLines();
     PlaceMemoryBar();
@@ -4679,7 +4704,8 @@ std::wstring DebuggerWindow::ReadSavedLayout()
 
     DebuggerLayout::ReadClosedPanes (SourcePathList::Utf8ToWide (m_host->GetDebuggerClosedPanes()), m_closedPanes);
 
-    m_barHost.SetDock (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
+    m_barHost.SetDock      (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
+    m_timelineHost.SetDock (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerTimelineDock())));
 
     if (layoutText != savedText)
     {
@@ -6248,6 +6274,7 @@ void DebuggerWindow::RenderFrame()
     SyncFloats();
     m_barHost.Sync();
     SyncCommandBarFloatTip();
+    SyncTimeline();
     CarryTornOffPane();
     PlaceMemoryBar();
     PlaceBreakpointBar();
@@ -9426,6 +9453,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  The menu bar first, then the command bar: each owns its strip and
     //  whatever menu it has open.
     if (m_routingPane.empty() && RouteMenuBarMouse (ev))
+    {
+        return true;
+    }
+
+    if (m_routingPane.empty() && !m_timelineHost.IsFloating() && RouteTimelineMouse (ev))
     {
         return true;
     }

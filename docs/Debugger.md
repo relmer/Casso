@@ -614,6 +614,21 @@ first if it is stopped.
 The console has a toolbar of its own with **Dialect**, which sets the words
 the console and the memory Address box read.
 
+### The history timeline
+
+Above the command bar, the history timeline shows small pictures of the
+screen at points in the recorded history: the oldest at the left, the live
+end at the right, and evenly spaced points between, as many as fit across the
+window. Each picture is the screen at a snapshot of history, so the point it
+shows is exactly where a click goes. Pictures are drawn in the background, a
+few a second and only while the timeline can be seen, so an empty cell fills
+in shortly; while the machine runs, the points stay put until the live end
+has moved on by a whole point. Resting the pointer on a picture shows it full
+size beside the timeline. Clicking one moves the machine to that point in
+history, stopping the machine first if it is running; clicking the live end
+goes live. The timeline docks, floats and keeps its place like the command
+bar.
+
 ### The status bar
 
 A status bar runs along the bottom of the window. From the right:

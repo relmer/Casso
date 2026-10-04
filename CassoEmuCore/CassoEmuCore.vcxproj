@@ -166,6 +166,7 @@
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowMenuBar.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowTimeline.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionEffect.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionTouches.cpp" />
     <ClCompile Include="Ui\Debugger\BranchArrow.cpp" />
@@ -217,6 +218,8 @@
     <ClCompile Include="Debugger\TraceController.cpp" />
     <ClCompile Include="Debugger\TraceLookahead.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistoryImageCache.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistoryThumbnails.cpp" />
     <ClCompile Include="Debugger\Reverse\Replayer.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
@@ -253,6 +256,7 @@
     <ClCompile Include="Cli\DebugBatchRunner.cpp" />
     <ClCompile Include="Cli\DebugMode.cpp" />
     <ClCompile Include="Shell\HeadlessMachineFactory.cpp" />
+    <ClCompile Include="Shell\ScratchMachineRenderer.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
@@ -413,6 +417,7 @@
     <ClCompile Include="Machines\Apple2\Common\AppleDoubleHiResMode.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VideoTiming.cpp" />
     <ClCompile Include="Video\BeamOverlay.cpp" />
+    <ClCompile Include="Video\MachineFrameRenderer.cpp" />
     <ClCompile Include="Audio\AudioEndpointNotifier.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
@@ -662,6 +667,9 @@
     <ClInclude Include="Debugger\TraceController.h" />
     <ClInclude Include="Debugger\TraceLookahead.h" />
     <ClInclude Include="Debugger\Reverse\KeyframeStore.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryImageCache.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryThumbnails.h" />
+    <ClInclude Include="Debugger\Reverse\IHistoryFrameRenderer.h" />
     <ClInclude Include="Debugger\Reverse\Replayer.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
@@ -705,6 +713,7 @@
     <ClInclude Include="Cli\DebugBatchRunner.h" />
     <ClInclude Include="Cli\DebugMode.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />
+    <ClInclude Include="Shell\ScratchMachineRenderer.h" />
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />
     <ClInclude Include="Debugger\IDebugTarget.h" />
@@ -907,6 +916,7 @@
     <ClInclude Include="Machines\Apple2\Common\NtscColorTable.h" />
     <ClInclude Include="Video\PixelFormat.h" />
     <ClInclude Include="Video\BeamOverlay.h" />
+    <ClInclude Include="Video\MachineFrameRenderer.h" />
     <ClInclude Include="Video\MonochromeTint.h" />
     <ClInclude Include="Machines\Apple2\Common\CharacterRom.h" />
     <ClInclude Include="Audio\AudioEndpointNotifier.h" />

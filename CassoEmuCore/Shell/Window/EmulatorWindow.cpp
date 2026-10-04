@@ -1337,7 +1337,7 @@ int EmulatorShell::RunMessageLoop()
 
     // The debug channel has to answer clients while the machine is paused,
     // when no frame runs, so it is pumped from the CPU manager's service tick.
-    m_cpuManager.SetServiceFunction ([this] { ServiceDebugger(); });
+    m_cpuManager.SetServiceFunction ([this] { ServiceDebugger(); ServiceHistoryThumbnails(); });
 
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },

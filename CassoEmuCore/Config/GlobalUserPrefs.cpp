@@ -95,6 +95,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerLayoutAt",
     "debuggerClosedPanes",
     "debuggerCommandBarDock",
+    "debuggerTimelineDock",
     "debuggerFocusedPane",
     "debuggerDisassemblyOptions",
     "debuggerOpenViews",
@@ -1336,6 +1337,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerLayoutAt",   JsonValue ((double) debuggerLayoutAtMs));
     root.emplace_back ("debuggerClosedPanes", JsonValue (debuggerClosedPanes));
     root.emplace_back ("debuggerCommandBarDock", JsonValue (debuggerCommandBarDock));
+    root.emplace_back ("debuggerTimelineDock", JsonValue (debuggerTimelineDock));
     root.emplace_back ("debuggerFocusedPane", JsonValue (debuggerFocusedPane));
     root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debuggerDisassemblyOptions));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debuggerOpenViews));
@@ -1580,6 +1582,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     debuggerClosedPanes = GetStringOpt (v, "debuggerClosedPanes", debuggerClosedPanes);
     debuggerCommandBarDock = GetStringOpt (v, "debuggerCommandBarDock", debuggerCommandBarDock);
+    debuggerTimelineDock   = GetStringOpt (v, "debuggerTimelineDock",   debuggerTimelineDock);
     debuggerFocusedPane    = GetStringOpt (v, "debuggerFocusedPane",    debuggerFocusedPane);
 
     debuggerDisassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debuggerDisassemblyOptions);

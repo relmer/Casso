@@ -40,6 +40,11 @@ public:
     HRESULT              BeginSection (uint32_t tag, uint16_t maxVersion, uint16_t & outVersion);
     HRESULT              EndSection   ();
 
+    //  The tag of the section that starts at the read position, without
+    //  reading it, and the whole of that section passed over unread.
+    HRESULT              PeekSectionTag (uint32_t & outTag);
+    HRESULT              SkipSection    ();
+
     void                 ReadByte     (Byte & out);
     void                 ReadBool     (bool & out);
     void                 ReadWord     (Word & out);

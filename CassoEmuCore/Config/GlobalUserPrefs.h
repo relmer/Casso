@@ -265,6 +265,8 @@ struct GlobalUserPrefs
     // Where the debugger's command bar is docked: its edge and its place
     // along it, as "left 120".
     std::string  debuggerCommandBarDock;
+    // Where the debugger's history timeline is docked, in the same form.
+    std::string  debuggerTimelineDock;
     // The debugger pane that had the keys when its window closed, by its
     // layout id; empty gives the console.
     std::string  debuggerFocusedPane;

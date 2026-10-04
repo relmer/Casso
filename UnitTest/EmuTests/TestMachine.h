@@ -65,6 +65,9 @@ public:
     //  build has nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
+    //  The builder that wired it, which also picks its video mode.
+    MachineBuilder  & GetBuilder() { return m_builder; }
+
 private:
 
     MachineBuildServices  m_nothingListening;

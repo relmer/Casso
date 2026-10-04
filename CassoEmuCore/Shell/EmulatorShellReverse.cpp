@@ -78,6 +78,11 @@ void EmulatorShell::StartReverseRecording()
     {
         DEBUGMSG (L"Reverse execution could not start recording: 0x%08X\n", hr);
     }
+
+    //  A history begun again: the timeline's pictures were of the old one,
+    //  and the next are drawn on a machine built as this one is.
+    m_historyThumbnails.Clear();
+    m_historyRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 }
 
 
@@ -249,6 +254,55 @@ Error:
     {
         DEBUGMSG (L"Reverse execution command %d failed: 0x%08X\n", static_cast<int> (command), hr);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SeekHistory
+//
+//  UI thread: the debugger's timeline asks for a point in history for a
+//  machine it has seen stopped. The CPU thread drops it when no history is
+//  kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SeekHistory (uint64_t position)
+{
+    PostReverseCommand (ReverseCommand::Seek, position);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceHistoryThumbnails
+//
+//  CPU thread, between frames and while paused: the timeline's points are
+//  laid out over the keyframes and the next wanted picture is handed to its
+//  worker. Never during a reverse command, which runs from the command
+//  queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ServiceHistoryThumbnails()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_reverseHost == nullptr || !m_reverseHost->IsRecording())
+    {
+        return;
+    }
+
+    hr = m_historyThumbnails.Service (m_reverseHost->GetController().GetKeyframes());
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
