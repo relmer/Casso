@@ -105,6 +105,9 @@ public:
 
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
+
+    //  A step forward, refused while the machine runs.
+    static bool  IsStepVerb      (DebugVerb verb);
     void   FormatReply           (Reply & reply) const;
     void   FormatReply           (Reply & reply, CommandMode mode) const;
 

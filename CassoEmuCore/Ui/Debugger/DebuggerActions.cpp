@@ -839,5 +839,43 @@ std::optional<DebuggerAction> DebuggerActions::GetForKey (
         break;
     }
 
+    if (snapshot != nullptr && !snapshot->isPaused && IsStepAction (action))
+    {
+        taken.reset();
+    }
+
     return taken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::IsStepAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerActions::IsStepAction (DebuggerKeySchemes::Action action)
+{
+    using Action = DebuggerKeySchemes::Action;
+
+
+
+    switch (action)
+    {
+    case Action::StepInto:
+    case Action::StepOver:
+    case Action::StepOut:
+    case Action::RunToCursor:
+    case Action::RunFrame:
+    case Action::StepBackInto:
+    case Action::StepBackOver:
+    case Action::StepBackOut:
+        return true;
+
+    default:
+        return false;
+    }
 }

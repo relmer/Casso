@@ -212,6 +212,16 @@ Reply DebugSession::Execute (const DebugCommand & command)
         return reply;
     }
 
+    //  A step moves a stopped machine from where it stands, so a running one
+    //  has nothing to step from. During a debugger run the run's own refusal
+    //  applies, which says how to stop it.
+    if (IsStepVerb (command.verb) && m_state == RunState::FreeRunning)
+    {
+        SetError (reply, CommandStatus::Error, "machine running",
+                  std::format ("{} steps a paused machine. Pause the machine first.", command.sourceName));
+        return reply;
+    }
+
     if (TryExecuteEngineCommand (command, reply))
     {
         return reply;
@@ -282,6 +292,35 @@ bool DebugSession::IsMachineWrite (DebugVerb verb)
     case DebugVerb::SetNormal:
     case DebugVerb::SetInputSlot:
     case DebugVerb::SetOutputSlot:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::IsStepVerb
+//
+//  Run to cursor has no verb of its own: it is G with a stop address, a run,
+//  and a run stays usable while the machine runs. The steps back are refused
+//  by their own handler, which says why in history's terms.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::IsStepVerb (DebugVerb verb)
+{
+    switch (verb)
+    {
+    case DebugVerb::StepInto:
+    case DebugVerb::StepOver:
+    case DebugVerb::StepOut:
+    case DebugVerb::RunFrame:
         return true;
 
     default:
