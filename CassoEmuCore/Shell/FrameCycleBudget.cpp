@@ -41,3 +41,40 @@ uint32_t FrameCycleBudget::GetTarget (
 
     return (nominalCycles - intoFrame);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FrameCycleBudget::GetPauseTarget
+//
+//  The cycles from totalCycles to fraction of the way into its frame, or
+//  zero when the machine is already past that point.
+//
+//  A pause lands in step with the request: the share of the host tick that had
+//  gone by when it was made becomes the share of the frame the next pass runs
+//  before it stops. The pass still stops on a whole instruction, so it lands
+//  a few cycles past the point at most. The pass after the pause runs the rest
+//  of the frame to the boundary, as GetTarget gives it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t FrameCycleBudget::GetPauseTarget (
+    uint32_t  nominalCycles,
+    uint64_t  totalCycles,
+    double    fraction)
+{
+    uint32_t  intoFrame = (nominalCycles != 0) ? (uint32_t) (totalCycles % nominalCycles) : 0;
+    uint32_t  stopAt    = (uint32_t) (fraction * nominalCycles);
+
+
+
+    return (stopAt > intoFrame) ? (stopAt - intoFrame) : 0;
+}
+
+
+
+
+

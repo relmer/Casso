@@ -172,15 +172,16 @@ Reply DebuggerController::RunLine (const std::string          & line,
 //
 //  DebuggerController::RequestPause
 //
-//  During a run, the driver ends it at the next slice and the stop carries the
-//  run's cycle count. With no run the machine is simply stopped where it is,
-//  and the session announces that like any other stop.
+//  A running machine, in a debugger run or free running, is stopped by the
+//  driver at the point in the frame that matches when the pause was asked for,
+//  and the driver announces the stop. A machine already paused is stopped where
+//  it is, and the session announces that like any other stop.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerController::RequestPause()
 {
-    if (m_driver.IsRunning())
+    if (m_driver.IsRunning() || !m_cpuManager.IsPaused())
     {
         m_driver.Pause();
         return;

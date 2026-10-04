@@ -54,6 +54,14 @@ public:
     //  machine nobody is debugging pays one comparison per slice.
     bool     OnSliceExecuted (uint32_t cyclesExecuted);
 
+    //  A pause waiting for the next pass, and how far into the frame that
+    //  pass runs before it stops. The frame loop reads both before the pass
+    //  and reports reaching the point; a stop on the way there, such as a
+    //  breakpoint, ends the pass first and takes the pause with it.
+    bool     IsPausePending      () const override { return m_pauseRequested; }
+    double   GetPauseFraction    () const { return m_pauseFraction; }
+    void     OnPausePointReached (uint32_t cyclesExecuted);
+
     //  Ends the run at once, with reason pause. For a machine the user has
     //  already paused: no slice will run to deliver the stop, so it is
     //  delivered here instead. CPU thread only; does nothing with no run.
@@ -80,6 +88,7 @@ private:
     //  state rather than something atomic.
     bool                     m_isRunning      = false;
     bool                     m_pauseRequested = false;
+    double                   m_pauseFraction  = 0.0;
     bool                     m_isStep         = false;
     uint64_t                 m_spent          = 0;
     std::optional<uint64_t>  m_budget;

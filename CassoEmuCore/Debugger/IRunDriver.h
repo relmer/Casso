@@ -25,4 +25,9 @@ public:
     virtual void     SetRunObserver (IRunObserver * observer) = 0;
     virtual HRESULT  Start          (const RunRequest & request) = 0;
     virtual void     Pause          () = 0;
+
+    //  True while a pause waits for the machine to reach its landing point,
+    //  so the stop is still to be announced. A driver that stops at once has
+    //  none.
+    virtual bool     IsPausePending () const { return false; }
 };

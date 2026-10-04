@@ -20,8 +20,9 @@
 
 struct EmulatorCommand
 {
-    WORD         id = 0;
-    std::string  payload;
+    WORD                                   id       = 0;
+    std::string                            payload;
+    std::chrono::steady_clock::time_point  postedAt = {};    // when the UI asked, for a pause's landing point
 };
 
 
@@ -52,6 +53,8 @@ public:
     using CommandFn     = std::function<void(const EmulatorCommand &)>;
     using FrameFn       = std::function<void()>;
     using ServiceFn     = std::function<void()>;
+    using TimePoint     = std::chrono::steady_clock::time_point;
+    using Now           = std::function<TimePoint ()>;
 
 
     CpuManager  ();
@@ -93,6 +96,15 @@ public:
     std::mutex   & GetCommandMutex () noexcept { return m_cmdMutex; }
     std::string  & GetPasteBuffer  () noexcept { return m_pasteBuffer; }
 
+    //  The host frame tick, for a pause that lands as far into the frame as
+    //  the request came into the tick. The clock is replaceable so a test can
+    //  fix the fraction; set it before Start.
+    void    SetClock               (Now now) { m_now = std::move (now); }
+    void    MarkTickStart          ();
+    double  GetRequestTickFraction () const;
+
+    static double  ComputeTickFraction (TimePoint tickStart, TimePoint requestedAt);
+
 private:
     void ThreadProc ();
     void DrainCommandQueue ();
@@ -111,6 +123,11 @@ private:
     std::mutex                    m_cmdMutex;
     std::vector<EmulatorCommand>  m_commandQueue;
     std::string                   m_pasteBuffer;
+
+    //  CPU thread only, except m_now, which PostCommand also reads.
+    Now                           m_now          = [] { return std::chrono::steady_clock::now(); };
+    TimePoint                     m_tickStart    = {};
+    std::optional<TimePoint>      m_dispatchedAt;
 
     ThreadEnterFn  m_onThreadEnter;
     CommandFn      m_onCommand;

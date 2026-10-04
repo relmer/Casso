@@ -5,6 +5,7 @@
 #include "Debugger/IRunObserver.h"
 #include "Shell/CpuManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/FrameCycleBudget.h"
 #include "EmuTests/TestMachine.h"
 #include "resource.h"
 #include "Debugger/DebugCommandPayload.h"
@@ -47,6 +48,107 @@ namespace EmulatorDebugWiringTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  PassRunner
+    //
+    //  One pass of the CPU thread's frame loop as ExecuteCpuSlices runs it: to
+    //  the next frame boundary, or to a pending pause's landing point, in the
+    //  loop's slices, reporting each slice to the driver and the landing point
+    //  when it is reached.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PassRunner
+    {
+    public:
+        static uint32_t RunPass (TestMachine & machine, CpuManagerRunDriver & driver)
+        {
+            uint32_t  nominal   = VideoTiming::kCyclesPerFrame;
+            uint64_t  total     = machine.GetCpu()->GetTotalCycles();
+            uint32_t  target    = FrameCycleBudget::GetTarget (nominal, total);
+            bool      isLanding = driver.IsPausePending();
+            bool      hasEnded  = false;
+            uint32_t  executed  = 0;
+            uint32_t  slice     = 0;
+            uint32_t  actual    = 0;
+
+
+
+            if (isLanding)
+            {
+                target = FrameCycleBudget::GetPauseTarget (nominal, total, driver.GetPauseFraction());
+            }
+
+            while (executed < target)
+            {
+                slice     = std::min (target - executed, FrameCycleBudget::kSliceCycles);
+                actual    = (uint32_t) machine.RunCycles (slice);
+                executed += actual;
+
+                if (driver.OnSliceExecuted (actual))
+                {
+                    hasEnded = true;
+                    break;
+                }
+
+                if (actual == 0)
+                {
+                    break;
+                }
+            }
+
+            if (isLanding && !hasEnded)
+            {
+                driver.OnPausePointReached (executed);
+            }
+
+            return executed;
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  FixedTickClock
+    //
+    //  A host clock a test sets by hand, for a CpuManager whose tick fraction
+    //  the test chooses.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class FixedTickClock
+    {
+    public:
+        static constexpr double  kTickNs = 1e9 * kAppleCyclesPerFrame / kAppleCpuClock;
+
+        explicit FixedTickClock (CpuManager & cpuManager) :
+            m_cpuManager (cpuManager)
+        {
+            m_cpuManager.SetClock ([this] { return m_now; });
+            m_cpuManager.MarkTickStart();
+        }
+
+        //  Starts a tick and moves the clock `fraction` of the way through it.
+        void SetFraction (double fraction)
+        {
+            m_now = {};
+            m_cpuManager.MarkTickStart();
+            m_now += std::chrono::nanoseconds ((int64_t) std::ceil (fraction * kTickNs));
+        }
+
+    private:
+        CpuManager                & m_cpuManager;
+        CpuManager::TimePoint       m_now = {};
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  CpuManagerRunDriverTests
     //
     //  The driver that runs a debugger run inside the emulator, against a real
@@ -81,13 +183,15 @@ namespace EmulatorDebugWiringTests
             CpuManager           cpuManager;
             CpuManagerRunDriver  driver;
             RecordingObserver    observer;
+            FixedTickClock       clock;
 
 
 
             Rig() :
                 machine (std::string ("Apple2e"), TestMachine::Slots::Empty),
                 target  (machine),
-                driver  (machine, cpuManager, target.GetRunHook())
+                driver  (machine, cpuManager, target.GetRunHook()),
+                clock   (cpuManager)
             {
                 driver.SetRunObserver (&observer);
             }
@@ -153,11 +257,14 @@ namespace EmulatorDebugWiringTests
 
         ////////////////////////////////////////////////////////////////////////////
         //
-        //  APauseDuringARunIsHonoredAtTheNextSlice
+        //  APauseDuringARunWaitsForItsLandingPoint
+        //
+        //  Not the next slice: the pass runs on to the point in the frame that
+        //  matches when the pause was asked for, and the run ends there.
         //
         ////////////////////////////////////////////////////////////////////////////
 
-        TEST_METHOD (APauseDuringARunIsHonoredAtTheNextSlice)
+        TEST_METHOD (APauseDuringARunWaitsForItsLandingPoint)
         {
             Rig  rig;
 
@@ -169,12 +276,18 @@ namespace EmulatorDebugWiringTests
 
             rig.driver.Pause();
 
-            Assert::IsTrue  (rig.driver.OnSliceExecuted (1023), L"the pause ends it");
-            Assert::IsTrue  (rig.cpuManager.IsPaused(),         L"and stops the machine");
+            Assert::IsTrue  (rig.driver.IsPausePending(),        L"the pause waits");
+            Assert::IsFalse (rig.driver.OnSliceExecuted (1023),  L"a slice short of the landing point does not end the run");
+
+            rig.driver.OnPausePointReached (1023);
+
+            Assert::IsTrue  (rig.cpuManager.IsPaused(),         L"the landing point stops the machine");
             Assert::IsFalse (rig.driver.IsRunning());
+            Assert::IsFalse (rig.driver.IsPausePending());
 
             Assert::AreEqual ((size_t) 1, rig.observer.stops.size());
             Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Pause);
+            Assert::AreEqual ((uint64_t) 2046, rig.observer.stops[0].cycles, L"the run's cycles across its slices");
         }
 
 
@@ -268,7 +381,8 @@ namespace EmulatorDebugWiringTests
             Assert::IsFalse (rig.cpuManager.IsUserMaximumSpeed(), L"so history keeps recording");
 
             rig.driver.Pause();
-            Assert::IsTrue (rig.driver.OnSliceExecuted (1023), L"the pause ends the run");
+            rig.driver.OnPausePointReached (0);
+            Assert::IsFalse (rig.driver.IsRunning(), L"the pause ends the run");
 
             Assert::IsTrue (rig.cpuManager.GetSpeedMode() == SpeedMode::Double,
                             L"and gives back the speed it found");
@@ -394,8 +508,226 @@ namespace EmulatorDebugWiringTests
 
             rig.cpuManager.SetPaused (false);
             rig.driver.Pause();
+            PassRunner::RunPass (rig.machine, rig.driver);
 
-            Assert::IsTrue (rig.cpuManager.IsPaused(), L"the machine stops");
+            Assert::IsTrue   (rig.cpuManager.IsPaused(), L"the machine stops");
+            Assert::AreEqual ((size_t) 1, rig.observer.stops.size(), L"and the stop is announced");
+            Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Pause);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  APauseFromFreeRunningLandsAtItsShareOfTheFrame
+        //
+        //  A pause asked for 40% of the way through the host tick stops the
+        //  next pass 40% of the way through the frame, on an instruction
+        //  boundary, rather than at the frame's top.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (APauseFromFreeRunningLandsAtItsShareOfTheFrame)
+        {
+            Rig  rig;
+
+
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+            AssertLandedAt (rig, 0.0, L"the first pass ends at the top of a frame");
+
+            rig.clock.SetFraction (kFortyPercent);
+            rig.driver.Pause();
+
+            Assert::IsFalse (rig.cpuManager.IsPaused(), L"the pause waits for the next pass");
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused(), L"the pass stops the machine");
+            Assert::AreEqual ((size_t) 1, rig.observer.stops.size());
+            Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Pause);
+            AssertLandedAt   (rig, kFortyPercent, L"from free running");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  APauseDuringARunLandsAtItsShareOfTheFrame
+        //
+        //  The same point during a debugger run, which used to stop after the
+        //  pass's first slice whenever the pause was asked for.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (APauseDuringARunLandsAtItsShareOfTheFrame)
+        {
+            Rig  rig;
+
+
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+            rig.StartOk (Rig::Go());
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            rig.clock.SetFraction (kFortyPercent);
+            rig.driver.Pause();
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            Assert::IsFalse  (rig.driver.IsRunning(),    L"the run ended");
+            Assert::IsTrue   (rig.cpuManager.IsPaused());
+            Assert::AreEqual ((size_t) 1, rig.observer.stops.size());
+            Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Pause);
+            AssertLandedAt   (rig, kFortyPercent, L"during a debugger run");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  PausesAtDifferentMomentsLandAtDifferentBeams
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (PausesAtDifferentMomentsLandAtDifferentBeams)
+        {
+            static constexpr double  kFractions[] = { 0.1, 0.55, 0.9, 0.3 };
+
+            Rig                    rig;
+            std::vector<uint32_t>  beams;
+
+
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            for (double fraction : kFractions)
+            {
+                rig.clock.SetFraction (fraction);
+                rig.driver.Pause();
+                PassRunner::RunPass (rig.machine, rig.driver);
+
+                AssertLandedAt (rig, fraction, std::format (L"pause at {}", fraction));
+                beams.push_back (rig.machine.GetVideoTiming()->GetCycleInFrame());
+
+                rig.cpuManager.SetPaused (false);
+                PassRunner::RunPass (rig.machine, rig.driver);
+                AssertLandedAt (rig, 0.0, std::format (L"the resumed pass after {} finishes the frame", fraction));
+            }
+
+            std::sort (beams.begin(), beams.end());
+            Assert::AreEqual (std::size (kFractions), beams.size());
+            Assert::IsTrue   (std::adjacent_find (beams.begin(), beams.end()) == beams.end(), L"every pause landed somewhere different");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  ABreakpointBeforeTheLandingPointStillStopsExactly
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABreakpointBeforeTheLandingPointStillStopsExactly)
+        {
+            Rig         rig;
+            RunRequest  request = Rig::Go();
+
+
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            rig.target.TryPoke (0x0300, 0xEA);
+            rig.target.TryPoke (0x0301, 0xEA);
+            rig.target.TryPoke (0x0302, 0xEA);
+            rig.machine.GetCpu()->SetPC (0x0300);
+
+            request.kind       = RunKind::RunTo;
+            request.hasUntilPc = true;
+            request.untilPc    = 0x0302;
+            rig.StartOk (request);
+
+            rig.clock.SetFraction (0.9);
+            rig.driver.Pause();
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            Assert::AreEqual ((size_t) 1, rig.observer.stops.size(), L"one stop");
+            Assert::IsTrue   (rig.observer.stops[0].reason != StopReason::Pause, L"the breakpoint's, not the pause's");
+            Assert::AreEqual ((Word) 0x0302, rig.observer.stops[0].pc,          L"exactly at its instruction");
+            Assert::IsFalse  (rig.driver.IsPausePending(),                      L"and the pause went with it");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  PauseAndResumeRoundsStayOnTheFrameGrid
+        //
+        //  However often the machine is paused and resumed, the pass after
+        //  each resume finishes the frame, and the cycle count over all of
+        //  them is a whole number of frames.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (PauseAndResumeRoundsStayOnTheFrameGrid)
+        {
+            static constexpr uint32_t  kRounds = 60;
+
+            Rig       rig;
+            uint64_t  start   = 0;
+            uint64_t  spent   = 0;
+            uint64_t  nominal = (uint64_t) VideoTiming::kCyclesPerFrame * kRounds;
+
+
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+            start = rig.machine.GetCpu()->GetTotalCycles();
+
+            for (uint32_t round = 0; round < kRounds; round++)
+            {
+                rig.clock.SetFraction ((double) ((round * 37) % 100) / 100.0);
+                rig.driver.Pause();
+                PassRunner::RunPass (rig.machine, rig.driver);
+                Assert::IsTrue (rig.cpuManager.IsPaused(), std::format (L"round {} paused", round).c_str());
+
+                rig.cpuManager.SetPaused (false);
+                PassRunner::RunPass (rig.machine, rig.driver);
+                AssertLandedAt (rig, 0.0, std::format (L"round {} resumed to the boundary", round));
+            }
+
+            spent = rig.machine.GetCpu()->GetTotalCycles() - start;
+
+            Assert::IsTrue (spent + kLongestInstruction > nominal, std::format (L"{} cycles over {} rounds, short of {}", spent, kRounds, nominal).c_str());
+            Assert::IsTrue (spent < nominal + kLongestInstruction, std::format (L"{} cycles over {} rounds, past {}", spent, kRounds, nominal).c_str());
+        }
+
+
+
+    private:
+
+        static constexpr double    kFortyPercent       = 0.4;
+        static constexpr uint32_t  kLongestInstruction = 7;
+
+        //  The beam sits `fraction` of the way into the frame, or at most one
+        //  instruction past it.
+        static void AssertLandedAt (Rig & rig, double fraction, const std::wstring & when)
+        {
+            uint32_t  expected  = (uint32_t) (fraction * VideoTiming::kCyclesPerFrame);
+            uint32_t  intoFrame = rig.machine.GetVideoTiming()->GetCycleInFrame();
+
+
+
+            Assert::IsTrue (intoFrame >= expected && intoFrame < expected + kLongestInstruction,
+                            std::format (L"{}: {} cycles into the frame, expected {}", when, intoFrame, expected).c_str());
         }
     };
     ////////////////////////////////////////////////////////////////////////////////
@@ -607,15 +939,18 @@ namespace EmulatorDebugWiringTests
             BreakpointHandlers         breakpoints;
             ExecutionHandlers          execution;
             MemoryHandlers             memory;
+            FixedTickClock             clock;
 
 
 
-            //  $0300: INX / JMP $0300, with the PC on the INX.
+            //  $0300: INX / JMP $0300, with the PC on the INX. The clock stays
+            //  at the top of the tick, so a pause lands where the machine is.
             Rig() :
                 machine (std::string ("Apple2e"), TestMachine::Slots::Empty),
                 target  (machine),
                 driver  (machine, cpuManager, target.GetRunHook()),
-                session (target, sink, RunState::FreeRunning)
+                session (target, sink, RunState::FreeRunning),
+                clock   (cpuManager)
             {
                 Cpu6502Registers  r = {};
 
@@ -657,6 +992,22 @@ namespace EmulatorDebugWiringTests
                         break;
                     }
                 }
+            }
+
+
+            //  PAUSE, and the pass that lands it if the machine was running.
+            Reply Pause()
+            {
+                Reply  reply = session.ExecuteLine ("PAUSE");
+
+
+
+                if (driver.IsPausePending())
+                {
+                    PassRunner::RunPass (machine, driver);
+                }
+
+                return reply;
             }
         };
 
@@ -715,7 +1066,7 @@ namespace EmulatorDebugWiringTests
 
             rig.RunFrames (5);
 
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Pause().status);
             Assert::IsTrue   (rig.cpuManager.IsPaused(),                      L"the machine stops");
             Assert::IsTrue   (rig.session.GetRunState() == RunState::Paused, L"the session knows");
             Assert::AreEqual ((size_t) 1, rig.sink.stops.size(),              L"clients hear one stop");
@@ -843,7 +1194,7 @@ namespace EmulatorDebugWiringTests
             rig.session.OnUserResumed();
             Assert::AreEqual (0, rig.sink.resumed, L"already running: nothing to announce");
 
-            (void) rig.session.ExecuteLine ("PAUSE");
+            (void) rig.Pause();
             rig.session.OnUserResumed();
             rig.session.OnUserResumed();
             Assert::AreEqual (1, rig.sink.resumed);
@@ -882,7 +1233,7 @@ namespace EmulatorDebugWiringTests
 
 
             rig.session.SetInstructionObserver (&rig.execution);
-            (void) rig.session.ExecuteLine ("PAUSE");
+            (void) rig.Pause();
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PROFILE ON").status);
 
             start = rig.target.GetCycleCount();
@@ -893,7 +1244,7 @@ namespace EmulatorDebugWiringTests
             rig.machine.PowerCycle();
             rig.RunFrames (1);
             elapsed += rig.target.GetCycleCount();
-            (void) rig.session.ExecuteLine ("PAUSE");
+            (void) rig.Pause();
 
             reply = rig.session.ExecuteLine ("PROFILE");
             data  = std::get_if<ProfileData> (&reply.data);
@@ -930,7 +1281,7 @@ namespace EmulatorDebugWiringTests
 
 
             rig.RunFrames (5);
-            (void) rig.session.ExecuteLine ("PAUSE");
+            (void) rig.Pause();
 
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("T 100").status);
             Assert::IsTrue   (rig.session.GetRunState() == RunState::Stepping, L"the step is still on foot");
@@ -954,7 +1305,7 @@ namespace EmulatorDebugWiringTests
 
             Assert::AreEqual (std::string ("machine running"), rig.session.ExecuteLine ("IN C030").error.label);
 
-            (void) rig.session.ExecuteLine ("PAUSE");
+            (void) rig.Pause();
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("IN C030").status);
         }
 
@@ -969,7 +1320,7 @@ namespace EmulatorDebugWiringTests
 
 
             rig.RunFrames (5);
-            (void) rig.session.ExecuteLine ("PAUSE");
+            (void) rig.Pause();
             rig.target.SetRegisters ([&] { Cpu6502Registers r = rig.target.GetRegisters(); r.pc = 0x0300; return r; } ());
 
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPMR C030").status);
@@ -1063,7 +1414,7 @@ namespace EmulatorDebugWiringTests
             (void) rig.target.TryPoke (0x0304, 0x4C);
             (void) rig.target.TryPoke (0x0305, 0x00);
             (void) rig.target.TryPoke (0x0306, 0x03);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Pause().status);
             rig.sink.stops.clear();
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BPMW 400").status);
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 304").status);
@@ -1159,7 +1510,7 @@ namespace EmulatorDebugWiringTests
             // $0300: INX / INX / RTS
             (void) rig.target.TryPoke (0x0301, 0xE8);
             (void) rig.target.TryPoke (0x0302, 0x60);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Pause().status);
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("BP 301").status);
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("300G", CommandMode::Monitor).status);
 
@@ -1187,7 +1538,7 @@ namespace EmulatorDebugWiringTests
 
 
 
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.session.ExecuteLine ("PAUSE").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Pause().status);
 
             reply = rig.session.ExecuteLine ("300S S", CommandMode::Monitor);
 

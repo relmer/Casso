@@ -87,24 +87,31 @@ Error:
 //
 //  CpuManagerRunDriver::Pause
 //
-//  Asks the run to end. The stop itself is delivered by the CPU thread at the
-//  next slice boundary, so a pause and a breakpoint end a run through exactly
-//  one path.
+//  Asks the machine to stop, in step with when the request was made. The CPU
+//  manager gives how far through the current host tick that was, and the next
+//  pass runs that share of its frame and stops at an instruction boundary, so
+//  pauses made at different moments land at different beam positions. The
+//  stop itself is delivered by the CPU thread when the pass reaches the point.
 //
 //  A pause with NO RUN IN PROGRESS still stops the machine. The emulator is
 //  free-running whenever nobody has started a debugger run, and a client that
 //  asks it to stop means the machine rather than the bookkeeping.
 //
+//  A machine already paused runs no pass to reach a landing point, so it is
+//  held paused, and a run on it ends where it stands.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuManagerRunDriver::Pause()
 {
-    m_pauseRequested = true;
-
-    if (!m_isRunning)
+    if (m_cpuManager.IsPaused())
     {
-        m_cpuManager.SetPaused (true);
+        EndForUserPause();
+        return;
     }
+
+    m_pauseRequested = true;
+    m_pauseFraction  = m_cpuManager.GetRequestTickFraction();
 }
 
 
@@ -159,12 +166,6 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
         return true;
     }
 
-    if (m_pauseRequested)
-    {
-        Finish (StopReason::Pause, m_spent);
-        return true;
-    }
-
     if (budgetSpent)
     {
         Finish (m_hook.GetBudgetReason(), m_spent);
@@ -172,6 +173,31 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpuManagerRunDriver::OnPausePointReached
+//
+//  The pass a pending pause shortened has run to its landing point. A run
+//  reports what it spent across all its slices, a free-running machine what
+//  this pass ran. Nothing pending, as after a breakpoint that ended the pass
+//  on the way, means nothing to do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManagerRunDriver::OnPausePointReached (uint32_t cyclesExecuted)
+{
+    if (!m_pauseRequested)
+    {
+        return;
+    }
+
+    Finish (StopReason::Pause, m_isRunning ? m_spent : cyclesExecuted);
 }
 
 
@@ -233,6 +259,7 @@ void CpuManagerRunDriver::Finish (StopReason reason, uint64_t cycles)
 
     m_isRunning      = false;
     m_pauseRequested = false;
+    m_pauseFraction  = 0.0;
     m_isStep         = false;
 
     stop.reason    = reason;

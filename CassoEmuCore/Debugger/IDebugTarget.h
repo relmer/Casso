@@ -79,6 +79,7 @@ public:
     virtual void                SetRunObserver    (IRunObserver * observer) = 0;
     virtual HRESULT             StartRun          (const RunRequest & request) = 0;
     virtual void                RequestPause      () = 0;
+    virtual bool                IsPausePending    () const { return false; }  // a pause still on its way to the stop
     virtual void                SetHookInstalled  (bool installed) = 0;
     virtual void                SetStopConditions (DebugHook * conditions) = 0;
     virtual void                SetWatchedPages   (const WatchedPages & pages) = 0;

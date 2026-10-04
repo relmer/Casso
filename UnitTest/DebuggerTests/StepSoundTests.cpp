@@ -111,7 +111,7 @@ namespace DebuggerTests
 
             rig.Start (RunKind::StepInto);
             rig.driver.Pause();
-            rig.driver.OnSliceExecuted (1);
+            rig.driver.OnPausePointReached (1);
 
             Assert::IsFalse (rig.driver.IsRunning(), L"the step ended");
             Assert::IsFalse (rig.driver.IsSilent(),  L"and nothing is silenced any longer");

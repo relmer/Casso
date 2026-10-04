@@ -2161,8 +2161,10 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
 
         //  A run ends through its driver, which reports the stop. A machine
         //  running freely has no run to end: it is stopped where it is, and
-        //  that is announced here, as a pause from the main window is.
-        if (m_state == RunState::FreeRunning)
+        //  that is announced here, as a pause from the main window is. A
+        //  pause that lands later in the frame is announced by the driver
+        //  when it does.
+        if (m_state == RunState::FreeRunning && !m_target.IsPausePending())
         {
             OnUserPaused();
         }

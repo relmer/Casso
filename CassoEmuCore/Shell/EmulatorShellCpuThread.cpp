@@ -1139,6 +1139,8 @@ void EmulatorShell::ExecuteCpuSlices()
     uint32_t  sliceActual     = 0;
     uint32_t  numSamples      = 0;
     Byte      pasted          = 0;
+    bool      isPauseLanding  = false;
+    bool      hasRunEnded     = false;
 
 
 
@@ -1172,6 +1174,17 @@ void EmulatorShell::ExecuteCpuSlices()
     if (m_machine.GetCpu() != nullptr)
     {
         targetCycles = FrameCycleBudget::GetTarget (nominalCycles, m_machine.GetCpu()->GetTotalCycles());
+
+        // A pending pause shortens this pass to the share of the frame that
+        // matches how far through the host tick it was asked for.
+        isPauseLanding = m_debugRunDriver != nullptr && m_debugRunDriver->IsPausePending();
+
+        if (isPauseLanding)
+        {
+            targetCycles = FrameCycleBudget::GetPauseTarget (nominalCycles,
+                                                             m_machine.GetCpu()->GetTotalCycles(),
+                                                             m_debugRunDriver->GetPauseFraction());
+        }
     }
 
     if (audioActive)
@@ -1214,8 +1227,7 @@ void EmulatorShell::ExecuteCpuSlices()
         //
         // AHEAD OF THE ZERO TEST BELOW: a stop before the slice's first
         // instruction runs nothing, and a run told nothing of it never ends.
-        // The machine then stays running at the breakpoint, and a pause,
-        // which is also delivered here, never lands.
+        // The machine then stays running at the breakpoint.
         //
         // A debugger step is silent: whether this slice belonged to one is
         // read before the run can end, and its speaker toggles are dropped
@@ -1230,6 +1242,7 @@ void EmulatorShell::ExecuteCpuSlices()
 
         if (m_debugRunDriver != nullptr && m_debugRunDriver->OnSliceExecuted (sliceActual))
         {
+            hasRunEnded = true;
             break;
         }
 
@@ -1263,5 +1276,12 @@ void EmulatorShell::ExecuteCpuSlices()
             m_machine.GetRefs().speaker->ClearTimestamps();
             m_machine.GetRefs().speaker->BeginFrame();
         }
+    }
+
+    // The shortened pass reached its landing point. A stop on the way, such
+    // as a breakpoint, ended the pass and the pause along with it.
+    if (isPauseLanding && !hasRunEnded)
+    {
+        m_debugRunDriver->OnPausePointReached (executed);
     }
 }

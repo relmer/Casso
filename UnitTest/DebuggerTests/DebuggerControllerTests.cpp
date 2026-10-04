@@ -306,6 +306,9 @@ namespace DebuggerControllerTests
 
 
             rig.controller.RequestPause();
+            Assert::IsFalse (rig.cpuManager.IsPaused(), L"the pause waits for its landing point");
+
+            rig.controller.GetRunDriver().OnPausePointReached (0);
 
             Assert::IsTrue (rig.cpuManager.IsPaused());
             Assert::IsTrue (rig.controller.GetSession().GetRunState() == RunState::Paused);

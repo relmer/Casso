@@ -46,6 +46,7 @@ public:
     void                SetRunObserver    (IRunObserver * observer) override;
     HRESULT             StartRun          (const RunRequest & request) override;
     void                RequestPause      () override;
+    bool                IsPausePending    () const override;
     void                SetHookInstalled  (bool installed) override;
     void                SetOpcodeWatch    (const bool * opcodes, IOpcodeWatcher * watcher) override;
     void                SetStopConditions (DebugHook * conditions) override;

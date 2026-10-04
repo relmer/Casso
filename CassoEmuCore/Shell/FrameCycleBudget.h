@@ -24,5 +24,6 @@ public:
     //  instruction every frame.
     static constexpr uint32_t  kSliceCycles = 1023;
 
-    static uint32_t  GetTarget (uint32_t nominalCycles, uint64_t totalCycles);
+    static uint32_t  GetTarget      (uint32_t nominalCycles, uint64_t totalCycles);
+    static uint32_t  GetPauseTarget (uint32_t nominalCycles, uint64_t totalCycles, double fraction);
 };

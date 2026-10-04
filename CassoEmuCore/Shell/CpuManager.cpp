@@ -141,12 +141,16 @@ void CpuManager::Stop()
 
 void CpuManager::PostCommand (WORD id, const std::string & payload)
 {
+    TimePoint  postedAt = m_now();
+
+
+
     {
         std::lock_guard<std::mutex>  lock (m_cmdMutex);
 
 
 
-        m_commandQueue.push_back ({ id, payload });
+        m_commandQueue.push_back ({ id, payload, postedAt });
     }
 
     {
@@ -331,9 +335,99 @@ void CpuManager::DrainCommandQueue()
     {
         for (const auto & cmd : cmds)
         {
+            m_dispatchedAt = cmd.postedAt;
             m_onCommand (cmd);
         }
+
+        m_dispatchedAt.reset();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkTickStart
+//
+//  The start of the host frame tick a pass belongs to. The pass itself takes
+//  a sliver of the tick and the thread sleeps out the rest, so a request made
+//  during the tick reaches the CPU thread between this pass and the next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::MarkTickStart()
+{
+    m_tickStart = m_now();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRequestTickFraction
+//
+//  How far through the current host tick the request being handled arrived.
+//  A command holds the time the UI posted it, since the CPU thread reads the
+//  queue only between passes and its own clock would put every request at the
+//  top of a tick. Work that is not a posted command, such as the debug
+//  channel's service, arrived now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double CpuManager::GetRequestTickFraction() const
+{
+    TimePoint  requestedAt = m_dispatchedAt.has_value() ? *m_dispatchedAt : m_now();
+
+
+
+    return ComputeTickFraction (m_tickStart, requestedAt);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeTickFraction
+//
+//  The share of one host frame tick between its start and a request, held to
+//  [0, 1). A request stamped before the tick began, during the pass, is at its
+//  top; one later than a whole tick, which only an unpaced Maximum speed
+//  produces, is at its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double CpuManager::ComputeTickFraction (
+    TimePoint  tickStart,
+    TimePoint  requestedAt)
+{
+    constexpr double  kNsPerSecond   = 1e9;
+    constexpr double  kTickNs        = kNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock;
+    constexpr double  kLastBeforeOne = 1.0 - 1e-9;
+
+
+
+    double  elapsedNs = (double) std::chrono::duration_cast<std::chrono::nanoseconds> (requestedAt - tickStart).count();
+    double  fraction  = elapsedNs / kTickNs;
+
+
+
+    if (fraction < 0.0)
+    {
+        fraction = 0.0;
+    }
+
+    if (fraction > kLastBeforeOne)
+    {
+        fraction = kLastBeforeOne;
+    }
+
+    return fraction;
 }
 
 
@@ -529,6 +623,8 @@ void CpuManager::ThreadProc()
         dueTime.QuadPart = (wait100Ns > 0) ? -wait100Ns : -1;
         fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
         CWRA (fSuccess);
+
+        MarkTickStart();
 
         if (m_onFrame)
         {
