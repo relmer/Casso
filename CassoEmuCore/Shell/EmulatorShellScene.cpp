@@ -1835,7 +1835,9 @@ bool EmulatorShell::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp,
     const float *  box    = m_deskScene.RecorderModel().CassetteTitleBox();
     float          areaW  = box[3] - box[0];
     float          areaD  = box[4] - box[1];
-    float          aspect = (cellPx.cy > 0) ? (float) cellPx.cx / (float) cellPx.cy : 0.0f;
+    LONG           cellW  = GetSceneLabelCellWidthPx  (s_kSceneCassetteCell, cellPx);
+    LONG           cellH  = GetSceneLabelCellHeightPx (s_kSceneCassetteCell, cellPx);
+    float          aspect = (cellH > 0) ? (float) cellW / (float) cellH : 0.0f;
     float          halfD  = areaD * 0.5f;
     float          halfW  = halfD * aspect;
     float          cx     = (box[0] + box[3]) * 0.5f;
@@ -1939,12 +1941,13 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kS
         {
             float  scroll = GetSceneLabelScrollPx (i, nowMs);
 
-            float  top = (float) GetSceneLabelCellTopPx (i, cellPx);
+            float  top    = (float) GetSceneLabelCellTopPx (i, cellPx);
+            float  height = (float) GetSceneLabelCellHeightPx (i, cellPx);
 
             uv[0] = scroll                        / (float) texW;
             uv[1] = top                           / (float) texH;
-            uv[2] = (scroll + (float) cellPx.cx)  / (float) texW;
-            uv[3] = (top + (float) cellPx.cy)     / (float) texH;
+            uv[2] = (scroll + (float) GetSceneLabelCellWidthPx (i, cellPx)) / (float) texW;
+            uv[3] = (top + height)                / (float) texH;
         }
 
         m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv);
@@ -1969,10 +1972,157 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kS
 LONG EmulatorShell::GetSceneLabelCellTopPx (int cell, const SIZE & cellPx)
 {
     LONG  pad = (LONG) ceilf (DxuiShadowedText::kGlowReachPx);
+    LONG  top = pad;
 
 
 
-    return cell * (cellPx.cy + 2 * pad) + pad;
+    for (int k = 0; k < cell; k++)
+    {
+        top += GetSceneLabelCellHeightPx (k, cellPx) + 2 * pad;
+    }
+
+    return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PaintHandwritten
+//
+//  Writes `name` across a cell as a hand would: one letter at a time, each a
+//  little larger or smaller than the last, a little above or below the line,
+//  a little further or closer, and pressed a little harder or lighter, so no
+//  two of the same letter come out alike. The wobble is seeded by the name,
+//  so a title is written the same way every time it is drawn. The whole
+//  line is sized down until it fits the cell, then centered in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PaintHandwritten (IDxuiTextRenderer & text, const std::wstring & name, float top,
+                                      float width, float height)
+{
+    std::vector<float>  sizes;
+    std::vector<float>  rises;
+    std::vector<float>  advances;
+    std::vector<float>  inks;
+    float               basePx  = height * s_kCassetteInkHeightRatio;
+    float               scale   = 1.0f;
+    float               total   = 0.0f;
+    float               x       = 0.0f;
+    uint32_t            seed    = 0x811C9DC5;
+
+
+
+    for (wchar_t ch : name)
+    {
+        seed = (seed ^ (uint32_t) ch) * 0x01000193;
+    }
+
+    // Measure the line as it will be written, letter by letter.
+    for (size_t k = 0; k < name.size(); k++)
+    {
+        wchar_t  letter[2] = { name[k], 0 };
+        float    size      = basePx * (1.0f + s_kInkSizeWobble   * NextWobble (seed));
+        float    w         = 0.0f;
+        float    h         = 0.0f;
+        HRESULT  hr        = text.MeasureString (letter, size, s_kpszCassetteInkFace, w, h);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        // A space measures as nothing on its own; give it a quarter em.
+        if (name[k] == L' ')
+        {
+            w = size * 0.25f;
+        }
+
+        sizes.push_back    (size);
+        rises.push_back    (basePx * s_kInkRiseWobble    * NextWobble (seed));
+        advances.push_back (w * (1.0f + s_kInkSpaceWobble * NextWobble (seed)));
+        inks.push_back     (1.0f - s_kInkPressWobble * 0.5f * (1.0f + NextWobble (seed)));
+        total += advances.back();
+    }
+
+    if (total > width && total > 0.0f)
+    {
+        scale = width / total;
+    }
+
+    x = (width - total * scale) * 0.5f;
+
+    for (size_t k = 0; k < name.size(); k++)
+    {
+        wchar_t   letter[2] = { name[k], 0 };
+        uint32_t  alpha     = (uint32_t) (inks[k] * 255.0f + 0.5f);
+        uint32_t  argb      = (alpha << 24) | (s_kCassetteInkArgb & 0x00FFFFFF);
+        HRESULT   hr        = text.DrawString (letter, x, top + rises[k] * scale, advances[k] * scale + sizes[k],
+                                               height, argb, sizes[k] * scale, s_kpszCassetteInkFace,
+                                               DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+                                               DxuiFontWeight::Normal, false);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        x += advances[k] * scale;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::NextWobble
+//
+//  The next of a seeded run of values from -1 to 1 (xorshift).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float EmulatorShell::NextWobble (uint32_t & seed)
+{
+    seed ^= seed << 13;
+    seed ^= seed >> 17;
+    seed ^= seed << 5;
+
+    return (float) (seed & 0xFFFF) / 32767.5f - 1.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetSceneLabelCellHeightPx
+//
+//  Every cell is a name strip tall, except the cassette's title, which is
+//  written larger across the label and gets a taller cell so its letters
+//  keep their detail.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LONG EmulatorShell::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
+{
+    return (cell == s_kSceneCassetteCell) ? cellPx.cy * s_kCassetteCellScale : cellPx.cy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetSceneLabelCellWidthPx
+//
+//  The cassette's title cell is scaled up in width as in height, so it keeps
+//  the label's own long, narrow shape.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx)
+{
+    return (cell == s_kSceneCassetteCell) ? cellPx.cx * s_kCassetteCellScale : cellPx.cx;
 }
 
 
@@ -2046,6 +2196,8 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
         }
     }
 
+    bakeW = max (bakeW, GetSceneLabelCellWidthPx (s_kSceneCassetteCell, cellPx));
+
     hr = text->BeginDrawToTexture ((UINT) bakeW, (UINT) GetSceneLabelCellTopPx ((int) names.size(), cellPx));
 
     if (FAILED (hr))
@@ -2063,25 +2215,12 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
             continue;
         }
 
-        // The cassette's title is written, not captioned: plain ink, sized
-        // down until it fits the label.
+        // The cassette's title is written, not captioned.
         if (i == s_kSceneCassetteCell)
         {
-            float    inkPx = (float) cellPx.cy * s_kCassetteInkHeightRatio;
-            float    inkW  = 0.0f;
-            float    inkH  = 0.0f;
-            HRESULT  hrInk = text->MeasureString (names[i].c_str(), inkPx, s_kpszCassetteInkFace, inkW, inkH);
-
-            if (SUCCEEDED (hrInk) && inkW > (float) cellPx.cx)
-            {
-                inkPx *= (float) cellPx.cx / inkW;
-            }
-
-            hrInk = text->DrawString (names[i].c_str(), 0.0f, (float) GetSceneLabelCellTopPx (i, cellPx),
-                                      (float) cellPx.cx, (float) cellPx.cy, s_kCassetteInkArgb, inkPx,
-                                      s_kpszCassetteInkFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                                      DxuiFontWeight::Normal, false);
-            IGNORE_RETURN_VALUE (hrInk, S_OK);
+            PaintHandwritten (*text, names[i], (float) GetSceneLabelCellTopPx (i, cellPx),
+                              (float) GetSceneLabelCellWidthPx (i, cellPx),
+                              (float) GetSceneLabelCellHeightPx (i, cellPx));
             continue;
         }
 

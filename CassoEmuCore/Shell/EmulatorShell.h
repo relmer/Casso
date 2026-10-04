@@ -1128,8 +1128,17 @@ private:
     // and later, in ballpoint blue, with no halo -- it is ink on paper, not a
     // caption. The text is sized down to fit the label rather than cut.
     static constexpr const wchar_t *  s_kpszCassetteInkFace     = L"Ink Free";
-    static constexpr uint32_t         s_kCassetteInkArgb        = 0xFF1C2E86;
-    static constexpr float            s_kCassetteInkHeightRatio = 0.8f;   // of the cell's height
+    static constexpr uint32_t         s_kCassetteInkArgb        = 0xFF101A5C;
+    static constexpr float            s_kCassetteInkHeightRatio = 0.85f;  // of the cell's height
+    static constexpr LONG             s_kCassetteCellScale      = 2;      // the title's cell, in name strips
+
+    // How far each written letter strays, as fractions: its size, its rise
+    // off the line (of the letter height), its spacing, and how much lighter
+    // the ink can come out.
+    static constexpr float            s_kInkSizeWobble          = 0.08f;
+    static constexpr float            s_kInkRiseWobble          = 0.06f;
+    static constexpr float            s_kInkSpaceWobble         = 0.10f;
+    static constexpr float            s_kInkPressWobble         = 0.25f;
 
     void    SyncSceneDriveLabels ();
     bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
@@ -1169,7 +1178,13 @@ private:
 
     // Where a label's cell starts in that texture, with room between cells
     // for each name's glow.
-    static LONG GetSceneLabelCellTopPx (int cell, const SIZE & cellPx);
+    static LONG GetSceneLabelCellTopPx    (int cell, const SIZE & cellPx);
+    static LONG GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx);
+    static LONG GetSceneLabelCellWidthPx  (int cell, const SIZE & cellPx);
+
+    static void  PaintHandwritten (IDxuiTextRenderer & text, const std::wstring & name, float top,
+                                   float width, float height);
+    static float NextWobble       (uint32_t & seed);
 
     // Retires both quads, for a theme or a presentation that draws no scene
     // drives at all.
