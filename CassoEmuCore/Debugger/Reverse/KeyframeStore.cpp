@@ -71,6 +71,7 @@ HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
     size_t                   slotCount  = 0;
     size_t                   arenaBytes = 0;
     size_t                   end        = 0;
+    Byte                   * buffer     = nullptr;
     std::vector<Entry>       entries;
     std::unique_ptr<Byte[]>  arena;
 
@@ -90,8 +91,10 @@ HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
         isDropped = TryDropOldestGroup();
     }
 
-    arena.reset (new (std::nothrow) Byte[arenaBytes]);
-    CPRA (arena.get());
+    buffer = new (std::nothrow) Byte[arenaBytes];
+    CPRA (buffer);
+
+    arena.reset (buffer);
 
     entries.resize (slotCount);
 
@@ -118,6 +121,7 @@ HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
 Error:
     return hr;
 }
+
 
 
 
@@ -418,6 +422,7 @@ void KeyframeStore::ComputeLayout (
     outArenaBytes = (m_settings.budgetBytes > overhead) ? m_settings.budgetBytes - overhead : 0;
     outArenaBytes = std::max (outArenaBytes, minimumArena);
 }
+
 
 
 

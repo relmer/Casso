@@ -1328,6 +1328,8 @@ bool GSSquaredParser::IsAddressText (const std::string & text)
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GSSquaredParser::TryParseNumber

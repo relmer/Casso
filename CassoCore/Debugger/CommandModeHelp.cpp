@@ -637,6 +637,7 @@ const char * CommandModeHelp::GetNumberNote (CommandMode mode)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandModeHelp::BuildReference

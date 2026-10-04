@@ -91,6 +91,7 @@ namespace DebuggerTests
             MockExpressionContext  context;
             std::string            error;
             int32_t                value = 0;
+            HRESULT                hr    = S_OK;
 
 
 
@@ -98,11 +99,13 @@ namespace DebuggerTests
             Assert::AreEqual (26,    Evaluate ("0n10+$10"));
             Assert::AreEqual (0x300, Evaluate ("0N768"));
 
-            Assert::IsTrue (FAILED (DebugExpressionEvaluator::ParseAndEvaluate ("0n1A", context, value, error)));
+            hr = DebugExpressionEvaluator::ParseAndEvaluate ("0n1A", context, value, error);
+            Assert::IsTrue (FAILED (hr));
             Assert::IsTrue (error.find ("not a decimal number") != std::string::npos, Widen (error).c_str());
 
             //  0x stays WinDbg's alone.
-            Assert::IsTrue (FAILED (DebugExpressionEvaluator::ParseAndEvaluate ("0x300", context, value, error)));
+            hr = DebugExpressionEvaluator::ParseAndEvaluate ("0x300", context, value, error);
+            Assert::IsTrue (FAILED (hr));
         }
 
 
