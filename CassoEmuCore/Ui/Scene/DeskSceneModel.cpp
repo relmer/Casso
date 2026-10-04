@@ -685,9 +685,10 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
                 }
             }
         }
-        else if (kind == DeskDeviceKind::CassetteRecorder && part == s_kpszVolumeWheel)
+        else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszVolumeWheel, 0) == 0)
         {
-            // The volume wheel, kept apart so the scene can turn it.
+            // The volume wheel and its mark, kept apart so the scene can turn
+            // them together.
             AppendLitTri (m_volumeWheel, tri, corners);
 
             for (const float * p : { tri.p0, tri.p1, tri.p2 })

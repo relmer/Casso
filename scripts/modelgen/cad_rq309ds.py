@@ -500,6 +500,18 @@ def build():
                  .polyline(pts).close().extrude(WIN_V1 - WIN_V0 - 2.0))
         m.add(part, on_face(wheel), KEY, angular=0.25)
 
+    # The volume wheel's position mark: a line across its rim in the same
+    # silver as the arrow over it, turning with it. Placed where the wheel
+    # sits at silent -- 60 degrees left of front -- so it sweeps to 60 degrees
+    # right at full (the scene turns the wheel a third of a turn over the
+    # range), always in the window.
+    MARK_DEG = -90.0 - 60.0
+    vx, vy   = wheel_x[1], REC_D - WHEEL_PROUD + WHEEL_R
+    mark = (box(WHEEL_R - 1.2, WHEEL_R + 0.08, -0.4, 0.4, WIN_V0 + 0.95, WIN_V1 - 0.95)
+            .rotate((0, 0, 0), (0, 0, 1), MARK_DEG)
+            .translate((vx, vy, 0)))
+    m.add("volume_wheel_mark", on_face(mark), SILVER)
+
     def face_text(s, x, v, size):
         return text(s, size, x, v, -REC_D).rotate((0, 0, 0), (1, 0, 0), 90)
 

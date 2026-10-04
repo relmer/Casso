@@ -411,7 +411,7 @@ public:
     static constexpr const char *  s_kpszLidGlass    = "door_glass";   // the smoked pane and its struts
     static constexpr const char *  s_kpszChromePrefix = "chrome";     // polished metal, as the blades
     static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, cassette_hubs
-    static constexpr const char *  s_kpszVolumeWheel    = "volume_wheel";
+    static constexpr const char *  s_kpszVolumeWheel    = "volume_wheel";   // volume_wheel, volume_wheel_mark
     static constexpr const char *  s_kpszCassetteTitleAnchor = "cassette_title_anchor";
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";

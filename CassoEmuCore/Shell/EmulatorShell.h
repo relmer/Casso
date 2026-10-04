@@ -1510,7 +1510,8 @@ private:
 
     static constexpr int    s_kVolumeDragDp       = 160;
     static constexpr int    s_kVolumeWheelSlopDp  = 4;
-    static constexpr float  s_kVolumeWheelTurnRad = 4.712389f;   // three quarters of a turn
+    static constexpr int    s_kVolumeWheelMinDp   = 28;          // the smallest target, either way, however small the wheel
+    static constexpr float  s_kVolumeWheelTurnRad = 2.0943951f;  // a third of a turn: the mark stays in the window
 
     // How much tilt a pixel of drag is worth. The assembly's whole travel is
     // about eleven degrees each way, so this spends it over a couple of

@@ -639,9 +639,16 @@ RECT EmulatorShell::GetVolumeWheelRect() const
         lo[1] = std::min (lo[1], px[1]);  hi[1] = std::max (hi[1], px[1]);
     }
 
+    // Never smaller than a fingertip's worth of screen: away from a close
+    // zoom the wheel is a sliver a few pixels tall.
     if (isShown)
     {
-        rect = { (LONG) lo[0] - grow, (LONG) lo[1] - grow, (LONG) hi[0] + grow, (LONG) hi[1] + grow };
+        float  half = (float) m_scaler.ToPx (s_kVolumeWheelMinDp) * 0.5f;
+        float  cx   = (lo[0] + hi[0]) * 0.5f;
+        float  cy   = (lo[1] + hi[1]) * 0.5f;
+
+        rect = { (LONG) std::min (lo[0] - (float) grow, cx - half), (LONG) std::min (lo[1] - (float) grow, cy - half),
+                 (LONG) std::max (hi[0] + (float) grow, cx + half), (LONG) std::max (hi[1] + (float) grow, cy + half) };
     }
 
     return rect;

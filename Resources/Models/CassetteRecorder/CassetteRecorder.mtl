@@ -143,6 +143,11 @@ Ka 0 0 0
 Kd 0.185 0.185 0.19
 d 1
 
+newmtl volume_wheel_mark
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
 newmtl wheel_legend
 Ka 0 0 0 
 Kd 0.76 0.765 0.77
