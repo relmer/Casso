@@ -56,12 +56,13 @@ public:
     void  Sync             ();
     void  HidePreview      ();
 
-    //  The cell's length along the strip for a strip `thicknessPx` thick, the
-    //  number of cells that fit whole in `lengthPx`, where cell `index` lies
-    //  in `rc`, and which cell a point is over (-1 for none).
+    //  The cell's length along the strip that keeps the picture's aspect for a
+    //  strip `thicknessPx` thick, the whole number of such cells nearest to
+    //  filling `lengthPx`, where cell `index` of `count` lies in `rc` (the
+    //  last reaching the far edge), and which cell a point is over (-1 for none).
     static int   GetCellLength (int thicknessPx, float aspect, bool vertical);
     static int   GetCellCount  (int lengthPx, int cellPx);
-    static RECT  GetCellRect   (const RECT & rc, int index, int cellPx, bool vertical);
+    static RECT  GetCellRect   (const RECT & rc, int index, int count, int cellPx, bool vertical);
     static int   HitTestCell   (const RECT & rc, int count, int cellPx, bool vertical, int x, int y);
 
     int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
@@ -99,6 +100,7 @@ private:
     RECT                              m_rc          = {};
     bool                              m_vertical    = false;
     int                               m_cellPx      = 0;
+    int                               m_idealPx     = 0;
     int                               m_count       = 0;
     int                               m_hovered     = -1;
 };

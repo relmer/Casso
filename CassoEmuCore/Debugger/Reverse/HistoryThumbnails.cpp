@@ -124,10 +124,12 @@ void HistoryThumbnails::SetCellLayout (
         m_cellPx = cellPx;
         m_layoutId++;
         m_thumbs.Clear();
+        m_shown.clear();
     }
 
     m_count = (std::max) (count, 0);
     m_thumbs.SetCapacity ((std::max) (kMinThumbCount, (size_t) m_count * 2));
+    m_shown.resize ((size_t) m_count);
 
     Bump();
 }
@@ -140,11 +142,15 @@ void HistoryThumbnails::SetCellLayout (
 //
 //  HistoryThumbnails::GetCellImage
 //
+//  A cell whose point is not drawn yet keeps the picture it last showed, so
+//  it never goes blank between one point and the next.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HistoryThumbnails::Image HistoryThumbnails::GetCellImage (int index)
 {
     std::lock_guard<std::mutex>  held (m_lock);
+    Image                        image;
 
 
 
@@ -153,7 +159,20 @@ HistoryThumbnails::Image HistoryThumbnails::GetCellImage (int index)
         return nullptr;
     }
 
-    return m_thumbs.Find (m_cells[(size_t) index].position);
+    if (m_shown.size() < m_cells.size())
+    {
+        m_shown.resize (m_cells.size());
+    }
+
+    image = m_thumbs.Find (m_cells[(size_t) index].position);
+
+    if (image == nullptr)
+    {
+        return m_shown[(size_t) index];
+    }
+
+    m_shown[(size_t) index] = image;
+    return image;
 }
 
 
@@ -261,12 +280,10 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
         count = m_count;
     }
 
-    PlanCells (keyframes, count, cells);
+    PlanCells (keyframes, count, m_step, cells);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
-
-        KeepPlan (m_cells, cells, cells);
 
         if (cells.size() != m_cells.size() || !std::equal (cells.begin(), cells.end(), m_cells.begin(),
                                                            [] (const HistoryThumbnailCell & a, const HistoryThumbnailCell & b)
@@ -353,10 +370,13 @@ void HistoryThumbnails::Clear()
         std::lock_guard<std::mutex>  held (m_lock);
 
         m_cells.clear();
+        m_shown.clear();
         m_thumbs.Clear();
         m_previews.Clear();
         m_wantedPreview.reset();
     }
+
+    m_step = 0;
 
     Bump();
 }
@@ -369,16 +389,26 @@ void HistoryThumbnails::Clear()
 //
 //  HistoryThumbnails::PlanCells
 //
+//  The last cell is the live end, the newest keyframe. The others are the
+//  grid points below it, one step apart and ending at the last multiple of
+//  the step before the live end, each the keyframe at or before it; a point
+//  older than history shows the oldest keyframe. Because the grid is fixed
+//  to absolute positions, a point keeps its keyframe until that keyframe is
+//  dropped.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void HistoryThumbnails::PlanCells (
     const KeyframeStore                & keyframes,
     int                                  count,
+    uint64_t                           & ioStep,
     std::vector<HistoryThumbnailCell>  & outCells)
 {
     size_t    held   = keyframes.GetCount();
     uint64_t  oldest = 0;
     uint64_t  newest = 0;
+    uint64_t  top    = 0;
+    uint64_t  back   = 0;
     size_t    index  = 0;
     int       i      = 0;
 
@@ -393,19 +423,25 @@ void HistoryThumbnails::PlanCells (
 
     oldest = keyframes.GetInfo (0).position;
     newest = keyframes.GetInfo (held - 1).position;
+    ioStep = ChooseStep (newest - oldest, count, ioStep);
+    top    = (newest > 0) ? (newest - 1) / ioStep * ioStep : 0;
 
     outCells.resize ((size_t) count);
 
-    for (i = 0; i < count; i++)
+    for (i = 0; i < count - 1; i++)
     {
-        if (!TryFindAtOrBefore (keyframes, GetTarget (oldest, newest, i, count), index))
+        back = (uint64_t) (count - 2 - i) * ioStep;
+
+        if (back > top || !TryFindAtOrBefore (keyframes, top - back, index))
         {
             index = 0;
         }
 
         outCells[(size_t) i].position = keyframes.GetInfo (index).position;
-        outCells[(size_t) i].isLive   = i == count - 1;
     }
+
+    outCells.back().position = newest;
+    outCells.back().isLive   = true;
 }
 
 
@@ -414,82 +450,37 @@ void HistoryThumbnails::PlanCells (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HistoryThumbnails::KeepPlan
+//  HistoryThumbnails::ChooseStep
 //
-//  While the machine runs the live end moves every frame, and planning
-//  afresh each time would move every point with it, so no picture would be
-//  drawn before its point had moved on. The points stay where they are,
-//  the live end following the newest keyframe, until it has moved a whole
-//  step past where it was planned or the plan no longer fits the history
-//  held: another cell count, the first point dropped from history, or the
-//  live end moved back, as a seek that truncates the future does.
+//  The step that spreads `count` cells over `span`: the grid cells cover
+//  count - 1 steps. The step in use is kept while the span stays within a
+//  quarter of the one it was chosen for, so the small swings of a full
+//  history -- a group dropped at the old end, keyframes added at the new --
+//  never move the grid; past that it is chosen afresh.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HistoryThumbnails::KeepPlan (
-    const std::vector<HistoryThumbnailCell>  & previous,
-    const std::vector<HistoryThumbnailCell>  & fresh,
-    std::vector<HistoryThumbnailCell>        & outCells)
+uint64_t HistoryThumbnails::ChooseStep (
+    uint64_t  span,
+    int       count,
+    uint64_t  step)
 {
-    size_t                             count  = previous.size();
-    uint64_t                           step   = 0;
-    bool                               isKept = false;
-    std::vector<HistoryThumbnailCell>  kept;
+    constexpr uint64_t  kLow   = 3;
+    constexpr uint64_t  kHigh  = 5;
+    constexpr uint64_t  kParts = 4;
 
 
 
-    if (count >= 2 && fresh.size() == count)
+    uint64_t  ideal = (std::max) ((uint64_t) 1, span / (uint64_t) (std::max) (count - 1, 1));
+
+
+
+    if (step == 0 || ideal * kParts < step * kLow || ideal * kParts >= step * kHigh)
     {
-        step   = (previous.back().position - previous.front().position) / (count - 1);
-        isKept = previous.front().position >= fresh.front().position &&
-                 fresh.back().position     >= previous.back().position &&
-                 fresh.back().position     <  previous.back().position + (std::max) (step, (uint64_t) 1);
+        return ideal;
     }
 
-    if (!isKept)
-    {
-        if (&outCells != &fresh)
-        {
-            outCells = fresh;
-        }
-
-        return;
-    }
-
-    kept                 = previous;
-    kept.back().position = fresh.back().position;
-    outCells             = std::move (kept);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetTarget
-//
-//  Point `index` of `count`, evenly spaced from oldest to newest, both ends
-//  included. A single point is the newest.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t HistoryThumbnails::GetTarget (
-    uint64_t  oldest,
-    uint64_t  newest,
-    int       index,
-    int       count)
-{
-    uint64_t  span = (newest > oldest) ? newest - oldest : 0;
-
-
-
-    if (count <= 1)
-    {
-        return newest;
-    }
-
-    return oldest + (uint64_t) ((double) span * (double) index / (double) (count - 1));
+    return step;
 }
 
 
@@ -719,8 +710,12 @@ void HistoryThumbnails::Draw (Job & job)
 //
 //  HistoryThumbnails::TryPickWanted
 //
-//  The preview the pointer rests on first, then the live end, then the
-//  points oldest first.
+//  The preview the pointer rests on first, then the live end if it has never
+//  had a picture, then the points newest first, where history scrolling
+//  brings new ones in, and then the live end's latest. The live end moves on
+//  with every keyframe and keeps its last picture meanwhile, so redrawing it
+//  first every time would leave the points waiting for as long as the
+//  machine runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -728,6 +723,10 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
 {
     std::lock_guard<std::mutex>  held (m_lock);
     bool                         hasCellSize = m_cellPx.cx > 0 && m_cellPx.cy > 0;
+    uint64_t                     live        = 0;
+    bool                         isLiveShown = false;
+    bool                         hasLivePast = false;
+    size_t                       i           = 0;
 
 
 
@@ -744,19 +743,29 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
         return false;
     }
 
-    if (!m_thumbs.Contains (m_cells.back().position))
+    live        = m_cells.back().position;
+    isLiveShown = m_thumbs.Contains (live);
+    hasLivePast = m_shown.size() == m_cells.size() && m_shown.back() != nullptr;
+
+    if (!isLiveShown && !hasLivePast)
     {
-        outPosition = m_cells.back().position;
+        outPosition = live;
         return true;
     }
 
-    for (const HistoryThumbnailCell & cell : m_cells)
+    for (i = m_cells.size() - 1; i-- > 0; )
     {
-        if (!m_thumbs.Contains (cell.position))
+        if (!m_thumbs.Contains (m_cells[i].position))
         {
-            outPosition = cell.position;
+            outPosition = m_cells[i].position;
             return true;
         }
+    }
+
+    if (!isLiveShown)
+    {
+        outPosition = live;
+        return true;
     }
 
     return false;

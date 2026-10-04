@@ -92,7 +92,7 @@ int DxuiImageStrip::GetCellCount (
         return 0;
     }
 
-    return lengthPx / cellPx;
+    return (std::max) (1, (lengthPx + cellPx / 2) / cellPx);
 }
 
 
@@ -103,26 +103,34 @@ int DxuiImageStrip::GetCellCount (
 //
 //  DxuiImageStrip::GetCellRect
 //
-//  Each cell starts where the one before it ends.
+//  Each cell starts where the one before it ends; the last takes whatever
+//  length is left over, so the cells fill the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiImageStrip::GetCellRect (
     const RECT  & rc,
     int           index,
+    int           count,
     int           cellPx,
     bool          vertical)
 {
     int  start = index * cellPx;
+    int  end   = start + cellPx;
 
 
+
+    if (index == count - 1)
+    {
+        end = vertical ? rc.bottom - rc.top : rc.right - rc.left;
+    }
 
     if (vertical)
     {
-        return RECT { rc.left, rc.top + start, rc.right, rc.top + start + cellPx };
+        return RECT { rc.left, rc.top + start, rc.right, rc.top + end };
     }
 
-    return RECT { rc.left + start, rc.top, rc.left + start + cellPx, rc.bottom };
+    return RECT { rc.left + start, rc.top, rc.left + end, rc.bottom };
 }
 
 
@@ -153,9 +161,9 @@ int DxuiImageStrip::HitTestCell (
         return -1;
     }
 
-    index = along / cellPx;
+    index = (std::min) (along / cellPx, count - 1);
 
-    return (index < count) ? index : -1;
+    return (index >= 0) ? index : -1;
 }
 
 
@@ -196,7 +204,7 @@ int DxuiImageStrip::GetMinWidthPx (const DxuiDpiScaler & scaler) const
 {
     UNREFERENCED_PARAMETER (scaler);
 
-    return (m_cellPx > 0) ? m_cellPx : -1;
+    return (m_idealPx > 0) ? m_idealPx : -1;
 }
 
 
@@ -231,8 +239,9 @@ void DxuiImageStrip::Layout (
     m_rc       = rc;
     m_vertical = height > width;
     thickness  = (std::max) (kMinThicknessPx, m_vertical ? width : height);
-    m_cellPx   = GetCellLength (thickness, m_aspect, m_vertical);
-    count      = GetCellCount (m_vertical ? height : width, m_cellPx);
+    m_idealPx  = GetCellLength (thickness, m_aspect, m_vertical);
+    count      = GetCellCount (m_vertical ? height : width, m_idealPx);
+    m_cellPx   = (count > 0) ? (m_vertical ? height : width) / count : 0;
 
     if (count != m_count)
     {
@@ -285,7 +294,7 @@ void DxuiImageStrip::Paint (
 
     for (int i = 0; i < m_count; i++)
     {
-        cell  = GetCellRect (m_rc, i, m_cellPx, m_vertical);
+        cell  = GetCellRect (m_rc, i, m_count, m_cellPx, m_vertical);
         image = (m_source != nullptr) ? m_source->GetCellImage (i) : nullptr;
         inset = (i == m_hovered) ? edge : 0.0f;
 
@@ -524,7 +533,7 @@ void DxuiImageStrip::HidePreview()
 void DxuiImageStrip::ShowPreview()
 {
     DxuiPopupHost::ShowParams  params;
-    RECT                       cell     = GetCellRect (m_rc, m_previewCell, m_cellPx, m_vertical);
+    RECT                       cell     = GetCellRect (m_rc, m_previewCell, m_count, m_cellPx, m_vertical);
     POINT                      topLeft  = { cell.left, cell.top };
     POINT                      botRight = { cell.right, cell.bottom };
     HWND                       owner    = nullptr;

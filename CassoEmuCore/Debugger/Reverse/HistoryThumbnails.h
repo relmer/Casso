@@ -38,10 +38,15 @@ struct HistoryThumbnailCell
 //
 //  Pictures of the screen at evenly spaced points of reverse execution's
 //  history, for a strip of them: the oldest point first, the live end last.
-//  Each point is the keyframe at or before its even share of the way from
-//  the oldest keyframe to the newest, so its picture is that keyframe's
-//  screen exactly, and seeking to its position lands on what it shows. The
-//  live end is drawn from the newest keyframe.
+//  The points lie on a grid fixed to absolute positions, every multiple of a
+//  step chosen from the span held and the cell count, so while history
+//  scrolls -- new keyframes at the live end, the oldest dropped -- a point
+//  stays put: cells leave at the left and arrive at the right, and only the
+//  new ones need drawing. The step changes only when the span moves well
+//  away from what it was chosen for. Each point is the keyframe at or before
+//  its grid position, so its picture is that keyframe's screen exactly, and
+//  seeking to its position lands on what it shows. The live end is drawn
+//  from the newest keyframe.
 //
 //  Threads. The strip's side (IDxuiImageStripSource, SetVisible) runs on the
 //  UI thread. Service runs on the thread that runs the machine, once a
@@ -52,7 +57,9 @@ struct HistoryThumbnailCell
 //
 //  Each picture is drawn at full size; the strip keeps a copy at its cell
 //  size for every point it has drawn, the most recently used first out, and
-//  the full-size ones for the last few points the pointer rested on.
+//  the full-size ones for the last few points the pointer rested on. A cell
+//  whose point has no picture yet shows the last picture it showed, so the
+//  live end does not blink out each time it moves on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,12 +106,10 @@ public:
     double             GetLastRenderMs () const      { return m_lastRenderMs.load (std::memory_order_relaxed); }
     uint64_t           GetRenderCount  () const      { return m_renderCount.load (std::memory_order_relaxed); }
 
-    //  The points for `count` cells over the keyframes held, oldest first.
-    static void        PlanCells     (const KeyframeStore & keyframes, int count, std::vector<HistoryThumbnailCell> & outCells);
-    static uint64_t    GetTarget     (uint64_t oldest, uint64_t newest, int index, int count);
-    static void        KeepPlan      (const std::vector<HistoryThumbnailCell> & previous,
-                                      const std::vector<HistoryThumbnailCell> & fresh,
-                                      std::vector<HistoryThumbnailCell>       & outCells);
+    //  The points for `count` cells over the keyframes held, oldest first, on
+    //  the grid of `ioStep`, which is chosen afresh when it no longer suits.
+    static void        PlanCells     (const KeyframeStore & keyframes, int count, uint64_t & ioStep, std::vector<HistoryThumbnailCell> & outCells);
+    static uint64_t    ChooseStep    (uint64_t span, int count, uint64_t step);
     static bool        TryFindAtOrBefore (const KeyframeStore & keyframes, uint64_t position, size_t & outIndex);
 
     //  A picture shrunk to `width` by `height`, each pixel the average of
@@ -152,9 +157,11 @@ private:
     HistoryImageCache                 m_thumbs       { kMinThumbCount };
     HistoryImageCache                 m_previews     { kPreviewCount };
     std::optional<uint64_t>           m_wantedPreview;
+    std::vector<Image>                m_shown;               // the last picture each cell showed
 
     //  Machine thread's own.
     Job                               m_job;
     uint64_t                          m_lastSubmitMs = 0;
     bool                              m_hasSubmitted = false;
+    uint64_t                          m_step         = 0;
 };
