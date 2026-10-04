@@ -272,6 +272,83 @@ public:
     }
 
 
+    //  SC-004: a 16 KB load through the Monitor's R takes under ten seconds
+    //  of host time with fast loading on. The stretches the governor runs at
+    //  Maximum are timed as this machine actually runs them; the rest count
+    //  at the machine's real speed, as the shell would pace them. The real-
+    //  time length of the same load is reported beside it.
+    TEST_METHOD (SixteenKilobyteFastLoadTakesUnderTenSecondsOfHostTime)
+    {
+        constexpr uint64_t    kSlice     = 1023;
+        constexpr Word        kStart     = 0x0800;
+        constexpr size_t      kBytes     = 16384;
+        TestMachine           machine ("Apple2Plus", TestMachine::Slots::Empty);
+        std::vector<Byte>     data (kBytes);
+        std::vector<Byte>     wav;
+        TapeEncodeOptions     options;
+        NullTapeAudioDecoder  mp3;
+        TapeImage             image;
+        std::string           error;
+        double                clock       = 0.0;
+        double                hostSec     = 0.0;
+        double                realSec     = 0.0;
+        double                slowSec     = 0.0;
+        uint64_t              cycles      = 0;
+        uint64_t              total       = 0;
+        LARGE_INTEGER         freq        = {};
+        wchar_t               report[160] = {};
+
+
+
+        for (size_t i = 0; i < data.size(); i++)
+        {
+            data[i] = (Byte) (i * 7 + (i >> 8));
+        }
+
+        TapeTestEncoder::MakeWav ({ data }, options, wav);
+        Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "t.wav", false, mp3, image, error));
+
+        machine.PowerCycle();
+        machine.RunCycles (5'000'000);
+        KeystrokeInjector::InjectLine (machine, "CALL -151", 2'000'000);
+        machine.GetTapeDeck().Insert (std::move (image));
+        KeystrokeInjector::InjectLine (machine, "800.47FFR", 1'000'000);
+
+        clock = (double) machine.GetConfig().clockSpeed;
+        total = (uint64_t) (clock * 200.0);
+        QueryPerformanceFrequency (&freq);
+        machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
+
+        for (cycles = 0; cycles < total && machine.GetTapeDeck().GetTransport() == TapeTransport::Playing; cycles += kSlice)
+        {
+            bool           isFast = TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTapeDeck(),
+                                                                           *machine.GetCpu()->GetBusCyclePtr(), clock);
+            LARGE_INTEGER  t0     = {};
+            LARGE_INTEGER  t1     = {};
+
+            QueryPerformanceCounter (&t0);
+            machine.RunCycles (kSlice);
+            machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
+            QueryPerformanceCounter (&t1);
+
+            hostSec += isFast ? (double) (t1.QuadPart - t0.QuadPart) / (double) freq.QuadPart
+                              : (double) kSlice / clock;
+            realSec += (double) kSlice / clock;
+            slowSec += isFast ? 0.0 : (double) kSlice / clock;
+        }
+
+        swprintf_s (report, L"16 KB load: %.1f s of host time with fast loading (%.1f s of it not sped up), %.1f s in real time\n", hostSec, slowSec, realSec);
+        Logger::WriteMessage (report);
+
+        for (size_t i = 0; i < data.size(); i++)
+        {
+            Assert::AreEqual (data[i], machine.GetMemoryBus().ReadByte ((Word) (kStart + i)), L"the load is intact");
+        }
+
+        Assert::IsTrue (hostSec < 10.0, report);
+    }
+
+
     TEST_METHOD (CpuOverrideShowsMaximumAndLeavesTheUserSpeed)
     {
         CpuManager  cpu;

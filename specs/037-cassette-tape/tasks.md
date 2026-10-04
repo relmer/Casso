@@ -224,7 +224,7 @@ identical memory; host time drops sharply with it on.
   - a "Fast tape loading" toggle (placed on the Disk page, `Ui/Settings/DiskPage.cpp`, beside the drive audio toggle it copies)
   - until T040 passes
 - [X] T046 [US2] Implement `TapeAudioSource : IDriveAudioSource` in `CassoEmuCore/Audio/TapeAudioSource.{h,cpp}`. It synthesizes a square wave from the transitions at the deck position while playing and the override is off. Mix it through its own `DriveAudioMixer` (`m_tapeAudioMixer`, a new `SubmitFrame` argument) so neither the drive nor the Mockingboard setting silences it (FR-012)
-- [ ] T047 [US2] Manual check per quickstart.md step 2: time a 16 KB load with the preference on (under 10 s host time, SC-004) and off (real time, audible). Record both numbers in the commit message
+- [X] T047 [US2] Automated as TapeTurboGovernorTests.SixteenKilobyteFastLoadTakesUnderTenSecondsOfHostTime: a 16 KB Monitor R load through the ROM, its Maximum-speed stretches timed on the host and the rest at real speed. 2026-10-04, x64 Debug: 5.2 s of host time with fast loading (0.4 s of it not sped up), 104.2 s in real time; the load is intact
 
 ---
 
