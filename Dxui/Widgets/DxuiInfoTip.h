@@ -13,9 +13,10 @@
 //  DxuiInfoTip
 //
 //  A small "i" in a ring beside a setting, whose tooltip says what the
-//  setting's own label has no room for. Inert otherwise: it never takes a
-//  click or a key, and it watches the pointer without consuming any move,
-//  so it can sit beside a control without stealing from it.
+//  setting's own label has no room for. It is a tab stop: Enter, Space or a
+//  click opens the tip at once, as hovering does after a dwell. It watches
+//  the pointer without consuming any move, so it can sit beside a control
+//  without stealing from it.
 //
 //  The tip shows through a popup host when one is set, as a dropdown's menu
 //  does, so it can extend past the page it sits on.
@@ -25,7 +26,7 @@
 class DxuiInfoTip : public IDxuiControl
 {
 public:
-    DxuiInfoTip  () = default;
+    DxuiInfoTip  () { SetFocusable (true); }
     ~DxuiInfoTip () override = default;
 
     void  SetText      (const std::wstring & text) { m_text = text; }
@@ -38,8 +39,10 @@ public:
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
-    void  Tick    (int64_t nowMs) override { m_tooltip.Tick (nowMs); }
+    bool  OnMouse        (const DxuiMouseEvent & ev) override;
+    bool  OnKey          (const DxuiKeyEvent & ev) override;
+    void  OnFocusChanged (bool focused) override;
+    void  Tick           (int64_t nowMs) override { m_tooltip.Tick (nowMs); }
 
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
@@ -51,8 +54,11 @@ public:
 private:
     static int64_t  GetNowMs ();
 
+    void  Open ();
+
     std::wstring   m_text;
     DxuiTooltip    m_tooltip;
     DxuiDpiScaler  m_scaler;
     bool           m_isHovered = false;
+    bool           m_isFocused = false;
 };

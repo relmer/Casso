@@ -51,6 +51,35 @@ public:
     }
 
 
+    TEST_METHOD (IsATabStopThatEnterSpaceAndAClickOpen)
+    {
+        DxuiInfoTip   tip;
+        DxuiKeyEvent  enter;
+        DxuiKeyEvent  space;
+
+
+
+        tip.SetText (L"Some tools read only 8-bit WAV files.");
+        tip.SetRect (RECT { 100, 10, 120, 30 });
+        tip.SetVisible (true);
+        enter.vk = VK_RETURN;
+        space.vk = VK_SPACE;
+
+        Assert::IsTrue (tip.IsFocusable());
+
+        Assert::IsTrue  (tip.OnKey (enter));
+        Assert::IsTrue  (tip.GetTooltip().IsVisible(), L"Enter opens it at once");
+        Assert::IsTrue  (tip.OnKey (space));
+        Assert::IsFalse (tip.GetTooltip().IsVisible(), L"a second press closes it");
+
+        Assert::IsTrue (tip.OnMouse (Move (110, 20, DxuiMouseEventKind::Down)), L"a click is taken");
+        Assert::IsTrue (tip.GetTooltip().IsVisible());
+
+        tip.OnFocusChanged (false);
+        Assert::IsTrue (tip.GetTooltip().WantsTick(), L"losing focus starts it closing");
+    }
+
+
     TEST_METHOD (NoTextNoTip)
     {
         DxuiInfoTip  tip;
