@@ -99,8 +99,10 @@ void HistoryThumbnails::GetCells (std::vector<HistoryThumbnailCell> & outCells) 
 //
 //  HistoryThumbnails::SetCellLayout
 //
-//  A new cell size outdates every thumbnail; the cache holds twice the cells
-//  shown, so scrolling history keeps the ones just passed.
+//  A new cell size outdates every thumbnail, though not the base copies they
+//  are scaled from; a new count moves the points, so what each cell last
+//  showed belongs to another. The caches hold twice the cells shown, so
+//  scrolling history keeps the ones just passed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +113,7 @@ void HistoryThumbnails::SetCellLayout (
     std::lock_guard<std::mutex>  held (m_lock);
     bool                         isNewSize  = cellPx.cx != m_cellPx.cx || cellPx.cy != m_cellPx.cy;
     bool                         isNewCount = count != m_count;
+    size_t                       capacity   = 0;
 
 
 
@@ -124,12 +127,17 @@ void HistoryThumbnails::SetCellLayout (
         m_cellPx = cellPx;
         m_layoutId++;
         m_thumbs.Clear();
-        m_shown.clear();
     }
 
-    m_count = (std::max) (count, 0);
-    m_thumbs.SetCapacity ((std::max) (kMinThumbCount, (size_t) m_count * 2));
-    m_shown.resize ((size_t) m_count);
+    m_count       = (std::max) (count, 0);
+    capacity      = (std::max) (kMinThumbCount, (size_t) m_count * 2);
+    m_useStandIns = m_useStandIns || m_bases.GetCount() > 0;
+
+    m_isCatchingUp.store (m_useStandIns, std::memory_order_release);
+
+    m_thumbs.SetCapacity (capacity);
+    m_bases.SetCapacity  (capacity);
+    m_shown.assign ((size_t) m_count, nullptr);
 
     Bump();
 }
@@ -142,8 +150,12 @@ void HistoryThumbnails::SetCellLayout (
 //
 //  HistoryThumbnails::GetCellImage
 //
-//  A cell whose point is not drawn yet keeps the picture it last showed, so
-//  it never goes blank between one point and the next.
+//  A thumbnail missing at this cell size is scaled from its point's base
+//  copy and kept. A cell whose point is not drawn yet keeps the picture it
+//  last showed, so it never goes blank between one point and the next. With
+//  none, once a layout has changed over pictures already drawn, it shows the
+//  nearest point drawn, scaled once and kept as shown, so a resize never
+//  empties the strip while the new points are drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,6 +163,9 @@ HistoryThumbnails::Image HistoryThumbnails::GetCellImage (int index)
 {
     std::lock_guard<std::mutex>  held (m_lock);
     Image                        image;
+    uint64_t                     position = 0;
+    uint64_t                     nearest  = 0;
+    bool                         isNear   = false;
 
 
 
@@ -164,7 +179,24 @@ HistoryThumbnails::Image HistoryThumbnails::GetCellImage (int index)
         m_shown.resize (m_cells.size());
     }
 
-    image = m_thumbs.Find (m_cells[(size_t) index].position);
+    position = m_cells[(size_t) index].position;
+    image    = m_thumbs.Find (position);
+
+    if (image == nullptr)
+    {
+        image = ScaleBase (position);
+
+        if (image != nullptr)
+        {
+            m_thumbs.Put (position, image);
+        }
+    }
+
+    if (image == nullptr && m_shown[(size_t) index] == nullptr && m_useStandIns)
+    {
+        isNear = m_bases.TryFindNearest (position, nearest);
+        image  = isNear ? ScaleBase (nearest) : nullptr;
+    }
 
     if (image == nullptr)
     {
@@ -298,6 +330,12 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     BAIL_OUT_IF (!isIdle, S_OK);
 
     isFound = TryPickWanted (position);
+
+    if (!isFound)
+    {
+        m_isCatchingUp.store (false, std::memory_order_release);
+    }
+
     BAIL_OUT_IF (!isFound, S_OK);
 
     QueryPerformanceFrequency (&freq);
@@ -372,8 +410,11 @@ void HistoryThumbnails::Clear()
         m_cells.clear();
         m_shown.clear();
         m_thumbs.Clear();
+        m_bases.Clear();
         m_previews.Clear();
         m_wantedPreview.reset();
+
+        m_useStandIns = false;
     }
 
     m_step = 0;
@@ -648,7 +689,9 @@ void HistoryThumbnails::RunJob (void * context)
 //
 //  Worker thread. A snapshot that cannot be drawn still files a picture, an
 //  empty one, so it is not asked for again and again; the strip shows its
-//  cell empty. A thumbnail drawn for a cell size since replaced is dropped.
+//  cell empty. The thumbnail is scaled from the base copy, as every later
+//  cell size will be; one drawn for a cell size since replaced is dropped,
+//  and the base copy kept.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -657,6 +700,7 @@ void HistoryThumbnails::Draw (Job & job)
     HRESULT                         hr    = S_OK;
     std::shared_ptr<DxuiIconImage>  full  = std::make_shared<DxuiIconImage>();
     std::shared_ptr<DxuiIconImage>  thumb = std::make_shared<DxuiIconImage>();
+    Image                           base;
     LARGE_INTEGER                   start = {};
     LARGE_INTEGER                   end   = {};
     LARGE_INTEGER                   freq  = {};
@@ -675,7 +719,9 @@ void HistoryThumbnails::Draw (Job & job)
         full->bgraPremul.clear();
     }
 
-    Shrink (*full, (full->width > 0) ? job.thumbPx.cx : 0, (full->height > 0) ? job.thumbPx.cy : 0, *thumb);
+    base = MakeBase (full);
+
+    Shrink (*base, (base->width > 0) ? job.thumbPx.cx : 0, (base->height > 0) ? job.thumbPx.cy : 0, *thumb);
 
     QueryPerformanceCounter (&end);
 
@@ -686,6 +732,8 @@ void HistoryThumbnails::Draw (Job & job)
         {
             m_thumbs.Put (job.position, thumb);
         }
+
+        m_bases.Put (job.position, base);
 
         m_previews.Put (job.position, full);
 
@@ -744,7 +792,7 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
     }
 
     live        = m_cells.back().position;
-    isLiveShown = m_thumbs.Contains (live);
+    isLiveShown = HasPicture (live);
     hasLivePast = m_shown.size() == m_cells.size() && m_shown.back() != nullptr;
 
     if (!isLiveShown && !hasLivePast)
@@ -755,7 +803,7 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
 
     for (i = m_cells.size() - 1; i-- > 0; )
     {
-        if (!m_thumbs.Contains (m_cells[i].position))
+        if (!HasPicture (m_cells[i].position))
         {
             outPosition = m_cells[i].position;
             return true;
@@ -805,6 +853,11 @@ void HistoryThumbnails::ForgetPoint (uint64_t position)
 //
 //  HistoryThumbnails::IsRenderDue
 //
+//  At most kRendersPerSecond while history scrolls. After a new layout over
+//  pictures already drawn, until every point has its own, at the faster
+//  kCatchUpRendersPerSecond, still one in flight at a time, so a resize
+//  settles in a fraction of a second rather than several.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HistoryThumbnails::IsRenderDue()
@@ -813,11 +866,12 @@ bool HistoryThumbnails::IsRenderDue()
 
 
 
-    uint64_t  now = GetNowMs();
+    uint64_t  now  = GetNowMs();
+    uint64_t  rate = m_isCatchingUp.load (std::memory_order_acquire) ? kCatchUpRendersPerSecond : kRendersPerSecond;
 
 
 
-    return !m_hasSubmitted || now - m_lastSubmitMs >= kMsPerSecond / kRendersPerSecond;
+    return !m_hasSubmitted || now - m_lastSubmitMs >= kMsPerSecond / rate;
 }
 
 
@@ -834,3 +888,190 @@ uint64_t HistoryThumbnails::GetNowMs() const
 {
     return m_clock ? m_clock() : GetTickCount64();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::HasPicture
+//
+//  Under the lock. A point with a base copy needs no drawing: any cell size
+//  is scaled from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::HasPicture (uint64_t position) const
+{
+    return m_thumbs.Contains (position) || m_bases.Contains (position);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::ScaleBase
+//
+//  Under the lock: the base copy of the point at the cell size, or null when
+//  the point has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HistoryThumbnails::Image HistoryThumbnails::ScaleBase (uint64_t position)
+{
+    Image                           base  = m_bases.Find (position);
+    std::shared_ptr<DxuiIconImage>  thumb;
+    bool                            isSet = base != nullptr && base->width > 0 && base->height > 0;
+
+
+
+    if (base == nullptr)
+    {
+        return nullptr;
+    }
+
+    thumb = std::make_shared<DxuiIconImage>();
+
+    Shrink (*base, isSet ? (int) m_cellPx.cx : 0, isSet ? (int) m_cellPx.cy : 0, *thumb);
+
+    return thumb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::MakeBase
+//
+//  A whole factor keeps the box filter's boxes the same size everywhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HistoryThumbnails::Image HistoryThumbnails::MakeBase (const Image & full)
+{
+    std::shared_ptr<DxuiIconImage>  base;
+    int                             factor = 0;
+
+
+
+    if (full->width <= kBaseMaxWidth)
+    {
+        return full;
+    }
+
+    factor = (full->width + kBaseMaxWidth - 1) / kBaseMaxWidth;
+    base   = std::make_shared<DxuiIconImage>();
+
+    Shrink (*full, full->width / factor, (std::max) (1, full->height / factor), *base);
+
+    return base;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::SetPlayhead
+//
+//  Machine thread, every turn: where the machine stands, and whether that
+//  is behind live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::SetPlayhead (
+    uint64_t  position,
+    bool      isBehindLive)
+{
+    m_playhead.store     (position,     std::memory_order_release);
+    m_isBehindLive.store (isBehindLive, std::memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetMarkedCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HistoryThumbnails::GetMarkedCell()
+{
+    std::lock_guard<std::mutex>  held (m_lock);
+
+
+
+    return FindPlayheadCell (m_cells, m_playhead.load (std::memory_order_acquire), IsBehindLive());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::FindPlayheadCell
+//
+//  Live, the live end. Behind live, the last cell whose point is at or
+//  before where the machine stands, which is the oldest when it stands
+//  before them all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HistoryThumbnails::FindPlayheadCell (
+    const std::vector<HistoryThumbnailCell>  & cells,
+    uint64_t                                   position,
+    bool                                       isBehindLive)
+{
+    int  marked = 0;
+    int  i      = 0;
+
+
+
+    if (cells.empty())
+    {
+        return -1;
+    }
+
+    if (!isBehindLive)
+    {
+        return (int) cells.size() - 1;
+    }
+
+    for (i = 0; i < (int) cells.size(); i++)
+    {
+        if (cells[(size_t) i].position <= position)
+        {
+            marked = i;
+        }
+    }
+
+    return marked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetModeText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PCWSTR HistoryThumbnails::GetModeText (bool isBehindLive)
+{
+    return isBehindLive ? L"Replay" : L"Live";
+}
+
+
+
+

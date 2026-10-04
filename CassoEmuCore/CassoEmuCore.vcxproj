@@ -221,6 +221,7 @@
     <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryImageCache.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryThumbnails.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistoryTimelineClick.cpp" />
     <ClCompile Include="Debugger\Reverse\Replayer.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
@@ -672,6 +673,7 @@
     <ClInclude Include="Debugger\Reverse\KeyframeStore.h" />
     <ClInclude Include="Debugger\Reverse\HistoryImageCache.h" />
     <ClInclude Include="Debugger\Reverse\HistoryThumbnails.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryTimelineClick.h" />
     <ClInclude Include="Debugger\Reverse\IHistoryFrameRenderer.h" />
     <ClInclude Include="Debugger\Reverse\Replayer.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />

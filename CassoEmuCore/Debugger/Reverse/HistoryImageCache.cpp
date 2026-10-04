@@ -36,6 +36,46 @@ HistoryImageCache::Image HistoryImageCache::Find (uint64_t key)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryImageCache::TryFindNearest
+//
+//  The key held closest to `key`, the earlier of two as close. Looking does
+//  not count as using it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryImageCache::TryFindNearest (
+    uint64_t    key,
+    uint64_t  & outKey) const
+{
+    uint64_t  best     = 0;
+    uint64_t  distance = 0;
+    bool      isFound  = false;
+
+
+
+    outKey = 0;
+
+    for (const auto & entry : m_entries)
+    {
+        distance = (entry.first > key) ? entry.first - key : key - entry.first;
+
+        if (!isFound || distance < best || (distance == best && entry.first < outKey))
+        {
+            best    = distance;
+            outKey  = entry.first;
+            isFound = true;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryImageCache::Put
 //
 //  A key already held takes the new picture and moves to the front.

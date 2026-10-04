@@ -24,14 +24,15 @@ public:
 
     explicit  HistoryImageCache (size_t capacity) : m_capacity ((std::max) (capacity, (size_t) 1)) {}
 
-    Image     Find        (uint64_t key);
-    bool      Contains    (uint64_t key) const { return m_index.contains (key); }
-    void      Put         (uint64_t key, Image image);
-    void      Clear       ();
-    void      SetCapacity (size_t capacity);
+    Image     Find           (uint64_t key);
+    bool      Contains       (uint64_t key) const { return m_index.contains (key); }
+    bool      TryFindNearest (uint64_t key, uint64_t & outKey) const;
+    void      Put            (uint64_t key, Image image);
+    void      Clear          ();
+    void      SetCapacity    (size_t capacity);
 
-    size_t    GetCount    () const { return m_entries.size(); }
-    size_t    GetCapacity () const { return m_capacity; }
+    size_t    GetCount       () const { return m_entries.size(); }
+    size_t    GetCapacity    () const { return m_capacity; }
 
 private:
     using Entries = std::list<std::pair<uint64_t, Image>>;

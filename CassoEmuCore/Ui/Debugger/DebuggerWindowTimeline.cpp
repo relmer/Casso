@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Debugger/Reverse/HistoryTimelineClick.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Video/MachineFrameRenderer.h"
 
@@ -13,22 +14,25 @@
 //
 //  DebuggerWindow::ConfigureTimeline
 //
-//  The history timeline is a toolbar with one entry, the strip of
-//  thumbnails, and a grab handle; it docks and floats through a Dxui toolbar
-//  host of its own, as the command bar does, and keeps its place in the
-//  debugger's preferences. The pictures come from the host, which draws them
+//  The history timeline is a toolbar with two entries, Live or Replay and
+//  the strip of thumbnails, and a grab handle; it docks and floats through a
+//  Dxui toolbar host of its own, as the command bar does, and keeps its place
+//  in the debugger's preferences. The pictures come from the host, which draws them
 //  from its recorded history.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ConfigureTimeline()
 {
-    constexpr int  kTimelineId = 1;
+    constexpr int  kTimelineId     = 1;
+    constexpr int  kTimelineModeId = 2;
+    constexpr int  kStripGroup     = 1;
 
 
 
     HistoryThumbnails   * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
     DxuiToolbar::Entry    entry;
+    DxuiToolbar::Entry    modeEntry;
 
 
 
@@ -39,7 +43,22 @@ void DebuggerWindow::ConfigureTimeline()
 
     entry.command       = m_timelineCommand;
     entry.custom        = &m_timelineStrip;
+    entry.group         = kStripGroup;
     entry.neverOverflow = true;
+
+    //  Live or Replay, read every paint; replaying, it is checked and a click
+    //  goes live.
+    m_timelineModeCommand            = std::make_shared<DxuiCommand>();
+    m_timelineModeCommand->id        = kTimelineModeId;
+    m_timelineModeCommand->label     = HistoryThumbnails::GetModeText (false);
+    m_timelineModeCommand->labelText = [this] { return std::wstring (HistoryThumbnails::GetModeText (IsTimelineBehindLive())); };
+    m_timelineModeCommand->isChecked = [this] { return IsTimelineBehindLive(); };
+    m_timelineModeCommand->tipText   = [this] { return std::wstring (IsTimelineBehindLive() ? L"Replaying history; click to go live" : L"Running live"); };
+    m_timelineModeCommand->dispatch  = [this] { OnTimelineModeClicked(); };
+
+    modeEntry.command       = m_timelineModeCommand;
+    modeEntry.kind          = DxuiToolbar::Kind::Toggle;
+    modeEntry.neverOverflow = true;
 
     m_timelineStrip.SetSource    (thumbnails);
     m_timelineStrip.SetAspect    ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
@@ -48,7 +67,7 @@ void DebuggerWindow::ConfigureTimeline()
     m_timelineBar->SetTextRenderer (GetTextRenderer());
     m_timelineBar->SetPopupHost    (GetPopupHost());
     m_timelineBar->SetGrabHandle   (true);
-    m_timelineBar->SetEntries      ({ entry });
+    m_timelineBar->SetEntries      ({ modeEntry, entry });
 
     if (thumbnails != nullptr)
     {
@@ -225,6 +244,14 @@ void DebuggerWindow::SyncTimeline()
     thumbnails->SetVisible (shown && m_timelineStrip.GetCellCount() > 0);
     m_timelineStrip.Sync();
 
+    //  Live and Replay differ in width, so the bar is laid out again when the
+    //  state changes.
+    if (thumbnails->IsBehindLive() != m_isTimelineBehindLive)
+    {
+        m_isTimelineBehindLive = thumbnails->IsBehindLive();
+        LayoutWidgets();
+    }
+
     if (m_pendingSeek.has_value() && m_snapshot != nullptr && m_snapshot->isPaused)
     {
         cell = *m_pendingSeek;
@@ -242,16 +269,19 @@ void DebuggerWindow::SyncTimeline()
 //
 //  DebuggerWindow::OnTimelineSeek
 //
-//  History moves only under a stopped machine, so a click while it runs
-//  stops it first and seeks once it has. The live end goes live, which a
-//  machine already live has no need of.
+//  The plan comes from HistoryTimelineClick: a click while the machine runs
+//  stops it first and acts once it has; then the machine moves to the
+//  cell's point and runs on from there. The seek, the go live and the run
+//  all cross to the CPU thread through one queue, so they land in order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
 {
-    bool  paused     = m_snapshot != nullptr && m_snapshot->isPaused;
-    bool  behindLive = m_snapshot != nullptr && m_snapshot->history.isBehindLive;
+    HistoryThumbnails         * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
+    bool                        paused     = m_snapshot != nullptr && m_snapshot->isPaused;
+    bool                        behindLive = (thumbnails != nullptr) ? thumbnails->IsBehindLive() : m_snapshot != nullptr && m_snapshot->history.isBehindLive;
+    HistoryTimelineClickPlan    plan       = HistoryTimelineClick::Plan (cell, paused, behindLive);
 
 
 
@@ -260,22 +290,81 @@ void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
         return;
     }
 
-    if (!paused)
+    if (plan.pauseFirst)
     {
         m_pendingSeek = cell;
         m_host->PauseDebugger();
         return;
     }
 
-    if (cell.isLive)
+    if (plan.seek)
     {
-        if (behindLive)
-        {
-            RunCommandBarEntry (DebuggerCommands::kGoLive);
-        }
+        m_host->SeekHistory (plan.position);
+    }
 
+    if (plan.goLive)
+    {
+        RunCommandBarEntry (DebuggerCommands::kGoLive);
+    }
+
+    if (plan.run)
+    {
+        RunCommandBarEntry (DebuggerCommands::kRun);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsTimelineBehindLive
+//
+//  From the timeline's own state, which the machine thread sets every turn,
+//  so it follows the machine as it runs, not only when a snapshot arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsTimelineBehindLive() const
+{
+    HistoryThumbnails  * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
+
+
+
+    return (thumbnails != nullptr) ? thumbnails->IsBehindLive() : false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnTimelineModeClicked
+//
+//  Replay goes live, as a click on the live end does; live has nowhere to
+//  go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OnTimelineModeClicked()
+{
+    HistoryThumbnails     * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
+    HistoryThumbnailCell    live;
+
+
+
+    if (thumbnails == nullptr || !thumbnails->IsBehindLive())
+    {
         return;
     }
 
-    m_host->SeekHistory (cell.position);
+    live.isLive = true;
+
+    OnTimelineSeek (live);
 }
+
+
+
+

@@ -55,11 +55,19 @@ struct HistoryThumbnailCell
 //  a second, which a worker then draws through an IHistoryFrameRenderer.
 //  Nothing is drawn while the strip is hidden or while one is being drawn.
 //
-//  Each picture is drawn at full size; the strip keeps a copy at its cell
-//  size for every point it has drawn, the most recently used first out, and
-//  the full-size ones for the last few points the pointer rested on. A cell
-//  whose point has no picture yet shows the last picture it showed, so the
-//  live end does not blink out each time it moves on.
+//  Each picture is drawn at full size. The strip keeps, for every point it
+//  has drawn, a base copy at a fixed size no wider than kBaseMaxWidth and a
+//  copy at its cell size made from that, the most recently used first out,
+//  and the full-size ones for the last few points the pointer rested on. A
+//  new cell size is met by scaling the base copies again, not by drawing
+//  anything again. A cell whose point has no picture yet shows the last
+//  picture it showed, so the live end does not blink out each time it moves
+//  on. After a resize moves the points, a cell with none shows the nearest
+//  point's picture, and the new points are drawn at the faster
+//  kCatchUpRendersPerSecond until each has its own.
+//
+//  Where the machine stands, live or replaying history, is told to it by
+//  the machine thread every turn, so the strip can mark that cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,9 +77,11 @@ public:
     using SeekFn  = std::function<void (const HistoryThumbnailCell & cell)>;
     using ClockFn = std::function<uint64_t()>;
 
-    static constexpr int     kRendersPerSecond = 8;
-    static constexpr size_t  kPreviewCount     = 8;
-    static constexpr size_t  kMinThumbCount    = 64;
+    static constexpr int     kRendersPerSecond        = 8;
+    static constexpr int     kCatchUpRendersPerSecond = 60;
+    static constexpr size_t  kPreviewCount            = 8;
+    static constexpr size_t  kMinThumbCount           = 64;
+    static constexpr int     kBaseMaxWidth            = 192;
 
                        HistoryThumbnails  (IHistoryFrameRenderer & renderer);
                        ~HistoryThumbnails () override;
@@ -95,8 +105,11 @@ public:
     Image              GetCellImage    (int index) override;
     Image              GetPreviewImage (int index) override;
     void               OnCellClicked   (int index) override;
+    int                GetMarkedCell   () override;
+    bool               IsBehindLive    () const      { return m_isBehindLive.load (std::memory_order_acquire); }
 
     //  Machine thread.
+    void               SetPlayhead  (uint64_t position, bool isBehindLive);
     HRESULT            Service      (KeyframeStore & keyframes);
     void               Clear        ();
     void               WaitForWork  ();
@@ -112,9 +125,19 @@ public:
     static uint64_t    ChooseStep    (uint64_t span, int count, uint64_t step);
     static bool        TryFindAtOrBefore (const KeyframeStore & keyframes, uint64_t position, size_t & outIndex);
 
+    //  The cell that marks where the machine stands, and what the timeline
+    //  calls the state it is in.
+    static int         FindPlayheadCell (const std::vector<HistoryThumbnailCell> & cells, uint64_t position, bool isBehindLive);
+    static PCWSTR      GetModeText      (bool isBehindLive);
+
     //  A picture shrunk to `width` by `height`, each pixel the average of
     //  the ones it covers.
     static void        Shrink        (const DxuiIconImage & source, int width, int height, DxuiIconImage & outImage);
+
+    //  The fixed-size copy every cell size is scaled from: the picture itself
+    //  when it is no wider than kBaseMaxWidth, else shrunk by a whole factor
+    //  to fit.
+    static Image       MakeBase      (const Image & full);
 
 private:
     //  The one picture in flight.
@@ -131,6 +154,8 @@ private:
     static void        RunJob        (void * context);
     void               Draw          (Job & job);
     bool               TryPickWanted (uint64_t & outPosition);
+    bool               HasPicture    (uint64_t position) const;
+    Image              ScaleBase     (uint64_t position);
     void               ForgetPoint   (uint64_t position);
     bool               IsRenderDue   ();
     uint64_t           GetNowMs      () const;
@@ -147,6 +172,9 @@ private:
     std::atomic<bool>                 m_isInFlight   = false;
     std::atomic<double>               m_lastRenderMs = 0.0;
     std::atomic<uint64_t>             m_renderCount  = 0;
+    std::atomic<uint64_t>             m_playhead     = 0;
+    std::atomic<bool>                 m_isBehindLive = false;
+    std::atomic<bool>                 m_isCatchingUp = false;
 
     //  Shared between the threads, under the lock.
     mutable std::mutex                m_lock;
@@ -155,9 +183,11 @@ private:
     uint64_t                          m_layoutId     = 0;     // changes with the cell size, which outdates the thumbnails
     std::vector<HistoryThumbnailCell> m_cells;
     HistoryImageCache                 m_thumbs       { kMinThumbCount };
+    HistoryImageCache                 m_bases        { kMinThumbCount };
     HistoryImageCache                 m_previews     { kPreviewCount };
     std::optional<uint64_t>           m_wantedPreview;
     std::vector<Image>                m_shown;               // the last picture each cell showed
+    bool                              m_useStandIns  = false; // set once a layout changes over pictures drawn
 
     //  Machine thread's own.
     Job                               m_job;

@@ -83,6 +83,7 @@ public:
 private:
     static constexpr float  kDefaultAspect  = 560.0f / 384.0f;
     static constexpr float  kHoverEdgeDip   = 2.0f;
+    static constexpr float  kMarkerDip      = 4.0f;
     static constexpr int    kMinThicknessPx = 1;
 
     void  ShowPreview      ();

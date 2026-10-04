@@ -268,7 +268,9 @@ void DxuiImageStrip::Layout (
 //  A cell not drawn yet is the content background. The cell under the
 //  pointer is framed by drawing its picture inset over the accent color, so
 //  the frame does not depend on whether pictures draw over shapes or under
-//  them.
+//  them. The cell the source marks gives up a band along its far edge, below
+//  a strip lying down and right of one standing up, to a bar in the accent
+//  color, for the same reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,6 +287,8 @@ void DxuiImageStrip::Paint (
     RECT                          cell  = {};
     IDxuiImageStripSource::Image  image;
     HRESULT                       hr    = S_OK;
+    int                           mark  = (m_source != nullptr) ? m_source->GetMarkedCell() : -1;
+    LONG                          bar   = (LONG) std::lround (m_scaler.ToPxf (kMarkerDip));
 
 
 
@@ -297,6 +301,18 @@ void DxuiImageStrip::Paint (
         cell  = GetCellRect (m_rc, i, m_count, m_cellPx, m_vertical);
         image = (m_source != nullptr) ? m_source->GetCellImage (i) : nullptr;
         inset = (i == m_hovered) ? edge : 0.0f;
+
+        //  The bar takes its band out of the cell, so the picture cannot cover it.
+        if (i == mark && m_vertical)
+        {
+            cell.right -= bar;
+            painter.FillRect ((float) cell.right, (float) cell.top, (float) bar, (float) (cell.bottom - cell.top), theme.Accent());
+        }
+        else if (i == mark)
+        {
+            cell.bottom -= bar;
+            painter.FillRect ((float) cell.left, (float) cell.bottom, (float) (cell.right - cell.left), (float) bar, theme.Accent());
+        }
 
         if (i == m_hovered)
         {

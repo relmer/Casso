@@ -633,6 +633,8 @@ private:
     bool     RouteTimelineMouse    (const DxuiMouseEvent & ev);
     void     SyncTimeline          ();
     void     OnTimelineSeek        (const HistoryThumbnailCell & cell);
+    void     OnTimelineModeClicked ();
+    bool     IsTimelineBehindLive  () const;
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -1063,11 +1065,14 @@ private:
     DxuiToolbarHost                                                                  m_barHost;
     static constexpr wchar_t                                                         kBarFloatKey[] = L"~commandBar";
 
-    //  The history timeline, its one entry the strip of thumbnails, its own
-    //  dock, and a seek asked for while the machine ran, made once it stops.
-    DxuiToolbar                                                                    * m_timelineBar        = nullptr;
-    DxuiImageStrip                                                                   m_timelineStrip;
-    DxuiToolbarHost                                                                  m_timelineHost;
-    std::shared_ptr<DxuiCommand>                                                     m_timelineCommand;
-    std::optional<HistoryThumbnailCell>                                              m_pendingSeek;
+    //  The history timeline, its entries the Live or Replay state and the strip
+    //  of thumbnails, its own dock, a seek asked for while the machine ran,
+    //  made once it stops, and the state the bar was last laid out for.
+    DxuiToolbar                          * m_timelineBar          = nullptr;
+    DxuiImageStrip                         m_timelineStrip;
+    DxuiToolbarHost                        m_timelineHost;
+    std::shared_ptr<DxuiCommand>           m_timelineCommand;
+    std::shared_ptr<DxuiCommand>           m_timelineModeCommand;
+    bool                                   m_isTimelineBehindLive = false;
+    std::optional<HistoryThumbnailCell>    m_pendingSeek;
 };

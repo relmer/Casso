@@ -31,4 +31,7 @@ public:
     virtual Image   GetCellImage    (int index)              = 0;
     virtual Image   GetPreviewImage (int index)              = 0;
     virtual void    OnCellClicked   (int index)              = 0;
+
+    //  The cell to mark as where the source stands, or -1 for none.
+    virtual int     GetMarkedCell   ()                       { return -1; }
 };

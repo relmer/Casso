@@ -565,7 +565,160 @@ public:
         Assert::IsTrue (isDrawn, L"the live cell was drawn");
     }
 
+
+    //  A new cell size is met from the pictures already drawn, scaled to it,
+    //  rather than by drawing every point again.
+    TEST_METHOD (ANewCellSizeRescalesWithoutDrawingAgain)
+    {
+        constexpr SIZE  kWider = { 6, 3 };
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        HistoryThumbnails::Image  image;
+        uint64_t                  now   = 0;
+        int                       calls = 0;
+        int                       i     = 0;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+        thumbnails.SetVisible (true);
+        DrawAll (thumbnails, queue, store, now);
+
+        calls = renderer.calls;
+        thumbnails.SetCellLayout (3, kWider);
+
+        for (i = 0; i < 3; i++)
+        {
+            image = thumbnails.GetCellImage (i);
+
+            Assert::IsNotNull (image.get(), L"every cell has a picture right after the resize");
+            Assert::AreEqual ((int) kWider.cx, image->width,  L"at the new width");
+            Assert::AreEqual ((int) kWider.cy, image->height, L"and the new height");
+        }
+
+        Assert::AreEqual (calls, renderer.calls, L"and nothing was drawn again");
+    }
+
+
+    //  A resize that changes the cell count moves the points; one not drawn
+    //  yet shows the nearest picture drawn until its own is ready.
+    TEST_METHOD (ANewPointShowsTheNearestPictureUntilDrawn)
+    {
+        FakeHistoryFrameRenderer           renderer;
+        InlineWorkQueue                    queue;
+        HistoryThumbnails                  thumbnails (renderer);
+        KeyframeStore                      store;
+        std::vector<HistoryThumbnailCell>  cells;
+        uint64_t                           now = 0;
+        int                                i   = 0;
+        HRESULT                            hr  = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+        thumbnails.SetVisible (true);
+        DrawAll (thumbnails, queue, store, now);
+
+        thumbnails.SetCellLayout (5, s_kThumbCell);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out five points");
+
+        thumbnails.GetCells (cells);
+        Assert::AreEqual<size_t> (5, cells.size(), L"five points");
+
+        for (i = 0; i < 5; i++)
+        {
+            Assert::IsNotNull (thumbnails.GetCellImage (i).get(), L"every cell shows a picture at once");
+        }
+    }
+
+
+    //  New points after a resize are drawn faster than the bound that holds
+    //  while history scrolls, so the strip settles quickly.
+    TEST_METHOD (NewPointsAfterAResizeAreDrawnFasterThanTheBound)
+    {
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        uint64_t                  now = 0;
+        HRESULT                   hr  = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+        thumbnails.SetVisible (true);
+        DrawAll (thumbnails, queue, store, now);
+
+        thumbnails.SetCellLayout (5, s_kThumbCell);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out five points and hands one over");
+        Assert::IsTrue (queue.TryRunNext(), L"the first new point is drawn");
+
+        now += 1000 / HistoryThumbnails::kCatchUpRendersPerSecond;
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service at the catch-up rate");
+        Assert::AreEqual<size_t> (1, queue.GetPendingCount(), L"the next new point follows at the faster rate");
+    }
+
+    TEST_METHOD (TheMarkedCellFollowsThePlayhead)
+    {
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        uint64_t                  now = 0;
+        HRESULT                   hr  = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out 0, 400 and 800");
+
+        thumbnails.SetPlayhead (800, false);
+        Assert::IsFalse (thumbnails.IsBehindLive(), L"live");
+        Assert::AreEqual (2, thumbnails.GetMarkedCell(), L"live: the live end");
+
+        thumbnails.SetPlayhead (450, true);
+        Assert::IsTrue (thumbnails.IsBehindLive(), L"replaying");
+        Assert::AreEqual (1, thumbnails.GetMarkedCell(), L"behind live: the point at or before");
+    }
+
 private:
+
+    //  Runs the strip until every cell's picture is drawn.
+    static void DrawAll (HistoryThumbnails & thumbnails, InlineWorkQueue & queue, KeyframeStore & store, uint64_t & now)
+    {
+        constexpr int  kMaxRounds = 16;
+
+        HRESULT  hr    = S_OK;
+        int      round = 0;
+
+
+
+        for (round = 0; round < kMaxRounds; round++)
+        {
+            hr = thumbnails.Service (store);
+            AssertSucceeded (hr, L"Service");
+
+            queue.TryRunNext();
+            now += 1000 / HistoryThumbnails::kRendersPerSecond;
+        }
+
+        Assert::IsNotNull (thumbnails.GetCellImage (0).get(), L"the oldest point is drawn");
+        Assert::IsNotNull (thumbnails.GetCellImage (1).get(), L"the middle point is drawn");
+        Assert::IsNotNull (thumbnails.GetCellImage (2).get(), L"the live end is drawn");
+    }
+
+
 
     static void Fill (KeyframeStore & store, size_t count)
     {

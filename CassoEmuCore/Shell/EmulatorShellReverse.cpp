@@ -286,7 +286,8 @@ void EmulatorShell::SeekHistory (uint64_t position)
 //  CPU thread, between frames and while paused: the timeline's points are
 //  laid out over the keyframes and the next wanted picture is handed to its
 //  worker. Never during a reverse command, which runs from the command
-//  queue.
+//  queue. The timeline hears where the machine stands every turn, so its
+//  live or replay state and its marker follow the machine as it runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,6 +301,8 @@ void EmulatorShell::ServiceHistoryThumbnails()
     {
         return;
     }
+
+    m_historyThumbnails.SetPlayhead (m_machine.GetPosition(), m_reverseHost->IsBehindLive());
 
     hr = m_historyThumbnails.Service (m_reverseHost->GetController().GetKeyframes());
     IGNORE_RETURN_VALUE (hr, S_OK);
