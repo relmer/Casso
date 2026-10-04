@@ -17,7 +17,6 @@
 static constexpr int    s_kRowHeightDp     = 28;
 static constexpr int    s_kLabelWidthDp    = 140;
 static constexpr int    s_kCheckWidthDp    = 140;
-static constexpr int    s_kInfoTipAfterDp  = 84;    // a toggle's pill and its On or Off
 static constexpr int    s_kDropdownWidthDp = 200;
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kPagePadDp       = 16;
@@ -91,13 +90,13 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_fastTape);
     Adopt (m_tapeAutoStop);
     Adopt (m_tapeIdleStop);
-    Adopt (m_tapeEightBit);
+    Adopt (m_tapeWavFormat);
     Adopt (m_tapeVolume);
     Adopt (m_tapeVolumeLabel);
     Adopt (m_tapeAutoStopLabel);
     Adopt (m_tapeIdleStopLabel);
-    Adopt (m_tapeEightBitLabel);
-    Adopt (m_tapeEightBitInfo);
+    Adopt (m_tapeWavFormatLabel);
+    Adopt (m_tapeWavFormatInfo);
     for (DxuiCheckbox & checkbox : m_writeProtect)
     {
         Adopt (checkbox);
@@ -173,7 +172,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  rowHeight    = scaler.ToPx (s_kRowHeightDp);
     int  labelWidth   = scaler.ToPx (s_kLabelWidthDp);
     int  checkWidth   = scaler.ToPx (s_kCheckWidthDp);
-    int  infoAt       = scaler.ToPx (s_kInfoTipAfterDp);
     int  dropWidth    = scaler.ToPx (s_kDropdownWidthDp);
     int  sectionGap   = scaler.ToPx (s_kSectionGapDp);
     int  childIndent  = scaler.ToPx (DxuiTreeView::kIndentDip);
@@ -292,15 +290,16 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeIdleStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    // Off records new tapes as 16-bit, the common format. Some tools, among
-    // them CiderPress II, read only 8-bit; recording onto an existing tape keeps its bit depth.
-    m_tapeEightBitLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_tapeEightBitLabel.SetText (L"Record new tapes as 8-bit:");
-    // Only as wide as its pill and its On or Off, so the info tip sits right
-    // beside what it explains.
-    m_tapeEightBit.SetRect      (MakeRect (controlsX, y, infoAt, rowHeight));
-    m_tapeEightBitInfo.SetRect  (MakeRect (controlsX + infoAt, y, rowHeight, rowHeight));
-    m_tapeEightBitInfo.SetText  (L"Casso reads 8-bit and 16-bit tapes alike. Some other tools, such as "
+    // 16-bit is the common format. Some tools, among them CiderPress II, read
+    // only 8-bit; recording onto an existing tape keeps its bit depth. The
+    // info tip comes out of the label's width, so the dropdown stays in line
+    // with the controls above it.
+    m_tapeWavFormatLabel.SetRect (MakeRect (x, y, labelWidth - rowHeight, rowHeight));
+    m_tapeWavFormatLabel.SetText (L"New tape WAV format:");
+    m_tapeWavFormatInfo.SetRect  (MakeRect (controlsX - rowHeight, y, rowHeight, rowHeight));
+    m_tapeWavFormat.SetRect      (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_tapeWavFormat.SetItems     ({ L"16-bit", L"8-bit" });
+    m_tapeWavFormatInfo.SetText  (L"Casso reads 8-bit and 16-bit tapes alike. Some other tools, such as "
                                  L"CiderPress II, read only 8-bit WAV files. This applies only to new blank "
                                  L"tapes; recording onto an existing tape keeps its bit depth.");
     y += rowHeight + sectionGap;
@@ -323,9 +322,9 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeAutoStopLabel.SetDpi (dpi);
     m_tapeIdleStop.SetDpi      (dpi);
     m_tapeIdleStopLabel.SetDpi (dpi);
-    m_tapeEightBit.SetDpi      (dpi);
-    m_tapeEightBitLabel.SetDpi (dpi);
-    m_tapeEightBitInfo.SetDpi  (dpi);
+    m_tapeWavFormat.SetDpi      (dpi);
+    m_tapeWavFormatLabel.SetDpi (dpi);
+    m_tapeWavFormatInfo.SetDpi  (dpi);
     m_tapeLabel.SetDpi       (dpi);
     m_diskHeading.SetDpi     (dpi);
     m_tapeHeading.SetDpi     (dpi);
@@ -383,7 +382,7 @@ void DiskPage::Rebuild()
     m_fastTape.SetChecked   (state->GetPrefs().fastTapeLoading);
     m_tapeAutoStop.SetChecked (state->GetPrefs().tapeAutoStop);
     m_tapeIdleStop.SetChecked (state->GetPrefs().tapeIdleStop);
-    m_tapeEightBit.SetChecked (state->GetPrefs().tapeEightBit);
+    m_tapeWavFormat.SetSelected (state->GetPrefs().tapeEightBit ? 1 : 0);
     m_tapeVolume.SetValue   (state->GetPrefs().tapeVolume * 100.0f);
     m_writeProtect[0].SetChecked (state->GetPrefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->GetPrefs().writeProtect[1]);
@@ -404,7 +403,7 @@ void DiskPage::Rebuild()
     m_fastTape.SetOnChange ([state] (bool checked) { state->SetFastTapeLoading (checked); });
     m_tapeAutoStop.SetOnChange ([state] (bool checked) { state->SetTapeAutoStop (checked); });
     m_tapeIdleStop.SetOnChange ([state] (bool checked) { state->SetTapeIdleStop (checked); });
-    m_tapeEightBit.SetOnChange ([state] (bool checked) { state->SetTapeEightBit (checked); });
+    m_tapeWavFormat.SetSelect   ([state] (int idx) { state->SetTapeEightBit (idx == 1); });
     m_tapeVolume.SetOnChange ([state] (float v) { state->SetTapeVolume (v / 100.0f); });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
@@ -441,9 +440,10 @@ void DiskPage::Rebuild()
 
 void DiskPage::SetPopupHost (DxuiHwndSource * host)
 {
-    m_writeMode.SetPopupHost       (host);
-    m_mechanism.SetPopupHost       (host);
-    m_tapeEightBitInfo.SetPopupHost (host);
+    m_writeMode.SetPopupHost         (host);
+    m_mechanism.SetPopupHost         (host);
+    m_tapeWavFormat.SetPopupHost     (host);
+    m_tapeWavFormatInfo.SetPopupHost (host);
 }
 
 
