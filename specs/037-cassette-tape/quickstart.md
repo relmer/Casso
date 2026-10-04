@@ -30,7 +30,7 @@ Launch per the project rules (background, `--title <worktree name>`).
    from the tape's notes followed by `R`, or `LOAD` at the prompt, then press
    play. It loads and runs.
 2. **Fast loading (US2, SC-004)**: with "Fast tape loading" on, time a 16 KB
-   load. It must take under 10 s of host time; audio is silent and the speed
+   load. It must take under 10 s of host time; audio plays as real-time slices at true pitch and the speed
    menu still shows the user's setting. Turn the checkbox off and repeat: the
    load takes its real duration and the tape is audible.
 3. **Stop conditions (SC-005)**: stop the tape mid-load; speed drops to

@@ -547,6 +547,27 @@ HRESULT WasapiAudio::SubmitFrame (
         prevFrames = m_pendingSamples.size() / 2;
     }
 
+    // A SLICE DROPPED IS A SPLICE. At Maximum speed most slices are, and what
+    // plays is short stretches of real-time sound butted together -- the right
+    // pitch, but with a click at every cut. So the sound already queued fades
+    // out where the first slice is dropped, and the next one kept fades in.
+    if (numSamplesToGenerate > 0 && prevFrames >= m_samplesPerFrame * 3 && !m_droppedSlice)
+    {
+        std::lock_guard<std::mutex>   lock (m_pendingMutex);
+        size_t                        frames = m_pendingSamples.size() / 2;
+        size_t                        fade   = std::min (frames, (size_t) s_kSpliceFadeFrames);
+
+        for (size_t f = 0; f < fade; f++)
+        {
+            float  scale = (float) f / (float) fade;
+
+            m_pendingSamples[(frames - 1 - f) * 2]     *= scale;
+            m_pendingSamples[(frames - 1 - f) * 2 + 1] *= scale;
+        }
+
+        m_droppedSlice = true;
+    }
+
     if (numSamplesToGenerate > 0 && prevFrames < m_samplesPerFrame * 3)
     {
         if (m_speakerScratch.size() < numSamplesToGenerate)
@@ -626,6 +647,21 @@ HRESULT WasapiAudio::SubmitFrame (
                     stereoPtr[i] *= gain;
                 }
             }
+        }
+
+        if (m_droppedSlice)
+        {
+            UINT32  fade = std::min (numSamplesToGenerate, s_kSpliceFadeFrames);
+
+            for (i = 0; i < fade; i++)
+            {
+                float  scale = (float) i / (float) fade;
+
+                stereoPtr[i * 2]     *= scale;
+                stereoPtr[i * 2 + 1] *= scale;
+            }
+
+            m_droppedSlice = false;
         }
 
         // Diagnostic tap (CASSO_AUDIO_DUMP): the generated mix exactly as

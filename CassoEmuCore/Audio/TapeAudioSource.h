@@ -16,8 +16,9 @@ class TapeDeck;
 //  It is synthesized from the decoded transitions rather than played from the
 //  recording: the signal is nothing but tones, so a square wave at the same
 //  edges sounds the same and nothing large has to stay in memory. Silent
-//  unless the tape is playing. During a fast load the whole output is
-//  suppressed upstream, so this source needs no knowledge of it.
+//  unless the tape is playing. During a fast load the audio path keeps only
+//  slices of it, at their true pitch, so this source needs no knowledge of
+//  it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

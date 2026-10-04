@@ -59,6 +59,9 @@ spec.
 - Q: May the decoder use knowledge of the record format? → A: Yes, to check its own work only. A record whose checksum fails is decoded again on its own with a few other settings, and the first that gives it a good checksum replaces that stretch of transitions. The guest still decodes every byte through its own ROM from transitions; nothing pre-decoded is handed to it, so the ROM-trap rejection below stands. The list stays short because an 8-bit checksum passes a damaged record about one time in 256.
 - Q: Should the silence floor follow each tape's measured hiss? → A: No. Many archive transfers are cut to a segment with no silence to measure, the one tape that motivated it (Softape Appletalker) is one of them, and every tape with measurable hiss already reads at the fixed floor. The checksum rescue covers that tape instead.
 - Q: What did validation against real tapes find? → A: The 25 most-downloaded Apple II cassette titles on the Internet Archive (54 recordings) were loaded through the ROM: every program arrives intact. Six recordings carry junk before their leader and load once started at the leader, as on hardware; Programma's tapes load at $200 across the text screen by design.
+- Q: Should a fast load also speed through the Monitor's wait over a leader? → A: Yes. READ finds the tape and then waits 3.5 s without touching it while the leader plays, which dropped the turbo and played the leader at normal speed. The deck knows where each record's leader is (TapeRecordScanner), and a guest that read the tape within the last 4 s keeps the speed while a leader is under the head. Past the last record's data no leader is, so the loaded program starts at its own speed; nonstandard leaders are simply not sped through.
+- Q: What should a fast load sound like? → A: Real-time slices of the tape at its true pitch, not silence and not sped-up audio. The audio path already keeps only what fits in real time at Maximum speed; it now fades out and back in around each dropped slice so the cuts do not click. With fast loading off, the whole tape plays at real speed as before.
+- Q: Does the fullscreen strip carry the recorder? → A: Yes, beside the drives with its labels, keys and clicks as on the desk. Names under the devices narrow to half the space to a neighbor's name so they never overlap, on the strip and on a small desk, and long names scroll under the pointer on both.
 - Q: Should a tape show in the 3D recorder? → A: Yes, a compact cassette (shell, cream label with a stripe and writing lines, white toothed hubs, brown tape on the spools) whenever one is in; none when empty.
 - Q: Should the chrome handle reflect the scene? → A: Yes, from a cube map of the scene captured around the handle whenever the plate redraws, set in a room (desk, walls, ceiling, a fixture over each room light) that agrees with the scene's lighting.
 ## User Scenarios & Testing *(mandatory)*
@@ -112,8 +115,8 @@ compare host wall-clock time and confirm identical memory results.
 **Acceptance Scenarios**:
 
 1. **Given** the default preference and a playing tape, **When** the guest
-   starts reading the tape, **Then** emulation runs at Maximum speed, audio is muted,
-   and frames are skipped.
+   starts reading the tape, **Then** emulation runs at Maximum speed, audio plays
+   as real-time slices of the tape at its true pitch, and frames are skipped.
 2. **Given** A fast tape load, **When** the tape ends, the user stops it,
    or the guest makes no tape access for about 100 ms of emulated time,
    **Then** emulation returns to normal speed with audio and video restored.
@@ -235,8 +238,9 @@ on the //c.
 - **FR-010**: Polling the cassette input address alone MUST NOT start the
   Maximum-speed override, because on some models that address also reads
   another input (for example //e PB3).
-- **FR-011**: During the override, audio MUST be muted or skipped and frames MUST
-  be skipped.
+- **FR-011**: During the override, audio MUST be skipped -- only what fits in
+  real time plays, at its true pitch, faded at each cut -- and frames MUST be
+  skipped.
 - **FR-012**: A preference MUST let the user choose real-time loading instead,
   with authentic speed and audible tape sound.
 - **FR-012a**: The tape's own sound MUST have a volume setting, and the deck

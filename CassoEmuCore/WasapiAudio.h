@@ -146,6 +146,12 @@ private:
 
     std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
     std::atomic<bool>   m_isSuppressed { false }; // see SetSuppressed
+    bool                m_droppedSlice = false;   // a slice was dropped since the last one kept
+
+    // How long the sound fades out and in around a dropped slice: about a
+    // millisecond and a half, short enough to keep the slice, long enough to
+    // take the click out of the cut.
+    static constexpr UINT32  s_kSpliceFadeFrames = 64;
 
     // Endpoint loss and the throttled reopen. The PUMP ONLY REPORTS: it
     // records the failing hr and stops, because Shutdown joins the render
