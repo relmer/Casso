@@ -56,8 +56,12 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
                               IDxuiTextRenderer & text,
                               const IDxuiTheme  & theme)
 {
-    const wchar_t *  face   = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::kBodyFace;
-    RECT             bounds = GetBounds();
+    const wchar_t *  face    = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::kBodyFace;
+    RECT             bounds  = GetBounds();
+    float            fontPx  = m_fontSizeDip * (float) m_dpi / 96.0f;
+    float            width   = (float) (bounds.right - bounds.left);
+    float            height  = (float) (bounds.bottom - bounds.top);
+    bool             clipped = false;
 
 
 
@@ -69,12 +73,38 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
         return;
     }
 
-    PaintShadowed (text, m_text.c_str(),
-                   (float) bounds.left, (float) bounds.top,
-                   (float) (bounds.right - bounds.left),
-                   (float) (bounds.bottom - bounds.top),
-                   m_textArgb, m_fontSizeDip * (float) m_dpi / 96.0f, face,
-                   m_hAlign, m_vAlign, m_reachPx);
+    // The marquee: the head starts a glow's reach in from the left, so its
+    // shadow is not clipped at rest, and a second copy a period behind
+    // follows it in.
+    if (m_marqueePeriodPx > 0.0f)
+    {
+        HRESULT  hrClip = text.PushClipRect ((float) bounds.left, (float) bounds.top, width, height);
+
+        clipped = SUCCEEDED (hrClip);
+
+        for (float x : { 0.0f, m_marqueePeriodPx })
+        {
+            PaintShadowed (text, m_text.c_str(),
+                           (float) bounds.left + (float) m_reachPx - m_marqueeOffsetPx + x, (float) bounds.top,
+                           m_marqueePeriodPx, height,
+                           m_textArgb, fontPx, face,
+                           DxuiTextHAlign::Left, m_vAlign, m_reachPx);
+        }
+
+        if (clipped)
+        {
+            HRESULT  hr = text.PopClipRect();
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+    else
+    {
+        PaintShadowed (text, m_text.c_str(),
+                       (float) bounds.left, (float) bounds.top, width, height,
+                       m_textArgb, fontPx, face,
+                       m_hAlign, m_vAlign, m_reachPx);
+    }
 }
 
 

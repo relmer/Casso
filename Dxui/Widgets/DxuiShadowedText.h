@@ -66,6 +66,16 @@ public:
         m_vAlign = v;
     }
 
+    // A line too long for its rect, scrolled: drawn twice `periodPx` apart
+    // from the left, clipped to the rect, and slid `offsetPx` along, so the
+    // caller can run a marquee without a seam. A period of 0 is the ordinary
+    // aligned line.
+    void  SetMarquee     (float periodPx, float offsetPx)
+    {
+        m_marqueePeriodPx = periodPx;
+        m_marqueeOffsetPx = offsetPx;
+    }
+
     // The text spans `boundsDip` and aligns inside it. The glow reaches
     // kGlowLayers pixels beyond the ink, so the rect wants at least that much
     // slack around the text or the shadow clips against its edges.
@@ -109,11 +119,13 @@ public:
 
 private:
     std::wstring     m_text;
-    const wchar_t *  m_fontFace    = nullptr;   // null = the theme's body face
-    uint32_t         m_textArgb    = 0xFFFFFFFF;
-    float            m_fontSizeDip = kFontDip;
-    UINT             m_dpi         = 96;
-    int              m_reachPx     = kGlowReachPx;
-    DxuiTextHAlign   m_hAlign      = DxuiTextHAlign::Center;
-    DxuiTextVAlign   m_vAlign      = DxuiTextVAlign::Center;
+    const wchar_t *  m_fontFace        = nullptr;   // null = the theme's body face
+    uint32_t         m_textArgb        = 0xFFFFFFFF;
+    float            m_fontSizeDip     = kFontDip;
+    UINT             m_dpi             = 96;
+    int              m_reachPx         = kGlowReachPx;
+    DxuiTextHAlign   m_hAlign          = DxuiTextHAlign::Center;
+    DxuiTextVAlign   m_vAlign          = DxuiTextVAlign::Center;
+    float            m_marqueePeriodPx = 0.0f;
+    float            m_marqueeOffsetPx = 0.0f;
 };

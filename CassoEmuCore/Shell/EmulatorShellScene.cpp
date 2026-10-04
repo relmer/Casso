@@ -1050,7 +1050,6 @@ void EmulatorShell::SyncSceneDriveLabels()
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top &&
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
-    IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     bool                          visible = DeskSceneActive() && (!fs || onStrip);
     float                         fontDip = s_kSceneDriveLabelFontDip;
     // The strip has nothing in front of its drives, so it keeps the chrome
@@ -1110,20 +1109,13 @@ void EmulatorShell::SyncSceneDriveLabels()
             rc.right  = comp.driveLabelPx[i].x + halfW;
             rc.top    = comp.driveLabelPx[i].y + gapPx;
             rc.bottom = rc.top + stripH;
+        }
 
-            if (text != nullptr)
-            {
-                // The same DIP-to-pixel the widget itself paints at, so the
-                // width this truncates to is the width it renders.
-                float  px = fontDip * (float) m_scaler.GetDpi() / 96.0f;
-
-                name = DxuiTextElide::ToWidth (*text,
-                                               name,
-                                               px,
-                                               DxuiTheme::kBodyFace,
-                                               (float) (rc.right - rc.left),
-                                               DxuiElide::Tail);
-            }
+        // On the strip a long name scrolls under the pointer, as on the desk,
+        // whose baked names keep their own periods.
+        if (onStrip)
+        {
+            SetStripLabelMarquee (m_sceneDriveLabel[i], i, name, rc);
         }
 
         m_sceneDriveLabel[i].SetText        (name);
@@ -1192,11 +1184,9 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
                                          const std::array<std::wstring, s_kSceneLabelCount> & names)
 {
     static constexpr int  kCells[3] = { s_kSceneTapeNameCell, s_kSceneCounterCell, s_kSceneKeyCell };
-    IDxuiTextRenderer *   text      = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     int                   halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
     int                   stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     int                   gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
-    float                 fontPx    = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / 96.0f;
 
 
 
@@ -1216,16 +1206,15 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
             rc.right  = (LONG) screen[0] + halfW;
             rc.top    = (LONG) screen[1] + gapPx + ((cell == s_kSceneCounterCell) ? stripH : 0);
             rc.bottom = rc.top + stripH;
-
-            if (text != nullptr)
-            {
-                name = DxuiTextElide::ToWidth (*text, name, fontPx, DxuiTheme::kBodyFace,
-                                               (float) (rc.right - rc.left), DxuiElide::Tail);
-            }
         }
         else
         {
             name.clear();
+        }
+
+        if (onStrip)
+        {
+            SetStripLabelMarquee (m_stripTapeLabel[i], cell, name, rc);
         }
 
         m_stripTapeLabel[i].SetText        (name);
@@ -1243,6 +1232,49 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SetStripLabelMarquee
+//
+//  A strip label whose name is too long for its rect is shown whole and
+//  scrolled while the pointer is on it, by the same clock and the same
+//  measure the desk's baked names use, so the two read alike. One that fits
+//  is the ordinary centered line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetStripLabelMarquee (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc)
+{
+    HRESULT              hr     = E_FAIL;
+    IDxuiTextRenderer *  text   = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    float                fontPx = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+    float                textW  = 0.0f;
+    float                textH  = 0.0f;
+    float                period = 0.0f;
+    int64_t              nowMs  = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                      std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
+    if (text != nullptr && !name.empty())
+    {
+        hr = text->MeasureString (name.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+    }
+
+    if (SUCCEEDED (hr) && textW > (float) (rc.right - rc.left) - 2.0f * DxuiShadowedText::kGlowReachPx)
+    {
+        period = ceilf (textW + (float) m_scaler.ToPx (s_kSceneLabelScrollGapDp));
+    }
+
+    m_sceneDiskLabelPeriod[(size_t) cell] = period;
+
+    label.SetMarquee (period, (period > 0.0f) ? GetSceneLabelScrollPx (cell, nowMs) : 0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::UpdateSceneLabelHover
 //
 //  Which desk drive the pointer is on, by its face or its name, so that
@@ -1252,14 +1284,17 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
 
 bool EmulatorShell::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 {
-    const DeskSceneComposition &  comp    = m_deskScene.Composition();
+    // In fullscreen the names are the strip's, while it is up.
+    bool                          fs      = m_d3dRenderer.IsFullscreen();
+    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     POINT                         pt      = { x, y };
     int                           hovered = -1;
     bool                          changed = false;
 
 
 
-    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
+    if (DeskSceneActive() && (!fs || onStrip))
     {
         for (int i = 0; i < comp.driveCount && i < (int) m_sceneDriveLabelRect.size(); i++)
         {
