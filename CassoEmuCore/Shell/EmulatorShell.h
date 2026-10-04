@@ -1134,6 +1134,14 @@ private:
     void    SetStripLabelMarquee   (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
     int     GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
 
+    // The recorder's volume wheel on screen, where the pointer can reach it
+    // (the strip in fullscreen, the desk otherwise); empty when it is not.
+    RECT    GetVolumeWheelRect     () const;
+    void    DragVolumeWheel        (int x, int64_t nowMs);
+    void    PersistTapeVolume      ();
+
+    static std::wstring  FormatTapeVolumeTip (float gain);
+
     // Hands each drive's name to the scene as a depth-tested quad: bakes the
     // two strings into one texture when either has changed, then re-solves
     // the quads, which move whenever the camera does.
@@ -1468,6 +1476,17 @@ private:
     bool       m_bezelTilting          = false;
     POINT      m_bezelTiltStartPx      = {};
     float      m_bezelTiltStartRad     = 0.0f;
+
+    // Dragging the recorder's volume wheel: left is silent, right is full,
+    // one drag of s_kVolumeDragDp across the whole range, so it never has to
+    // be spun round. The wheel turns s_kVolumeWheelTurnRad over that range.
+    bool       m_volumeDragging        = false;
+    int        m_volumeDragStartX      = 0;
+    float      m_volumeDragStartGain   = 0.0f;
+
+    static constexpr int    s_kVolumeDragDp       = 160;
+    static constexpr int    s_kVolumeWheelSlopDp  = 4;
+    static constexpr float  s_kVolumeWheelTurnRad = 4.712389f;   // three quarters of a turn
 
     // How much tilt a pixel of drag is worth. The assembly's whole travel is
     // about eleven degrees each way, so this spends it over a couple of

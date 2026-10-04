@@ -29,6 +29,7 @@ public:
 
     void  Attach      (const TapeDeck * deck, NowFn now);
     void  SetVolume   (float gain) { m_volume.store (gain, std::memory_order_relaxed); }
+    float GetVolume   () const     { return m_volume.load (std::memory_order_relaxed); }
 
     void  GeneratePCM (float * outMono, uint32_t numSamples) override;
     float GetPanLeft  () const override { return m_panLeft; }

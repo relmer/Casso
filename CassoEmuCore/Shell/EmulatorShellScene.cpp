@@ -603,6 +603,128 @@ SceneHitResult EmulatorShell::RecorderHit (int xPx, int yPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::GetVolumeWheelRect
+//
+//  The volume wheel's box through the recorder's placement to the screen,
+//  grown a little so a wheel only a few pixels tall is still easy to take
+//  hold of.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::GetVolumeWheelRect() const
+{
+    bool                          fs      = m_d3dRenderer.IsFullscreen();
+    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
+    const float *                 box     = m_deskScene.RecorderModel().VolumeWheelBox();
+    float                         lo[2]   = { FLT_MAX, FLT_MAX };
+    float                         hi[2]   = { -FLT_MAX, -FLT_MAX };
+    int                           grow    = m_scaler.ToPx (s_kVolumeWheelSlopDp);
+    bool                          isShown = DeskSceneActive() && (!fs || onStrip) && comp.hasRecorder != 0 &&
+                                            m_deskScene.HasRecorder() && box[3] > box[0];
+    RECT                          rect    = {};
+
+
+
+    for (int corner = 0; isShown && corner < 8; corner++)
+    {
+        float  pt[3]    = { box[(corner & 1) ? 3 : 0], box[(corner & 2) ? 4 : 1], box[(corner & 4) ? 5 : 2] };
+        float  world[3] = {};
+        float  px[2]    = {};
+
+        isShown = SceneCamera::TransformPoint (comp.recorderWorld, pt, world) &&
+                  SceneCamera::ProjectToScreen (comp.viewProj, world, comp.viewportPx, px);
+
+        lo[0] = std::min (lo[0], px[0]);  hi[0] = std::max (hi[0], px[0]);
+        lo[1] = std::min (lo[1], px[1]);  hi[1] = std::max (hi[1], px[1]);
+    }
+
+    if (isShown)
+    {
+        rect = { (LONG) lo[0] - grow, (LONG) lo[1] - grow, (LONG) hi[0] + grow, (LONG) hi[1] + grow };
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DragVolumeWheel
+//
+//  The volume follows the pointer's travel since the press, across the
+//  whole range in one drag, and its tooltip follows the volume.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DragVolumeWheel (int x, int64_t nowMs)
+{
+    float  span = (float) m_scaler.ToPx (s_kVolumeDragDp);
+    float  gain = std::clamp (m_volumeDragStartGain + (float) (x - m_volumeDragStartX) / span, 0.0f, 1.0f);
+
+
+
+    SetTapeVolume (gain);
+    m_driveTooltip.RequestShow (GetVolumeWheelRect(), FormatTapeVolumeTip (gain), nowMs);
+    m_d3dRenderer.MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FormatTapeVolumeTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::FormatTapeVolumeTip (float gain)
+{
+    return std::format (L"Volume: {}%", (int) std::lround (gain * 100.0f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PersistTapeVolume
+//
+//  The wheel's setting is the Settings slider's, saved under the same key, so
+//  either one shows what the other set. Best-effort, like the other
+//  machine preferences.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistTapeVolume()
+{
+    HRESULT                                         hr = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+
+
+
+    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
+    {
+        return;
+    }
+
+    entries.emplace_back ("tapeVolume", JsonValue ((double) m_tapeAudioSource.GetVolume()));
+
+    hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(), entries);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::InvalidateSceneComposition
 //
 ////////////////////////////////////////////////////////////////////////////////

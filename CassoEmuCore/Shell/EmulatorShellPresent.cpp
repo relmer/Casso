@@ -768,6 +768,10 @@ bool EmulatorShell::TryPresentUiFrame()
             m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
         }
 
+        // The volume wheel stands where the tape volume is, however it was
+        // last set -- dragged, or from the Settings slider.
+        m_deskScene.SetRecorderVolumeTurn (m_tapeAudioSource.GetVolume() * s_kVolumeWheelTurnRad);
+
         // A mount or eject changes the basename strip under the drive, and so
         // does write-protecting the disk, since the padlock is a glyph at the
         // head of that name. Neither runs a layout pass, so watch both here

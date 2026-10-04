@@ -480,10 +480,11 @@ def build():
         liners = liner if liners is None else liners.union(liner)
     m.add("wheel_wells", on_face(liners), (0.02, 0.02, 0.02))
 
-    # Each wheel's rim stands a few millimeters proud of its window.
+    # Each wheel's rim stands a few millimeters proud of its window. The
+    # volume wheel is its own part, so the scene can turn it and the pointer
+    # can take hold of it; the tone wheel is part of the case.
     WHEEL_PROUD = 2.5
-    wheels = None
-    for wx in wheel_x:
+    for wx, part in zip(wheel_x, ("wheels", "volume_wheel")):
         pts = []
         for k in range(TEETH * 2):
             a = math.pi * 2 * k / (TEETH * 2)
@@ -491,8 +492,7 @@ def build():
             pts.append((wx + r * math.cos(a), REC_D - WHEEL_PROUD + WHEEL_R + r * math.sin(a)))
         wheel = (cq.Workplane("XY").workplane(offset=WIN_V0 + 1.0)
                  .polyline(pts).close().extrude(WIN_V1 - WIN_V0 - 2.0))
-        wheels = wheel if wheels is None else wheels.union(wheel)
-    m.add("wheels", on_face(wheels), KEY, angular=0.25)
+        m.add(part, on_face(wheel), KEY, angular=0.25)
 
     def face_text(s, x, v, size):
         return text(s, size, x, v, -REC_D).rotate((0, 0, 0), (1, 0, 0), 90)

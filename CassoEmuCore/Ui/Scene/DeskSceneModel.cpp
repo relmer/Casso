@@ -671,6 +671,20 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
                 }
             }
         }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part == s_kpszVolumeWheel)
+        {
+            // The volume wheel, kept apart so the scene can turn it.
+            AppendLitTri (m_volumeWheel, tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    m_volumeWheelBox[axis]     = (std::min) (m_volumeWheelBox[axis],     p[axis]);
+                    m_volumeWheelBox[axis + 3] = (std::max) (m_volumeWheelBox[axis + 3], p[axis]);
+                }
+            }
+        }
         else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszCassettePrefix, 0) == 0)
         {
             // The cassette, which goes out with the tape.

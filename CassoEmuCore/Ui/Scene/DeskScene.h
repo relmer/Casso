@@ -167,6 +167,9 @@ public:
     // whether a cassette shows behind it.
     void  SetRecorderLid       (float openRad, bool hasCassette);
 
+    // How far the volume wheel is turned, in radians about its own axis.
+    void  SetRecorderVolumeTurn (float turnRad);
+
     // The baked label texture was redrawn in place. The view and the quads
     // are the same objects, so nothing else says the picture changed.
     void  OnLabelsRebaked      () { InvalidatePlate(); }
@@ -512,6 +515,9 @@ private:
     // Where the camera stands in the world, from its view matrix.
     static void  GetEyeWorld (const float view[16], float out[3]);
 
+    static void  AppendTurned (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotX, float pivotY,
+                               float angleRad, std::vector<Dxui3DRenderer::Vertex> & out);
+
     static void  AppendHinged (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotY, float pivotZ,
                                float angleRad, std::vector<Dxui3DRenderer::Vertex> & out);
 
@@ -683,6 +689,7 @@ private:
     std::array<float, DeskSceneModel::kRecorderKeyCount>  m_recorderKeyDepth  = {};
     float                                                 m_recorderLidRad    = 0.0f;
     bool                                                  m_recorderCassette  = true;
+    float                                                 m_recorderVolumeRad = 0.0f;
 
     // GPU-resident copies of every array that is NOT rebuilt per frame, which
     // is all of them but the doors. Re-uploading the lot each frame made the

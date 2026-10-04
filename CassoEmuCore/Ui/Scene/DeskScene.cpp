@@ -1422,6 +1422,63 @@ void DeskScene::SetRecorderLid (float openRad, bool hasCassette)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SetRecorderVolumeTurn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderVolumeTurn (float turnRad)
+{
+    if (turnRad != m_recorderVolumeRad)
+    {
+        m_recorderVolumeRad = turnRad;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+        InvalidatePlate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::AppendTurned
+//
+//  Turns geometry about the model's up axis through (pivotX, pivotY), the
+//  way a wheel lying flat turns. Normals turn with the faces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::AppendTurned (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotX, float pivotY,
+                              float angleRad, std::vector<Dxui3DRenderer::Vertex> & out)
+{
+    float  c = cosf (angleRad);
+    float  s = sinf (angleRad);
+
+
+
+    for (Dxui3DRenderer::Vertex v : in)
+    {
+        float  dx = v.x - pivotX;
+        float  dy = v.y - pivotY;
+        float  nx = v.nx;
+        float  ny = v.ny;
+
+        v.x  = pivotX + dx * c - dy * s;
+        v.y  = pivotY + dx * s + dy * c;
+        v.nx = nx * c - ny * s;
+        v.ny = nx * s + ny * c;
+
+        out.push_back (v);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::AppendHinged
 //
 //  The model is X right, Y back, Z up, so a hinge running left to right is
@@ -1528,6 +1585,17 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
         if (m_recorderCassette)
         {
             AppendHinged (m_recorder.CassetteVerts(), 0.0f, 0.0f, 0.0f, m_recorderKeyVerts);
+        }
+
+        // The volume wheel, turned about its own middle.
+        {
+            const float *  wheel = m_recorder.VolumeWheelBox();
+
+            if (wheel[3] > wheel[0])
+            {
+                AppendTurned (m_recorder.VolumeWheelVerts(), (wheel[0] + wheel[3]) * 0.5f,
+                              (wheel[1] + wheel[4]) * 0.5f, m_recorderVolumeRad, m_recorderKeyVerts);
+            }
         }
     }
 

@@ -140,7 +140,8 @@ public:
             "newmtl body\nKd 0.09 0.10 0.15\n"
             "newmtl deck\nKd 0.68 0.685 0.69\n"
             "newmtl window\nKd 0.075 0.095 0.12\n"
-            "newmtl keys_0\nKd 0.90 0.88 0.72\n";
+            "newmtl keys_0\nKd 0.90 0.88 0.72\n"
+            "newmtl volume_wheel\nKd 0.90 0.88 0.72\n";
     }
 
     static std::string RecorderObj()
@@ -152,6 +153,7 @@ public:
         AppendBox (obj, base, 6.0f, 30.0f, s_kRecH, s_kRecW - 6.0f, s_kRecD - 3.0f, s_kRecH + 1.2f, "deck");
         AppendBox (obj, base, 14.0f, 105.0f, s_kRecH + 1.2f, 126.0f, 150.0f, s_kRecH + 1.9f, "window");
         AppendBox (obj, base, 10.0f, 26.0f, s_kRecH - 12.0f, 28.0f, 80.0f, s_kRecH + 6.2f, "keys_0");
+        AppendBox (obj, base, 80.0f, -2.0f, 4.0f, 102.0f, 20.0f, 8.0f, "volume_wheel");
 
         return obj;
     }
@@ -274,6 +276,37 @@ public:
         Assert::AreEqual (26.0f,           box[1], 0.01f);
         Assert::AreEqual (28.0f,           box[3], 0.01f);
         Assert::AreEqual (s_kRecH + 6.2f,  box[5], 0.01f);
+    }
+
+
+    //
+    //  The volume wheel is its own geometry, out of the case's, so the scene
+    //  can turn it, with a box for the pointer to find it by.
+    //
+    TEST_METHOD (Recorder_Volume_Wheel_Is_Kept_Apart_With_Its_Box)
+    {
+        DeskSceneModel        model;
+        std::vector<uint8_t>  blob;
+        const float *         box = nullptr;
+
+
+
+        Bake (RecorderObj(), blob);
+        AssertSucceeded (model.Load (DeskDeviceKind::CassetteRecorder, blob));
+
+        Assert::IsFalse (model.VolumeWheelVerts().empty());
+
+        box = model.VolumeWheelBox();
+        Assert::AreEqual (80.0f,  box[0], 0.01f);
+        Assert::AreEqual (-2.0f,  box[1], 0.01f);
+        Assert::AreEqual (102.0f, box[3], 0.01f);
+        Assert::AreEqual (20.0f,  box[4], 0.01f);
+
+        for (const Dxui3DRenderer::Vertex & v : model.OpaqueVerts())
+        {
+            Assert::IsFalse (v.x > 80.5f && v.x < 101.5f && v.z > 4.5f && v.z < 7.5f && v.y < 0.0f,
+                             L"the wheel is not drawn twice, as part of the case too");
+        }
     }
 
 

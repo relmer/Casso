@@ -336,6 +336,14 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
+    // The recorder's volume wheel, held, follows the pointer across.
+    if (m_volumeDragging && leftDown && !m_paddleCaptured)
+    {
+        DragVolumeWheel (x, nowMs);
+
+        return DxuiMessageResult::Handled;
+    }
+
     // THE TILT FOLLOWS THE POINTER, not the mark. Dragging up tips the face
     // up and dragging down tips it down, whichever mark the gesture started
     // on -- the marks say which way the control goes, they are not two
@@ -565,6 +573,19 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                         tip = imageName;
                     }
                 }
+            }
+        }
+
+        // The recorder's volume wheel says how loud it is set.
+        if (tip.empty() && DeskSceneActive())
+        {
+            RECT   wheel = GetVolumeWheelRect();
+            POINT  pt    = { x, y };
+
+            if (PtInRect (&wheel, pt))
+            {
+                anchor = wheel;
+                tip    = FormatTapeVolumeTip (m_tapeAudioSource.GetVolume());
             }
         }
 
@@ -804,6 +825,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     DxuiMessageResult  result     = DxuiMessageResult::NotHandled;
     POINT              pt         = {};
     bool               overGuest  = false;
+    RECT               wheel      = GetVolumeWheelRect();
 
 
 
@@ -833,6 +855,14 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     if (overGuest)
     {
         SetCursor (nullptr);
+        result = DxuiMessageResult::Handled;
+    }
+    else if (hitTest == HTCLIENT && DeskSceneActive() &&
+             (m_volumeDragging || (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) &&
+                                   PtInRect (&wheel, pt))))
+    {
+        // A hand over the volume wheel, which can be taken hold of.
+        SetCursor (LoadCursorW (nullptr, IDC_HAND));
         result = DxuiMessageResult::Handled;
     }
     else if (hitTest == HTCLIENT && DeskSceneActive() && !m_d3dRenderer.IsFullscreen()
@@ -1335,6 +1365,24 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
+    // Taking hold of the recorder's volume wheel starts its drag, which owns
+    // the gesture to the release: no orbit, no click.
+    if (DeskSceneActive() && !m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    {
+        RECT   wheel = GetVolumeWheelRect();
+        POINT  pt    = { x, y };
+
+        if (PtInRect (&wheel, pt))
+        {
+            m_volumeDragging      = true;
+            m_volumeDragStartX    = x;
+            m_volumeDragStartGain = m_tapeAudioSource.GetVolume();
+
+            result = DxuiMessageResult::Handled;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
     // A desk recorder key starts down the moment it is pressed, as under a
     // finger, and stays down while the button is held; what it does still
     // waits for the release, like any button. STOP is the exception: it is
@@ -1527,6 +1575,15 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     //  halves of the click.
     if (OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
     {
+        return DxuiMessageResult::Handled;
+    }
+
+    // Letting go of the volume wheel keeps where it was left, and the release
+    // is the drag's, not a click's.
+    if (m_volumeDragging)
+    {
+        m_volumeDragging = false;
+        PersistTapeVolume();
         return DxuiMessageResult::Handled;
     }
 

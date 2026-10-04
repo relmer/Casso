@@ -183,6 +183,12 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   LidGlassVerts () const { return m_lidGlass; }
     const float *                                 LidBox        () const { return m_lidBox.data(); }
 
+    // The recorder's volume thumbwheel, which the scene turns and the pointer
+    // takes hold of. It lies flat, so it turns about the model's up axis
+    // through the middle of its box, lo xyz then hi xyz.
+    const std::vector<Dxui3DRenderer::Vertex> &   VolumeWheelVerts () const { return m_volumeWheel; }
+    const float *                                 VolumeWheelBox   () const { return m_volumeWheelBox.data(); }
+
     // Polished chrome (the recorder's handle), with its normals smoothed and
     // flagged for the shader to draw as a mirror.
     const std::vector<Dxui3DRenderer::Vertex> &   ChromeVerts   () const { return m_chrome; }
@@ -401,6 +407,7 @@ public:
     static constexpr const char *  s_kpszLidGlass    = "door_glass";   // the smoked pane and its struts
     static constexpr const char *  s_kpszChromePrefix = "chrome";     // polished metal, as the blades
     static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, cassette_hubs
+    static constexpr const char *  s_kpszVolumeWheel    = "volume_wheel";
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
 
@@ -604,23 +611,25 @@ private:
     void     ComputeGroundFootprint ();
     void     SmoothChromeNormals    ();
 
-    DeskDeviceKind                                                      m_kind       = DeskDeviceKind::Monitor2c;
+    DeskDeviceKind                                                      m_kind           = DeskDeviceKind::Monitor2c;
     std::vector<Dxui3DRenderer::Vertex>                                 m_opaque;
     std::vector<Dxui3DRenderer::Vertex>                                 m_glass;
     std::vector<Dxui3DRenderer::Vertex>                                 m_lamp;
     std::vector<Dxui3DRenderer::Vertex>                                 m_door;
     std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderKeyCount>  m_keys;
-    std::array<std::array<float, 6>, kRecorderKeyCount>                 m_keyBoxes   = {};
+    std::array<std::array<float, 6>, kRecorderKeyCount>                 m_keyBoxes       = {};
     std::vector<Dxui3DRenderer::Vertex>                                 m_lid;
     std::vector<Dxui3DRenderer::Vertex>                                 m_cassette;
     std::vector<Dxui3DRenderer::Vertex>                                 m_lidGlass;
     std::vector<Dxui3DRenderer::Vertex>                                 m_chrome;
-    std::array<float, 6>                                                m_lidBox     = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    std::array<float, 6>                                                m_lidBox         = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    std::vector<Dxui3DRenderer::Vertex>                                 m_volumeWheel;
+    std::array<float, 6>                                                m_volumeWheelBox = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
     std::vector<Dxui3DRenderer::Vertex>                                 m_tiltable;
     std::vector<DeskTiltGrip>                                           m_tiltGrips;
-    float                                                               m_tiltPivotY = 0.0f;
-    float                                                               m_tiltPivotZ = 0.0f;
-    float                                                               m_maxTiltRad = 0.0f;
+    float                                                               m_tiltPivotY     = 0.0f;
+    float                                                               m_tiltPivotZ     = 0.0f;
+    float                                                               m_maxTiltRad     = 0.0f;
     std::vector<Dxui3DRenderer::Vertex>                                 m_padlock;
     std::vector<DeskLampAnchor>                                         m_lamps;
     std::vector<DeskRegionBox>                                          m_regions;
