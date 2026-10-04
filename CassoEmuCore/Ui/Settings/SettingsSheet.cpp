@@ -940,6 +940,11 @@ void SettingsSheet::OnDialogTick()
 
     UpdatePreviewCompose();
     GrowToContent();
+
+    // THE PAGES' CONTROLS GET THE CLOCK TOO. Nothing else gives it to them,
+    // and a control that waits on time -- an info tip's tooltip, which opens
+    // only once its dwell has passed -- would otherwise wait forever.
+    DxuiPanel::Tick ((int64_t) GetTickCount64());
 }
 
 
