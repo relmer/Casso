@@ -274,16 +274,47 @@ float4 main (PSIn input) : SV_TARGET
 // soft overhead studio light, brighter the more the reflected ray points up
 // (world Y is up), and the Fresnel brightening at grazing angles that
 // outlines a tube's silhouette.
+//
+// AND IT IS OLD CHROME, not a mirror: lightly hazed, so what it shows is
+// soft -- the reflection is averaged over a small cone of directions around
+// the true one -- with a faint milky veil over it, and fine scratches that
+// catch the light. The scratches are fixed in the handle's own space, so
+// they stay put as the scene turns, and are short random strokes: three sets
+// of parallel lines at different angles, each broken up by a coarser field
+// so only stretches of them show.
         if (input.peb < 0.0f && envParm.x > 0.0f)
         {
             float3 ve      = normalize (envParm.yzw - input.wp);
-            float3 rw      = mul (float4 (reflect (-ve, n), 0.0f), envMatrix).xyz;
-            float  up      = saturate (normalize (rw).y * 0.5f + 0.5f);
+            float3 rw      = normalize (mul (float4 (reflect (-ve, n), 0.0f), envMatrix).xyz);
+            float3 t1      = normalize (cross (rw, abs (rw.y) < 0.9f ? float3 (0, 1, 0) : float3 (1, 0, 0)));
+            float3 t2      = cross (rw, t1);
+            float3 env     = 0;
+            float  up      = saturate (rw.y * 0.5f + 0.5f);
             float  fresnel = pow (1.0f - saturate (dot (n, ve)), 4.0f);
-            lit = envTex.Sample (samp, rw).rgb * float3 (0.86f, 0.88f, 0.92f)
+            float  scratch = 0;
+
+            [unroll] for (int k = 0; k < 8; k++)
+            {
+                float  a = 6.2831853f * (float) k / 8.0f;
+                float  r = (k & 1) ? 0.10f : 0.05f;
+                env += envTex.Sample (samp, rw + (t1 * cos (a) + t2 * sin (a)) * r).rgb;
+            }
+
+            env = (env + envTex.Sample (samp, rw).rgb * 2.0f) / 10.0f;
+
+            [unroll] for (int s = 0; s < 3; s++)
+            {
+                float2 d    = float2 (cos (1.1f + s * 2.3f), sin (1.1f + s * 2.3f));
+                float  band = frac (dot (input.wp.xz, d) * (2.3f + s * 0.9f) + s * 0.37f);
+                float  run  = frac (sin (dot (floor (input.wp.xz * (0.35f + s * 0.2f)), float2 (12.9898f, 78.233f)) + s) * 43758.5453f);
+                scratch += (band < 0.035f && run > 0.72f) ? 1.0f : 0.0f;
+            }
+
+            lit = env * float3 (0.80f, 0.82f, 0.86f)
                 + float3 (0.30f, 0.31f, 0.33f) * up * up
-                + float3 (0.35f, 0.36f, 0.38f) * fresnel
-                + 0.05f;
+                + float3 (0.28f, 0.29f, 0.30f) * fresnel
+                + float3 (0.11f, 0.11f, 0.12f)
+                + 0.10f * saturate (scratch) * (0.4f + up);
         }
 // The device's own lamp, with its own occlusion. Facing the lens was once
 // taken as proof of seeing it -- "a face inside the notch points at the
