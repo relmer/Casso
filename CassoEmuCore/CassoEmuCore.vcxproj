@@ -223,6 +223,7 @@
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
     <ClCompile Include="Shell\EmulatorShellReverse.cpp" />
     <ClCompile Include="Shell\EmulatorShellState.cpp" />
+    <ClCompile Include="Shell\HeldHostInputs.cpp" />
     <ClCompile Include="Shell\HostInputGate.cpp" />
     <ClCompile Include="Debugger\Reverse\SnapshotCompressor.cpp" />
     <ClCompile Include="Debugger\Handlers\TraceHandlers.cpp" />
@@ -667,6 +668,7 @@
     <ClInclude Include="Debugger\Reverse\ReverseStopTest.h" />
     <ClInclude Include="Debugger\Reverse\HistoryStatus.h" />
     <ClInclude Include="Debugger\Reverse\ReverseOutcome.h" />
+    <ClInclude Include="Shell\HeldHostInputs.h" />
     <ClInclude Include="Shell\HostInputGate.h" />
     <ClInclude Include="Debugger\Reverse\SnapshotCompressor.h" />
     <ClInclude Include="Debugger\Handlers\TraceHandlers.h" />

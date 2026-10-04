@@ -584,6 +584,18 @@ detach, the steps, run to cursor, run one frame, show beam on screen, show next 
 line and trace, then reset, power cycle and restart under debugger) and **Tools**
 (**Keyboard scheme**). The command bar below it holds the run and step buttons as icons,
 each tip giving the command and its key in the scheme in force, and Trace.
+A command with two keys shows both in its tip and menu row, for example
+"Alt+F11 or Ctrl+R, F11".
+In every scheme a reverse command's key is its forward command's key with Alt
+added. The Visual Studio scheme steps back into, over and out with Alt+F11,
+Alt+F10 and Alt+Shift+F11, also takes Visual Studio's Ctrl+R chords (Ctrl+R,
+F11 and so on), runs backward (reverse continue) with Alt+F5, and pauses with
+Ctrl+Break as well as Shift+F5. The AppleWin scheme uses Alt+Space,
+Ctrl+Alt+Space, Alt+Shift+Space and Alt+Enter; the GSSquared scheme uses
+Alt+Space, Alt+O, Alt+R and Alt+Enter. In those two schemes the debugger window
+keeps Alt+Space and Alt+Enter, so they do not open the window menu.
+Keys and the mouse button let go of while the machine is behind live are
+released in the machine when it goes live again; a key still held stays down.
 Drag its grab handle to move it along its edge or, pulled well away, to float
 it in a window of its own, icons alone. Dragged back over any edge of the
 window, a floating bar snaps into that edge, which makes room for it, and

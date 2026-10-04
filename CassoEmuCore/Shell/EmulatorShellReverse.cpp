@@ -20,7 +20,8 @@
 //  cycled, from the settings the emulator read at start; with recording off
 //  there, any history is dropped instead. The first call creates the host,
 //  whose live callback hands the game-port input held back while the
-//  machine was behind live to the UI thread, which writes it.
+//  machine was behind live to the UI thread, which writes it and releases the
+//  keys and mouse button let go of in the meantime.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

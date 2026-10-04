@@ -28,21 +28,21 @@ class DebuggerCommands
 {
 public:
     //  The key schemes' actions, then the bar's own.
-    static constexpr int  kRun          = (int) DebuggerKeySchemes::Action::Run;
-    static constexpr int  kPause        = (int) DebuggerKeySchemes::Action::Pause;
-    static constexpr int  kStepInto     = (int) DebuggerKeySchemes::Action::StepInto;
-    static constexpr int  kStepOver     = (int) DebuggerKeySchemes::Action::StepOver;
-    static constexpr int  kStepOut      = (int) DebuggerKeySchemes::Action::StepOut;
-    static constexpr int  kRunToCursor  = (int) DebuggerKeySchemes::Action::RunToCursor;
-    static constexpr int  kFind         = (int) DebuggerKeySchemes::Action::Find;
-    static constexpr int  kRunFrame     = (int) DebuggerKeySchemes::Action::RunFrame;
-    static constexpr int  kStepBackInto = (int) DebuggerKeySchemes::Action::StepBackInto;
-    static constexpr int  kStepBackOver = (int) DebuggerKeySchemes::Action::StepBackOver;
-    static constexpr int  kStepBackOut  = (int) DebuggerKeySchemes::Action::StepBackOut;
+    static constexpr int  kRun             = (int) DebuggerKeySchemes::Action::Run;
+    static constexpr int  kPause           = (int) DebuggerKeySchemes::Action::Pause;
+    static constexpr int  kStepInto        = (int) DebuggerKeySchemes::Action::StepInto;
+    static constexpr int  kStepOver        = (int) DebuggerKeySchemes::Action::StepOver;
+    static constexpr int  kStepOut         = (int) DebuggerKeySchemes::Action::StepOut;
+    static constexpr int  kRunToCursor     = (int) DebuggerKeySchemes::Action::RunToCursor;
+    static constexpr int  kFind            = (int) DebuggerKeySchemes::Action::Find;
+    static constexpr int  kRunFrame        = (int) DebuggerKeySchemes::Action::RunFrame;
+    static constexpr int  kStepBackInto    = (int) DebuggerKeySchemes::Action::StepBackInto;
+    static constexpr int  kStepBackOver    = (int) DebuggerKeySchemes::Action::StepBackOver;
+    static constexpr int  kStepBackOut     = (int) DebuggerKeySchemes::Action::StepBackOut;
+    static constexpr int  kReverseContinue = (int) DebuggerKeySchemes::Action::ReverseRun;
 
     static constexpr int  kShowNext        = 100;
     static constexpr int  kTrace           = 101;
-    static constexpr int  kReverseContinue = 102;
     static constexpr int  kGoLive          = 103;
 
     struct Handlers

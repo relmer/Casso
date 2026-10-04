@@ -13,23 +13,25 @@ static constexpr DxuiKeyStroke  s_kChordPrefix = { 'R', true, false, false };
 
 static constexpr DxuiKeyChord  s_kVisualStudioKeys[] =
 {
-    { VK_F5,  false, false, false, (int) Action::Run              },
-    { VK_F5,  false, false, true,  (int) Action::Pause            },
-    { VK_F11, false, false, false, (int) Action::StepInto         },
-    { VK_F10, false, false, false, (int) Action::StepOver         },
-    { VK_F11, false, false, true,  (int) Action::StepOut          },
-    { VK_F9,  false, false, false, (int) Action::ToggleBreakpoint },
-    { VK_F10, true,  false, false, (int) Action::RunToCursor      },
-    { 'F',    true,  false, false, (int) Action::Find             },
-    { VK_F3,  false, false, false, (int) Action::FindNext         },
-    { VK_F3,  false, false, true,  (int) Action::FindPrevious     },
-    { VK_F6,  false, false, false, (int) Action::RunFrame         },
-    { VK_F11, false, false, false, (int) Action::StepBackInto,     s_kChordPrefix },
-    { VK_F10, false, false, false, (int) Action::StepBackOver,     s_kChordPrefix },
-    { VK_F11, false, false, true,  (int) Action::StepBackOut,      s_kChordPrefix },
-    { VK_F11, false, true,  false, (int) Action::StepBackInto     },
-    { VK_F10, false, true,  false, (int) Action::StepBackOver     },
-    { VK_F11, false, true,  true,  (int) Action::StepBackOut      },
+    { VK_F5,     false, false, false, (int) Action::Run              },
+    { VK_F5,     false, false, true,  (int) Action::Pause            },
+    { VK_CANCEL, true,  false, false, (int) Action::Pause            },
+    { VK_F11,    false, false, false, (int) Action::StepInto         },
+    { VK_F10,    false, false, false, (int) Action::StepOver         },
+    { VK_F11,    false, false, true,  (int) Action::StepOut          },
+    { VK_F9,     false, false, false, (int) Action::ToggleBreakpoint },
+    { VK_F10,    true,  false, false, (int) Action::RunToCursor      },
+    { 'F',       true,  false, false, (int) Action::Find             },
+    { VK_F3,     false, false, false, (int) Action::FindNext         },
+    { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
+    { VK_F6,     false, false, false, (int) Action::RunFrame         },
+    { VK_F11,    false, true,  false, (int) Action::StepBackInto     },
+    { VK_F11,    false, false, false, (int) Action::StepBackInto,     s_kChordPrefix },
+    { VK_F10,    false, true,  false, (int) Action::StepBackOver     },
+    { VK_F10,    false, false, false, (int) Action::StepBackOver,     s_kChordPrefix },
+    { VK_F11,    false, true,  true,  (int) Action::StepBackOut      },
+    { VK_F11,    false, false, true,  (int) Action::StepBackOut,      s_kChordPrefix },
+    { VK_F5,     false, true,  false, (int) Action::ReverseRun       },
 };
 
 static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
@@ -45,9 +47,10 @@ static constexpr DxuiKeyChord  s_kAppleWinKeys[] =
     { VK_F3,     false, false, false, (int) Action::FindNext         },
     { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
     { VK_F6,     false, false, false, (int) Action::RunFrame         },
-    { VK_F11,    false, true,  false, (int) Action::StepBackInto     },
-    { VK_F10,    false, true,  false, (int) Action::StepBackOver     },
-    { VK_F11,    false, true,  true,  (int) Action::StepBackOut      },
+    { VK_SPACE,  false, true,  false, (int) Action::StepBackInto     },
+    { VK_SPACE,  true,  true,  false, (int) Action::StepBackOver     },
+    { VK_SPACE,  false, true,  true,  (int) Action::StepBackOut      },
+    { VK_RETURN, false, true,  false, (int) Action::ReverseRun       },
 };
 
 static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
@@ -63,9 +66,10 @@ static constexpr DxuiKeyChord  s_kGSSquaredKeys[] =
     { VK_F3,     false, false, false, (int) Action::FindNext         },
     { VK_F3,     false, false, true,  (int) Action::FindPrevious     },
     { VK_F6,     false, false, false, (int) Action::RunFrame         },
-    { VK_F11,    false, true,  false, (int) Action::StepBackInto     },
-    { VK_F10,    false, true,  false, (int) Action::StepBackOver     },
-    { VK_F11,    false, true,  true,  (int) Action::StepBackOut      },
+    { VK_SPACE,  false, true,  false, (int) Action::StepBackInto     },
+    { 'O',       false, true,  false, (int) Action::StepBackOver     },
+    { 'R',       false, true,  false, (int) Action::StepBackOut      },
+    { VK_RETURN, false, true,  false, (int) Action::ReverseRun       },
 };
 
 

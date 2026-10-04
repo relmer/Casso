@@ -767,6 +767,8 @@
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMetricsTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyMapTests.cpp" />
+    <ClCompile Include="Dxui\DxuiKeyMapEveryChordTextTests.cpp" />
+    <ClCompile Include="DebuggerTests\ReverseKeyPlusModifierTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewViewsTests.cpp" />

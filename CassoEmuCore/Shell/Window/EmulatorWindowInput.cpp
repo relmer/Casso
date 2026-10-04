@@ -1151,6 +1151,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     bool                                 consumed    = false;
     bool                                 toolbarTook = false;
     bool                                 chromeTook  = false;
+    bool                                 isGateOpen  = false;
     std::shared_lock<std::shared_mutex>  gate;
 
 
@@ -1253,8 +1254,15 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
 
         // Not behind live in reverse execution's history, where the mouse
-        // holds a recorded position.
-        if (overDisplay && m_machine.GetHostInputGate().TryEnter (gate))
+        // holds a recorded position. The press is tracked either way, so a
+        // release made behind live is injected once the machine is live.
+        if (overDisplay)
+        {
+            isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+            m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
+        }
+
+        if (overDisplay && isGateOpen)
         {
             m_machine.GetMouse()->SetButton (true);
         }
@@ -1415,6 +1423,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     bool                                 wasSuppressed = false;
     bool                                 driveTook     = false;
     bool                                 canGrabPaddle = false;
+    bool                                 isGateOpen    = false;
     std::shared_lock<std::shared_mutex>  gate;
 
 
@@ -1629,8 +1638,15 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // //c Mouse mode: any left-release drops the guest mouse button --
     // unconditionally (not viewport-gated), so a press inside the viewport
-    // released outside it can never leave the guest button stuck.
-    if (IsGuestMouseActive() && m_machine.GetHostInputGate().TryEnter (gate))
+    // released outside it can never leave the guest button stuck. Behind
+    // live the release is kept for when the machine is live again.
+    if (IsGuestMouseActive())
+    {
+        isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+        m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
+    }
+
+    if (IsGuestMouseActive() && isGateOpen)
     {
         m_machine.GetMouse()->SetButton (false);
     }
@@ -1751,8 +1767,9 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 void EmulatorShell::ReleaseGuestKeys()
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::defer_lock);
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::defer_lock);
     std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = false;
 
 
 
@@ -1771,8 +1788,12 @@ void EmulatorShell::ReleaseGuestKeys()
     }
 
     // Behind live in reverse execution's history the keyboard holds a
-    // recorded position, which a release must not change.
-    if (!m_machine.GetHostInputGate().TryEnter (gate))
+    // recorded position, which a release must not change; the releases are
+    // kept for when the machine is live again.
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    m_heldHostInputs.OnReleaseAll (isGateOpen);
+
+    if (!isGateOpen)
     {
         return;
     }
@@ -1781,6 +1802,53 @@ void EmulatorShell::ReleaseGuestKeys()
     {
         m_machine.GetRefs().keyboard->SetKeyDown (false);
         m_machine.GetRefs().keyboard->EndKeyRepeat();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseInputsLetGoBehindLive
+//
+//  Once the machine is live again it stands where it left live, with the
+//  keys and mouse button held then still down. A release for each one the
+//  user let go of in the meantime goes through the same path a real release
+//  takes, so the modifiers and the arrow joystick follow too. Run while the
+//  gate is still held, it waits for the next call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReleaseInputsLetGoBehindLive()
+{
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  gate;
+    std::vector<WPARAM>                  releases;
+    DxuiKeyEvent                         release;
+
+
+
+    if (m_machine.GetHostInputGate().IsHeld())
+    {
+        return;
+    }
+
+    releases     = m_heldHostInputs.TakeReleases();
+    release.kind = DxuiKeyEventKind::Up;
+
+    for (WPARAM input : releases)
+    {
+        if (input != HeldHostInputs::kMouseButton)
+        {
+            release.vk = input;
+            (void) OnViewportKey (release);
+        }
+        else if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInputGate().TryEnter (gate))
+        {
+            m_machine.GetMouse()->SetButton (false);
+        }
     }
 }
 
@@ -2242,6 +2310,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
     std::shared_lock<std::shared_mutex>  gate;
     bool                                 hasKeyboard = false;
+    bool                                 isGateOpen  = false;
 
 
 
@@ -2254,7 +2323,20 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
     // Behind live in reverse execution's history the devices hold a recorded
     // position, so the guest gets no keys until the machine is live again.
-    if (!m_machine.GetHostInputGate().TryEnter (gate))
+    // Each press and release is tracked either way, so a key let go of behind
+    // live is released once the machine is live.
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+
+    if (ev.kind == DxuiKeyEventKind::Down && !ev.repeat)
+    {
+        m_heldHostInputs.OnPress (ev.vk, isGateOpen);
+    }
+    else if (ev.kind == DxuiKeyEventKind::Up)
+    {
+        m_heldHostInputs.OnRelease (ev.vk, isGateOpen);
+    }
+
+    if (!isGateOpen)
     {
         return true;
     }

@@ -67,6 +67,7 @@
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "WasapiAudio.h"
 #include "Devices/Disk/ChangePrompt.h"
+#include "Shell/HeldHostInputs.h"
 
 
 
@@ -363,6 +364,10 @@ private:
     // Release the guest keyboard latch + auto-repeat + modifiers. Called on
     // focus loss: the matching key-ups will never arrive once focus moves.
     void               ReleaseGuestKeys ();
+
+    // Inject a release for each key or mouse button the user let go of while
+    // the machine was behind live, once it is live again.
+    void               ReleaseInputsLetGoBehindLive ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
     void               OnEnterSizeMove () override;
@@ -2401,6 +2406,10 @@ private:
     // What the //e modifier keys ask of the game port: left Alt as
     // Open-Apple (PB0), right Alt as Solid-Apple (PB1), Shift as PB2.
     GamePortContribution  m_appleModifierContribution;
+
+    // The keys and mouse button the machine has down, and those let go of
+    // while the host input gate kept the release from it.
+    HeldHostInputs        m_heldHostInputs;
 
     // Keyboard focus ring across the painted chrome ("Z" Tab order, left
     // to right, top to bottom): -1 = guest (//e has focus), 0..6 = the

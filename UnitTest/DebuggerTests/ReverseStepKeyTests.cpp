@@ -15,8 +15,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ReverseStepKeyTests
 //
-//  The step back keys in every scheme, Visual Studio's Ctrl+R chords in its
-//  own, the commands those keys take, and the history band's words.
+//  Visual Studio's Alt step back keys and Ctrl+R chords, the commands those
+//  keys take, and the history band's words.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,9 +27,9 @@ public:
     using Action = DebuggerKeySchemes::Action;
 
 
-    TEST_METHOD (EverySchemeStepsBackWithAlt)
+    TEST_METHOD (VisualStudioStepsBackWithAlt)
     {
-        for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+        for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio })
         {
             const DxuiKeyMap &  map = DebuggerKeySchemes::GetMap (scheme);
             int                 id  = 0;
@@ -56,9 +56,9 @@ public:
         Assert::IsTrue (map.Match ({ VK_F10, false, false, false }, ctrlR, id) == DxuiKeyMatch::Command && id == (int) Action::StepBackOver);
         Assert::IsTrue (map.Match ({ VK_F11, false, false, true  }, ctrlR, id) == DxuiKeyMatch::Command && id == (int) Action::StepBackOut);
 
-        Assert::AreEqual (std::wstring (L"Ctrl+R, F11"),       map.GetChordText (DebuggerCommands::kStepBackInto));
-        Assert::AreEqual (std::wstring (L"Ctrl+R, F10"),       map.GetChordText (DebuggerCommands::kStepBackOver));
-        Assert::AreEqual (std::wstring (L"Ctrl+R, Shift+F11"), map.GetChordText (DebuggerCommands::kStepBackOut));
+        Assert::AreEqual (std::wstring (L"Alt+F11 or Ctrl+R, F11"),             map.GetChordText (DebuggerCommands::kStepBackInto));
+        Assert::AreEqual (std::wstring (L"Alt+F10 or Ctrl+R, F10"),             map.GetChordText (DebuggerCommands::kStepBackOver));
+        Assert::AreEqual (std::wstring (L"Alt+Shift+F11 or Ctrl+R, Shift+F11"), map.GetChordText (DebuggerCommands::kStepBackOut));
 
         Assert::IsTrue (DebuggerKeySchemes::GetMap (DebuggerKeyScheme::AppleWin).Match (ctrlR, std::nullopt, id) == DxuiKeyMatch::None,
                         L"the chords are Visual Studio's alone");

@@ -817,6 +817,7 @@ std::optional<DebuggerAction> DebuggerActions::GetForKey (
     case Action::StepBackInto: taken = GetReverse (DebugVerb::StepBack,     mode); break;
     case Action::StepBackOver: taken = GetReverse (DebugVerb::StepBackOver, mode); break;
     case Action::StepBackOut:  taken = GetReverse (DebugVerb::StepBackOut,  mode); break;
+    case Action::ReverseRun:   taken = GetReverse (DebugVerb::ReverseGo,    mode); break;
 
     case Action::RunToCursor:
         if (selected.has_value())
@@ -873,6 +874,7 @@ bool DebuggerActions::IsStepAction (DebuggerKeySchemes::Action action)
     case Action::StepBackInto:
     case Action::StepBackOver:
     case Action::StepBackOut:
+    case Action::ReverseRun:
         return true;
 
     default:

@@ -110,8 +110,8 @@ public:
     //  first key pending only a chord that starts with it can match.
     DxuiKeyMatch  Match (const DxuiKeyStroke & stroke, const std::optional<DxuiKeyStroke> & pending, int & outCommandId) const;
 
-    //  `Shift+F11` or `Ctrl+R, F11`, for a menu row or a tooltip: the first
-    //  chord bound to the command, or empty when none is.
+    //  `Shift+F11` or `Ctrl+R, F11`, for a menu row or a tooltip: every chord
+    //  bound to the command, joined by " or ", or empty when none is.
     std::wstring  GetChordText (int commandId) const;
 
 private:

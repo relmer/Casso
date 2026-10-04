@@ -105,6 +105,8 @@ DxuiKeyMatch DxuiKeyMap::Match (
 //  DxuiKeyMap::GetChordText
 //
 //  A two-key chord is written with a comma between its keys: Ctrl+R, F11.
+//  A command bound to more than one chord shows them all, in table order,
+//  joined by "or": Alt+F11 or Ctrl+R, F11.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,13 +123,17 @@ std::wstring DxuiKeyMap::GetChordText (int commandId) const
             continue;
         }
 
+        if (!text.empty())
+        {
+            text += L" or ";
+        }
+
         if (chord.prefix.vk != 0)
         {
-            text = GetStrokeText (chord.prefix) + L", ";
+            text += GetStrokeText (chord.prefix) + L", ";
         }
 
         text += GetStrokeText (DxuiKeyStroke { chord.vk, chord.ctrl, chord.alt, chord.shift });
-        break;
     }
 
     return text;
@@ -182,6 +188,7 @@ std::wstring DxuiKeyMap::GetKeyName (WPARAM vk)
         case VK_LEFT:      name = L"Left";      break;
         case VK_RIGHT:     name = L"Right";     break;
         case VK_PAUSE:     name = L"Pause";     break;
+        case VK_CANCEL:    name = L"Break";     break;
         case VK_OEM_PLUS:  name = L"+";         break;
         case VK_OEM_MINUS: name = L"-";         break;
         default:           name = L"Key " + std::to_wstring (vk); break;
