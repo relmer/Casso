@@ -2758,6 +2758,23 @@ bool DebugSession::HasNoCallSince (uint64_t cycle)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::GetCallerLinks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::GetCallerLinks (std::vector<CallerLink> & outLinks)
+{
+    SettleCallRecord();
+
+    m_callRecorder.GetCallerLinks (outLinks);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::SettleCallRecord
 //
 //  The record takes in the last instruction executed, from the registers

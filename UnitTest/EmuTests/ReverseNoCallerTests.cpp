@@ -155,7 +155,7 @@ public:
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"searched to the start of history");
-        Assert::IsTrue (controller.GetTableBuildCount() > 0, L"the search replayed history");
+        Assert::IsTrue (controller.GetReplayer().GetReplayedCount() > 0, L"the search replayed history");
     }
 
 

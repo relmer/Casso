@@ -115,9 +115,11 @@ public:
     void      SetOutputGate          (std::function<void (bool)> gate)         { m_outputGate    = std::move (gate); }
 
     HRESULT   RestoreKeyframe   (size_t index);
-    HRESULT   RunTo             (const ReplayTarget & target, uint64_t endPosition, IReverseStopTest * stopTest, ReplayReport & report, std::vector<ReplayStep> * steps = nullptr);
+    HRESULT   RunTo             (const ReplayTarget & target, uint64_t endPosition, IReverseStopTest * stopTest, ReplayReport & report, std::vector<ReplayStep> * steps = nullptr, std::vector<Byte> * stackPointers = nullptr);
 
     bool      IsReplaying       () const          { return m_isReplaying; }
+    uint64_t  GetReplayedCount  () const          { return m_replayedCount; }
+    size_t    GetRestoreCount   () const          { return m_restoreCount; }
     size_t    GetJournalCursor  () const          { return m_journalCursor; }
     void      SetJournalCursor  (size_t cursor)   { m_journalCursor = cursor; }
 
@@ -130,7 +132,7 @@ private:
     HRESULT   ApplyInput          (const InputRecord & record);
     HRESULT   LoadBoundaryIfDue   ();
     HRESULT   CheckKeyframe       (ReplayReport & report);
-    HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report, std::vector<ReplayStep> * steps);
+    HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report, std::vector<ReplayStep> * steps, std::vector<Byte> * stackPointers);
     void      FindNextKeyframe    (uint64_t afterPosition);
 
     ReplayStep         MakeStep   (const EmuCpu & cpu) const;
@@ -143,5 +145,7 @@ private:
     StateWriter                    m_checkWriter;       // saves the machine at each keyframe a replay checks; kept for its capacity
     size_t                         m_journalCursor = 0;
     size_t                         m_nextKeyframe  = 0;
+    uint64_t                       m_replayedCount = 0;                // instructions every replay has run, for tests
+    size_t                         m_restoreCount  = 0;                // keyframes loaded, for tests
     bool                           m_isReplaying   = false;
 };

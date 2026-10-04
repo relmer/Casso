@@ -4,6 +4,7 @@
 
 #include "Core/StateWriter.h"
 #include "Core/ThreadPoolWorkQueue.h"
+#include "Debugger/Reverse/CallerLink.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/ReplayControl.h"
@@ -60,11 +61,13 @@ struct ReverseResult
 //  by the retired-instruction count. The positions from one keyframe to the
 //  next are a stretch.
 //
-//  The step commands need the PC and stack pointer each instruction began
-//  with. The first step into a stretch replays the whole stretch once and
-//  keeps them in a table, so later steps in it, step back over and step
-//  back out are lookups; the table goes when the machine leaves the
-//  stretch, becomes live, or changes.
+//  Step back needs the PC and stack pointer each instruction began with.
+//  The first step into a stretch replays the whole stretch once and keeps
+//  them in a table, so later steps in it are lookups; the table goes when
+//  the machine leaves the stretch, becomes live, or changes. Step back over
+//  and step back out search with the stack pointer alone, replaying one
+//  stretch at a time and keeping nothing else; step back out seeks straight
+//  to the call the debugger's call record holds, when it holds one.
 //
 //  Running backward leaves the recorded future in place: seeking forward
 //  replays it, and reaching its end makes the machine live again. A change
@@ -102,6 +105,10 @@ public:
     //  running. False when the record cannot tell.
     using CallerProbe = std::function<bool (uint64_t historyStartCycle)>;
 
+    //  Asked, live, for the calls the code now running is still inside of,
+    //  so step back out can seek straight to the innermost.
+    using CallerLinksProbe = std::function<void (std::vector<CallerLink> & outLinks)>;
+
     explicit ReverseController (MachineHost & machine);
     ~ReverseController () override;
 
@@ -112,6 +119,7 @@ public:
     void      SetWorkQueue        (IWorkQueue * queue) { m_workQueueOverride = queue; }
     void      SetReplayControl    (ReplayControl * control) { m_control = control; }
     void      SetCallerProbe      (CallerProbe probe) { m_callerProbe = std::move (probe); }
+    void      SetCallerLinksProbe (CallerLinksProbe probe) { m_callerLinksProbe = std::move (probe); }
     void      Stop                ();
     bool      IsRecording         () const { return m_isRecording; }
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
@@ -159,9 +167,15 @@ private:
     HRESULT   HandleDivergence   (const ReplayReport & report, ReverseResult & result);
     HRESULT   GetStep            (uint64_t position, ReplayStep & outStep, bool & outIsInGap, uint64_t & outGapStart);
     HRESULT   BuildStepTable     (const Stretch & stretch);
-    HRESULT   FindStepOverTarget (uint64_t current, bool & outFound, uint64_t & outTarget, bool & outIsGap);
-    HRESULT   FindStepOutTarget  (uint64_t current, bool & outFound, uint64_t & outTarget, bool & outIsGap);
+    HRESULT   ReplayStackLevels  (uint64_t end, Stretch & outStretch, bool & outIsInGap);
+    HRESULT   FindStepOverTarget (uint64_t current, int spNow, bool & outFound, uint64_t & outTarget, bool & outIsGap);
+    HRESULT   FindStepOutTarget  (uint64_t current, int spNow, bool & outFound, uint64_t & outTarget, bool & outIsGap);
     bool      HasNoCaller        () const;
+    bool      TryGetCallerLinks  (size_t & outCount);
+    bool      HasGapSince        (uint64_t cycle, uint64_t position) const;
+    HRESULT   StepOutByRecord    (bool & outIsDone, ReverseResult & result);
+    bool      IsAtCallerLink     (const CallerLink & link);
+    void      DiscardCallerLinks ();
     HRESULT   LandAt             (uint64_t position, ReverseOutcome outcome, ReverseResult & result);
     HRESULT   CaptureNow         ();
     HRESULT   CaptureBoundary    (bool isAfterGap, uint64_t gapStart);
@@ -187,6 +201,11 @@ private:
     IWorkQueue               * m_workQueueOverride = nullptr;  // set by a test
     ReplayControl            * m_control           = nullptr;  // the shell's, read and set from another thread
     CallerProbe                m_callerProbe;            // the debugger's call record, when one is attached
+    CallerLinksProbe           m_callerLinksProbe;       // the same record's calls still entered
+    std::vector<CallerLink>    m_callerLinks;            // the chain step back out last read live, outermost first
+    size_t                     m_callerDepth       = 0;      // the links outside the call step back out last landed on
+    uint64_t                   m_callerLanding     = UINT64_MAX;  // where it landed; any other position uses no link
+    std::vector<Byte>          m_stackPointers;          // a search's stack pointer per position, for one stretch
     std::vector<ReplayStep>    m_steps;                  // one stretch's registers and bytes per position
     uint64_t                   m_stepsStart        = 0;
     uint64_t                   m_stepsEnd          = 0;

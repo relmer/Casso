@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/Reply.h"
+#include "Debugger/Reverse/CallerLink.h"
 
 
 
@@ -126,6 +127,10 @@ public:
     //  its innermost call was made before cycle.
     bool    HasNoCallSince (uint64_t cycle) const;
 
+    //  The frames the code now running is still inside of by the stack-
+    //  pointer rule, outermost first, for step back out.
+    void    GetCallerLinks (std::vector<CallerLink> & outLinks) const;
+
 private:
     //  More frames than the stack page could hold drop the outermost, so a
     //  program whose stack wraps forever does not grow the record forever.
@@ -147,6 +152,7 @@ private:
     void    Pull            (const Pending & held, Byte sp);
     void    ReloadStack     (const Pending & held, Byte sp);
     void    PopFrame        ();
+    void    MarkRisenFrames (Byte sp);
     void    AddBreak        (CallBreakKind kind, const Pending & held);
     Word    PeekWord        (Word address) const;
 

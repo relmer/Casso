@@ -204,6 +204,10 @@ public:
     // made at or after cycle entered the code now running.
     bool                  HasNoCallSince   (uint64_t cycle);
 
+    // Step back out's seek: the calls the code now running is still inside
+    // of, outermost first.
+    void                  GetCallerLinks   (std::vector<CallerLink> & outLinks);
+
     // The innermost source line at an address, as file name and line; false
     // where no loaded line produced it.
     bool                  TryGetSourceLine (Word address, std::string & file, int & line) const;

@@ -179,6 +179,7 @@ void CallStackRecorder::Settle (Word pc, Byte sp)
     held = *m_pending;
     m_pending.reset();
     Apply (held, pc, sp);
+    MarkRisenFrames (sp);
 }
 
 
@@ -292,6 +293,51 @@ bool CallStackRecorder::HasNoCallSince (uint64_t cycle) const
 
 
     return isCovered || isOlder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::GetCallerLinks
+//
+//  Every frame the stack pointer has not risen above since its call. A frame
+//  that has risen is passed over; the frames outside it may still hold. A
+//  record without a clock cannot date a call, and gives none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackRecorder::GetCallerLinks (std::vector<CallerLink> & outLinks) const
+{
+    bool        isDated = m_active && m_clock;
+    CallerLink  link;
+
+
+
+    outLinks.clear();
+
+    if (!isDated)
+    {
+        return;
+    }
+
+    for (const CallStackFrame & frame : m_frames)
+    {
+        if (frame.hasRisen)
+        {
+            continue;
+        }
+
+        link.cycle       = frame.cycle;
+        link.callSite    = frame.callSite;
+        link.stackLevel  = frame.stackLevel;
+        link.opcode      = (frame.kind == CallFrameKind::Call) ? s_kJsr : s_kBrk;
+        link.isInterrupt = frame.kind == CallFrameKind::Irq || frame.kind == CallFrameKind::Nmi;
+
+        outLinks.push_back (link);
+    }
 }
 
 
@@ -678,6 +724,43 @@ void CallStackRecorder::PopFrame()
     depth = m_frames.size();
 
     std::erase_if (m_breaks, [depth] (const Break & each) { return each.depth > depth; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::MarkRisenFrames
+//
+//  A call leaves the stack pointer two bytes below its level, or three for
+//  BRK and an interrupt. A stack pointer above that, with the frame still
+//  held, means the return address was pulled or skipped. Inner frames sit
+//  lower on the stack, so the first frame from the inside that holds ends
+//  the search.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackRecorder::MarkRisenFrames (Byte sp)
+{
+    static constexpr int  kCallDepth      = 2;
+    static constexpr int  kInterruptDepth = 3;
+    int                   depth           = 0;
+
+
+
+    for (auto it = m_frames.rbegin(); it != m_frames.rend(); ++it)
+    {
+        depth = (it->kind == CallFrameKind::Call) ? kCallDepth : kInterruptDepth;
+
+        if ((int) sp <= (int) it->stackLevel - depth)
+        {
+            break;
+        }
+
+        it->hasRisen = true;
+    }
 }
 
 

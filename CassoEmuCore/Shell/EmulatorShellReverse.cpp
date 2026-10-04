@@ -56,6 +56,16 @@ void EmulatorShell::StartReverseRecording()
             return m_debugSession != nullptr && m_debugSession->HasNoCallSince (historyStartCycle);
         });
 
+        m_reverseHost->GetController().SetCallerLinksProbe ([this] (std::vector<CallerLink> & outLinks)
+        {
+            outLinks.clear();
+
+            if (m_debugSession != nullptr)
+            {
+                m_debugSession->GetCallerLinks (outLinks);
+            }
+        });
+
         m_reverseHost->SetLiveCallback ([this] ()
         {
             PostMessageW (m_hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);

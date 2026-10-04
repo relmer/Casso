@@ -55,6 +55,8 @@ HRESULT Replayer::RestoreKeyframe (size_t index)
 
     info = m_keyframes.GetInfo (index);
 
+    m_restoreCount++;
+
     hr = m_keyframes.Restore (index, m_scratch);
     CHR (hr);
 
@@ -86,7 +88,8 @@ Error:
 //  is loaded rather than checked.
 //
 //  With steps, the registers and bytes of every instruction the replay runs
-//  are appended to it, one per position.
+//  are appended to it, one per position; with stackPointers, only the stack
+//  pointer each began with, which is all a search for a call needs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +98,8 @@ HRESULT Replayer::RunTo (
     uint64_t                   endPosition,
     IReverseStopTest         * stopTest,
     ReplayReport             & report,
-    std::vector<ReplayStep>  * steps)
+    std::vector<ReplayStep>  * steps,
+    std::vector<Byte>        * stackPointers)
 {
     HRESULT       hr        = S_OK;
     DebugHook   * hook      = m_machine.GetDebugHook();
@@ -150,7 +154,7 @@ HRESULT Replayer::RunTo (
 
         if (!isDone)
         {
-            hr = Step (stopTest, endPosition, report, steps);
+            hr = Step (stopTest, endPosition, report, steps, stackPointers);
             CHR (hr);
         }
     }
@@ -188,7 +192,8 @@ HRESULT Replayer::Step (
     IReverseStopTest         * stopTest,
     uint64_t                   endPosition,
     ReplayReport             & report,
-    std::vector<ReplayStep>  * steps)
+    std::vector<ReplayStep>  * steps,
+    std::vector<Byte>        * stackPointers)
 {
     HRESULT   hr       = S_OK;
     EmuCpu  * cpu      = m_machine.GetCpu();
@@ -202,6 +207,11 @@ HRESULT Replayer::Step (
         steps->push_back (MakeStep (*cpu));
     }
 
+    if (stackPointers != nullptr)
+    {
+        stackPointers->push_back (cpu->GetSP());
+    }
+
     if (stopTest != nullptr && stopTest->ShouldStopBefore (m_machine, cpu->GetPC()))
     {
         report.hasHit  = true;
@@ -212,6 +222,7 @@ HRESULT Replayer::Step (
     CHR (hr);
 
     m_machine.StepOne();
+    m_replayedCount++;
 
     after = m_machine.GetPosition();
 

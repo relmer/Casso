@@ -382,7 +382,9 @@ enum class CallBreakKind
 // the push, which is what ends the frame (R-033). A frame below a break is
 // unverified. isRewritten is set once a store changes a byte of its return
 // address, so where it returns to is the program's choice, not a mismatch.
-// note is empty unless something about the frame is worth saying.
+// hasRisen is set once the stack pointer goes above where the call left it,
+// as pulling the return address does; step back out passes over such a
+// frame. note is empty unless something about the frame is worth saying.
 struct CallStackFrame
 {
     Word            callSite    = 0;
@@ -393,6 +395,7 @@ struct CallStackFrame
     uint64_t        cycle       = 0;        // the cycle count the call began at; recorded frames only
     bool            isVerified  = true;
     bool            isRewritten = false;
+    bool            hasRisen    = false;    // the stack pointer has since been above where the call left it; recorded frames only
     std::string     symbol;
     std::string     note;
 };
