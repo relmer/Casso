@@ -1141,8 +1141,12 @@ void MachineBuilder::WirePageTable()
 //
 //  The ][ and ][+ keep their RAM in the CPU's memory array; the //e's main
 //  bank is the first RAM device, which its MMU pages from. The //c is left
-//  on the last-value bus: the //c Technical Reference does not describe its
-//  floating bus, and nothing here has been checked against one.
+//  on the last-value bus. Neither edition of the Apple IIc Technical
+//  Reference Manual (1984, 1987) describes a floating bus: the only word on
+//  an unused bit is that the low seven bits of a switch input read are
+//  "undefined" (original pages 199-200, second
+//  edition pages 264-265). Nothing documents video data there, so none is
+//  modeled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1747,3 +1747,10 @@ Reverse commands after recording 60 seconds (3,600 frames, about 19 million inst
 | game | 2.66 ms | 0.85 ms | 0.84 ms | 689 ms |
 
 A step forward inside a stretch replays one instruction and took under a microsecond.
+
+## Floating bus sources
+
+Checked 2026-10-04 against the documents themselves, not against other emulators.
+
+- **][ and ][+, horizontal blanking.** Jim Sather, *Understanding the Apple II* (1983), chapter 5, page 5-9: in text and lo-res the A12 equivalent is false during display and "true during HBL"; the notes to figure 5.6 add that HBL-scanned memory begins $18 bytes before the displayed memory plus $1000. Hi-res is unaffected ("HBL has no effect on memory addressing in HIRES"). VideoScanner::GetScanAddress already sets A12 in blanking for text and lo-res only, so no code changed; the header's citation said chapter 3 and now says chapter 5.
+- **//c.** Neither the *Apple IIc Technical Reference Manual* (1984) nor its second edition (1987) describes a floating bus or what a read of an unused or write-only location returns. The only related statement is that a switch input read gives a valid bit 7 and the rest of the byte is "undefined" (original pages 199-200; second edition pages 264-265). Sather's *Understanding the Apple IIe* (1985) mentions the //c only in passing and says nothing about its bus. The //c stays on the last-value bus, as MachineBuilder::WireFloatingBus records.

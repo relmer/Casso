@@ -43,7 +43,7 @@ struct VideoScanMode
 //  Written from the documented counter and address sequence, not from any
 //  other emulator: Jim Sather, "Understanding the Apple IIe" (1985), chapter
 //  5, "The Video Display", and "Understanding the Apple II" (1983), chapter
-//  3, for the ][ and ][+, with the screen memory maps of the Apple IIe
+//  5, for the ][ and ][+, with the screen memory maps of the Apple IIe
 //  Technical Reference Manual (1985), chapter 2.
 //
 //  The horizontal counter takes 65 states per line: $00, then $40 to $7F.
@@ -71,7 +71,8 @@ struct VideoScanMode
 //  Mixed mode shows text where V2 and V4 are both set, lines 160-191 of the
 //  display (and 224-255, inside vertical blanking). On the ][ and ][+,
 //  Sather's "Understanding the Apple II" gives A12 as set during horizontal
-//  blanking in text and lo-res, which the //e's IOU no longer does.
+//  blanking in text and lo-res (page 5-9, checked 2026-10-04), which the
+//  //e's IOU no longer does. Hi-res is unaffected.
 //
 //  80-column text and double hi-res fetch the same address from main and
 //  aux memory together; the byte left on the data bus is main memory's,

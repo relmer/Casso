@@ -31,7 +31,7 @@ Paused      --(G, GG, run-to)--> DebugRun
 DebugRun    --(pause | breakpoint | watchpoint | budget | run-to reached)--> Paused
 Paused      --(T, P, S, RTS)--> Stepping --(done | stop)--> Paused
 Paused      --(user resumes in Casso)--> FreeRunning
-any         --(reset)--> same state, notification "reset", tables kept
+any         --(reset)--> same state, notification "reset", tables kept, video counters keep running
 any         --(machine switch)--> Paused, breakpoints/watchpoints cleared, notification "machineChanged"
 ```
 
