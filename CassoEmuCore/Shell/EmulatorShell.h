@@ -1129,16 +1129,34 @@ private:
     // caption. The text is sized down to fit the label rather than cut.
     static constexpr const wchar_t *  s_kpszCassetteInkFace     = L"Ink Free";
     static constexpr uint32_t         s_kCassetteInkArgb        = 0xFF101A5C;
-    static constexpr float            s_kCassetteInkHeightRatio = 0.85f;  // of the cell's height
-    static constexpr LONG             s_kCassetteCellScale      = 2;      // the title's cell, in name strips
+    static constexpr float            s_kCassetteInkHeightRatio = 0.85f;  // of a row's height
+    static constexpr LONG             s_kCassetteCellTall       = 4;      // the title's cell, in name strips: two rows of writing
 
     // How far each written letter strays, as fractions: its size, its rise
-    // off the line (of the letter height), its spacing, and how much lighter
-    // the ink can come out.
-    static constexpr float            s_kInkSizeWobble          = 0.08f;
-    static constexpr float            s_kInkRiseWobble          = 0.06f;
-    static constexpr float            s_kInkSpaceWobble         = 0.10f;
+    // off the line (of the letter height), its spacing, its lean (as the
+    // tangent of the slant), and how much lighter the ink can come out; and
+    // how often a letter is pressed harder, drawn heavier.
+    static constexpr float            s_kInkSizeWobble          = 0.10f;
+    static constexpr float            s_kInkRiseWobble          = 0.08f;
+    static constexpr float            s_kInkSpaceWobble         = 0.18f;
+    static constexpr float            s_kInkSlantWobble         = 0.14f;
     static constexpr float            s_kInkPressWobble         = 0.25f;
+    static constexpr float            s_kInkHeavyShare          = 0.3f;
+    static constexpr float            s_kInkHeavyOffset         = 0.03f;  // of the letter size, between a heavy letter's two strokes
+    static constexpr float            s_kCassetteInkRoom        = 0.9f;   // of the width, before a title goes to two rows
+    static constexpr float            s_kInkSpaceEm             = 0.4f;   // a space between words, at the least
+
+    // One written letter, as PaintHandwritten lays it out.
+    struct InkGlyph
+    {
+        wchar_t  ch      = 0;
+        float    size    = 0.0f;
+        float    rise    = 0.0f;
+        float    advance = 0.0f;
+        float    slant   = 0.0f;
+        float    ink     = 1.0f;
+        bool     isHeavy = false;
+    };
 
     void    SyncSceneDriveLabels ();
     bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
@@ -1180,9 +1198,20 @@ private:
     // for each name's glow.
     static LONG GetSceneLabelCellTopPx    (int cell, const SIZE & cellPx);
     static LONG GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx);
-    static LONG GetSceneLabelCellWidthPx  (int cell, const SIZE & cellPx);
+    LONG        GetSceneLabelCellWidthPx  (int cell, const SIZE & cellPx) const;
 
     static void  PaintHandwritten (IDxuiTextRenderer & text, const std::wstring & name, float top,
+                                   float width, float height);
+    static void  LayOutInk        (IDxuiTextRenderer & text, const std::wstring & name, float basePx,
+                                   uint32_t & seed, std::vector<InkGlyph> & glyphs);
+    static float GetInkWidth      (const std::vector<InkGlyph> & glyphs);
+    static void  SplitInk         (const std::vector<InkGlyph> & glyphs, std::vector<InkGlyph> & first,
+                                   std::vector<InkGlyph> & second);
+    static void  FillInk          (const std::vector<InkGlyph> & glyphs, float width, std::vector<InkGlyph> & first,
+                                   std::vector<InkGlyph> & second);
+    static void  FitInk           (IDxuiTextRenderer & text, std::vector<InkGlyph> & row, float width,
+                                   float basePx, uint32_t & seed);
+    static void  DrawInkRow       (IDxuiTextRenderer & text, const std::vector<InkGlyph> & row, float top,
                                    float width, float height);
     static float NextWobble       (uint32_t & seed);
 

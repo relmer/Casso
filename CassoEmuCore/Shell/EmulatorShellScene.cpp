@@ -1999,27 +1999,22 @@ LONG EmulatorShell::GetSceneLabelCellTopPx (int cell, const SIZE & cellPx)
 //
 //  EmulatorShell::PaintHandwritten
 //
-//  Writes `name` across a cell as a hand would: one letter at a time, each a
-//  little larger or smaller than the last, a little above or below the line,
-//  a little further or closer, and pressed a little harder or lighter, so no
-//  two of the same letter come out alike. The wobble is seeded by the name,
-//  so a title is written the same way every time it is drawn. The whole
-//  line is sized down until it fits the cell, then centered in it.
+//  Writes `name` across a cell as a hand would, in two rows: on the upper
+//  row when it fits there comfortably, otherwise broken across both at the
+//  space that balances them best. The letters are never shrunk to fit; a
+//  row still too long ends in an ellipsis.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PaintHandwritten (IDxuiTextRenderer & text, const std::wstring & name, float top,
                                       float width, float height)
 {
-    std::vector<float>  sizes;
-    std::vector<float>  rises;
-    std::vector<float>  advances;
-    std::vector<float>  inks;
-    float               basePx  = height * s_kCassetteInkHeightRatio;
-    float               scale   = 1.0f;
-    float               total   = 0.0f;
-    float               x       = 0.0f;
-    uint32_t            seed    = 0x811C9DC5;
+    std::vector<InkGlyph>               glyphs;
+    std::vector<std::vector<InkGlyph>>  rows;
+    float                               rowH   = height * 0.5f;
+    float                               basePx = rowH * s_kCassetteInkHeightRatio;
+    float                               room   = width * s_kCassetteInkRoom;
+    uint32_t                            seed   = 0x811C9DC5;
 
 
 
@@ -2028,49 +2023,271 @@ void EmulatorShell::PaintHandwritten (IDxuiTextRenderer & text, const std::wstri
         seed = (seed ^ (uint32_t) ch) * 0x01000193;
     }
 
-    // Measure the line as it will be written, letter by letter.
-    for (size_t k = 0; k < name.size(); k++)
-    {
-        wchar_t  letter[2] = { name[k], 0 };
-        float    size      = basePx * (1.0f + s_kInkSizeWobble   * NextWobble (seed));
-        float    w         = 0.0f;
-        float    h         = 0.0f;
-        HRESULT  hr        = text.MeasureString (letter, size, s_kpszCassetteInkFace, w, h);
+    LayOutInk (text, name, basePx, seed, glyphs);
 
+    if (GetInkWidth (glyphs) <= room)
+    {
+        rows.push_back (glyphs);
+    }
+    else
+    {
+        rows.resize (2);
+        SplitInk (glyphs, rows[0], rows[1]);
+
+        // Too long for two even rows: fill the first and run the rest on,
+        // so only the very end is lost to the ellipsis.
+        if (GetInkWidth (rows[0]) > width || GetInkWidth (rows[1]) > width)
+        {
+            FillInk (glyphs, width, rows[0], rows[1]);
+        }
+    }
+
+    for (size_t r = 0; r < rows.size(); r++)
+    {
+        FitInk     (text, rows[r], width, basePx, seed);
+        DrawInkRow (text, rows[r], top + (float) r * rowH, width, rowH);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LayOutInk
+//
+//  Each letter as a hand writes it: a little larger or smaller than the
+//  last, a little above or below the line, a little further or closer, at
+//  its own lean, pressed a little harder or lighter, now and then heavier.
+//  So no two of the same letter come out alike. The wobble is drawn from
+//  `seed`, so a title is written the same way every time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayOutInk (IDxuiTextRenderer & text, const std::wstring & name, float basePx, uint32_t & seed,
+                               std::vector<InkGlyph> & glyphs)
+{
+    for (wchar_t ch : name)
+    {
+        wchar_t   letter[2] = { ch, 0 };
+        InkGlyph  glyph;
+        float     w         = 0.0f;
+        float     h         = 0.0f;
+        HRESULT   hr        = S_OK;
+
+        glyph.ch   = ch;
+        glyph.size = basePx * (1.0f + s_kInkSizeWobble * NextWobble (seed));
+
+        hr = text.MeasureString (letter, glyph.size, s_kpszCassetteInkFace, w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        // A space measures as nothing on its own; give it a quarter em.
-        if (name[k] == L' ')
+        glyph.rise    = basePx * s_kInkRiseWobble * NextWobble (seed);
+        glyph.advance = w * (1.0f + s_kInkSpaceWobble * NextWobble (seed));
+
+        // A space measures as nothing on its own; give it a good part of an
+        // em, and only ever let it grow, so words never run together.
+        if (ch == L' ')
         {
-            w = size * 0.25f;
+            glyph.advance = glyph.size * (s_kInkSpaceEm + s_kInkSpaceWobble * 0.5f * (1.0f + NextWobble (seed)));
         }
 
-        sizes.push_back    (size);
-        rises.push_back    (basePx * s_kInkRiseWobble    * NextWobble (seed));
-        advances.push_back (w * (1.0f + s_kInkSpaceWobble * NextWobble (seed)));
-        inks.push_back     (1.0f - s_kInkPressWobble * 0.5f * (1.0f + NextWobble (seed)));
-        total += advances.back();
+        glyph.slant   = s_kInkSlantWobble * NextWobble (seed);
+        glyph.ink     = 1.0f - s_kInkPressWobble * 0.5f * (1.0f + NextWobble (seed));
+        glyph.isHeavy = (NextWobble (seed) + 1.0f) * 0.5f < s_kInkHeavyShare;
+
+        glyphs.push_back (glyph);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetInkWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float EmulatorShell::GetInkWidth (const std::vector<InkGlyph> & glyphs)
+{
+    float  total = 0.0f;
+
+
+
+    for (const InkGlyph & glyph : glyphs)
+    {
+        total += glyph.advance;
     }
 
-    if (total > width && total > 0.0f)
+    return total;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SplitInk
+//
+//  Breaks a line in two at the space that leaves the longer half shortest,
+//  dropping the space. A title with no space breaks where the halves come
+//  nearest even.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SplitInk (const std::vector<InkGlyph> & glyphs, std::vector<InkGlyph> & first,
+                              std::vector<InkGlyph> & second)
+{
+    float   total    = GetInkWidth (glyphs);
+    float   before   = 0.0f;
+    float   best     = FLT_MAX;
+    size_t  at       = glyphs.size() / 2;
+    bool    isSpace  = false;
+    bool    hasSpace = std::any_of (glyphs.begin(), glyphs.end(), [] (const InkGlyph & g) { return g.ch == L' '; });
+
+
+
+    for (size_t k = 0; k < glyphs.size(); k++)
     {
-        scale = width / total;
+        float  longer = std::max (before, total - before - glyphs[k].advance);
+
+        if ((!hasSpace || glyphs[k].ch == L' ') && longer < best)
+        {
+            best    = longer;
+            at      = k;
+            isSpace = glyphs[k].ch == L' ';
+        }
+
+        before += glyphs[k].advance;
     }
 
-    x = (width - total * scale) * 0.5f;
+    first.assign  (glyphs.begin(), glyphs.begin() + (ptrdiff_t) at);
+    second.assign (glyphs.begin() + (ptrdiff_t) at + (isSpace ? 1 : 0), glyphs.end());
+}
 
-    for (size_t k = 0; k < name.size(); k++)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FillInk
+//
+//  Breaks a line at the last space that leaves the first row within
+//  `width`, dropping the space -- or, if no word fits, at the last letter
+//  that does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FillInk (const std::vector<InkGlyph> & glyphs, float width, std::vector<InkGlyph> & first,
+                             std::vector<InkGlyph> & second)
+{
+    float   used    = 0.0f;
+    size_t  fits    = 0;
+    size_t  at      = 0;
+    bool    isSpace = false;
+
+
+
+    for (size_t k = 0; k < glyphs.size() && used + glyphs[k].advance <= width; k++)
     {
-        wchar_t   letter[2] = { name[k], 0 };
-        uint32_t  alpha     = (uint32_t) (inks[k] * 255.0f + 0.5f);
+        used += glyphs[k].advance;
+        fits  = k + 1;
+
+        if (k + 1 < glyphs.size() && glyphs[k + 1].ch == L' ')
+        {
+            at = k + 1;
+        }
+    }
+
+    isSpace = at > 0;
+    at      = isSpace ? at : fits;
+
+    first.assign  (glyphs.begin(), glyphs.begin() + (ptrdiff_t) at);
+    second.assign (glyphs.begin() + (ptrdiff_t) std::min (glyphs.size(), at + (isSpace ? 1 : 0)), glyphs.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FitInk
+//
+//  A row too long for the cell loses letters from its end, and any space
+//  left there, until it and an ellipsis fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FitInk (IDxuiTextRenderer & text, std::vector<InkGlyph> & row, float width, float basePx,
+                            uint32_t & seed)
+{
+    std::vector<InkGlyph>  ellipsis;
+
+
+
+    if (GetInkWidth (row) <= width)
+    {
+        return;
+    }
+
+    LayOutInk (text, std::wstring (1, s_kchEllipsis), basePx, seed, ellipsis);
+
+    while (!row.empty() && (GetInkWidth (row) + GetInkWidth (ellipsis) > width || row.back().ch == L' '))
+    {
+        row.pop_back();
+    }
+
+    row.insert (row.end(), ellipsis.begin(), ellipsis.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DrawInkRow
+//
+//  One row of letters, centered across the cell, each at its own size,
+//  rise, lean and pressure. A heavy letter is gone over twice, a hair apart,
+//  as a pen pressed harder leaves a wider stroke.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DrawInkRow (IDxuiTextRenderer & text, const std::vector<InkGlyph> & row, float top, float width,
+                                float height)
+{
+    float  x     = (width - GetInkWidth (row)) * 0.5f;
+    float  pivot = top + height * 0.75f;
+
+
+
+    for (const InkGlyph & glyph : row)
+    {
+        wchar_t   letter[2] = { glyph.ch, 0 };
+        uint32_t  alpha     = (uint32_t) (glyph.ink * 255.0f + 0.5f);
         uint32_t  argb      = (alpha << 24) | (s_kCassetteInkArgb & 0x00FFFFFF);
-        HRESULT   hr        = text.DrawString (letter, x, top + rises[k] * scale, advances[k] * scale + sizes[k],
-                                               height, argb, sizes[k] * scale, s_kpszCassetteInkFace,
-                                               DxuiTextHAlign::Left, DxuiTextVAlign::Center,
-                                               DxuiFontWeight::Normal, false);
 
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        x += advances[k] * scale;
+        text.PushTextSkew (glyph.slant, pivot);
+
+        for (int pass = 0; pass < (glyph.isHeavy ? 2 : 1); pass++)
+        {
+            HRESULT  hr = text.DrawString (letter, x + (float) pass * glyph.size * s_kInkHeavyOffset,
+                                           top + glyph.rise, glyph.advance + glyph.size, height, argb,
+                                           glyph.size, s_kpszCassetteInkFace,
+                                           DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+                                           DxuiFontWeight::Normal, false);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        text.PopTextSkew();
+        x += glyph.advance;
     }
 }
 
@@ -2111,7 +2328,7 @@ float EmulatorShell::NextWobble (uint32_t & seed)
 
 LONG EmulatorShell::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
 {
-    return (cell == s_kSceneCassetteCell) ? cellPx.cy * s_kCassetteCellScale : cellPx.cy;
+    return (cell == s_kSceneCassetteCell) ? cellPx.cy * s_kCassetteCellTall : cellPx.cy;
 }
 
 
@@ -2122,14 +2339,28 @@ LONG EmulatorShell::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
 //
 //  EmulatorShell::GetSceneLabelCellWidthPx
 //
-//  The cassette's title cell is scaled up in width as in height, so it keeps
-//  the label's own long, narrow shape.
+//  The cassette's title cell takes the writing area's own shape, its height
+//  times the area's width over its depth, so the quad laid over the area
+//  fills it exactly and each row lands on its ruled line. The other cells
+//  are a name strip wide.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx)
+LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) const
 {
-    return (cell == s_kSceneCassetteCell) ? cellPx.cx * s_kCassetteCellScale : cellPx.cx;
+    const float *  box   = m_deskScene.RecorderModel().CassetteTitleBox();
+    float          areaW = box[3] - box[0];
+    float          areaD = box[4] - box[1];
+    LONG           width = cellPx.cx;
+
+
+
+    if (cell == s_kSceneCassetteCell && areaW > 0.0f && areaD > 0.0f)
+    {
+        width = (LONG) lroundf ((float) GetSceneLabelCellHeightPx (cell, cellPx) * areaW / areaD);
+    }
+
+    return width;
 }
 
 

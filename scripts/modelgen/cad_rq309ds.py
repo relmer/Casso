@@ -229,17 +229,22 @@ def build():
 
     stripe = (box(ccx - LBL_HW, ccx + LBL_HW, LBL_Y1 - 9.0, LBL_Y1 - 5.0, cz + 0.15, cz + 0.2))
     m.add("cassette_stripe", stripe, CASS_STRIPE)
+    # Where a title is written on the label: across it, below the spindle
+    # holes, two rows deep. Metadata only -- the scene writes the tape's name
+    # here, in the upper row when it fits on one line. The writing lines are
+    # ruled where each row's letters stand, a little over a quarter of the
+    # row up from its foot.
+    TITLE_Y0, TITLE_Y1 = LBL_Y0 + 0.5, hub_y - 7.0
+    ROW_H              = (TITLE_Y1 - TITLE_Y0) / 2
     lines = None
-    for ly in (LBL_Y0 + 4.0, LBL_Y0 + 8.0):
-        ln = box(ccx - LBL_HW + 4, ccx + LBL_HW - 4, ly, ly + 0.35, cz + 0.15, cz + 0.2)
+    for row_top in (TITLE_Y1, TITLE_Y1 - ROW_H):
+        ly = row_top - 0.72 * ROW_H
+        ln = box(ccx - LBL_HW + 4, ccx + LBL_HW - 4, ly - 0.175, ly + 0.175, cz + 0.15, cz + 0.2)
         lines = ln if lines is None else lines.union(ln)
     m.add("cassette_lines", lines, CASS_LINE)
 
-    # Where a title is written on the label: across it, on the upper writing
-    # line, below the spindle holes. Metadata only -- the scene writes the
-    # tape's name here.
     m.add("cassette_title_anchor",
-          box(ccx - LBL_HW + 4, ccx + LBL_HW - 4, LBL_Y0 + 7.0, hub_y - 7.0, cz + 0.2, cz + 0.25), CASS_LINE)
+          box(ccx - LBL_HW + 4, ccx + LBL_HW - 4, TITLE_Y0, TITLE_Y1, cz + 0.2, cz + 0.25), CASS_LINE)
 
     # Tape wound on each spool, seen through the window and the hub holes.
     packs = None
