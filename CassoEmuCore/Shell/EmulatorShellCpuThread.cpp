@@ -37,6 +37,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Shell/FrameCycleBudget.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -1117,16 +1118,19 @@ void EmulatorShell::TickKeyboardAutoRepeat()
 //  the audio and video cadence stay at their real rates and only the guest
 //  runs faster.
 //
+//  The target runs the cycle count to the next frame boundary rather than a
+//  fixed frame's worth past wherever the last pass ended. FrameCycleBudget
+//  says why: the last instruction's overshoot is repaid, and a pass a stop
+//  cut short is finished rather than restarted.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ExecuteCpuSlices()
 {
-    static constexpr uint32_t kSliceCycles = 1023;
-
-
-
     HRESULT   hr              = S_OK;
-    uint32_t  targetCycles    = m_cyclesPerFrame;
+    uint32_t  nominalCycles   = m_cyclesPerFrame;
+    uint32_t  targetCycles    = 0;
+    uint32_t  executed        = 0;
     SpeedMode speed           = m_cpuManager.GetSpeedMode();
     bool      audioActive     = false;
     bool      isSilent        = false;
@@ -1162,7 +1166,12 @@ void EmulatorShell::ExecuteCpuSlices()
 
     if (speed == SpeedMode::Double)
     {
-        targetCycles *= 2;
+        nominalCycles *= 2;
+    }
+
+    if (m_machine.GetCpu() != nullptr)
+    {
+        targetCycles = FrameCycleBudget::GetTarget (nominalCycles, m_machine.GetCpu()->GetTotalCycles());
     }
 
     if (audioActive)
@@ -1172,13 +1181,13 @@ void EmulatorShell::ExecuteCpuSlices()
         m_machine.GetRefs().speaker->BeginFrame();
     }
 
-    for (uint32_t executed = 0; executed < targetCycles; )
+    while (executed < targetCycles)
     {
         sliceTarget = targetCycles - executed;
 
-        if (sliceTarget > kSliceCycles)
+        if (sliceTarget > FrameCycleBudget::kSliceCycles)
         {
-            sliceTarget = kSliceCycles;
+            sliceTarget = FrameCycleBudget::kSliceCycles;
         }
 
         // Feed the next paste character if available; the slice budget is

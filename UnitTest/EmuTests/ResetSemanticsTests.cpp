@@ -242,7 +242,7 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (SoftResetClearsVideoTimingCycleCounterPerSpec)
+    TEST_METHOD (SoftResetLeavesVideoTimingCycleCounter)
     {
         VideoTiming     vt;
 
@@ -252,8 +252,8 @@ public:
 
         vt.SoftReset();
 
-        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame(),
-            L"data-model.md: SoftReset clears VideoTiming cycle counter");
+        Assert::AreEqual (static_cast<uint32_t> (1234), vt.GetCycleInFrame(),
+            L"A /RESET does not reach the video counters, so the beam stays in step with the CPU's cycle count");
     }
 
 

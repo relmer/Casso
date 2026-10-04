@@ -43,11 +43,11 @@ public:
     uint32_t      GetHorizontalPos   () const          { return m_cycleCounter % kCyclesPerScanline; }
     void          Reset              () override       { m_cycleCounter = 0; }
 
-    // Phase 4 split-reset (FR-034 / FR-035, data-model.md line 326).
-    // Both paths clear the cycle counter; PowerCycle accepts a Prng for
-    // signature symmetry but does not consume any randomness — there is
-    // no DRAM-shaped state on the timing model.
-    void          SoftReset       () { m_cycleCounter = 0; }
+    // A /RESET reaches the 6502, not the video counters, so a soft reset
+    // leaves the beam where it is and the counter in step with the CPU's
+    // cycle count. Power-on zeroes both. PowerCycle accepts a Prng for
+    // signature symmetry but consumes no randomness.
+    void          SoftReset       () {}
     void          PowerCycle      (Prng & prng);
 
     // IMachineState: the cycle within the frame, from which the beam

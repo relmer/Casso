@@ -12,7 +12,8 @@
 //
 //  PowerCycle
 //
-//  Same effect as SoftReset — the timing model has no DRAM-shaped state.
+//  Zeroes the counter, as power-on zeroes the CPU's cycle count, so the two
+//  start together. The timing model has no DRAM-shaped state to seed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +21,7 @@ void VideoTiming::PowerCycle (Prng & prng)
 {
     UNREFERENCED_PARAMETER (prng);
 
-    SoftReset();
+    Reset();
 }
 
 
