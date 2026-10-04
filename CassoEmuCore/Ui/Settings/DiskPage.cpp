@@ -293,7 +293,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     // Off records new tapes as 16-bit, the common format. Some tools, among
-    // them CiderPress II, read only 8-bit; a tape recorded onto keeps its own.
+    // them CiderPress II, read only 8-bit; recording onto an existing tape keeps its bit depth.
     m_tapeEightBitLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_tapeEightBitLabel.SetText (L"Record new tapes as 8-bit:");
     // Only as wide as its pill and its On or Off, so the info tip sits right
@@ -301,8 +301,8 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeEightBit.SetRect      (MakeRect (controlsX, y, infoAt, rowHeight));
     m_tapeEightBitInfo.SetRect  (MakeRect (controlsX + infoAt, y, rowHeight, rowHeight));
     m_tapeEightBitInfo.SetText  (L"Casso reads 8-bit and 16-bit tapes alike. Some other tools, such as "
-                                 L"CiderPress II, read only 8-bit WAV files. A tape you record onto keeps "
-                                 L"its own format.");
+                                 L"CiderPress II, read only 8-bit WAV files. This applies only to new blank "
+                                 L"tapes; recording onto an existing tape keeps its bit depth.");
     y += rowHeight + sectionGap;
 
     // Below both sections, because it restores the whole page.
