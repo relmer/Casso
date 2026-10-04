@@ -341,41 +341,20 @@ void WindowPlacementProfile::Save (
     const Bounds      & bounds,
     Target              target)
 {
+    std::map<std::string, Bounds> *  saved   = nullptr;
+    Bounds                           stamped = bounds;
+
+
+
     if (m_prefs == nullptr)
     {
         return;
     }
 
-    if (target == Target::Debugger)
-    {
-        m_prefs->window.debuggerPlacements[topologyKey] = bounds;
-        Touch (m_prefs->window.touchedDebugger, topologyKey);
-        return;
-    }
+    saved             = (target == Target::Debugger) ? &m_prefs->window.debuggerPlacements : &m_prefs->window.placements;
+    stamped.savedAtMs = GlobalUserPrefs::GetNextStampMs (saved->contains (topologyKey) ? saved->at (topologyKey).savedAtMs : 0);
 
-    m_prefs->window.placements[topologyKey] = bounds;
-    Touch (m_prefs->window.touched, topologyKey);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WindowPlacementProfile::Touch
-//
-//  Records that this session's user put a window here, so the save keeps it
-//  and leaves every other key to whatever is on disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WindowPlacementProfile::Touch (std::vector<std::string> & keys, const std::string & topologyKey)
-{
-    if (std::find (keys.begin(), keys.end(), topologyKey) == keys.end())
-    {
-        keys.push_back (topologyKey);
-    }
+    (*saved)[topologyKey] = stamped;
 }
 
 
@@ -452,6 +431,29 @@ RECT WindowPlacementProfile::FitToWorkArea (const RECT & work,
     out.top    = y;
     out.right  = x + w;
     out.bottom = y + h;
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::MoveOntoWorkArea
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT WindowPlacementProfile::MoveOntoWorkArea (const RECT & work, const RECT & rect)
+{
+    int   w   = std::min ((int) (rect.right  - rect.left), (int) (work.right  - work.left));
+    int   h   = std::min ((int) (rect.bottom - rect.top),  (int) (work.bottom - work.top));
+    int   x   = std::clamp ((int) rect.left, (int) work.left, (int) work.right  - w);
+    int   y   = std::clamp ((int) rect.top,  (int) work.top,  (int) work.bottom - h);
+    RECT  out = { x, y, x + w, y + h };
+
+
 
     return out;
 }

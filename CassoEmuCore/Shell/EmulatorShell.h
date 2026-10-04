@@ -601,6 +601,8 @@ private:
     std::string  GetDebuggerPlacementKey () const;
     bool         TryGetDebuggerPlacement (RECT & rectPx) override;
     void         SetDebuggerPlacement    (const RECT & rectPx) override;
+    bool         TryGetDebuggerWindowState (RECT & rectPx, bool & maximized) override;
+    void         SetDebuggerWindowState    (const RECT & rectPx, bool maximized) override;
     SourceLookup FindDebuggerSource   (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                        const std::string & programKey) override;
     SourceLookup MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,

@@ -341,7 +341,7 @@ public:
         //  A writer that only ever set its own window, saving the whole
         //  document: the debugger map it never touched must come back.
         WindowPlacementProfile (writer).Save ("T", { 1, 2, 300, 200 });
-        writer.MergeUntouchedPlacements (onDisk);
+        writer.MergeNewerPlacements (onDisk);
 
         Assert::AreEqual ((size_t) 1, writer.window.debuggerPlacements.size(), L"kept, not wiped");
         Assert::AreEqual (30, writer.window.debuggerPlacements["T"].x);
@@ -384,6 +384,80 @@ public:
         Assert::AreEqual (400,        loaded.window.placements["T"].x, L"the window the user moved keeps its place");
         Assert::AreEqual (900,        loaded.window.placements["T"].w);
         Assert::AreEqual (size_t (1), loaded.recentDisks.size(),       L"the other instance's own change is still saved");
+    }
+
+
+    //  An instance left open for a day moved its windows once, long ago.
+    //  The user then sized them again in a newer instance and closed it. A
+    //  save from the old instance, for any reason at all, must not put its
+    //  stale placement back over the newer one.
+    TEST_METHOD (AnOldPlacementDoesNotOverwriteANewerOne)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     longLived;
+        GlobalUserPrefs     newer;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+
+
+
+        WindowPlacementProfile (longLived).Save ("T", { 400, 300, 1500, 1000 }, WindowPlacementProfile::Target::Debugger);
+        WindowPlacementProfile (longLived).Save ("T", { 10, 10, 800, 600 });
+        hr = longLived.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = newer.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        WindowPlacementProfile (newer).Save ("T", { 450, 320, 1900, 1300 }, WindowPlacementProfile::Target::Debugger);
+        WindowPlacementProfile (newer).Save ("T", { 20, 30, 900, 700 });
+        hr = newer.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        longLived.recentDisks.push_back ("C:\\Disks\\game.dsk");
+        hr = longLived.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (1900, loaded.window.debuggerPlacements["T"].w, L"the debugger keeps the newer size");
+        Assert::AreEqual (1300, loaded.window.debuggerPlacements["T"].h);
+        Assert::AreEqual (900,  loaded.window.placements["T"].w,         L"the main window keeps the newer size");
+    }
+
+
+    //  Floating panes keep their rects in the pane arrangement, so it must
+    //  survive the same long-lived instance.
+    TEST_METHOD (AnOldPaneArrangementDoesNotOverwriteANewerOne)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     longLived;
+        GlobalUserPrefs     newer;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+
+
+
+        longLived.SetDebuggerLayout ("old");
+        hr = longLived.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = newer.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        newer.SetDebuggerLayout ("new");
+        hr = newer.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        longLived.recentDisks.push_back ("C:\\Disks\\game.dsk");
+        hr = longLived.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (string ("new"), loaded.debuggerLayout, L"the newer arrangement stays");
     }
 
     TEST_METHOD (DebuggerLayout_RoundTrips)
