@@ -295,6 +295,31 @@ __declspec (noinline) void SiriusJoyport::ObserveJack (size_t jack, unsigned lon
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SampleHostInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SiriusJoyport::SampleHostInputs()
+{
+    size_t  jack = 0;
+
+
+
+    ObserveSetting (InputLine::JoyportAttached,         m_isAttached.load          (memory_order_acquire));
+    ObserveSetting (InputLine::JoyportPaddlesConnected, m_arePaddlesConnected.load (memory_order_acquire));
+
+    for (jack = 0; jack < JoyportJacks::kJackCount; jack++)
+    {
+        ObserveJack (jack, m_jacks[jack].load (memory_order_acquire));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetInputJournal
 //
 //  The settings at the moment of attaching are what a keyframe taken then

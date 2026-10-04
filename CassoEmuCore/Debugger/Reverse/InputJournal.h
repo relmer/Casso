@@ -128,6 +128,14 @@ struct InputRecord
 //  device holds a pointer to the journal only while it is on, so with the
 //  journal off its reads pay one null test and nothing else.
 //
+//  The CPU thread also samples those devices at the start of each execution
+//  slice (MachineHost::SampleHostInputs), so a value another thread wrote is
+//  journaled where the machine first held it, not only where a read first saw
+//  it. While sampling is set, RecordObserved makes a boundary record instead,
+//  which a replay applies on landing at its position. A sample updates the
+//  same last-seen value a read compares with, so a read after it records
+//  nothing for the same change.
+//
 //  The records sit in one vector from m_head on. Dropped records leave their
 //  slots behind, which a later record is written over, payload string and
 //  all, so a journal that has reached its working size records without
@@ -142,6 +150,7 @@ public:
     bool  IsOn              () const                          { return m_isOn; }
     void  SetPositionSource (const uint64_t * positionSource) { m_positionSource = positionSource; }
     void  SetCycleSource    (const uint64_t * cycleSource)    { m_cycleSource = cycleSource; }
+    void  SetSampling       (bool isSampling)                 { m_isSampling = isSampling; }
 
     uint64_t  GetCycle() const { return (m_cycleSource != nullptr) ? *m_cycleSource : 0; }
 
@@ -166,4 +175,5 @@ private:
     const uint64_t           * m_positionSource = nullptr;
     const uint64_t           * m_cycleSource    = nullptr;
     bool                       m_isOn           = false;
+    bool                       m_isSampling     = false;
 };

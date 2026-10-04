@@ -368,6 +368,26 @@ __declspec (noinline) void AppleKeyboard::ObserveKeyDown (bool isDown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SampleHostInputs
+//
+//  The latch and the any-key-down line as they stand, compared with what was
+//  last seen. A key pressed but not yet read is in the machine from here on,
+//  so a replay landing between here and the read holds it too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::SampleHostInputs()
+{
+    ObserveLatch   (m_latchedKey.load (memory_order_acquire));
+    ObserveKeyDown (m_anyKeyDown.load (memory_order_acquire));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginKeyRepeat
 //
 //  Arms the //e auto-repeat for the freshly-pressed key, then raises the

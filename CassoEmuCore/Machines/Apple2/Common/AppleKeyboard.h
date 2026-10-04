@@ -118,6 +118,10 @@ public:
     // it. Returns false for a record this keyboard does not hold.
     virtual bool ApplyInput (const InputRecord & record);
 
+    // Journal attached, at a slice boundary: records what another thread
+    // changed since it was last seen, as a read would.
+    virtual void SampleHostInputs();
+
     // Latch a key from the CPU thread when the caller journals the key
     // itself (a paste), so the next read does not record it a second time.
     void PressKeyOnCpuThread (Byte asciiChar);

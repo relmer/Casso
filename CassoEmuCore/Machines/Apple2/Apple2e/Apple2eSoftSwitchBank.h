@@ -105,6 +105,10 @@ public:
     void SetInputJournal (InputJournal * journal);
     bool ApplyInput      (const InputRecord & record);
 
+    // Journal attached, at a slice boundary: records a position another
+    // thread staged since it was last seen, as a read would.
+    void SampleHostInputs();
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;

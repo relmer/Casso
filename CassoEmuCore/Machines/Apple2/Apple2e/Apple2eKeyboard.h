@@ -157,7 +157,8 @@ public:
 
     // Replay: the base keyboard's records plus Open Apple, Closed Apple,
     // Shift and the //c 80/40 switch.
-    bool ApplyInput (const InputRecord & record) override;
+    bool ApplyInput       (const InputRecord & record) override;
+    void SampleHostInputs () override;
 
     // IMachineState: the base keyboard's section, the modifier keys, the
     // reset hold, and the //c case switches. Whether the machine is a //c and

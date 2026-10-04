@@ -59,6 +59,10 @@ public:
     void  SetInputJournal (InputJournal * journal);
     bool  ApplyInput      (const InputRecord & record);
 
+    // Journal attached, at a slice boundary: records what another thread
+    // changed since it was last seen, as a read would.
+    void  SampleHostInputs();
+
     // IMachineState: the jack switches, whether the Joyport is attached and
     // the rear sockets are in use, and the reset window. Version 1 held no
     // attached setting or sockets, so loading it leaves both as they are.

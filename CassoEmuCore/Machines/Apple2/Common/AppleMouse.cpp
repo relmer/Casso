@@ -134,12 +134,15 @@ void AppleMouse::Tick (uint32_t cpuCycles)
             int  dx = m_hostDx.exchange (0, std::memory_order_acq_rel);
             int  dy = m_hostDy.exchange (0, std::memory_order_acq_rel);
 
-            // Both deltas in one record, X in the high half.
-            if (m_inputJournal != nullptr)
+            // Both deltas in one record, X in the high half. A slice-boundary
+            // sample may already have recorded exactly this motion.
+            if (m_inputJournal != nullptr && (dx != m_observedDx || dy != m_observedDy))
             {
-                m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - cpuCycles, InputKind::MouseMove, 0, 0,
-                                                (static_cast<uint64_t> (static_cast<uint32_t> (dx)) << 32) | static_cast<uint32_t> (dy));
+                m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - cpuCycles, InputKind::MouseMove, 0, 0, PackMotion (dx, dy));
             }
+
+            m_observedDx = 0;
+            m_observedDy = 0;
 
             m_pendingX = std::clamp (m_pendingX + dx, -kMaxPending, kMaxPending);
             m_pendingY = std::clamp (m_pendingY + dy, -kMaxPending, kMaxPending);
@@ -380,6 +383,8 @@ bool AppleMouse::ApplyInput (const InputRecord & record)
         case InputKind::MouseMove:
             m_hostDx.store (static_cast<int> (static_cast<uint32_t> (record.data >> 32)), std::memory_order_release);
             m_hostDy.store (static_cast<int> (static_cast<uint32_t> (record.data)),       std::memory_order_release);
+            m_observedDx = static_cast<int> (static_cast<uint32_t> (record.data >> 32));
+            m_observedDy = static_cast<int> (static_cast<uint32_t> (record.data));
             break;
 
         case InputKind::MouseButton:
@@ -417,6 +422,64 @@ void AppleMouse::SyncObservedInputs()
     m_observedButton    = m_hostButton.load (std::memory_order_acquire);
     m_observedHasTarget = m_hasTarget.load  (std::memory_order_acquire);
     m_observedTarget    = m_hostTarget.load (std::memory_order_acquire);
+    m_observedDx        = m_hostDx.load     (std::memory_order_acquire);
+    m_observedDy        = m_hostDy.load     (std::memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SampleHostInputs
+//
+//  Motion is recorded as the whole amount waiting, which a replay stores; the
+//  drain in Tick records again only when more arrived after this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleMouse::SampleHostInputs()
+{
+    bool      hasTarget = m_hasTarget.load  (std::memory_order_acquire);
+    uint32_t  target    = m_hostTarget.load (std::memory_order_acquire);
+    int       dx        = m_hostDx.load     (std::memory_order_acquire);
+    int       dy        = m_hostDy.load     (std::memory_order_acquire);
+
+
+
+    ObserveButton (m_hostButton.load (std::memory_order_acquire));
+
+    if (hasTarget != m_observedHasTarget || target != m_observedTarget)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::MouseTarget, hasTarget ? 1 : 0, 0, target);
+        m_observedHasTarget = hasTarget;
+        m_observedTarget    = target;
+    }
+
+    if (dx != m_observedDx || dy != m_observedDy)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::MouseMove, 0, 0, PackMotion (dx, dy));
+        m_observedDx = dx;
+        m_observedDy = dy;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PackMotion
+//
+//  Both deltas in one record's data, X in the high half.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t AppleMouse::PackMotion (int dx, int dy)
+{
+    return (static_cast<uint64_t> (static_cast<uint32_t> (dx)) << 32) | static_cast<uint32_t> (dy);
 }
 
 

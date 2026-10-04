@@ -253,6 +253,12 @@ public:
     void  AttachInputJournal ();
     bool  ApplyDeviceInput   (const InputRecord & record);
 
+    //  CPU thread, at the start of an execution slice: with the journal on,
+    //  journals each host-written input that changed since it was last seen,
+    //  at this position, so a replay landing anywhere after it holds it.
+    //  With the journal off it does nothing.
+    void  SampleHostInputs();
+
     //  The saved state of every device whose state another thread writes
     //  (keyboard, game port, //e paddles and buttons, mouse, Joyport), as
     //  one blob, and back; see InputKind::HostState.

@@ -331,6 +331,33 @@ __declspec (noinline) void AppleGamePort::ObservePaddle (int axis, Byte position
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SampleHostInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleGamePort::SampleHostInputs()
+{
+    int  i = 0;
+
+
+
+    for (i = 0; i < s_knButtonCount; i++)
+    {
+        ObserveButton (i, m_buttonState[i].load (memory_order_acquire));
+    }
+
+    for (i = 0; i < s_knPaddleAxisCount; i++)
+    {
+        ObservePaddle (i, m_paddlePosition[i].load (memory_order_acquire));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SyncObservedInputs
 //
 //  The CPU thread changed the staged state itself (attach, reset, load), so

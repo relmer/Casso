@@ -60,6 +60,10 @@ void InputJournal::Record (
 //  the reading instruction began at, so a replay applies the value just
 //  before that instruction and the read returns what it returned live.
 //
+//  While the CPU thread samples the devices at a slice boundary, the record
+//  is a boundary record instead: no instruction has run yet, so a replay
+//  landing on the position must already hold the value.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 __declspec (noinline) void InputJournal::RecordObserved (
@@ -86,7 +90,7 @@ __declspec (noinline) void InputJournal::RecordObserved (
     record->value      = value;
     record->detail     = detail;
     record->data       = data;
-    record->isObserved = true;
+    record->isObserved = !m_isSampling;
 
     record->payload.clear();
 }

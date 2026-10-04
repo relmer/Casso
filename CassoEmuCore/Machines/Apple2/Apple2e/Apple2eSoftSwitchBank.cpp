@@ -357,6 +357,28 @@ __declspec (noinline) void Apple2eSoftSwitchBank::ObservePaddle (int axis, Byte 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SampleHostInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::SampleHostInputs()
+{
+    int  axis = 0;
+
+
+
+    for (axis = 0; axis < s_knPaddleAxisCount; axis++)
+    {
+        ObservePaddle (axis, m_paddlePosition[axis].load (memory_order_acquire));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SyncObservedInputs
 //
 //  The CPU thread changed the staged positions itself (attach, reset, load),

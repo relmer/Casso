@@ -104,6 +104,10 @@ public:
     void    SetInputJournal (InputJournal * journal);
     bool    ApplyInput      (const InputRecord & record);
 
+    // Journal attached, at a slice boundary: records the button, the target
+    // and motion not yet taken in, where each changed since last seen.
+    void    SampleHostInputs();
+
     // ICycleSink (CPU thread, from EmuCpu::AddCycles)
 
     // Cadence for the mouse's per-tick bookkeeping (retarget countdown, VBL
@@ -168,6 +172,8 @@ protected:
     void    ObserveButton      (bool isDown) const;
     void    SyncObservedInputs ();
 
+    static uint64_t  PackMotion (int dx, int dy);
+
     // Firmware screen holes (slot 7): position, clamp min/max, per axis.
     static constexpr Word     kHoleXPosLo  = 0x047F, kHoleXPosHi  = 0x057F;
     static constexpr Word     kHoleYPosLo  = 0x04FF, kHoleYPosHi  = 0x05FF;
@@ -197,6 +203,8 @@ protected:
     mutable bool       m_observedButton    = false;
     bool               m_observedHasTarget = false;
     uint32_t           m_observedTarget    = 0;
+    int                m_observedDx        = 0;
+    int                m_observedDy        = 0;
 
     // CPU-side movement queue: signed units not yet latched.
     int                       m_pendingX    = 0;

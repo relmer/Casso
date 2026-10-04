@@ -395,6 +395,7 @@ void EmulatorShell::StepInstruction()
         return;
     }
 
+    m_machine.SampleHostInputs();
     m_machine.StepOne();
 
     RenderFramebuffer();
@@ -1188,6 +1189,10 @@ void EmulatorShell::ExecuteCpuSlices()
         {
             m_machine.RecordInput (InputKind::PasteChar, pasted, 0, {});
         }
+
+        // Recording history: journal what the UI thread wrote since the last
+        // slice, here where the machine first holds it. Off, one bool test.
+        m_machine.SampleHostInputs();
 
         sliceActual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
         executed   += sliceActual;

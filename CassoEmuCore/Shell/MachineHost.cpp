@@ -580,6 +580,60 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::SampleHostInputs
+//
+//  A key pressed or a paddle moved between two guest reads is in the live
+//  machine from the moment the host wrote it, but a read records it only
+//  when the guest looks. Sampling at each slice boundary puts the change in
+//  the journal where the CPU thread first held it, as a boundary record, so
+//  every position after it replays with it. Within a slice a change still
+//  waits for the next read or the next sample, whichever comes first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SampleHostInputs()
+{
+    if (!m_inputJournal.IsOn())
+    {
+        return;
+    }
+
+    m_inputJournal.SetSampling (true);
+
+    if (m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->SampleHostInputs();
+    }
+
+    if (m_refs.gamePort != nullptr)
+    {
+        m_refs.gamePort->SampleHostInputs();
+    }
+
+    if (m_refs.iieSoftSwitches != nullptr)
+    {
+        m_refs.iieSoftSwitches->SampleHostInputs();
+    }
+
+    if (m_mouse != nullptr)
+    {
+        m_mouse->SampleHostInputs();
+    }
+
+    if (m_joyport != nullptr)
+    {
+        m_joyport->SampleHostInputs();
+    }
+
+    m_inputJournal.SetSampling (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SaveHostInputState
 //
 //  Each device's own section, back to back, in GetHostInputParts order.

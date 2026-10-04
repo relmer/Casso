@@ -220,6 +220,26 @@ __declspec (noinline) void Apple2eKeyboard::ObserveLine (InputLine line, bool is
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SampleHostInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::SampleHostInputs()
+{
+    AppleKeyboard::SampleHostInputs();
+
+    ObserveLine (InputLine::OpenApple,          m_openApple.load         (memory_order_acquire));
+    ObserveLine (InputLine::ClosedApple,        m_closedApple.load       (memory_order_acquire));
+    ObserveLine (InputLine::Shift,              m_shift.load             (memory_order_acquire));
+    ObserveLine (InputLine::EightyColumnSwitch, m_eightyColSwitchIn.load (memory_order_acquire));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SyncObservedInputs
 //
 ////////////////////////////////////////////////////////////////////////////////
