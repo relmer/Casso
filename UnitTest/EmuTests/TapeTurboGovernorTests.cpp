@@ -116,6 +116,52 @@ public:
     }
 
 
+    //  The Monitor's wait over a leader: read once, then untouched for
+    //  seconds while the leader plays. The speed holds over the leader for
+    //  up to four seconds after that read, and never once the data is
+    //  under the head.
+    TEST_METHOD (HoldsOverALeaderAfterARead)
+    {
+        TapeDeck             deck;
+        TapeImage            image;
+        TapeEncodeOptions    options;
+        std::vector<double>  halves;
+        std::vector<Byte>    data (16, 0xA5);
+        double               at       = 0.0;
+        uint64_t             dataUs   = 0;
+        uint64_t             readAt   = 100000;
+
+
+
+        options.leaderSeconds = 6.0;
+        TapeTestEncoder::AppendRecord (halves, data, options);
+
+        image.signal.sampleRate = 1000000;
+
+        for (double us : halves)
+        {
+            at += us;
+            image.signal.transitions.push_back (at);
+        }
+
+        image.signal.lengthSamples = (uint64_t) at + 1000000;
+        dataUs                     = (uint64_t) (options.leaderSeconds * 1000000.0);
+
+        deck.SetCpuClock (kClock);
+        deck.Insert (std::move (image));
+        deck.Play (0);
+        deck.ReadInputLevel (readAt);
+
+        Assert::IsTrue  (TapeTurboGovernor::ShouldRunAtMaximum (true, deck, readAt + 2000000, kClock), L"waiting over the leader");
+        Assert::IsTrue  (TapeTurboGovernor::ShouldRunAtMaximum (true, deck, readAt + 3900000, kClock));
+        Assert::IsFalse (TapeTurboGovernor::ShouldRunAtMaximum (true, deck, readAt + 4100000, kClock), L"four seconds unread");
+
+        deck.ReadInputLevel (dataUs + 50000);
+        Assert::IsFalse (TapeTurboGovernor::ShouldRunAtMaximum (true, deck, dataUs + 50000 + kWindow + 1000, kClock),
+                         L"the data is not a leader");
+    }
+
+
     TEST_METHOD (OnWhileRecordingAndTheGuestWrites)
     {
         TapeDeck  deck;

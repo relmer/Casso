@@ -2,6 +2,8 @@
 
 #include "Devices/Tape/TapeDeck.h"
 
+#include "Devices/Tape/TapeRecordScanner.h"
+
 
 
 
@@ -45,6 +47,7 @@ void TapeDeck::Insert (TapeImage && image)
     m_capture             = RecordingCapture();
     m_hasPendingRecording = false;
 
+    FindLeaders();
     PublishSnapshot();
 }
 
@@ -69,6 +72,7 @@ void TapeDeck::ReplaceImage (TapeImage && image)
     m_cursor       = 0;
     m_cursorSample = 0.0;
 
+    FindLeaders();
     PublishSnapshot();
 }
 
@@ -486,6 +490,59 @@ void TapeDeck::OnOutputToggle (uint64_t busCycle)
 double TapeDeck::GetPositionSamples (uint64_t nowCycle) const
 {
     return GetSampleAtCycle (nowCycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::IsOnLeader
+//
+//  Whether the head is over a record's leader right now: the stretch a
+//  loader only waits through.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TapeDeck::IsOnLeader (uint64_t nowCycle) const
+{
+    double  at = GetSampleAtCycle (nowCycle);
+
+
+
+    return std::any_of (m_leaders.begin(), m_leaders.end(),
+                        [at] (const std::pair<double, double> & leader) { return at >= leader.first && at < leader.second; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TapeDeck::FindLeaders
+//
+//  Where the inserted tape's leaders are, found once per image by the same
+//  scan the decoder checks its records with. Nonstandard records have none,
+//  and are simply never sped through.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TapeDeck::FindLeaders()
+{
+    std::vector<TapeRecord>  records;
+
+
+
+    m_leaders.clear();
+
+    TapeRecordScanner::Scan (m_image.signal.transitions, m_image.signal.sampleRate, records);
+
+    for (const TapeRecord & record : records)
+    {
+        m_leaders.emplace_back (record.leaderStart, record.dataStart);
+    }
 }
 
 

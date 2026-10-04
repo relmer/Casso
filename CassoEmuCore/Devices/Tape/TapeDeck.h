@@ -75,6 +75,7 @@ public:
 
     TapeTransport      GetTransport       () const { return m_transport; }
     double             GetPositionSamples (uint64_t nowCycle) const;
+    bool               IsOnLeader         (uint64_t nowCycle) const;
     uint64_t           GetLastAccessCycle () const { return m_lastAccessCycle; }
     bool               HasBeenAccessed    () const { return m_hasBeenAccessed; }
     const TapeImage  * GetImage           () const { return m_hasImage ? &m_image : nullptr; }
@@ -103,6 +104,7 @@ private:
     double  GetSampleAtCycle (uint64_t cycle) const;
     void    Halt             (uint64_t nowCycle);
     void    PublishSnapshot  ();
+    void    FindLeaders      ();
 
     TapeImage         m_image;
     bool              m_hasImage            = false;
@@ -118,6 +120,10 @@ private:
     bool              m_readSincePlay       = false;
     RecordingCapture  m_capture;
     bool              m_hasPendingRecording = false;
+
+    // Each standard record's leader on the tape, from where it starts to
+    // where its data does, in samples.
+    std::vector<std::pair<double, double>>  m_leaders;
 
     std::atomic<bool>           m_isAutoStop      { true };
     std::atomic<bool>           m_isIdleStop      { true };

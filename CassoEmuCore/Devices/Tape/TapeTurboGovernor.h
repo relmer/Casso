@@ -27,4 +27,5 @@ public:
                                      double           cpuClockHz);
 
     static constexpr double  kAccessWindowSeconds = 0.1;
+    static constexpr double  kLeaderWaitSeconds   = 4.0;    // past the Monitor's 3.5 s wait over a leader
 };
