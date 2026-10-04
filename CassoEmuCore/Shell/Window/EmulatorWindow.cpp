@@ -538,6 +538,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
+    m_host->GetRoot().Adopt (m_stripTapeLabel[0]);
+    m_host->GetRoot().Adopt (m_stripTapeLabel[1]);
+    m_host->GetRoot().Adopt (m_stripTapeLabel[2]);
     m_host->GetRoot().Adopt (m_sceneCompass);
 
     // The compass reports gestures; the shell owns what they mean. The signs

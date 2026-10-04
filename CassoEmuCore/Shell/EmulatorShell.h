@@ -1129,6 +1129,8 @@ private:
     bool    SyncRecorderKeys      (int64_t nowMs);
     void    SyncSceneTapeLabel    ();
     bool    GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3]);
+    void    SyncStripTapeLabels    (const DeskSceneComposition & comp, bool onStrip,
+                                    const std::array<std::wstring, s_kSceneLabelCount> & names);
 
     // Hands each drive's name to the scene as a depth-tested quad: bakes the
     // two strings into one texture when either has changed, then re-solves
@@ -1710,6 +1712,10 @@ private:
     // The mounted image's name under each drive. CHROME, not scene geometry:
     // it is read at a fixed size wherever the desk is posed.
     std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
+
+    // The recorder's tape name, counter and key name on the fullscreen strip,
+    // chrome there for the same reason the strip's drive names are.
+    std::array<DxuiShadowedText, 3>  m_stripTapeLabel;
 
     // Where the desk recorder's tape name and counter are, for clicks.
     RECT                      m_sceneTapeNameRect    = {};

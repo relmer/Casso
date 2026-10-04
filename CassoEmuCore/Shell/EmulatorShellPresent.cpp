@@ -898,8 +898,15 @@ bool EmulatorShell::TryPresentUiFrame()
                     // windowed drive band reserves it: the disk's name and its
                     // padlock belong under the drive here too, and a row composed
                     // into the whole band would put them off the screen's edge.
+                    // The recorder hangs a second row, its counter, under its
+                    // tape name, so it takes one more strip.
                     driveRow         = m_stripRectPx;
                     driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
+                    if (m_deskScene.HasRecorder() && MachineHasCassettePort())
+                    {
+                        driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+                    }
 
                     // The drive band's calibrated look-down, not the desk's
                     // near-level default: the band angle is what shows the

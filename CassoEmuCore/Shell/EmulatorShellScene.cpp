@@ -1142,7 +1142,7 @@ void EmulatorShell::SyncSceneDriveLabels()
     // THE RECORDER'S LABELS ARE THE DRIVES' LABELS: the same bake, the same
     // halo, the same quads, the same scroll under the pointer -- its tape name,
     // the counter under it, and the name of the key under the pointer.
-    if (inScene && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && MachineHasCassettePort())
+    if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && MachineHasCassettePort())
     {
         TapeDeckView  view = GetTapeView();
 
@@ -1160,6 +1160,8 @@ void EmulatorShell::SyncSceneDriveLabels()
         }
     }
 
+    SyncStripTapeLabels (comp, onStrip, fullNames);
+
     if (inScene)
     {
         SyncSceneDiskLabelQuads (fullNames, cellPx, gapPx);
@@ -1167,6 +1169,71 @@ void EmulatorShell::SyncSceneDriveLabels()
     else
     {
         ClearSceneDiskLabels();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncStripTapeLabels
+//
+//  The recorder's names on the fullscreen strip, where they are chrome as
+//  the drives' are: the tape name under the recorder's front edge with the
+//  counter under it, and the name of the key under the pointer under that
+//  key. Hidden everywhere else, where the desk bakes them instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition                       & comp,
+                                         bool                                               onStrip,
+                                         const std::array<std::wstring, s_kSceneLabelCount> & names)
+{
+    static constexpr int  kCells[3] = { s_kSceneTapeNameCell, s_kSceneCounterCell, s_kSceneKeyCell };
+    IDxuiTextRenderer *   text      = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    int                   halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                   stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int                   gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    float                 fontPx    = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / 96.0f;
+
+
+
+    for (size_t i = 0; i < m_stripTapeLabel.size(); i++)
+    {
+        int           cell      = kCells[i];
+        int           key       = (cell == s_kSceneKeyCell) ? m_recorderHoverKey : -1;
+        std::wstring  name      = onStrip ? names[(size_t) cell] : std::wstring();
+        float         anchor[3] = {};
+        float         screen[2] = {};
+        RECT          rc        = {};
+
+        if (!name.empty() && GetRecorderLabelAnchor (comp, key, anchor) &&
+            SceneCamera::ProjectToScreen (comp.viewProj, anchor, comp.viewportPx, screen))
+        {
+            rc.left   = (LONG) screen[0] - halfW;
+            rc.right  = (LONG) screen[0] + halfW;
+            rc.top    = (LONG) screen[1] + gapPx + ((cell == s_kSceneCounterCell) ? stripH : 0);
+            rc.bottom = rc.top + stripH;
+
+            if (text != nullptr)
+            {
+                name = DxuiTextElide::ToWidth (*text, name, fontPx, DxuiTheme::kBodyFace,
+                                               (float) (rc.right - rc.left), DxuiElide::Tail);
+            }
+        }
+        else
+        {
+            name.clear();
+        }
+
+        m_stripTapeLabel[i].SetText        (name);
+        m_stripTapeLabel[i].SetFontSizeDip (s_kSceneDriveLabelFontDip);
+        m_stripTapeLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        m_stripTapeLabel[i].SetDpi         (m_scaler.GetDpi());
+        m_stripTapeLabel[i].Layout         (rc, m_scaler);
+        m_stripTapeLabel[i].SetVisible     (!name.empty());
     }
 }
 
@@ -1403,8 +1470,11 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
 void EmulatorShell::SyncSceneTapeLabel()
 {
-    const DeskSceneComposition &  comp      = m_deskScene.Composition();
-    bool                          visible   = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+    // In fullscreen the recorder is on the strip, while the strip is up.
+    bool                          fs        = m_d3dRenderer.IsFullscreen();
+    bool                          onStrip   = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    const DeskSceneComposition &  comp      = onStrip ? m_stripComp : m_deskScene.Composition();
+    bool                          visible   = DeskSceneActive() && (!fs || onStrip) &&
                                               comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
                                               MachineHasCassettePort();
     TapeDeckView                  view      = GetTapeView();

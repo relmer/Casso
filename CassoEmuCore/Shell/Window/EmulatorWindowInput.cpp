@@ -1665,13 +1665,16 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         }
 
         // The labels under the recorder: its counter sets the position and
-        // its name picks a tape, as on the flat deck.
-        if (!inStrip && PtInRect (&m_sceneTapeCounterRect, pt))
+        // its name picks a tape, as on the flat deck -- on the strip too,
+        // which a dialog opened from it pins, as a drive's browse does.
+        m_stripBrowseOpen = inStrip;
+
+        if (PtInRect (&m_sceneTapeCounterRect, pt))
         {
             HandleTapeClick (TapeDeckRegion::Counter);
             driveTook = true;
         }
-        else if (!inStrip && PtInRect (&m_sceneTapeNameRect, pt))
+        else if (PtInRect (&m_sceneTapeNameRect, pt))
         {
             HandleTapeClick (TapeDeckRegion::Name);
             driveTook = true;
@@ -1692,6 +1695,8 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             driveTook = true;
         }
+
+        m_stripBrowseOpen = false;
     }
     else
     {
