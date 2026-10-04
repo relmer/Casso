@@ -1023,9 +1023,13 @@ private:
     // drive region / nothing).
     SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
 
-    // Resolves against the fullscreen strip's drives-only composition
-    // (glass excluded -- its monitor placement is meaningless).
+    // Resolves against the fullscreen strip's drives-and-recorder
+    // composition (glass excluded -- its monitor placement is meaningless).
     SceneHitResult  StripHit     (int xPx, int yPx) const;
+
+    // Whichever of those two holds the recorder the pointer can reach: the
+    // strip while it is up in fullscreen, the desk otherwise.
+    SceneHitResult  RecorderHit  (int xPx, int yPx) const;
 
     // How many drives the scene composes: the machine's Disk II presence and
     // the //c external-drive connection, the same gates the 2D widgets use.

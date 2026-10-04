@@ -1033,18 +1033,21 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
                                        DeskSceneComposition   & out,
                                        float                    gazeDownRad)
 {
-    HRESULT   hr          = S_OK;
-    int       viewportW   = viewportPx.right - viewportPx.left;
-    int       viewportH   = viewportPx.bottom - viewportPx.top;
-    float     aspect      = 0.0f;
-    float     tanHalfY    = std::tan (kFovY * 0.5f);
-    float     driveW      = metrics.driveMax[0] - metrics.driveMin[0];
-    float     driveCx     = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
-    float     rowCy       = 0.0f;
-    float     dist        = 0.0f;
-    float     sceneMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
-    float     sceneMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
-    float     driveTx[2]  = {};
+    HRESULT   hr           = S_OK;
+    int       viewportW    = viewportPx.right - viewportPx.left;
+    int       viewportH    = viewportPx.bottom - viewportPx.top;
+    float     aspect       = 0.0f;
+    float     tanHalfY     = std::tan (kFovY * 0.5f);
+    float     driveW       = metrics.driveMax[0] - metrics.driveMin[0];
+    float     driveCx      = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
+    float     rowCy        = 0.0f;
+    float     dist         = 0.0f;
+    float     sceneMin[3]  = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float     sceneMax[3]  = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float     deviceMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float     deviceMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float     driveTx[2]   = {};
+    float     shiftX       = 0.0f;
 
 
 
@@ -1075,9 +1078,31 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
 
         for (int axis = 0; axis < 3; axis++)
         {
-            sceneMin[axis] = std::min (sceneMin[axis], lo[axis]);
-            sceneMax[axis] = std::max (sceneMax[axis], hi[axis]);
+            sceneMin[axis]  = std::min (sceneMin[axis], lo[axis]);
+            sceneMax[axis]  = std::max (sceneMax[axis], hi[axis]);
+            deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
+            deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
         }
+    }
+
+    // THE RECORDER RIDES WITH THE DRIVES, beside them as it sits on the desk,
+    // so the strip that brings the drives back brings it back too. The row
+    // is then moved sideways to center the whole group, since the camera
+    // solve below looks straight down the middle.
+    if (metrics.hasRecorder)
+    {
+        PlaceRecorder (metrics, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);
+
+        shiftX       = -(sceneMin[0] + sceneMax[0]) * 0.5f;
+        sceneMin[0] += shiftX;
+        sceneMax[0] += shiftX;
+
+        for (int i = 0; i < driveCount; i++)
+        {
+            out.driveWorld[i][12] += shiftX;
+        }
+
+        out.recorderWorld[12] += shiftX;
     }
 
     rowCy = (sceneMin[1] + sceneMax[1]) * 0.5f;
@@ -1149,6 +1174,12 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
                 out.driveLabelWorld[i][2] = worldPt[2];
             }
         }
+    }
+
+    if (out.hasRecorder != 0)
+    {
+        ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
+                         out.viewProj, viewportPx, out.recorderRectPx);
     }
 
     out.sceneRectPx = viewportPx;

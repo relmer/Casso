@@ -404,9 +404,9 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     {
         int  key = -1;
 
-        if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
+        if (DeskSceneActive())
         {
-            SceneHitResult  hit = DeskSceneHit (x, y);
+            SceneHitResult  hit = RecorderHit (x, y);
 
             key = (hit.target == SceneHitResult::Target::Recorder) ? hit.recorderKey : -1;
         }
@@ -1340,9 +1340,9 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // waits for the release, like any button. STOP is the exception: it is
     // the key reaching the bottom that trips the latch, so the held keys let
     // go then, with the button still down.
-    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen())
+    if (DeskSceneActive() && !m_mainMenu.IsOpen())
     {
-        SceneHitResult  keyHit = DeskSceneHit (x, y);
+        SceneHitResult  keyHit = RecorderHit (x, y);
 
         if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
         {

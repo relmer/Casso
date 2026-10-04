@@ -2032,6 +2032,9 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     hr = DrawDrives (strip, viewport);
     CHRA (hr);
 
+    hr = DrawRecorder (strip, viewport);
+    CHRA (hr);
+
     hr = DrawLampGlows (strip, viewport, false);
     CHRA (hr);
 

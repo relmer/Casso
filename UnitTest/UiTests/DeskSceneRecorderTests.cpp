@@ -409,6 +409,45 @@ public:
     }
 
     //
+    //  THE FULLSCREEN STRIP BRINGS THE RECORDER BACK WITH THE DRIVES: it sits
+    //  to the right of them, inside the band, and the row is centered as a
+    //  whole. Without one the strip is the drives alone, as before.
+    //
+    TEST_METHOD (Strip_Carries_The_Recorder_Beside_The_Drives)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics (true);
+        RECT                  vp      = { 0, 0, 2400, 300 };
+        DeskSceneComposition  comp;
+        DeskSceneComposition  bare;
+        LONG                  left    = 0;
+        LONG                  right   = 0;
+
+
+
+        AssertSucceeded (DeskSceneLayout::ComputeStrip (vp, 96, 2, metrics, comp,
+                                                        DeskSceneLayout::kDriveBandGazeDownRad));
+
+        Assert::AreEqual (1, comp.hasRecorder);
+        Assert::IsTrue (comp.recorderRectPx.right > comp.recorderRectPx.left);
+        Assert::IsTrue (comp.recorderRectPx.left   >= vp.left);
+        Assert::IsTrue (comp.recorderRectPx.right  <= vp.right);
+        Assert::IsTrue (comp.recorderRectPx.top    >= vp.top);
+        Assert::IsTrue (comp.recorderRectPx.bottom <= vp.bottom);
+        Assert::IsTrue (comp.recorderRectPx.left + comp.recorderRectPx.right >
+                        comp.driveRectPx[1].left + comp.driveRectPx[1].right);
+
+        // Centered as one group: the margins either side are close.
+        left  = comp.driveRectPx[0].left - vp.left;
+        right = vp.right - comp.recorderRectPx.right;
+        Assert::IsTrue (std::abs (left - right) < (vp.right - vp.left) / 20);
+
+        metrics.hasRecorder = false;
+        AssertSucceeded (DeskSceneLayout::ComputeStrip (vp, 96, 2, metrics, bare,
+                                                        DeskSceneLayout::kDriveBandGazeDownRad));
+        Assert::AreEqual (0, bare.hasRecorder);
+    }
+
+    //
     //  The camera centers on everything on the desk, not on the monitor: with
     //  the recorder beside the stack, the group sits in the middle of the
     //  frame rather than off to the left of it.

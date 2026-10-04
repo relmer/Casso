@@ -536,12 +536,16 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
 {
     float          drvLo[3]                     = {};
     float          drvHi[3]                     = {};
+    float          recLo[3]                     = {};
+    float          recHi[3]                     = {};
     DeskRegionBox  doorBoxes[s_kSceneDriveMax]  = {};
 
 
 
     m_deskScene.DriveModel().BoundsMin (drvLo);
     m_deskScene.DriveModel().BoundsMax (drvHi);
+    m_deskScene.RecorderModel().BoundsMin (recLo);
+    m_deskScene.RecorderModel().BoundsMax (recHi);
     BuildDriveDoorBoxes (doorBoxes);
 
     return DeskSceneHitTester::Classify (m_stripComp,
@@ -554,7 +558,43 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
                                          false,
                                          nullptr, nullptr, nullptr, nullptr,
                                          drvLo, drvHi,
-                                         doorBoxes);
+                                         doorBoxes,
+                                         m_deskScene.HasRecorder() ? recLo : nullptr,
+                                         m_deskScene.HasRecorder() ? recHi : nullptr,
+                                         m_deskScene.HasRecorder() ? m_deskScene.RecorderModel().KeyBoxes() : nullptr,
+                                         DeskSceneModel::kRecorderKeyCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RecorderHit
+//
+//  In fullscreen the recorder exists only on the strip, and only while the
+//  strip is up; the desk composition there holds the glass alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SceneHitResult EmulatorShell::RecorderHit (int xPx, int yPx) const
+{
+    POINT  pt = { xPx, yPx };
+
+
+
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        return DeskSceneHit (xPx, yPx);
+    }
+
+    if (m_stripRectPx.bottom > m_stripRectPx.top && PtInRect (&m_stripRectPx, pt))
+    {
+        return StripHit (xPx, yPx);
+    }
+
+    return SceneHitResult {};
 }
 
 
