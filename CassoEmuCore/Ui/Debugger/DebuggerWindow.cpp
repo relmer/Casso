@@ -4051,6 +4051,7 @@ std::wstring DebuggerWindow::GetFindStatusText (DxuiTextView::FindResult result,
 void DebuggerWindow::OnWindowClose()
 {
     SavePlacementIfMoved();
+    SaveFocusedPane();
 
     Hide();
 
@@ -4179,29 +4180,41 @@ void DebuggerWindow::LayoutWidgets()
 //
 //  DebuggerWindow::PlaceOpeningFocus
 //
-//  When the window opens, the keys go to the console's command line if the
-//  console shows. If it does not (another tab in front of it in its group,
-//  closed, or slid away at an edge), they go to the first pane's main
-//  control in the tab order: a list, a memory view or a text view, never a
-//  text box in a pane's toolbar.
+//  When the window opens, the keys go back to the pane that had them when it
+//  closed: its tab comes forward and its main control takes the focus. With
+//  none saved, or one that no longer shows, the console comes forward and its
+//  command line takes the focus. If the console is closed or slid away at an
+//  edge, they go to the first pane's main control in the tab order: a list, a
+//  memory view or a text view, never a text box in a pane's toolbar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PlaceOpeningFocus()
 {
-    IDxuiControl  * target         = nullptr;
-    IDxuiControl  * each           = nullptr;
-    bool            isMain         = false;
-    bool            isConsoleShown = false;
-    size_t          count          = 0;
+    IDxuiControl  * target  = nullptr;
+    IDxuiControl  * each    = nullptr;
+    bool            isMain  = false;
+    bool            isSaved = false;
+    size_t          count   = 0;
+    std::wstring    pane;
 
 
+
+    pane    = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerFocusedPane()) : std::wstring();
+    isSaved = !pane.empty() && !m_floats.contains (pane) && IsPaneShown (pane) && GetMainControl (pane) != nullptr;
+    pane    = isSaved ? pane : std::wstring (DebuggerLayout::kConsole);
+
+    if (IsPaneShown (pane) && !m_dockSite->GetPaneLayout().IsAutoHidden (pane))
+    {
+        m_dockSite->ActivatePane (pane);
+        LayoutWidgets();
+    }
 
     m_focusMgr.Rebuild();
     count = m_focusMgr.GetTabOrderCount();
 
-    isConsoleShown = m_commandBox != nullptr && m_commandBox->IsVisible() && IsRoutable (m_commandBox);
-    target         = isConsoleShown ? m_commandBox : nullptr;
+    target = GetMainControl (pane);
+    target = (target != nullptr && target->IsVisible() && IsRoutable (target)) ? target : nullptr;
 
     for (size_t i = 0; i < count && target == nullptr; i++)
     {
@@ -4213,6 +4226,68 @@ void DebuggerWindow::PlaceOpeningFocus()
     if (target != nullptr)
     {
         m_focusMgr.SetFocused (target);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMainControl
+//
+//  The control in a pane that takes the keys when the pane is given the
+//  focus: the console's command line, or else the pane's list, memory view or
+//  text view. A pane with none of those gives its last control; an unknown
+//  pane gives none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DebuggerWindow::GetMainControl (const std::wstring & pane) const
+{
+    std::vector<IDxuiControl *>  controls = GetPaneControls (pane);
+
+
+
+    if (pane == DebuggerLayout::kConsole)
+    {
+        return m_commandBox;
+    }
+
+    for (IDxuiControl * each : controls)
+    {
+        if (dynamic_cast<DxuiListView *> (each) != nullptr || dynamic_cast<DxuiHexView *> (each) != nullptr || dynamic_cast<DxuiTextView *> (each) != nullptr)
+        {
+            return each;
+        }
+    }
+
+    return controls.empty() ? nullptr : controls.back();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveFocusedPane
+//
+//  The pane holding the focused control, kept so the window gives it the
+//  keys when it opens again. A control in no pane, the toolbar's, saves none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveFocusedPane()
+{
+    std::wstring  pane = GetPaneOfControl (m_focusMgr.GetFocusedControl());
+
+
+
+    if (m_host != nullptr)
+    {
+        m_host->SetDebuggerFocusedPane (SourcePathList::WideToUtf8 (pane));
     }
 }
 

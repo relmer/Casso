@@ -58,6 +58,9 @@ namespace DebuggerStartupStateTests
         std::string     GetDebuggerKeyScheme()            override { return {}; }
         std::string     GetDebuggerLayout()               override { return layout; }
         std::string     GetDebuggerOpenViews()            override { return openViews; }
+        std::string     GetDebuggerFocusedPane()          override { return focusedPane; }
+
+        void  SetDebuggerFocusedPane (const std::string & pane) override { focusedPane = pane; }
 
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
@@ -65,6 +68,7 @@ namespace DebuggerStartupStateTests
         std::vector<DebuggerAction>  actions;
         std::string                  layout;
         std::string                  openViews;
+        std::string                  focusedPane;
         FakeHostDialogs              dialogs;
     };
 
@@ -101,6 +105,10 @@ namespace DebuggerStartupStateTests
         using DebuggerWindow::GetFocused;
         using DebuggerWindow::GetCommandBox;
         using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::GetPaneOfControl;
+        using DebuggerWindow::OnWindowClose;
+        using DebuggerWindow::FocusControl;
+        using DebuggerWindow::GetRegisterList;
     };
 
 
@@ -308,36 +316,175 @@ namespace DebuggerStartupStateTests
         }
 
 
-        TEST_METHOD (WithTheConsoleBehindAnotherTabTheFocusGoesToAPanesMainControl)
+        static void  OpenWindow (StartupWindow & window)
         {
-            CassoTheme       theme   = CassoTheme::MakeSkeuomorphic();
-            StartupHost      host;
-            StartupWindow    window  (theme, host);
-            DxuiDpiScaler    scaler;
-            DxuiPaneLayout   saved   = DebuggerLayout::Restore (std::wstring());
-            IDxuiControl   * focused = nullptr;
-            bool             isMain  = false;
+            DxuiDpiScaler  scaler;
 
 
-
-            Assert::IsTrue (saved.Activate (DebuggerLayout::kTrace), L"the trace pane shares the console's group");
-            host.layout = SourcePathList::WideToUtf8 (saved.ToText());
 
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+        }
 
-            Assert::AreEqual (std::wstring (DebuggerLayout::kTrace), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"the saved tab stays in front");
 
-            focused = window.GetFocused();
+        static std::string  MakeLayoutWithTraceInFront()
+        {
+            DxuiPaneLayout  saved = DebuggerLayout::Restore (std::wstring());
+
+
+
+            Assert::IsTrue (saved.Activate (DebuggerLayout::kTrace), L"the trace pane shares the console's group");
+            return SourcePathList::WideToUtf8 (saved.ToText());
+        }
+
+
+        static void  AssertPaneHasTheFocus (StartupWindow & window, const std::wstring & pane)
+        {
+            IDxuiControl  * focused = window.GetFocused();
+            bool            isMain  = false;
+
+
+
             Assert::IsNotNull (focused, L"some control has the focus");
 
             isMain = dynamic_cast<DxuiListView *> (focused) != nullptr || dynamic_cast<DxuiHexView *> (focused) != nullptr || dynamic_cast<DxuiTextView *> (focused) != nullptr;
 
-            Assert::IsTrue  (focused != window.GetCommandBox(), L"not the hidden command line");
-            Assert::IsTrue  (focused != window.GetMemoryBox(),  L"not the memory pane's address box");
-            Assert::IsTrue  (isMain,                            L"a pane's main control");
-            Assert::IsTrue  (focused->IsVisible(),              L"a control that shows");
+            Assert::AreEqual (pane, window.GetPaneOfControl (focused),                  L"the saved pane has the focus");
+            Assert::AreEqual (pane, GetActive (window.GetPaneLayout().GetRoot(), pane), L"its tab is in front");
+            Assert::IsTrue   (isMain,                                                   L"the pane's main control");
+            Assert::IsTrue   (focused->IsVisible(),                                     L"a control that shows");
+        }
+
+
+        static void  AssertConsoleHasTheFocus (StartupWindow & window)
+        {
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"the console tab is in front");
+            Assert::IsTrue   (window.GetFocused() == window.GetCommandBox(), L"the console's command line has the focus");
+            Assert::IsTrue   (window.GetCommandBox()->IsVisible(),          L"the command line shows");
+        }
+
+
+        TEST_METHOD (TheSavedListPaneHasTheFocusWhenTheWindowOpens)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     host;
+            StartupWindow   window (theme, host);
+
+
+
+            host.focusedPane = "registers";
+
+            OpenWindow (window);
+
+            AssertPaneHasTheFocus (window, DebuggerLayout::kRegisters);
+        }
+
+
+        TEST_METHOD (TheSavedPaneBehindAnotherTabComesForwardWithTheFocus)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     host;
+            StartupWindow   window (theme, host);
+
+
+
+            host.layout      = MakeLayoutWithTraceInFront();
+            host.focusedPane = "watches";
+
+            OpenWindow (window);
+
+            AssertPaneHasTheFocus (window, DebuggerLayout::kWatches);
+            Assert::AreEqual (std::wstring (DebuggerLayout::kTrace), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"another group keeps its saved tab");
+        }
+
+
+        TEST_METHOD (TheSavedDisassemblyViewHasTheFocusWhenTheWindowOpens)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     host;
+            StartupWindow   window (theme, host);
+
+
+
+            host.focusedPane = "code";
+
+            OpenWindow (window);
+
+            AssertPaneHasTheFocus (window, DebuggerLayout::kCode);
+        }
+
+
+        TEST_METHOD (TheSavedConsoleComesForwardWithItsCommandLineFocused)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     host;
+            StartupWindow   window (theme, host);
+
+
+
+            host.layout      = MakeLayoutWithTraceInFront();
+            host.focusedPane = "console";
+
+            OpenWindow (window);
+
+            AssertConsoleHasTheFocus (window);
+        }
+
+
+        TEST_METHOD (WithNothingSavedTheConsoleComesForwardWithItsCommandLineFocused)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     host;
+            StartupWindow   window (theme, host);
+
+
+
+            host.layout = MakeLayoutWithTraceInFront();
+
+            OpenWindow (window);
+
+            AssertConsoleHasTheFocus (window);
+        }
+
+
+        TEST_METHOD (ASavedPaneThatIsGoneFallsBackToTheConsole)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     closedHost;
+            StartupHost     unknownHost;
+            StartupWindow   closedWindow  (theme, closedHost);
+            StartupWindow   unknownWindow (theme, unknownHost);
+
+
+
+            closedHost.layout       = MakeLayoutWithTraceInFront();
+            closedHost.focusedPane  = "memory3";
+            unknownHost.layout      = MakeLayoutWithTraceInFront();
+            unknownHost.focusedPane = "nosuchpane";
+
+            OpenWindow (closedWindow);
+            OpenWindow (unknownWindow);
+
+            AssertConsoleHasTheFocus (closedWindow);
+            AssertConsoleHasTheFocus (unknownWindow);
+        }
+
+
+        TEST_METHOD (ClosingTheWindowSavesThePaneWithTheFocus)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     host;
+            StartupWindow   window (theme, host);
+
+
+
+            OpenWindow (window);
+
+            window.FocusControl (window.GetRegisterList());
+            window.OnWindowClose();
+
+            Assert::AreEqual (std::string ("registers"), host.focusedPane);
         }
     };
 }

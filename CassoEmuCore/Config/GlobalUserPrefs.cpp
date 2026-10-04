@@ -94,6 +94,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerLayout",
     "debuggerClosedPanes",
     "debuggerCommandBarDock",
+    "debuggerFocusedPane",
     "debuggerDisassemblyOptions",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
@@ -1267,6 +1268,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerLayout",     JsonValue (debuggerLayout));
     root.emplace_back ("debuggerClosedPanes", JsonValue (debuggerClosedPanes));
     root.emplace_back ("debuggerCommandBarDock", JsonValue (debuggerCommandBarDock));
+    root.emplace_back ("debuggerFocusedPane", JsonValue (debuggerFocusedPane));
     root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debuggerDisassemblyOptions));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debuggerOpenViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debuggerTextZoomPercent));
@@ -1509,6 +1511,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     debuggerClosedPanes = GetStringOpt (v, "debuggerClosedPanes", debuggerClosedPanes);
     debuggerCommandBarDock = GetStringOpt (v, "debuggerCommandBarDock", debuggerCommandBarDock);
+    debuggerFocusedPane    = GetStringOpt (v, "debuggerFocusedPane",    debuggerFocusedPane);
 
     debuggerDisassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debuggerDisassemblyOptions);
 

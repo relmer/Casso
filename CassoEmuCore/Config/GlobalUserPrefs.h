@@ -258,6 +258,9 @@ struct GlobalUserPrefs
     // Where the debugger's command bar is docked: its edge and its place
     // along it, as "left 120".
     std::string  debuggerCommandBarDock;
+    // The debugger pane that had the keys when its window closed, by its
+    // layout id; empty gives the console.
+    std::string  debuggerFocusedPane;
     // The debugger's disassembly viewing options turned on, as keys separated
     // by spaces; empty gives the defaults.
     std::string  debuggerDisassemblyOptions;

@@ -158,6 +158,12 @@ public:
     //  same way. A host with no preferences keeps it across the top.
     virtual std::string  GetDebuggerCommandBarDock ()                      { return {}; }
     virtual void         SetDebuggerCommandBarDock (const std::string &)   {}
+
+    //  The pane that had the keys when the window closed, by its layout id,
+    //  kept the same way. A host with no preferences has none saved.
+    virtual std::string  GetDebuggerFocusedPane ()                         { return {}; }
+    virtual void         SetDebuggerFocusedPane (const std::string &)      {}
+
     //  The disassembly views' viewing options, in DisassemblyOptions' text for
     //  them, kept the same way; none kept gives the defaults.
     virtual std::string  GetDebuggerDisassemblyOptions ()                  { return {}; }
@@ -673,6 +679,8 @@ private:
     void                         SetFloatFade      (const std::wstring & pane, bool on);
     void                         SyncFloats        ();
     void                         PlaceOpeningFocus ();
+    IDxuiControl *               GetMainControl    (const std::wstring & pane) const;
+    void                         SaveFocusedPane   ();
     void                         FloatControls     (const std::wstring & pane);
     void                         DockControls      (const std::wstring & pane);
     void                         SaveLayout        ();
