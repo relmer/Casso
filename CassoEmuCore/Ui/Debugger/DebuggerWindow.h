@@ -23,6 +23,7 @@
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/KeyHintLine.h"
+#include "Ui/Debugger/OpeningFocusDeferral.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Ui/Debugger/ReverseOptionsDialog.h"
@@ -243,7 +244,7 @@ public:
     //  at $0300", or the bare verb when there is nothing to say.
     static std::wstring        GetUndoLabel            (bool redo, const std::wstring & text);
 
-    HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host);
+    HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host, bool activate);
     void     RenderFrame ();
 
     //  Detaches the host, for a shell tearing down before the window.
@@ -703,6 +704,10 @@ private:
     void                         SetFloatFade      (const std::wstring & pane, bool on);
     void                         SyncFloats        ();
     void                         PlaceOpeningFocus ();
+    void                         PlaceLateFocus    ();
+    std::wstring                 GetSavedFocusPane () const;
+    bool                         IsFocusPaneReady  (const std::wstring & pane) const;
+    void                         FocusPane         (const std::wstring & pane);
     IDxuiControl *               GetMainControl    (const std::wstring & pane) const;
     void                         SaveFocusedPane   ();
     void                         FloatControls     (const std::wstring & pane);
@@ -924,6 +929,7 @@ private:
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
     bool                                                                             m_isOpeningFocusDue  = true;
+    OpeningFocusDeferral                                                             m_openingFocus;
     std::wstring                                                                     m_tornOffPane;
     std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = BreakpointColumns::GetDefaultShown();
     std::vector<size_t>                                                              m_breakpointOrder;

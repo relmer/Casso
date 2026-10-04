@@ -118,6 +118,8 @@ public:
     // activate=false shows the window without pulling foreground/focus (for
     // windows that pop up on their own and must not steal keystrokes).
     void     Show        (bool activate = true);
+    // Maximized, with or without taking the foreground and the focus.
+    void     ShowMaximized (bool activate);
     void     Hide        ();
 
     //  Whether files dragged from the shell may be dropped here; each drop

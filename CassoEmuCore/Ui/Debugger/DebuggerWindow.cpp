@@ -114,7 +114,7 @@ DebuggerWindow::~DebuggerWindow()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host)
+HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host, bool activate)
 {
     HRESULT                   hr     = S_OK;
     DxuiWindow::CreateParams  params;
@@ -150,13 +150,15 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     ApplySavedPlacement();
 
     ApplyTheme (m_host != nullptr ? m_host->GetDebuggerTheme() : std::string());
-    Show();
+    //  A window opened by the launch, rather than by the user, leaves the
+    //  foreground and the keys where Windows put them.
+    Show (activate);
 
     m_normalVisibleRect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
 
     if (m_startMaximized)
     {
-        ShowWindow (GetHwnd(), SW_MAXIMIZE);
+        ShowMaximized (activate);
     }
 
     //  Where it opened is the baseline a close compares against, so a window
@@ -4220,22 +4222,112 @@ void DebuggerWindow::LayoutWidgets()
 //  edge, they go to the first pane's main control in the tab order: a list, a
 //  memory view or a text view, never a text box in a pane's toolbar.
 //
+//  A saved pane that opens only after the machine's first snapshot -- a
+//  second disassembly view, a device panel -- takes the focus when it shows,
+//  if the user has not clicked or typed in the window by then.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PlaceOpeningFocus()
 {
-    IDxuiControl  * target  = nullptr;
-    IDxuiControl  * each    = nullptr;
-    bool            isMain  = false;
-    bool            isSaved = false;
-    size_t          count   = 0;
-    std::wstring    pane;
+    std::wstring  saved   = GetSavedFocusPane();
+    bool          isReady = IsFocusPaneReady (saved);
 
 
 
-    pane    = (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerFocusedPane()) : std::wstring();
-    isSaved = !pane.empty() && !m_floats.contains (pane) && IsPaneShown (pane) && GetMainControl (pane) != nullptr;
-    pane    = isSaved ? pane : std::wstring (DebuggerLayout::kConsole);
+    if (!saved.empty() && !isReady && !m_floats.contains (saved))
+    {
+        m_openingFocus.Defer();
+    }
+
+    FocusPane (isReady ? saved : std::wstring (DebuggerLayout::kConsole));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceLateFocus
+//
+//  After each snapshot while the opening focus waits on a saved pane that had
+//  not opened yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceLateFocus()
+{
+    std::wstring                  saved;
+    OpeningFocusDeferral::Action  action = OpeningFocusDeferral::Action::None;
+
+
+
+    if (m_openingFocus.IsPending())
+    {
+        saved  = GetSavedFocusPane();
+        action = m_openingFocus.OnSnapshot (IsFocusPaneReady (saved), IsRestoringViews());
+    }
+
+    if (action == OpeningFocusDeferral::Action::Place)
+    {
+        FocusPane (saved);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSavedFocusPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetSavedFocusPane() const
+{
+    return (m_host != nullptr) ? SourcePathList::Utf8ToWide (m_host->GetDebuggerFocusedPane()) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsFocusPaneReady
+//
+//  A docked pane on screen with a control to take the keys.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsFocusPaneReady (const std::wstring & pane) const
+{
+    return !pane.empty() && !m_floats.contains (pane) && IsPaneShown (pane) && GetMainControl (pane) != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FocusPane
+//
+//  The pane's tab comes forward and its main control takes the focus, or the
+//  first main control in the tab order when that one cannot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FocusPane (const std::wstring & pane)
+{
+    IDxuiControl  * target = nullptr;
+    IDxuiControl  * each   = nullptr;
+    bool            isMain = false;
+    size_t          count  = 0;
+
+
 
     if (IsPaneShown (pane) && !m_dockSite->GetPaneLayout().IsAutoHidden (pane))
     {
@@ -6541,6 +6633,8 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     ApplyHistory();
 
     m_watchHistory.OnSnapshot (*m_snapshot);
+
+    PlaceLateFocus();
 
     //  The drop-downs carry the mode and the panels they were built with, so
     //  they are rebuilt when either changes.
@@ -9395,6 +9489,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Down)
     {
+        m_openingFocus.OnUserInput();
         m_lastPressPx = POINT { x, y };
     }
 
@@ -11478,6 +11573,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     bool            handled = false;
 
 
+
+    if (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Char)
+    {
+        m_openingFocus.OnUserInput();
+    }
 
     //  The menu bar takes the keys while one of its menus is open, and Alt
     //  with a letter opens the menu it marks.

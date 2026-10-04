@@ -528,8 +528,9 @@ private:
     bool    IsDebuggerOpen  () const { return m_debugger != nullptr; }
 
     // Shows the debugger window, creating it the first time, and opens the
-    // debug channel. UI thread.
-    void    OpenDebuggerWindow ();
+    // debug channel. UI thread. activate=false leaves the foreground and the
+    // keys where they are, for a window the launch opens.
+    void    OpenDebuggerWindow (bool activate = true);
 
     // True when a message went to the debugger window or a floating pane.
     bool    IsDebuggerMessage  (const MSG & msg) const;

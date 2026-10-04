@@ -23,13 +23,15 @@ static constexpr uint32_t  s_kWindowClientId = 0;
 //
 //  OpenDebuggerWindow
 //
-//  Creates the window the first time and shows it every time. The channel is
-//  opened on the CPU thread, where the controller lives, so a window opened
-//  while the machine runs does not wait on it.
+//  Creates the window the first time and shows it every time, taking the
+//  foreground only when activate is set: a window the launch opens leaves it
+//  with the machine's window. The channel is opened on the CPU thread, where
+//  the controller lives, so a window opened while the machine runs does not
+//  wait on it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenDebuggerWindow()
+void EmulatorShell::OpenDebuggerWindow (bool activate)
 {
     HRESULT  hr = S_OK;
 
@@ -39,7 +41,7 @@ void EmulatorShell::OpenDebuggerWindow()
     {
         m_debuggerWindow = std::make_unique<DebuggerWindow>();
 
-        hr = m_debuggerWindow->Create (m_hInstance, m_hwnd, &m_chromeTheme, this);
+        hr = m_debuggerWindow->Create (m_hInstance, m_hwnd, &m_chromeTheme, this, activate);
         CHRF (hr, m_debuggerWindow.reset());
 
         ApplyAppIconToWindow (m_debuggerWindow->GetHwnd());
@@ -54,8 +56,7 @@ void EmulatorShell::OpenDebuggerWindow()
         });
     }
 
-    m_debuggerWindow->Show();
-    SetForegroundWindow (m_debuggerWindow->GetHwnd());
+    m_debuggerWindow->Show (activate);
 
     m_isDebugWindowShown.store (true);
     m_cpuManager.PostCommand (IDM_DEBUG_OPEN);

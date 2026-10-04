@@ -3,6 +3,7 @@
 #include "DxuiWindow.h"
 
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiWindowFrame.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiPopupMenu.h"
 
@@ -170,6 +171,63 @@ void DxuiWindow::Show (bool activate)
             ShowWindow (hwnd, SW_SHOWNA);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowMaximized
+//
+//  Windows has no show command that maximizes without activating: SW_MAXIMIZE
+//  and SW_SHOWMAXIMIZED both take the foreground. A window that must not take
+//  it is maximized by hand -- the maximized style, then the work area of its
+//  monitor with its invisible border outside it -- and shown without
+//  activation. The rect it had before stays its restored rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::ShowMaximized (bool activate)
+{
+    HRESULT      hr      = S_OK;
+    HWND         hwnd    = GetHwnd();
+    HMONITOR     monitor = nullptr;
+    MONITORINFO  info    = { sizeof (info) };
+    RECT         placed  = {};
+    BOOL         gotInfo = FALSE;
+    BOOL         moved   = FALSE;
+    LONG_PTR     style   = 0;
+
+
+
+    BAIL_OUT_IF (hwnd == nullptr, S_OK);
+
+    if (activate)
+    {
+        ShowWindow (hwnd, SW_MAXIMIZE);
+    }
+
+    BAIL_OUT_IF (activate, S_OK);
+
+    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    gotInfo = GetMonitorInfoW (monitor, &info);
+    CWRA (gotInfo);
+
+    style = GetWindowLongPtrW (hwnd, GWL_STYLE);
+    SetWindowLongPtrW (hwnd, GWL_STYLE, style | WS_MAXIMIZE);
+
+    placed = DxuiWindowFrame::ToWindowRect (hwnd, info.rcWork);
+    moved  = SetWindowPos (hwnd, nullptr, placed.left, placed.top,
+                           placed.right - placed.left, placed.bottom - placed.top,
+                           SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    CWRA (moved);
+
+    ShowWindow (hwnd, SW_SHOWNA);
+
+Error:
+    return;
 }
 
 

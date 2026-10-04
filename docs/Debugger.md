@@ -547,8 +547,12 @@ nothing: the I/O page goes back to the bus's ordinary path.
 
 **Debug > Debugger...** opens the window beside the emulator, as do F12, F7
 (AppleWin's key) and Ctrl+F12 in the emulator window; `--debugger` opens it at
-start. Ctrl+F12 is for running Casso under a debugger that takes F12 as its
-break key. It shows the code around the PC, the registers and flags,
+start, without taking the foreground or the keys from the emulator window: it
+takes them when you click in it. When it opens, the keys go to the pane that
+had them when it last closed, including a pane that opens a moment later, such
+as a second disassembly view or a device panel, unless you have clicked or
+typed in the window by then. Ctrl+F12 is for running Casso under a debugger
+that takes F12 as its break key. It shows the code around the PC, the registers and flags,
 breakpoints, watches, the stack and memory, with a command box and console
 below the code.
 

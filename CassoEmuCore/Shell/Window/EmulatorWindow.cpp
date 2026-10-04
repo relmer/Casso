@@ -1347,9 +1347,10 @@ int EmulatorShell::RunMessageLoop()
     CHRA (hr);
 
     // --debugger: the window opens beside the machine, which opens the channel.
+    // The machine's window keeps the foreground Windows gave the launch.
     if (m_openDebuggerAtStart)
     {
-        OpenDebuggerWindow();
+        OpenDebuggerWindow (false);
     }
 
     // Cold-boot mount window is closed once the UI message loop is
