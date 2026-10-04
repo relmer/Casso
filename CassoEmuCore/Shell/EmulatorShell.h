@@ -789,6 +789,7 @@ public:
     void SetTapeVolume      (float gain)   { m_tapeAudioSource.SetVolume (gain); }
     void SetTapeAutoStop    (bool enabled) { m_machine.GetTapeDeck().SetAutoStop (enabled); }
     void SetTapeIdleStop    (bool enabled) { m_machine.GetTapeDeck().SetIdleStop (enabled); }
+    void SetTapeEightBit    (bool enabled) { if (m_tapeManager) { m_tapeManager->SetBlankEightBit (enabled); } }
 
     // Single-step the CPU from the UI thread. Only safe when the
     // CPU thread is paused (provably idle on pauseCV.wait); the

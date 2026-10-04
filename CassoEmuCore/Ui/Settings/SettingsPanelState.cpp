@@ -746,6 +746,21 @@ void SettingsPanelState::SetTapeIdleStop (bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetTapeEightBit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetTapeEightBit (bool enabled)
+{
+    m_current.prefs.tapeEightBit = enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMechanism
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1110,6 +1125,7 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplyTapeVolume      (m_current.prefs.tapeVolume);
     sink.ApplyTapeAutoStop    (m_current.prefs.tapeAutoStop);
     sink.ApplyTapeIdleStop    (m_current.prefs.tapeIdleStop);
+    sink.ApplyTapeEightBit    (m_current.prefs.tapeEightBit);
     sink.ApplyDriveVolumes (m_current.prefs.driveMotorVolume,
                             m_current.prefs.driveHeadVolume,
                             m_current.prefs.driveDoorVolume);
@@ -1217,6 +1233,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.fastTapeLoading    = TryGetBoolOpt   (*uiObj, "fastTapeLoading",     true);
     outPrefs.tapeAutoStop       = TryGetBoolOpt   (*uiObj, "tapeAutoStop",        true);
     outPrefs.tapeIdleStop       = TryGetBoolOpt   (*uiObj, "tapeIdleStop",        true);
+    outPrefs.tapeEightBit       = TryGetBoolOpt   (*uiObj, "tapeEightBit",        false);
     outPrefs.tapeVolume         = (float) GetNumberOpt (*uiObj, "tapeVolume",   SettingsUiPrefs::kDefaultTapeVolume);
 
     outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);
@@ -2054,6 +2071,7 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("tapeVolume",         JsonValue ((double) prefs.tapeVolume));
     uiObj.emplace_back ("tapeAutoStop",       JsonValue (prefs.tapeAutoStop));
     uiObj.emplace_back ("tapeIdleStop",       JsonValue (prefs.tapeIdleStop));
+    uiObj.emplace_back ("tapeEightBit",       JsonValue (prefs.tapeEightBit));
     // The legacy boolean is written ONLY when the machine has no disk port to
     // hold the answer. Where a port exists it is authoritative, and writing
     // both would put two answers to one question back on disk -- exactly what
@@ -2179,6 +2197,7 @@ bool SettingsPanelState::ArePrefsEqual (
         && a.tapeVolume             == b.tapeVolume
         && a.tapeAutoStop           == b.tapeAutoStop
         && a.tapeIdleStop           == b.tapeIdleStop
+        && a.tapeEightBit           == b.tapeEightBit
         && a.externalDriveConnected == b.externalDriveConnected
         && a.mouseConnected         == b.mouseConnected
         && a.driveMotorVolume       == b.driveMotorVolume

@@ -90,10 +90,12 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_fastTape);
     Adopt (m_tapeAutoStop);
     Adopt (m_tapeIdleStop);
+    Adopt (m_tapeEightBit);
     Adopt (m_tapeVolume);
     Adopt (m_tapeVolumeLabel);
     Adopt (m_tapeAutoStopLabel);
     Adopt (m_tapeIdleStopLabel);
+    Adopt (m_tapeEightBitLabel);
     for (DxuiCheckbox & checkbox : m_writeProtect)
     {
         Adopt (checkbox);
@@ -287,6 +289,13 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeIdleStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
+    // Off records new tapes as 16-bit, the common format. Some tools, among
+    // them CiderPress II, read only 8-bit; a tape recorded onto keeps its own.
+    m_tapeEightBitLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeEightBitLabel.SetText (L"Record new tapes as 8-bit:");
+    m_tapeEightBit.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
     // Below both sections, because it restores the whole page.
     m_reset.SetLabel (L"Restore defaults");
     m_reset.Layout   (MakeRect (controlsX, y, resetW, rowHeight));
@@ -305,6 +314,8 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeAutoStopLabel.SetDpi (dpi);
     m_tapeIdleStop.SetDpi      (dpi);
     m_tapeIdleStopLabel.SetDpi (dpi);
+    m_tapeEightBit.SetDpi      (dpi);
+    m_tapeEightBitLabel.SetDpi (dpi);
     m_tapeLabel.SetDpi       (dpi);
     m_diskHeading.SetDpi     (dpi);
     m_tapeHeading.SetDpi     (dpi);
@@ -362,6 +373,7 @@ void DiskPage::Rebuild()
     m_fastTape.SetChecked   (state->GetPrefs().fastTapeLoading);
     m_tapeAutoStop.SetChecked (state->GetPrefs().tapeAutoStop);
     m_tapeIdleStop.SetChecked (state->GetPrefs().tapeIdleStop);
+    m_tapeEightBit.SetChecked (state->GetPrefs().tapeEightBit);
     m_tapeVolume.SetValue   (state->GetPrefs().tapeVolume * 100.0f);
     m_writeProtect[0].SetChecked (state->GetPrefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->GetPrefs().writeProtect[1]);
@@ -382,6 +394,7 @@ void DiskPage::Rebuild()
     m_fastTape.SetOnChange ([state] (bool checked) { state->SetFastTapeLoading (checked); });
     m_tapeAutoStop.SetOnChange ([state] (bool checked) { state->SetTapeAutoStop (checked); });
     m_tapeIdleStop.SetOnChange ([state] (bool checked) { state->SetTapeIdleStop (checked); });
+    m_tapeEightBit.SetOnChange ([state] (bool checked) { state->SetTapeEightBit (checked); });
     m_tapeVolume.SetOnChange ([state] (float v) { state->SetTapeVolume (v / 100.0f); });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
@@ -572,6 +585,7 @@ void DiskPage::ResetPageToDefaults()
     m_state->SetTapeVolume       (defaults.tapeVolume);
     m_state->SetTapeAutoStop     (defaults.tapeAutoStop);
     m_state->SetTapeIdleStop     (defaults.tapeIdleStop);
+    m_state->SetTapeEightBit     (defaults.tapeEightBit);
 
     Rebuild();
 

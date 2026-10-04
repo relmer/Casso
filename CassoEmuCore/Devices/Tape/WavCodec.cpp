@@ -105,9 +105,11 @@ Error:
 
 void WavCodec::Encode (const TapeAudio & audio, std::vector<Byte> & bytes)
 {
-    constexpr uint32_t  kBytesPerSample = kWrittenBitsPerSample / kBits8;
-    constexpr double    kMaxPositive    = 32767.0;
-    uint32_t            dataSize        = (uint32_t) (audio.samples.size() * kBytesPerSample);
+    constexpr double    kMaxPositive   = 32767.0;
+    bool                isEightBit     = audio.bitsPerSample == kBits8;
+    uint32_t            bits           = isEightBit ? kBits8 : kWrittenBitsPerSample;
+    uint32_t            bytesPerSample = bits / kBits8;
+    uint32_t            dataSize       = (uint32_t) (audio.samples.size() * bytesPerSample);
 
 
 
@@ -122,18 +124,26 @@ void WavCodec::Encode (const TapeAudio & audio, std::vector<Byte> & bytes)
     WriteLittle16 (bytes, kTagPcm);
     WriteLittle16 (bytes, 1);
     WriteLittle32 (bytes, audio.sampleRate);
-    WriteLittle32 (bytes, audio.sampleRate * kBytesPerSample);
-    WriteLittle16 (bytes, (Word) kBytesPerSample);
-    WriteLittle16 (bytes, (Word) kWrittenBitsPerSample);
+    WriteLittle32 (bytes, audio.sampleRate * bytesPerSample);
+    WriteLittle16 (bytes, (Word) bytesPerSample);
+    WriteLittle16 (bytes, (Word) bits);
     WriteTag      (bytes, "data");
     WriteLittle32 (bytes, dataSize);
 
+    // 8-bit WAV samples are unsigned, centered on 128.
     for (float sample : audio.samples)
     {
-        double  scaled = round ((double) sample * kFullScale16);
+        if (isEightBit)
+        {
+            bytes.push_back ((Byte) clamp (round ((double) sample * kFullScale8) + kCenter8, 0.0, kMaxUnsigned8));
+        }
+        else
+        {
+            double  scaled = round ((double) sample * kFullScale16);
 
-        scaled = clamp (scaled, -kFullScale16, kMaxPositive);
-        WriteLittle16 (bytes, (Word) (int16_t) scaled);
+            scaled = clamp (scaled, -kFullScale16, kMaxPositive);
+            WriteLittle16 (bytes, (Word) (int16_t) scaled);
+        }
     }
 }
 
@@ -245,7 +255,8 @@ void WavCodec::ReadSamples (std::span<const Byte> data, const Format & format, T
     }
 
     TapeChannelMixer::MixToMono (interleaved, format.channels, audio.samples);
-    audio.sampleRate = format.sampleRate;
+    audio.sampleRate    = format.sampleRate;
+    audio.bitsPerSample = (format.bitsPerSample == kBits8) ? kBits8 : kBits16;
 }
 
 

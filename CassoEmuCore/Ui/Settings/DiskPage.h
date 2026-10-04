@@ -99,10 +99,12 @@ private:
     DxuiToggle                       m_fastTape;
     DxuiToggle                       m_tapeAutoStop;
     DxuiToggle                       m_tapeIdleStop;
+    DxuiToggle                       m_tapeEightBit;
     DxuiSlider                       m_tapeVolume;
     DxuiLabel                        m_tapeVolumeLabel;
     DxuiLabel                        m_tapeAutoStopLabel;
     DxuiLabel                        m_tapeIdleStopLabel;
+    DxuiLabel                        m_tapeEightBitLabel;
     std::array<DxuiCheckbox, 2>      m_writeProtect;
     DxuiSlider                       m_motorVol;
     DxuiSlider                       m_headVol;

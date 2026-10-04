@@ -130,6 +130,12 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
         SetTapeIdleStop (enabled);
     }
 
+    hrOpt = uiPrefs->GetBool ("tapeEightBit", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeEightBit (enabled);
+    }
+
     hrOpt = uiPrefs->GetNumber ("tapeVolume", tapeVolume);
     if (SUCCEEDED (hrOpt))
     {

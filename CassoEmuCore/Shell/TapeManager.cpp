@@ -184,7 +184,7 @@ void TapeManager::CreateBlank (const std::string & path)
 //
 //  WriteBlank
 //
-//  A zero-length 44.1 kHz 16-bit mono WAV, written whole before it replaces
+//  A zero-length 44.1 kHz mono WAV, 8-bit or 16-bit as set, written whole before it replaces
 //  anything.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,7 +198,8 @@ HRESULT TapeManager::WriteBlank (const std::string & path)
 
 
 
-    blank.sampleRate = kBlankSampleRate;
+    blank.sampleRate    = kBlankSampleRate;
+    blank.bitsPerSample = m_blankEightBit.load (std::memory_order_relaxed) ? 8 : 16;
     WavCodec::Encode (blank, bytes);
 
     hr = m_fileIo.WriteAllBytes (tempPath, bytes);

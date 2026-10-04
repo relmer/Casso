@@ -21,5 +21,6 @@ struct TapeAudio
     static constexpr uint32_t  kMaxChannels   = 2;
 
     std::vector<float>  samples;
-    uint32_t            sampleRate = 0;
+    uint32_t            sampleRate    = 0;
+    uint16_t            bitsPerSample = 16;   // what the file had, and what a rewrite keeps: 8 or 16
 };

@@ -86,6 +86,46 @@ public:
     TEST_METHOD (Reads96kHz)        { CheckRoundTrip (16, false, 1, 96000, kTolerance); }
 
 
+    //  Casso writes 16-bit unless the tape is 8-bit, and a tape's depth is
+    //  what it was read with, so recording onto an 8-bit tape keeps it
+    //  8-bit -- the format some tools, CiderPress II among them, insist on.
+    TEST_METHOD (WritesTheDepthTheTapeWasReadWith)
+    {
+        for (Word bits : { (Word) 8, (Word) 16 })
+        {
+            TapeAudio          source;
+            TapeAudio          decoded;
+            TapeAudio          rewritten;
+            std::vector<Byte>  bytes;
+            std::string        error;
+            HRESULT            hr = S_OK;
+
+
+
+            MakeRamp (source, kRate);
+            source.bitsPerSample = bits;
+
+            WavCodec::Encode (source, bytes);
+            Assert::AreEqual (bits, (Word) (bytes[34] | (bytes[35] << 8)), L"bits per sample in the header");
+
+            hr = WavCodec::Decode (bytes, decoded, error);
+            Assert::AreEqual (S_OK, hr, ToWide (error).c_str());
+            Assert::AreEqual ((uint16_t) bits, decoded.bitsPerSample);
+
+            for (size_t i = 0; i < kCount; i++)
+            {
+                Assert::AreEqual ((double) source.samples[i], (double) decoded.samples[i],
+                                  bits == 8 ? kTolerance8 : kTolerance);
+            }
+
+            WavCodec::Encode (decoded, bytes);
+            hr = WavCodec::Decode (bytes, rewritten, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual ((uint16_t) bits, rewritten.bitsPerSample, L"a rewrite keeps the depth");
+        }
+    }
+
+
     TEST_METHOD (ReadsExtensibleFormat)
     {
         // A 40-byte extensible fmt chunk whose sub-format GUID starts with

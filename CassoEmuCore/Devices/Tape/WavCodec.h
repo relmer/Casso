@@ -47,6 +47,9 @@ private:
     static constexpr uint32_t  kCanonicalHeader   = 44;
     static constexpr uint32_t  kFmtPcmSize        = 16;
     static constexpr double    kFullScale16       = 32768.0;
+    static constexpr double    kFullScale8        = 127.0;
+    static constexpr double    kCenter8           = 128.0;
+    static constexpr double    kMaxUnsigned8      = 255.0;
     static constexpr size_t    kTagLength         = 4;
     static constexpr Word      kBits8             = 8;
     static constexpr Word      kBits16            = 16;

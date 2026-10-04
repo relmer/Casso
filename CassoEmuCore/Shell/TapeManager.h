@@ -69,13 +69,18 @@ public:
     //  on.
     void     SetNotifyFn       (std::function<void (const std::wstring &)> notify) { m_notify = std::move (notify); }
 
+    //  New blank tapes are 8-bit when set, 16-bit otherwise. A tape recorded
+    //  onto keeps its own.
+    void     SetBlankEightBit  (bool isEightBit) { m_blankEightBit.store (isEightBit, std::memory_order_relaxed); }
+
     static constexpr uint32_t        kBlankSampleRate = 44100;
     static constexpr const char    * kKeepSavedPath   = "keep";   // IDM_TAPE_EJECT payload for an unload
 
 private:
     HRESULT  SaveTapePath    (const std::string & path);
 
-    std::atomic<double>  m_seekSeconds { 0.0 };     // where the next Seek command winds to
+    std::atomic<double>  m_seekSeconds   { 0.0 };     // where the next Seek command winds to
+    std::atomic<bool>    m_blankEightBit { false };   // new blank tapes are 8-bit
     HRESULT  LoadAndPost     (const std::string & path, uint64_t request);
     HRESULT  WriteBlank      (const std::string & path);
     void     Notify          (const std::wstring & text) const { if (m_notify) { m_notify (text); } }

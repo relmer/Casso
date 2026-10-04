@@ -81,6 +81,7 @@ struct SettingsUiPrefs
     float              tapeVolume            = kDefaultTapeVolume;   // the tape heard when loading at real speed
     bool               tapeAutoStop          = true;        // the deck stops at the end of the tape
     bool               tapeIdleStop          = true;        // playback stops once the computer stops reading
+    bool               tapeEightBit          = false;       // new blank tapes are 8-bit WAVs rather than 16-bit
     bool               writeProtect[2]       = { false, false };
     // //c only: whether the optional external 5.25" drive is plugged into
     // the disk port. Reveals/hides the second drive-mount widget. Defaults
@@ -211,6 +212,7 @@ public:
     virtual void ApplyTapeVolume     (float gain)                    = 0;
     virtual void ApplyTapeAutoStop   (bool enabled)                  = 0;
     virtual void ApplyTapeIdleStop   (bool enabled)                  = 0;
+    virtual void ApplyTapeEightBit   (bool enabled)                  = 0;
     virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
     virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
@@ -314,6 +316,7 @@ public:
     void    SetTapeVolume      (float gain);
     void    SetTapeAutoStop    (bool enabled);
     void    SetTapeIdleStop    (bool enabled);
+    void    SetTapeEightBit    (bool enabled);
     void    SetDriveMotorVolume (float gain);
     void    SetDriveHeadVolume  (float gain);
     void    SetDriveDoorVolume  (float gain);
