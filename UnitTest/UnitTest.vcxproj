@@ -221,6 +221,7 @@
     <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
     <ClCompile Include="UiTests\TapeDeckWidgetTests.cpp" />
     <ClCompile Include="UiTests\TapeManagerTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRecordScannerTests.cpp" />
     <ClCompile Include="EmuTests\TapeRomLoadTests.cpp" />
     <ClCompile Include="EmuTests\TapeDeckTests.cpp" />
     <ClCompile Include="EmuTests\CassettePortTests.cpp" />

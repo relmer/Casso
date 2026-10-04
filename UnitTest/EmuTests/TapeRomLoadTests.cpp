@@ -380,6 +380,11 @@ public:
     // envelope never saw, and the load failed its checksum.
     TEST_METHOD (LoadsWithWeakHalfCycles) { TapeEncodeOptions o; o.weakHalfEvery = 7; o.weakHalfGain = 0.2; LoadThroughMonitor ("Apple2Plus", o, L"weak half-cycles"); }
 
+    // Clicks too sparse to mark the tape noisy, so it is first decoded
+    // switching near zero, where each one is two extra edges and the record
+    // fails its checksum. Decoded again smoothed, the clicks are ridden over.
+    TEST_METHOD (LoadsWithClicks) { TapeEncodeOptions o; o.clickEvery = 601; LoadThroughMonitor ("Apple2Plus", o, L"clicks"); }
+
 
     //  A tape cut short mid-load: what hardware gives, a stall or a checksum
     //  error, and the emulator carries on.

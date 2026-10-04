@@ -66,7 +66,34 @@ private:
     static constexpr double  kChatterSeconds    = 100.0e-6;  // the shortest real half-cycle, the sync, is 200 us
     static constexpr double  kNoisyChatterShare = 0.005;
 
-    static void    Filter       (const TapeAudio & audio, bool lowPass, std::vector<double> & filtered);
-    static void    Compare      (const std::vector<double> & filtered, uint32_t sampleRate, double ratio, TapeSignal & signal);
-    static double  ChatterShare (const TapeSignal & signal);
+    // One way of decoding: smoothed or not, and where the comparator
+    // switches, as a fraction of the envelope and never below a floor.
+    struct Settings
+    {
+        bool    lowPass;
+        double  ratio;
+        double  floor;
+    };
+
+    // What a record that fails its checksum is decoded again with, in
+    // order, until one gives it a good checksum. Few on purpose: an 8-bit
+    // checksum passes a damaged record about one time in 256, so every
+    // extra try is an extra chance of accepting one.
+    static constexpr Settings  kRescueSettings[] =
+    {
+        { false, 0.02, 0.01  },     // a lower floor: tiny swings near zero count
+        { false, 0.0,  0.005 },     // lower still: almost a bare zero crossing
+        { true,  0.12, 0.02  },     // smoothed, for hiss
+        { true,  0.25, 0.02  },     // smoothed and switching high, for heavy hiss
+    };
+
+    static constexpr double  kRescueLeadSeconds = 0.5;   // decoded ahead of the record, for the filters to settle
+
+    static void    Filter        (const TapeAudio & audio, bool lowPass, std::vector<double> & filtered);
+    static void    Compare       (const std::vector<double> & filtered, uint32_t sampleRate, double ratio,
+                                  double floor, TapeSignal & signal);
+    static double  ChatterShare  (const TapeSignal & signal);
+    static void    RescueRecords (const TapeAudio & audio, TapeSignal & signal);
+    static bool    TryRescue     (const TapeAudio & audio, double from, double to, double dataStart,
+                                  const Settings & settings, std::vector<double> & transitions);
 };

@@ -201,6 +201,7 @@
     <ClCompile Include="Devices\Tape\TapeDeck.cpp" />
     <ClCompile Include="Devices\Tape\WavCodec.cpp" />
     <ClCompile Include="Devices\Tape\TapeSignalDecoder.cpp" />
+    <ClCompile Include="Devices\Tape\TapeRecordScanner.cpp" />
     <ClCompile Include="Devices\Tape\TapeImageLoader.cpp" />
     <ClCompile Include="Devices\Tape\TapeChannelMixer.cpp" />
     <ClCompile Include="Devices\Tape\AiffCodec.cpp" />
@@ -502,6 +503,7 @@
     <ClInclude Include="Devices\Tape\TapeDeck.h" />
     <ClInclude Include="Devices\Tape\WavCodec.h" />
     <ClInclude Include="Devices\Tape\TapeSignalDecoder.h" />
+    <ClInclude Include="Devices\Tape\TapeRecordScanner.h" />
     <ClInclude Include="Devices\Tape\TapeImageLoader.h" />
     <ClInclude Include="Devices\Tape\TapeImage.h" />
     <ClInclude Include="Devices\Tape\TapeChannelMixer.h" />

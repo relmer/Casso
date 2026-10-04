@@ -33,6 +33,7 @@ struct TapeEncodeOptions
     uint32_t  noiseSeed     = 0xCA55E77E;
     size_t    weakHalfEvery = 0;        // every this many half-cycles is weak; 0 for none
     double    weakHalfGain  = 1.0;      // and is this fraction of the others' height
+    size_t    clickEvery    = 0;        // every this many half-cycles has a one-sample click; 0 for none
 };
 
 
@@ -50,8 +51,9 @@ struct TapeEncodeOptions
 //  cycle. Written for this project with Egan Ford's c2t
 //  (https://github.com/datajerk/c2t, BSD-3-Clause) as the timing reference.
 //
-//  This knowledge of the byte format is allowed here and nowhere in the
-//  emulator: the emulator's load path only ever sees transitions.
+//  The emulator's load path only ever hands the guest transitions. The one
+//  other place that knows the byte format is TapeRecordScanner, which the
+//  decoder uses to check its own work, never to feed the guest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
