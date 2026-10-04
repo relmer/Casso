@@ -280,7 +280,7 @@ void EmulatorShell::SetDebuggerLayout (const std::string & text)
         return;
     }
 
-    m_globalPrefs.SetDebuggerLayout (text);
+    m_globalPrefs.debuggerLayout = text;
     SaveGlobalPrefsDeferred();
 }
 
@@ -563,39 +563,18 @@ std::string EmulatorShell::GetDebuggerPlacementKey() const
 //
 //  TryGetDebuggerPlacement
 //
+//  Where the debugger window was left on this monitor arrangement. A
+//  placement that no longer lands on any monitor is declined, so a window
+//  saved on a screen since removed opens at its default place.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
-{
-    bool  maximized = false;
-
-
-
-    return TryGetDebuggerWindowState (rectPx, maximized);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetDebuggerWindowState
-//
-//  Where the debugger window was left on this monitor arrangement, and
-//  whether it was maximized. A placement whose monitor is gone is brought
-//  onto the nearest one that is there, still the size the user made it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::TryGetDebuggerWindowState (RECT & rectPx, bool & maximized)
 {
     WindowPlacementProfile::Bounds  bounds;
     WindowPlacementProfile          profile (m_globalPrefs);
     std::string                     key      = GetDebuggerPlacementKey();
     RECT                            saved    = {};
-    HMONITOR                        monitor  = nullptr;
-    MONITORINFO                     info     = { sizeof (info) };
 
 
 
@@ -615,8 +594,7 @@ bool EmulatorShell::TryGetDebuggerWindowState (RECT & rectPx, bool & maximized)
             if (other.w > 0 && other.h > 0 && MonitorFromRect (&candidate, MONITOR_DEFAULTTONULL) != nullptr)
             {
                 WindowTrace::LogRect ("restore.other", "debugger", candidate, "saved under key=" + otherKey);
-                rectPx    = candidate;
-                maximized = other.maximized;
+                rectPx = candidate;
                 return true;
             }
         }
@@ -628,19 +606,10 @@ bool EmulatorShell::TryGetDebuggerWindowState (RECT & rectPx, bool & maximized)
 
     if (MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) == nullptr)
     {
-        monitor = MonitorFromRect (&saved, MONITOR_DEFAULTTONEAREST);
-
-        if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
-        {
-            return false;
-        }
-
-        saved = WindowPlacementProfile::MoveOntoWorkArea (info.rcWork, saved);
-        WindowTrace::LogRect ("restore.moved", "debugger", saved, "its monitor is gone");
+        return false;
     }
 
-    rectPx    = saved;
-    maximized = bounds.maximized;
+    rectPx = saved;
     return true;
 }
 
@@ -656,34 +625,18 @@ bool EmulatorShell::TryGetDebuggerWindowState (RECT & rectPx, bool & maximized)
 
 void EmulatorShell::SetDebuggerPlacement (const RECT & rectPx)
 {
-    SetDebuggerWindowState (rectPx, false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerWindowState
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDebuggerWindowState (const RECT & rectPx, bool maximized)
-{
     WindowPlacementProfile          profile (m_globalPrefs);
     WindowPlacementProfile::Bounds  bounds;
     std::string                     key    = GetDebuggerPlacementKey();
 
 
 
-    bounds.x         = rectPx.left;
-    bounds.y         = rectPx.top;
-    bounds.w         = (int) (rectPx.right - rectPx.left);
-    bounds.h         = (int) (rectPx.bottom - rectPx.top);
-    bounds.maximized = maximized;
+    bounds.x = rectPx.left;
+    bounds.y = rectPx.top;
+    bounds.w = (int) (rectPx.right - rectPx.left);
+    bounds.h = (int) (rectPx.bottom - rectPx.top);
 
-    WindowTrace::LogRect ("save.prefs", "debugger", rectPx, "key=" + key + (maximized ? " maximized" : ""));
+    WindowTrace::LogRect ("save.prefs", "debugger", rectPx, "key=" + key);
     profile.Save (key, bounds, WindowPlacementProfile::Target::Debugger);
     SaveGlobalPrefsDeferred();
 }

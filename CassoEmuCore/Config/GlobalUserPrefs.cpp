@@ -92,7 +92,6 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerKeyScheme",
     "debuggerTheme",
     "debuggerLayout",
-    "debuggerLayoutAt",
     "debuggerClosedPanes",
     "debuggerCommandBarDock",
     "debuggerTimelineDock",
@@ -474,7 +473,6 @@ JsonValue GlobalUserPrefs::PlacementsToJson (const std::map<std::string, WindowB
         bounds.emplace_back ("w", JsonValue ((double) kv.second.w));
         bounds.emplace_back ("h", JsonValue ((double) kv.second.h));
         bounds.emplace_back ("max", JsonValue (kv.second.maximized));
-        bounds.emplace_back ("at",  JsonValue ((double) kv.second.savedAtMs));
         placementsObj.emplace_back (kv.first, JsonValue (std::move (bounds)));
     }
 
@@ -761,7 +759,6 @@ void GlobalUserPrefs::PlacementsFromJson (
         b.w = GetIntOpt (kv.second, "w", 0);
         b.h         = GetIntOpt (kv.second, "h", 0);
         b.maximized = TryGetBoolOpt (kv.second, "max", false);
-        b.savedAtMs = (int64_t) GetNumberOpt (kv.second, "at", 0.0);
         placements[kv.first] = b;
     }
 }
@@ -1046,14 +1043,14 @@ HRESULT GlobalUserPrefs::Save (
 
 
     //  Placements are the user's, and another Casso may have recorded one
-    //  since this instance read the file. The newer placement of each key is
-    //  written, so a save triggered by something else never moves another
-    //  window back to where it was.
+    //  since this instance read the file. Only the keys this instance's user
+    //  placed are written; the rest keep whatever is on disk, so a save
+    //  triggered by something else never moves another window.
     hrDisk = onDisk.Load (baseDir, fs);
 
     if (SUCCEEDED (hrDisk))
     {
-        merged.MergeNewerPlacements (onDisk);
+        merged.MergeUntouchedPlacements (onDisk);
         WindowTrace::Log ("prefs.merge", "prefs",
                           "disk had " + std::to_string (onDisk.window.debuggerPlacements.size()) +
                           " debugger placement(s); writing " +
@@ -1114,94 +1111,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::MergeNewerPlacements
+//  GlobalUserPrefs::MergeUntouchedPlacements
 //
-//  The newer placement of each key wins. A placement this object only read
-//  carries the stamp it was read with, so the file's copy -- the same one, or
-//  a newer one another instance wrote since -- wins the tie. Only a window
-//  this instance's user put somewhere after the file was written beats it.
-//  Remembering which keys this instance had touched was not enough: an
-//  instance that touched a key once wrote that placement back on every save
-//  for the rest of its life, over every newer one. The pane arrangement goes
-//  the same way, since the floating panes keep their rects in it.
+//  Placements this object never set come back from the file. A key is this
+//  object's own only once a window of THIS instance was put somewhere, which
+//  is what Touch records; everything else belongs to whoever wrote it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GlobalUserPrefs::MergeNewerPlacements (const GlobalUserPrefs & onDisk)
+void GlobalUserPrefs::MergeUntouchedPlacements (const GlobalUserPrefs & onDisk)
 {
-    MergeNewerPlacementMap (onDisk.window.placements,         window.placements);
-    MergeNewerPlacementMap (onDisk.window.debuggerPlacements, window.debuggerPlacements);
-
-    if (debuggerLayoutAtMs <= onDisk.debuggerLayoutAtMs)
+    for (const auto & each : onDisk.window.placements)
     {
-        debuggerLayout     = onDisk.debuggerLayout;
-        debuggerLayoutAtMs = onDisk.debuggerLayoutAtMs;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GlobalUserPrefs::SetDebuggerLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void GlobalUserPrefs::SetDebuggerLayout (const std::string & text)
-{
-    debuggerLayout     = text;
-    debuggerLayoutAtMs = GetNextStampMs (debuggerLayoutAtMs);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GlobalUserPrefs::GetNextStampMs
-//
-//  FILETIME counts 100 ns intervals from 1601, and 11644473600000 ms separate
-//  that from the Unix epoch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int64_t GlobalUserPrefs::GetNextStampMs (int64_t previous)
-{
-    FILETIME  now   = {};
-    int64_t   nowMs = 0;
-
-
-
-    GetSystemTimeAsFileTime (&now);
-    nowMs = (int64_t) ((((uint64_t) now.dwHighDateTime << 32) | now.dwLowDateTime) / 10000) - 11644473600000LL;
-
-    return std::max (nowMs, previous + 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GlobalUserPrefs::MergeNewerPlacementMap
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void GlobalUserPrefs::MergeNewerPlacementMap (
-    const std::map<std::string, WindowBounds> & onDisk,
-    std::map<std::string, WindowBounds>       & placements)
-{
-    for (const auto & each : onDisk)
-    {
-        auto  it = placements.find (each.first);
-
-        if (it == placements.end() || it->second.savedAtMs <= each.second.savedAtMs)
+        if (std::find (window.touched.begin(), window.touched.end(), each.first) == window.touched.end())
         {
-            placements[each.first] = each.second;
+            window.placements[each.first] = each.second;
+        }
+    }
+
+    for (const auto & each : onDisk.window.debuggerPlacements)
+    {
+        if (std::find (window.touchedDebugger.begin(), window.touchedDebugger.end(), each.first) ==
+            window.touchedDebugger.end())
+        {
+            window.debuggerPlacements[each.first] = each.second;
         }
     }
 }
@@ -1334,7 +1267,6 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerKeyScheme",  JsonValue (debuggerKeyScheme));
     root.emplace_back ("debuggerTheme",      JsonValue (debuggerTheme));
     root.emplace_back ("debuggerLayout",     JsonValue (debuggerLayout));
-    root.emplace_back ("debuggerLayoutAt",   JsonValue ((double) debuggerLayoutAtMs));
     root.emplace_back ("debuggerClosedPanes", JsonValue (debuggerClosedPanes));
     root.emplace_back ("debuggerCommandBarDock", JsonValue (debuggerCommandBarDock));
     root.emplace_back ("debuggerTimelineDock", JsonValue (debuggerTimelineDock));
@@ -1577,7 +1509,6 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     debuggerKeyScheme  = GetStringOpt   (v, "debuggerKeyScheme",  debuggerKeyScheme);
     debuggerTheme      = GetStringOpt   (v, "debuggerTheme",      debuggerTheme);
     debuggerLayout     = GetStringOpt   (v, "debuggerLayout",     debuggerLayout);
-    debuggerLayoutAtMs = (int64_t) GetNumberOpt (v, "debuggerLayoutAt", (double) debuggerLayoutAtMs);
     debuggerOpenViews  = GetStringOpt   (v, "debuggerOpenViews",  debuggerOpenViews);
 
     debuggerClosedPanes = GetStringOpt (v, "debuggerClosedPanes", debuggerClosedPanes);

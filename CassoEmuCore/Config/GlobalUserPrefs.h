@@ -159,14 +159,6 @@ struct GlobalUserPrefs
         // as the windowed placement is the classic way to lose the user's
         // real window size.
         bool  maximized = false;
-
-        // When the user put the window here, in milliseconds since the Unix
-        // epoch, and zero for a placement no build has stamped. Several
-        // Casso instances share the file, and an instance left open for a
-        // day still holds the placement it set that morning: a save merges
-        // each key by this stamp, so the newest placement wins whichever
-        // instance writes last.
-        int64_t  savedAtMs = 0;
     };
 
     struct
@@ -182,6 +174,13 @@ struct GlobalUserPrefs
         // The debugger window's own bounds, keyed the same way. It is a
         // window the user places, so it is remembered like the main one.
         std::map<std::string, WindowBounds>  debuggerPlacements;
+
+        // The keys this session's user placed, which are the only ones a
+        // save writes: another Casso may have recorded a placement since
+        // this one read the file, and a window this one merely opened where
+        // it was told must not write that back over it. Not persisted.
+        std::vector<std::string>             touched;
+        std::vector<std::string>             touchedDebugger;
     } window;
 
     // Most-recently-used disk image absolute paths, most-recent-first,
@@ -252,12 +251,6 @@ struct GlobalUserPrefs
     // the window cannot read gives the default arrangement.
     std::string  debuggerLayout;
 
-    // When the user last changed that arrangement, in milliseconds since the
-    // Unix epoch. Floating panes keep their rects in it, so it is merged by
-    // this stamp the same way as the window placements: an instance left
-    // open since an older arrangement does not write that one back.
-    int64_t      debuggerLayoutAtMs = 0;
-
     // The debugger's fixed panes the user closed, as pane ids separated by
     // spaces, so they stay closed in the next session.
     std::string  debuggerClosedPanes;
@@ -327,21 +320,12 @@ struct GlobalUserPrefs
     HRESULT     Save     (const std::wstring & baseDir,
                           IFileSystem        & fs) const;
 
-    //  Takes each placement `onDisk` holds that is at least as new as this
-    //  object's own, so a writer never drops another instance's arrangement
-    //  and never puts back one older than the file's. EVERY writer of the
-    //  prefs document owes the file this call: the document has two of them,
-    //  and the one that skipped it wiped the debugger placements of every
-    //  instance but its own.
-    void        MergeNewerPlacements (const GlobalUserPrefs & onDisk);
-
-    //  Records a new pane arrangement and when it was made.
-    void        SetDebuggerLayout (const std::string & text);
-
-    //  The time now, in milliseconds since the Unix epoch, and never at or
-    //  before previous: a change always stamps later than the one it
-    //  replaces, even when the clock has not moved or has gone backward.
-    static int64_t  GetNextStampMs (int64_t previous);
+    //  Takes the placements `onDisk` holds for keys this object was not told
+    //  about, so a writer never drops another instance's arrangement. EVERY
+    //  writer of the prefs document owes the file this call: the document has
+    //  two of them, and the one that skipped it wiped the debugger placements
+    //  of every instance but its own.
+    void        MergeUntouchedPlacements (const GlobalUserPrefs & onDisk);
 
     JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);
@@ -383,8 +367,6 @@ private:
                                               std::map<std::string, CrtOverrides> & out);
     static void         PlacementsFromJson  (const JsonValue                     & placementsObj,
                                              std::map<std::string, WindowBounds> & placements);
-    static void         MergeNewerPlacementMap (const std::map<std::string, WindowBounds> & onDisk,
-                                                std::map<std::string, WindowBounds>       & placements);
     static void         RecentDisksFromJson (const JsonValue          & recentArr,
                                              std::vector<std::string> & recentDisks);
     static void         RecentDiskTimesFromJson (const JsonValue           & loadedArr,

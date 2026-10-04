@@ -191,11 +191,6 @@ public:
     virtual bool  TryGetDebuggerPlacement (RECT & rectPx)                  = 0;
     virtual void  SetDebuggerPlacement    (const RECT & rectPx)            = 0;
 
-    //  The same, with whether the window was maximized; the rect is then the
-    //  one it restores to. A host that keeps no such state never maximizes.
-    virtual bool  TryGetDebuggerWindowState (RECT & rectPx, bool & maximized)  { maximized = false; return TryGetDebuggerPlacement (rectPx); }
-    virtual void  SetDebuggerWindowState    (const RECT & rectPx, bool maximized) { UNREFERENCED_PARAMETER (maximized); SetDebuggerPlacement (rectPx); }
-
     //  A debug file's source file, found by the rules of FR-058, and a file
     //  the user dropped, matched against the debug file's records. Where a
     //  file is found goes into the preferences, which the host keeps.
@@ -686,7 +681,6 @@ private:
     bool     RouteTraceKey      (const DxuiKeyEvent & ev);
     void     SaveTrace          ();
     void     ApplySavedPlacement ();
-    RECT     GetRestoredVisibleRect ();
 
     //  Floating panes (FR-040): each floats in a DxuiDockedWindow of its own,
     //  its controls moved there whole. The window's routing serves every
@@ -812,9 +806,6 @@ private:
     bool                                    m_swallowSpace       = false;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
-    bool                                    m_openedMaximized    = false;
-    bool                                    m_startMaximized     = false;
-    RECT                                    m_normalVisibleRect  = {};
     std::optional<Word>                     m_navigatedTo;
     int                                     m_navigatedView      = 0;
     std::string                             m_menuState;

@@ -78,6 +78,8 @@ public:
     // neither is anywhere the user put anything.
     static bool  IsPlaceableRect (const RECT & rect);
 
+    static void  Touch (std::vector<std::string> & keys, const std::string & topologyKey);
+
     // Places a window of the desired size on a monitor's work area, centered
     // where it fits, under one rule that outranks centering: THE CAPTION'S
     // TOP-LEFT CORNER IS NEVER OFF SCREEN. A window with its top-left off the
@@ -97,11 +99,6 @@ public:
                                 int          desiredHeight,
                                 int          minWidth  = 0,
                                 int          minHeight = 0);
-
-    // Brings a saved rect whose monitor is gone onto a work area that is
-    // there, keeping its size -- shrunk only where the work area is smaller
-    // -- and moving it no further than it takes to fit. Pure geometry.
-    static RECT  MoveOntoWorkArea (const RECT & work, const RECT & rect);
 
 private:
     static constexpr uint64_t  kFnvOffset    = 1469598103934665603ull;

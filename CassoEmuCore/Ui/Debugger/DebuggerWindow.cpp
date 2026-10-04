@@ -154,17 +154,9 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     //  foreground and the keys where Windows put them.
     Show (activate);
 
-    m_normalVisibleRect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
-
-    if (m_startMaximized)
-    {
-        ShowMaximized (activate);
-    }
-
     //  Where it opened is the baseline a close compares against, so a window
     //  the user never moved writes nothing and leaves the file to whoever did.
-    m_openedRect      = GetRestoredVisibleRect();
-    m_openedMaximized = IsZoomed (GetHwnd()) != FALSE;
+    m_openedRect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
     WindowTrace::LogWindow ("create.actual", "debugger", GetHwnd(), "after Show");
     m_placed = true;
 
@@ -11144,7 +11136,7 @@ void DebuggerWindow::ApplySavedPlacement()
 
 
 
-    if (m_host == nullptr || !m_host->TryGetDebuggerWindowState (visible, m_startMaximized))
+    if (m_host == nullptr || !m_host->TryGetDebuggerPlacement (visible))
     {
         WindowTrace::Log ("restore.miss", "debugger", "nothing saved for this monitor arrangement");
         return;
@@ -11214,8 +11206,7 @@ void DebuggerWindow::OnWindowPlaced()
 
 void DebuggerWindow::SavePlacementIfMoved()
 {
-    RECT  rect      = {};
-    bool  maximized = false;
+    RECT  rect = {};
 
 
 
@@ -11230,8 +11221,7 @@ void DebuggerWindow::SavePlacementIfMoved()
         return;
     }
 
-    rect      = GetRestoredVisibleRect();
-    maximized = IsZoomed (GetHwnd()) != FALSE;
+    rect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
 
     if (!WindowPlacementProfile::IsPlaceableRect (rect))
     {
@@ -11239,7 +11229,7 @@ void DebuggerWindow::SavePlacementIfMoved()
         return;
     }
 
-    if (EqualRect (&rect, &m_openedRect) && maximized == m_openedMaximized)
+    if (EqualRect (&rect, &m_openedRect))
     {
         WindowTrace::LogRect ("save.unmoved", "debugger", rect, "where it opened, so the file is left alone");
         return;
@@ -11248,37 +11238,8 @@ void DebuggerWindow::SavePlacementIfMoved()
     WindowTrace::LogRect ("save", "debugger", rect, "opened at x=" + std::to_string (m_openedRect.left) +
                           " y=" + std::to_string (m_openedRect.top));
 
-    m_openedRect      = rect;
-    m_openedMaximized = maximized;
-    m_host->SetDebuggerWindowState (rect, maximized);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetRestoredVisibleRect
-//
-//  The visible rect the window has when it is not maximized. MAXIMIZED IS A
-//  STATE, NOT A RECT: a maximized window's own rect is the monitor's, and
-//  saving that as the window's size is how a user who maximizes loses the
-//  size they gave it. So the rect is the last one seen while it was not
-//  maximized. GetWindowPlacement's normal position was tried and came back
-//  several pixels off: the border measured on a maximized window is not the
-//  one it has when restored.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DebuggerWindow::GetRestoredVisibleRect()
-{
-    if (!IsZoomed (GetHwnd()))
-    {
-        m_normalVisibleRect = DxuiWindowFrame::GetVisibleRect (GetHwnd());
-    }
-
-    return m_normalVisibleRect;
+    m_openedRect = rect;
+    m_host->SetDebuggerPlacement (rect);
 }
 
 

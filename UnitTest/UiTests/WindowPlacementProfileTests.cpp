@@ -312,26 +312,4 @@ public:
         Assert::IsTrue (placed.right  <= attached.right,  L"off the right edge");
         Assert::IsTrue (placed.bottom <= attached.bottom, L"off the bottom edge");
     }
-
-    //  A debugger window left on a monitor since unplugged comes back on one
-    //  that is there, still the size the user made it.
-    TEST_METHOD (MoveOntoWorkArea_KeepsTheSizeAndLandsOnTheWorkArea)
-    {
-        RECT  attached = MakeWork (0, 0, 2560, 1400);
-        RECT  saved    = { 3200, 300, 3200 + 1300, 300 + 900 };
-        RECT  placed   = WindowPlacementProfile::MoveOntoWorkArea (attached, saved);
-        RECT  tooBig   = WindowPlacementProfile::MoveOntoWorkArea (attached, RECT { -4000, -50, -4000 + 3000, -50 + 1600 });
-
-
-
-        Assert::AreEqual (1300L, placed.right  - placed.left, L"the width stays");
-        Assert::AreEqual (900L,  placed.bottom - placed.top,  L"the height stays");
-        Assert::AreEqual (1260L, placed.left,                 L"moved only as far as it takes to fit");
-        Assert::AreEqual (300L,  placed.top);
-
-        Assert::AreEqual (0L,    tooBig.left);
-        Assert::AreEqual (0L,    tooBig.top);
-        Assert::AreEqual (2560L, tooBig.right,  L"shrunk to the work area");
-        Assert::AreEqual (1400L, tooBig.bottom);
-    }
 };

@@ -1784,7 +1784,7 @@ HRESULT UserConfigStore::BuildCombinedJson (
 
         if (SUCCEEDED (hrGlobal))
         {
-            merged.MergeNewerPlacements (onDisk);
+            merged.MergeUntouchedPlacements (onDisk);
         }
 
         WindowTrace::Log ("prefs.store", "prefs",
