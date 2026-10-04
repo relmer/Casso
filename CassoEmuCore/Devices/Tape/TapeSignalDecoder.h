@@ -43,16 +43,29 @@ public:
     static void Decode (const TapeAudio & audio, TapeSignal & signal);
 
 private:
-    static constexpr double  kHighPassHz       = 20.0;
-    static constexpr double  kLowPassHz        = 6000.0;
-    static constexpr double  kMinLowPassRate   = 22000.0;   // below this the low-pass would eat the tones
-    static constexpr double  kReleaseSeconds   = 0.050;
-    // Of the peak envelope. Low, as the Apple's own input switches close to
-    // zero: a real recording's half-cycles vary in height, and at a quarter
-    // of the envelope the weakest of them -- a fifth of their neighbors' peak
-    // on one Internet Archive tape -- were never seen, and the load failed.
-    static constexpr double  kThresholdRatio   = 0.12;
-    static constexpr double  kThresholdFloor   = 0.02;      // about -34 dBFS; quieter is treated as silence
+    static constexpr double  kHighPassHz        = 20.0;
+    static constexpr double  kLowPassHz         = 6000.0;
+    static constexpr double  kMinLowPassRate    = 22000.0;   // below this the low-pass would eat the tones
+    static constexpr double  kReleaseSeconds    = 0.050;
+    static constexpr double  kThresholdFloor    = 0.02;      // about -34 dBFS; quieter is treated as silence
 
-    static void  Filter (const TapeAudio & audio, std::vector<double> & filtered);
+    // Where the comparator switches, as a fraction of the peak envelope.
+    // A CLEAN recording switches close to zero, as the Apple's own input
+    // does: a real tape's half-cycles vary in height, and the weakest of them
+    // -- a fifth of their neighbors' peak on one Internet Archive tape -- are
+    // missed by anything higher. A NOISY one is smoothed and switches higher,
+    // or hiss would flip it between the tones' own crossings.
+    static constexpr double  kCleanThreshold    = 0.04;
+    static constexpr double  kNoisyThreshold    = 0.12;
+
+    // How a recording is judged noisy: switching close to zero, more than
+    // this share of its crossings come closer together than any Apple tone
+    // allows. Archive transfers measure 0.03% and below; white noise at
+    // 15 dB SNR measures 4%.
+    static constexpr double  kChatterSeconds    = 100.0e-6;  // the shortest real half-cycle, the sync, is 200 us
+    static constexpr double  kNoisyChatterShare = 0.005;
+
+    static void    Filter       (const TapeAudio & audio, bool lowPass, std::vector<double> & filtered);
+    static void    Compare      (const std::vector<double> & filtered, uint32_t sampleRate, double ratio, TapeSignal & signal);
+    static double  ChatterShare (const TapeSignal & signal);
 };
