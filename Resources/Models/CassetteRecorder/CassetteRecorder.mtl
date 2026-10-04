@@ -25,17 +25,37 @@ d 1
 
 newmtl cassette
 Ka 0 0 0 
-Kd 0.24 0.245 0.255
+Kd 0.12 0.12 0.13
 d 1
 
 newmtl cassette_label
 Ka 0 0 0 
-Kd 0.88 0.88 0.87
+Kd 0.93 0.9 0.8
+d 1
+
+newmtl cassette_stripe
+Ka 0 0 0 
+Kd 0.78 0.27 0.15
+d 1
+
+newmtl cassette_lines
+Ka 0 0 0 
+Kd 0.55 0.54 0.5
+d 1
+
+newmtl cassette_tape
+Ka 0 0 0 
+Kd 0.3 0.18 0.1
 d 1
 
 newmtl cassette_hubs
 Ka 0 0 0 
-Kd 0.03 0.03 0.03
+Kd 0.92 0.92 0.91
+d 1
+
+newmtl cassette_screws
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
 d 1
 
 newmtl transport

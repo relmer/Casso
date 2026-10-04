@@ -63,9 +63,12 @@ PERF    = (0.200, 0.200, 0.205)
 BAND    = (0.050, 0.050, 0.055)
 PRINT   = (0.940, 0.940, 0.940)
 DOOR    = (0.075, 0.095, 0.120)     # the smoked lid's frame
-CASSETTE= (0.240, 0.245, 0.255)
-CASS_LBL= (0.880, 0.880, 0.870)
-HUB     = (0.030, 0.030, 0.030)
+CASSETTE= (0.120, 0.120, 0.130)     # the shell
+CASS_LBL= (0.930, 0.900, 0.800)     # cream paper
+CASS_STRIPE = (0.780, 0.270, 0.150) # the label's colored band
+CASS_LINE   = (0.550, 0.540, 0.500) # its writing lines
+TAPE    = (0.300, 0.180, 0.100)     # oxide brown
+HUB     = (0.920, 0.920, 0.910)     # white hubs
 BRASS   = (0.700, 0.600, 0.380)
 CHROME  = (0.330, 0.335, 0.345)     # dark base: the scene adds the sheen from above
 
@@ -162,10 +165,11 @@ def build():
 
     # The seat the pane drops into, flush, and the cassette well under it:
     # without them the cassette is inside the solid and the door shows nothing.
+    # The well spans the door's full depth: a compact cassette is 64 mm deep.
     seat = box(x0, x1, dy0, dy1, top - DOOR_T, top + 1.0)
-    well = box(x0 + 4, x1 - 4, dy0 + 4, dy1 - 6, top - 9.0, top + 1.0)
+    well = box(x0 + 4, x1 - 4, dy0 + 0.5, dy1 - 0.5, top - 9.0, top + 1.0)
     m.add("body", body().cut(seat).cut(well), BODY, angular=0.14)
-    m.add("well_floor", box(x0 + 4, x1 - 4, dy0 + 4, dy1 - 6, top - 9.0, top - 8.5), PERF)
+    m.add("well_floor", box(x0 + 4, x1 - 4, dy0 + 0.5, dy1 - 0.5, top - 9.0, top - 8.5), PERF)
 
     # Grille, short of the rounded back.
     gy1 = D - BACK_IN_HI - 2.0
@@ -188,18 +192,84 @@ def build():
           .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top)),
           PRINT)
 
-    cz = top - 4.0
-    cx0, cx1 = x0 + 6, x1 - 6
-    m.add("cassette", box(cx0, cx1, dy0 + 6, dy1 - 12, cz - 2, cz), CASSETTE)
-    m.add("cassette_label", box(W / 2 - 9, W / 2 + 9, dy1 - 32, dy1 - 22, cz, cz + 0.2), CASS_LBL)
+    # THE CASSETTE, a compact cassette lying label up with its tape edge
+    # toward the keys, as it sits in the deck: dark shell, a paper label with
+    # a stripe and writing lines, two hub holes and a window cut through it,
+    # white toothed hubs in the holes, brown tape wound on the spools in the
+    # window, and the tape itself running across the open front edge.
+    cz       = top - 3.5                     # the shell's top
+    ccx      = W / 2
+    ccy      = (dy0 + dy1) / 2
+    CW, CD   = 99.0, 62.0                    # a compact cassette, a hair under 100.4 x 63.8
+    CT       = 5.0                           # what shows of its thickness above the well floor
+    HUB_DX   = 21.25                         # hubs either side of center
+    hub_y    = ccy + 3.0
+    shell = (box(ccx - CW / 2, ccx + CW / 2, ccy - CD / 2, ccy + CD / 2, cz - CT, cz)
+             .edges("|Z").fillet(2.5))
+    m.add("cassette", shell, CASSETTE)
+
+    LBL_HW, LBL_Y0, LBL_Y1 = 44.0, ccy - 20.0, ccy + 27.0
+    label = box(ccx - LBL_HW, ccx + LBL_HW, LBL_Y0, LBL_Y1, cz, cz + 0.15).edges("|Z").fillet(2.0)
+    holes = None
+    for sx in (-1, 1):
+        hole = cq.Workplane("XY").workplane(offset=cz - 0.1).center(ccx + sx * HUB_DX, hub_y).circle(6.6).extrude(0.4)
+        holes = hole if holes is None else holes.union(hole)
+    window = box(ccx - 12.0, ccx + 12.0, hub_y - 5.5, hub_y + 5.5, cz - 0.1, cz + 0.3).edges("|Z").fillet(2.0)
+    label = label.cut(holes).cut(window)
+    m.add("cassette_label", label, CASS_LBL)
+
+    # The same openings go down through the shell's top, so the hubs and the
+    # tape under them show.
+    sink = None
+    for sx in (-1, 1):
+        s = cq.Workplane("XY").workplane(offset=cz - 2.2).center(ccx + sx * HUB_DX, hub_y).circle(6.6).extrude(3.0)
+        sink = s if sink is None else sink.union(s)
+    sink = sink.union(box(ccx - 12.0, ccx + 12.0, hub_y - 5.5, hub_y + 5.5, cz - 2.2, cz + 0.8).edges("|Z").fillet(2.0))
+    m.parts[-2].solid = m.parts[-2].solid.cut(sink)
+
+    stripe = (box(ccx - LBL_HW, ccx + LBL_HW, LBL_Y1 - 9.0, LBL_Y1 - 5.0, cz + 0.15, cz + 0.2))
+    m.add("cassette_stripe", stripe, CASS_STRIPE)
+    lines = None
+    for ly in (LBL_Y0 + 4.0, LBL_Y0 + 8.0):
+        ln = box(ccx - LBL_HW + 4, ccx + LBL_HW - 4, ly, ly + 0.35, cz + 0.15, cz + 0.2)
+        lines = ln if lines is None else lines.union(ln)
+    m.add("cassette_lines", lines, CASS_LINE)
+
+    # Tape wound on each spool, seen through the window and the hub holes.
+    packs = None
+    for sx in (-1, 1):
+        pack = (cq.Workplane("XY").workplane(offset=cz - 1.6).center(ccx + sx * HUB_DX, hub_y)
+                .circle(15.0).circle(6.0).extrude(1.0))
+        packs = pack if packs is None else packs.union(pack)
+    m.add("cassette_tape", packs.union(box(ccx - 38.0, ccx + 38.0, ccy - CD / 2 - 0.2, ccy - CD / 2 + 0.6,
+                                           cz - CT + 0.8, cz - 1.0)), TAPE)
+
+    # The hubs: white rings with six teeth pointing in.
     hubs = None
-    for hx in (W / 2 - 22, W / 2 + 22):
-        hub = cq.Workplane("XY").workplane(offset=cz).center(hx, dy1 - 27).circle(5.0).extrude(0.3)
+    for sx in (-1, 1):
+        hx  = ccx + sx * HUB_DX
+        hub = cq.Workplane("XY").workplane(offset=cz - 1.5).center(hx, hub_y).circle(6.0).circle(4.2).extrude(1.2)
+        for k in range(6):
+            a = math.pi * 2 * k / 6
+            tooth = (box(-0.6, 0.6, 3.0, 4.4, 0, 1.2)
+                     .rotate((0, 0, 0), (0, 0, 1), math.degrees(a))
+                     .translate((hx, hub_y, cz - 1.5)))
+            hub = hub.union(tooth)
         hubs = hub if hubs is None else hubs.union(hub)
     m.add("cassette_hubs", hubs, HUB)
+
+    screws = None
+    for sx, sy in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
+        screw = (cq.Workplane("XY").workplane(offset=cz)
+                 .center(ccx + sx * (CW / 2 - 4.0), ccy + sy * (CD / 2 - 4.0)).circle(1.3).extrude(0.3))
+        screws = screw if screws is None else screws.union(screw)
+    m.add("cassette_screws", screws, SILVER)
+
+    # The heads and capstan, down on the well floor: under a cassette they
+    # are hidden, and they show only with the deck empty.
     mech = None
     for hx in (W / 2 - 12, W / 2 + 6, W / 2 + 18):
-        roller = cq.Workplane("XY").workplane(offset=cz).center(hx, dy0 + 12).circle(2.6).extrude(1.5)
+        roller = cq.Workplane("XY").workplane(offset=top - 8.5).center(hx, dy0 + 8).circle(2.6).extrude(3.0)
         mech = roller if mech is None else mech.union(roller)
     m.add("transport", mech, BRASS)
 
