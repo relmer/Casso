@@ -100,6 +100,7 @@ private:
     DxuiToggle                       m_tapeAutoStop;
     DxuiToggle                       m_tapeIdleStop;
     DxuiToggle                       m_tapeEightBit;
+    DxuiInfoTip                      m_tapeEightBitInfo;
     DxuiSlider                       m_tapeVolume;
     DxuiLabel                        m_tapeVolumeLabel;
     DxuiLabel                        m_tapeAutoStopLabel;

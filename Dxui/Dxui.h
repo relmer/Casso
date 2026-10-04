@@ -147,6 +147,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiScrollPanel.h"
 #include "Widgets/DxuiSurface.h"
 #include "Widgets/DxuiShadowedText.h"
+#include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiIconButton.h"
 #include "Widgets/DxuiWarningBadge.h"
 #include "Widgets/DxuiInfoBanner.h"

@@ -17,6 +17,7 @@
 static constexpr int    s_kRowHeightDp     = 28;
 static constexpr int    s_kLabelWidthDp    = 140;
 static constexpr int    s_kCheckWidthDp    = 140;
+static constexpr int    s_kInfoTipAfterDp  = 84;    // a toggle's pill and its On or Off
 static constexpr int    s_kDropdownWidthDp = 200;
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kPagePadDp       = 16;
@@ -96,6 +97,7 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_tapeAutoStopLabel);
     Adopt (m_tapeIdleStopLabel);
     Adopt (m_tapeEightBitLabel);
+    Adopt (m_tapeEightBitInfo);
     for (DxuiCheckbox & checkbox : m_writeProtect)
     {
         Adopt (checkbox);
@@ -171,6 +173,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  rowHeight    = scaler.ToPx (s_kRowHeightDp);
     int  labelWidth   = scaler.ToPx (s_kLabelWidthDp);
     int  checkWidth   = scaler.ToPx (s_kCheckWidthDp);
+    int  infoAt       = scaler.ToPx (s_kInfoTipAfterDp);
     int  dropWidth    = scaler.ToPx (s_kDropdownWidthDp);
     int  sectionGap   = scaler.ToPx (s_kSectionGapDp);
     int  childIndent  = scaler.ToPx (DxuiTreeView::kIndentDip);
@@ -293,7 +296,13 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // them CiderPress II, read only 8-bit; a tape recorded onto keeps its own.
     m_tapeEightBitLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_tapeEightBitLabel.SetText (L"Record new tapes as 8-bit:");
-    m_tapeEightBit.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
+    // Only as wide as its pill and its On or Off, so the info tip sits right
+    // beside what it explains.
+    m_tapeEightBit.SetRect      (MakeRect (controlsX, y, infoAt, rowHeight));
+    m_tapeEightBitInfo.SetRect  (MakeRect (controlsX + infoAt, y, rowHeight, rowHeight));
+    m_tapeEightBitInfo.SetText  (L"Casso reads 8-bit and 16-bit tapes alike. Some other tools, such as "
+                                 L"CiderPress II, read only 8-bit WAV files. A tape you record onto keeps "
+                                 L"its own format.");
     y += rowHeight + sectionGap;
 
     // Below both sections, because it restores the whole page.
@@ -316,6 +325,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_tapeIdleStopLabel.SetDpi (dpi);
     m_tapeEightBit.SetDpi      (dpi);
     m_tapeEightBitLabel.SetDpi (dpi);
+    m_tapeEightBitInfo.SetDpi  (dpi);
     m_tapeLabel.SetDpi       (dpi);
     m_diskHeading.SetDpi     (dpi);
     m_tapeHeading.SetDpi     (dpi);
@@ -433,6 +443,7 @@ void DiskPage::SetPopupHost (DxuiHwndSource * host)
 {
     m_writeMode.SetPopupHost       (host);
     m_mechanism.SetPopupHost       (host);
+    m_tapeEightBitInfo.SetPopupHost (host);
 }
 
 
