@@ -333,6 +333,7 @@
     <ClCompile Include="DebuggerTests\RelativePathNoDirectoryTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgParserTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
+    <ClCompile Include="DebuggerTests\MonitorBareStepTests.cpp" />
     <ClCompile Include="DebuggerTests\GSSquaredWidthNoteTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorSlotNoteTests.cpp" />
     <ClCompile Include="DebuggerTests\StepSoundTests.cpp" />
@@ -825,6 +826,7 @@
     <ClCompile Include="EmuTests\MachineStateFileTests.cpp" />
     <ClCompile Include="EmuTests\ReplayOutputGateTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
+    <ClCompile Include="EmuTests\SliceInputSampleTests.cpp" />
     <ClCompile Include="EmuTests\ReverseSessionStopTestTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />
     <ClCompile Include="DebuggerTests\StepWhileRunningTests.cpp" />

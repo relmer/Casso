@@ -204,6 +204,10 @@ stops there as a run to, rather than running on into the ROM. That stop stays
 armed until the program reaches it, through any breakpoint or step along the
 way; another Monitor `addrG`, a reset or a machine change replaces or clears it.
 
+In Monitor mode, `addrS` steps one instruction from `addr`, and a bare `S`
+steps one instruction from the current PC, as the Monitor does after the
+first `S`.
+
 Breakpoints (`BP`, `BPM`, `BPMR`, `BPMW`, `BPR`, `BPL`, `BPC`, `BPD`, `BPE`),
 watches (`W`, `WL`, `WC`) and the rest of AppleWin's commands are listed by
 `HELP`.
