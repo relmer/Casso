@@ -163,3 +163,146 @@ public:
         Assert::AreEqual (22, strip.GetMinWidthPx (scaler), L"it can shrink to one cell");
     }
 };
+
+
+
+
+
+#ifdef _DEBUG
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PictureStripSource
+//
+//  Hands out whatever pictures the test has put in place, per cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class PictureStripSource : public IDxuiImageStripSource
+{
+public:
+    void   SetCellLayout   (int count, SIZE cellPx) override { (void) cellPx; thumbs.resize ((size_t) count); previews.resize ((size_t) count); }
+    Image  GetCellImage    (int index) override              { return thumbs[(size_t) index]; }
+    Image  GetPreviewImage (int index) override              { return previews[(size_t) index]; }
+    void   OnCellClicked   (int index) override              { (void) index; }
+
+    static Image  MakePicture (int width, int height)
+    {
+        auto  image = std::make_shared<DxuiIconImage>();
+
+
+
+        image->width  = width;
+        image->height = height;
+        image->bgraPremul.assign ((size_t) width * (size_t) height, 0xFF000000u);
+        return image;
+    }
+
+    std::vector<Image>  thumbs;
+    std::vector<Image>  previews;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStripPreviewTests
+//
+//  The hover preview stays up while the pointer moves over the strip: one
+//  popup, opened once, that keeps its picture until the next one is ready.
+//  A popup closed and opened again for each cell crossed is a visible
+//  flicker, so the number of popups taken from the pool is the measure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiImageStripPreviewTests)
+{
+public:
+
+    TEST_METHOD_INITIALIZE (ResetUiThread)
+    {
+        DxuiResetUiThreadIdForTest();
+    }
+
+
+    TEST_METHOD (CrossingCellsKeepsOnePopupOpen)
+    {
+        DxuiHwndSource      host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
+        DxuiImageStrip      strip;
+        PictureStripSource  source;
+        DxuiDpiScaler       scaler;
+        size_t              acquired = 0;
+        int                 x        = 0;
+
+
+
+        strip.SetSource    (&source);
+        strip.SetAspect    (s_kStripAspect);
+        strip.SetPopupHost (&host);
+        strip.Layout       (RECT { 0, 0, 479, 32 }, false, scaler);
+
+        for (size_t i = 0; i < source.previews.size(); i++)
+        {
+            source.thumbs[i]   = PictureStripSource::MakePicture (47, 32);
+            source.previews[i] = PictureStripSource::MakePicture (280, 192);
+        }
+
+        strip.OnMouseMove (5, 5);
+        Assert::IsTrue (strip.IsPreviewShown(), L"the first cell's preview is up");
+
+        acquired = host.GetPopupHits() + host.GetPopupMisses();
+
+        for (x = 5; x < 470; x += 3)
+        {
+            strip.OnMouseMove (x, 5);
+            strip.Sync();
+            Assert::IsTrue (strip.IsPreviewShown(), L"never closed while the pointer is over the strip");
+        }
+
+        Assert::AreEqual (acquired, host.GetPopupHits() + host.GetPopupMisses(), L"one popup for the whole sweep, never reopened");
+    }
+
+
+    TEST_METHOD (ACellNotDrawnYetKeepsThePreviewUp)
+    {
+        DxuiHwndSource      host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
+        DxuiImageStrip      strip;
+        PictureStripSource  source;
+        DxuiDpiScaler       scaler;
+        size_t              acquired = 0;
+
+
+
+        strip.SetSource    (&source);
+        strip.SetAspect    (s_kStripAspect);
+        strip.SetPopupHost (&host);
+        strip.Layout       (RECT { 0, 0, 479, 32 }, false, scaler);
+
+        source.thumbs[0]   = PictureStripSource::MakePicture (47, 32);
+        source.thumbs[1]   = PictureStripSource::MakePicture (47, 32);
+        source.previews[0] = PictureStripSource::MakePicture (280, 192);
+
+        strip.OnMouseMove (5, 5);
+        acquired = host.GetPopupHits() + host.GetPopupMisses();
+
+        strip.OnMouseMove (52, 5);
+        strip.Sync();
+        Assert::IsTrue (strip.IsPreviewShown(), L"the next cell's thumbnail stands in until its picture is ready");
+
+        source.previews[1] = PictureStripSource::MakePicture (280, 192);
+        strip.Sync();
+        Assert::IsTrue (strip.IsPreviewShown(), L"its picture replaces the thumbnail in place");
+        Assert::AreEqual (acquired, host.GetPopupHits() + host.GetPopupMisses(), L"the same popup throughout");
+
+        strip.OnMouseLeave();
+        Assert::IsFalse (strip.IsPreviewShown(), L"leaving the strip closes it");
+    }
+};
+
+#endif

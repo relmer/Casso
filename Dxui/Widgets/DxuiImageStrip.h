@@ -85,14 +85,17 @@ private:
     static constexpr float  kHoverEdgeDip   = 2.0f;
     static constexpr int    kMinThicknessPx = 1;
 
-    void  ShowPreview  ();
-    void  RenderPreview (IDxuiPainter & painter, IDxuiTextRenderer & text);
+    void  ShowPreview      ();
+    void  MovePreview      ();
+    RECT  GetPreviewAnchor () const;
+    void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
 
     IDxuiImageStripSource           * m_source      = nullptr;
     DxuiHwndSource                  * m_popupHost   = nullptr;
     DxuiPopupHost                   * m_preview     = nullptr;
     IDxuiImageStripSource::Image      m_previewImage;
     int                               m_previewCell = -1;
+    SIZE                              m_previewDip  = {};   // the last full-size picture's size; a thumbnail scales to it
     float                             m_aspect      = kDefaultAspect;
     int                               m_preferredPx = 0;
 

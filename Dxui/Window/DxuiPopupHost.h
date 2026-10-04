@@ -240,6 +240,12 @@ public:
     //
     void     MarkDirty ();
 
+    //
+    //  Place an open popup against a new anchor at a new size and re-render
+    //  it, without hiding the window. For a popup that follows the pointer.
+    //
+    HRESULT  MoveTo    (RECT anchorRectScreen, SIZE sizeDip);
+
     //  The open reveal: the menu is rendered once at full size and the WINDOW
     //  then uncovers it, top to bottom, which is the unfold a Windows menu
     //  plays. The swap chain is not resized with the window, so the content

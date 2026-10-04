@@ -444,15 +444,18 @@ void DxuiImageStrip::OnMouseLeave()
 //
 //  DxuiImageStrip::Sync
 //
-//  The preview follows the cell under the pointer. One the source has not
-//  drawn yet hides the preview of the cell before it rather than leave the
-//  wrong picture up.
+//  The preview follows the cell under the pointer in one popup, opened once
+//  and moved from cell to cell, never closed and opened again on the way: a
+//  window hidden and shown for each cell crossed flickers. A cell whose
+//  full-size picture is not drawn yet shows its thumbnail scaled up until it
+//  is, and a picture already up stays until its replacement is ready.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiImageStrip::Sync()
 {
     IDxuiImageStripSource::Image  image;
+    bool                          isFull = true;
 
 
 
@@ -466,11 +469,19 @@ void DxuiImageStrip::Sync()
 
     if (image == nullptr)
     {
-        if (m_previewCell != m_hovered)
+        // What is up for this cell stays until its full-size picture arrives.
+        if (m_preview != nullptr && m_previewCell == m_hovered)
         {
-            HidePreview();
+            return;
         }
 
+        image  = m_source->GetCellImage (m_hovered);
+        isFull = false;
+    }
+
+    // No picture at all, or no size to scale a thumbnail to yet: keep what is up.
+    if (image == nullptr || (!isFull && m_previewDip.cx <= 0))
+    {
         return;
     }
 
@@ -479,12 +490,22 @@ void DxuiImageStrip::Sync()
         return;
     }
 
-    HidePreview();
-
     m_previewImage = std::move (image);
     m_previewCell  = m_hovered;
 
-    ShowPreview();
+    if (isFull)
+    {
+        m_previewDip = SIZE { m_previewImage->width, m_previewImage->height };
+    }
+
+    if (m_preview != nullptr)
+    {
+        MovePreview();
+    }
+    else
+    {
+        ShowPreview();
+    }
 }
 
 
@@ -533,11 +554,7 @@ void DxuiImageStrip::HidePreview()
 void DxuiImageStrip::ShowPreview()
 {
     DxuiPopupHost::ShowParams  params;
-    RECT                       cell     = GetCellRect (m_rc, m_previewCell, m_count, m_cellPx, m_vertical);
-    POINT                      topLeft  = { cell.left, cell.top };
-    POINT                      botRight = { cell.right, cell.bottom };
-    HWND                       owner    = nullptr;
-    HRESULT                    hr       = S_OK;
+    HRESULT                    hr = S_OK;
 
 
 
@@ -546,7 +563,6 @@ void DxuiImageStrip::ShowPreview()
         return;
     }
 
-    owner     = m_popupHost->GetHwnd();
     m_preview = m_popupHost->AcquirePopup();
 
     if (m_preview == nullptr)
@@ -554,18 +570,15 @@ void DxuiImageStrip::ShowPreview()
         return;
     }
 
-    ClientToScreen (owner, &topLeft);
-    ClientToScreen (owner, &botRight);
-
-    params.ownerHwnd        = owner;
-    params.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+    params.ownerHwnd        = m_popupHost->GetHwnd();
+    params.anchorRectScreen = GetPreviewAnchor();
     params.placement        = m_vertical ? DxuiPopupPlacement::Right : DxuiPopupPlacement::Below;
     params.flipIfOffscreen  = true;
     params.dismiss          = DxuiPopupDismiss::Manual;
     params.input            = DxuiPopupInput::PassThrough;
     params.shadow           = true;
     params.grabsCapture     = false;
-    params.sizeDip          = SIZE { m_previewImage->width, m_previewImage->height };
+    params.sizeDip          = m_previewDip;
     params.backgroundArgb   = DxuiPopupHost::kDefaultMenuBackgroundArgb;
     params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text) { RenderPreview (painter, text); };
     params.onClosed         = [this] () { m_preview = nullptr; };
@@ -576,6 +589,64 @@ void DxuiImageStrip::ShowPreview()
     {
         HidePreview();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::MovePreview
+//
+//  The open popup moves beside the cell now under the pointer and redraws
+//  with its picture, staying on screen throughout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::MovePreview()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_preview->MoveTo (GetPreviewAnchor(), m_previewDip);
+
+    if (FAILED (hr))
+    {
+        HidePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetPreviewAnchor
+//
+//  The previewed cell, in screen pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiImageStrip::GetPreviewAnchor() const
+{
+    RECT   cell     = GetCellRect (m_rc, m_previewCell, m_count, m_cellPx, m_vertical);
+    POINT  topLeft  = { cell.left, cell.top };
+    POINT  botRight = { cell.right, cell.bottom };
+    HWND   owner    = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
+
+
+
+    // No window, as in tests: the cell's client pixels stand in for the screen.
+    if (owner != nullptr)
+    {
+        ClientToScreen (owner, &topLeft);
+        ClientToScreen (owner, &botRight);
+    }
+
+    return RECT { topLeft.x, topLeft.y, botRight.x, botRight.y };
 }
 
 
@@ -610,7 +681,7 @@ void DxuiImageStrip::RenderPreview (
 
     hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height,
                                0.0f, 0.0f,
-                               scaler->ToPxf ((float) m_previewImage->width),
-                               scaler->ToPxf ((float) m_previewImage->height));
+                               scaler->ToPxf ((float) m_previewDip.cx),
+                               scaler->ToPxf ((float) m_previewDip.cy));
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

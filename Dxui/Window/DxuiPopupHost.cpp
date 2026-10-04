@@ -2015,6 +2015,73 @@ void DxuiPopupHost::MarkDirty()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MoveTo
+//
+//  Places an open popup against a new anchor at a new size, as Show would,
+//  but moves the window it already has instead of hiding it and showing it
+//  again. The new content is rendered before the window moves, so the old
+//  picture stays up until the new one replaces it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::MoveTo (RECT anchorRectScreen, SIZE sizeDip)
+{
+    HRESULT  hr         = S_OK;
+    RECT     placedRect = {};
+    RECT     windowRect = {};
+    SIZE     sizePx     = {};
+    UINT     dpi        = (m_dpi != 0) ? m_dpi : s_kDefaultDpi;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_open);
+
+    m_params.anchorRectScreen = anchorRectScreen;
+    m_params.sizeDip          = sizeDip;
+
+    sizePx.cx  = MulDiv (sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
+    sizePx.cy  = MulDiv (sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
+    placedRect = ComputePlacementForTest (anchorRectScreen,
+                                          GetWorkAreaForRect (anchorRectScreen),
+                                          m_params.placement,
+                                          sizePx,
+                                          m_params.flipIfOffscreen);
+
+    windowRect.left      = placedRect.left   - m_shadowMarginPx;
+    windowRect.top       = placedRect.top    - m_shadowMarginPx;
+    windowRect.right     = placedRect.right  + m_shadowMarginPx;
+    windowRect.bottom    = placedRect.bottom + m_shadowMarginPx;
+    m_placedRectScreenPx = placedRect;
+    m_windowRectScreenPx = windowRect;
+
+    BAIL_OUT_IF (m_testMode || m_hwnd == nullptr, S_OK);
+
+    hr = ResizeSwapChain (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+    CHRA (hr);
+
+    RenderNow();
+
+    SetWindowPos (m_hwnd,
+                  nullptr,
+                  windowRect.left,
+                  windowRect.top,
+                  windowRect.right - windowRect.left,
+                  windowRect.bottom - windowRect.top,
+                  SWP_NOACTIVATE | SWP_NOZORDER);
+
+Error:
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureText
 //
 //  Forwards to the popup's own text renderer. Only the DWrite factory
