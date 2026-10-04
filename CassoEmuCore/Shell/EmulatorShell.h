@@ -586,6 +586,8 @@ private:
     void         SetDebuggerClosedPanes (const std::string & text) override;
     std::string  GetDebuggerCommandBarDock () override;
     void         SetDebuggerCommandBarDock (const std::string & text) override;
+    int          GetDebuggerTextZoomPercent () override;
+    void         SetDebuggerTextZoomPercent (int percent) override;
     std::string  GetDebuggerDisassemblyOptions () override;
     void         SetDebuggerDisassemblyOptions (const std::string & text) override;
     std::string  GetDebuggerOpenViews () override;

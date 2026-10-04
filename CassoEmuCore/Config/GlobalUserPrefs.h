@@ -268,6 +268,13 @@ struct GlobalUserPrefs
     // above says where each view sits; this says which exist.
     std::string  debuggerOpenViews;
 
+    // The debugger panes' text size, as a whole percentage, within the
+    // smallest and largest sizes the debugger's zoom offers.
+    static constexpr int  kMinDebuggerTextZoomPercent = 50;
+    static constexpr int  kMaxDebuggerTextZoomPercent = 300;
+
+    int          debuggerTextZoomPercent  = 100;
+
     // Folders where the debugger found source files, most-recent-first: for
     // every program, and for each program by its debug file's SHA-1. A
     // program's own list is searched before the global one.

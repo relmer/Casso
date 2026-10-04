@@ -210,7 +210,7 @@ watches (`W`, `WL`, `WC`) and the rest of AppleWin's commands are listed by
 
 ## The video beam
 
-`VIDEOINFO` shows where the beam is: the scanline (0 to 261) and the cycle within it (0 to 64), in hex. The registers pane shows the same on its **Beam** row, with the place in decimal beside it and whether the beam is in horizontal or vertical blank. A scanline draws in its last 40 cycles; the 25 before them are horizontal blank, and scanlines 192 to 261 are vertical blank.
+`VIDEOINFO` shows where the beam is: the scanline (0 to 261) and the cycle within it (0 to 64), in hex. The status bar shows the same, in decimal and then in hex. A scanline draws in its last 40 cycles; the 25 before them are horizontal blank, and scanlines 192 to 261 are vertical blank.
 
 | Command | Effect |
 |---|---|
@@ -613,14 +613,19 @@ A status bar runs along the bottom of the window. From the right:
 - **Text size**, as a percentage. Clicking it opens a slider from 50% to 300%
   in steps of 10%, the same size Ctrl+Plus, Ctrl+Minus and Ctrl+wheel set.
   A click anywhere else, or Escape, closes the slider; the arrow keys move it
-  while it is open.
+  while it is open. The size is saved and comes back the next time the
+  debugger opens.
 - **History full**, how much of the reverse-execution memory budget the
-  recorded history holds, with a meter that is green while there is room,
-  turns yellow with 20% left and red with 10% left, blending smoothly between
-  them. It reads "History off" while history is not recorded.
+  recorded history holds, with a meter that is green while empty and blends
+  smoothly to blue as it fills. A full budget is not a fault: the oldest
+  snapshots make room for new ones. It reads "History off" while history is
+  not recorded.
 - **Begins at**, the emulated time since the machine started at which the
   recorded history begins. Once the budget is full the oldest snapshots are
   dropped to make room, so this time moves forward as the machine runs.
+- **Scanline:cycle**, where the video beam is, in decimal and then in hex
+  as `VIDEOINFO` gives it, for example `192:1 ($0C0:01)`. Clicking it turns
+  **Show beam on screen** on and off.
 - At the left, **Replaying history** while a reverse command or a seek is
   replaying recorded history to reach its point.
 

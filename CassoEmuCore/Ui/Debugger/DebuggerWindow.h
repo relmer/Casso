@@ -127,6 +127,11 @@ public:
     virtual ReverseOptions  GetReverseOptions ()                        { return {}; }
     virtual void            SetReverseOptions (const ReverseOptions &)  {}
 
+    //  The panes' text size as a whole percentage, kept the same way. A host
+    //  that keeps no preferences, as a test's is, has 100%.
+    virtual int             GetDebuggerTextZoomPercent ()               { return 100; }
+    virtual void            SetDebuggerTextZoomPercent (int percent)    { (void) percent; }
+
     //  Whether the CPU thread is replaying history to reach a point in it
     //  right now, which no snapshot can report since none is built until it
     //  ends. A host with no machine, as a test's is, never is.
@@ -428,9 +433,10 @@ protected:
     //  Protected so a test can read the status bar as a frame leaves it, and
     //  work its zoom popup as a click does.
     static constexpr size_t  kStatusReplay = 0;
-    static constexpr size_t  kStatusBegin  = 1;
-    static constexpr size_t  kStatusBudget = 2;
-    static constexpr size_t  kStatusZoom   = 3;
+    static constexpr size_t  kStatusBeam   = 1;
+    static constexpr size_t  kStatusBegin  = 2;
+    static constexpr size_t  kStatusBudget = 3;
+    static constexpr size_t  kStatusZoom   = 4;
 
     DxuiStatusBar *  GetStatusBar        () const { return m_statusBar; }
     DxuiSlider &     GetZoomSlider       ()       { return m_zoomSlider; }
@@ -542,6 +548,7 @@ private:
     void     LayoutWidgets    ();
     void     CreateStatusBar  ();
     int      PlaceStatusBar   (int width, int height);
+    void     ToggleBeamMark   ();
     void     OpenZoomPopup    ();
     void     CloseZoomPopup   ();
     void     PaintZoomPopup   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
@@ -840,6 +847,7 @@ private:
     static constexpr int                  kStatusBudgetDip      = 220;
     static constexpr int                  kStatusMeterDip       = 80;
     static constexpr int                  kStatusBeginDip       = 150;
+    static constexpr int                  kStatusBeamDip        = 220;
     DxuiStatusBar                       * m_statusBar           = nullptr;
     DxuiSlider                            m_zoomSlider;
     bool                                  m_zoomOpen            = false;

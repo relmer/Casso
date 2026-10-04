@@ -96,6 +96,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerCommandBarDock",
     "debuggerDisassemblyOptions",
     "debuggerOpenViews",
+    "debuggerTextZoomPercent",
     "debuggerSourceFolders",
     "debuggerProgramSourceFolders"
 };
@@ -1268,6 +1269,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerCommandBarDock", JsonValue (debuggerCommandBarDock));
     root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debuggerDisassemblyOptions));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debuggerOpenViews));
+    root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debuggerTextZoomPercent));
     root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debuggerSourceFolders));
     root.emplace_back ("debuggerProgramSourceFolders", FolderMapToJson (debuggerProgramSourceFolders));
 
@@ -1509,6 +1511,9 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     debuggerCommandBarDock = GetStringOpt (v, "debuggerCommandBarDock", debuggerCommandBarDock);
 
     debuggerDisassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debuggerDisassemblyOptions);
+
+    debuggerTextZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debuggerTextZoomPercent),
+                                          kMinDebuggerTextZoomPercent, kMaxDebuggerTextZoomPercent);
 
     debuggerSourceFolders.clear();
     if (v.HasArray ("debuggerSourceFolders", sourceFolderArr))

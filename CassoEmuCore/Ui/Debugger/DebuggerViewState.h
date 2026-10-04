@@ -505,11 +505,6 @@ public:
     //  button sends. The cursor actions use the selected code line (toggling
     //  falls back to the PC's line); Pause has no line, since it is the
     //  channel's pause rather than a command.
-    //  The registers pane's beam row: the place in hex, as VIDEOINFO gives it,
-    //  and beside it the same in decimal with the blanking the beam is in.
-    static std::string  GetBeamValue (const DebuggerViewSnapshot::BeamState & beam);
-    static std::string  GetBeamNote  (const DebuggerViewSnapshot::BeamState & beam);
-
     static std::optional<std::string>  GetActionLine (DebuggerKeySchemes::Action   action,
                                                       const DebuggerViewSnapshot * snapshot,
                                                       int                          selectedRow);

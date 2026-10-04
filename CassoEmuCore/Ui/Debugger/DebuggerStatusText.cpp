@@ -45,35 +45,31 @@ float DebuggerStatusText::GetBudgetFill (const HistoryStatus & status)
 //
 //  DebuggerStatusText::GetBudgetColor
 //
-//  Two blends end to end, so the color never jumps: healthy to warning over
-//  the budget from empty to kWarningLeft left, then warning to error over
-//  the next stretch to kErrorLeft left.
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerStatusText::GetBudgetColor (float fill)
+{
+    return DxuiColor::Lerp (kEmptyArgb, kFullArgb, std::clamp (fill, 0.0f, 1.0f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::GetBeamText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DebuggerStatusText::GetBudgetColor (
-    float     fill,
-    uint32_t  healthy,
-    uint32_t  warning,
-    uint32_t  error)
+std::wstring DebuggerStatusText::GetBeamText (const std::optional<DebuggerViewSnapshot::BeamState> & beam)
 {
-    float  used        = std::clamp (fill, 0.0f, 1.0f);
-    float  warningFill = 1.0f - kWarningLeft;
-    float  errorFill   = 1.0f - kErrorLeft;
-
-
-
-    if (used <= warningFill)
+    if (!beam.has_value())
     {
-        return DxuiColor::Lerp (healthy, warning, used / warningFill);
+        return {};
     }
 
-    if (used < errorFill)
-    {
-        return DxuiColor::Lerp (warning, error, (used - warningFill) / (errorFill - warningFill));
-    }
-
-    return error;
+    return std::format (L"Scanline:cycle {}:{} (${:03X}:{:02X})", beam->scanline, beam->cycle, beam->scanline, beam->cycle);
 }
 
 

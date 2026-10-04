@@ -262,8 +262,7 @@ namespace DebuggerStatusBarTests
             Assert::AreEqual (std::wstring (L"Begins at 2.0 s"),  window.GetStatusBar()->GetField (window.kStatusBegin).text);
             Assert::AreEqual (std::wstring (L"History 95% full"), window.GetStatusBar()->GetField (window.kStatusBudget).text);
             Assert::AreEqual (0.95f, window.GetStatusBar()->GetField (window.kStatusBudget).meter, 0.001f);
-            Assert::AreEqual (theme.ErrorForeground(), window.GetStatusBar()->GetField (window.kStatusBudget).meterArgb,
-                              L"with a twentieth left the meter is the error color");
+            Assert::AreEqual (DebuggerStatusText::GetBudgetColor (0.95f), window.GetStatusBar()->GetField (window.kStatusBudget).meterArgb);
             Assert::IsFalse (window.GetStatusBar()->GetField (window.kStatusReplay).text.empty());
 
             host.isReplaying = false;

@@ -298,6 +298,12 @@ void DebuggerWindow::OnCreate()
 
     ConfigureWidgets();
     ConfigureDockSite();
+
+    //  The text size the user last left, once every pane it sizes exists.
+    if (m_host != nullptr)
+    {
+        ApplyTextZoom ((float) m_host->GetDebuggerTextZoomPercent() / DebuggerStatusText::kPercent);
+    }
 }
 
 
@@ -1101,13 +1107,18 @@ void DebuggerWindow::StepTextZoom (int steps)
 //  rows grow or shrink together, floating ones included since they are the
 //  same controls, and the caption, the command bar and every other Casso
 //  window keep their size. The code pane refits its line count at the next
-//  layout.
+//  layout. The size is saved through the host, so it survives the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyTextZoom (float zoom)
 {
     m_textZoom = std::clamp (zoom, kMinTextZoom, kMaxTextZoom);
+
+    if (m_host != nullptr)
+    {
+        m_host->SetDebuggerTextZoomPercent ((int) std::lround (m_textZoom * DebuggerStatusText::kPercent));
+    }
 
     for (DxuiListView * list : GetLists())
     {
@@ -6566,13 +6577,6 @@ void DebuggerWindow::ApplySnapshot()
         }
 
         rows.push_back ({ { Widen (reg.name) }, value, flags });
-    }
-
-    //  The beam follows the registers. It is read, not edited: its rows sit
-    //  past the registers' own, where an edit finds no register.
-    if (m_snapshot->beam.has_value())
-    {
-        rows.push_back ({ { L"Beam" }, { Widen (DebuggerViewState::GetBeamValue (*m_snapshot->beam)) }, { Widen (DebuggerViewState::GetBeamNote (*m_snapshot->beam)) } });
     }
 
     m_registerList->SetRows (std::move (rows));

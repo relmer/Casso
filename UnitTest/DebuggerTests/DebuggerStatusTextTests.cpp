@@ -18,20 +18,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DebuggerStatusTextTests
 //
 //  The debugger status bar's parts: the zoom percentage, the history budget's
-//  fill and the color its meter blends through, the time history begins at,
-//  which moves forward once the budget drops the oldest snapshots, and the
-//  note while a replay runs.
+//  fill, the time history begins at, which moves forward once the budget
+//  drops the oldest snapshots, and the note while a replay runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DebuggerStatusTextTests)
 {
 public:
-
-    static constexpr uint32_t  kGreen  = 0xFF00FF00u;
-    static constexpr uint32_t  kYellow = 0xFFFFFF00u;
-    static constexpr uint32_t  kRed    = 0xFFFF0000u;
-
 
     static HistoryStatus  MakeRecording (size_t used, size_t budget)
     {
@@ -41,23 +35,6 @@ public:
         status.usedBytes   = used;
         status.budgetBytes = budget;
         return status;
-    }
-
-
-    //  Every channel within one step: a blend's rounding is not the point.
-    static bool  AreChannelsNear (uint32_t a, uint32_t b)
-    {
-        for (int shift = 0; shift < 32; shift += 8)
-        {
-            int  delta = (int) ((a >> shift) & 0xFFu) - (int) ((b >> shift) & 0xFFu);
-
-            if (delta > 1 || delta < -1)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
 
@@ -79,31 +56,6 @@ public:
         Assert::AreEqual (-1.0f, DebuggerStatusText::GetBudgetFill (off));
         Assert::AreEqual (std::wstring (L"History 25% full"), DebuggerStatusText::GetBudgetText (MakeRecording (25, 100)));
         Assert::AreEqual (std::wstring (L"History off"),      DebuggerStatusText::GetBudgetText (off));
-    }
-
-
-    TEST_METHOD (BudgetColor_IsGreenEmptyYellowAtTwentyLeftRedAtTenLeft)
-    {
-        Assert::AreEqual (kGreen,  DebuggerStatusText::GetBudgetColor (0.0f,  kGreen, kYellow, kRed));
-        Assert::AreEqual (kYellow, DebuggerStatusText::GetBudgetColor (0.8f,  kGreen, kYellow, kRed));
-        Assert::AreEqual (kRed,    DebuggerStatusText::GetBudgetColor (0.9f,  kGreen, kYellow, kRed));
-        Assert::AreEqual (kRed,    DebuggerStatusText::GetBudgetColor (1.0f,  kGreen, kYellow, kRed));
-    }
-
-
-    TEST_METHOD (BudgetColor_BlendsSmoothlyBetweenTheStops)
-    {
-        uint32_t  halfToYellow = DebuggerStatusText::GetBudgetColor (0.4f,  kGreen, kYellow, kRed);
-        uint32_t  halfToRed    = DebuggerStatusText::GetBudgetColor (0.85f, kGreen, kYellow, kRed);
-        uint32_t  justBefore   = DebuggerStatusText::GetBudgetColor (0.799f, kGreen, kYellow, kRed);
-
-
-
-        Assert::IsTrue (AreChannelsNear (DxuiColor::Lerp (kGreen,  kYellow, 0.5f), halfToYellow));
-        Assert::IsTrue (AreChannelsNear (DxuiColor::Lerp (kYellow, kRed,    0.5f), halfToRed));
-
-        //  No jump at the yellow stop: just short of it is all but yellow.
-        Assert::IsTrue (((justBefore >> 16) & 0xFFu) >= 0xFDu);
     }
 
 

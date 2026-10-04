@@ -829,7 +829,7 @@
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />
     <ClCompile Include="DebuggerTests\StepWhileRunningTests.cpp" />
     <ClCompile Include="DebuggerTests\StateFileCommandTests.cpp" />
-    <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" />
+    <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusBarBeamZoomTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseOptionsDialogTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />

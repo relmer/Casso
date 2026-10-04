@@ -20,7 +20,6 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/TraceLookahead.h"
-#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
@@ -830,54 +829,6 @@ DebuggerViewSnapshot::MemoryWindow DebuggerViewState::ReadMemoryWindow (DebugSes
     }
 
     return window;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerViewState::GetBeamValue
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerViewState::GetBeamValue (const DebuggerViewSnapshot::BeamState & beam)
-{
-    return std::format ("{:03X}:{:02X}", beam.scanline, beam.cycle);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerViewState::GetBeamNote
-//
-//  A scanline draws its 40 bytes in its last 40 cycles; the cycles before
-//  them are horizontal blank.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerViewState::GetBeamNote (const DebuggerViewSnapshot::BeamState & beam)
-{
-    static constexpr uint32_t  kVisibleCycles = 40;
-    static constexpr uint32_t  kFirstVisible  = VideoTiming::kCyclesPerScanline - kVisibleCycles;
-    std::string                note           = std::format ("Scanline {}, cycle {}", beam.scanline, beam.cycle);
-
-
-
-    if (beam.scanline >= VideoTiming::kVblankStartScanline)
-    {
-        note += ", vertical blank";
-    }
-    else if (beam.cycle < kFirstVisible)
-    {
-        note += ", horizontal blank";
-    }
-
-    return note;
 }
 
 

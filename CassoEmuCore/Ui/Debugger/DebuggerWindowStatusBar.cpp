@@ -13,7 +13,8 @@
 //
 //  The status bar along the bottom of the window: a replay note at the left,
 //  which takes whatever width the fixed parts leave and so leaves room for
-//  more, then where history begins, how full its budget is, and the text
+//  more, then where the beam is, which a press turns its mark on the screen
+//  on and off, then where history begins, how full its budget is, and the text
 //  zoom at the right. Pressing the zoom opens a slider over it, from the
 //  smallest text size to the largest in the steps the keys take.
 //
@@ -26,6 +27,8 @@ void DebuggerWindow::CreateStatusBar()
 
 
     fields[kStatusReplay].stretch       = true;
+    fields[kStatusBeam].widthDip        = kStatusBeamDip;
+    fields[kStatusBeam].onClick         = [this] (const RECT &) { ToggleBeamMark(); };
     fields[kStatusBegin].widthDip       = kStatusBeginDip;
     fields[kStatusBudget].widthDip      = kStatusBudgetDip;
     fields[kStatusBudget].meterWidthDip = kStatusMeterDip;
@@ -102,10 +105,12 @@ int DebuggerWindow::PlaceStatusBar (
 
 void DebuggerWindow::UpdateStatusBar()
 {
+    using Beam = std::optional<DebuggerViewSnapshot::BeamState>;
+
     HistoryStatus  status      = (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus();
+    Beam           beam        = (m_snapshot != nullptr) ? m_snapshot->beam    : std::nullopt;
     bool           isReplaying = m_host != nullptr && m_host->IsReplayingHistory();
     float          fill        = DebuggerStatusText::GetBudgetFill (status);
-    uint32_t       color       = 0;
 
 
 
@@ -114,16 +119,35 @@ void DebuggerWindow::UpdateStatusBar()
         return;
     }
 
-    if (m_theme != nullptr)
-    {
-        color = DebuggerStatusText::GetBudgetColor (fill, m_theme->SuccessAccent(), m_theme->WarningAccent(), m_theme->ErrorForeground());
-    }
-
     m_statusBar->SetText  (kStatusReplay, DebuggerStatusText::GetReplayText (isReplaying));
+    m_statusBar->SetText  (kStatusBeam,   DebuggerStatusText::GetBeamText (beam));
     m_statusBar->SetText  (kStatusBegin,  DebuggerStatusText::GetBeginText (status));
     m_statusBar->SetText  (kStatusBudget, DebuggerStatusText::GetBudgetText (status));
-    m_statusBar->SetMeter (kStatusBudget, fill, color);
+    m_statusBar->SetMeter (kStatusBudget, fill, DebuggerStatusText::GetBudgetColor (fill));
     m_statusBar->SetText  (kStatusZoom,   DebuggerStatusText::GetZoomText (m_textZoom));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ToggleBeamMark
+//
+//  The same switch as the View menu's beam item, which reads the host and
+//  so shows the change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ToggleBeamMark()
+{
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    m_host->SetBeamOverlayOn (!m_host->IsBeamOverlayOn());
 }
 
 
