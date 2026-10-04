@@ -408,11 +408,19 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
-    // The desk recorder's key under the pointer shows its name over it.
+    // The desk recorder's key under the pointer shows its name over it, and
+    // its volume wheel, held or under the pointer, how loud it is set -- in
+    // the same label, which changes in place rather than reopening.
     {
-        int  key = -1;
+        int    key   = -1;
+        POINT  pt    = { x, y };
+        RECT   wheel = GetVolumeWheelRect();
 
-        if (DeskSceneActive())
+        if (DeskSceneActive() && (m_volumeDragging || PtInRect (&wheel, pt)))
+        {
+            key = s_kVolumeWheelLabelKey;
+        }
+        else if (DeskSceneActive())
         {
             SceneHitResult  hit = RecorderHit (x, y);
 
@@ -573,19 +581,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                         tip = imageName;
                     }
                 }
-            }
-        }
-
-        // The recorder's volume wheel says how loud it is set.
-        if (tip.empty() && DeskSceneActive())
-        {
-            RECT   wheel = GetVolumeWheelRect();
-            POINT  pt    = { x, y };
-
-            if (PtInRect (&wheel, pt))
-            {
-                anchor = wheel;
-                tip    = FormatTapeVolumeTip (m_tapeAudioSource.GetVolume());
             }
         }
 
@@ -1369,7 +1364,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // the gesture to the release: no orbit, no click.
     if (DeskSceneActive() && !m_mainMenu.IsOpen() && !IsGuestMouseLive())
     {
-        RECT   wheel = GetVolumeWheelRect();
+        float  span  = 0.0f;
+        RECT   wheel = GetVolumeWheelRect (&span);
         POINT  pt    = { x, y };
 
         if (PtInRect (&wheel, pt))
@@ -1377,6 +1373,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
             m_volumeDragging      = true;
             m_volumeDragStartX    = x;
             m_volumeDragStartGain = m_tapeAudioSource.GetVolume();
+            m_volumeDragSpanPx    = span;
 
             result = DxuiMessageResult::Handled;
             BAIL_OUT_IF (true, S_OK);

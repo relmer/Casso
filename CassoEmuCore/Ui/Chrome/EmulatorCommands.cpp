@@ -281,7 +281,7 @@ const wchar_t * EmulatorCommands::GetMenuName (MainMenuId menu)
     case MainMenuId::File:    name = L"&File";    break;
     case MainMenuId::Edit:    name = L"&Edit";    break;
     case MainMenuId::Machine: name = L"&Machine"; break;
-    case MainMenuId::Disk:    name = L"&Disk";    break;
+    case MainMenuId::Disk:    name = L"&Storage"; break;
     case MainMenuId::View:    name = L"&View";    break;
     case MainMenuId::Help:    name = L"&Help";    break;
     case MainMenuId::Debug:   name = L"&Debug";   break;

@@ -611,7 +611,7 @@ SceneHitResult EmulatorShell::RecorderHit (int xPx, int yPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT EmulatorShell::GetVolumeWheelRect() const
+RECT EmulatorShell::GetVolumeWheelRect (float * widthPx) const
 {
     bool                          fs      = m_d3dRenderer.IsFullscreen();
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
@@ -641,6 +641,11 @@ RECT EmulatorShell::GetVolumeWheelRect() const
 
     // Never smaller than a fingertip's worth of screen: away from a close
     // zoom the wheel is a sliver a few pixels tall.
+    if (widthPx != nullptr)
+    {
+        *widthPx = isShown ? hi[0] - lo[0] : 0.0f;
+    }
+
     if (isShown)
     {
         float  half = (float) m_scaler.ToPx (s_kVolumeWheelMinDp) * 0.5f;
@@ -669,13 +674,14 @@ RECT EmulatorShell::GetVolumeWheelRect() const
 
 void EmulatorShell::DragVolumeWheel (int x, int64_t nowMs)
 {
-    float  span = (float) m_scaler.ToPx (s_kVolumeDragDp);
+    float  span = std::max (m_volumeDragSpanPx, 1.0f);
     float  gain = std::clamp (m_volumeDragStartGain + (float) (x - m_volumeDragStartX) / span, 0.0f, 1.0f);
 
 
 
+    UNREFERENCED_PARAMETER (nowMs);
+
     SetTapeVolume (gain);
-    m_driveTooltip.RequestShow (GetVolumeWheelRect(), FormatTapeVolumeTip (gain), nowMs);
     m_d3dRenderer.MarkRedrawNeeded();
 }
 
@@ -1282,6 +1288,10 @@ void EmulatorShell::SyncSceneDriveLabels()
         {
             fullNames[s_kSceneKeyCell] = TapeDeckWidget::GetControlLabel ((size_t) m_recorderHoverKey);
         }
+        else if (m_recorderHoverKey == s_kVolumeWheelLabelKey)
+        {
+            fullNames[s_kSceneKeyCell] = FormatTapeVolumeTip (m_tapeAudioSource.GetVolume());
+        }
     }
 
     SyncStripTapeLabels (comp, onStrip, fullNames);
@@ -1674,7 +1684,8 @@ void EmulatorShell::SyncSceneTapeLabel()
     {
         shown = TapeDeckWidget::GetDisplayName (view) + L"|" +
                 TapeDeckWidget::FormatTime (view.positionSeconds) + L"|" +
-                std::to_wstring (m_recorderHoverKey) + L"|" + std::to_wstring ((int) view.transport);
+                std::to_wstring (m_recorderHoverKey) + L"|" + std::to_wstring ((int) view.transport) + L"|" +
+                FormatTapeVolumeTip (m_tapeAudioSource.GetVolume());
     }
 
     if (shown != m_sceneTapeLabelShown)
@@ -1719,6 +1730,15 @@ bool EmulatorShell::GetRecorderLabelAnchor (const DeskSceneComposition & comp, i
     else if (key < (int) DeskSceneModel::kRecorderKeyCount)
     {
         const float *  box = m_deskScene.RecorderModel().KeyBoxes() + key * 6;
+
+        model[0] = (box[0] + box[3]) * 0.5f;
+        model[1] = box[1];
+        model[2] = box[2];
+    }
+    else if (key == s_kVolumeWheelLabelKey)
+    {
+        // Under the volume wheel, at the front of its rim.
+        const float *  box = m_deskScene.RecorderModel().VolumeWheelBox();
 
         model[0] = (box[0] + box[3]) * 0.5f;
         model[1] = box[1];

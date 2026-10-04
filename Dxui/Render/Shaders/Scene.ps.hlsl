@@ -268,11 +268,22 @@ float4 main (PSIn input) : SV_TARGET
 // ray is turned out of this draw's model space first. Slightly dimmed and
 // cooled, as chrome is; no shading of its own, and no specular term, which a
 // hard point light on a thin rounded edge aliases into glitter.
+// What it reflects is mostly dark -- the black case it is mounted on, the
+// desk, the room's walls -- and a mirror of dark things vanishes against the
+// case. So two things a photographed chrome part always shows are added: a
+// soft overhead studio light, brighter the more the reflected ray points up
+// (world Y is up), and the Fresnel brightening at grazing angles that
+// outlines a tube's silhouette.
         if (input.peb < 0.0f && envParm.x > 0.0f)
         {
-            float3 ve = normalize (envParm.yzw - input.wp);
-            float3 rw = mul (float4 (reflect (-ve, n), 0.0f), envMatrix).xyz;
-            lit = envTex.Sample (samp, rw).rgb * float3 (0.86f, 0.88f, 0.92f) + 0.03f;
+            float3 ve      = normalize (envParm.yzw - input.wp);
+            float3 rw      = mul (float4 (reflect (-ve, n), 0.0f), envMatrix).xyz;
+            float  up      = saturate (normalize (rw).y * 0.5f + 0.5f);
+            float  fresnel = pow (1.0f - saturate (dot (n, ve)), 4.0f);
+            lit = envTex.Sample (samp, rw).rgb * float3 (0.86f, 0.88f, 0.92f)
+                + float3 (0.30f, 0.31f, 0.33f) * up * up
+                + float3 (0.35f, 0.36f, 0.38f) * fresnel
+                + 0.05f;
         }
 // The device's own lamp, with its own occlusion. Facing the lens was once
 // taken as proof of seeing it -- "a face inside the notch points at the

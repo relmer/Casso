@@ -1172,7 +1172,7 @@ private:
 
     // The recorder's volume wheel on screen, where the pointer can reach it
     // (the strip in fullscreen, the desk otherwise); empty when it is not.
-    RECT    GetVolumeWheelRect     () const;
+    RECT    GetVolumeWheelRect     (float * widthPx = nullptr) const;   // and the wheel's own width on screen
     void    DragVolumeWheel        (int x, int64_t nowMs);
     void    PersistTapeVolume      ();
 
@@ -1531,16 +1531,18 @@ private:
     float      m_bezelTiltStartRad     = 0.0f;
 
     // Dragging the recorder's volume wheel: left is silent, right is full,
-    // one drag of s_kVolumeDragDp across the whole range, so it never has to
-    // be spun round. The wheel turns s_kVolumeWheelTurnRad over that range.
+    // and the pointer's travel across the wheel's own width on screen is the
+    // whole range, so the wheel stays under the pointer as it goes. The
+    // wheel turns s_kVolumeWheelTurnRad over that range.
     bool       m_volumeDragging        = false;
     int        m_volumeDragStartX      = 0;
     float      m_volumeDragStartGain   = 0.0f;
+    float      m_volumeDragSpanPx      = 0.0f;
 
-    static constexpr int    s_kVolumeDragDp       = 160;
-    static constexpr int    s_kVolumeWheelSlopDp  = 4;
-    static constexpr int    s_kVolumeWheelMinDp   = 28;          // the smallest target, either way, however small the wheel
-    static constexpr float  s_kVolumeWheelTurnRad = 2.0943951f;  // a third of a turn: the mark stays in the window
+    static constexpr int    s_kVolumeWheelSlopDp   = 4;
+    static constexpr int    s_kVolumeWheelLabelKey = (int) DeskSceneModel::kRecorderKeyCount;   // m_recorderHoverKey for the wheel
+    static constexpr int    s_kVolumeWheelMinDp    = 28;   // the smallest target, either way, however small the wheel
+    static constexpr float  s_kVolumeWheelTurnRad  = 2.0943951f;   // a third of a turn: the mark stays in the window
 
     // How much tilt a pixel of drag is worth. The assembly's whole travel is
     // about eleven degrees each way, so this spends it over a couple of
