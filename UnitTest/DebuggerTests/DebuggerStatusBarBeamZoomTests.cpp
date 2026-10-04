@@ -102,7 +102,7 @@ namespace DebuggerStatusBarBeamZoomTests
         using DebuggerWindow::UpdateStatusBar;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::kStatusBeam;
-        using DebuggerWindow::kStatusBudget;
+        using DebuggerWindow::kStatusHistory;
         using DebuggerWindow::kStatusZoom;
 
         void  Build()
@@ -222,7 +222,7 @@ namespace DebuggerStatusBarBeamZoomTests
             window.SetSnapshotForTest (snapshot);
             window.UpdateStatusBar();
 
-            Assert::IsTrue (AreChannelsNear (DebuggerStatusText::kFullArgb, window.GetStatusBar()->GetField (window.kStatusBudget).meterArgb));
+            Assert::IsTrue (AreChannelsNear (DebuggerStatusText::kFullArgb, window.GetStatusBar()->GetField (window.kStatusHistory).fillToArgb));
         }
 
 

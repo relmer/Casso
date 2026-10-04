@@ -98,8 +98,7 @@ namespace DebuggerStatusBarTests
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::HasTopLayer;
         using DebuggerWindow::kStatusReplay;
-        using DebuggerWindow::kStatusBegin;
-        using DebuggerWindow::kStatusBudget;
+        using DebuggerWindow::kStatusHistory;
         using DebuggerWindow::kStatusZoom;
 
         void  Build()
@@ -259,15 +258,32 @@ namespace DebuggerStatusBarTests
 
             window.UpdateStatusBar();
 
-            Assert::AreEqual (std::wstring (L"Begins at 2.0 s"),  window.GetStatusBar()->GetField (window.kStatusBegin).text);
-            Assert::AreEqual (std::wstring (L"History 95% full"), window.GetStatusBar()->GetField (window.kStatusBudget).text);
-            Assert::AreEqual (0.95f, window.GetStatusBar()->GetField (window.kStatusBudget).meter, 0.001f);
-            Assert::AreEqual (DebuggerStatusText::GetBudgetColor (0.95f), window.GetStatusBar()->GetField (window.kStatusBudget).meterArgb);
+            const DxuiStatusBar::Field &  history = window.GetStatusBar()->GetField (window.kStatusHistory);
+
+            Assert::AreEqual (std::wstring (L"History buffer remaining: 5%"), history.text);
+            Assert::AreEqual (0.95f, history.fill, 0.001f);
+            Assert::AreEqual (DebuggerStatusText::kEmptyArgb, history.fillFromArgb);
+            Assert::AreEqual (DebuggerStatusText::GetBudgetColor (0.95f), history.fillToArgb);
             Assert::IsFalse (window.GetStatusBar()->GetField (window.kStatusReplay).text.empty());
 
             host.isReplaying = false;
             window.UpdateStatusBar();
             Assert::IsTrue (window.GetStatusBar()->GetField (window.kStatusReplay).text.empty());
+
+            //  Once the oldest history is being dropped, the fill goes and the
+            //  section says where history begins.
+            snapshot->history.isFull    = true;
+            snapshot->history.usedBytes = 100;
+            window.UpdateStatusBar();
+
+            Assert::IsTrue (history.text.starts_with (L"History begins at Power + "), history.text.c_str());
+            Assert::AreEqual (-1.0f, history.fill);
+
+            snapshot->history.isRecording = false;
+            window.UpdateStatusBar();
+
+            Assert::AreEqual (std::wstring (L"History off"), history.text);
+            Assert::AreEqual (-1.0f, history.fill);
         }
     };
 }

@@ -23,13 +23,13 @@ std::wstring DebuggerStatusText::GetZoomText (float zoom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerStatusText::GetBudgetFill
+//  DebuggerStatusText::GetHistoryFill
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DebuggerStatusText::GetBudgetFill (const HistoryStatus & status)
+float DebuggerStatusText::GetHistoryFill (const HistoryStatus & status)
 {
-    if (!status.isRecording || status.budgetBytes == 0)
+    if (!status.isRecording || status.isFull || status.budgetBytes == 0)
     {
         return -1.0f;
     }
@@ -88,44 +88,22 @@ std::wstring DebuggerStatusText::GetBeamText (const std::optional<DebuggerViewSn
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerStatusText::GetBudgetText
+//  DebuggerStatusText::GetHistoryText
+//
+//  Once full, the host's local time of day the oldest snapshot was taken at,
+//  then the emulated time since power-on and the cycle count there, in
+//  parentheses. Without a host time, the emulated time and cycle alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerStatusText::GetBudgetText (const HistoryStatus & status)
-{
-    float  fill = GetBudgetFill (status);
-
-
-
-    if (fill < 0.0f)
-    {
-        return L"History off";
-    }
-
-    return std::format (L"History {}% full", std::lround (fill * kPercent));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerStatusText::GetBeginText
-//
-//  The host's local time of day the oldest snapshot was taken at, then the
-//  emulated time in parentheses: "Begins at 10:42:07 PM (0.0 s)". Without a
-//  host time, the emulated time alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerStatusText::GetBeginText (
+std::wstring DebuggerStatusText::GetHistoryText (
     const HistoryStatus  & status,
     LPCWSTR                locale)
 {
     HRESULT         hr        = S_OK;
+    float           fill      = GetHistoryFill (status);
     std::wstring    emulated;
+    std::wstring    cycle;
     std::wstring    clock;
     ULARGE_INTEGER  wall      = {};
     FILETIME        utc       = {};
@@ -136,14 +114,23 @@ std::wstring DebuggerStatusText::GetBeginText (
 
 
 
-    CBR (status.isRecording && status.hasHistory);
+    if (!status.isRecording)
+    {
+        return L"History off";
+    }
+
+    if (fill >= 0.0f)
+    {
+        return std::format (L"History buffer remaining: {}%", 100 - std::lround (fill * kPercent));
+    }
 
     emulated = FormatTime (status.beginCycle, locale);
+    cycle    = FormatCount (status.beginCycle, locale);
     CBR (status.beginWallTime != 0);
 
-    wall.QuadPart       = status.beginWallTime;
-    utc.dwLowDateTime   = wall.LowPart;
-    utc.dwHighDateTime  = wall.HighPart;
+    wall.QuadPart      = status.beginWallTime;
+    utc.dwLowDateTime  = wall.LowPart;
+    utc.dwHighDateTime = wall.HighPart;
 
     converted = FileTimeToSystemTime (&utc, &utcTime);
     CWR (converted);
@@ -156,17 +143,12 @@ std::wstring DebuggerStatusText::GetBeginText (
     CBR (hasClock);
 
 Error:
-    if (emulated.empty())
-    {
-        return {};
-    }
-
     if (FAILED (hr))
     {
-        return L"Begins at " + emulated;
+        return std::format (L"History begins at Power + {} (cycle {})", emulated, cycle);
     }
 
-    return std::format (L"Begins at {} ({})", clock, emulated);
+    return std::format (L"History begins at {} (Power + {}, cycle {})", clock, emulated, cycle);
 }
 
 
@@ -317,6 +299,74 @@ std::wstring DebuggerStatusText::FormatTenths (
     format.Grouping      = 0;
     format.lpDecimalSep  = separator;
     format.lpThousandSep = const_cast<LPWSTR> (L"");
+    format.NegativeOrder = 1;
+
+    length = GetNumberFormatEx (locale, 0, plain.c_str(), &format, text, ARRAYSIZE (text));
+    CWR (length > 0);
+
+Error:
+    return SUCCEEDED (hr) ? std::wstring (text) : plain;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::FormatCount
+//
+//  The locale's separator and grouping with no decimals, or the plain digits
+//  when the locale gives none. A grouping such as "3;2;0" repeats its last
+//  group and becomes 32; one without the closing ";0" stops grouping after
+//  its last group, which NUMBERFMT takes as a trailing 0 digit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::FormatCount (
+    uint64_t  count,
+    LPCWSTR   locale)
+{
+    HRESULT       hr                        = S_OK;
+    std::wstring  plain                     = std::to_wstring (count);
+    WCHAR         separator[kMaxSeparator]  = {};
+    WCHAR         decimal[kMaxSeparator]    = {};
+    WCHAR         grouping[kMaxSeparator]   = {};
+    WCHAR         text[kMaxFormattedChars]  = {};
+    NUMBERFMTW    format                    = {};
+    UINT          groups                    = 0;
+    bool          stops                     = true;
+    int           length                    = 0;
+
+
+
+    length = GetLocaleInfoEx (locale, LOCALE_STHOUSAND, separator, ARRAYSIZE (separator));
+    CWR (length > 0);
+
+    length = GetLocaleInfoEx (locale, LOCALE_SDECIMAL, decimal, ARRAYSIZE (decimal));
+    CWR (length > 0);
+
+    length = GetLocaleInfoEx (locale, LOCALE_SGROUPING, grouping, ARRAYSIZE (grouping));
+    CWR (length > 0);
+
+    for (const WCHAR * ch = grouping; *ch != L'\0'; ch++)
+    {
+        if (*ch >= L'1' && *ch <= L'9')
+        {
+            groups  = groups * 10 + (UINT) (*ch - L'0');
+            stops   = true;
+        }
+        else if (*ch == L'0')
+        {
+            stops   = false;
+        }
+    }
+
+    format.NumDigits     = 0;
+    format.LeadingZero   = 0;
+    format.Grouping      = stops ? groups * 10 : groups;
+    format.lpDecimalSep  = decimal;
+    format.lpThousandSep = separator;
     format.NegativeOrder = 1;
 
     length = GetNumberFormatEx (locale, 0, plain.c_str(), &format, text, ARRAYSIZE (text));

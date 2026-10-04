@@ -20,8 +20,8 @@
 //  While recording, how much of the memory budget history holds, and the CPU
 //  cycle its oldest snapshot was taken at, where history begins. Once the
 //  budget is full the oldest snapshots are dropped, so that cycle moves
-//  forward. beginWallTime is the host's clock when that snapshot was taken,
-//  as a UTC FILETIME, or 0 when unknown.
+//  forward, and isFull says so. beginWallTime is the host's clock when that
+//  snapshot was taken, as a UTC FILETIME, or 0 when unknown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +35,7 @@ struct HistoryStatus
     std::optional<ReverseOutcome>  outcome;
 
     bool                           hasHistory         = false;
+    bool                           isFull             = false;
     uint64_t                       beginCycle         = 0;
     uint64_t                       beginWallTime      = 0;
     size_t                         budgetBytes        = 0;

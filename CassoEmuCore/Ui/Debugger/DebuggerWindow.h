@@ -452,11 +452,10 @@ protected:
 
     //  Protected so a test can read the status bar as a frame leaves it, and
     //  work its zoom popup as a click does.
-    static constexpr size_t  kStatusReplay = 0;
-    static constexpr size_t  kStatusBeam   = 1;
-    static constexpr size_t  kStatusBegin  = 2;
-    static constexpr size_t  kStatusBudget = 3;
-    static constexpr size_t  kStatusZoom   = 4;
+    static constexpr size_t  kStatusReplay  = 0;
+    static constexpr size_t  kStatusBeam    = 1;
+    static constexpr size_t  kStatusHistory = 2;
+    static constexpr size_t  kStatusZoom    = 3;
 
     DxuiStatusBar *  GetStatusBar        () const { return m_statusBar; }
     DxuiSlider &     GetZoomSlider       ()       { return m_zoomSlider; }
@@ -870,9 +869,7 @@ private:
     static constexpr int                  kZoomPopupWidthDip    = 240;
     static constexpr int                  kZoomPopupHeightDip   = 52;
     static constexpr int                  kStatusZoomDip        = 64;
-    static constexpr int                  kStatusBudgetDip      = 220;
-    static constexpr int                  kStatusMeterDip       = 80;
-    static constexpr int                  kStatusBeginDip       = 260;
+    static constexpr int                  kStatusHistoryDip     = 480;
     static constexpr int                  kStatusBeamDip        = 220;
     DxuiStatusBar                       * m_statusBar           = nullptr;
     DxuiSlider                            m_zoomSlider;

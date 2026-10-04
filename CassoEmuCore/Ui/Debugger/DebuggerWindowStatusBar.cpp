@@ -14,9 +14,9 @@
 //  The status bar along the bottom of the window: a replay note at the left,
 //  which takes whatever width the fixed parts leave and so leaves room for
 //  more, then where the beam is, which a press turns its mark on the screen
-//  on and off, then where history begins, how full its budget is, and the text
-//  zoom at the right. Pressing the zoom opens a slider over it, from the
-//  smallest text size to the largest in the steps the keys take.
+//  on and off, then the history section, which fills as the history budget
+//  does, and the text zoom at the right. Pressing the zoom opens a slider over
+//  it, from the smallest text size to the largest in the steps the keys take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,15 +26,13 @@ void DebuggerWindow::CreateStatusBar()
 
 
 
-    fields[kStatusReplay].stretch       = true;
-    fields[kStatusBeam].widthDip        = kStatusBeamDip;
-    fields[kStatusBeam].onClick         = [this] (const RECT &) { ToggleBeamMark(); };
-    fields[kStatusBegin].widthDip       = kStatusBeginDip;
-    fields[kStatusBudget].widthDip      = kStatusBudgetDip;
-    fields[kStatusBudget].meterWidthDip = kStatusMeterDip;
-    fields[kStatusZoom].widthDip        = kStatusZoomDip;
-    fields[kStatusZoom].text            = DebuggerStatusText::GetZoomText (m_textZoom);
-    fields[kStatusZoom].onClick         = [this] (const RECT &) { OpenZoomPopup(); };
+    fields[kStatusReplay].stretch   = true;
+    fields[kStatusBeam].widthDip    = kStatusBeamDip;
+    fields[kStatusBeam].onClick     = [this] (const RECT &) { ToggleBeamMark(); };
+    fields[kStatusHistory].widthDip = kStatusHistoryDip;
+    fields[kStatusZoom].widthDip    = kStatusZoomDip;
+    fields[kStatusZoom].text        = DebuggerStatusText::GetZoomText (m_textZoom);
+    fields[kStatusZoom].onClick     = [this] (const RECT &) { OpenZoomPopup(); };
 
     m_statusBar = CreateChild<DxuiStatusBar>();
     m_statusBar->SetFields (std::move (fields));
@@ -111,7 +109,7 @@ void DebuggerWindow::UpdateStatusBar()
     Beam           beam        = (m_snapshot != nullptr) ? m_snapshot->beam     : std::nullopt;
     bool           isPaused    = (m_snapshot != nullptr) && m_snapshot->isPaused;
     ReplayProgress progress    = (m_host != nullptr) ? m_host->GetReplayProgress() : ReplayProgress();
-    float          fill        = DebuggerStatusText::GetBudgetFill (status);
+    float          fill        = DebuggerStatusText::GetHistoryFill (status);
 
 
 
@@ -120,12 +118,11 @@ void DebuggerWindow::UpdateStatusBar()
         return;
     }
 
-    m_statusBar->SetText  (kStatusReplay, DebuggerStatusText::GetReplayText (progress));
-    m_statusBar->SetText  (kStatusBeam,   DebuggerStatusText::GetBeamText (beam, isPaused));
-    m_statusBar->SetText  (kStatusBegin,  DebuggerStatusText::GetBeginText (status));
-    m_statusBar->SetText  (kStatusBudget, DebuggerStatusText::GetBudgetText (status));
-    m_statusBar->SetMeter (kStatusBudget, fill, DebuggerStatusText::GetBudgetColor (fill));
-    m_statusBar->SetText  (kStatusZoom,   DebuggerStatusText::GetZoomText (m_textZoom));
+    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress));
+    m_statusBar->SetText  (kStatusBeam,    DebuggerStatusText::GetBeamText (beam, isPaused));
+    m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
+    m_statusBar->SetFill  (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
+    m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZoom));
 }
 
 

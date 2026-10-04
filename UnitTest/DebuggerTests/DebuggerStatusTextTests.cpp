@@ -17,9 +17,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DebuggerStatusTextTests
 //
-//  The debugger status bar's parts: the zoom percentage, the history budget's
-//  fill, the time history begins at, which moves forward once the budget
-//  drops the oldest snapshots, and the note while a replay runs.
+//  The debugger status bar's parts: the zoom percentage, the history section's
+//  fill and text, which once the budget drops the oldest snapshots shows where
+//  history begins, and the note while a replay runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,18 +46,37 @@ public:
     }
 
 
-    TEST_METHOD (BudgetFill_IsTheUsedFractionOrNoneWhileNotRecording)
+    TEST_METHOD (HistoryFill_IsTheUsedFractionOrNoneWhileNotRecordingOrFull)
+    {
+        HistoryStatus  off  = MakeRecording (10, 100);
+        HistoryStatus  full = MakeRecording (100, 100);
+
+        off.isRecording = false;
+        full.isFull     = true;
+
+        Assert::AreEqual (0.25f, DebuggerStatusText::GetHistoryFill (MakeRecording (25, 100)));
+        Assert::AreEqual (1.0f,  DebuggerStatusText::GetHistoryFill (MakeRecording (100, 100)));
+        Assert::AreEqual (-1.0f, DebuggerStatusText::GetHistoryFill (off));
+        Assert::AreEqual (-1.0f, DebuggerStatusText::GetHistoryFill (full));
+    }
+
+
+    TEST_METHOD (HistoryText_ShowsTheBufferRemainingWhileFilling)
+    {
+        Assert::AreEqual (std::wstring (L"History buffer remaining: 37%"),  DebuggerStatusText::GetHistoryText (MakeRecording (63, 100)));
+        Assert::AreEqual (std::wstring (L"History buffer remaining: 100%"), DebuggerStatusText::GetHistoryText (MakeRecording (0, 100)));
+    }
+
+
+    TEST_METHOD (HistoryText_IsOffWhileNotRecording)
     {
         HistoryStatus  off = MakeRecording (10, 100);
 
         off.isRecording = false;
+        off.isFull      = true;
 
-        Assert::AreEqual (0.25f, DebuggerStatusText::GetBudgetFill (MakeRecording (25, 100)));
-        Assert::AreEqual (-1.0f, DebuggerStatusText::GetBudgetFill (off));
-        Assert::AreEqual (std::wstring (L"History 25% full"), DebuggerStatusText::GetBudgetText (MakeRecording (25, 100)));
-        Assert::AreEqual (std::wstring (L"History off"),      DebuggerStatusText::GetBudgetText (off));
+        Assert::AreEqual (std::wstring (L"History off"), DebuggerStatusText::GetHistoryText (off));
     }
-
 
     TEST_METHOD (FormatTime_UsesSecondsThenMinutesThenHours)
     {
@@ -70,17 +89,21 @@ public:
     }
 
 
-    TEST_METHOD (BeginText_ShowsOnlyWhileThereIsHistory)
+    static HistoryStatus  MakeFull()
     {
-        HistoryStatus  status = MakeRecording (1, 100);
+        HistoryStatus  status = MakeRecording (100, 100);
 
-        Assert::AreEqual (std::wstring(), DebuggerStatusText::GetBeginText (status));
-
+        status.isFull     = true;
         status.hasHistory = true;
-        status.beginCycle = 1020484 * 3;
-        Assert::AreEqual (std::wstring (L"Begins at 3.0 s"), DebuggerStatusText::GetBeginText (status));
+        status.beginCycle = 416512334;
+        return status;
     }
 
+
+    TEST_METHOD (HistoryText_OnceFull_ShowsWhereHistoryBeginsWithoutAHostTime)
+    {
+        Assert::AreEqual (std::wstring (L"History begins at Power + 6:48.1 (cycle 416,512,334)"), DebuggerStatusText::GetHistoryText (MakeFull(), L"en-US"));
+    }
 
     TEST_METHOD (ReplayText_ShowsOnlyWhileReplaying)
     {
@@ -118,6 +141,7 @@ public:
         Assert::AreEqual ((uint64_t) 0, first.beginCycle);
         Assert::AreEqual (settings.budgetBytes, first.budgetBytes);
         Assert::IsTrue (first.usedBytes > 0);
+        Assert::IsFalse (first.isFull, L"nothing has been dropped yet");
 
         for (i = 1; i < 200; i++)
         {
@@ -133,6 +157,7 @@ public:
         ReverseHost::FillBudget (store, later);
         Assert::IsTrue (later.beginCycle > 0, L"dropping the oldest snapshots moves the beginning forward");
         Assert::IsTrue (later.usedBytes <= later.budgetBytes);
+        Assert::IsTrue (later.isFull, L"the store says it has started dropping");
     }
 
 
@@ -221,22 +246,30 @@ public:
     }
 
 
-    TEST_METHOD (BeginText_ShowsTheWallClockThenTheEmulatedTime)
+    TEST_METHOD (HistoryText_OnceFull_ShowsTheWallClockThenPowerTimeAndCycle)
     {
-        HistoryStatus  status = MakeRecording (1, 100);
+        HistoryStatus  status = MakeFull();
         std::wstring   text;
 
 
 
-        status.hasHistory    = true;
-        status.beginCycle    = 0;
         status.beginWallTime = 134000000000000000ull;    // a FILETIME in 2025
 
-        text = DebuggerStatusText::GetBeginText (status, L"de-DE");
-        Assert::IsTrue (text.starts_with (L"Begins at "), text.c_str());
-        Assert::IsTrue (text.ends_with (L" (0,0 s)"),     text.c_str());
-        Assert::IsTrue (text.size() > std::wstring (L"Begins at  (0,0 s)").size(), text.c_str());
+        text = DebuggerStatusText::GetHistoryText (status, L"en-US");
+        Assert::IsTrue (text.starts_with (L"History begins at "),                 text.c_str());
+        Assert::IsTrue (text.ends_with (L" (Power + 6:48.1, cycle 416,512,334)"), text.c_str());
+        Assert::IsTrue (text.find (L"M (Power") != std::wstring::npos,            text.c_str());
+
+        text = DebuggerStatusText::GetHistoryText (status, L"de-DE");
+        Assert::IsTrue (text.ends_with (L" (Power + 6:48,1, cycle 416.512.334)"), text.c_str());
     }
-};
+
+
+    TEST_METHOD (FormatCount_UsesTheLocaleDigitGrouping)
+    {
+        Assert::AreEqual (std::wstring (L"416,512,334"), DebuggerStatusText::FormatCount (416512334, L"en-US"));
+        Assert::AreEqual (std::wstring (L"416.512.334"), DebuggerStatusText::FormatCount (416512334, L"de-DE"));
+        Assert::AreEqual (std::wstring (L"7"),           DebuggerStatusText::FormatCount (7,         L"en-US"));
+    }};
 
 uint64_t  DebuggerStatusTextTests::s_fakeClock = 0;

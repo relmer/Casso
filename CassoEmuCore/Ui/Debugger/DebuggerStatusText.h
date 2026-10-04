@@ -15,8 +15,8 @@
 //
 //  What the debugger window's status bar shows, worked out from the history
 //  status the CPU thread published and the window's own text zoom: the zoom
-//  as a percentage, how full the history budget is and the color its meter
-//  takes, the host's time and the emulated time history begins at, and a
+//  as a percentage, how full the history budget is and the color its fill
+//  takes, or once full, where history begins, and a
 //  note while a replay is running to reach a point in history.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,16 +41,20 @@ public:
     //  decimal and then in hex as VIDEOINFO gives it, or empty with no beam.
     static std::wstring  GetBeamText     (const std::optional<DebuggerViewSnapshot::BeamState> & beam, bool isPaused);
 
-    //  The fraction of the budget history holds, or -1 while not recording.
-    static float         GetBudgetFill   (const HistoryStatus & status);
+    //  How far the history section fills: the fraction of the budget history
+    //  holds, or -1 for no fill while not recording or once the oldest
+    //  history is being dropped.
+    static float         GetHistoryFill  (const HistoryStatus & status);
 
-    //  The meter's color for a fill: kEmptyArgb while empty, blending evenly
-    //  to kFullArgb when full.
+    //  The fill's color at a fraction: kEmptyArgb while empty, blending
+    //  evenly to kFullArgb when full.
     static uint32_t      GetBudgetColor  (float fill);
 
-    static std::wstring  GetBudgetText   (const HistoryStatus & status);
-    static std::wstring  GetBeginText    (const HistoryStatus & status) { return GetBeginText (status, LOCALE_NAME_USER_DEFAULT); }
-    static std::wstring  GetBeginText    (const HistoryStatus & status, LPCWSTR locale);
+    //  "History off" while not recording; "History buffer remaining: 37%"
+    //  while the budget fills; once full, where history begins: "History
+    //  begins at 7:15:33 AM (Power + 6:48.1, cycle 416,512,334)".
+    static std::wstring  GetHistoryText  (const HistoryStatus & status) { return GetHistoryText (status, LOCALE_NAME_USER_DEFAULT); }
+    static std::wstring  GetHistoryText  (const HistoryStatus & status, LPCWSTR locale);
     static std::wstring  GetReplayText   (bool isReplaying);
     static std::wstring  GetReplayText   (const ReplayProgress & progress);
 
@@ -62,6 +66,9 @@ public:
 
     //  A local time of day in the locale's own time format, with seconds.
     static std::wstring  FormatClock     (const SYSTEMTIME & localTime, LPCWSTR locale);
+
+    //  A count with the locale's digit grouping and no decimals.
+    static std::wstring  FormatCount     (uint64_t count, LPCWSTR locale);
 
 private:
     static constexpr size_t  kMaxFormattedChars = 80;
