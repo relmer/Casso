@@ -820,6 +820,7 @@
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostStateTests.cpp" />
     <ClCompile Include="EmuTests\JoyportHostSettingStateTests.cpp" />
+    <ClCompile Include="EmuTests\KeyframeBudgetChangeTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
     <ClCompile Include="EmuTests\DiskFlushHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />
@@ -839,6 +840,7 @@
     <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\ReplayStopTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />
     <ClCompile Include="EmuTests\ReverseDebuggerEditTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandPayloadTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseOptionsPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
     <ClCompile Include="EmuTests\SharedCheckpointTests.cpp" />
     <ClCompile Include="EmuTests\StateWriterReuseTests.cpp" />

@@ -478,7 +478,8 @@ private:
 
     // Reverse execution. Recording starts once a machine is built and power
     // cycled, from the settings read at start, and stops before a machine is
-    // torn down and at exit; all three run on the CPU thread.
+    // torn down and at exit; all three run on the CPU thread, as does
+    // ApplyReverseOptions, which takes Tools > Options' settings at once.
     // PostReverseCommand is the UI thread's way in: the command runs on the
     // CPU thread, and its outcome is announced as a step's stop, with the
     // StopEvent's history set. ReverseContinue stops where the stop test
@@ -488,6 +489,7 @@ private:
     void  StopReverseRecording  ();
     void  PostReverseCommand    (ReverseCommand command, uint64_t argument = 0);
     void  RunReverseCommand     (ReverseCommand command, uint64_t argument) override;
+    void  ApplyReverseOptions   (bool isRecording, int budgetMb) override;
     void  SetReverseStopTest    (IReverseStopTest * stopTest) { m_reverseStopTest = stopTest; }
 
     // CPU thread: where the machine stands in history, with the last reverse
@@ -2242,7 +2244,7 @@ private:
     // the debugger's, for reverse continue, or null. CPU thread only.
     std::unique_ptr<ReverseHost>  m_reverseHost;
     IReverseStopTest            * m_reverseStopTest       = nullptr;
-    bool                          m_isReverseOn           = false;   // the settings, read when the CPU thread starts
+    bool                          m_isReverseOn           = false;   // the settings, read when the CPU thread starts and changed by Tools > Options
     int                           m_reverseBudgetMb       = 0;
     int                           m_reverseIntervalFrames = 0;
     std::optional<ReverseOutcome> m_lastReverseOutcome;                // the last reverse command's, for the history band

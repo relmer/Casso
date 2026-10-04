@@ -11,28 +11,25 @@
 //
 //  ReverseOptionsDialog::TryParse
 //
-//  The ranges are the ones the saved settings are held to.
+//  The range is the one the saved budget is held to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<ReverseOptions> ReverseOptionsDialog::TryParse (
     bool                  isRecording,
-    const std::wstring  & budgetText,
-    const std::wstring  & intervalText)
+    const std::wstring  & budgetText)
 {
     ReverseOptions                 options;
     std::optional<ReverseOptions>  parsed;
-    bool                           isBudgetOk   = false;
-    bool                           isIntervalOk = false;
+    bool                           isBudgetOk = false;
 
 
 
     options.isRecording = isRecording;
 
-    isBudgetOk   = TryParseWhole (budgetText,   GlobalUserPrefs::kMinReverseBudgetMb, GlobalUserPrefs::kMaxReverseBudgetMb,       options.budgetMb);
-    isIntervalOk = TryParseWhole (intervalText, 1,                                    GlobalUserPrefs::kMaxReverseIntervalFrames, options.intervalFrames);
+    isBudgetOk = TryParseWhole (budgetText, GlobalUserPrefs::kMinReverseBudgetMb, GlobalUserPrefs::kMaxReverseBudgetMb, options.budgetMb);
 
-    if (isBudgetOk && isIntervalOk)
+    if (isBudgetOk)
     {
         parsed = options;
     }
@@ -128,11 +125,9 @@ void ReverseOptionsDialog::EstimateMinutes (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ReverseOptionsDialog::GetEstimateText (
-    const std::wstring  & budgetText,
-    const std::wstring  & intervalText)
+std::wstring ReverseOptionsDialog::GetEstimateText (const std::wstring & budgetText)
 {
-    std::optional<ReverseOptions>  parsed = TryParse (true, budgetText, intervalText);
+    std::optional<ReverseOptions>  parsed = TryParse (true, budgetText);
     double                         low    = 0.0;
     double                         high   = 0.0;
 
@@ -140,12 +135,10 @@ std::wstring ReverseOptionsDialog::GetEstimateText (
 
     if (!parsed.has_value())
     {
-        return std::format (L"The memory is {} to {} MB, and the interval {} to {} frames.",
-                            GlobalUserPrefs::kMinReverseBudgetMb, GlobalUserPrefs::kMaxReverseBudgetMb,
-                            1, GlobalUserPrefs::kMaxReverseIntervalFrames);
+        return std::format (L"The memory is {} to {} MB.", GlobalUserPrefs::kMinReverseBudgetMb, GlobalUserPrefs::kMaxReverseBudgetMb);
     }
 
-    EstimateMinutes (parsed->budgetMb, parsed->intervalFrames, low, high);
+    EstimateMinutes (parsed->budgetMb, ReverseOptions::kDefaultIntervalFrames, low, high);
 
     return std::format (L"Holds about {:.0f} to {:.0f} minutes of history; a busy program fills it sooner.", low, high);
 }
@@ -158,8 +151,8 @@ std::wstring ReverseOptionsDialog::GetEstimateText (
 //
 //  ReverseOptionsDialog::OnCreate
 //
-//  OK reads the boxes and keeps the dialog open while they hold anything out
-//  of range, which the estimate line says.
+//  OK reads the check box and the budget, and keeps the dialog open while the
+//  budget is out of range, which the estimate line says.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,39 +164,30 @@ void ReverseOptionsDialog::OnCreate()
 
     m_recordLabel.SetText   (L"History");
     m_budgetLabel.SetText   (L"Memory (MB)");
-    m_intervalLabel.SetText (L"Snapshot every (frames)");
     m_estimateLabel.SetText (L"");
-    m_noteLabel.SetText     (L"");
-    m_note.SetText          (L"Changes take effect the next time Casso starts.");
 
     m_record.SetLabel   (L"Record history for stepping back");
     m_record.SetChecked (m_current.isRecording);
 
-    for (DxuiTextInput * box : { &m_budget, &m_interval })
-    {
-        box->SetTheme        (m_theme);
-        box->SetHwnd         (GetHwnd());
-        box->SetTextRenderer (GetTextRenderer());
-        box->SetOnChange     ([this] (const std::wstring &) { UpdateEstimate(); Invalidate(); });
-    }
+    m_budget.SetTheme        (m_theme);
+    m_budget.SetHwnd         (GetHwnd());
+    m_budget.SetTextRenderer (GetTextRenderer());
+    m_budget.SetOnChange     ([this] (const std::wstring &) { UpdateEstimate(); Invalidate(); });
+    m_budget.SetText         (std::to_wstring (m_current.budgetMb));
 
-    m_budget.SetText   (std::to_wstring (m_current.budgetMb));
-    m_interval.SetText (std::to_wstring (m_current.intervalFrames));
     UpdateEstimate();
 
     m_body = CreateDialogContent<BreakpointDialogPanel>();
     m_body->Add (m_recordLabel,   m_record);
     m_body->Add (m_budgetLabel,   m_budget);
-    m_body->Add (m_intervalLabel, m_interval);
     m_body->Add (m_estimateLabel, m_estimate);
-    m_body->Add (m_noteLabel,     m_note);
 
     ok = AddDialogButton (L"OK", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
 
     ok->SetOnClick ([this]()
     {
-        m_chosen = TryParse (m_record.IsChecked(), m_budget.GetText(), m_interval.GetText());
+        m_chosen = TryParse (m_record.IsChecked(), m_budget.GetText());
 
         if (m_chosen.has_value())
         {
@@ -226,7 +210,7 @@ void ReverseOptionsDialog::OnCreate()
 
 void ReverseOptionsDialog::UpdateEstimate()
 {
-    m_estimate.SetText (GetEstimateText (m_budget.GetText(), m_interval.GetText()));
+    m_estimate.SetText (GetEstimateText (m_budget.GetText()));
 }
 
 
@@ -253,8 +237,8 @@ std::optional<ReverseOptions> ReverseOptionsDialog::Ask (HWND owner, const IDxui
     params.title                    = L"Options";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 640, 300 };
-    params.minSizeDip               = { 560, 300 };
+    params.initialSizeDip           = { 640, 240 };
+    params.minSizeDip               = { 560, 240 };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;

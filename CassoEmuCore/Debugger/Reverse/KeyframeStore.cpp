@@ -52,6 +52,78 @@ void KeyframeStore::Configure (const KeyframeSettings & settings)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ChangeBudget
+//
+//  Takes a new byte budget without losing the history that fits it. Before
+//  the first keyframe there is nothing to move, and the budget sizes the
+//  store when it is first reserved. After it, the oldest groups are dropped
+//  until what is held fits the new table and arena, then the keyframes kept
+//  are copied, oldest first, into memory sized from the new budget: smaller
+//  or larger, the store takes its new size now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
+{
+    HRESULT                  hr         = S_OK;
+    bool                     isReserved = !m_entries.empty();
+    bool                     isDropped  = true;
+    size_t                   slotCount  = 0;
+    size_t                   arenaBytes = 0;
+    size_t                   end        = 0;
+    std::vector<Entry>       entries;
+    std::unique_ptr<Byte[]>  arena;
+
+
+
+    m_settings.budgetBytes = budgetBytes;
+
+    BAIL_OUT_IF (!isReserved, S_OK);
+
+    hr = WaitForPending();
+    CHR (hr);
+
+    ComputeLayout (m_wholeBytes, slotCount, arenaBytes);
+
+    while (isDropped && (GetByteCount() > budgetBytes || m_storedBytes > arenaBytes || m_count > slotCount))
+    {
+        isDropped = TryDropOldestGroup();
+    }
+
+    arena.reset (new (std::nothrow) Byte[arenaBytes]);
+    CPRA (arena.get());
+
+    entries.resize (slotCount);
+
+    for (size_t i = 0; i < m_count; i++)
+    {
+        entries[i]        = GetEntry (i);
+        entries[i].offset = end;
+
+        if (entries[i].info.storedBytes != 0)
+        {
+            memcpy (arena.get() + end, m_arena.get() + GetEntry (i).offset, entries[i].info.storedBytes);
+        }
+
+        end += entries[i].info.storedBytes;
+    }
+
+    m_entries.swap (entries);
+    m_arena.swap (arena);
+
+    m_arenaBytes = arenaBytes;
+    m_arenaEnd   = end;
+    m_first      = 0;
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Clear
 //
 //  Waits for the work in flight and drops it with every keyframe. The table,
@@ -276,32 +348,22 @@ Error:
 
 HRESULT KeyframeStore::Reserve (size_t stateBytes)
 {
-    constexpr size_t  kPackSlack    = 4096;
-    constexpr size_t  kPackOverhead = 8;          // the packed size bound is stateBytes plus an eighth
-    constexpr size_t  kStateGrowth  = 16;         // a state may grow by a sixteenth without a new buffer
-    HRESULT           hr            = S_OK;
-    bool              isReserved    = !m_entries.empty();
-    size_t            groupSlots    = 0;
-    size_t            slotCount     = 0;
-    size_t            stateRoom     = 0;
-    size_t            packedBound   = 0;
-    size_t            overhead      = 0;
-    size_t            minimumArena  = 0;
-    size_t            arenaBytes    = 0;
-    Byte            * arena         = nullptr;
+    HRESULT   hr          = S_OK;
+    bool      isReserved  = !m_entries.empty();
+    size_t    slotCount   = 0;
+    size_t    stateRoom   = 0;
+    size_t    packedBound = 0;
+    size_t    arenaBytes  = 0;
+    Byte    * arena       = nullptr;
 
 
 
     BAIL_OUT_IF (isReserved, S_OK);
 
-    groupSlots   = static_cast<size_t> (m_settings.wholeEvery) + kBufferCount + 2;
-    slotCount    = std::max (m_settings.budgetBytes / kBudgetPerEntry, 2 * groupSlots);
-    stateRoom    = stateBytes + stateBytes / kStateGrowth;
-    packedBound  = stateRoom + stateRoom / kPackOverhead + kPackSlack;
-    overhead     = slotCount * sizeof (Entry) + stateBytes;
-    minimumArena = groupSlots * packedBound;
-    arenaBytes   = (m_settings.budgetBytes > overhead) ? m_settings.budgetBytes - overhead : 0;
-    arenaBytes   = std::max (arenaBytes, minimumArena);
+    stateRoom   = stateBytes + stateBytes / kStateGrowth;
+    packedBound = stateRoom + stateRoom / kPackOverhead + kPackSlack;
+
+    ComputeLayout (stateBytes, slotCount, arenaBytes);
 
     arena = new (std::nothrow) Byte[arenaBytes];
     CPRA (arena);
@@ -325,6 +387,37 @@ Error:
     return hr;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeLayout
+//
+//  The table's slots and the arena's bytes the budget gives for a state of
+//  stateBytes; Reserve describes how.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::ComputeLayout (
+    size_t    stateBytes,
+    size_t  & outSlotCount,
+    size_t  & outArenaBytes) const
+{
+    size_t  groupSlots   = static_cast<size_t> (m_settings.wholeEvery) + kBufferCount + 2;
+    size_t  stateRoom    = stateBytes + stateBytes / kStateGrowth;
+    size_t  packedBound  = stateRoom + stateRoom / kPackOverhead + kPackSlack;
+    size_t  minimumArena = groupSlots * packedBound;
+    size_t  overhead     = 0;
+
+
+
+    outSlotCount  = std::max (m_settings.budgetBytes / kBudgetPerEntry, 2 * groupSlots);
+    overhead      = outSlotCount * sizeof (Entry) + stateBytes;
+    outArenaBytes = (m_settings.budgetBytes > overhead) ? m_settings.budgetBytes - overhead : 0;
+    outArenaBytes = std::max (outArenaBytes, minimumArena);
+}
 
 
 

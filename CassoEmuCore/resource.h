@@ -93,6 +93,11 @@
 //  command's word (see CpuCommandDispatcher::FormatReversePayload).
 #define IDM_DEBUG_REVERSE           40180
 
+//  Tools > Options' reverse execution settings for the CPU thread; the payload
+//  is "on" or "off" and the budget in MB (see
+//  CpuCommandDispatcher::FormatReverseOptionsPayload).
+#define IDM_DEBUG_REVERSE_OPTIONS   40181
+
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
 #define IDM_VIEW_AMBER              40032

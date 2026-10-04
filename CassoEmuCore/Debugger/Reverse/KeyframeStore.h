@@ -115,6 +115,7 @@ public:
     KeyframeStore & operator=   (const KeyframeStore &) = delete;
 
     void      Configure         (const KeyframeSettings & settings);
+    HRESULT   ChangeBudget      (size_t budgetBytes);
     void      Clear             ();
     void      Release           ();
     void      SetWorkQueue      (IWorkQueue * queue);
@@ -152,6 +153,12 @@ private:
     //  many keyframes the table holds: at the default budget, hours of them.
     static constexpr size_t  kBudgetPerEntry = 1024;
 
+    //  The packed size bound is a state plus an eighth plus the slack, and a
+    //  state may grow by a sixteenth without a new buffer.
+    static constexpr size_t  kPackSlack      = 4096;
+    static constexpr size_t  kPackOverhead   = 8;
+    static constexpr size_t  kStateGrowth    = 16;
+
     struct Entry
     {
         KeyframeInfo  info;
@@ -174,6 +181,7 @@ private:
     const Entry & GetEntry          (size_t index) const { return m_entries[(m_first + index) % m_entries.size()]; }
 
     HRESULT   Reserve           (size_t stateBytes);
+    void      ComputeLayout     (size_t stateBytes, size_t & outSlotCount, size_t & outArenaBytes) const;
     HRESULT   TakeJob           (Job *& outJob);
     HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
     HRESULT   Collect           ();

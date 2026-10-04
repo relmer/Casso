@@ -11,8 +11,9 @@
 //
 //  ReverseOptions
 //
-//  Reverse execution's settings: whether history is recorded, the memory
-//  its snapshots may hold, and how many video frames apart they are taken.
+//  Reverse execution's settings: whether history is recorded and the memory
+//  its snapshots may hold. Snapshots are taken kDefaultIntervalFrames video
+//  frames apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,9 +22,8 @@ struct ReverseOptions
     static constexpr int  kDefaultBudgetMb       = 64;
     static constexpr int  kDefaultIntervalFrames = 10;
 
-    bool  isRecording    = true;
-    int   budgetMb       = kDefaultBudgetMb;
-    int   intervalFrames = kDefaultIntervalFrames;
+    bool  isRecording = true;
+    int   budgetMb    = kDefaultBudgetMb;
 };
 
 
@@ -35,24 +35,24 @@ struct ReverseOptions
 //  ReverseOptionsDialog
 //
 //  Tools > Options in the debugger: reverse execution's settings, with the
-//  history the memory budget is expected to hold. The settings are read when
-//  Casso starts, so a change takes effect then.
+//  history the memory budget is expected to hold. The host applies a change
+//  as soon as the dialog closes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class ReverseOptionsDialog : public DxuiDialogWindow
 {
 public:
-    //  The options the two boxes give, or empty when either is not a whole
-    //  number in its range.
-    static std::optional<ReverseOptions>  TryParse (bool isRecording, const std::wstring & budgetText, const std::wstring & intervalText);
+    //  The options the check box and the budget box give, or empty when the
+    //  budget is not a whole number in its range.
+    static std::optional<ReverseOptions>  TryParse (bool isRecording, const std::wstring & budgetText);
 
     //  Minutes of history a budget holds at an interval: low for a busy
     //  program, high for a quiet one, from measured recordings.
     static void          EstimateMinutes (int budgetMb, int intervalFrames, double & outLow, double & outHigh);
 
-    //  The line under the boxes: the estimate, or what the boxes need.
-    static std::wstring  GetEstimateText (const std::wstring & budgetText, const std::wstring & intervalText);
+    //  The line under the budget: the estimate, or what the box needs.
+    static std::wstring  GetEstimateText (const std::wstring & budgetText);
 
     //  Runs the dialog modally over `owner`; the new options when OK.
     static std::optional<ReverseOptions>  Ask (HWND owner, const IDxuiTheme * theme, const ReverseOptions & current);
@@ -75,13 +75,9 @@ private:
     std::optional<ReverseOptions>    m_chosen;
     DxuiLabel                        m_recordLabel;
     DxuiLabel                        m_budgetLabel;
-    DxuiLabel                        m_intervalLabel;
     DxuiLabel                        m_estimateLabel;
-    DxuiLabel                        m_noteLabel;
     DxuiLabel                        m_estimate;
-    DxuiLabel                        m_note;
     DxuiCheckbox                     m_record;
     DxuiTextInput                    m_budget;
-    DxuiTextInput                    m_interval;
     BreakpointDialogPanel          * m_body        = nullptr;
 };

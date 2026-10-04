@@ -88,6 +88,8 @@ public:
 
     //  A reverse execution command; argument is Seek's position.
     virtual void     RunReverseCommand        (ReverseCommand command, uint64_t argument)       = 0;
+    //  Tools > Options' recording switch and memory budget, applied at once.
+    virtual void     ApplyReverseOptions      (bool isRecording, int budgetMb)                  { (void) isRecording; (void) budgetMb; }
 
     //  Saves the whole machine to a state file, or loads one.
     virtual void     SaveMachineState         (const std::filesystem::path & path)              = 0;
@@ -133,6 +135,10 @@ public:
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
     static bool         TryParseReversePayload (const std::string & payload, ReverseCommand & command, uint64_t & argument);
 
+    //  The payload of an IDM_DEBUG_REVERSE_OPTIONS command, and back.
+    static std::string  FormatReverseOptionsPayload   (bool isRecording, int budgetMb);
+    static bool         TryParseReverseOptionsPayload (const std::string & payload, bool & isRecording, int & budgetMb);
+
     //  A file path as a command payload, in UTF-8, and back.
     static std::string            PathToPayload (const std::filesystem::path & path);
     static std::filesystem::path  PayloadToPath (const std::string & payload);
@@ -148,4 +154,5 @@ private:
     static void  DispatchDriveTest     (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDebugView     (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchReverse       (const std::string & payload, ICpuCommandTarget & target);
+    static void  DispatchReverseOptions (const std::string & payload, ICpuCommandTarget & target);
 };

@@ -17,8 +17,8 @@
 //  StartReverseRecording
 //
 //  Begins the machine's history where it stands, once it is built and power
-//  cycled, from the settings the emulator read at start; with recording off
-//  there, any history is dropped instead. The first call creates the host,
+//  cycled, from the settings the emulator read at start or Tools > Options
+//  set since; with recording off, any history is dropped instead. The first call creates the host,
 //  whose live callback hands the game-port input held back while the
 //  machine was behind live to the UI thread, which writes it and releases the
 //  keys and mouse button let go of in the meantime.
@@ -74,6 +74,58 @@ void EmulatorShell::StopReverseRecording()
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyReverseOptions
+//
+//  CPU thread: Tools > Options' settings, taken at once. Turning recording
+//  off makes the machine live first, announced as any return to live is,
+//  then drops history; turning it on starts recording where the machine
+//  stands. A new budget applies to the history already held: a smaller one
+//  drops the oldest snapshots until it fits, and a larger one grows the
+//  store now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyReverseOptions (
+    bool  isRecording,
+    int   budgetMb)
+{
+    HRESULT  hr          = S_OK;
+    bool     wasOn       = m_isReverseOn && m_reverseHost != nullptr && m_reverseHost->IsRecording();
+    size_t   budgetBytes = ReverseHost::MakeSettings (budgetMb, m_reverseIntervalFrames).keyframes.budgetBytes;
+
+
+
+    m_isReverseOn     = isRecording;
+    m_reverseBudgetMb = budgetMb;
+
+    if (!isRecording)
+    {
+        if (wasOn && m_reverseHost->IsBehindLive())
+        {
+            RunReverseCommand (ReverseCommand::GoLive, 0);
+        }
+
+        StopReverseRecording();
+    }
+    else if (!wasOn)
+    {
+        StartReverseRecording();
+    }
+    else
+    {
+        hr = m_reverseHost->GetController().GetKeyframes().ChangeBudget (budgetBytes);
+        CHR (hr);
+    }
+
+Error:
+    return;
+}
 
 
 

@@ -172,6 +172,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             DispatchReverse (cmd.payload, target);
             break;
 
+        case IDM_DEBUG_REVERSE_OPTIONS:
+            DispatchReverseOptions (cmd.payload, target);
+            break;
+
         case IDM_FILE_SAVE_STATE:
             target.SaveMachineState (PayloadToPath (cmd.payload));
             break;
@@ -676,6 +680,88 @@ void CpuCommandDispatcher::DispatchReverse (const std::string & payload, ICpuCom
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatReverseOptionsPayload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CpuCommandDispatcher::FormatReverseOptionsPayload (
+    bool  isRecording,
+    int   budgetMb)
+{
+    return std::format ("{} {}", isRecording ? "on" : "off", budgetMb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryParseReverseOptionsPayload
+//
+//  "on" or "off", one space, and a positive decimal budget in MB; anything
+//  else asks for nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryParseReverseOptionsPayload (
+    const std::string  & payload,
+    bool               & isRecording,
+    int                & budgetMb)
+{
+    size_t                  space  = payload.find (' ');
+    std::string             word   = payload.substr (0, space);
+    std::string             rest   = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
+    int                     budget = 0;
+    std::from_chars_result  parsed = {};
+
+
+
+    if ((word != "on" && word != "off") || rest.empty())
+    {
+        return false;
+    }
+
+    parsed = std::from_chars (rest.data(), rest.data() + rest.size(), budget);
+
+    if (parsed.ec != std::errc() || parsed.ptr != rest.data() + rest.size() || budget <= 0)
+    {
+        return false;
+    }
+
+    isRecording = word == "on";
+    budgetMb    = budget;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchReverseOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchReverseOptions (const std::string & payload, ICpuCommandTarget & target)
+{
+    bool  isRecording = false;
+    int   budgetMb    = 0;
+
+
+
+    if (TryParseReverseOptionsPayload (payload, isRecording, budgetMb))
+    {
+        target.ApplyReverseOptions (isRecording, budgetMb);
+    }
+}
 
 
 

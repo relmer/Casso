@@ -220,9 +220,8 @@ ReverseOptions EmulatorShell::GetReverseOptions()
 
 
 
-    options.isRecording    = m_globalPrefs.reverseRecording;
-    options.budgetMb       = m_globalPrefs.reverseBudgetMb;
-    options.intervalFrames = m_globalPrefs.reverseIntervalFrames;
+    options.isRecording = m_globalPrefs.reverseRecording;
+    options.budgetMb    = m_globalPrefs.reverseBudgetMb;
     return options;
 }
 
@@ -234,16 +233,18 @@ ReverseOptions EmulatorShell::GetReverseOptions()
 //
 //  SetReverseOptions
 //
-//  Saved for the next start, which is when the CPU thread reads them.
+//  Saved, and posted to the CPU thread, which owns the reverse host and
+//  applies them at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SetReverseOptions (const ReverseOptions & options)
 {
-    m_globalPrefs.reverseRecording      = options.isRecording;
-    m_globalPrefs.reverseBudgetMb       = options.budgetMb;
-    m_globalPrefs.reverseIntervalFrames = options.intervalFrames;
+    m_globalPrefs.reverseRecording = options.isRecording;
+    m_globalPrefs.reverseBudgetMb  = options.budgetMb;
     SaveGlobalPrefsDeferred();
+
+    PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (options.isRecording, options.budgetMb));
 }
 
 
