@@ -1226,3 +1226,4 @@ Each story lands as its own merge to the branch behind the full suite. Nothing m
 - [X] T494 Owner decision 2026-10-03: AppleWin and GSSquared modes accept 0n for a decimal number (0n192), as WinDbg mode does; Monitor mode stays hex only; help and docs say so
 - [X] T495 Owner decision 2026-10-03: the snapshot interval leaves the Options dialog and becomes an internal default (10 frames); Options keeps recording on or off and the history budget, and both apply at once (turning recording off goes live first; a smaller budget drops the oldest snapshots, a larger one takes effect at once)
 - [X] T496 Owner decision 2026-10-03: step back out when the current code has no caller (the call stack holds no frame for it) reports "no caller" at once instead of searching the whole history
+- [ ] T497 Owner decision 2026-10-03: when the debugger window opens, keyboard focus goes to the console's command line, not the Memory pane's address box
