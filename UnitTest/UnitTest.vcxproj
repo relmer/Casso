@@ -536,6 +536,8 @@
     <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />
     <ClCompile Include="EmuTests\EmulatorShellResetTests.cpp" />
     <ClCompile Include="EmuTests\CapsLockTrackerTests.cpp" />
+    <ClCompile Include="EmuTests\VideoScannerAddressTests.cpp" />
+    <ClCompile Include="EmuTests\VideoScannerFloatingBusTests.cpp" />
     <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
     <ClCompile Include="EmuTests\BeamOverlayDrawTests.cpp" />
     <ClCompile Include="EmuTests\TextScreenScraper.cpp" />

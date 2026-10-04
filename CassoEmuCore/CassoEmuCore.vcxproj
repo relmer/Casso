@@ -415,6 +415,7 @@
     <ClCompile Include="Machines\Apple2\Common\AppleHiResMode.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Apple80ColTextMode.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleDoubleHiResMode.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\VideoScanner.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VideoTiming.cpp" />
     <ClCompile Include="Video\BeamOverlay.cpp" />
     <ClCompile Include="Video\MachineFrameRenderer.cpp" />
@@ -721,6 +722,7 @@
     <ClInclude Include="Debugger\IRunDriver.h" />
     <ClInclude Include="Core\EmuCpu.h" />
     <ClInclude Include="Core\ICycleSink.h" />
+    <ClInclude Include="Core\IFloatingBusSource.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
@@ -872,6 +874,7 @@
     <ClInclude Include="Devices\Disk\MountedImageState.h" />
     <ClInclude Include="Devices\Disk\WriteProtectChange.h" />
     <ClInclude Include="Machines\Apple2\Common\IVideoTiming.h" />
+    <ClInclude Include="Machines\Apple2\Common\VideoScanner.h" />
     <ClInclude Include="Machines\Apple2\Common\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />
     <ClInclude Include="Devices\RomDevice.h" />

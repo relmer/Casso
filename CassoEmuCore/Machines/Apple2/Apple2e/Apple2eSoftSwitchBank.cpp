@@ -595,10 +595,14 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
 
                 break;
             case 0xC05E:
+                // AN3 drives no data either: the floating bus, as the
+                // base bank's switches return.
+                result        = ReadFloatingBus();
                 m_doubleHiRes = true;
                 bankingChange = true;
                 break;
             case 0xC05F:
+                result        = ReadFloatingBus();
                 m_doubleHiRes = false;
                 bankingChange = true;
                 break;

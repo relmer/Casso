@@ -14,6 +14,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
+#include "Machines/Apple2/Common/VideoScanner.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/HostInputGate.h"
 #include "Shell/MachineRefs.h"
@@ -158,6 +159,11 @@ public:
     void  SetMouse          (std::unique_ptr<AppleMouse>      mouse);
     void  SetJoyport        (std::unique_ptr<SiriusJoyport>   joyport);
     void  SetVideoTiming    (std::unique_ptr<VideoTiming>     videoTiming);
+
+    //  The video scanner the floating bus reads. Held by value: it owns
+    //  nothing, and MachineBuilder points it at each new machine's parts.
+    VideoScanner        &  GetVideoScanner()       noexcept { return m_videoScanner; }
+    const VideoScanner  &  GetVideoScanner() const noexcept { return m_videoScanner; }
 
     //  Everything the machine owns and destroys as a unit. The ACIA
     //  endpoints are held apart from the devices because an IAciaEndpoint
@@ -440,6 +446,7 @@ private:
     std::unique_ptr<AppleMouse>      m_mouse;
     std::unique_ptr<SiriusJoyport>   m_joyport;
     std::unique_ptr<VideoTiming>     m_videoTiming;
+    VideoScanner                     m_videoScanner;
 
     // On the heap: together they are most of the host's size, and a test
     // that builds two machines on the stack must stay under the analyzer's

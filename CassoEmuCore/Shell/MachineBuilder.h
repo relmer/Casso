@@ -118,6 +118,7 @@ public:
     void     WireBankedRom        ();
     static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
     void     WirePageTable        ();
+    void     WireFloatingBus      ();
     void     RebuildBankingPages  ();
     void     CreateVideoModes     ();
     HRESULT  CreateCpu            (const MachineConfig & config);

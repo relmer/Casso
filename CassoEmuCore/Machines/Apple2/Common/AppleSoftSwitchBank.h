@@ -50,6 +50,11 @@ public:
 
     static constexpr int  kAnnunciatorCount = 3;
 
+    // What a read of these switches returns, since none drives the data bus:
+    // the source's byte, or 0 with none wired.
+    void SetFloatingBusSource (IFloatingBusSource * source) { m_floatingBusSource = source; }
+    Byte ReadFloatingBus      ()                            { return (m_floatingBusSource != nullptr) ? m_floatingBusSource->GetFloatingBusByte() : 0; }
+
     // IMachineState: the four display switches and the annunciators.
     HRESULT SaveState (StateWriter & writer) const override;
     HRESULT LoadState (StateReader & reader) override;
@@ -71,4 +76,6 @@ protected:
     bool          m_page2         = false;
     bool          m_hiresMode     = false;
     atomic<Byte>  m_annunciators  { 0 };
+
+    IFloatingBusSource *  m_floatingBusSource = nullptr;
 };

@@ -111,6 +111,8 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
 
     WirePageTable();
 
+    WireFloatingBus();
+
     // A journal that was on before a machine switch records against the new
     // devices too.
     m_host.AttachInputJournal();
@@ -1124,6 +1126,66 @@ void MachineBuilder::WirePageTable()
 
     // Initial state
     RebuildBankingPages();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireFloatingBus
+//
+//  Points the video scanner at this machine's timing, display switches and
+//  main RAM, and makes it what unmapped I/O and the display switches read.
+//
+//  The ][ and ][+ keep their RAM in the CPU's memory array; the //e's main
+//  bank is the first RAM device, which its MMU pages from. The //c is left
+//  on the last-value bus: the //c Technical Reference does not describe its
+//  floating bus, and nothing here has been checked against one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireFloatingBus()
+{
+    VideoScanner         &  scanner   = m_host.GetVideoScanner();
+    IFloatingBusSource   *  source    = nullptr;
+    const Byte           *  mainRam   = nullptr;
+    bool                    isApple2c = m_host.GetApple2cRomBank() != nullptr;
+
+
+
+    scanner = VideoScanner();
+
+    if (!isApple2c && m_host.GetCpu() != nullptr && m_host.GetVideoTiming() != nullptr)
+    {
+        if (m_host.GetMmu() == nullptr)
+        {
+            mainRam = m_host.GetCpu()->GetMemory();
+        }
+        else if (m_host.GetRefs().mainRamDev != nullptr)
+        {
+            mainRam = m_host.GetRefs().mainRamDev->GetData();
+        }
+    }
+
+    if (mainRam != nullptr)
+    {
+        scanner.SetTiming        (m_host.GetVideoTiming());
+        scanner.SetCycleCounters (m_host.GetCpu()->GetCycleCounterPtr(), m_host.GetCpu()->GetBusCyclePtr());
+        scanner.SetSwitches      (m_host.GetRefs().softSwitches, m_host.GetRefs().iieSoftSwitches);
+        scanner.SetMainRam       (mainRam);
+        scanner.SetApple2OrPlus  (m_host.GetMmu() == nullptr);
+
+        source = &scanner;
+    }
+
+    m_host.GetMemoryBus().SetFloatingBusSource (source);
+
+    if (m_host.GetRefs().softSwitches != nullptr)
+    {
+        m_host.GetRefs().softSwitches->SetFloatingBusSource (source);
+    }
 }
 
 

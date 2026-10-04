@@ -231,6 +231,8 @@ An instruction takes several cycles, so `BPBEAM` stops at the first instruction 
 
 **Debug > Run one frame**, or F6 in every key scheme, runs `FRAME` in Casso mode whatever the console's mode. **Debug > Show beam on screen** marks the beam on the emulator's screen while the machine is stopped: its scanline is a red line across the picture, and the cycle it is on a bar across that line. A beam in horizontal blank is marked at the left edge, and one in vertical blank along the bottom edge.
 
+The beam is also what a read that drives no data returns. On the ][, ][+ and //e, a read of an unused I/O address or of a display switch ($C050 to $C05F) gives the byte the video scanner fetched from main memory on that cycle, as real hardware does, so a program that polls for a byte it placed in screen memory (vapor lock) finds the scanline it expects. In blanking the scanner still fetches, from the addresses the hardware's counters give, which in horizontal blank are the row's screen holes. The //c keeps returning the last value on the bus.
+
 ## Symbols
 
 Symbol tables give addresses names in disassembly and in expressions. Casso

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "IFloatingBusSource.h"
 #include "IMachineState.h"
 #include "IWatchSink.h"
 #include "MemoryDevice.h"
@@ -72,6 +73,14 @@ public:
     HRESULT LoadState (StateReader & reader) override;
 
     Byte GetFloatingBusValue () const { return m_floatingBusValue; }
+
+    // What unmapped I/O reads: the source's byte -- on an Apple II, the byte
+    // the video scanner fetched on that cycle -- or, with no source, the last
+    // value any device drove. Devices whose reads drive no data return
+    // ReadFloatingBus for the same reason.
+    void SetFloatingBusSource (IFloatingBusSource * source) { m_floatingBusSource = source; }
+    bool HasFloatingBusSource () const                      { return m_floatingBusSource != nullptr; }
+    Byte ReadFloatingBus      ()                            { return (m_floatingBusSource != nullptr) ? m_floatingBusSource->GetFloatingBusByte() : m_floatingBusValue; }
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('B', 'U', 'S', ' ');
     static constexpr uint16_t  kStateVersion = 1;
@@ -199,8 +208,9 @@ private:
     // that can change which device an address resolves to.
     void BuildIoDeviceMap ();
 
-    vector<BusEntry>        m_entries;
-    Byte                    m_floatingBusValue = 0xFF;
+    vector<BusEntry>      m_entries;
+    Byte                  m_floatingBusValue  = 0xFF;
+    IFloatingBusSource  * m_floatingBusSource = nullptr;
 
     // I/O dispatch map. FindDevice used to linear-scan the device list on every
     // $C000+ read and write -- I/O plus ROM/language-card fetches, since only

@@ -35,10 +35,19 @@ AppleSoftSwitchBank::AppleSoftSwitchBank()
 //  $C056/$C057: LoRes/HiRes
 //  $C058-$C05D: AN0-AN2 off/on
 //
+//  None of these reads drives the data bus, so a read returns the floating
+//  bus: the byte the video scanner fetched on that cycle, before the switch
+//  the read flips takes effect (Sather, Understanding the Apple IIe, chapter
+//  5). With no floating-bus source wired, a read returns 0.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte AppleSoftSwitchBank::Read (Word address)
 {
+    Byte  value = ReadFloatingBus();
+
+
+
     switch (address)
     {
         case 0xC050:
@@ -77,7 +86,7 @@ Byte AppleSoftSwitchBank::Read (Word address)
             break;
     }
 
-    return 0;
+    return value;
 }
 
 
