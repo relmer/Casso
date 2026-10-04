@@ -672,6 +672,7 @@ private:
     void                         DropCarriedTab    (const std::wstring & pane);
     void                         SetFloatFade      (const std::wstring & pane, bool on);
     void                         SyncFloats        ();
+    void                         PlaceOpeningFocus ();
     void                         FloatControls     (const std::wstring & pane);
     void                         DockControls      (const std::wstring & pane);
     void                         SaveLayout        ();
@@ -889,6 +890,7 @@ private:
     DxuiDragOverlay                                                                  m_dragOverlay;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
+    bool                                                                             m_isOpeningFocusDue  = true;
     std::wstring                                                                     m_tornOffPane;
     std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = BreakpointColumns::GetDefaultShown();
     std::vector<size_t>                                                              m_breakpointOrder;

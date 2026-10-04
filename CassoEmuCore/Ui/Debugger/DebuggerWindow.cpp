@@ -4084,6 +4084,14 @@ void DebuggerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     m_scaler    = scaler;
 
     LayoutWidgets();
+
+    //  The first layout shows which panes are in front, so the keys can go
+    //  to one of them.
+    if (m_isOpeningFocusDue)
+    {
+        m_isOpeningFocusDue = false;
+        PlaceOpeningFocus();
+    }
 }
 
 
@@ -4161,6 +4169,51 @@ void DebuggerWindow::LayoutWidgets()
     PlaceCodeBars();
     PlaceFindBar();
     ClipPaneControls();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceOpeningFocus
+//
+//  When the window opens, the keys go to the console's command line if the
+//  console shows. If it does not (another tab in front of it in its group,
+//  closed, or slid away at an edge), they go to the first pane's main
+//  control in the tab order: a list, a memory view or a text view, never a
+//  text box in a pane's toolbar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceOpeningFocus()
+{
+    IDxuiControl  * target         = nullptr;
+    IDxuiControl  * each           = nullptr;
+    bool            isMain         = false;
+    bool            isConsoleShown = false;
+    size_t          count          = 0;
+
+
+
+    m_focusMgr.Rebuild();
+    count = m_focusMgr.GetTabOrderCount();
+
+    isConsoleShown = m_commandBox != nullptr && m_commandBox->IsVisible() && IsRoutable (m_commandBox);
+    target         = isConsoleShown ? m_commandBox : nullptr;
+
+    for (size_t i = 0; i < count && target == nullptr; i++)
+    {
+        each   = m_focusMgr.GetTabOrderAt (i);
+        isMain = dynamic_cast<DxuiListView *> (each) != nullptr || dynamic_cast<DxuiHexView *> (each) != nullptr || dynamic_cast<DxuiTextView *> (each) != nullptr;
+        target = (isMain && each->IsVisible()) ? each : nullptr;
+    }
+
+    if (target != nullptr)
+    {
+        m_focusMgr.SetFocused (target);
+    }
 }
 
 

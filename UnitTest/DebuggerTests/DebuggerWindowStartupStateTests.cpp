@@ -2,6 +2,7 @@
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "ControllerRig.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -97,6 +98,9 @@ namespace DebuggerStartupStateTests
         using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::ClosePane;
+        using DebuggerWindow::GetFocused;
+        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetMemoryBox;
     };
 
 
@@ -284,6 +288,56 @@ namespace DebuggerStartupStateTests
 
             Assert::IsTrue  (window.GetPaneLayout().IsDocked     (DebuggerLayout::kRegisters));
             Assert::IsFalse (window.GetPaneLayout().IsAutoHidden (DebuggerLayout::kRegisters));
+        }
+
+
+        TEST_METHOD (TheConsoleCommandLineHasTheFocusWhenTheWindowOpens)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            StartupHost     host;
+            StartupWindow   window (theme, host);
+            DxuiDpiScaler   scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            Assert::IsTrue (window.GetFocused() == window.GetCommandBox(), L"the console's command line has the focus");
+        }
+
+
+        TEST_METHOD (WithTheConsoleBehindAnotherTabTheFocusGoesToAPanesMainControl)
+        {
+            CassoTheme       theme   = CassoTheme::MakeSkeuomorphic();
+            StartupHost      host;
+            StartupWindow    window  (theme, host);
+            DxuiDpiScaler    scaler;
+            DxuiPaneLayout   saved   = DebuggerLayout::Restore (std::wstring());
+            IDxuiControl   * focused = nullptr;
+            bool             isMain  = false;
+
+
+
+            Assert::IsTrue (saved.Activate (DebuggerLayout::kTrace), L"the trace pane shares the console's group");
+            host.layout = SourcePathList::WideToUtf8 (saved.ToText());
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            Assert::AreEqual (std::wstring (DebuggerLayout::kTrace), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"the saved tab stays in front");
+
+            focused = window.GetFocused();
+            Assert::IsNotNull (focused, L"some control has the focus");
+
+            isMain = dynamic_cast<DxuiListView *> (focused) != nullptr || dynamic_cast<DxuiHexView *> (focused) != nullptr || dynamic_cast<DxuiTextView *> (focused) != nullptr;
+
+            Assert::IsTrue  (focused != window.GetCommandBox(), L"not the hidden command line");
+            Assert::IsTrue  (focused != window.GetMemoryBox(),  L"not the memory pane's address box");
+            Assert::IsTrue  (isMain,                            L"a pane's main control");
+            Assert::IsTrue  (focused->IsVisible(),              L"a control that shows");
         }
     };
 }
