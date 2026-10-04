@@ -863,7 +863,7 @@ private:
     static constexpr int                  kStatusZoomDip        = 64;
     static constexpr int                  kStatusBudgetDip      = 220;
     static constexpr int                  kStatusMeterDip       = 80;
-    static constexpr int                  kStatusBeginDip       = 150;
+    static constexpr int                  kStatusBeginDip       = 260;
     static constexpr int                  kStatusBeamDip        = 220;
     DxuiStatusBar                       * m_statusBar           = nullptr;
     DxuiSlider                            m_zoomSlider;

@@ -335,7 +335,7 @@ HistoryStatus ReverseHost::GetStatus() const
 //  FillBudget
 //
 //  The bytes the store holds against its budget, never more than the budget,
-//  and the cycle of its oldest keyframe, which moves forward as the oldest
+//  and the cycle and host time of its oldest keyframe, which move forward as the oldest
 //  groups are dropped to stay within it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,10 +349,11 @@ void ReverseHost::FillBudget (
 
 
 
-    status.budgetBytes = budget;
-    status.usedBytes   = (std::min) (store.GetByteCount(), budget);
-    status.hasHistory  = count > 0;
-    status.beginCycle  = (count > 0) ? store.GetInfo (0).cycle : 0;
+    status.budgetBytes   = budget;
+    status.usedBytes     = (std::min) (store.GetByteCount(), budget);
+    status.hasHistory    = count > 0;
+    status.beginCycle    = (count > 0) ? store.GetInfo (0).cycle    : 0;
+    status.beginWallTime = (count > 0) ? store.GetInfo (0).wallTime : 0;
 }
 
 

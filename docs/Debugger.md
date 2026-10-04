@@ -628,9 +628,11 @@ A status bar runs along the bottom of the window. From the right:
   smoothly to blue as it fills. A full budget is not a fault: the oldest
   snapshots make room for new ones. It reads "History off" while history is
   not recorded.
-- **Begins at**, the emulated time since the machine started at which the
-  recorded history begins. Once the budget is full the oldest snapshots are
-  dropped to make room, so this time moves forward as the machine runs.
+- **Begins at**, the time of day the recorded history begins at, in your
+  regional time format, then in parentheses the emulated time since the
+  machine started, for example `Begins at 10:42:07 PM (0.0 s)`. Once the
+  budget is full the oldest snapshots are dropped to make room, so both times
+  move forward as the machine runs.
 - **Scanline:cycle**, where the video beam is, in decimal and then in hex
   as `VIDEOINFO` gives it, for example `192:1 ($0C0:01)`. Clicking it turns
   **Show beam on screen** on and off.

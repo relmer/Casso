@@ -53,6 +53,7 @@ struct KeyframeInfo
     uint64_t  checksum     = 0;      // of the whole state: RAM, CPU, devices, disk media
     size_t    stateBytes   = 0;      // unpacked size
     size_t    storedBytes  = 0;      // packed size held in memory
+    uint64_t  wallTime     = 0;      // host clock when it was taken, UTC FILETIME; not part of the state
     uint64_t  gapStart     = 0;      // with hasGapBefore: where recording paused before it
     bool      isWhole      = false;  // false: XOR difference from its group's whole snapshot
     bool      isBoundary   = false;  // the state does not follow from the one before: a replay loads it
@@ -108,6 +109,9 @@ class KeyframeStore
 public:
     static constexpr size_t  kBufferCount = 2;
 
+    //  Reads the host's clock as a UTC FILETIME; tests substitute their own.
+    using WallClock = uint64_t (*)();
+
               KeyframeStore     () = default;
               ~KeyframeStore    ();
 
@@ -119,6 +123,7 @@ public:
     void      Clear             ();
     void      Release           ();
     void      SetWorkQueue      (IWorkQueue * queue);
+    void      SetWallClock      (WallClock clock) { m_wallClock = clock; }
 
     bool      IsDue             (uint64_t cycle) const { return cycle >= m_nextDueCycle; }
 
@@ -196,8 +201,9 @@ private:
     void      PopOldest         ();
     void      ScheduleAfter     (uint64_t cycle);
 
-    static void  RunJob   (void * context);
-    static void  XorBytes (const Byte * a, const Byte * b, Byte * out, size_t count);
+    static uint64_t  ReadWallClock ();
+    static void      RunJob        (void * context);
+    static void      XorBytes      (const Byte * a, const Byte * b, Byte * out, size_t count);
 
     KeyframeSettings               m_settings;
     std::vector<Entry>             m_entries;              // the table, used as a ring; sized once by Reserve
@@ -211,6 +217,7 @@ private:
     size_t                         m_wholeBytes   = 0;     // size of the newest whole snapshot
     uint64_t                       m_nextDueCycle = 0;
     IWorkQueue                   * m_queue        = nullptr;
+    WallClock                      m_wallClock    = &ReadWallClock;
     std::array<Job, kBufferCount>  m_jobs;
     size_t                         m_nextJob      = 0;     // the job the next Add takes
     size_t                         m_pendingCount = 0;     // jobs handed over and not yet collected, the newest entries

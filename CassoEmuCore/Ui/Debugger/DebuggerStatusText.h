@@ -16,8 +16,8 @@
 //  What the debugger window's status bar shows, worked out from the history
 //  status the CPU thread published and the window's own text zoom: the zoom
 //  as a percentage, how full the history budget is and the color its meter
-//  takes, the emulated time history begins at, and a note while a replay is
-//  running to reach a point in history.
+//  takes, the host's time and the emulated time history begins at, and a
+//  note while a replay is running to reach a point in history.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,11 +49,23 @@ public:
     static uint32_t      GetBudgetColor  (float fill);
 
     static std::wstring  GetBudgetText   (const HistoryStatus & status);
-    static std::wstring  GetBeginText    (const HistoryStatus & status);
+    static std::wstring  GetBeginText    (const HistoryStatus & status) { return GetBeginText (status, LOCALE_NAME_USER_DEFAULT); }
+    static std::wstring  GetBeginText    (const HistoryStatus & status, LPCWSTR locale);
     static std::wstring  GetReplayText   (bool isReplaying);
     static std::wstring  GetReplayText   (const ReplayProgress & progress);
 
     //  Emulated time for a cycle count: seconds to a tenth under a minute,
-    //  then minutes and seconds, then hours, minutes and seconds.
-    static std::wstring  FormatTime      (uint64_t cycles);
+    //  then minutes and seconds, then hours, minutes and seconds, with the
+    //  locale's decimal separator.
+    static std::wstring  FormatTime      (uint64_t cycles) { return FormatTime (cycles, LOCALE_NAME_USER_DEFAULT); }
+    static std::wstring  FormatTime      (uint64_t cycles, LPCWSTR locale);
+
+    //  A local time of day in the locale's own time format, with seconds.
+    static std::wstring  FormatClock     (const SYSTEMTIME & localTime, LPCWSTR locale);
+
+private:
+    static constexpr size_t  kMaxFormattedChars = 80;
+    static constexpr size_t  kMaxSeparator      = 8;
+
+    static std::wstring  FormatTenths    (uint64_t whole, uint64_t tenth, LPCWSTR locale);
 };

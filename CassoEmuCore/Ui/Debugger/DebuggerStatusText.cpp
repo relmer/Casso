@@ -104,16 +104,59 @@ std::wstring DebuggerStatusText::GetBudgetText (const HistoryStatus & status)
 //
 //  DebuggerStatusText::GetBeginText
 //
+//  The host's local time of day the oldest snapshot was taken at, then the
+//  emulated time in parentheses: "Begins at 10:42:07 PM (0.0 s)". Without a
+//  host time, the emulated time alone.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerStatusText::GetBeginText (const HistoryStatus & status)
+std::wstring DebuggerStatusText::GetBeginText (
+    const HistoryStatus  & status,
+    LPCWSTR                locale)
 {
-    if (!status.isRecording || !status.hasHistory)
+    HRESULT         hr        = S_OK;
+    std::wstring    emulated;
+    std::wstring    clock;
+    ULARGE_INTEGER  wall      = {};
+    FILETIME        utc       = {};
+    SYSTEMTIME      utcTime   = {};
+    SYSTEMTIME      localTime = {};
+    BOOL            converted = FALSE;
+    bool            hasClock  = false;
+
+
+
+    CBR (status.isRecording && status.hasHistory);
+
+    emulated = FormatTime (status.beginCycle, locale);
+    CBR (status.beginWallTime != 0);
+
+    wall.QuadPart       = status.beginWallTime;
+    utc.dwLowDateTime   = wall.LowPart;
+    utc.dwHighDateTime  = wall.HighPart;
+
+    converted = FileTimeToSystemTime (&utc, &utcTime);
+    CWR (converted);
+
+    converted = SystemTimeToTzSpecificLocalTime (nullptr, &utcTime, &localTime);
+    CWR (converted);
+
+    clock    = FormatClock (localTime, locale);
+    hasClock = !clock.empty();
+    CBR (hasClock);
+
+Error:
+    if (emulated.empty())
     {
         return {};
     }
 
-    return L"Begins at " + FormatTime (status.beginCycle);
+    if (FAILED (hr))
+    {
+        return L"Begins at " + emulated;
+    }
+
+    return std::format (L"Begins at {} ({})", clock, emulated);
 }
 
 
@@ -174,7 +217,9 @@ std::wstring DebuggerStatusText::GetReplayText (const ReplayProgress & progress)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerStatusText::FormatTime (uint64_t cycles)
+std::wstring DebuggerStatusText::FormatTime (
+    uint64_t  cycles,
+    LPCWSTR   locale)
 {
     constexpr uint64_t  kTenthsPerSecond = 10;
     constexpr uint64_t  kSecondsPerMin   = 60;
@@ -187,13 +232,86 @@ std::wstring DebuggerStatusText::FormatTime (uint64_t cycles)
 
     if (seconds < kSecondsPerMin)
     {
-        return std::format (L"{}.{} s", seconds, tenth);
+        return FormatTenths (seconds, tenth, locale) + L" s";
     }
 
     if (seconds < kSecondsPerHour)
     {
-        return std::format (L"{}:{:02}.{}", seconds / kSecondsPerMin, seconds % kSecondsPerMin, tenth);
+        return std::format (L"{}:{}{}", seconds / kSecondsPerMin, (seconds % kSecondsPerMin < 10) ? L"0" : L"", FormatTenths (seconds % kSecondsPerMin, tenth, locale));
     }
 
     return std::format (L"{}:{:02}:{:02}", seconds / kSecondsPerHour, (seconds % kSecondsPerHour) / kSecondsPerMin, seconds % kSecondsPerMin);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::FormatClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::FormatClock (
+    const SYSTEMTIME  & localTime,
+    LPCWSTR             locale)
+{
+    HRESULT  hr                       = S_OK;
+    WCHAR    text[kMaxFormattedChars] = {};
+    int      length                   = 0;
+
+
+
+    // No flags and no picture: the locale's own long time format, which
+    // holds the seconds, with its clock, markers, separators and zeros.
+    length = GetTimeFormatEx (locale, 0, &localTime, nullptr, text, ARRAYSIZE (text));
+    CWR (length > 0);
+
+Error:
+    return SUCCEEDED (hr) ? std::wstring (text) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::FormatTenths
+//
+//  A whole number and one decimal digit, with the locale's decimal
+//  separator and no digit grouping, or a period when the locale gives none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::FormatTenths (
+    uint64_t  whole,
+    uint64_t  tenth,
+    LPCWSTR   locale)
+{
+    HRESULT       hr                       = S_OK;
+    std::wstring  plain                    = std::format (L"{}.{}", whole, tenth);
+    WCHAR         separator[kMaxSeparator] = {};
+    WCHAR         text[kMaxFormattedChars] = {};
+    NUMBERFMTW    format                   = {};
+    int           length                   = 0;
+
+
+
+    length = GetLocaleInfoEx (locale, LOCALE_SDECIMAL, separator, ARRAYSIZE (separator));
+    CWR (length > 0);
+
+    format.NumDigits     = 1;
+    format.LeadingZero   = 1;
+    format.Grouping      = 0;
+    format.lpDecimalSep  = separator;
+    format.lpThousandSep = const_cast<LPWSTR> (L"");
+    format.NegativeOrder = 1;
+
+    length = GetNumberFormatEx (locale, 0, plain.c_str(), &format, text, ARRAYSIZE (text));
+    CWR (length > 0);
+
+Error:
+    return SUCCEEDED (hr) ? std::wstring (text) : plain;
 }

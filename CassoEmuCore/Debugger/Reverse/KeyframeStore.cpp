@@ -537,6 +537,7 @@ HRESULT KeyframeStore::SubmitJob (
     entry->info.position     = position;
     entry->info.cycle        = cycle;
     entry->info.journalIndex = journalIndex;
+    entry->info.wallTime     = m_wallClock();
     entry->info.stateBytes   = job.state.size();
     entry->info.isWhole      = isEmpty || !isSameSize || isGroupFull;
 
@@ -575,6 +576,34 @@ HRESULT KeyframeStore::SubmitJob (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadWallClock
+//
+//  The host's clock as a UTC FILETIME, stamped on each keyframe so the
+//  debugger can show when history begins. It is kept beside the state, never
+//  in it, so replay and the state checksum do not depend on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t KeyframeStore::ReadWallClock()
+{
+    FILETIME        now  = {};
+    ULARGE_INTEGER  wall = {};
+
+
+
+    GetSystemTimeAsFileTime (&now);
+
+    wall.LowPart  = now.dwLowDateTime;
+    wall.HighPart = now.dwHighDateTime;
+    return wall.QuadPart;
 }
 
 
