@@ -50,6 +50,8 @@ namespace DebuggerTests
             "BPV", "BPBEAM", "FRAME", "VIDEOINFO",
             "MODE", "PAUSE", "BUDGET", "SWITCHES", "MAP", "STACK", "PATCH", "SRC", "SKIP", "CALLS", "HISTORY", "PANEL",
             "OUTPUT",
+            "SAVESTATE",
+            "LOADSTATE",
         };
 
         static constexpr const char * kWindowOnlyNames[] =

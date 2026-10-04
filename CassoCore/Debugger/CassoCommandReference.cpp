@@ -210,6 +210,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "ECHO",        H::SessionAndSettings, "ECHO text",                                      "Print text"                                                                              },
     { "HELP",        H::SessionAndSettings, "HELP [all|section|command|text]",                 "List the help sections, one section, every command, one command or the matches for text"},
     { "LOAD",        H::SessionAndSettings, "LOAD file",                                      "Run a script of commands, such as one SAVE wrote"                                        },
+    { "LOADSTATE",   H::SessionAndSettings, "LOADSTATE file",                                 "Replace the whole machine, disks included, with one a state file holds"                  },
     { "LOG",         H::SessionAndSettings, "LOG [level]",                                    "Show or set which notifications print"                                                   },
     { "MODE",        H::SessionAndSettings, "MODE [mode]",                                    "Show or set the command mode, which sets the output too"                                 },
     { "MOTD",        H::SessionAndSettings, "MOTD",                                           "Show the message of the day"                                                             },
@@ -219,6 +220,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "PWD",         H::SessionAndSettings, "PWD",                                            "Show the current directory"                                                              },
     { "RUN",         H::SessionAndSettings, "RUN file",                                       "Run a script of commands"                                                                },
     { "SAVE",        H::SessionAndSettings, "SAVE file",                                      "Save breakpoints, watches, pointers and bookmarks"                                       },
+    { "SAVESTATE",   H::SessionAndSettings, "SAVESTATE file",                                 "Save the whole machine, disks included, to a state file"                                 },
     { "STARTUP",     H::SessionAndSettings, "STARTUP",                                        "Run the startup script, DebuggerAutoRun.txt"                                             },
     { "VERSION",     H::SessionAndSettings, "VERSION",                                        "Show Casso's version"                                                                    },
 };

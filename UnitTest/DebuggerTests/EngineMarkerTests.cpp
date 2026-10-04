@@ -72,6 +72,7 @@ namespace DebuggerTests
             if (name == "PATCH")  { return "PATCH 300 EA"; }
             if (name == "MODE")   { return "MODE APPLEWIN"; }
             if (name == "OUTPUT") { return "OUTPUT APPLEWIN"; }
+            if (name == "SAVESTATE" || name == "LOADSTATE") { return name + " game.cassostate"; }
             return name;
         }
 
@@ -171,9 +172,10 @@ namespace DebuggerTests
                     Assert::AreEqual (replies[0].data.index(),       reply.data.index(),       Widen (line).c_str());
                 }
 
-                //  PANEL is carried out by the window, so a session alone
-                //  reports it not available -- the same way in every mode.
-                expected = (name == "PANEL") ? CommandStatus::NotAvailable : CommandStatus::Ok;
+                //  PANEL is carried out by the window, and SAVESTATE and LOADSTATE
+                //  by the emulator, so a session alone reports them not available
+                //  -- the same way in every mode.
+                expected = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE") ? CommandStatus::NotAvailable : CommandStatus::Ok;
 
                 Assert::AreEqual ((int) expected, (int) replies[0].status, Widen (line + ": " + replies[0].error.detail).c_str());
             }

@@ -50,6 +50,13 @@ enum class LogLevel
     All,
 };
 
+// SAVESTATE and LOADSTATE: which way a state file goes.
+enum class StateFileRequest
+{
+    Save,
+    Load,
+};
+
 
 
 
@@ -246,6 +253,14 @@ public:
 
     void                       SetReverseRequester (ReverseRequester requester)    { m_reverseRequester = std::move (requester); }
     const ReverseRequester   & GetReverseRequester () const                        { return m_reverseRequester; }
+
+    // SAVESTATE and LOADSTATE: the host saves the whole machine to a state
+    // file, or replaces it with one, as File > Save state and Load state do,
+    // and returns whether it took the request. Empty where there is no host.
+    using StateFileRequester = std::function<bool (StateFileRequest, const std::wstring &)>;
+
+    void                       SetStateFileRequester (StateFileRequester requester) { m_stateFileRequester = std::move (requester); }
+    const StateFileRequester & GetStateFileRequester () const                       { return m_stateFileRequester; }
     // BPV: stop when the video scanline enters the range, once.
     void   SetVideoBreak         (uint32_t first, uint32_t last);
     void   ClearVideoBreak       ();
@@ -383,6 +398,7 @@ private:
     bool                                  m_isViewQuery   = false;
     ScriptLineRunner                      m_scriptLineRunner;
     ReverseRequester                      m_reverseRequester;
+    StateFileRequester                    m_stateFileRequester;
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;

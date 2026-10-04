@@ -1377,6 +1377,20 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParseMemoryArguments (args, command, error);
     }
 
+    //  A file name keeps its case.
+    if (command.verb == DebugVerb::SaveState || command.verb == DebugVerb::LoadState)
+    {
+        command.text = args.rest;
+
+        if (command.text.empty())
+        {
+            error = std::format ("{} needs a file name.", ToUpper (command.sourceName));
+            return false;
+        }
+
+        return true;
+    }
+
     if (command.verb == DebugVerb::Profile  || command.verb == DebugVerb::Stopwatch ||
         command.verb == DebugVerb::VideoLog || command.verb == DebugVerb::SoundLog)
     {

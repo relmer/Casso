@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/CpuCommandDispatcher.h"
 #include "Debugger/CpuManagerRunDriver.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/DebuggerController.h"
@@ -866,6 +867,14 @@ HRESULT EmulatorShell::OpenDebugger()
         }
 
         return isRecording;
+    });
+
+    //  Loading replaces the machine, so both go to the CPU thread as the
+    //  File menu's commands do, and run there between instructions.
+    m_debugger->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
+    {
+        PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
+        return true;
     });
 
 Error:

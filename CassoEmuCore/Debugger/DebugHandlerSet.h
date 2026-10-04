@@ -9,6 +9,7 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/MonitorHandlers.h"
 #include "Debugger/Handlers/RegisterHandlers.h"
+#include "Debugger/Handlers/StateFileHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
@@ -48,4 +49,5 @@ private:
     CallStackHandlers      m_callStack;
     TraceHandlers          m_trace;
     LogHandlers            m_logs;
+    StateFileHandlers      m_stateFiles;
 };

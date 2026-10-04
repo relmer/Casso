@@ -214,8 +214,10 @@ Casso commands:
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]          List the device panels, or open or close one
     VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log video mode changes with the frame and beam position
   Session and settings
+    LOADSTATE file                                       Replace the whole machine, disks included, with one a state file holds
     MODE [mode]                                          Show or set the command mode, which sets the output too
     OUTPUT [format]                                      Show or set the format replies are written in
+    SAVESTATE file                                       Save the whole machine, disks included, to a state file
 ```
 
 ## Monitor mode
@@ -429,6 +431,7 @@ Casso commands:
     /ECHO text                                             Print text
     /HELP [all|section|command|text]                       List the help sections, one section, every command, one command or the matches for text
     /LOAD file                                             Run a script of commands, such as one SAVE wrote
+    /LOADSTATE file                                        Replace the whole machine, disks included, with one a state file holds
     /LOG [level]                                           Show or set which notifications print
     /MODE [mode]                                           Show or set the command mode, which sets the output too
     /MOTD                                                  Show the message of the day
@@ -438,6 +441,7 @@ Casso commands:
     /PWD                                                   Show the current directory
     /RUN file                                              Run a script of commands
     /SAVE file                                             Save breakpoints, watches, pointers and bookmarks
+    /SAVESTATE file                                        Save the whole machine, disks included, to a state file
     /STARTUP                                               Run the startup script, DebuggerAutoRun.txt
     /VERSION                                               Show Casso's version
 ```
@@ -605,6 +609,7 @@ Casso commands:
   Session and settings
     CALC expr                                       Evaluate an expression
     ECHO text                                       Print text
+    LOADSTATE file                                  Replace the whole machine, disks included, with one a state file holds
     LOG [level]                                     Show or set which notifications print
     MODE [mode]                                     Show or set the command mode, which sets the output too
     MOTD                                            Show the message of the day
@@ -613,6 +618,7 @@ Casso commands:
     PRINTF "format"[,expr ...]                      Print expressions through a format
     PWD                                             Show the current directory
     RUN file                                        Run a script of commands
+    SAVESTATE file                                  Save the whole machine, disks included, to a state file
     STARTUP                                         Run the startup script, DebuggerAutoRun.txt
     VERSION                                         Show Casso's version
 ```
@@ -796,6 +802,7 @@ Casso commands:
     !CD dir                                          Change the current directory
     !ECHO text                                       Print text
     !LOAD file                                       Run a script of commands, such as one SAVE wrote
+    !LOADSTATE file                                  Replace the whole machine, disks included, with one a state file holds
     !LOG [level]                                     Show or set which notifications print
     !MODE [mode]                                     Show or set the command mode, which sets the output too
     !MOTD                                            Show the message of the day
@@ -805,6 +812,7 @@ Casso commands:
     !PWD                                             Show the current directory
     !RUN file                                        Run a script of commands
     !SAVE file                                       Save breakpoints, watches, pointers and bookmarks
+    !SAVESTATE file                                  Save the whole machine, disks included, to a state file
     !STARTUP                                         Run the startup script, DebuggerAutoRun.txt
     !VERSION                                         Show Casso's version
 ```
@@ -1002,6 +1010,7 @@ Casso commands:
     ECHO text                                            Print text
     HELP [all|section|command|text]                      List the help sections, one section, every command, one command or the matches for text
     LOAD file                                            Run a script of commands, such as one SAVE wrote
+    LOADSTATE file                                       Replace the whole machine, disks included, with one a state file holds
     LOG [level]                                          Show or set which notifications print
     MODE [mode]                                          Show or set the command mode, which sets the output too
     MOTD                                                 Show the message of the day
@@ -1011,6 +1020,7 @@ Casso commands:
     PWD                                                  Show the current directory
     RUN file                                             Run a script of commands
     SAVE file                                            Save breakpoints, watches, pointers and bookmarks
+    SAVESTATE file                                       Save the whole machine, disks included, to a state file
     STARTUP                                              Run the startup script, DebuggerAutoRun.txt
     VERSION                                              Show Casso's version
 ```

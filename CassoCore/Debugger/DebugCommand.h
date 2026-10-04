@@ -93,6 +93,8 @@ enum class DebugVerb
     StepBackOut,
     ReverseGo,
     GoLive,
+    SaveState,
+    LoadState,
 
     // Breakpoints and watchpoints
     SetBreakpoint,
