@@ -47,7 +47,11 @@ private:
     static constexpr double  kLowPassHz        = 6000.0;
     static constexpr double  kMinLowPassRate   = 22000.0;   // below this the low-pass would eat the tones
     static constexpr double  kReleaseSeconds   = 0.050;
-    static constexpr double  kThresholdRatio   = 0.25;      // of the peak envelope
+    // Of the peak envelope. Low, as the Apple's own input switches close to
+    // zero: a real recording's half-cycles vary in height, and at a quarter
+    // of the envelope the weakest of them -- a fifth of their neighbors' peak
+    // on one Internet Archive tape -- were never seen, and the load failed.
+    static constexpr double  kThresholdRatio   = 0.12;
     static constexpr double  kThresholdFloor   = 0.02;      // about -34 dBFS; quieter is treated as silence
 
     static void  Filter (const TapeAudio & audio, std::vector<double> & filtered);

@@ -31,6 +31,8 @@ struct TapeEncodeOptions
     Word      bitsPerSample = 16;
     bool      isFloat       = false;
     uint32_t  noiseSeed     = 0xCA55E77E;
+    size_t    weakHalfEvery = 0;        // every this many half-cycles is weak; 0 for none
+    double    weakHalfGain  = 1.0;      // and is this fraction of the others' height
 };
 
 

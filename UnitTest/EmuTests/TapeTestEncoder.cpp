@@ -87,6 +87,7 @@ void TapeTestEncoder::Render (std::span<const double> halfCyclesUs, const TapeEn
     double            startUs      = options.tailSeconds * kUsPerSecond;
     double            sign         = options.isInverted ? -1.0 : 1.0;
     size_t            total        = 0;
+    size_t            index        = 0;
 
 
 
@@ -104,6 +105,8 @@ void TapeTestEncoder::Render (std::span<const double> halfCyclesUs, const TapeEn
         double  lengthUs = half / options.speed;
         size_t  first    = (size_t) ceil (startUs * options.sampleRate / kUsPerSecond);
         size_t  last     = (size_t) ceil ((startUs + lengthUs) * options.sampleRate / kUsPerSecond);
+        bool    isWeak   = options.weakHalfEvery != 0 && ++index % options.weakHalfEvery == 0;
+        double  height   = options.amplitude * (isWeak ? options.weakHalfGain : 1.0);
 
 
 
@@ -113,7 +116,7 @@ void TapeTestEncoder::Render (std::span<const double> halfCyclesUs, const TapeEn
             double  shape = options.isSquare ? 1.0 : sin (std::numbers::pi * t);
             double  gain  = 1.0 + (options.gainEnd - 1.0) * (double) n / (double) total;
 
-            audio.samples[n] = (float) (sign * shape * options.amplitude * gain + options.dcOffset);
+            audio.samples[n] = (float) (sign * shape * height * gain + options.dcOffset);
         }
 
         startUs += lengthUs;
