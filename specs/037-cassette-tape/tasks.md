@@ -275,7 +275,7 @@ identical memory; host time drops sharply with it on.
 
 ### After 035-debugger lands on master (merge master into 037 first; do not merge or rebase onto 035 before it ships)
 
-- [ ] T061 Merge master into 037 once 035 has shipped; expect conflicts in the shared shell plumbing (CpuCommandDispatcher, EmulatorShellCpuThread, MachineHost, menus, Dxui)
+- [ ] T061 DEFERRED (owner, 2026-10-04): 037 ships before 035, so T061-T067 move to after 037 merges -- they become 035's work against a master that has the tape. Expect conflicts in the shared shell plumbing (CpuCommandDispatcher, EmulatorShellCpuThread, MachineHost, menus, Dxui)
 - [ ] T062 Debugger reads of $C020-$C02F and $C060/$C068 MUST NOT have side effects: give `CassettePort` a peek path through 035's side-effect-free read mechanism, using `TapeDeck::PeekLevel` (no access recorded, no toggle, no recording click, no fast-load trigger)
 - [ ] T063 Single-instruction steps (035 FR-140) MUST also silence `m_tapeAudioMixer`
 - [ ] T064 Debugger Monitor `R`/`W` with no filename (035 FR-020): print that tape loads go through the guest's own Monitor with the deck playing; keep the host-file meaning when a filename is given
