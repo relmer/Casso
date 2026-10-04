@@ -86,8 +86,10 @@ struct KeyframeInfo
 //
 //  The memory is taken once, on the first Add: a table of keyframes and one
 //  arena the packed snapshots are laid into end to end, wrapping around, so
-//  recording never allocates again. Over the byte budget, or out of room in
-//  the table or the arena, the oldest group is dropped whole, oldest first,
+//  recording seldom allocates again: only a table that fills while much of
+//  the arena is free is laid out again, with slots sized to the keyframes
+//  held, so small keyframes use the budget. Over the byte budget, or out of
+//  room in the table or the arena, the oldest group is dropped whole, oldest first,
 //  because its differences cannot be restored without it. The newest group
 //  is never dropped; the arena is never smaller than the newest group can
 //  need, so it always fits.
@@ -146,6 +148,8 @@ public:
     size_t                    GetPendingCount () const { return m_pendingCount; }
     const KeyframeInfo      & GetInfo         (size_t index) const { return GetEntry (index).info; }
     size_t                    GetByteCount    () const { return m_storedBytes + m_wholeBytes; }
+    size_t                    GetUsedBytes    () const;
+    bool                      IsFull          () const { return m_isFull; }
     size_t                    GetReservedBytes() const;
     size_t                    GetCapacity     () const { return m_entries.size(); }
     const KeyframeSettings  & GetSettings     () const { return m_settings; }
@@ -163,6 +167,10 @@ private:
     static constexpr size_t  kPackSlack      = 4096;
     static constexpr size_t  kPackOverhead   = 8;
     static constexpr size_t  kStateGrowth    = 16;
+
+    //  A full table regrows from the arena while more than this fraction of
+    //  the arena (one part in kArenaSpareParts) is still free.
+    static constexpr size_t  kArenaSpareParts = 4;
 
     struct Entry
     {
@@ -187,6 +195,11 @@ private:
 
     HRESULT   Reserve           (size_t stateBytes);
     void      ComputeLayout     (size_t stateBytes, size_t & outSlotCount, size_t & outArenaBytes) const;
+    void      ComputeFitLayout  (size_t & outSlotCount, size_t & outArenaBytes) const;
+    size_t    GetGroupSlots     () const;
+    size_t    GetLeastArena     (size_t stateBytes) const;
+    HRESULT   Relayout          (size_t slotCount, size_t arenaBytes);
+    HRESULT   TryGrowTable      (bool & outGrew);
     HRESULT   TakeJob           (Job *& outJob);
     HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
     HRESULT   Collect           ();
@@ -215,6 +228,7 @@ private:
     size_t                         m_storedBytes  = 0;
     size_t                         m_groupLength  = 0;     // keyframes in the newest group
     size_t                         m_wholeBytes   = 0;     // size of the newest whole snapshot
+    bool                           m_isFull       = false; // the oldest have been dropped for room since the store last had room to spare
     uint64_t                       m_nextDueCycle = 0;
     IWorkQueue                   * m_queue        = nullptr;
     WallClock                      m_wallClock    = &ReadWallClock;

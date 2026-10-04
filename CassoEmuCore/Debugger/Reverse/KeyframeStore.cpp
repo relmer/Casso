@@ -65,15 +65,10 @@ void KeyframeStore::Configure (const KeyframeSettings & settings)
 
 HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
 {
-    HRESULT                  hr         = S_OK;
-    bool                     isReserved = !m_entries.empty();
-    bool                     isDropped  = true;
-    size_t                   slotCount  = 0;
-    size_t                   arenaBytes = 0;
-    size_t                   end        = 0;
-    Byte                   * buffer     = nullptr;
-    std::vector<Entry>       entries;
-    std::unique_ptr<Byte[]>  arena;
+    HRESULT  hr         = S_OK;
+    bool     isReserved = !m_entries.empty();
+    size_t   slotCount  = 0;
+    size_t   arenaBytes = 0;
 
 
 
@@ -84,9 +79,49 @@ HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
     hr = WaitForPending();
     CHR (hr);
 
+    // A new budget starts with room to spare until it has to drop again.
+    m_isFull = false;
+
     ComputeLayout (m_wholeBytes, slotCount, arenaBytes);
 
-    while (isDropped && (GetByteCount() > budgetBytes || m_storedBytes > arenaBytes || m_count > slotCount))
+    hr = Relayout (slotCount, arenaBytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Relayout
+//
+//  Moves the store into a new table and arena of the sizes given: the oldest
+//  groups are dropped until what is held fits them and the budget, then the
+//  keyframes kept are copied, oldest first, to the start of the new arena.
+//  Call it with nothing in flight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::Relayout (
+    size_t  slotCount,
+    size_t  arenaBytes)
+{
+    HRESULT                  hr         = S_OK;
+    bool                     isDropped  = true;
+    size_t                   end        = 0;
+    Byte                   * buffer     = nullptr;
+    std::vector<Entry>       entries;
+    std::unique_ptr<Byte[]>  arena;
+
+
+
+    CBRA (m_pendingCount == 0);
+
+    while (isDropped && (GetByteCount() > m_settings.budgetBytes || m_storedBytes > arenaBytes || m_count > slotCount))
     {
         isDropped = TryDropOldestGroup();
     }
@@ -154,6 +189,7 @@ void KeyframeStore::Clear()
     m_groupLength  = 0;
     m_wholeBytes   = 0;
     m_nextDueCycle = 0;
+    m_isFull       = false;
 }
 
 
@@ -409,10 +445,8 @@ void KeyframeStore::ComputeLayout (
     size_t  & outSlotCount,
     size_t  & outArenaBytes) const
 {
-    size_t  groupSlots   = static_cast<size_t> (m_settings.wholeEvery) + kBufferCount + 2;
-    size_t  stateRoom    = stateBytes + stateBytes / kStateGrowth;
-    size_t  packedBound  = stateRoom + stateRoom / kPackOverhead + kPackSlack;
-    size_t  minimumArena = groupSlots * packedBound;
+    size_t  groupSlots   = GetGroupSlots();
+    size_t  minimumArena = GetLeastArena (stateBytes);
     size_t  overhead     = 0;
 
 
@@ -421,6 +455,146 @@ void KeyframeStore::ComputeLayout (
     overhead      = outSlotCount * sizeof (Entry) + stateBytes;
     outArenaBytes = (m_settings.budgetBytes > overhead) ? m_settings.budgetBytes - overhead : 0;
     outArenaBytes = std::max (outArenaBytes, minimumArena);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGroupSlots
+//
+//  The keyframes the newest group can need at once: a full group, every
+//  keyframe in flight, and two more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t KeyframeStore::GetGroupSlots() const
+{
+    return static_cast<size_t> (m_settings.wholeEvery) + kBufferCount + 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLeastArena
+//
+//  The smallest arena that always fits the newest group: every slot it can
+//  need at the packer's worst case for a state of stateBytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t KeyframeStore::GetLeastArena (size_t stateBytes) const
+{
+    size_t  stateRoom   = stateBytes + stateBytes / kStateGrowth;
+    size_t  packedBound = stateRoom + stateRoom / kPackOverhead + kPackSlack;
+
+
+
+    return GetGroupSlots() * packedBound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeFitLayout
+//
+//  A table and arena that split the budget by the keyframes held so far: a
+//  slot for every keyframe of their average packed size the budget holds,
+//  and the rest for the arena. Never fewer slots than now, and never an
+//  arena smaller than ComputeLayout's least.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::ComputeFitLayout (
+    size_t  & outSlotCount,
+    size_t  & outArenaBytes) const
+{
+    size_t  collected  = m_count - m_pendingCount;
+    size_t  average    = (collected > 0) ? m_storedBytes / collected : kBudgetPerEntry;
+    size_t  usable     = (m_settings.budgetBytes > m_wholeBytes) ? m_settings.budgetBytes - m_wholeBytes : 0;
+    size_t  leastArena = GetLeastArena (m_wholeBytes);
+
+
+
+    outSlotCount  = std::max (usable / (average + sizeof (Entry)), m_entries.size());
+    outArenaBytes = (usable > outSlotCount * sizeof (Entry)) ? usable - outSlotCount * sizeof (Entry) : 0;
+    outArenaBytes = std::max (outArenaBytes, leastArena);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGrowTable
+//
+//  A table that fills while much of the arena is still free (keyframes
+//  smaller than the budget sized the table for, as an idle machine's are)
+//  takes slots from the arena, so the budget holds as many keyframes as their
+//  bytes allow rather than as the table allows. outGrew is false when the
+//  arena has too little to spare, or no more slots would fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::TryGrowTable (bool & outGrew)
+{
+    HRESULT  hr         = S_OK;
+    size_t   usable     = (m_settings.budgetBytes > m_wholeBytes) ? m_settings.budgetBytes - m_wholeBytes : 0;
+    size_t   room       = std::min (m_arenaBytes, usable);
+    size_t   spare      = room - std::min (m_storedBytes, room);
+    size_t   slotCount  = 0;
+    size_t   arenaBytes = 0;
+
+
+
+    outGrew = false;
+
+    BAIL_OUT_IF (spare <= room / kArenaSpareParts, S_OK);
+
+    ComputeFitLayout (slotCount, arenaBytes);
+    BAIL_OUT_IF (slotCount <= m_entries.size(), S_OK);
+
+    hr = Relayout (slotCount, arenaBytes);
+    CHR (hr);
+
+    outGrew = m_count < m_entries.size();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetUsedBytes
+//
+//  The bytes held against the budget, for a meter of how full it is: all of
+//  it once the oldest have been dropped for room, since the store then holds
+//  all it can, even where a group dropped whole or the room lost where the
+//  arena wraps leaves the bytes held short of the budget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t KeyframeStore::GetUsedBytes() const
+{
+    if (m_isFull)
+    {
+        return m_settings.budgetBytes;
+    }
+
+    return std::min (GetByteCount(), m_settings.budgetBytes);
 }
 
 
@@ -516,6 +690,7 @@ HRESULT KeyframeStore::SubmitJob (
     bool      isSameSize  = job.state.size() == m_wholeBytes;
     bool      isGroupFull = m_groupLength >= m_settings.wholeEvery;
     bool      isDropped   = false;
+    bool      isGrown     = false;
 
 
 
@@ -526,6 +701,12 @@ HRESULT KeyframeStore::SubmitJob (
         hr = WaitForPending();
         CHR (hr);
 
+        hr = TryGrowTable (isGrown);
+        CHR (hr);
+    }
+
+    if (m_count == m_entries.size())
+    {
         isDropped = TryDropOldestGroup();
         CBRA (isDropped);
     }
@@ -1162,6 +1343,9 @@ HRESULT KeyframeStore::DropNewerThan (
 
     BAIL_OUT_IF (!dropped, S_OK);
 
+    // The newest dropped leave room again.
+    m_isFull = false;
+
     if (m_count == 0)
     {
         Clear();
@@ -1272,6 +1456,11 @@ bool KeyframeStore::TryDropOldestGroup()
     for (; isDropped && nextGroup > 0; nextGroup--)
     {
         PopOldest();
+    }
+
+    if (isDropped)
+    {
+        m_isFull = true;
     }
 
     return isDropped;

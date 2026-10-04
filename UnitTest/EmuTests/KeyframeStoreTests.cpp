@@ -411,6 +411,71 @@ public:
     }
 
 
+    TEST_METHOD (TheBudgetIsFullOnceTheOldestIsDropped)
+    {
+        constexpr size_t    kBudget    = 4 * 1024 * 1024;
+        constexpr uint64_t  kMaxFrames = 200000;
+        TestMachine         machine ("Apple2e");
+        KeyframeStore       store;
+        KeyframeSettings    settings;
+        uint64_t            beginCycle = 0;
+        uint64_t            frame      = 0;
+        size_t              keyframes  = 0;
+        size_t              before     = 0;
+        bool                isDropping = false;
+        HRESULT             hr         = S_OK;
+
+
+
+        machine.PowerCycle();
+
+        settings.intervalCycles = KeyframeSettings::kFrameCycles;
+        settings.budgetBytes    = kBudget;
+        store.Configure (settings);
+
+        for (frame = 0; frame < kMaxFrames && !isDropping; frame++)
+        {
+            machine.RunCycles (KeyframeSettings::kFrameCycles);
+
+            if (!store.IsDue (machine.GetCpu()->GetTotalCycles()))
+            {
+                continue;
+            }
+
+            before = store.GetByteCount();
+
+            hr = store.Capture (machine, frame);
+            AssertSucceeded (hr, L"Capture");
+
+            keyframes++;
+
+            if (keyframes == 1)
+            {
+                beginCycle = store.GetInfo (0).cycle;
+            }
+
+            isDropping = store.GetInfo (0).cycle != beginCycle;
+        }
+
+        Assert::IsTrue (isDropping, L"the budget must fill and the oldest group go");
+
+        Logger::WriteMessage (std::format ("first drop after {} keyframes: {} held of {} slots, {} bytes before the drop ({:.1f}% of the budget), "
+                                           "{} after, {} reserved, {:.0f} bytes a keyframe\n",
+                                           keyframes,
+                                           store.GetCount(),
+                                           store.GetCapacity(),
+                                           before,
+                                           100.0 * before / kBudget,
+                                           store.GetByteCount(),
+                                           store.GetReservedBytes(),
+                                           (double) before / (keyframes - 1)).c_str());
+
+        Assert::IsTrue   (before >= kBudget * 2 / 3,     L"the keyframes must use most of the budget before the oldest go, not stop at the table's count");
+        Assert::IsTrue   (store.IsFull(),                L"a store that has dropped its oldest for room is full");
+        Assert::AreEqual (kBudget, store.GetUsedBytes(), L"a full store reports its whole budget used");
+    }
+
+
 private:
 
     //  A mostly regular state with a few bytes that depend on step, the way
