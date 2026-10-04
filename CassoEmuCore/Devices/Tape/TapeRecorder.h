@@ -35,5 +35,7 @@ public:
                             TapeImage              & image,
                             std::string            & error);
 
-    static constexpr float  kLevel = 0.8f;   // of full scale, high and low
+    static constexpr float   kLevel         = 0.8f;     // of full scale, high and low
+    static constexpr double  kSettleSeconds = 0.002;    // longer than any Apple half-cycle: the output is idle
+    static constexpr float   kHissLevel     = 0.003f;   // about -50 dB, far under the decoder's silence floor
 };

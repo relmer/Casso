@@ -17,15 +17,27 @@
 //  output level at its own time: low to start, flipped at every toggle. The
 //  tape grows if the recording runs past its end.
 //
+//  A HELD LEVEL IS NOT RECORDED. A recorder's input is AC-coupled, so while
+//  the computer leaves its output alone -- before the first toggle, after
+//  the last, between records -- the tape settles back to the center line and
+//  takes only the deck's own faint hiss. That is what every real recording
+//  has after its data, and what tape readers that end a record at the first
+//  cycle out of range count on: a level held to the end of the file never
+//  ends the record, and CiderPress II drops it. The hiss sits far under the
+//  decoder's silence floor, so Casso reads silence there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void TapeRecorder::Splice (TapeAudio & tape, const RecordingCapture & capture, double cpuClockHz)
 {
-    double  cyclesPerSample = cpuClockHz / tape.sampleRate;
-    size_t  first           = (size_t) llround (capture.startSample);
-    size_t  count           = (size_t) ((double) (capture.endCycle - capture.startCycle) / cyclesPerSample);
-    size_t  toggle          = 0;
-    bool    isHigh          = false;
+    double    cyclesPerSample = cpuClockHz / tape.sampleRate;
+    size_t    first           = (size_t) llround (capture.startSample);
+    size_t    count           = (size_t) ((double) (capture.endCycle - capture.startCycle) / cyclesPerSample);
+    size_t    toggle          = 0;
+    bool      isHigh          = false;
+    uint64_t  lastEdge        = capture.startCycle;
+    uint64_t  settleCycles    = (uint64_t) (kSettleSeconds * cpuClockHz);
+    uint32_t  hissSeed        = 0x2545F491;
 
 
 
@@ -45,11 +57,23 @@ void TapeRecorder::Splice (TapeAudio & tape, const RecordingCapture & capture, d
 
         while (toggle < capture.toggleCycles.size() && capture.toggleCycles[toggle] <= cycle)
         {
-            isHigh = !isHigh;
+            isHigh   = !isHigh;
+            lastEdge = capture.toggleCycles[toggle];
             toggle++;
         }
 
-        tape.samples[first + i] = isHigh ? kLevel : -kLevel;
+        if (cycle - lastEdge > settleCycles)
+        {
+            hissSeed ^= hissSeed << 13;
+            hissSeed ^= hissSeed >> 17;
+            hissSeed ^= hissSeed << 5;
+
+            tape.samples[first + i] = kHissLevel * ((float) (hissSeed & 0xFFFF) / 32767.5f - 1.0f);
+        }
+        else
+        {
+            tape.samples[first + i] = isHigh ? kLevel : -kLevel;
+        }
     }
 }
 

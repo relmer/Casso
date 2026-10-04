@@ -254,7 +254,7 @@ identical memory; host time drops sharply with it on.
   - write a zero-length 44.1 kHz 16-bit mono WAV atomically, then insert it
   - every backing-out path leaves the deck unchanged
 - [X] T052 [US3] Wire record arming in the widget and menu, with the protected badge per contracts/tape-deck-ui.md; until T049 passes
-- [ ] T053 [US3] Manual check per quickstart.md step 4, including opening a Casso-written WAV in another Apple II tape tool (SC-002 scenario 2)
+- [X] T053 [US3] SC-002 scenario 2, 2026-10-04: a Casso-recorded Monitor W of 256 bytes, opened in CiderPress II 1.2.0 (cp2 catalog / extract), comes out as one BIN file byte-identical to what was written. It first failed: Casso held the output level after the last toggle, and CiderPress ends a record only at a cycle out of range, so it dropped the record at end of file. TapeRecorder now settles a held output to faint hiss about the center line, as an AC-coupled recorder does (TapeRecorderTests.HeldOutputSettlesToHiss). cp2 reads only 8-bit WAVs, including every 16-bit archive tape -- a CiderPress limitation; the check converted Casso's 16-bit file to 8-bit
 
 ---
 
