@@ -89,6 +89,10 @@ public:
     //  a write reaches a frame's return address.
     void    SetWriterLocator (std::function<Word ()> locate) { m_locateWriter = std::move (locate); }
 
+    //  The machine's cycle count, which dates the start of the record and
+    //  each call in it.
+    void    SetClock      (std::function<uint64_t ()> clock) { m_clock = std::move (clock); }
+
     //  Recording starts at the instruction at pc, with nothing known about
     //  the calls already on the stack -- unless the machine has not run an
     //  instruction since power-on, when there are none.
@@ -117,6 +121,11 @@ public:
     const std::vector<Break>             & GetBreaks     () const { return m_breaks; }
     const std::optional<CallStackFrame>  & GetLastReturn () const { return m_lastReturn; }
 
+    //  True when no call made at or after cycle encloses the code now
+    //  running: the record holds no frame and began no later than cycle, or
+    //  its innermost call was made before cycle.
+    bool    HasNoCallSince (uint64_t cycle) const;
+
 private:
     //  More frames than the stack page could hold drop the outermost, so a
     //  program whose stack wraps forever does not grow the record forever.
@@ -124,9 +133,10 @@ private:
 
     struct Pending
     {
-        Word  pc     = 0;
-        Byte  sp     = 0;
-        Byte  opcode = 0;
+        Word      pc     = 0;
+        Byte      sp     = 0;
+        Byte      opcode = 0;
+        uint64_t  cycle  = 0;    // the cycle count the instruction began at
     };
 
     void    Apply           (const Pending & held, Word pc, Byte sp);
@@ -146,7 +156,9 @@ private:
 
     CallStackPeek                  m_peek;
     std::function<Word ()>         m_locateWriter;
+    std::function<uint64_t ()>     m_clock;
     bool                           m_active     = false;
+    uint64_t                       m_startCycle = 0;
     std::optional<Pending>         m_pending;
     std::vector<CallStackFrame>    m_frames;
     std::vector<Break>             m_breaks;

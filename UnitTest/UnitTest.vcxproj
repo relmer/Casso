@@ -828,6 +828,7 @@
     <ClCompile Include="EmuTests\MachineStateFileTests.cpp" />
     <ClCompile Include="EmuTests\ReplayOutputGateTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseNoCallerTests.cpp" />
     <ClCompile Include="EmuTests\SliceInputSampleTests.cpp" />
     <ClCompile Include="EmuTests\ReverseSessionStopTestTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />

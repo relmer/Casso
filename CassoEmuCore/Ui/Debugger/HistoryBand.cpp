@@ -137,7 +137,8 @@ std::wstring HistoryBand::GetShortText (const HistoryStatus & status)
     case ReverseOutcome::AtHistoryGap:   return L"Gap in history";
     case ReverseOutcome::HistoryCut:     return L"History cut";
     case ReverseOutcome::Stopped:        return L"Stopped";
-    default:                             return status.isBehindLive ? L"Behind live" : L"";
+    case ReverseOutcome::NoCaller:       return L"No caller";
+    default:                            return status.isBehindLive ? L"Behind live" : L"";
     }
 }
 
@@ -169,6 +170,9 @@ std::wstring HistoryBand::GetOutcomeText (ReverseOutcome outcome)
 
     case ReverseOutcome::Stopped:
         return L"Stopped before the command finished: the machine is at the last position it reached.";
+
+    case ReverseOutcome::NoCaller:
+        return L"No caller to step back out to: no call in the recorded history entered the code running here. The machine has not moved.";
 
     default:
         return {};

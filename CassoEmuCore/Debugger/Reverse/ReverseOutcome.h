@@ -16,6 +16,8 @@
 //  keyframe's checksum, history after the last good keyframe was dropped,
 //  and the machine is live at that keyframe. Stopped: the user stopped the
 //  search for the target, and the machine is at the last position it reached.
+//  NoCaller: step back out found that no call in the recorded history entered
+//  the code now running, and the machine has not moved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,4 +28,5 @@ enum class ReverseOutcome
     AtHistoryGap,
     HistoryCut,
     Stopped,
+    NoCaller,
 };

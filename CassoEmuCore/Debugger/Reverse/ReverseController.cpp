@@ -435,7 +435,10 @@ Error:
 //
 //  StepBackOut
 //
-//  To the JSR, or the interrupt, that entered the current routine.
+//  To the JSR, or the interrupt, that entered the current routine. Live,
+//  the debugger's call record answers at once when no call in history
+//  entered it, and the machine stays where it is; otherwise the search
+//  walks back, and ends at the call it finds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -448,6 +451,13 @@ HRESULT ReverseController::StepBackOut (ReverseResult & result)
     ReverseOutcome  outcome = ReverseOutcome::Moved;
 
 
+
+    if (HasNoCaller())
+    {
+        FillResult (result);
+        result.outcome = ReverseOutcome::NoCaller;
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     m_isCut     = false;
     m_isStopped = false;
@@ -1259,6 +1269,28 @@ HRESULT ReverseController::FindStepOutTarget (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasNoCaller
+//
+//  Only live: the call record follows the machine as it runs, and stands
+//  for where history ends, not for a position inside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReverseController::HasNoCaller() const
+{
+    bool  isAskable = m_isRecording && m_isLive && m_callerProbe && m_keyframes.GetCount() > 0;
+
+
+
+    return isAskable && m_callerProbe (m_keyframes.GetInfo (0).cycle);
 }
 
 

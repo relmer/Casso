@@ -390,6 +390,7 @@ struct CallStackFrame
     CallFrameKind   kind        = CallFrameKind::Call;
     CallProvenance  provenance  = CallProvenance::Recorded;
     Byte            stackLevel  = 0;
+    uint64_t        cycle       = 0;        // the cycle count the call began at; recorded frames only
     bool            isVerified  = true;
     bool            isRewritten = false;
     std::string     symbol;

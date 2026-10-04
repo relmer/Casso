@@ -97,6 +97,11 @@ public:
     static constexpr uint64_t  kScanlineCycles = 65;
     static constexpr uint64_t  kFrameCycles    = KeyframeSettings::kFrameCycles;
 
+    //  Asked, live, whether the call record shows that no call made at or
+    //  after the given cycle, where history begins, entered the code now
+    //  running. False when the record cannot tell.
+    using CallerProbe = std::function<bool (uint64_t historyStartCycle)>;
+
     explicit ReverseController (MachineHost & machine);
     ~ReverseController () override;
 
@@ -106,6 +111,7 @@ public:
     HRESULT   Start               (const ReverseSettings & settings);
     void      SetWorkQueue        (IWorkQueue * queue) { m_workQueueOverride = queue; }
     void      SetReplayControl    (ReplayControl * control) { m_control = control; }
+    void      SetCallerProbe      (CallerProbe probe) { m_callerProbe = std::move (probe); }
     void      Stop                ();
     bool      IsRecording         () const { return m_isRecording; }
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
@@ -155,6 +161,7 @@ private:
     HRESULT   BuildStepTable     (const Stretch & stretch);
     HRESULT   FindStepOverTarget (uint64_t current, bool & outFound, uint64_t & outTarget, bool & outIsGap);
     HRESULT   FindStepOutTarget  (uint64_t current, bool & outFound, uint64_t & outTarget, bool & outIsGap);
+    bool      HasNoCaller        () const;
     HRESULT   LandAt             (uint64_t position, ReverseOutcome outcome, ReverseResult & result);
     HRESULT   CaptureNow         ();
     HRESULT   CaptureBoundary    (bool isAfterGap, uint64_t gapStart);
@@ -179,6 +186,7 @@ private:
     StateWriter                m_hostWriter;             // the host input state taken with every capture
     IWorkQueue               * m_workQueueOverride = nullptr;  // set by a test
     ReplayControl            * m_control           = nullptr;  // the shell's, read and set from another thread
+    CallerProbe                m_callerProbe;            // the debugger's call record, when one is attached
     std::vector<ReplayStep>    m_steps;                  // one stretch's registers and bytes per position
     uint64_t                   m_stepsStart        = 0;
     uint64_t                   m_stepsEnd          = 0;

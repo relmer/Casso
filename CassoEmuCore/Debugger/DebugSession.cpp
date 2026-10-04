@@ -55,6 +55,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetTarget           (&m_target);
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
     m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
+    m_callRecorder.SetClock           ([this] { return m_target.GetCycleCount(); });
     CallStackRecorder::MarkOpcodes    (m_callOpcodes.data());
     RefreshHookFilter();
     LoadRomSymbols();
@@ -2732,6 +2733,23 @@ CallStackData DebugSession::GetCallStack()
     }
 
     return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::HasNoCallSince
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::HasNoCallSince (uint64_t cycle)
+{
+    SettleCallRecord();
+
+    return m_callRecorder.HasNoCallSince (cycle);
 }
 
 

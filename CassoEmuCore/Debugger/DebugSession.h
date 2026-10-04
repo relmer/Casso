@@ -200,6 +200,10 @@ public:
     void                  SetCallMechanism (CallStackMechanism mechanism) { m_callMechanism = mechanism; }
     CallStackData         GetCallStack     ();
 
+    // Step back out's quick answer: true when the record shows that no call
+    // made at or after cycle entered the code now running.
+    bool                  HasNoCallSince   (uint64_t cycle);
+
     // The innermost source line at an address, as file name and line; false
     // where no loaded line produced it.
     bool                  TryGetSourceLine (Word address, std::string & file, int & line) const;

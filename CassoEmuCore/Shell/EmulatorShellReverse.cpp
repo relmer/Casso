@@ -12,6 +12,13 @@
 
 
 
+//  The console's line for a step back out with no caller in history.
+static constexpr const char  * s_kNoCallerText = "No caller to step back out to.";
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StartReverseRecording
@@ -21,7 +28,9 @@
 //  set since; with recording off, any history is dropped instead. The first call creates the host,
 //  whose live callback hands the game-port input held back while the
 //  machine was behind live to the UI thread, which writes it and releases the
-//  keys and mouse button let go of in the meantime.
+//  keys and mouse button let go of in the meantime. Step back out asks the
+//  debugger's call record, while one is attached, whether any call in
+//  history entered the code now running.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +50,11 @@ void EmulatorShell::StartReverseRecording()
     {
         m_reverseHost = std::make_unique<ReverseHost> (m_machine);
         m_reverseHost->GetController().SetReplayControl (&m_replayControl);
+
+        m_reverseHost->GetController().SetCallerProbe ([this] (uint64_t historyStartCycle)
+        {
+            return m_debugSession != nullptr && m_debugSession->HasNoCallSince (historyStartCycle);
+        });
 
         m_reverseHost->SetLiveCallback ([this] ()
         {
@@ -202,6 +216,13 @@ void EmulatorShell::RunReverseCommand (
 
     m_lastReverseOutcome  = result.outcome;
     m_lastReversePosition = m_machine.GetPosition();
+
+    if (result.outcome == ReverseOutcome::NoCaller)
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        m_debugConsolePending.push_back (s_kNoCallerText);
+    }
 
     if (m_debugSession != nullptr)
     {

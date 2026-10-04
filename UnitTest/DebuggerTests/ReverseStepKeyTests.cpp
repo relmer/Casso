@@ -148,7 +148,7 @@ public:
         Assert::AreEqual (std::wstring (L"Start of history. 1 instruction (0.003 ms) behind live."), HistoryBand::GetCompactText (status), L"the compact text");
         Assert::AreEqual (std::wstring (L"Start of history"), HistoryBand::GetShortText (status));
 
-        for (ReverseOutcome outcome : { ReverseOutcome::AtHistoryStart, ReverseOutcome::AtHistoryGap, ReverseOutcome::HistoryCut })
+        for (ReverseOutcome outcome : { ReverseOutcome::AtHistoryStart, ReverseOutcome::AtHistoryGap, ReverseOutcome::HistoryCut, ReverseOutcome::NoCaller })
         {
             Assert::IsFalse (HistoryBand::GetOutcomeText (outcome).empty(), L"every stop short is put in words");
         }

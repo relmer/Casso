@@ -96,7 +96,8 @@ void CallStackRecorder::Begin (Word pc, Byte opcode, bool isPowerOn)
 
 
 
-    m_active = true;
+    m_active     = true;
+    m_startCycle = m_clock ? m_clock() : 0;
     m_pending.reset();
     m_frames.clear();
     m_breaks.clear();
@@ -147,7 +148,7 @@ void CallStackRecorder::OnInstruction (Word pc, Byte sp, Byte opcode)
     }
 
     Settle (pc, sp);
-    m_pending = Pending { pc, sp, opcode };
+    m_pending = Pending { pc, sp, opcode, m_clock ? m_clock() : 0 };
 }
 
 
@@ -209,6 +210,13 @@ void CallStackRecorder::OnReset (Word pc, Byte opcode, bool isPowerCycle)
     m_breaks.clear();
     m_lastReturn.reset();
 
+    //  The cycle count starts over at a power cycle, so the record dates
+    //  from it; a reset leaves it whole, abandoning the calls before it.
+    if (isPowerCycle)
+    {
+        m_startCycle = m_clock ? m_clock() : 0;
+    }
+
     at.pc     = pc;
     at.opcode = opcode;
     AddBreak (isPowerCycle ? CallBreakKind::PowerOn : CallBreakKind::Reset, at);
@@ -259,6 +267,31 @@ void CallStackRecorder::OnStackWrite (Word address, Byte value, std::optional<By
         it->note        = std::format ("return address changed by the store at ${:04X}", writer);
         return;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::HasNoCallSince
+//
+//  A record without a clock cannot date anything, and says nothing. Calls
+//  are made in order, so the innermost frame is the newest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CallStackRecorder::HasNoCallSince (uint64_t cycle) const
+{
+    bool  isDated   = m_active && m_clock;
+    bool  isEmpty   = m_frames.empty();
+    bool  isCovered = isDated && isEmpty && m_startCycle <= cycle;
+    bool  isOlder   = isDated && !isEmpty && m_frames.back().cycle < cycle;
+
+
+
+    return isCovered || isOlder;
 }
 
 
@@ -467,6 +500,7 @@ void CallStackRecorder::Push (CallFrameKind kind, const Pending & held, Word tar
     frame.kind       = kind;
     frame.provenance = CallProvenance::Recorded;
     frame.stackLevel = held.sp;
+    frame.cycle      = held.cycle;
 
     m_frames.push_back (frame);
     m_lastReturn.reset();
