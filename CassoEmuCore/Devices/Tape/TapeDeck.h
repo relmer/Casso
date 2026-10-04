@@ -92,7 +92,10 @@ public:
 private:
     static constexpr double  kDefaultCpuClockHz = 1020484.0;   // NTSC Apple II; replaced by the machine's own rate
     static constexpr double  kWindSpeed         = 20.0;        // fast-forward and rewind, times the playing speed
-    static constexpr double  kIdleStopSeconds   = 2.0;         // unread this long after reading, playback stops
+    // Unread this long after reading, playback stops. Well past the 3.5
+    // seconds the Monitor's READ waits, unread, between finding the tape and
+    // reading its record -- twice in every BASIC LOAD.
+    static constexpr double  kIdleStopSeconds   = 6.0;
 
     bool    IsMoving         () const;
     bool    IsWinding        () const;

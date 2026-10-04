@@ -242,7 +242,7 @@ public:
     TEST_METHOD (IdleStopWaitsForAReadThenStopsWhenReadingEnds)
     {
         TapeDeck  deck;
-        uint64_t  idle = (uint64_t) (2.5 * kClock);
+        uint64_t  idle = (uint64_t) (7.0 * kClock);
 
 
 
@@ -265,6 +265,27 @@ public:
         deck.ReadInputLevel (3 * idle + 10);
         deck.Update (5 * idle);
         Assert::IsTrue (deck.GetTransport() == TapeTransport::Playing, L"with the setting off, it plays on");
+    }
+
+
+    TEST_METHOD (IdleStopOutlastsTheMonitorsPauseInsideALoad)
+    {
+        // The Monitor's READ finds the tape's first edge, then waits about
+        // 3.5 seconds in HEADR without reading before it reads the record --
+        // and a BASIC LOAD calls READ twice. A deck that stopped in that wait
+        // left LOAD waiting forever.
+        TapeDeck  deck;
+        uint64_t  pause = (uint64_t) (3.6 * kClock);
+
+
+
+        Load (deck);
+        deck.SetAutoStop (false);
+        deck.Play (0);
+        deck.ReadInputLevel (10);
+        deck.Update (10 + pause);
+
+        Assert::IsTrue (deck.GetTransport() == TapeTransport::Playing, L"still playing through the Monitor's pause");
     }
 
 
