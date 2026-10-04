@@ -739,6 +739,7 @@
     <ClCompile Include="Dxui\DxuiToolbarLabelsTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteEdgeShareTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarHostTests.cpp" />
+    <ClCompile Include="Dxui\DxuiImageStripTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuCueTests.cpp" />
@@ -823,6 +824,8 @@
     <ClCompile Include="EmuTests\JoyportHostSettingStateTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeBudgetChangeTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
+    <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
+    <ClCompile Include="EmuTests\HistoryScratchPictureTests.cpp" />
     <ClCompile Include="EmuTests\DiskFlushHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskHistoryTests.cpp" />

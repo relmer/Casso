@@ -175,6 +175,8 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiTabGroup.h"
 #include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbarEditBox.h"
+#include "Widgets/IDxuiImageStripSource.h"
+#include "Widgets/DxuiImageStrip.h"
 #include "Window/DxuiDragDropTarget.h"
 #include "Window/DxuiDragOverlay.h"
 #include "Window/DxuiDragDropSource.h"

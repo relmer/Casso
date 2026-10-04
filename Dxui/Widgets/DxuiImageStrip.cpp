@@ -1,0 +1,607 @@
+#include "Pch.h"
+
+#include "DxuiImageStrip.h"
+#include "Window/DxuiHwndSource.h"
+#include "Window/DxuiPopupHost.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::~DxuiImageStrip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiImageStrip::~DxuiImageStrip()
+{
+    HidePreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::SetPopupHost
+//
+//  A preview open in the old host's window goes with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::SetPopupHost (DxuiHwndSource * host)
+{
+    if (host != m_popupHost)
+    {
+        HidePreview();
+    }
+
+    m_popupHost = host;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetCellLength
+//
+//  Across the strip a cell is as thick as the strip; along it, the picture's
+//  width for its height lying down, or its height for its width standing up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetCellLength (
+    int    thicknessPx,
+    float  aspect,
+    bool   vertical)
+{
+    float  length = 0.0f;
+
+
+
+    if (thicknessPx <= 0 || aspect <= 0.0f)
+    {
+        return 0;
+    }
+
+    length = vertical ? (float) thicknessPx / aspect : (float) thicknessPx * aspect;
+
+    return (std::max) (1, (int) std::lround (length));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetCellCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetCellCount (
+    int  lengthPx,
+    int  cellPx)
+{
+    if (lengthPx <= 0 || cellPx <= 0)
+    {
+        return 0;
+    }
+
+    return lengthPx / cellPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetCellRect
+//
+//  Each cell starts where the one before it ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiImageStrip::GetCellRect (
+    const RECT  & rc,
+    int           index,
+    int           cellPx,
+    bool          vertical)
+{
+    int  start = index * cellPx;
+
+
+
+    if (vertical)
+    {
+        return RECT { rc.left, rc.top + start, rc.right, rc.top + start + cellPx };
+    }
+
+    return RECT { rc.left + start, rc.top, rc.left + start + cellPx, rc.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::HitTestCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::HitTestCell (
+    const RECT  & rc,
+    int           count,
+    int           cellPx,
+    bool          vertical,
+    int           x,
+    int           y)
+{
+    int  along = vertical ? y - rc.top : x - rc.left;
+    int  index = 0;
+
+
+
+    if (x < rc.left || x >= rc.right || y < rc.top || y >= rc.bottom || cellPx <= 0 || along < 0)
+    {
+        return -1;
+    }
+
+    index = along / cellPx;
+
+    return (index < count) ? index : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetWidthPx (
+    bool                  labeled,
+    const DxuiDpiScaler & scaler,
+    IDxuiTextRenderer   * text) const
+{
+    UNREFERENCED_PARAMETER (labeled);
+    UNREFERENCED_PARAMETER (text);
+
+    return (m_preferredPx > 0) ? m_preferredPx : scaler.ToPx (kDefaultLengthDp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetMinWidthPx
+//
+//  One cell, once the strip knows how long a cell is; before that, it keeps
+//  its full length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetMinWidthPx (const DxuiDpiScaler & scaler) const
+{
+    UNREFERENCED_PARAMETER (scaler);
+
+    return (m_cellPx > 0) ? m_cellPx : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::Layout
+//
+//  The strip stands on end when its rect is taller than it is wide. The
+//  source hears the cell count and size every time, so it can plan the
+//  pictures for them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::Layout (
+    const RECT          & rc,
+    bool                  labeled,
+    const DxuiDpiScaler & scaler)
+{
+    int  width     = rc.right - rc.left;
+    int  height    = rc.bottom - rc.top;
+    int  thickness = 0;
+    int  count     = 0;
+
+
+
+    UNREFERENCED_PARAMETER (labeled);
+
+    m_scaler   = scaler;
+    m_rc       = rc;
+    m_vertical = height > width;
+    thickness  = (std::max) (kMinThicknessPx, m_vertical ? width : height);
+    m_cellPx   = GetCellLength (thickness, m_aspect, m_vertical);
+    count      = GetCellCount (m_vertical ? height : width, m_cellPx);
+
+    if (count != m_count)
+    {
+        m_hovered = -1;
+        HidePreview();
+    }
+
+    m_count = count;
+
+    if (m_source != nullptr)
+    {
+        m_source->SetCellLayout (m_count, m_vertical ? SIZE { thickness, m_cellPx } : SIZE { m_cellPx, thickness });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::Paint
+//
+//  A cell not drawn yet is the content background. The cell under the
+//  pointer is framed by drawing its picture inset over the accent color, so
+//  the frame does not depend on whether pictures draw over shapes or under
+//  them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::Paint (
+    IDxuiPainter      & painter,
+    IDxuiTextRenderer & text,
+    const IDxuiTheme  & theme,
+    bool                hovered,
+    bool                pressed,
+    bool                labeled)
+{
+    float                         edge  = m_scaler.ToPxf (kHoverEdgeDip);
+    float                         inset = 0.0f;
+    RECT                          cell  = {};
+    IDxuiImageStripSource::Image  image;
+    HRESULT                       hr    = S_OK;
+
+
+
+    UNREFERENCED_PARAMETER (hovered);
+    UNREFERENCED_PARAMETER (pressed);
+    UNREFERENCED_PARAMETER (labeled);
+
+    for (int i = 0; i < m_count; i++)
+    {
+        cell  = GetCellRect (m_rc, i, m_cellPx, m_vertical);
+        image = (m_source != nullptr) ? m_source->GetCellImage (i) : nullptr;
+        inset = (i == m_hovered) ? edge : 0.0f;
+
+        if (i == m_hovered)
+        {
+            painter.FillRect ((float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top), theme.Accent());
+        }
+
+        if (image == nullptr || image->width <= 0 || image->height <= 0)
+        {
+            painter.FillRect ((float) cell.left + inset,
+                              (float) cell.top + inset,
+                              (float) (cell.right - cell.left) - inset * 2.0f,
+                              (float) (cell.bottom - cell.top) - inset * 2.0f,
+                              theme.ContentBackground());
+            continue;
+        }
+
+        hr = text.DrawIconBitmap (image->bgraPremul.data(), image->width, image->height,
+                                  (float) cell.left + inset,
+                                  (float) cell.top + inset,
+                                  (float) (cell.right - cell.left) - inset * 2.0f,
+                                  (float) (cell.bottom - cell.top) - inset * 2.0f);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetTooltipAt
+//
+//  The preview takes the place of a tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DxuiImageStrip::GetTooltipAt (
+    int     x,
+    int     y,
+    RECT  & anchor) const
+{
+    UNREFERENCED_PARAMETER (x);
+    UNREFERENCED_PARAMETER (y);
+    UNREFERENCED_PARAMETER (anchor);
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::OnClick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::OnClick (
+    int  x,
+    int  y)
+{
+    int  index = HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y);
+
+
+
+    if (index < 0 || m_source == nullptr)
+    {
+        return false;
+    }
+
+    m_source->OnCellClicked (index);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::OnMouseMove (
+    int  x,
+    int  y)
+{
+    int  index = HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y);
+
+
+
+    if (index != m_hovered)
+    {
+        m_hovered = index;
+        Sync();
+    }
+
+    return index >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::OnLButtonDown
+//
+//  A press on a cell arms the entry for the click that follows; the toolbar
+//  arms a labeled custom entry only through a part that takes the press.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::OnLButtonDown (
+    int  x,
+    int  y)
+{
+    return HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y) >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::OnMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::OnMouseLeave()
+{
+    m_hovered = -1;
+    HidePreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::Sync
+//
+//  The preview follows the cell under the pointer. One the source has not
+//  drawn yet hides the preview of the cell before it rather than leave the
+//  wrong picture up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::Sync()
+{
+    IDxuiImageStripSource::Image  image;
+
+
+
+    if (m_hovered < 0 || m_source == nullptr)
+    {
+        HidePreview();
+        return;
+    }
+
+    image = m_source->GetPreviewImage (m_hovered);
+
+    if (image == nullptr)
+    {
+        if (m_previewCell != m_hovered)
+        {
+            HidePreview();
+        }
+
+        return;
+    }
+
+    if (m_preview != nullptr && image == m_previewImage && m_previewCell == m_hovered)
+    {
+        return;
+    }
+
+    HidePreview();
+
+    m_previewImage = std::move (image);
+    m_previewCell  = m_hovered;
+
+    ShowPreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::HidePreview
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::HidePreview()
+{
+    DxuiPopupHost  * popup = m_preview;
+
+
+
+    // Cleared first, so the popup's close callback finds nothing to clear.
+    m_preview      = nullptr;
+    m_previewImage = nullptr;
+    m_previewCell  = -1;
+
+    if (popup != nullptr && m_popupHost != nullptr)
+    {
+        m_popupHost->ReleasePopup (popup);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::ShowPreview
+//
+//  Beside the cell: below a strip lying down, to the right of one standing
+//  up, flipped when there is no room. The picture's pixels are its size in
+//  DIPs, so the popup scales them for the window's DPI. The popup lets the
+//  pointer through and never activates, so the strip keeps the hover and the
+//  window keeps the focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::ShowPreview()
+{
+    DxuiPopupHost::ShowParams  params;
+    RECT                       cell     = GetCellRect (m_rc, m_previewCell, m_cellPx, m_vertical);
+    POINT                      topLeft  = { cell.left, cell.top };
+    POINT                      botRight = { cell.right, cell.bottom };
+    HWND                       owner    = nullptr;
+    HRESULT                    hr       = S_OK;
+
+
+
+    if (m_popupHost == nullptr || m_previewImage == nullptr)
+    {
+        return;
+    }
+
+    owner     = m_popupHost->GetHwnd();
+    m_preview = m_popupHost->AcquirePopup();
+
+    if (m_preview == nullptr)
+    {
+        return;
+    }
+
+    ClientToScreen (owner, &topLeft);
+    ClientToScreen (owner, &botRight);
+
+    params.ownerHwnd        = owner;
+    params.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+    params.placement        = m_vertical ? DxuiPopupPlacement::Right : DxuiPopupPlacement::Below;
+    params.flipIfOffscreen  = true;
+    params.dismiss          = DxuiPopupDismiss::Manual;
+    params.input            = DxuiPopupInput::PassThrough;
+    params.shadow           = true;
+    params.grabsCapture     = false;
+    params.sizeDip          = SIZE { m_previewImage->width, m_previewImage->height };
+    params.backgroundArgb   = DxuiPopupHost::kDefaultMenuBackgroundArgb;
+    params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text) { RenderPreview (painter, text); };
+    params.onClosed         = [this] () { m_preview = nullptr; };
+
+    hr = m_preview->Show (std::move (params));
+
+    if (FAILED (hr))
+    {
+        HidePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::RenderPreview
+//
+//  Popup-local pixels: the picture fills the popup.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::RenderPreview (
+    IDxuiPainter      & painter,
+    IDxuiTextRenderer & text)
+{
+    const DxuiDpiScaler  * scaler = nullptr;
+    HRESULT                hr     = S_OK;
+
+
+
+    UNREFERENCED_PARAMETER (painter);
+
+    if (m_previewImage == nullptr || m_popupHost == nullptr)
+    {
+        return;
+    }
+
+    scaler = &m_popupHost->GetScaler();
+
+    hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height,
+                               0.0f, 0.0f,
+                               scaler->ToPxf ((float) m_previewImage->width),
+                               scaler->ToPxf ((float) m_previewImage->height));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
