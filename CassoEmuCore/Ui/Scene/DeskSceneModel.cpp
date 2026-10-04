@@ -583,6 +583,20 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             continue;
         }
 
+        if (part == s_kpszCassetteTitleAnchor)
+        {
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    m_cassetteTitleBox[axis]     = (std::min) (m_cassetteTitleBox[axis],     p[axis]);
+                    m_cassetteTitleBox[axis + 3] = (std::max) (m_cassetteTitleBox[axis + 3], p[axis]);
+                }
+            }
+
+            continue;
+        }
+
         if (IsMonitorKind (kind) && part == s_kpszGlass)
         {
             AppendFlatTri (m_glass, tri);

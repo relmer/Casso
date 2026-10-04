@@ -1262,10 +1262,13 @@ void EmulatorShell::SyncSceneDriveLabels()
 
         fullNames[s_kSceneTapeNameCell] = TapeDeckWidget::GetDisplayName (view);
 
+        // The title written on the cassette is the tape's file name, without
+        // its extension, as someone would have written it on the label.
         if (view.transport != TapeTransport::Empty)
         {
-            fullNames[s_kSceneCounterCell] = TapeDeckWidget::FormatTime (view.positionSeconds) + L" / " +
-                                             TapeDeckWidget::FormatTime (view.lengthSeconds);
+            fullNames[s_kSceneCounterCell]  = TapeDeckWidget::FormatTime (view.positionSeconds) + L" / " +
+                                              TapeDeckWidget::FormatTime (view.lengthSeconds);
+            fullNames[s_kSceneCassetteCell] = std::filesystem::path (view.path).stem().wstring();
         }
 
         if (m_recorderHoverKey >= 0 && m_recorderHoverKey < (int) DeskSceneModel::kRecorderKeyCount)
@@ -1794,6 +1797,11 @@ bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, in
         return DeskSceneLayout::TryMakeDriveLabelQuad (comp, cell, cellPx, gapPx, corners);
     }
 
+    if (cell == s_kSceneCassetteCell)
+    {
+        return TryMakeCassetteTitleQuad (comp, cellPx, corners);
+    }
+
     if (comp.hasRecorder == 0 ||
         !GetRecorderLabelAnchor (comp, (cell == s_kSceneKeyCell) ? m_recorderHoverKey : -1, anchor))
     {
@@ -1803,6 +1811,55 @@ bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, in
     return DeskSceneLayout::TryMakeLabelQuad (comp, anchor, cellPx,
                                               (cell == s_kSceneCounterCell) ? gapPx + cellPx.cy : gapPx,
                                               corners);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TryMakeCassetteTitleQuad
+//
+//  The cassette's title lies flat on its label, in the recorder's own frame,
+//  so it turns and foreshortens with the cassette as anything written on it
+//  would. The cell's shape is kept: as tall as the writing area, unless that
+//  would run it past the area's ends, centered either way. Top-left,
+//  top-right, bottom-left, bottom-right as seen from the keys, where the
+//  label's top is the far edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3])
+{
+    const float *  box    = m_deskScene.RecorderModel().CassetteTitleBox();
+    float          areaW  = box[3] - box[0];
+    float          areaD  = box[4] - box[1];
+    float          aspect = (cellPx.cy > 0) ? (float) cellPx.cx / (float) cellPx.cy : 0.0f;
+    float          halfD  = areaD * 0.5f;
+    float          halfW  = halfD * aspect;
+    float          cx     = (box[0] + box[3]) * 0.5f;
+    float          cy     = (box[1] + box[4]) * 0.5f;
+    bool           isMade = comp.hasRecorder != 0 && areaW > 0.0f && areaD > 0.0f && aspect > 0.0f;
+
+
+
+    if (halfW > areaW * 0.5f)
+    {
+        halfD *= (areaW * 0.5f) / halfW;
+        halfW  = areaW * 0.5f;
+    }
+
+    for (int corner = 0; isMade && corner < 4; corner++)
+    {
+        float  model[3] = { (corner & 1) ? cx + halfW : cx - halfW,
+                            (corner & 2) ? cy - halfD : cy + halfD,
+                            box[5] };
+
+        isMade = SceneCamera::TransformPoint (comp.recorderWorld, model, corners[corner]);
+    }
+
+    return isMade;
 }
 
 
@@ -1976,7 +2033,8 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
 
         m_sceneDiskLabelPeriod[i] = 0.0f;
 
-        if (!names[i].empty())
+        // The cassette's title never scrolls: it is sized to fit instead.
+        if (!names[i].empty() && i != s_kSceneCassetteCell)
         {
             hrMeasure = text->MeasureString (names[i].c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
         }
@@ -2002,6 +2060,28 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
 
         if (names[i].empty())
         {
+            continue;
+        }
+
+        // The cassette's title is written, not captioned: plain ink, sized
+        // down until it fits the label.
+        if (i == s_kSceneCassetteCell)
+        {
+            float    inkPx = (float) cellPx.cy * s_kCassetteInkHeightRatio;
+            float    inkW  = 0.0f;
+            float    inkH  = 0.0f;
+            HRESULT  hrInk = text->MeasureString (names[i].c_str(), inkPx, s_kpszCassetteInkFace, inkW, inkH);
+
+            if (SUCCEEDED (hrInk) && inkW > (float) cellPx.cx)
+            {
+                inkPx *= (float) cellPx.cx / inkW;
+            }
+
+            hrInk = text->DrawString (names[i].c_str(), 0.0f, (float) GetSceneLabelCellTopPx (i, cellPx),
+                                      (float) cellPx.cx, (float) cellPx.cy, s_kCassetteInkArgb, inkPx,
+                                      s_kpszCassetteInkFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                      DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hrInk, S_OK);
             continue;
         }
 

@@ -235,6 +235,11 @@ def build():
         lines = ln if lines is None else lines.union(ln)
     m.add("cassette_lines", lines, CASS_LINE)
 
+    # Where a title is written on the label: across it, between the window
+    # and the stripe. Metadata only -- the scene writes the tape's name here.
+    m.add("cassette_title_anchor",
+          box(ccx - LBL_HW + 4, ccx + LBL_HW - 4, hub_y + 6.5, LBL_Y1 - 10.0, cz + 0.2, cz + 0.25), CASS_LINE)
+
     # Tape wound on each spool, seen through the window and the hub holes.
     packs = None
     for sx in (-1, 1):

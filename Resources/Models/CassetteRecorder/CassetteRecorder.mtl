@@ -43,6 +43,11 @@ Ka 0 0 0
 Kd 0.55 0.54 0.5
 d 1
 
+newmtl cassette_title_anchor
+Ka 0 0 0 
+Kd 0.55 0.54 0.5
+d 1
+
 newmtl cassette_tape
 Ka 0 0 0 
 Kd 0.3 0.18 0.1

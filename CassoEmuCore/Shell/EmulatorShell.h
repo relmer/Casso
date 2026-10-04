@@ -1118,10 +1118,18 @@ private:
     // Re-hangs the mounted-image basename strip under each projected drive.
     // The desk's baked labels: the two drives' names, then the recorder's
     // tape name, its counter, and the name of the key under the pointer.
-    static constexpr size_t  s_kSceneLabelCount    = 5;
+    static constexpr size_t  s_kSceneLabelCount    = 6;
     static constexpr int     s_kSceneTapeNameCell  = 2;
     static constexpr int     s_kSceneCounterCell   = 3;
     static constexpr int     s_kSceneKeyCell       = 4;
+    static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
+
+    // The cassette title's pen: a handwriting face that ships with Windows 10
+    // and later, in ballpoint blue, with no halo -- it is ink on paper, not a
+    // caption. The text is sized down to fit the label rather than cut.
+    static constexpr const wchar_t *  s_kpszCassetteInkFace     = L"Ink Free";
+    static constexpr uint32_t         s_kCassetteInkArgb        = 0xFF1C2E86;
+    static constexpr float            s_kCassetteInkHeightRatio = 0.8f;   // of the cell's height
 
     void    SyncSceneDriveLabels ();
     bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
@@ -1133,6 +1141,7 @@ private:
                                     const std::array<std::wstring, s_kSceneLabelCount> & names);
     void    SetStripLabelMarquee   (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
     int     GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
+    bool    TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
 
     // The recorder's volume wheel on screen, where the pointer can reach it
     // (the strip in fullscreen, the desk otherwise); empty when it is not.
