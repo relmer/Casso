@@ -112,7 +112,7 @@ def round_top(solid, r, sel=">Z"):
             pieces  = rounded.solids().vals()
             before  = sum(s.Volume() for s in solid.solids().vals())
             after   = sum(s.Volume() for s in pieces)
-            if all(s.isValid() for s in pieces) and 0.8 * before <= after <= before + 1e-6:
+            if all(s.isValid() and _meshes_cleanly(s) for s in pieces) and 0.8 * before <= after <= before + 1e-6:
                 return rounded
         except Exception:
             pass
@@ -126,6 +126,21 @@ def round_top(solid, r, sel=">Z"):
             return round_top(redrawn, r, sel)
     print(f"round_top: left one piece sharp; it could not be rounded at {r} mm or less")
     return solid
+
+
+def _meshes_cleanly(solid):
+    """Whether the triangles the mesh is built from enclose what the solid
+    does. A rounded letter can pass the kernel's own check and still mesh
+    into a stray sheet -- Arial Bold's a did, meshing to a volume of -53
+    against 4.1 -- and only the mesh shows it. Checked at the coarse
+    tolerance the model is written with and at a fine one."""
+    want = solid.Volume()
+    for tol, ang in ((0.35, 0.3), (0.05, 0.1)):
+        verts, tris = solid.tessellate(tol, ang)
+        got = sum(verts[a].dot(verts[b].cross(verts[c])) for a, b, c in tris) / 6.0
+        if abs(got - want) > 0.03 * abs(want):
+            return False
+    return True
 
 
 def _redraw_flat(solid, step=0.15):
