@@ -18,6 +18,7 @@
 //  put a different disk in the drive; and a machine switch, a state file
 //  loaded or a debugger restart, each of which replaces the machine. A
 //  change to the machine's configuration in Settings arrives as a switch.
+//  A paste types into the machine as keys do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,7 @@ bool DivergenceGate::IsStateChangingCommand (WORD id)
 
     switch (id)
     {
+        case IDM_EDIT_PASTE:
         case IDM_DISK_RESOLVE_CHANGE:
         case IDM_FILE_OPEN:
         case IDM_FILE_LOAD_STATE:

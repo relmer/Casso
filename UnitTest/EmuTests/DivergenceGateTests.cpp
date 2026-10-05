@@ -47,6 +47,16 @@ public:
     }
 
 
+    //  A paste types into the emulated machine as keys do, so behind live it
+    //  asks before discarding history, the same as any other input.
+    TEST_METHOD (APasteChangesTheMachine)
+    {
+        Assert::IsTrue (DivergenceGate::IsStateChangingCommand (IDM_EDIT_PASTE), L"paste");
+        Assert::IsTrue (DivergenceGate::Judge (true, DivergenceGate::IsStateChangingCommand (IDM_EDIT_PASTE)) == DivergenceVerdict::Ask,
+                        L"behind live, a paste asks");
+    }
+
+
     TEST_METHOD (DebuggerAudioAndHistoryCommandsLeaveTheMachineAlone)
     {
         for (WORD id : { IDM_DEBUG_COMMAND, IDM_DEBUG_REVERSE, IDM_DEBUG_VIEW, IDM_DEBUG_PAUSE, IDM_AUDIO_DRIVE_ENABLE, IDM_DEBUG_DIVERGE })

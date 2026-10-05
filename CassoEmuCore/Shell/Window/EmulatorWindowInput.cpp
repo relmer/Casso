@@ -3763,6 +3763,10 @@ void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
 //  The notice appears only when the paste actually differs from the
 //  clipboard, which is the moment the user can see the result and wonder why.
 //
+//  Behind live a paste goes through the same question as any other input
+//  to the machine: a yes discards the history after this point and the text
+//  types in live, a no drops it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PasteClipboardText()
@@ -3774,7 +3778,7 @@ void EmulatorShell::PasteClipboardText()
 
 
 
-    if (m_clipboardManager == nullptr)
+    if (m_clipboardManager == nullptr || !AllowCommand (IDM_EDIT_PASTE, std::string()))
     {
         return;
     }
