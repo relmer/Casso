@@ -1504,14 +1504,8 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
             break;
 
         case Apple2cSwitchBar::Part::EightyForty:
-            if (iieKbd != nullptr)
-            {
-                bool  newIn = !iieKbd->IsEightyColumnSwitchIn();
-
-                iieKbd->SetEightyColumnSwitchIn (newIn);
-                PersistSwitchState ("eightyColumnSwitch", newIn);
-            }
-
+            // The guest reads this switch, so behind live it asks first.
+            ToggleEightyColumnSwitch (iieKbd);
             break;
 
         case Apple2cSwitchBar::Part::Keyboard:

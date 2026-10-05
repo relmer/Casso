@@ -2094,7 +2094,8 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 //
 //  The coalescing global-prefs write. It is a one-shot: the timer is armed by
 //  SaveGlobalPrefsDeferred, re-armed by each further change, and killed here
-//  once the changes have stopped long enough for it to fire.
+//  once the changes have stopped long enough for it to fire. Also the end of
+//  a guest mouse click held behind live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2103,6 +2104,12 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
     HRESULT  hr = S_OK;
 
 
+
+    if (timerId == kClickReleaseTimerId)
+    {
+        ReleaseGuestMouseAfterClick();
+        return DxuiMessageResult::Handled;
+    }
 
     if (timerId != kPrefsSaveTimerId)
     {
@@ -2536,19 +2543,47 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     if (msg == WM_APP_GAMEPORT_FLUSH)
     {
         std::vector<DxuiKeyEvent>  held;
+        std::vector<HeldInput>     heldInputs;
 
 
 
         ReleaseInputsLetGoBehindLive();
         m_gamePortMixer.FlushPending();
 
-        // Keys that asked to discard history, and were told yes, land now.
-        m_divergenceGate.TakeHeld (held);
+        // A controller's flush can arrive behind live, before the cut a yes
+        // queued; what is held waits for the one going live posts.
+        if (IsBehindLiveForUi())
+        {
+            return DxuiMessageResult::Handled;
+        }
+
+        m_divergenceGate.OnLive();
+
+        if (m_isJoyportSyncOwed)
+        {
+            m_isJoyportSyncOwed = false;
+            SyncJoyport();
+        }
+
+        // Keys and other inputs that asked to discard history, and were told
+        // yes, land now.
+        m_divergenceGate.TakeHeld (held, heldInputs);
 
         for (const DxuiKeyEvent & ev : held)
         {
             (void) OnViewportKey (ev);
         }
+
+        ApplyHeldInputs (heldInputs);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A game-port change, the guest mouse's button or the //c's 80/40 switch
+    // behind live waits on this question.
+    if (msg == WM_APP_CONFIRM_INPUT)
+    {
+        OnConfirmInputDiverge();
 
         return DxuiMessageResult::Handled;
     }

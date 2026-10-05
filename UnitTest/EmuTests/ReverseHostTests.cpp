@@ -1,8 +1,10 @@
 #include "Pch.h"
 
 #include "EmuTests/ReverseSessionRig.h"
+#include "Debugger/Reverse/DivergenceGate.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/ReverseHost.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Shell/CpuManager.h"
 #include "Shell/MachineGamePortSink.h"
@@ -483,6 +485,64 @@ public:
     }
 
 
+    //  Owner report 2026-10-05: rewound in a game and played on, a joystick
+    //  moved behind live asked nothing. Judged against what the recording has
+    //  the machine reading, the recorded position asks nothing, and a
+    //  deflection or a button press asks; neither is written.
+    TEST_METHOD (AStickOrButtonBehindLiveAsksToDiscardHistory)
+    {
+        constexpr Byte       kRecorded = 0;
+        constexpr Byte       kFarEnd   = 255;
+        TestMachine          machine   ("Apple2e");
+        ReverseHost          host      (machine);
+        MachineGamePortSink  sink      (machine.GetLifetimeLock(), [&machine] () { return GetIieTargetsWithKeys (machine); });
+        DivergenceGate       gate;
+        ReverseResult        result;
+        HRESULT              hr        = S_OK;
+        GamePortState        rest;
+        GamePortState        recorded;
+        GamePortState        deflected;
+        GamePortState        pressed;
+        int                  asks      = 0;
+        bool                 isApplied = false;
+
+
+
+        sink.SetInputGate      (&machine.GetHostInputGate());
+        sink.SetDivergenceGate (&gate, [&asks] () { asks++; });
+
+        PrepareRecording (machine, host);
+
+        hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
+        AssertSucceeded (hr, L"StepBack");
+
+        Assert::AreEqual<int> (kRecorded, machine.GetRefs().iieSoftSwitches->GetPaddle (0), L"the recording has paddle 0 at its near end");
+
+        recorded.paddle[0]  = kRecorded;
+        deflected.paddle[0] = kFarEnd;
+        pressed.buttons.set (0);
+
+        isApplied = sink.TryApply (recorded, &rest);
+
+        Assert::IsFalse (isApplied, L"behind live nothing is written");
+        Assert::AreEqual (0, asks, L"the recorded position changes nothing");
+
+        isApplied = sink.TryApply (deflected, &rest);
+
+        Assert::IsFalse (isApplied, L"nor while the question is open");
+        Assert::AreEqual (1, asks, L"a deflection asks");
+        Assert::AreEqual<int> (kRecorded, machine.GetRefs().iieSoftSwitches->GetPaddle (0), L"the paddle kept its recorded value");
+
+        gate.Answer (false);
+
+        isApplied = sink.TryApply (pressed, &rest);
+
+        Assert::IsFalse (isApplied);
+        Assert::AreEqual (2, asks, L"Open Apple pressed asks");
+        Assert::IsFalse (machine.GetRefs().iieKeyboard->IsOpenApplePressed(), L"Open Apple kept its recorded state");
+    }
+
+
     TEST_METHOD (AHeldGateTurnsAWriterAway)
     {
         HostInputGate                        gate;
@@ -520,6 +580,19 @@ private:
 
         targets.iieSwitches = machine.GetRefs().iieSoftSwitches;
         targets.axisCount   = kAxes;
+
+        return targets;
+    }
+
+
+    //  The //e's paddles and its Apple keys, which are its buttons.
+    static GamePortTargets GetIieTargetsWithKeys (TestMachine & machine)
+    {
+        GamePortTargets  targets = GetIieTargets (machine);
+
+
+
+        targets.iieKeyboard = machine.GetRefs().iieKeyboard;
 
         return targets;
     }

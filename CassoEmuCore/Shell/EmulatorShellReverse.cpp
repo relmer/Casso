@@ -5,6 +5,8 @@
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseHost.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
@@ -428,6 +430,254 @@ void EmulatorShell::OnConfirmDiverge()
 
     m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
     m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, *command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HoldInputBehindLive
+//
+//  UI thread. The guest mouse's button or the //c's 80/40 switch, refused by
+//  the host input gate: held, and the first asks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HoldInputBehindLive (HeldInput input)
+{
+    DivergenceVerdict  verdict = m_divergenceGate.JudgeInput (true);
+
+
+
+    if (verdict == DivergenceVerdict::Ask || verdict == DivergenceVerdict::Hold)
+    {
+        m_divergenceGate.HoldInput (input);
+    }
+
+    if (verdict == DivergenceVerdict::Ask)
+    {
+        PostMessageW (m_hwnd, WM_APP_CONFIRM_INPUT, 0, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnConfirmInputDiverge
+//
+//  UI thread: asks about the input held back. A yes queues the cut; the
+//  machine going live then writes the game port as the host has it now and
+//  hands back what was held. A no drops it, and the replay goes on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnConfirmInputDiverge()
+{
+    bool  isConfirmed = false;
+
+
+
+    if (!m_divergenceGate.IsAsking())
+    {
+        return;
+    }
+
+    isConfirmed = AskToDiverge();
+    m_divergenceGate.Answer (isConfirmed);
+
+    if (isConfirmed)
+    {
+        m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+    }
+
+    // Live already, the replay having caught up while the question was
+    // open: no return to live will hand the input back, so hand it now.
+    if (isConfirmed && !IsBehindLiveForUi())
+    {
+        PostMessageW (m_hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyHeldInputs
+//
+//  UI thread, the machine live: the inputs a yes kept, in order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyHeldInputs (const std::vector<HeldInput> & inputs)
+{
+    for (HeldInput input : inputs)
+    {
+        switch (input)
+        {
+            case HeldInput::MousePress:
+                PressGuestMouseHeldBehindLive();
+                break;
+
+            case HeldInput::EightyColumnToggle:
+                ToggleHeldEightyColumnSwitch();
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PressGuestMouseHeldBehindLive
+//
+//  The press goes down as a real one would. The question may have taken the
+//  release, which went to the message box, so a button no longer down is
+//  let go of after kClickHoldMs, long enough for the guest to see a click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PressGuestMouseHeldBehindLive()
+{
+    HRESULT                              hr         = S_OK;
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = false;
+    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+
+
+    BAIL_OUT_IF (!lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
+
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    BAIL_OUT_IF (!isGateOpen, S_OK);
+
+    m_machine.GetMouse()->SetButton (true);
+    m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, true);
+
+    if (!isHostDown)
+    {
+        hr = m_host->SetTimer (kClickReleaseTimerId, kClickHoldMs);
+        CHRA (hr);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseGuestMouseAfterClick
+//
+//  The end of the click a held press made, unless the user has the button
+//  down again by now, when its own release lets go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReleaseGuestMouseAfterClick()
+{
+    HRESULT                              hr         = S_OK;
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = false;
+    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+
+
+    hr = m_host->KillTimer (kClickReleaseTimerId);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    BAIL_OUT_IF (isHostDown || !lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
+
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
+
+    if (isGateOpen)
+    {
+        m_machine.GetMouse()->SetButton (false);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleHeldEightyColumnSwitch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ToggleHeldEightyColumnSwitch()
+{
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+
+
+
+    if (lifetime.owns_lock())
+    {
+        ToggleEightyColumnSwitch (m_machine.GetRefs().iieKeyboard);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleEightyColumnSwitch
+//
+//  The //c's 80/40 switch, flipped and kept with the preferences. Behind
+//  live it asks first, and on a yes flips once the machine is live. The
+//  caller holds the lifetime lock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ToggleEightyColumnSwitch (Apple2eKeyboard * iieKbd)
+{
+    HRESULT                              hr         = S_OK;
+    std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = false;
+    bool                                 newIn      = false;
+
+
+
+    BAIL_OUT_IF (iieKbd == nullptr, S_OK);
+
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+
+    if (!isGateOpen)
+    {
+        HoldInputBehindLive (HeldInput::EightyColumnToggle);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    newIn = !iieKbd->IsEightyColumnSwitchIn();
+    iieKbd->SetEightyColumnSwitchIn (newIn);
+    PersistSwitchState ("eightyColumnSwitch", newIn);
+
+Error:
+    return;
 }
 
 

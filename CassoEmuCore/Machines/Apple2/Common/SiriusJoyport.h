@@ -46,6 +46,11 @@ public:
     void  SetPaddlesConnected  (bool isConnected);
     void  SetJackSwitches      (size_t jack, JoystickSwitches switches);
 
+    // The host settings and jacks as last written, without the journal
+    // bookkeeping a guest read does: safe from any thread.
+    bool              ArePaddlesConnected () const            { return m_arePaddlesConnected.load (memory_order_acquire); }
+    JoystickSwitches  GetJackSwitches     (size_t jack) const { return JoystickSwitches (m_jacks[jack].load (memory_order_acquire)); }
+
     void  OnMachineReset();
 
     bool  TryReadButton    (int index, Byte & value) const;

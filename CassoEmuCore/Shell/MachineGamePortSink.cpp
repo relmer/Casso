@@ -2,6 +2,8 @@
 
 #include "Shell/MachineGamePortSink.h"
 
+#include "Debugger/Reverse/DivergenceGate.h"
+
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleGamePort.h"
@@ -36,12 +38,33 @@ MachineGamePortSink::MachineGamePortSink (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDivergenceGate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineGamePortSink::SetDivergenceGate (
+    DivergenceGate         * divergenceGate,
+    std::function<void()>    requestAsk)
+{
+    m_divergenceGate = divergenceGate;
+    m_requestAsk     = std::move (requestAsk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryApply
 //
 //  Returns false when a machine rebuild holds the devices, or while reverse
 //  execution has the machine behind live, in which case nothing is written
 //  and the mixer keeps the state pending until the machine is live again. A
 //  machine with no game port accepts the state and writes nothing (FR-017).
+//
+//  Behind live the refused state is judged against the recording, so a real
+//  press or deflection asks whether to discard the history ahead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,21 +74,186 @@ bool MachineGamePortSink::TryApply (const GamePortState & target, const GamePort
     std::shared_lock<std::shared_mutex>  gate;
     GamePortTargets                      targets;
     bool                                 isAvailable = lifetime.owns_lock();
+    bool                                 isLive      = true;
 
 
-
-    isAvailable = isAvailable && (m_inputGate == nullptr || m_inputGate->TryEnter (gate));
 
     if (isAvailable)
     {
         targets = m_getTargets();
+        isLive  = m_inputGate == nullptr || m_inputGate->TryEnter (gate);
+    }
 
+    if (isAvailable && isLive)
+    {
         WritePaddles (targets, target, lastApplied);
         WriteButtons (targets, target, lastApplied);
         WriteJacks   (targets, target, lastApplied);
     }
+    else if (isAvailable)
+    {
+        JudgeBehindLive (targets, target, lastApplied);
+    }
 
-    return isAvailable;
+    return isAvailable && isLive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  JudgeBehindLive
+//
+//  The three states compared see only the lines the machine reads, so a
+//  line it has no wire for, or one the Joyport stands in front of, never
+//  asks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineGamePortSink::JudgeBehindLive (
+    const GamePortTargets  & targets,
+    const GamePortState    & target,
+    const GamePortState    * lastApplied)
+{
+    GamePortState      lastWritten;
+    GamePortState      wanted   = target;
+    GamePortState      recorded = ReadRecorded (targets);
+    DivergenceVerdict  verdict  = DivergenceVerdict::Proceed;
+
+
+
+    if (m_divergenceGate == nullptr)
+    {
+        return;
+    }
+
+    if (lastApplied != nullptr)
+    {
+        lastWritten = *lastApplied;
+    }
+
+    MaskUnread (targets, lastWritten);
+    MaskUnread (targets, wanted);
+    MaskUnread (targets, recorded);
+
+    verdict = m_divergenceGate->JudgeGamePort (true, lastWritten, wanted, recorded);
+
+    if (verdict == DivergenceVerdict::Ask && m_requestAsk)
+    {
+        m_requestAsk();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadRecorded
+//
+//  Behind live the devices hold what the recording has the machine reading.
+//  On the //e the buttons are the keyboard's Apple keys and Shift line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GamePortState MachineGamePortSink::ReadRecorded (const GamePortTargets & targets)
+{
+    constexpr int   kOpenAppleButton  = 0;
+    constexpr int   kSolidAppleButton = 1;
+    constexpr int   kShiftButton      = 2;
+    GamePortState   recorded;
+    int             axisCount         = static_cast<int> (std::min (targets.axisCount, recorded.paddle.size()));
+
+
+
+    for (int axis = 0; axis < axisCount; axis++)
+    {
+        if (targets.gamePort != nullptr)
+        {
+            recorded.paddle[axis] = targets.gamePort->GetPaddle (axis);
+        }
+        else if (targets.iieSwitches != nullptr)
+        {
+            recorded.paddle[axis] = targets.iieSwitches->GetPaddle (axis);
+        }
+    }
+
+    if (targets.iieKeyboard != nullptr)
+    {
+        recorded.buttons.set (kOpenAppleButton,  targets.iieKeyboard->IsOpenApplePressed());
+        recorded.buttons.set (kSolidAppleButton, targets.iieKeyboard->IsClosedApplePressed());
+        recorded.buttons.set (kShiftButton,      targets.iieKeyboard->IsShiftPressed());
+    }
+    else if (targets.gamePort != nullptr)
+    {
+        for (int index = 0; index < static_cast<int> (recorded.buttons.size()); index++)
+        {
+            recorded.buttons.set (index, targets.gamePort->IsButtonPressed (index));
+        }
+    }
+
+    for (size_t jack = 0; targets.joyport != nullptr && jack < JoyportJacks::kJackCount; jack++)
+    {
+        recorded.jacks.jack[jack] = targets.joyport->GetJackSwitches (jack);
+    }
+
+    return recorded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MaskUnread
+//
+//  Puts every line the machine does not read at rest: the axes past the
+//  ones it has, PB2 on the //c (its mouse button's line), and the Joyport's
+//  switches while it is detached. While it is attached it answers the
+//  buttons in their place, and with nothing in its rear sockets the paddles
+//  too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineGamePortSink::MaskUnread (
+    const GamePortTargets  & targets,
+    GamePortState          & state)
+{
+    constexpr size_t  kShiftButton  = 2;
+    GamePortState     rest;
+    bool              hasPaddles    = targets.gamePort != nullptr || targets.iieSwitches != nullptr;
+    bool              hasButtons    = targets.gamePort != nullptr || targets.iieKeyboard != nullptr;
+    bool              isJoyportOn   = targets.joyport  != nullptr && targets.joyport->IsAttached();
+    bool              isMouseOnPb2  = targets.gamePort == nullptr && targets.iieKeyboard != nullptr && targets.iieKeyboard->HasMouseOnShiftLine();
+    bool              arePaddlesOut = isJoyportOn && !targets.joyport->ArePaddlesConnected();
+
+
+
+    for (size_t axis = 0; axis < state.paddle.size(); axis++)
+    {
+        if (!hasPaddles || arePaddlesOut || axis >= targets.axisCount)
+        {
+            state.paddle[axis] = rest.paddle[axis];
+        }
+    }
+
+    if (!hasButtons || isJoyportOn)
+    {
+        state.buttons.reset();
+    }
+    else if (isMouseOnPb2)
+    {
+        state.buttons.reset (kShiftButton);
+    }
+
+    if (!isJoyportOn)
+    {
+        state.jacks = rest.jacks;
+    }
 }
 
 

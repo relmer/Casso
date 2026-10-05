@@ -9,6 +9,7 @@ class AppleGamePort;
 class Apple2eSoftSwitchBank;
 class Apple2eKeyboard;
 class SiriusJoyport;
+class DivergenceGate;
 
 
 
@@ -60,15 +61,25 @@ public:
 
     void SetInputGate (HostInputGate * inputGate) { m_inputGate = inputGate; }
 
+    // Behind live, a write the input gate refuses is judged here, and
+    // requestAsk is called when it would change what the machine reads.
+    void SetDivergenceGate (DivergenceGate * divergenceGate, std::function<void()> requestAsk);
+
     bool TryApply (const GamePortState & target, const GamePortState * lastApplied) override;
 
 private:
 
-    static void WritePaddles (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
-    static void WriteButtons (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
-    static void WriteJacks   (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
+    static void           WritePaddles (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
+    static void           WriteButtons (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
+    static void           WriteJacks   (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
+    static GamePortState  ReadRecorded (const GamePortTargets & targets);
+    static void           MaskUnread   (const GamePortTargets & targets, GamePortState & state);
 
-    std::shared_mutex  & m_lifetimeLock;
-    HostInputGate      * m_inputGate = nullptr;
-    TargetsFn            m_getTargets;
+    void                  JudgeBehindLive (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
+
+    std::shared_mutex      & m_lifetimeLock;
+    HostInputGate          * m_inputGate      = nullptr;
+    DivergenceGate         * m_divergenceGate = nullptr;
+    std::function<void()>    m_requestAsk;
+    TargetsFn                m_getTargets;
 };

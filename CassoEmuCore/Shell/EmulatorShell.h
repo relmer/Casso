@@ -514,6 +514,17 @@ private:
     void  OnConfirmDiverge      ();
     bool  IsBehindLiveForUi     () { return m_machine.GetHostInputGate().IsHeld(); }
 
+    // Behind live, the game port, the guest mouse's button and the //c's
+    // 80/40 switch ask too: each is held, asked about on the UI thread, and
+    // on a yes made once the machine is live.
+    void  HoldInputBehindLive           (HeldInput input);
+    void  OnConfirmInputDiverge         ();
+    void  ApplyHeldInputs               (const std::vector<HeldInput> & inputs);
+    void  PressGuestMouseHeldBehindLive ();
+    void  ReleaseGuestMouseAfterClick   ();
+    void  ToggleHeldEightyColumnSwitch  ();
+    void  ToggleEightyColumnSwitch      (Apple2eKeyboard * iieKbd);
+
     // CPU thread: the caption's replay note, kept in step with the machine.
     void  UpdateReplayCaption   ();
 
@@ -2188,6 +2199,12 @@ private:
     static constexpr UINT                kPrefsSaveDelayMs  = 750;
     std::atomic<bool>                    m_globalPrefsDirty = false;
 
+    // A guest mouse press that asked behind live and was let go of before
+    // the machine was live is held down this long once live, so the guest
+    // sees a click rather than nothing.
+    static constexpr UINT_PTR            kClickReleaseTimerId = 0xCA56;
+    static constexpr UINT                kClickHoldMs         = 100;
+
     // The Settings dialog, shown modeless so the emulator keeps running behind
     // it (FR-041). Heap-owned + null when closed; OpenSettings creates it and
     // the close callback flags m_settingsSheetClosePending so RunMessageLoop
@@ -2270,6 +2287,7 @@ private:
     // The divergence question's state: the keys waiting on it, and a held
     // debugger edit's command for the UI thread to ask about.
     DivergenceGate                m_divergenceGate;
+    bool                          m_isJoyportSyncOwed = false;   // a players' change made behind live, for the Joyport once live
     std::mutex                    m_divergeMutex;
     std::optional<std::string>    m_pendingDivergeCommand;
     std::mutex                    m_replayCaptionMutex;

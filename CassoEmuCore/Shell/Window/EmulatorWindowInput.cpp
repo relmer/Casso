@@ -1256,10 +1256,16 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         // Not behind live in reverse execution's history, where the mouse
         // holds a recorded position. The press is tracked either way, so a
         // release made behind live is injected once the machine is live.
+        // Behind live the press asks whether to discard the history ahead.
         if (overDisplay)
         {
             isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
             m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
+        }
+
+        if (overDisplay && !isGateOpen)
+        {
+            HoldInputBehindLive (HeldInput::MousePress);
         }
 
         if (overDisplay && isGateOpen)
@@ -2882,10 +2888,23 @@ void EmulatorShell::ReleaseArrowKeySources()
 void EmulatorShell::SyncJoyport()
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
+    std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
 
 
 
-    ApplyJoyportToMachine();
+    // Behind live the Joyport holds the recorded settings, which the guest
+    // reads; the new ones reach it once the machine is live.
+    if (isGateOpen)
+    {
+        ApplyJoyportToMachine();
+    }
+    else
+    {
+        m_isJoyportSyncOwed = true;
+    }
+
+    gate.unlock();
     lifetime.unlock();
 
     if (m_arrowsJoystick)

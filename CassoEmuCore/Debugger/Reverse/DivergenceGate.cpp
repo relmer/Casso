@@ -100,8 +100,7 @@ DivergenceVerdict DivergenceGate::JudgeKey (
         return DivergenceVerdict::Drop;
     }
 
-    m_state = State::Asking;
-    m_held.clear();
+    StartAsking();
 
     return DivergenceVerdict::Ask;
 }
@@ -131,6 +130,13 @@ void DivergenceGate::Answer (bool isConfirmed)
 
     m_state = State::Idle;
     m_held.clear();
+    m_heldInputs.clear();
+
+    if (m_hasGamePortWanted)
+    {
+        m_gamePortBefore    = m_gamePortWanted;
+        m_hasGamePortBefore = true;
+    }
 }
 
 
@@ -143,9 +149,12 @@ void DivergenceGate::Answer (bool isConfirmed)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DivergenceGate::TakeHeld (std::vector<DxuiKeyEvent> & outEvents)
+void DivergenceGate::TakeHeld (
+    std::vector<DxuiKeyEvent>  & outEvents,
+    std::vector<HeldInput>     & outInputs)
 {
     outEvents.clear();
+    outInputs.clear();
 
     if (m_state != State::AwaitingLive)
     {
@@ -153,7 +162,212 @@ void DivergenceGate::TakeHeld (std::vector<DxuiKeyEvent> & outEvents)
     }
 
     outEvents.swap (m_held);
+    outInputs.swap (m_heldInputs);
     m_state = State::Idle;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::IsGamePortDivergence
+//
+//  Three tests, all needed. Moved from before: a stick held where it was, or
+//  wandering within the tolerance, is not the user doing anything. Apart
+//  from the recording: what the machine already reads there changes nothing.
+//  Not at rest: letting go is never a question, as a key's release is not;
+//  the machine takes the released state once it is live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DivergenceGate::IsGamePortDivergence (
+    const GamePortState  & before,
+    const GamePortState  & wanted,
+    const GamePortState  & recorded)
+{
+    return IsApart (before, wanted) && IsApart (recorded, wanted) && !IsAtRest (wanted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::JudgeGamePort
+//
+//  Live, the state is written. Behind live, while a question is open or a
+//  yes waits for the machine to be live, it waits too; otherwise it asks
+//  when it changes what the machine reads, and is dropped when it does not.
+//  What the host held before is the state last written to the machine, or
+//  the state it wanted when it was last told no.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DivergenceVerdict DivergenceGate::JudgeGamePort (
+    bool                   isBehindLive,
+    const GamePortState  & lastWritten,
+    const GamePortState  & wanted,
+    const GamePortState  & recorded)
+{
+    const GamePortState  & before = m_hasGamePortBefore ? m_gamePortBefore : lastWritten;
+
+
+
+    if (!isBehindLive)
+    {
+        return DivergenceVerdict::Proceed;
+    }
+
+    m_gamePortWanted    = wanted;
+    m_hasGamePortWanted = true;
+
+    if (m_state != State::Idle)
+    {
+        return DivergenceVerdict::Hold;
+    }
+
+    if (!IsGamePortDivergence (before, wanted, recorded))
+    {
+        return DivergenceVerdict::Drop;
+    }
+
+    StartAsking();
+
+    return DivergenceVerdict::Ask;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::JudgeInput
+//
+//  The guest mouse's button or the //c's 80/40 switch: each is one change,
+//  so behind live every one asks, or waits on a question already open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DivergenceVerdict DivergenceGate::JudgeInput (bool isBehindLive)
+{
+    if (m_state != State::Idle)
+    {
+        return DivergenceVerdict::Hold;
+    }
+
+    if (!isBehindLive)
+    {
+        return DivergenceVerdict::Proceed;
+    }
+
+    StartAsking();
+
+    return DivergenceVerdict::Ask;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::OnLive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DivergenceGate::OnLive()
+{
+    m_hasGamePortWanted = false;
+    m_hasGamePortBefore = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::IsAxisApart
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DivergenceGate::IsAxisApart (
+    Byte  a,
+    Byte  b)
+{
+    return std::abs (static_cast<int> (a) - static_cast<int> (b)) > kAxisTolerance;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::IsApart
+//
+//  Any button or Joyport switch different, or any axis further apart than
+//  the tolerance.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DivergenceGate::IsApart (
+    const GamePortState  & a,
+    const GamePortState  & b)
+{
+    bool  isApart = a.buttons != b.buttons || !(a.jacks == b.jacks);
+
+
+
+    for (size_t axis = 0; axis < a.paddle.size() && !isApart; axis++)
+    {
+        isApart = IsAxisApart (a.paddle[axis], b.paddle[axis]);
+    }
+
+    return isApart;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::IsAtRest
+//
+//  Everything let go: no button down, no switch closed, every axis within
+//  the tolerance of center.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DivergenceGate::IsAtRest (const GamePortState & state)
+{
+    GamePortState  rest;
+
+
+
+    return !IsApart (rest, state);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergenceGate::StartAsking
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DivergenceGate::StartAsking()
+{
+    m_state = State::Asking;
+    m_held.clear();
+    m_heldInputs.clear();
 }
 
 

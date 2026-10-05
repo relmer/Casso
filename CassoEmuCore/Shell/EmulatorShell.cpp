@@ -448,6 +448,14 @@ HRESULT EmulatorShell::Initialize (
     // Held back while reverse execution has the machine behind live.
     m_gamePortSink->SetInputGate (&m_machine.GetHostInputGate());
 
+    // Held back, a real press or deflection asks whether to discard the
+    // history ahead; the question is asked from the message loop, outside
+    // the locks the write holds.
+    m_gamePortSink->SetDivergenceGate (&m_divergenceGate, [hwnd = m_hwnd]
+    {
+        PostMessageW (hwnd, WM_APP_CONFIRM_INPUT, 0, 0);
+    });
+
     m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]
     {
         PostMessageW (hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);

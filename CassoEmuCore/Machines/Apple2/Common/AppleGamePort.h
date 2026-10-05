@@ -57,6 +57,11 @@ public:
     // Stage a pushbutton state (button 0 = PB0/fire, 1 = PB1, 2 = PB2).
     void SetButton (int index, bool pressed);
 
+    // The staged state as the next read sees it, without the journal
+    // bookkeeping a read does: safe from any thread.
+    Byte GetPaddle       (int axis) const  { return m_paddlePosition[axis].load (memory_order_acquire); }
+    bool IsButtonPressed (int index) const { return m_buttonState[index].load (memory_order_acquire); }
+
     // The game-port adapter, asked first for every button and paddle read.
     void SetJoyport (const SiriusJoyport * joyport) { m_joyport = joyport; }
 
