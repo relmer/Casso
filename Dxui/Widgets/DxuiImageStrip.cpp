@@ -272,6 +272,11 @@ void DxuiImageStrip::Layout (
             width        = m_rc.right - m_rc.left;
         }
     }
+    else if (m_labelRoomDp > 0.0f)
+    {
+        PlaceStandingEndLabels();
+        height = m_rc.bottom - m_rc.top;
+    }
 
     thickness  = (std::max) (kMinThicknessPx, m_vertical ? width : height);
     m_idealPx  = GetCellLength (thickness, m_aspect, m_vertical);
@@ -898,7 +903,7 @@ float DxuiImageStrip::GetOffsetAt (
 //
 //  A line in the accent color across the pictures and a little past them,
 //  and lying down, its labels in the room above and below that, each kept
-//  within the strip.
+//  within the strip; standing up, its labels just above and below it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -926,6 +931,8 @@ void DxuiImageStrip::PaintPlayhead (
     {
         hr = text.DrawIconBitmap (&ink, 1, 1, (float) m_outer.left, along - thick / 2.0f, (float) (m_outer.right - m_outer.left), thick);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        PaintStandingPlayheadLabels (painter, text, theme, along, thick, top, bottom);
         return;
     }
 
@@ -1075,6 +1082,7 @@ int DxuiImageStrip::GetSideLabelPx (
 //
 //  Only growth counts: a label that shrinks, as a time of day does from one
 //  second to the next, keeps its room rather than moving the pictures.
+//  Standing up, a label's room is its height.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1085,9 +1093,17 @@ bool DxuiImageStrip::HasOutgrownLabelRoom()
 
 
 
-    if (m_source == nullptr || m_vertical || m_labelRoomDp <= 0.0f)
+    if (m_source == nullptr || m_labelRoomDp <= 0.0f)
     {
         return false;
+    }
+
+    if (m_vertical)
+    {
+        lead  = GetStandingLabelPx (m_source->GetLeadingLabel());
+        trail = GetStandingLabelPx (m_source->GetTrailingLabel());
+
+        return lead > m_lead.bottom - m_lead.top || trail > m_trail.bottom - m_trail.top;
     }
 
     lead  = GetSideLabelPx (m_source->GetLeadingLabel(),  false);
@@ -1123,6 +1139,10 @@ void DxuiImageStrip::PaintSideLabel (
     float     dot      = m_scaler.ToPxf (kLiveDotDip);
     float     left     = (float) rc.left + pad;
     float     width    = (float) (rc.right - rc.left) - pad * 2.0f;
+    float     size     = m_scaler.ToPxf (kLabelFontDip);
+    float     extra    = isTrailing ? dot + pad : 0.0f;
+    float     textW    = 0.0f;
+    float     shift    = 0.0f;
     bool      isAccent = isTrailing && m_source != nullptr && m_source->IsTrailingLabelAccented();
     uint32_t  ink      = isAccent ? theme.Accent() : theme.Foreground();
 
@@ -1133,6 +1153,16 @@ void DxuiImageStrip::PaintSideLabel (
         return;
     }
 
+    //  Standing up, the label and its dot are centered across the strip, at
+    //  a size that fits its width.
+    if (m_vertical)
+    {
+        size   = GetFittedFontPx (text, label, width - extra, textW);
+        shift  = (std::max) (0.0f, (width - extra - textW) / 2.0f);
+        left  += shift;
+        width -= shift;
+    }
+
     if (isTrailing)
     {
         if (isAccent)
@@ -1140,13 +1170,222 @@ void DxuiImageStrip::PaintSideLabel (
             painter.FillCircle (left + dot / 2.0f, (float) (rc.top + rc.bottom) / 2.0f, dot / 2.0f, ink);
         }
 
-        left  += dot + pad;
-        width -= dot + pad;
+        left  += extra;
+        width -= extra;
     }
 
     hr = text.DrawString (label.c_str(), left, (float) rc.top, width, (float) (rc.bottom - rc.top), ink,
-                          m_scaler.ToPxf (kLabelFontDip), DxuiTheme::kBodyFace,
+                          size, DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetFittedFontPx
+//
+//  The label's font size, made smaller as far as it takes for the label to
+//  fit `maxWidthPx`, and the label's width at that size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiImageStrip::GetFittedFontPx (
+    IDxuiTextRenderer   & text,
+    const std::wstring  & label,
+    float                 maxWidthPx,
+    float               & outWidthPx) const
+{
+    HRESULT  hr     = S_OK;
+    float    size   = m_scaler.ToPxf (kLabelFontDip);
+    float    height = 0.0f;
+
+
+
+    outWidthPx = 0.0f;
+
+    hr = text.MeasureString (label.c_str(), size, DxuiTheme::kBodyFace, outWidthPx, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (outWidthPx > maxWidthPx && maxWidthPx > 0.0f)
+    {
+        size       *= maxWidthPx / outWidthPx;
+        outWidthPx  = maxWidthPx;
+    }
+
+    return size;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetStandingLabelPx
+//
+//  How tall a label above or below the pictures of a strip standing up is:
+//  a line of text and a little room above and below it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetStandingLabelPx (const std::wstring & label) const
+{
+    HRESULT  hr     = S_OK;
+    float    width  = 0.0f;
+    float    height = 0.0f;
+
+
+
+    if (label.empty() || m_text == nullptr)
+    {
+        return 0;
+    }
+
+    hr = m_text->MeasureString (label.c_str(), m_scaler.ToPxf (kLabelFontDip), DxuiTheme::kBodyFace, width, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return (int) std::ceil (height + m_scaler.ToPxf (kLabelPadDip) * 2.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PlaceStandingEndLabels
+//
+//  Standing up, where history begins goes above the first picture and the
+//  trailing label below the last, each a line across the strip, while the
+//  pictures keep at least half its length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PlaceStandingEndLabels()
+{
+    LONG  lead  = 0;
+    LONG  trail = 0;
+
+
+
+    if (m_source == nullptr)
+    {
+        return;
+    }
+
+    lead  = GetStandingLabelPx (m_source->GetLeadingLabel());
+    trail = GetStandingLabelPx (m_source->GetTrailingLabel());
+
+    if (lead + trail >= (m_rc.bottom - m_rc.top) / 2)
+    {
+        return;
+    }
+
+    m_lead       = RECT { m_rc.left, m_rc.top,            m_rc.right, m_rc.top + lead };
+    m_trail      = RECT { m_rc.left, m_rc.bottom - trail, m_rc.right, m_rc.bottom     };
+    m_rc.top    += lead;
+    m_rc.bottom -= trail;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintStandingPlayheadLabels
+//
+//  Standing up, the line's labels sit across the strip, the top one just
+//  above the line and the bottom one just below it. Near an end, where one
+//  would leave the strip, both go on the side with room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintStandingPlayheadLabels (
+    IDxuiPainter        & painter,
+    IDxuiTextRenderer   & text,
+    const IDxuiTheme    & theme,
+    float                 along,
+    float                 thick,
+    const std::wstring  & top,
+    const std::wstring  & bottom)
+{
+    float  tall   = (float) (std::max) (GetStandingLabelPx (top), GetStandingLabelPx (bottom));
+    float  above  = along - thick / 2.0f;
+    float  below  = along + thick / 2.0f;
+    float  first  = above - tall;
+    float  second = below;
+
+
+
+    if (tall <= 0.0f)
+    {
+        return;
+    }
+
+    if (first < (float) m_outer.top)
+    {
+        first  = below;
+        second = below + tall;
+    }
+    else if (second + tall > (float) m_outer.bottom)
+    {
+        first  = above - tall * 2.0f;
+        second = above - tall;
+    }
+
+    PaintStandingLabel (painter, text, theme, top,    first,  tall);
+    PaintStandingLabel (painter, text, theme, bottom, second, tall);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintStandingLabel
+//
+//  One line of text on a plate of the background, `height` tall from `top`,
+//  centered across a strip standing up and no wider than it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintStandingLabel (
+    IDxuiPainter        & painter,
+    IDxuiTextRenderer   & text,
+    const IDxuiTheme    & theme,
+    const std::wstring  & label,
+    float                 top,
+    float                 height)
+{
+    HRESULT  hr     = S_OK;
+    float    pad    = m_scaler.ToPxf (kLabelPadDip);
+    float    across = (float) (m_outer.right - m_outer.left);
+    float    textW  = 0.0f;
+    float    size   = 0.0f;
+    float    width  = 0.0f;
+    float    left   = 0.0f;
+
+
+
+    if (label.empty())
+    {
+        return;
+    }
+
+    size  = GetFittedFontPx (text, label, across - pad * 2.0f, textW);
+    width = textW + pad * 2.0f;
+    left  = (float) m_outer.left + (std::max) (0.0f, (across - width) / 2.0f);
+
+    painter.FillRect (left, top, width, height, theme.Background());
+
+    hr = text.DrawString (label.c_str(), left, top, width, height, theme.Foreground(), size, DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

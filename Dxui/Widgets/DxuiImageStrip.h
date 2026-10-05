@@ -54,7 +54,8 @@ public:
     void  SetLabelRoomDp   (float roomDp)                   { m_labelRoomDp = roomDp; }
 
     //  Measures the labels at the strip's two ends, which sit beside the
-    //  pictures of a strip lying down.
+    //  pictures of a strip lying down, and above and below those of a strip
+    //  standing up.
     void  SetTextRenderer  (IDxuiTextRenderer * text)       { m_text = text; }
 
     //  Whether a label at either end has grown past the room the last layout
@@ -124,6 +125,14 @@ private:
     void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
     float GetLineAlong     (float offset) const;
     float GetOffsetAt      (int x, int y) const;
+
+    //  A strip standing up: its end labels above and below the pictures,
+    //  and its playhead line's labels beside the line, across the strip.
+    int    GetStandingLabelPx          (const std::wstring & label) const;
+    float  GetFittedFontPx             (IDxuiTextRenderer & text, const std::wstring & label, float maxWidthPx, float & outWidthPx) const;
+    void   PlaceStandingEndLabels      ();
+    void   PaintStandingPlayheadLabels (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float along, float thick, const std::wstring & top, const std::wstring & bottom);
+    void   PaintStandingLabel          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float top, float height);
 
     IDxuiImageStripSource           * m_source      = nullptr;
     IDxuiTextRenderer               * m_text        = nullptr;
