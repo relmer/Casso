@@ -68,7 +68,7 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
     UNREFERENCED_PARAMETER (painter);
     UNREFERENCED_PARAMETER (theme);
 
-    if (!IsVisible() || m_text.empty() || bounds.right <= bounds.left)
+    if (!IsVisible() || m_text.empty() || bounds.right <= bounds.left || m_opacity <= 0.0f)
     {
         return;
     }
@@ -88,7 +88,7 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
                            (float) bounds.left + (float) m_reachPx - m_marqueeOffsetPx + x, (float) bounds.top,
                            m_marqueePeriodPx, height,
                            m_textArgb, fontPx, face,
-                           DxuiTextHAlign::Left, m_vAlign, m_reachPx);
+                           DxuiTextHAlign::Left, m_vAlign, m_reachPx, m_opacity);
         }
 
         if (clipped)
@@ -103,7 +103,7 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
         PaintShadowed (text, m_text.c_str(),
                        (float) bounds.left, (float) bounds.top, width, height,
                        m_textArgb, fontPx, face,
-                       m_hAlign, m_vAlign, m_reachPx);
+                       m_hAlign, m_vAlign, m_reachPx, m_opacity);
     }
 }
 
@@ -132,7 +132,8 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
                                       const wchar_t     * face,
                                       DxuiTextHAlign      hAlign,
                                       DxuiTextVAlign      vAlign,
-                                      int                 reachPx)
+                                      int                 reachPx,
+                                      float               opacity)
 {
     const wchar_t *  useFace = (face != nullptr) ? face : DxuiTheme::kBodyFace;
     HRESULT          hr      = S_OK;
@@ -168,10 +169,10 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
     for (int r = reachPx; r > 0; r--)
     {
         float   radius  = (float) r;
-        float   opacity = 1.0f - (radius / (float) reachPx);
+        float   ring    = (1.0f - (radius / (float) reachPx)) * opacity;
         float   phase   = ((r & 1) != 0) ? (3.14159265f / (float) kRingSamples) : 0.0f;
 
-        uint32_t   shadow = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
+        uint32_t   shadow = ((uint32_t) (ring * 255.0f + 0.5f) << 24);
 
         for (int i = 0; i < kRingSamples; i++)
         {
@@ -188,6 +189,9 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
     }
 
     renderer.PopMonochromeGlyphs();
+
+    // The ink fades with the shadow: its own alpha scaled by the opacity.
+    argb = (argb & 0x00FFFFFF) | ((uint32_t) ((float) (argb >> 24) * opacity + 0.5f) << 24);
 
     hr = renderer.DrawString (text, x, y, width, height, argb, fontPx, useFace,
                               hAlign, vAlign, DxuiFontWeight::Normal, false);

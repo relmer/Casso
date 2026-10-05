@@ -542,12 +542,32 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_stripTapeLabel[1]);
     m_host->GetRoot().Adopt (m_stripTapeLabel[2]);
     m_host->GetRoot().Adopt (m_sceneCompass);
+    m_host->GetRoot().Adopt (m_compassHint);
 
     // The compass reports gestures; the shell owns what they mean. The signs
     // follow the drag's bargain -- the CONTENT goes where the arrow points --
     // so the right arrow and a rightward drag turn the scene the same way.
+    // With Ctrl held the compass pans instead, as Ctrl does to a drag on the
+    // scene itself: an arrow click moves the scene a pan step its way, and a
+    // drag moves it with the pointer.
     m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
     {
+        float  step = s_kScenePanStep;
+
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            switch (part)
+            {
+                case DxuiOrbitControl::Part::Left:   PanSceneByCompass (-step, 0.0f); break;
+                case DxuiOrbitControl::Part::Right:  PanSceneByCompass ( step, 0.0f); break;
+                case DxuiOrbitControl::Part::Up:     PanSceneByCompass (0.0f, -step); break;
+                case DxuiOrbitControl::Part::Down:   PanSceneByCompass (0.0f,  step); break;
+                default: break;
+            }
+
+            return;
+        }
+
         switch (part)
         {
             case DxuiOrbitControl::Part::Left:   OrbitSceneBy ( kCompassStepYawRad,   0.0f); break;
@@ -561,6 +581,19 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_sceneCompass.SetOnDrag ([this] (DxuiOrbitControl::Part part, float dxPx, float dyPx)
     {
         float  rate = OrbitRadPerPx();
+
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            const RECT &  vp = m_deskScene.Composition().viewportPx;
+
+            if (vp.right > vp.left && vp.bottom > vp.top)
+            {
+                PanSceneByCompass (dxPx / (float) (vp.right - vp.left) * 2.0f,
+                                   dyPx / (float) (vp.bottom - vp.top) * 2.0f);
+            }
+
+            return;
+        }
 
         // Axis-locked to the arrow the drag started on: the arrow names an
         // axis, and a free two-axis tumble from a single arrow would make
@@ -1542,6 +1575,7 @@ void EmulatorShell::WaitForFrameOrMessage()
         m_driveTooltip.WantsTick()     ||
         m_captionTooltip.WantsTick()   ||
         m_sceneCompass.WantsTick()     ||
+        m_compassHintOpacity != (m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
         m_mainMenu.WantsTick()         ||
         m_toolbar.WantsTick())
     {

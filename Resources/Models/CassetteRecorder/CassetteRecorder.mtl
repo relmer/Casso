@@ -230,7 +230,7 @@ d 1
 
 newmtl bottom_feet
 Ka 0 0 0 
-Kd 0.09 0.09 0.095
+Kd 0.2 0.2 0.205
 d 1
 
 newmtl grille_perf

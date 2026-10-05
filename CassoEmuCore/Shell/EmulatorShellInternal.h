@@ -157,6 +157,12 @@ static constexpr int     s_kFrameRateInsetDp        = 12;
 static constexpr int     s_kFrameRateWidthDp        = 120;
 static constexpr int     s_kFrameRateHeightDp       = 28;
 
+// The compass's hint line: room for it under the compass, glow included,
+// and how long it takes to fade fully in or out.
+static constexpr int     s_kCompassHintHeightDp     = 24;
+static constexpr int     s_kCompassHintWidthDp      = 150;
+static constexpr float   s_kCompassHintFadeMs       = 180.0f;
+
 // The scene-pose readout. Wider than the frame rate because it carries five
 // numbers, and centered on the glass rather than hung off a corner: the
 // picture is the one place a screenshot of the scene always includes.

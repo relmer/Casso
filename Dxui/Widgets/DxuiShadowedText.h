@@ -52,6 +52,10 @@ public:
     void  SetTextColor   (uint32_t argb)             { m_textArgb = argb; }
     void  SetDpi         (UINT dpi)                  { m_dpi = dpi; }
 
+    // The whole line, shadow and ink together, 0 to 1, for a caller that
+    // fades it in and out.
+    void  SetOpacity     (float opacity)             { m_opacity = opacity; }
+
     // How far the shadow reaches, in PIXELS at the size the text is drawn.
     //
     // SCALE IT WITH THE FONT. The default suits body text; a caller drawing
@@ -101,7 +105,8 @@ public:
                                 const wchar_t     * face,
                                 DxuiTextHAlign      hAlign,
                                 DxuiTextVAlign      vAlign,
-                                int                 reachPx);
+                                int                 reachPx,
+                                float               opacity = 1.0f);
 
     // MatrixRain's glowLayers: ten rings, ring r at r PIXELS out with alpha
     // 1 - r/10, so the outermost contributes nothing and the innermost is
@@ -128,4 +133,5 @@ private:
     DxuiTextVAlign   m_vAlign          = DxuiTextVAlign::Center;
     float            m_marqueePeriodPx = 0.0f;
     float            m_marqueeOffsetPx = 0.0f;
+    float            m_opacity         = 1.0f;
 };

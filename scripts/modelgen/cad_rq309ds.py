@@ -76,7 +76,6 @@ CHROME  = (0.330, 0.335, 0.345)     # dark base: the scene adds the sheen from a
 PLATE   = (0.800, 0.790, 0.750)     # the brushed plate under the cassette window
 POST    = (0.110, 0.110, 0.115)     # the spindles' black plastic
 SCREW   = (0.260, 0.255, 0.250)     # blackened steel
-FOOT    = (0.090, 0.090, 0.095)     # rubber
 
 
 LETTERED = {"brand", "legend", "mic_legend", "door_relief", "door_print", "wheel_legend",
@@ -842,9 +841,14 @@ def _rating_ink(x0, x1, y0, y1, z, depth):
         x  = (tx0 + tx1) / 2 - (bb.xmin + bb.xmax) / 2 if i == 3 else tx0 - bb.xmin
         ink = ink.union(ln.translate((x, y, 0)))
         if i == 0:
-            # The plate the serial number was stamped into, left blank.
-            ink = ink.union(box(tx0 + bb.xlen + size * 0.5, tx0 + bb.xlen + size * 7.5,
-                                y - pitch * 0.38, y + pitch * 0.38, z, z + depth))
+            # The plate the serial number is engraved into, cut right through
+            # so the black of the sticker shows in the strokes.
+            px0, px1 = tx0 + bb.xlen + size * 0.5, tx0 + bb.xlen + size * 7.5
+            plate = box(px0, px1, y - pitch * 0.38, y + pitch * 0.38, z, z + depth)
+            serial = _small_caps("CASSO-01-31-00", size * 0.8, z - 0.05, False, depth + 0.1)
+            sb = serial.val().BoundingBox()
+            plate = plate.cut(serial.translate(((px0 + px1) / 2 - (sb.xmin + sb.xmax) / 2, y - (sb.ymin + sb.ymax) / 2, 0)))
+            ink = ink.union(plate)
     return cq.Workplane("XY").add(cq.Compound.makeCompound(ink.solids().vals() + tiny))
 
 
@@ -935,7 +939,7 @@ def bottom(m):
                     .intersect(box(notch_x - 7, notch_x + 7, BAT_Y0 - 7, BAT_Y0 + 0.5, -0.2, 1.0)))
     body = body.cut(box(notch_x - 4.0, notch_x + 4.0, BAT_Y0 - 0.2, BAT_Y0 + 1.6, -0.1, 1.8))
 
-    # Two round rubber feet at the front: flat where they meet the case, and
+    # Two round feet at the front: flat where they meet the case, and
     # below a thin slice of a sphere, thickest in the middle.
     FOOT_R, FOOT_H = 5.0, 1.0
     sphere_r = (FOOT_R ** 2 + FOOT_H ** 2) / (2 * FOOT_H)
@@ -944,7 +948,8 @@ def bottom(m):
         foot = (cq.Workplane("XY").sphere(sphere_r).translate((fx, 50.0, sphere_r - FOOT_H))
                 .intersect(box(fx - FOOT_R - 1, fx + FOOT_R + 1, 50.0 - FOOT_R - 1, 50.0 + FOOT_R + 1, -FOOT_H, 0.0)))
         feet = foot if feet is None else feet.union(foot)
-    m.add("bottom_feet", feet, FOOT)
+    # The same plastic as the case, not a darker rubber.
+    m.add("bottom_feet", feet, BODY)
     m.parts[0].solid = body
 
 

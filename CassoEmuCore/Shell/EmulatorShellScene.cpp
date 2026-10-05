@@ -1055,8 +1055,9 @@ void EmulatorShell::SyncSceneViewReadout()
 //
 //  The compass sits in the scene viewport's BOTTOM-RIGHT corner, inset far
 //  enough that it reads as furniture of the window rather than part of the
-//  machines. Hidden wherever the scene is not the thing on screen --
-//  fullscreen shows the picture, the 2D paths have no scene to turn.
+//  machines, with room under it for its hint. Hidden wherever the scene is
+//  not the thing on screen -- fullscreen shows the picture, the 2D paths
+//  have no scene to turn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1065,26 +1066,105 @@ void EmulatorShell::LayoutSceneCompass()
     RECT   vp       = m_deskScene.Composition().viewportPx;
     LONG   sidePx   = m_scaler.ToPx (72);
     LONG   marginPx = m_scaler.ToPx (10);
+    LONG   hintH    = m_scaler.ToPx (s_kCompassHintHeightDp);
+    LONG   hintW    = m_scaler.ToPx (s_kCompassHintWidthDp);
     bool   show     = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
                       (vp.right - vp.left) > sidePx * 3;
     RECT   rc       = {};
+    RECT   hint     = {};
 
 
 
     if (!show)
     {
         m_sceneCompass.SetVisible (false);
+        m_compassHint.SetVisible  (false);
         return;
     }
 
     rc.right  = vp.right  - marginPx;
-    rc.bottom = vp.bottom - marginPx;
+    rc.bottom = vp.bottom - marginPx - hintH;
     rc.left   = rc.right  - sidePx;
     rc.top    = rc.bottom - sidePx;
 
     m_sceneCompass.SetDpi     (m_scaler.GetDpi());
     m_sceneCompass.SetRect    (rc);
     m_sceneCompass.SetVisible (true);
+
+    // Centered under the compass, but kept inside the viewport: the line is
+    // wider than the compass, and the compass sits against the right edge.
+    hint.right  = (std::min) ((rc.left + rc.right) / 2 + hintW / 2, vp.right);
+    hint.left   = hint.right - hintW;
+    hint.top    = rc.bottom;
+    hint.bottom = rc.bottom + hintH;
+
+    m_compassHint.SetText        (L"Hold CTRL to pan");
+    m_compassHint.SetFontSizeDip (DxuiShadowedText::kFontDip);
+    m_compassHint.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_compassHint.SetDpi         (m_scaler.GetDpi());
+    m_compassHint.SetOpacity     (m_compassHintOpacity);
+    m_compassHint.Layout         (hint, m_scaler);
+    m_compassHint.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::StepCompassHint
+//
+//  Fades the compass's hint toward shown while the pointer is over the
+//  compass and toward hidden once it leaves. Returns whether it is still
+//  fading, so the caller keeps frames coming until it settles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::StepCompassHint (int64_t nowMs)
+{
+    float  target  = (m_sceneCompass.IsVisible() && m_sceneCompass.IsHovered()) ? 1.0f : 0.0f;
+    float  elapsed = (m_compassHintStepMs == 0) ? 0.0f : std::clamp ((float) (nowMs - m_compassHintStepMs), 0.0f, 100.0f);
+    float  step    = elapsed / s_kCompassHintFadeMs;
+
+
+
+    m_compassHintStepMs = nowMs;
+
+    if (m_compassHintOpacity == target)
+    {
+        return false;
+    }
+
+    m_compassHintOpacity = (target > m_compassHintOpacity) ? (std::min) (target, m_compassHintOpacity + step)
+                                                           : (std::max) (target, m_compassHintOpacity - step);
+    m_compassHint.SetOpacity (m_compassHintOpacity);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PanSceneByCompass
+//
+//  A Ctrl+compass gesture moved into the scene's pan, in the pan's own units
+//  (-1..1 across the viewport), with down positive as the pointer's is. The
+//  scene goes the way the arrow points, as it follows a Ctrl+drag. Framed to
+//  fit, there is nowhere to pan to, and the clamp leaves it where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PanSceneByCompass (float dx, float dy)
+{
+    m_sceneView.panX += dx;
+    m_sceneView.panY -= dy;
+
+    ClampSceneView();
+    InvalidateSceneComposition();
 }
 
 

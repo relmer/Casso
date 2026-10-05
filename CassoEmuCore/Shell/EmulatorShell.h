@@ -1965,7 +1965,15 @@ private:
     // every moment the viewport moves.
     DxuiOrbitControl           m_sceneCompass;
 
+    // "Hold CTRL to pan", under the compass while the pointer is over it,
+    // fading in and out.
+    DxuiShadowedText           m_compassHint;
+    float                      m_compassHintOpacity = 0.0f;
+    int64_t                    m_compassHintStepMs  = 0;
+
     void  LayoutSceneCompass ();
+    bool  StepCompassHint    (int64_t nowMs);
+    void  PanSceneByCompass  (float dx, float dy);   // in pan units, down positive
 
     // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
     // mirrored along the top edge: shown while the pointer is up there,

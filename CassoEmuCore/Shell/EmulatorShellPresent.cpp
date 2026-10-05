@@ -1084,6 +1084,11 @@ bool EmulatorShell::TryPresentUiFrame()
 
             m_d3dRenderer.MarkRedrawNeeded();
         }
+
+        if (StepCompassHint (nowMs))
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
     }
 
     // Refresh the printer status LED; marks a redraw itself on a change so
@@ -1517,6 +1522,7 @@ void EmulatorShell::SetStandInOverlaysHidden (bool hidden)
     if (hidden)
     {
         m_sceneCompass.SetVisible     (false);
+        m_compassHint.SetVisible      (false);
         m_fpsReadout.SetVisible       (false);
         m_sceneViewReadout.SetVisible (false);
         //  The pointer-capture bar is docked chrome in a window, and a
