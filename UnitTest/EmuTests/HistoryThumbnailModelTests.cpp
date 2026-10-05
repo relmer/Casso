@@ -692,6 +692,36 @@ public:
         Assert::AreEqual (1, thumbnails.GetMarkedCell(), L"behind live: the point at or before");
     }
 
+
+    //  Live beside the pictures: accented only while live, and a click on it
+    //  while replaying seeks to the live end; live, it does nothing.
+    TEST_METHOD (LiveIsAccentedWhileLiveAndAClickReplayingGoesLive)
+    {
+        FakeHistoryFrameRenderer  renderer;
+        HistoryThumbnails         thumbnails (renderer);
+        HistoryThumbnailCell      asked;
+        int                       seeks = 0;
+
+
+
+        thumbnails.SetOnSeek ([&] (const HistoryThumbnailCell & cell) { asked = cell; seeks++; });
+
+        thumbnails.SetPlayhead (800, false);
+        Assert::AreEqual (std::wstring (L"Live"), thumbnails.GetTrailingLabel(), L"the label");
+        Assert::IsTrue   (thumbnails.IsTrailingLabelAccented(),                  L"accented while live");
+
+        thumbnails.OnTrailingLabelClicked();
+        Assert::AreEqual (0, seeks, L"live has nowhere to go");
+
+        thumbnails.SetPlayhead (450, true);
+        Assert::AreEqual (std::wstring (L"Live"), thumbnails.GetTrailingLabel(), L"the same label replaying");
+        Assert::IsFalse  (thumbnails.IsTrailingLabelAccented(),                  L"plain while replaying");
+
+        thumbnails.OnTrailingLabelClicked();
+        Assert::AreEqual (1, seeks,        L"replaying, a click seeks");
+        Assert::IsTrue   (asked.isLive,    L"to the live end");
+    }
+
 private:
 
     //  Runs the strip until every cell's picture is drawn.

@@ -53,6 +53,16 @@ public:
     //  labels of the source's playhead line and its leading end.
     void  SetLabelRoomDp   (float roomDp)                   { m_labelRoomDp = roomDp; }
 
+    //  Measures the labels at the strip's two ends, which sit beside the
+    //  pictures of a strip lying down.
+    void  SetTextRenderer  (IDxuiTextRenderer * text)       { m_text = text; }
+
+    //  Whether a label at either end has grown past the room the last layout
+    //  kept for it, so the strip needs laying out again.
+    bool  HasOutgrownLabelRoom ();
+
+    RECT  GetPicturesRect  () const { return m_rc; }
+
     bool  IsDraggingPlayhead () const { return m_isDragging; }
 
     //  How far either side of the playhead line a press takes hold of it.
@@ -101,17 +111,22 @@ private:
     static constexpr float  kPlayheadDip    = 3.0f;
     static constexpr float  kLabelFontDip   = 11.0f;
     static constexpr float  kLabelPadDip    = 3.0f;
+    static constexpr float  kSidePadDip     = 6.0f;
+    static constexpr float  kLiveDotDip     = 6.0f;
 
     void  ShowPreview      ();
+    int   GetSideLabelPx   (const std::wstring & label, bool isTrailing) const;
+    void  PaintSideLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
     void  MovePreview      ();
     RECT  GetPreviewAnchor () const;
     void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
     void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
-    void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, bool isLeading);
+    void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top);
     float GetLineAlong     (float offset) const;
     float GetOffsetAt      (int x, int y) const;
 
     IDxuiImageStripSource           * m_source      = nullptr;
+    IDxuiTextRenderer               * m_text        = nullptr;
     DxuiHwndSource                  * m_popupHost   = nullptr;
     DxuiPopupHost                   * m_preview     = nullptr;
     IDxuiImageStripSource::Image      m_previewImage;
@@ -123,6 +138,8 @@ private:
     DxuiDpiScaler  m_scaler;
     RECT           m_rc           = {};   // the pictures
     RECT           m_outer        = {};   // the whole entry, labels included
+    RECT           m_lead         = {};   // the label before the pictures
+    RECT           m_trail        = {};   // the label after them
     float          m_labelRoomDp  = 0.0f;
     float          m_dragOffset   = 0.0f;
     bool           m_isDragging   = false;
@@ -132,4 +149,6 @@ private:
     int            m_idealPx      = 0;
     int            m_count        = 0;
     int            m_hovered      = -1;
+
+    mutable std::wstring  m_tip;          // the trailing label's tip, kept while it shows
 };

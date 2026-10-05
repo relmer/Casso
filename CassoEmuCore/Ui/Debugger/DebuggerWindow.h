@@ -634,10 +634,8 @@ private:
     bool     RouteTimelineMouse    (const DxuiMouseEvent & ev);
     void     SyncTimeline          ();
     void     OnTimelineSeek        (const HistoryThumbnailCell & cell);
-    void     OnTimelineModeClicked ();
     void     OnTimelineScrub       (uint64_t cycle, bool isFinal);
     void     SyncTimelineScrub     ();
-    bool     IsTimelineBehindLive  () const;
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -1075,8 +1073,6 @@ private:
     DxuiImageStrip                         m_timelineStrip;
     DxuiToolbarHost                        m_timelineHost;
     std::shared_ptr<DxuiCommand>           m_timelineCommand;
-    std::shared_ptr<DxuiCommand>           m_timelineModeCommand;
-    bool                                   m_isTimelineBehindLive  = false;
     std::optional<HistoryThumbnailCell>    m_pendingSeek;
     std::optional<uint64_t>                m_pendingScrub;   // a cycle the playhead was dragged to, sought once the machine is stopped
     bool                                   m_isScrubbing           = false;

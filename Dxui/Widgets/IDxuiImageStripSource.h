@@ -45,4 +45,11 @@ public:
 
     //  Text for the strip's leading end, such as where it begins, or empty.
     virtual std::wstring  GetLeadingLabel () { return std::wstring(); }
+
+    //  Text for the strip's trailing end, such as where live time is, or
+    //  empty; whether it shows in the accent color, its tip, and a click on it.
+    virtual std::wstring  GetTrailingLabel        () { return std::wstring(); }
+    virtual bool          IsTrailingLabelAccented () { return false; }
+    virtual std::wstring  GetTrailingTip          () { return std::wstring(); }
+    virtual void          OnTrailingLabelClicked  () {}
 };

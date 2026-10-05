@@ -16,30 +16,28 @@
 //
 //  DebuggerWindow::ConfigureTimeline
 //
-//  The history timeline is a toolbar with two entries, the strip of
-//  thumbnails and Live at its right, where live time is, and a grab handle;
-//  it docks and floats through a Dxui toolbar host of its own, as the
-//  command bar does, and keeps its place in the debugger's preferences. The
-//  pictures come from the host, which draws them from its recorded history.
-//  The band is taller than a button by room above and below the pictures,
-//  so a replay's playhead line can show the host's time above it and the
-//  time since power-on below it, and the left end where history begins.
+//  The history timeline is a toolbar holding the strip of thumbnails, with
+//  where history begins left of the pictures and Live right of them, where
+//  live time is, and a grab handle; it docks and floats through a Dxui
+//  toolbar host of its own, as the command bar does, and keeps its place in
+//  the debugger's preferences. The pictures come from the host, which draws
+//  them from its recorded history. The band is taller than a button by room
+//  above and below the pictures, so a replay's playhead line can show the
+//  host's time above it and the time since power-on below it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ConfigureTimeline()
 {
-    constexpr int    kTimelineId     = 1;
-    constexpr int    kTimelineModeId = 2;
-    constexpr int    kStripGroup     = 1;
-    constexpr float  kLabelRoomDp    = 16.0f;
-    constexpr int    kLabelRooms     = 2;       // above the pictures and below them
+    constexpr int    kTimelineId  = 1;
+    constexpr int    kStripGroup  = 1;
+    constexpr float  kLabelRoomDp = 16.0f;
+    constexpr int    kLabelRooms  = 2;      // above the pictures and below them
 
 
 
     HistoryThumbnails   * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
     DxuiToolbar::Entry    entry;
-    DxuiToolbar::Entry    modeEntry;
 
 
 
@@ -53,29 +51,17 @@ void DebuggerWindow::ConfigureTimeline()
     entry.group         = kStripGroup;
     entry.neverOverflow = true;
 
-    //  Live, read every paint: checked, in the accent, while the machine is
-    //  live; replaying, a click goes live.
-    m_timelineModeCommand            = std::make_shared<DxuiCommand>();
-    m_timelineModeCommand->id        = kTimelineModeId;
-    m_timelineModeCommand->label     = HistoryThumbnails::GetModeText (false);
-    m_timelineModeCommand->isChecked = [this] { return !IsTimelineBehindLive(); };
-    m_timelineModeCommand->tipText   = [this] { return std::wstring (IsTimelineBehindLive() ? L"Replaying history; click to go live" : L"Running live"); };
-    m_timelineModeCommand->dispatch  = [this] { OnTimelineModeClicked(); };
-
-    modeEntry.command       = m_timelineModeCommand;
-    modeEntry.kind          = DxuiToolbar::Kind::Toggle;
-    modeEntry.neverOverflow = true;
-
-    m_timelineStrip.SetSource    (thumbnails);
-    m_timelineStrip.SetAspect    ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
-    m_timelineStrip.SetPopupHost (GetPopupHost());
-    m_timelineStrip.SetLabelRoomDp (kLabelRoomDp);
+    m_timelineStrip.SetSource       (thumbnails);
+    m_timelineStrip.SetAspect       ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
+    m_timelineStrip.SetPopupHost    (GetPopupHost());
+    m_timelineStrip.SetLabelRoomDp  (kLabelRoomDp);
+    m_timelineStrip.SetTextRenderer (GetTextRenderer());
 
     m_timelineBar->SetTextRenderer (GetTextRenderer());
     m_timelineBar->SetPopupHost    (GetPopupHost());
     m_timelineBar->SetGrabHandle   (true);
     m_timelineBar->SetBandDp       (DxuiToolbar::GetBandDip() + (int) kLabelRoomDp * kLabelRooms);
-    m_timelineBar->SetEntries      ({ entry, modeEntry });
+    m_timelineBar->SetEntries      ({ entry });
 
     if (thumbnails != nullptr)
     {
@@ -266,11 +252,10 @@ void DebuggerWindow::SyncTimeline()
     thumbnails->SetVisible (shown && m_timelineStrip.GetCellCount() > 0);
     m_timelineStrip.Sync();
 
-    //  Live and Replay differ in width, so the bar is laid out again when the
-    //  state changes.
-    if (thumbnails->IsBehindLive() != m_isTimelineBehindLive)
+    //  History's start time appears once there is history, and the strip
+    //  makes room beside its pictures for it.
+    if (m_timelineStrip.HasOutgrownLabelRoom())
     {
-        m_isTimelineBehindLive = thumbnails->IsBehindLive();
         LayoutWidgets();
     }
 
@@ -430,57 +415,6 @@ void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
     }
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::IsTimelineBehindLive
-//
-//  From the timeline's own state, which the machine thread sets every turn,
-//  so it follows the machine as it runs, not only when a snapshot arrives.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::IsTimelineBehindLive() const
-{
-    HistoryThumbnails  * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
-
-
-
-    return (thumbnails != nullptr) ? thumbnails->IsBehindLive() : false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OnTimelineModeClicked
-//
-//  Replay goes live, as a click on the live end does; live has nowhere to
-//  go.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OnTimelineModeClicked()
-{
-    HistoryThumbnails     * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
-    HistoryThumbnailCell    live;
-
-
-
-    if (thumbnails == nullptr || !thumbnails->IsBehindLive())
-    {
-        return;
-    }
-
-    live.isLive = true;
-
-    OnTimelineSeek (live);
-}
 
 
 

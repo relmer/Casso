@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -27,10 +29,19 @@ public:
     Image  GetPreviewImage (int index) override              { (void) index; return nullptr; }
     void   OnCellClicked   (int index) override              { clicked.push_back (index); }
 
-    int               cells   = -1;
-    SIZE              size    = {};
-    int               layouts = 0;
+    std::wstring  GetLeadingLabel         () override { return leading; }
+    std::wstring  GetTrailingLabel        () override { return trailing; }
+    bool          IsTrailingLabelAccented () override { return isLive; }
+    void          OnTrailingLabelClicked  () override { trailingClicks++; }
+
+    int               cells          = -1;
+    SIZE              size           = {};
+    int               layouts        = 0;
     std::vector<int>  clicked;
+    std::wstring      leading;
+    std::wstring      trailing;
+    bool              isLive         = false;
+    int               trailingClicks = 0;
 };
 
 
@@ -219,6 +230,80 @@ public:
         bar.OnToolbarLButtonUp   (x + 1, y);
 
         Assert::AreEqual<size_t> (1, source.clicked.size(), L"the release after a move on the same cell is a click");
+    }
+
+
+    //  Lying down with label room, the label where the strip begins sits left
+    //  of the first picture and the trailing label right of the last, both
+    //  plain text centered on the pictures top to bottom; the trailing one is
+    //  in the accent color only while the source accents it, and a click on
+    //  it goes to the source.
+    TEST_METHOD (EndLabelsSitBesideThePicturesCenteredOnThem)
+    {
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        RECT                           pictures = {};
+        const RecordedTextCall       * lead     = nullptr;
+        const RecordedTextCall       * trail    = nullptr;
+        int                            y        = 0;
+
+
+
+        source.leading  = L"10:00 PM";
+        source.trailing = L"Live";
+        source.isLive   = true;
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (16.0f);
+        strip.Layout          (RECT { 0, 0, 600, 74 }, true, scaler);
+        strip.Paint           (painter, text, theme, false, false, true);
+
+        pictures = strip.GetPicturesRect();
+        y        = (pictures.top + pictures.bottom) / 2;
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            lead  = (call.text == source.leading)  ? &call : lead;
+            trail = (call.text == source.trailing) ? &call : trail;
+        }
+
+        Assert::IsNotNull (lead,  L"the leading label is drawn");
+        Assert::IsNotNull (trail, L"the trailing label is drawn");
+
+        Assert::IsTrue   (pictures.left > 0,                       L"the pictures start after the leading label");
+        Assert::IsTrue   (lead->x + lead->width <= pictures.left,  L"the leading label is left of the first picture");
+        Assert::AreEqual ((float) pictures.top, lead->y,           L"level with the pictures");
+        Assert::AreEqual ((float) (pictures.bottom - pictures.top), lead->height, L"as tall as the pictures");
+        Assert::IsTrue   (lead->vAlign == DxuiTextVAlign::Center,  L"centered on them");
+
+        Assert::IsTrue   (pictures.right < 600,                    L"the pictures end before the trailing label");
+        Assert::IsTrue   (trail->x >= pictures.right,              L"the trailing label is right of the last picture");
+        Assert::AreEqual ((float) pictures.top, trail->y,          L"level with the pictures");
+        Assert::IsTrue   (trail->vAlign == DxuiTextVAlign::Center, L"centered on them");
+        Assert::AreEqual (theme.Accent(), trail->argb,             L"accented while live");
+
+        source.isLive = false;
+        text.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            trail = (call.text == source.trailing) ? &call : trail;
+        }
+
+        Assert::AreEqual (theme.Foreground(), trail->argb, L"plain while replaying");
+
+        Assert::IsTrue  (strip.OnLButtonDown (599, y), L"a press on the trailing label is taken");
+        Assert::IsTrue  (strip.OnClick       (599, y), L"and its click");
+        Assert::AreEqual (1, source.trailingClicks,    L"goes to the source");
+        Assert::IsFalse (strip.OnLButtonDown (1, y),   L"the leading label takes no press");
+        Assert::IsTrue  (source.clicked.empty(),       L"no cell was clicked");
     }
 };
 

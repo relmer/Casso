@@ -283,6 +283,50 @@ void HistoryThumbnails::OnCellClicked (int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryThumbnails::GetTrailingTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HistoryThumbnails::GetTrailingTip()
+{
+    return IsBehindLive() ? L"Replaying history; click to go live" : L"Running live";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::OnTrailingLabelClicked
+//
+//  Replaying, Live goes live, as a seek to the live end does; live, it has
+//  nowhere to go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::OnTrailingLabelClicked()
+{
+    HistoryThumbnailCell  live;
+
+
+
+    if (!IsBehindLive() || !m_onSeek)
+    {
+        return;
+    }
+
+    live.isLive = true;
+
+    m_onSeek (live);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryThumbnails::Service
 //
 //  Lays the points out again, and while the strip shows and nothing is being

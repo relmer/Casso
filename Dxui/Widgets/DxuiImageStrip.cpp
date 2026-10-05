@@ -232,6 +232,8 @@ void DxuiImageStrip::Layout (
     int   thickness = 0;
     int   count     = 0;
     LONG  room      = 0;
+    LONG  lead      = 0;
+    LONG  trail     = 0;
 
 
 
@@ -241,8 +243,11 @@ void DxuiImageStrip::Layout (
     m_outer    = rc;
     m_rc       = rc;
     m_vertical = height > width;
+    m_lead     = RECT {};
+    m_trail    = RECT {};
 
-    //  Lying down, the pictures keep out of the label room above and below.
+    //  Lying down, the pictures keep out of the label room above and below,
+    //  and the end labels sit beside them, each centered on the pictures.
     if (!m_vertical && m_labelRoomDp > 0.0f)
     {
         room         = (LONG) std::lround (scaler.ToPxf (m_labelRoomDp));
@@ -250,6 +255,22 @@ void DxuiImageStrip::Layout (
         m_rc.top    += room;
         m_rc.bottom -= room;
         height       = m_rc.bottom - m_rc.top;
+
+        if (m_source != nullptr)
+        {
+            lead  = GetSideLabelPx (m_source->GetLeadingLabel(),  false);
+            trail = GetSideLabelPx (m_source->GetTrailingLabel(), true);
+        }
+
+        //  The pictures keep at least half the strip.
+        if (lead + trail < width / 2)
+        {
+            m_lead       = RECT { m_rc.left, m_rc.top, m_rc.left + lead, m_rc.bottom };
+            m_trail      = RECT { m_rc.right - trail, m_rc.top, m_rc.right, m_rc.bottom };
+            m_rc.left   += lead;
+            m_rc.right  -= trail;
+            width        = m_rc.right - m_rc.left;
+        }
     }
 
     thickness  = (std::max) (kMinThicknessPx, m_vertical ? width : height);
@@ -308,6 +329,7 @@ void DxuiImageStrip::Paint (
     std::wstring                  top;
     std::wstring                  bottom;
     std::wstring                  lead;
+    std::wstring                  trail;
 
 
 
@@ -317,9 +339,10 @@ void DxuiImageStrip::Paint (
 
     //  The playhead line takes the place of the marked cell's bar; while it
     //  is dragged it follows the pointer rather than the source.
-    isOn = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
-    mark = isOn ? -1 : mark;
-    lead = (m_source != nullptr && !m_vertical && m_labelRoomDp > 0.0f) ? m_source->GetLeadingLabel() : std::wstring();
+    isOn  = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
+    mark  = isOn ? -1 : mark;
+    lead  = (m_source != nullptr && m_lead.right  > m_lead.left)  ? m_source->GetLeadingLabel()  : std::wstring();
+    trail = (m_source != nullptr && m_trail.right > m_trail.left) ? m_source->GetTrailingLabel() : std::wstring();
 
     for (int i = 0; i < m_count; i++)
     {
@@ -362,10 +385,8 @@ void DxuiImageStrip::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (!lead.empty())
-    {
-        PaintLabel (painter, text, theme, lead, (float) m_outer.left, (float) m_outer.top, true);
-    }
+    PaintSideLabel (painter, text, theme, lead,  m_lead,  false);
+    PaintSideLabel (painter, text, theme, trail, m_trail, true);
 
     if (isOn)
     {
@@ -381,7 +402,8 @@ void DxuiImageStrip::Paint (
 //
 //  DxuiImageStrip::GetTooltipAt
 //
-//  The preview takes the place of a tip.
+//  The preview takes the place of a tip over the pictures; the trailing
+//  label has the source's tip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,11 +412,19 @@ const wchar_t * DxuiImageStrip::GetTooltipAt (
     int     y,
     RECT  & anchor) const
 {
-    UNREFERENCED_PARAMETER (x);
-    UNREFERENCED_PARAMETER (y);
-    UNREFERENCED_PARAMETER (anchor);
+    POINT  pt = { x, y };
 
-    return nullptr;
+
+
+    if (m_source == nullptr || !PtInRect (&m_trail, pt))
+    {
+        return nullptr;
+    }
+
+    m_tip  = m_source->GetTrailingTip();
+    anchor = m_trail;
+
+    return m_tip.empty() ? nullptr : m_tip.c_str();
 }
 
 
@@ -411,7 +441,8 @@ bool DxuiImageStrip::OnClick (
     int  x,
     int  y)
 {
-    int  index = HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y);
+    int    index = HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y);
+    POINT  pt    = { x, y };
 
 
 
@@ -419,6 +450,12 @@ bool DxuiImageStrip::OnClick (
     if (m_isClickEaten)
     {
         m_isClickEaten = false;
+        return true;
+    }
+
+    if (m_source != nullptr && PtInRect (&m_trail, pt))
+    {
+        m_source->OnTrailingLabelClicked();
         return true;
     }
 
@@ -491,10 +528,16 @@ bool DxuiImageStrip::OnLButtonDown (
     std::wstring  top;
     std::wstring  bottom;
     bool          isOn   = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
+    POINT         pt     = { x, y };
 
 
 
     m_isClickEaten = false;
+
+    if (PtInRect (&m_trail, pt))
+    {
+        return true;
+    }
 
     //  A press within reach of the playhead line takes hold of it, and the
     //  preview gives way to the drag.
@@ -902,8 +945,8 @@ void DxuiImageStrip::PaintPlayhead (
         return;
     }
 
-    PaintLabel (painter, text, theme, top,    along, (float) m_outer.top, false);
-    PaintLabel (painter, text, theme, bottom, along, (float) m_rc.bottom, false);
+    PaintLabel (painter, text, theme, top,    along, (float) m_outer.top);
+    PaintLabel (painter, text, theme, bottom, along, (float) m_rc.bottom);
 }
 
 
@@ -914,9 +957,9 @@ void DxuiImageStrip::PaintPlayhead (
 //
 //  DxuiImageStrip::PaintLabel
 //
-//  One line of text in the label room starting at top: centered on centerX,
-//  or from the leading edge, on a plate of the background so the line and
-//  the pictures do not show through.
+//  One line of text in the label room starting at top, centered on centerX,
+//  on a plate of the background so the line and the pictures do not show
+//  through.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -926,8 +969,7 @@ void DxuiImageStrip::PaintLabel (
     const IDxuiTheme    & theme,
     const std::wstring  & label,
     float                 centerX,
-    float                 top,
-    bool                  isLeading)
+    float                 top)
 {
     HRESULT  hr     = S_OK;
     float    size   = m_scaler.ToPxf (kLabelFontDip);
@@ -948,7 +990,7 @@ void DxuiImageStrip::PaintLabel (
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     width += pad * 2.0f;
-    left   = isLeading ? centerX : centerX - width / 2.0f;
+    left   = centerX - width / 2.0f;
     left   = std::clamp (left, (float) m_outer.left, std::max ((float) m_outer.left, (float) m_outer.right - width));
 
     painter.FillRect (left, top, width, room, theme.Background());
@@ -989,6 +1031,132 @@ void DxuiImageStrip::OnLButtonUp (
         m_source->OnPlayheadDragged (m_dragOffset, true);
     }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetSideLabelPx
+//
+//  The room a label beside the pictures takes, padded either side; the
+//  trailing label keeps room for its dot whether or not it shows, so the
+//  strip does not shift when it comes and goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetSideLabelPx (
+    const std::wstring  & label,
+    bool                  isTrailing) const
+{
+    HRESULT  hr     = S_OK;
+    float    width  = 0.0f;
+    float    height = 0.0f;
+    float    pad    = m_scaler.ToPxf (kSidePadDip);
+
+
+
+    if (label.empty() || m_text == nullptr)
+    {
+        return 0;
+    }
+
+    hr = m_text->MeasureString (label.c_str(), m_scaler.ToPxf (kLabelFontDip), DxuiTheme::kBodyFace, width, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (isTrailing)
+    {
+        width += m_scaler.ToPxf (kLiveDotDip) + pad;
+    }
+
+    return (int) std::ceil (width + pad * 2.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::HasOutgrownLabelRoom
+//
+//  Only growth counts: a label that shrinks, as a time of day does from one
+//  second to the next, keeps its room rather than moving the pictures.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::HasOutgrownLabelRoom()
+{
+    int  lead  = 0;
+    int  trail = 0;
+
+
+
+    if (m_source == nullptr || m_vertical || m_labelRoomDp <= 0.0f)
+    {
+        return false;
+    }
+
+    lead  = GetSideLabelPx (m_source->GetLeadingLabel(),  false);
+    trail = GetSideLabelPx (m_source->GetTrailingLabel(), true);
+
+    return lead > m_lead.right - m_lead.left || trail > m_trail.right - m_trail.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintSideLabel
+//
+//  A plain line of text in its room beside the pictures, centered on them
+//  top to bottom. The trailing label, while the source accents it, is in the
+//  accent color behind a dot of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintSideLabel (
+    IDxuiPainter        & painter,
+    IDxuiTextRenderer   & text,
+    const IDxuiTheme    & theme,
+    const std::wstring  & label,
+    const RECT          & rc,
+    bool                  isTrailing)
+{
+    HRESULT   hr       = S_OK;
+    float     pad      = m_scaler.ToPxf (kSidePadDip);
+    float     dot      = m_scaler.ToPxf (kLiveDotDip);
+    float     left     = (float) rc.left + pad;
+    float     width    = (float) (rc.right - rc.left) - pad * 2.0f;
+    bool      isAccent = isTrailing && m_source != nullptr && m_source->IsTrailingLabelAccented();
+    uint32_t  ink      = isAccent ? theme.Accent() : theme.Foreground();
+
+
+
+    if (label.empty() || width <= 0.0f)
+    {
+        return;
+    }
+
+    if (isTrailing)
+    {
+        if (isAccent)
+        {
+            painter.FillCircle (left + dot / 2.0f, (float) (rc.top + rc.bottom) / 2.0f, dot / 2.0f, ink);
+        }
+
+        left  += dot + pad;
+        width -= dot + pad;
+    }
+
+    hr = text.DrawString (label.c_str(), left, (float) rc.top, width, (float) (rc.bottom - rc.top), ink,
+                          m_scaler.ToPxf (kLabelFontDip), DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
 
 
 
