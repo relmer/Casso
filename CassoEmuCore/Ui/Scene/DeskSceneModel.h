@@ -417,7 +417,7 @@ public:
     static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
     static constexpr const char *  s_kpszAcPinPrefix = "acpin";   // the mains blades
     static constexpr const char *  s_kpszKeyPrefix   = "keys_";   // the recorder's keys, keys_0 to keys_5
-    static constexpr const char *  s_kpszLidParts[]  = { "door_print" };
+    static constexpr const char *  s_kpszLidParts[]  = { "door_print", "door_relief" };
     static constexpr const char *  s_kpszLidGlass    = "door_glass";   // the smoked pane and its struts
     static constexpr const char *  s_kpszChromePrefix = "chrome";     // polished metal, as the blades
     static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, ...
