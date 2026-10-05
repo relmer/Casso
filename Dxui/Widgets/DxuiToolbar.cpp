@@ -1535,8 +1535,9 @@ bool DxuiToolbar::OnToolbarMouseMove (int x, int y)
     for (Slot & slot : m_slots)
     {
         bool  enabled = slot.entry.command != nullptr && slot.entry.command->IsEnabled();
+        bool  inside  = enabled && IsPointInRect (slot.rc, x, y);
 
-        slot.hovered = enabled && IsPointInRect (slot.rc, x, y);
+        slot.hovered = inside;
 
         if (slot.entry.custom != nullptr)
         {
@@ -1545,7 +1546,10 @@ bool DxuiToolbar::OnToolbarMouseMove (int x, int y)
             if (slot.labeled) { slot.hovered = false; }
         }
 
-        if (!slot.hovered) { slot.pressed = false; }
+        //  Only leaving the entry cancels its press. An expanded custom entry
+        //  never shows the hover, and Windows sends moves between a press and
+        //  its release even when the pointer has not left it.
+        if (!inside) { slot.pressed = false; }
         over = over || slot.hovered;
 
         if (slot.entry.command != nullptr && slot.entry.command->id == m_flyoutId && m_flyoutControl != nullptr)

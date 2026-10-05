@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "MockDxuiTextRenderer.h"
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -174,6 +176,49 @@ public:
         Assert::AreEqual (32, (int) source.size.cx, L"as wide as the strip");
         Assert::AreEqual (20, (int) source.size.cy, L"the strip's share of its length");
         Assert::AreEqual (22, strip.GetMinWidthPx (scaler), L"it can shrink to one cell");
+    }
+
+
+    //  A real press makes Windows send a mouse move before the release: the
+    //  preview hidden on the press and the capture taken both make one, and a
+    //  hand on a real mouse makes more. A move that stays on the cell is not
+    //  a drag off it, so the release is still a click.
+    TEST_METHOD (AMoveBetweenPressAndReleaseOnTheCellStillClicks)
+    {
+        DxuiToolbar                      bar;
+        DxuiImageStrip                   strip;
+        RecordingStripSource             source;
+        MockDxuiTextRenderer             text;
+        DxuiDpiScaler                    scaler;
+        std::vector<DxuiToolbar::Entry>  entries (1);
+        auto                             command = std::make_shared<DxuiCommand>();
+        constexpr int                    x       = 300;
+        constexpr int                    y       = 21;
+
+
+
+        command->id    = 1;
+        command->label = L"History timeline";
+
+        entries[0].command = command;
+        entries[0].custom  = &strip;
+
+        strip.SetSource (&source);
+        strip.SetAspect (s_kStripAspect);
+
+        bar.SetTextRenderer (&text);
+        bar.SetEntries      (std::move (entries));
+        bar.Layout          (RECT { 0, 0, 600, 42 }, scaler);
+
+        Assert::IsTrue (source.cells > 2, L"the strip was laid out with cells");
+
+        bar.OnToolbarMouseMove   (x, y);
+        bar.OnToolbarLButtonDown (x, y);
+        bar.OnToolbarMouseMove   (x, y);
+        bar.OnToolbarMouseMove   (x + 1, y);
+        bar.OnToolbarLButtonUp   (x + 1, y);
+
+        Assert::AreEqual<size_t> (1, source.clicked.size(), L"the release after a move on the same cell is a click");
     }
 };
 
