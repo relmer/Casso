@@ -90,6 +90,28 @@ def text(s, size, x, y, z, halign="center", bold=False, depth=0.3):
             .translate((x, y, 0)))
 
 
+def round_top(solid, r, sel=">Z"):
+    """Rounds over the edges of a raised feature's top face, so nothing
+    embossed has a hard edge. Narrow letter strokes cannot always take the
+    full radius, so it tries smaller ones before giving up."""
+    for rr in (r, r * 0.6, r * 0.35):
+        try:
+            return solid.faces(sel).edges().fillet(rr)
+        except Exception:
+            pass
+    # Letter by letter, then: one glyph the kernel cannot round must not
+    # leave every other one sharp.
+    pieces = solid.solids().vals()
+    if len(pieces) < 2:
+        print(f"round_top: could not round a piece at {r} mm or less")
+        return solid
+    out = None
+    for piece in pieces:
+        one = round_top(cq.Workplane("XY").add(piece), r, sel)
+        out = one if out is None else out.union(one)
+    return out
+
+
 def _bulge(p0, p1, amount):
     """The midpoint of p0-p1 pushed `amount` outward (to the right of the
     direction of travel), for a very slightly convex chamfer."""
@@ -189,7 +211,8 @@ def build():
 
     # The door's legends are molded in its plastic, standing proud of it, and
     # painted only on their tops: a box around AUTO STOP, and AC/BATTERY.
-    EMBOSS_H, PAINT_H = 0.4, 0.05
+    # Their tops are rounded over, and the paint covers the rounding.
+    EMBOSS_H, ROUND_R = 0.45, 0.15
 
     def door_legends(z, depth):
         frame = (box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, z, z + depth)
@@ -209,14 +232,18 @@ def build():
     pts = [(ax0, ay0), (ax1, ay0), (head_x, ay0 + head_h), (head_x, ay0 + shaft_h), (ax0, ay0 + shaft_h)]
     plane = cq.Workplane("XY").workplane(offset=top)
     # Lines 0.7 mm wide, every corner and point slightly rounded.
-    arrow = (plane.polyline(pts).close().offset2D(0.3, kind="arc").extrude(0.4)
-             .cut(plane.polyline(pts).close().offset2D(-0.4, kind="intersection")
-                  .offset2D(0.0).extrude(0.4)))
+    arrow = round_top(plane.polyline(pts).close().offset2D(0.3, kind="arc").extrude(0.4)
+                      .cut(plane.polyline(pts).close().offset2D(-0.4, kind="intersection")
+                           .offset2D(0.0).extrude(0.4)), ROUND_R)
+    legends = round_top(door_legends(top, EMBOSS_H), ROUND_R)
+    paint_z = top + EMBOSS_H - ROUND_R
+    molded  = legends.intersect(box(x0, x1, dy0, dy1, top - 0.1, paint_z))
+    painted = legends.intersect(box(x0, x1, dy0, dy1, paint_z, top + 1.0))
     m.add("door_glass", pane, DOOR, angular=0.2)
     # Lighter than the pane and less clear, so its tops read as raised: as
     # clear as the pane, a raised outline's far walls read as a groove's.
-    m.add("door_relief", arrow.union(door_legends(top, EMBOSS_H)), RELIEF)
-    m.add("door_print", door_legends(top + EMBOSS_H, PAINT_H), PRINT)
+    m.add("door_relief", arrow.union(molded), RELIEF)
+    m.add("door_print", painted, PRINT)
 
     # THE CASSETTE, a compact cassette lying label up with its tape edge
     # toward the keys, as it sits in the deck: dark shell, a paper label with
@@ -356,9 +383,9 @@ def build():
     m.add("band", box(x0 + 1, x1 - 1, by0, by1, top + 0.6, top + 0.8), BAND)
     # The badge and the microphone's bars stand slightly proud of the band.
     EMBOSS = 0.6
-    brand = (cq.Workplane("XY").workplane(offset=top + 0.8)
-             .text("Panasonic", 6.5, EMBOSS, halign="center", valign="center", kind="bold", font="Arial")
-             .translate((W / 2, (by0 + by1) / 2, 0)))
+    brand = round_top(cq.Workplane("XY").workplane(offset=top + 0.8)
+                      .text("Panasonic", 6.5, EMBOSS, halign="center", valign="center", kind="bold", font="Arial")
+                      .translate((W / 2, (by0 + by1) / 2, 0)), 0.25)
     m.add("brand", brand, PRINT)
     MIC_BARS, MIC_PITCH, MIC_BAR_W = 9, 3.0, 1.6
     mic_x0 = x0 + 4
@@ -366,9 +393,9 @@ def build():
     slots = None
     for i in range(MIC_BARS):
         sx = mic_x0 + i * MIC_PITCH
-        slot = box(sx, sx + MIC_BAR_W, by0 + 2, by1 - 2, top + 0.8, top + 0.8 + EMBOSS).edges("|Y").fillet(0.25)
+        slot = box(sx, sx + MIC_BAR_W, by0 + 2, by1 - 2, top + 0.8, top + 0.8 + EMBOSS)
         slots = slot if slots is None else slots.union(slot)
-    m.add("mic_slots", slots, SILVER)
+    m.add("mic_slots", round_top(slots, 0.3), SILVER)
 
     # "CONDENSER MIC" on the silver just in front of the band, as wide as the
     # bars above it.
@@ -377,7 +404,7 @@ def build():
     mic_text = text("CONDENSER MIC", mic_size, 0, 0, top + 0.6)
     bb = mic_text.val().BoundingBox()
     m.add("mic_legend",
-          mic_text.translate((mic_x0 - bb.xmin, by0 - 0.8 - bb.ymax, 0)), BAND)
+          round_top(mic_text.translate((mic_x0 - bb.xmin, by0 - 0.8 - bb.ymax, 0)), 0.1), BAND)
 
     kx0, kx1 = x0 + 1.0, x1 - 1.0
     pitch = (kx1 - kx0) / 6.0
@@ -608,7 +635,7 @@ def build():
                  .polyline([(wx - 1.0, WIN_V1 + 2.6), (wx + 1.0, WIN_V1 + 2.6), (wx, WIN_V1 + 1.0)])
                  .close().extrude(0.3))
         label = face_text(s, wx, WIN_V0 - 3.5, 2.6)
-        mark  = arrow.union(label)
+        mark  = round_top(arrow.union(label), 0.1, "<Y")
         marks = mark if marks is None else marks.union(mark)
     m.add("wheel_legend", on_face(marks), SILVER)
     return m
