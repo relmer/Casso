@@ -116,8 +116,39 @@ def round_top(solid, r, sel=">Z"):
                 return rounded
         except Exception:
             pass
+    # Last, a letter whose curves the kernel will neither round nor mesh
+    # cleanly -- Arial Bold's s -- is redrawn from points along its outline
+    # and rounded again. Only a lone piece lying flat is redrawn.
+    if sel == ">Z" and len(solid.solids().vals()) == 1 and not getattr(solid, "_redrawn", False):
+        redrawn = _redraw_flat(solid)
+        if redrawn is not None:
+            redrawn._redrawn = True
+            return round_top(redrawn, r, sel)
     print(f"round_top: left one piece sharp; it could not be rounded at {r} mm or less")
     return solid
+
+
+def _redraw_flat(solid, step=0.15):
+    """A flat extrusion rebuilt from points spaced `step` mm along its top
+    face's outline, so every side is a plain quad."""
+    bb   = solid.val().BoundingBox()
+    top  = solid.faces(">Z").val()
+    wires = [top.outerWire()] + list(top.innerWires())
+    loops = []
+    for wire in wires:
+        pts = []
+        for edge in wire.Edges():
+            n = max(2, int(edge.Length() / step))
+            pts += [(p.x, p.y) for p in (edge.positionAt(i / n) for i in range(n))]
+        loops.append(pts)
+    try:
+        plane = cq.Workplane("XY").workplane(offset=bb.zmin)
+        shape = plane.polyline(loops[0]).close().extrude(bb.zmax - bb.zmin)
+        for hole in loops[1:]:
+            shape = shape.cut(plane.polyline(hole).close().extrude(bb.zmax - bb.zmin))
+        return shape
+    except Exception:
+        return None
 
 
 def _bulge(p0, p1, amount):
