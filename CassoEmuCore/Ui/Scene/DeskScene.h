@@ -137,6 +137,10 @@ public:
     // The baked labels the scene draws: the drives' names and the
     // recorder's (see EmulatorShell::s_kSceneLabelCount).
     static constexpr int  kLabelCount = 6;
+    // The name of the recorder key under the pointer. A tip rather than a
+    // decal, so it is drawn over everything, and the recorder's own front
+    // lip never cuts through it.
+    static constexpr int  kTipLabel   = 4;
 
     void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
                         const float uv[4]);

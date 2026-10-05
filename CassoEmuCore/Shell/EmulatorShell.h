@@ -1122,7 +1122,7 @@ private:
     static constexpr size_t  s_kSceneLabelCount    = 6;
     static constexpr int     s_kSceneTapeNameCell  = 2;
     static constexpr int     s_kSceneCounterCell   = 3;
-    static constexpr int     s_kSceneKeyCell       = 4;
+    static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;
     static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
 
     // The cassette title's pen: a handwriting face that ships with Windows 10

@@ -3073,7 +3073,8 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
 //  matrix in first; this one must not, or the name would turn with the drive
 //  and the constant pixel size the layout solved for would be undone.
 //
-//  Depth TESTED, never WRITTEN. A name is a transparent decal, and writing
+//  Depth TESTED, never WRITTEN, except the key tip, which is not tested
+//  either: it floats over the recorder rather than sitting on it. A name is a transparent decal, and writing
 //  its rectangle into the buffer would let the blank corners occlude the lamp
 //  glows that come after it.
 //
@@ -3100,7 +3101,7 @@ HRESULT DeskScene::DrawDiskLabels (const DeskSceneComposition & comp, const D3D1
         hr = m_renderer.DrawStatic (m_diskLabelMesh[drive],
                                     m_diskLabelVerts[drive].data(),
                                     m_diskLabelVerts[drive].size(),
-                                    m_diskLabelRev, comp.viewProj, true, viewport, true, false);
+                                    m_diskLabelRev, comp.viewProj, true, viewport, drive != kTipLabel, false);
 
         m_renderer.SetContentSrv (nullptr);
         CHRA (hr);
