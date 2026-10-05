@@ -189,6 +189,16 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   VolumeWheelVerts () const { return m_volumeWheel; }
     const float *                                 VolumeWheelBox   () const { return m_volumeWheelBox.data(); }
 
+    // The recorder's two spindles, and the cassette hubs that sit on them,
+    // which the scene turns while the tape moves: each about the model's up
+    // axis through the middle of its spindle's box, lo xyz then hi xyz. The
+    // hubs go out with the cassette; the spindles are always there.
+    static constexpr size_t  kRecorderReelCount = 2;
+
+    const std::vector<Dxui3DRenderer::Vertex> &   SpindleVerts (size_t reel) const { return m_spindles[reel]; }
+    const std::vector<Dxui3DRenderer::Vertex> &   HubVerts     (size_t reel) const { return m_hubs[reel]; }
+    const float *                                 SpindleBox   (size_t reel) const { return m_spindleBoxes[reel].data(); }
+
     // Where a title is written on the cassette's label, lo xyz then hi xyz;
     // empty (lo above hi) on a model without one.
     const float *                                 CassetteTitleBox () const { return m_cassetteTitleBox.data(); }
@@ -410,8 +420,10 @@ public:
     static constexpr const char *  s_kpszLidParts[]  = { "door_print" };
     static constexpr const char *  s_kpszLidGlass    = "door_glass";   // the smoked pane and its struts
     static constexpr const char *  s_kpszChromePrefix = "chrome";     // polished metal, as the blades
-    static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, cassette_hubs
+    static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, ...
     static constexpr const char *  s_kpszVolumeWheel    = "volume_wheel";   // volume_wheel, volume_wheel_mark
+    static constexpr const char *  s_kpszSpindlePrefix  = "spindle_";       // spindle_0, spindle_1
+    static constexpr const char *  s_kpszHubPrefix      = "cassette_hub_";  // cassette_hub_0, cassette_hub_1
     static constexpr const char *  s_kpszCassetteTitleAnchor = "cassette_title_anchor";
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
@@ -630,6 +642,9 @@ private:
     std::array<float, 6>                                                m_lidBox           = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
     std::vector<Dxui3DRenderer::Vertex>                                 m_volumeWheel;
     std::array<float, 6>                                                m_volumeWheelBox   = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderReelCount> m_spindles;
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderReelCount> m_hubs;
+    std::array<std::array<float, 6>, kRecorderReelCount>                m_spindleBoxes     = {};
     std::array<float, 6>                                                m_cassetteTitleBox = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
     std::vector<Dxui3DRenderer::Vertex>                                 m_tiltable;
     std::vector<DeskTiltGrip>                                           m_tiltGrips;

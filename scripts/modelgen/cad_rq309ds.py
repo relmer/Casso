@@ -71,6 +71,7 @@ TAPE    = (0.300, 0.180, 0.100)     # oxide brown
 HUB     = (0.920, 0.920, 0.910)     # white hubs
 BRASS   = (0.700, 0.600, 0.380)
 CHROME  = (0.330, 0.335, 0.345)     # dark base: the scene adds the sheen from above
+POST    = (0.110, 0.110, 0.115)     # the spindles' black plastic
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -184,12 +185,24 @@ def build():
     pane = box(x0, x1, dy0, dy1, top - DOOR_T, top)
     for sx in (x0 + 3.0, x1 - 3.0 - DOOR_T):
         pane = pane.union(strut(sx, HINGE_Y, top - DOOR_T, STRUT_RO, STRUT_RI, DOOR_T))
+    # THE PLAY ARROW, embossed in the pane over the cassette window: an
+    # outline pointing right, its shaft open along the bottom into the tip,
+    # and only the upper half of the head drawn.
+    ax0, ax1 = W / 2 - 13.0, W / 2 + 10.0         # tail and tip
+    ay0      = (dy0 + dy1) / 2 + 3.0 - 13.0       # the arrow's bottom edge, below the window
+    head_x   = ax1 - 9.0
+    shaft_h, head_h = 1.8, 4.6
+    pts = [(ax0, ay0), (ax1, ay0), (head_x, ay0 + head_h), (head_x, ay0 + shaft_h), (ax0, ay0 + shaft_h)]
+    plane = cq.Workplane("XY").workplane(offset=top)
+    arrow = (plane.polyline(pts).close().extrude(0.35)
+             .cut(plane.polyline(pts).close().offset2D(-0.4).extrude(0.35)))
+    pane = pane.union(arrow)
     m.add("door_glass", pane, DOOR, angular=0.2)
     m.add("door_print",
           box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, top, top + 0.1)
           .cut(box(x0 + 6.5, x0 + 29.5, dy1 - 7.0, dy1 - 4.0, top - 0.1, top + 0.2))
-          .union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top))
-          .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top)),
+          .union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top).union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top + 0.3)))
+          .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top).union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top + 0.3))),
           PRINT)
 
     # THE CASSETTE, a compact cassette lying label up with its tape edge
@@ -255,9 +268,9 @@ def build():
     m.add("cassette_tape", packs.union(box(ccx - 38.0, ccx + 38.0, ccy - CD / 2 - 0.2, ccy - CD / 2 + 0.6,
                                            cz - CT + 0.8, cz - 1.0)), TAPE)
 
-    # The hubs: white rings with six teeth pointing in.
-    hubs = None
-    for sx in (-1, 1):
+    # The hubs: white rings with six teeth pointing in. Each is a part of its
+    # own, so the scene can turn it with the spindle in it.
+    for i, sx in enumerate((-1, 1)):
         hx  = ccx + sx * HUB_DX
         hub = cq.Workplane("XY").workplane(offset=cz - 1.5).center(hx, hub_y).circle(6.0).circle(4.2).extrude(1.2)
         for k in range(6):
@@ -266,8 +279,34 @@ def build():
                      .rotate((0, 0, 0), (0, 0, 1), math.degrees(a))
                      .translate((hx, hub_y, cz - 1.5)))
             hub = hub.union(tooth)
-        hubs = hub if hubs is None else hubs.union(hub)
-    m.add("cassette_hubs", hubs, HUB)
+        m.add(f"cassette_hub_{i}", hub, HUB)
+
+    # THE SPINDLES the hubs sit on, standing up from the well floor: a collar,
+    # a shaft, and six splines that fall between the hub's six teeth. They
+    # show with the deck empty, and through the hub holes with a tape in;
+    # the scene turns each about its own axis while the tape moves.
+    floor_z = top - 8.5
+    for i, sx in enumerate((-1, 1)):
+        hx      = ccx + sx * HUB_DX
+        spindle = (cq.Workplane("XY").workplane(offset=floor_z).center(hx, hub_y).circle(4.5).extrude(1.0)
+                   .union(cq.Workplane("XY").workplane(offset=floor_z).center(hx, hub_y).circle(2.4)
+                          .extrude(cz - 0.8 - floor_z)))
+        for k in range(6):
+            a = math.pi * 2 * (k + 0.5) / 6
+            spline = (box(-0.45, 0.45, 2.2, 3.7, 0, cz - 0.8 - (floor_z + 1.0))
+                      .rotate((0, 0, 0), (0, 0, 1), math.degrees(a))
+                      .translate((hx, hub_y, floor_z + 1.0)))
+            spindle = spindle.union(spline)
+        m.add(f"spindle_{i}", spindle, POST)
+        # A bright metal point in the middle of each post's top.
+        m.add(f"spindle_cap_{i}",
+              cq.Workplane("XY").workplane(offset=cz - 0.8).center(hx, hub_y).circle(0.7).extrude(0.2), SILVER)
+
+    # A polished plate on the well floor between the spindles, under the
+    # cassette's window: lined up with it and a little larger all round.
+    m.add("chrome_window_plate",
+          box(ccx - 13.5, ccx + 13.5, hub_y - 7.0, hub_y + 7.0, floor_z, floor_z + 0.4).edges("|Z").fillet(3.0),
+          CHROME)
 
     screws = None
     for sx, sy in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
@@ -278,9 +317,15 @@ def build():
 
     # The heads and capstan, down on the well floor: under a cassette they
     # are hidden, and they show only with the deck empty.
+    # The pinch roller stands 8 mm right of the right-hand guide, against the
+    # well's front wall, and a quarter larger across than the other two.
+    ROLLER_R = 2.6
+    PINCH_R  = ROLLER_R * 1.25
     mech = None
-    for hx in (W / 2 - 12, W / 2 + 6, W / 2 + 18):
-        roller = cq.Workplane("XY").workplane(offset=top - 8.5).center(hx, dy0 + 8).circle(2.6).extrude(3.0)
+    for hx, hy, r in ((W / 2 - 12, dy0 + 8, ROLLER_R),
+                      (W / 2 + 18, dy0 + 8, ROLLER_R),
+                      (W / 2 + 26, dy0 + 0.5 + PINCH_R + 0.3, PINCH_R)):
+        roller = cq.Workplane("XY").workplane(offset=top - 8.5).center(hx, hy).circle(r).extrude(3.0)
         mech = roller if mech is None else mech.union(roller)
     m.add("transport", mech, BRASS)
 
@@ -289,13 +334,30 @@ def build():
     m.add("strip", box(x0, x1, sy0, sy1 + 3.0, top - 0.5, top + 0.6), SILVER)
     by0, by1 = sy1 - 15.0, sy1 - 1.0
     m.add("band", box(x0 + 1, x1 - 1, by0, by1, top + 0.6, top + 0.8), BAND)
-    m.add("brand", text("Panasonic", 6.5, W / 2 + 8, (by0 + by1) / 2, top + 0.8, bold=True), PRINT)
+    # The badge and the microphone's bars stand slightly proud of the band.
+    EMBOSS = 0.6
+    brand = (cq.Workplane("XY").workplane(offset=top + 0.8)
+             .text("Panasonic", 6.5, EMBOSS, halign="center", valign="center", kind="bold", font="Arial")
+             .translate((W / 2, (by0 + by1) / 2, 0)))
+    m.add("brand", brand, PRINT)
+    MIC_BARS, MIC_PITCH, MIC_BAR_W = 9, 3.0, 1.6
+    mic_x0 = x0 + 4
+    mic_x1 = mic_x0 + (MIC_BARS - 1) * MIC_PITCH + MIC_BAR_W
     slots = None
-    for i in range(7):
-        sx = x0 + 4 + i * 3.0
-        slot = box(sx, sx + 1.6, by0 + 2, by1 - 2, top + 0.8, top + 1.0)
+    for i in range(MIC_BARS):
+        sx = mic_x0 + i * MIC_PITCH
+        slot = box(sx, sx + MIC_BAR_W, by0 + 2, by1 - 2, top + 0.8, top + 0.8 + EMBOSS).edges("|Y").fillet(0.25)
         slots = slot if slots is None else slots.union(slot)
     m.add("mic_slots", slots, SILVER)
+
+    # "CONDENSER MIC" on the silver just in front of the band, as wide as the
+    # bars above it.
+    probe = text("CONDENSER MIC", 2.0, 0, 0, 0).val().BoundingBox()
+    mic_size = 2.0 * (mic_x1 - mic_x0) / (probe.xmax - probe.xmin)
+    mic_text = text("CONDENSER MIC", mic_size, 0, 0, top + 0.6)
+    bb = mic_text.val().BoundingBox()
+    m.add("mic_legend",
+          mic_text.translate((mic_x0 - bb.xmin, by0 - 0.8 - bb.ymax, 0)), BAND)
 
     kx0, kx1 = x0 + 1.0, x1 - 1.0
     pitch = (kx1 - kx0) / 6.0

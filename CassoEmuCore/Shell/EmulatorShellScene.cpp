@@ -1625,6 +1625,30 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         m_deskScene.SetRecorderLid (kOpenRad * p, !isEmpty);
     }
 
+    // THE SPINDLES TURN while the tape moves: clockwise from above to play,
+    // record or wind forward, the other way to rewind, and faster winding.
+    {
+        constexpr float  kPlayRadPerMs = 2.0f * 3.14159265f * 0.75f / 1000.0f;   // three quarters of a turn a second
+        constexpr float  kWindRadPerMs = 2.0f * 3.14159265f * 5.0f  / 1000.0f;   // five turns a second
+        float            elapsed       = (m_recorderReelStepMs == 0) ? 0.0f : clamp ((float) (nowMs - m_recorderReelStepMs), 0.0f, 100.0f);
+        float            rate          = 0.0f;
+
+        switch (transport)
+        {
+            case TapeTransport::Playing:
+            case TapeTransport::Recording:      rate =  kPlayRadPerMs; break;
+            case TapeTransport::FastForwarding: rate =  kWindRadPerMs; break;
+            case TapeTransport::Rewinding:      rate = -kWindRadPerMs; break;
+            default:                            break;
+        }
+
+        m_recorderReelStepMs = nowMs;
+        m_recorderReelRad    = fmodf (m_recorderReelRad + rate * elapsed, 2.0f * 3.14159265f);
+        dipping              = dipping || rate != 0.0f;
+
+        m_deskScene.SetRecorderReelTurn (m_recorderReelRad);
+    }
+
     m_deskScene.SetRecorderKeyDepths (m_recorderKeyShownMm);
 
     return dipping;

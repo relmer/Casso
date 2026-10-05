@@ -53,9 +53,39 @@ Ka 0 0 0
 Kd 0.3 0.18 0.1
 d 1
 
-newmtl cassette_hubs
+newmtl cassette_hub_0
 Ka 0 0 0 
 Kd 0.92 0.92 0.91
+d 1
+
+newmtl cassette_hub_1
+Ka 0 0 0 
+Kd 0.92 0.92 0.91
+d 1
+
+newmtl spindle_0
+Ka 0 0 0 
+Kd 0.11 0.11 0.115
+d 1
+
+newmtl spindle_cap_0
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl spindle_1
+Ka 0 0 0 
+Kd 0.11 0.11 0.115
+d 1
+
+newmtl spindle_cap_1
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl chrome_window_plate
+Ka 0 0 0 
+Kd 0.33 0.335 0.345
 d 1
 
 newmtl cassette_screws
@@ -86,6 +116,11 @@ d 1
 newmtl mic_slots
 Ka 0 0 0 
 Kd 0.76 0.765 0.77
+d 1
+
+newmtl mic_legend
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
 d 1
 
 newmtl legend

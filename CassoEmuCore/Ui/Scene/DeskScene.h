@@ -173,6 +173,9 @@ public:
 
     // How far the volume wheel is turned, in radians about its own axis.
     void  SetRecorderVolumeTurn (float turnRad);
+    // How far the spindles, and the hubs on them, have turned, clockwise
+    // seen from above.
+    void  SetRecorderReelTurn   (float turnRad);
 
     // The baked label texture was redrawn in place. The view and the quads
     // are the same objects, so nothing else says the picture changed.
@@ -694,6 +697,7 @@ private:
     float                                                 m_recorderLidRad    = 0.0f;
     bool                                                  m_recorderCassette  = true;
     float                                                 m_recorderVolumeRad = 0.0f;
+    float                                                 m_recorderReelRad   = 0.0f;
 
     // GPU-resident copies of every array that is NOT rebuilt per frame, which
     // is all of them but the doors. Re-uploading the lot each frame made the

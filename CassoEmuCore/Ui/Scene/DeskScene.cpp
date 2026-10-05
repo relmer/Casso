@@ -1442,6 +1442,26 @@ void DeskScene::SetRecorderVolumeTurn (float turnRad)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SetRecorderReelTurn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderReelTurn (float turnRad)
+{
+    if (turnRad != m_recorderReelRad)
+    {
+        m_recorderReelRad = turnRad;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+        InvalidatePlate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::AppendTurned
 //
 //  Turns geometry about the model's up axis through (pivotX, pivotY), the
@@ -1585,6 +1605,26 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
         if (m_recorderCassette)
         {
             AppendHinged (m_recorder.CassetteVerts(), 0.0f, 0.0f, 0.0f, m_recorderKeyVerts);
+        }
+
+        // The spindles, and with a tape in the hubs on them, turned about
+        // each spindle's axis. Clockwise from above is a negative turn about
+        // the up axis.
+        for (size_t reel = 0; reel < DeskSceneModel::kRecorderReelCount; reel++)
+        {
+            const float *  box = m_recorder.SpindleBox (reel);
+            float          cx  = (box[0] + box[3]) * 0.5f;
+            float          cy  = (box[1] + box[4]) * 0.5f;
+
+            if (box[3] > box[0])
+            {
+                AppendTurned (m_recorder.SpindleVerts (reel), cx, cy, -m_recorderReelRad, m_recorderKeyVerts);
+
+                if (m_recorderCassette)
+                {
+                    AppendTurned (m_recorder.HubVerts (reel), cx, cy, -m_recorderReelRad, m_recorderKeyVerts);
+                }
+            }
         }
 
         // The volume wheel, turned about its own middle.

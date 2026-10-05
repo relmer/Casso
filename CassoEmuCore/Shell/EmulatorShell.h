@@ -1831,6 +1831,8 @@ private:
     std::array<float, 6>      m_recorderKeyDownFrom   = {};   // and where it started from
     float                     m_recorderLidOpen       = 1.0f; // the door, 0 shut to 1 open
     int64_t                   m_recorderLidStepMs     = 0;
+    float                     m_recorderReelRad       = 0.0f;  // how far the spindles have turned
+    int64_t                   m_recorderReelStepMs    = 0;
 
     // The key under the pointer, whose name shows over it; -1 for none.
     int                       m_recorderHoverKey      = -1;

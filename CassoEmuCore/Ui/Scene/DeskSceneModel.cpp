@@ -685,6 +685,31 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
                 }
             }
         }
+        else if (kind == DeskDeviceKind::CassetteRecorder &&
+                 (part.rfind (s_kpszSpindlePrefix, 0) == 0 || part.rfind (s_kpszHubPrefix, 0) == 0) &&
+                 (size_t) (part.back() - '0') < kRecorderReelCount)
+        {
+            // A spindle, or the cassette hub on it, kept apart so the scene
+            // can turn the two together. The spindle's box is the axis.
+            size_t  reel      = (size_t) (part.back() - '0');
+            bool    isSpindle = part.rfind (s_kpszSpindlePrefix, 0) == 0;
+
+            if (isSpindle && m_spindles[reel].empty())
+            {
+                m_spindleBoxes[reel] = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            }
+
+            AppendLitTri (isSpindle ? m_spindles[reel] : m_hubs[reel], tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; isSpindle && axis < 3; axis++)
+                {
+                    m_spindleBoxes[reel][axis]     = (std::min) (m_spindleBoxes[reel][axis],     p[axis]);
+                    m_spindleBoxes[reel][axis + 3] = (std::max) (m_spindleBoxes[reel][axis + 3], p[axis]);
+                }
+            }
+        }
         else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszVolumeWheel, 0) == 0)
         {
             // The volume wheel and its mark, kept apart so the scene can turn

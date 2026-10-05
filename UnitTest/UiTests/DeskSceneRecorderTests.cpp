@@ -141,7 +141,9 @@ public:
             "newmtl deck\nKd 0.68 0.685 0.69\n"
             "newmtl window\nKd 0.075 0.095 0.12\n"
             "newmtl keys_0\nKd 0.90 0.88 0.72\n"
-            "newmtl volume_wheel\nKd 0.90 0.88 0.72\n";
+            "newmtl volume_wheel\nKd 0.90 0.88 0.72\n"
+            "newmtl spindle_1\nKd 0.76 0.765 0.77\n"
+            "newmtl cassette_hub_1\nKd 0.92 0.92 0.91\n";
     }
 
     static std::string RecorderObj()
@@ -154,6 +156,8 @@ public:
         AppendBox (obj, base, 14.0f, 105.0f, s_kRecH + 1.2f, 126.0f, 150.0f, s_kRecH + 1.9f, "window");
         AppendBox (obj, base, 10.0f, 26.0f, s_kRecH - 12.0f, 28.0f, 80.0f, s_kRecH + 6.2f, "keys_0");
         AppendBox (obj, base, 80.0f, -2.0f, 4.0f, 102.0f, 20.0f, 8.0f, "volume_wheel");
+        AppendBox (obj, base, 86.0f, 120.0f, 40.0f, 94.0f, 128.0f, 46.0f, "spindle_1");
+        AppendBox (obj, base, 84.0f, 118.0f, 45.0f, 96.0f, 130.0f, 47.0f, "cassette_hub_1");
 
         return obj;
     }
@@ -283,6 +287,32 @@ public:
     //  The volume wheel is its own geometry, out of the case's, so the scene
     //  can turn it, with a box for the pointer to find it by.
     //
+    TEST_METHOD (Recorder_Spindle_And_Its_Hub_Are_Kept_Apart_To_Turn)
+    {
+        DeskSceneModel        model;
+        std::vector<uint8_t>  blob;
+        const float *         box = nullptr;
+
+
+
+        Bake (RecorderObj(), blob);
+        AssertSucceeded (model.Load (DeskDeviceKind::CassetteRecorder, blob));
+
+        Assert::IsFalse (model.SpindleVerts (1).empty());
+        Assert::IsFalse (model.HubVerts (1).empty(), L"the hub is not swept in with the rest of the cassette");
+        Assert::IsTrue  (model.SpindleVerts (0).empty());
+
+        box = model.SpindleBox (1);
+        Assert::AreEqual (90.0f,  (box[0] + box[3]) * 0.5f, 0.01f, L"the axis is the spindle's middle");
+        Assert::AreEqual (124.0f, (box[1] + box[4]) * 0.5f, 0.01f);
+
+        for (const Dxui3DRenderer::Vertex & v : model.CassetteVerts())
+        {
+            Assert::IsFalse (v.z > 46.5f, L"the hub is not drawn twice");
+        }
+    }
+
+
     TEST_METHOD (Recorder_Volume_Wheel_Is_Kept_Apart_With_Its_Box)
     {
         DeskSceneModel        model;
