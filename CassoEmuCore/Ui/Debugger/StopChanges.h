@@ -26,8 +26,12 @@ public:
     //  Values by key, as "R:A" or "W:3", from one snapshot.
     using Values = std::map<std::string, std::string>;
 
-    void  Update    (bool isPaused, Values values);
-    bool  IsChanged (const std::string & key) const;
+    void         Update    (bool isPaused, Values values);
+    bool         IsChanged (const std::string & key) const;
+
+    //  How far a whole-number value moved since the previous stop, as "+6"
+    //  or "-6"; empty while running, with no previous stop, or no move.
+    std::string  GetDelta  (const std::string & key) const;
 
 private:
     Values  m_stop;

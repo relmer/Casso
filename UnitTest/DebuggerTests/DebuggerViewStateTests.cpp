@@ -1118,6 +1118,34 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  The registers pane shows how far the cycle count moved since the
+        //  stop before: forward for a step or a run, back for a step back or
+        //  a seek into the past.
+        TEST_METHOD (TheCycleDeltaIsSignedAgainstThePreviousStop)
+        {
+            StopChanges  changes;
+
+
+
+            changes.Update (true, { { "R:Cycles", "1000" } });
+            Assert::AreEqual (std::string(), changes.GetDelta ("R:Cycles"), L"the first stop has nothing to compare with");
+
+            changes.Update (true, { { "R:Cycles", "1006" } });
+            Assert::AreEqual (std::string ("+6"), changes.GetDelta ("R:Cycles"), L"a step");
+
+            changes.Update (false, { { "R:Cycles", "90000" } });
+            Assert::AreEqual (std::string(), changes.GetDelta ("R:Cycles"), L"nothing while running");
+
+            changes.Update (true, { { "R:Cycles", "123456" } });
+            Assert::AreEqual (std::string ("+122450"), changes.GetDelta ("R:Cycles"), L"a run stopped at a breakpoint");
+
+            changes.Update (true, { { "R:Cycles", "123450" } });
+            Assert::AreEqual (std::string ("-6"), changes.GetDelta ("R:Cycles"), L"a step back");
+
+            Assert::AreEqual (std::string(), changes.GetDelta ("R:A"), L"a key never shown");
+        }
+
+
         TEST_METHOD (AScrolledFollowingViewFollowsAgainOnceThePcMoves)
         {
             MachineRig            rig;

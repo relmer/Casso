@@ -6820,12 +6820,20 @@ void DebuggerWindow::ApplySnapshot()
     //  sit on P's row beside the byte they come from, in the same monospace
     //  face -- where a bit changing moves nothing else. A register that
     //  changed since the last stop is drawn in the changed color (FR-098).
+    //  The cycle count's row shows, in the same column, how far it moved
+    //  since the stop before, signed, so a step back reads as one.
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
-        DxuiListView::Cell  value = { Widen (reg.value) };
-        DxuiListView::Cell  flags = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
+        bool                isCycles = reg.name == DebuggerViewState::kCyclesRegister;
+        DxuiListView::Cell  value    = { Widen (reg.value) };
+        DxuiListView::Cell  flags    = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
 
-        if (reg.name != DebuggerViewState::kCyclesRegister && m_stopChanges.IsChanged ("R:" + reg.name))
+        if (isCycles)
+        {
+            flags.text = Widen (m_stopChanges.GetDelta ("R:" + reg.name));
+        }
+
+        if (!isCycles && m_stopChanges.IsChanged ("R:" + reg.name))
         {
             value.argb = GetChangedArgb();
             flags.argb = GetChangedArgb();
