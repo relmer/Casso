@@ -391,5 +391,21 @@ public:
         AssertPoint (0,    300, left,  L"pinned to the work-area left edge");
         AssertPoint (1420, 300, right, L"pinned to the work-area right edge");
     }
+
+    //
+    //  A message box is placed when it is created, centered on its owner, as
+    //  every other owned dialog is -- not created at the cascade position on
+    //  whichever monitor that is and moved afterward.
+    //
+    TEST_METHOD (AMessageBoxIsCreatedCenteredOnItsOwner)
+    {
+        HWND                      owner  = reinterpret_cast<HWND> (static_cast<uintptr_t> (0x1234));
+        DxuiWindow::CreateParams  params = DxuiMakeMessageBoxParams (owner, L"Replaying history", 200);
+
+
+        Assert::IsTrue   (params.ownerHwnd == owner,                              L"owned by the window that asked");
+        Assert::IsTrue   (params.placement == DxuiWindowPlacement::CenteredOnOwner, L"centered on it");
+        Assert::AreEqual (std::wstring (L"Replaying history"), params.title,       L"the caption");
+    }
 };
 

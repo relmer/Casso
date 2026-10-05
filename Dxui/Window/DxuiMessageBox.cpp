@@ -221,6 +221,42 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiMakeMessageBoxParams
+//
+//  The box is placed when its window is created, centered on the owner, the
+//  way every other owned dialog is. Moving it there after creating it at the
+//  cascade position left it sized for the cascade monitor's DPI and, with the
+//  owner minimized, measured the owner's off-screen parking spot, which the
+//  clamp turned into the corner of the primary monitor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiWindow::CreateParams DxuiMakeMessageBoxParams (
+    HWND             owner,
+    const wchar_t  * caption,
+    int              heightDip)
+{
+    DxuiWindow::CreateParams  params;
+
+
+
+    params.title                    = (caption != nullptr) ? caption : L"";
+    params.ownerHwnd                = owner;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+    params.initialSizeDip           = { s_kWidthDip, heightDip };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    return params;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMessageBox
 //
 //  A themed replacement for the Win32 MessageBox, matching its signature.
@@ -304,13 +340,8 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
 
     dlg.Configure (body, glyph, glyphArgb, buttons);
 
-    params.title                    = (caption != nullptr) ? caption : L"";
-    params.hInstance                = hInst;
-    params.ownerHwnd                = owner;
-    params.initialSizeDip           = { s_kWidthDip, heightDip };
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params           = DxuiMakeMessageBoxParams (owner, caption, heightDip);
+    params.hInstance = hInst;
 
     hr = dlg.Create (params);
 
@@ -323,35 +354,6 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     else
     {
         dlg.SetTheme (theme);
-
-        // Center the box on its owner (Win32 MessageBox centers on the owner too),
-        // clamped to the owner's monitor work area so it never lands off-screen. The
-        // window is created hidden, so this places it before ShowModalDialog shows it.
-        if (owner != nullptr && dlg.GetHwnd() != nullptr)
-        {
-            RECT   ownerR = {};
-            RECT   dlgR   = {};
-
-            if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.GetHwnd(), &dlgR))
-            {
-                int    dw = dlgR.right  - dlgR.left;
-                int    dh = dlgR.bottom - dlgR.top;
-                int    x  = ownerR.left + ((ownerR.right  - ownerR.left) - dw) / 2;
-                int    y  = ownerR.top  + ((ownerR.bottom - ownerR.top)  - dh) / 2;
-
-                HMONITOR     mon = MonitorFromWindow (owner, MONITOR_DEFAULTTONEAREST);
-                MONITORINFO  mi  = { sizeof (mi) };
-
-                if (mon != nullptr && GetMonitorInfoW (mon, &mi))
-                {
-                    x = std::clamp (x, (int) mi.rcWork.left, (int) mi.rcWork.right  - dw);
-                    y = std::clamp (y, (int) mi.rcWork.top,  (int) mi.rcWork.bottom - dh);
-                }
-
-                SetWindowPos (dlg.GetHwnd(), nullptr, x, y, 0, 0,
-                              SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            }
-        }
 
         choice = dlg.ShowModalDialog (defaultCmd);
     }

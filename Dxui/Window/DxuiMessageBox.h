@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Window/DxuiWindow.h"
 
 
 class IDxuiTheme;
@@ -43,3 +44,11 @@ int  DxuiMessageBox (HWND               owner,
                      const wchar_t    * text,
                      const wchar_t    * caption,
                      UINT               uType);
+
+
+
+
+
+//  How the box's window is created for owner: centered on the owner, on the
+//  owner's monitor and at that monitor's DPI, as every other dialog is.
+DxuiWindow::CreateParams  DxuiMakeMessageBoxParams (HWND owner, const wchar_t * caption, int heightDip);
