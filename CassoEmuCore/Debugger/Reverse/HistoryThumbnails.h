@@ -18,7 +18,8 @@ class KeyframeStore;
 //  HistoryThumbnailCell
 //
 //  One point a history strip shows: the keyframe it is drawn from, by its
-//  position and cycle, and whether it stands for the live end.
+//  position and cycle, the host's clock when it was taken, and whether it
+//  stands for the live end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +27,7 @@ struct HistoryThumbnailCell
 {
     uint64_t  position = 0;
     uint64_t  cycle    = 0;
+    uint64_t  wallTime = 0;
     bool      isLive   = false;
 };
 
@@ -38,34 +40,39 @@ struct HistoryThumbnailCell
 //  HistoryThumbnails
 //
 //  Pictures of the screen at evenly spaced points of reverse execution's
-//  history, for a strip of them: the oldest point first, the live end last.
-//  The points lie on a grid fixed to absolute positions, every multiple of a
-//  step chosen from the span held and the cell count, so while history
-//  scrolls -- new keyframes at the live end, the oldest dropped -- a point
-//  stays put: cells leave at the left and arrive at the right, and only the
-//  new ones need drawing. The step changes only when the span moves well
-//  away from what it was chosen for. Each point is the keyframe at or before
-//  its grid position, so its picture is that keyframe's screen exactly, and
-//  seeking to its position lands on what it shows. The live end is drawn
-//  from the newest keyframe.
+//  history, for a strip of them: the oldest keyframe held first, the live end
+//  last. The points between lie on a grid fixed to absolute positions, every
+//  multiple of a step chosen from the span held and the cell count, so while
+//  history scrolls -- new keyframes at the live end, the oldest dropped -- a
+//  point stays put: cells leave at the left and arrive at the right, and
+//  only the new ones need drawing. The step changes only when the span moves
+//  well away from what it was chosen for. Each point is the keyframe at or
+//  before its grid position, so its picture is that keyframe's screen
+//  exactly, and seeking to its position lands on what it shows. The live end
+//  is drawn from the newest keyframe.
 //
 //  Threads. The strip's side (IDxuiImageStripSource, SetVisible) runs on the
 //  UI thread. Service runs on the thread that runs the machine, once a
 //  frame: it lays the points out over the keyframes, and while the strip is
-//  visible unpacks at most one keyframe a turn, and at most kRendersPerSecond
-//  a second, which a worker then draws through an IHistoryFrameRenderer.
-//  Nothing is drawn while the strip is hidden or while one is being drawn.
+//  visible unpacks at most one keyframe a turn, and for thumbnails at most
+//  kRendersPerSecond a second, which a worker then draws through an
+//  IHistoryFrameRenderer. Nothing is drawn while the strip is hidden or
+//  while one is being drawn.
 //
 //  Each picture is drawn at full size. The strip keeps, for every point it
 //  has drawn, a base copy at a fixed size no wider than kBaseMaxWidth and a
-//  copy at its cell size made from that, the most recently used first out,
-//  and the full-size ones for the last few points the pointer rested on. A
-//  new cell size is met by scaling the base copies again, not by drawing
-//  anything again. A cell whose point has no picture yet shows the last
-//  picture it showed, so the live end does not blink out each time it moves
-//  on. After a resize moves the points, a cell with none shows the nearest
-//  point's picture, and the new points are drawn at the faster
-//  kCatchUpRendersPerSecond until each has its own.
+//  copy at its cell size made from that, the most recently used first out.
+//  It keeps the full-size pictures of the cells the pointer rested on and of
+//  the kPrefetchReach cells either side, and those of other points only in
+//  room to spare. The cell under the pointer and then those around it are
+//  drawn ahead of every thumbnail and without waiting out the thumbnails'
+//  pace, so a preview turns sharp as soon as one picture can be drawn, and
+//  at once on a move to a neighbor. A new cell size is met by scaling the
+//  base copies again, not by drawing anything again. A cell whose point has
+//  no picture yet shows the last picture it showed, so the live end does not
+//  blink out each time it moves on. After a resize moves the points, a cell
+//  with none shows the nearest point's picture, and the new points are drawn
+//  at the faster kCatchUpRendersPerSecond until each has its own.
 //
 //  Where the machine stands, live or replaying history, is told to it by
 //  the machine thread every turn, so the strip can mark that cell.
@@ -82,9 +89,10 @@ public:
 
     static constexpr int     kRendersPerSecond        = 8;
     static constexpr int     kCatchUpRendersPerSecond = 60;
-    static constexpr size_t  kPreviewCount            = 8;
+    static constexpr size_t  kPreviewCount            = 16;
     static constexpr size_t  kMinThumbCount           = 64;
     static constexpr int     kBaseMaxWidth            = 192;
+    static constexpr size_t  kPrefetchReach           = 2;
 
                        HistoryThumbnails  (IHistoryFrameRenderer & renderer);
                        ~HistoryThumbnails () override;
@@ -111,6 +119,8 @@ public:
     Image              GetPreviewImage (int index) override;
     void               OnCellClicked   (int index) override;
     int                GetMarkedCell   () override;
+    void               SetHoveredCell  (int index) override;
+    bool               TryGetCellLabels (int index, std::wstring & outTop, std::wstring & outBottom) override;
     bool               TryGetPlayhead  (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override;
     void               OnPlayheadDragged (float offset, bool isFinal) override;
     std::wstring       GetLeadingLabel () override;
@@ -174,11 +184,14 @@ private:
         SIZE                     thumbPx   = {};
         uint64_t                 layoutId  = 0;
         double                   unpackMs  = 0.0;
+        bool                     isPreview = false;   // asked for at full size, not only as a thumbnail
     };
 
     static void        RunJob        (void * context);
     void               Draw          (Job & job);
-    bool               TryPickWanted (uint64_t & outPosition);
+    void               LayOutCells   (const KeyframeStore & keyframes);
+    bool               TryPickWanted (uint64_t & outPosition, bool & outIsPreview);
+    bool               TryPickFull   (uint64_t & outPosition);
     bool               HasPicture    (uint64_t position) const;
     Image              ScaleBase     (uint64_t position);
     void               ForgetPoint   (uint64_t position);
@@ -218,6 +231,7 @@ private:
     HistoryImageCache                 m_bases        { kMinThumbCount };
     HistoryImageCache                 m_previews     { kPreviewCount };
     std::optional<uint64_t>           m_wantedPreview;
+    int                               m_hoveredCell  = -1;
     std::vector<Image>                m_shown;               // the last picture each cell showed
     bool                              m_useStandIns  = false; // set once a layout changes over pictures drawn
 

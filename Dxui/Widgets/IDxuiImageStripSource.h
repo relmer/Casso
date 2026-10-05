@@ -35,6 +35,14 @@ public:
     //  The cell to mark as where the source stands, or -1 for none.
     virtual int     GetMarkedCell   ()                       { return -1; }
 
+    //  The cell under the pointer, or -1 once it leaves the strip, so the
+    //  source can get the pictures around it ready.
+    virtual void    SetHoveredCell  (int index)              { (void) index; }
+
+    //  A label above and below a cell under the pointer, such as when its
+    //  picture was taken. False for none.
+    virtual bool    TryGetCellLabels (int index, std::wstring & outTop, std::wstring & outBottom) { (void) index; (void) outTop; (void) outBottom; return false; }
+
     //  A line across the strip where the source stands between its cells:
     //  its offset in cells from the leading edge, and a label for each end of
     //  it. False for no line, when the marked cell is shown instead.

@@ -132,10 +132,177 @@ public:
         HistoryThumbnails::PlanCells (after, 4, step, cells);
 
         Assert::AreEqual<uint64_t> (300,  step,              L"the step holds");
-        Assert::AreEqual<uint64_t> (300,  cells[0].position, L"the oldest point left at the left");
-        Assert::AreEqual<uint64_t> (600,  cells[1].position, L"the others moved one cell left, each its keyframe");
+        Assert::AreEqual<uint64_t> (0,    cells[0].position, L"the first cell stays on the oldest keyframe");
+        Assert::AreEqual<uint64_t> (600,  cells[1].position, L"the grid points moved one cell left, each its keyframe");
         Assert::AreEqual<uint64_t> (900,  cells[2].position, L"and a new one came in at the right");
         Assert::AreEqual<uint64_t> (1000, cells[3].position, L"the live end follows the newest keyframe");
+    }
+
+
+    //  However history grows, and as its oldest is dropped, the first cell
+    //  is the oldest keyframe held and the last the newest, both always
+    //  there; only the cells between them follow the grid.
+    TEST_METHOD (TheFirstCellIsAlwaysTheOldestAndTheLastTheLiveEnd)
+    {
+        constexpr int     kCount  = 6;
+        constexpr size_t  kAdds   = 60;
+        constexpr size_t  kWarmUp = kCount;
+
+        KeyframeStore                      store;
+        KeyframeSettings                   settings;
+        std::vector<HistoryThumbnailCell>  cells;
+        std::vector<Byte>                  state (s_kThumbStateBytes);
+        uint64_t                           step  = 0;
+        size_t                             i     = 0;
+        size_t                             grown = 0;
+        HRESULT                            hr    = S_OK;
+
+
+
+        settings.intervalCycles = s_kThumbInterval;
+        store.Configure (settings);
+
+        for (i = 0; i < kAdds; i++)
+        {
+            hr = store.Add (i * s_kThumbStride, i * s_kThumbInterval, state);
+            AssertSucceeded (hr, L"Add");
+
+            if (i < kWarmUp)
+            {
+                continue;
+            }
+
+            HistoryThumbnails::PlanCells (store, kCount, step, cells);
+
+            Assert::AreEqual<size_t>   (kCount, cells.size(), L"every cell has a point");
+            Assert::AreEqual<uint64_t> (store.GetInfo (0).position, cells.front().position, L"the first cell is the oldest keyframe");
+            Assert::AreEqual<uint64_t> (store.GetInfo (store.GetCount() - 1).position, cells.back().position, L"the last is the newest");
+            Assert::IsTrue (cells.back().isLive, L"and stands for live");
+
+            grown += (cells[1].position > cells.front().position) ? 1 : 0;
+        }
+
+        Assert::IsTrue (grown > 0, L"the grid points moved on past the oldest while it stayed");
+    }
+
+
+    //  The time a cell's labels give is its keyframe's: the cycle it was
+    //  taken at and the host's clock then.
+    TEST_METHOD (ACellsLabelsGiveItsKeyframesTime)
+    {
+        constexpr uint64_t  kWall = 0x01DC0000AABBCCDDull;
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        uint64_t                  now     = 0;
+        uint64_t                  cycle   = 0;
+        uint64_t                  wall    = 0;
+        std::wstring              top;
+        std::wstring              bottom;
+        bool                      isShown = false;
+        HRESULT                   hr      = S_OK;
+
+
+
+        store.SetWallClock ([] () -> uint64_t { return kWall; });
+        Prepare (thumbnails, queue, store, now);
+
+        thumbnails.SetLabeler ([&] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        {
+            cycle     = c;
+            wall      = w;
+            outTop    = L"top";
+            outBottom = L"bottom";
+        });
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out 0, 400 and 800");
+
+        isShown = thumbnails.TryGetCellLabels (1, top, bottom);
+
+        Assert::IsTrue   (isShown, L"a cell has labels");
+        Assert::AreEqual<uint64_t> (4 * s_kThumbInterval, cycle, L"its keyframe's cycle");
+        Assert::AreEqual<uint64_t> (kWall, wall,                  L"and its keyframe's clock time");
+        Assert::AreEqual (std::wstring (L"top"),    top,    L"the labeler's top line");
+        Assert::AreEqual (std::wstring (L"bottom"), bottom, L"and bottom line");
+
+        Assert::IsFalse (thumbnails.TryGetCellLabels (3, top, bottom), L"no cell, no labels");
+    }
+
+
+    //  The cell under the pointer is drawn as soon as nothing else is being
+    //  drawn, not after the wait that paces the thumbnails.
+    TEST_METHOD (TheHoveredPreviewIsDrawnWithoutWaitingItsTurn)
+    {
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        uint64_t                  now = 0;
+        HRESULT                   hr  = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+        thumbnails.SetVisible (true);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service");
+        Assert::IsTrue (queue.TryRunNext(), L"the live end is drawn");
+
+        thumbnails.SetHoveredCell (0);
+        Assert::IsNull (thumbnails.GetPreviewImage (0).get(), L"the hovered cell is not drawn yet");
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service at once");
+        Assert::AreEqual<size_t> (1, queue.GetPendingCount(), L"the hovered cell goes to the worker right away");
+        Assert::IsTrue (queue.TryRunNext(), L"drawn");
+
+        Assert::IsNotNull (thumbnails.GetPreviewImage (0).get(), L"its full-size picture is ready");
+    }
+
+
+    //  With the pointer resting on a cell, the cells either side are drawn
+    //  at full size next, so moving to one shows it sharp at once.
+    TEST_METHOD (TheHoveredCellsNeighborsAreDrawnNext)
+    {
+        constexpr int  kCount   = 7;
+        constexpr int  kHovered = 3;
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        uint64_t                  now   = 0;
+        int                       round = 0;
+        HRESULT                   hr    = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+        thumbnails.SetCellLayout (kCount, s_kThumbCell);
+        thumbnails.SetVisible (true);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays the points out");
+        queue.TryRunNext();
+
+        thumbnails.SetHoveredCell (kHovered);
+        thumbnails.GetPreviewImage (kHovered);
+
+        for (round = 0; round < 1 + 2 * (int) HistoryThumbnails::kPrefetchReach; round++)
+        {
+            hr = thumbnails.Service (store);
+            AssertSucceeded (hr, L"Service with no time passing");
+            queue.TryRunNext();
+        }
+
+        for (int index : { kHovered - 2, kHovered - 1, kHovered, kHovered + 1, kHovered + 2 })
+        {
+            Assert::IsNotNull (thumbnails.GetPreviewImage (index).get(), L"the hovered cell and the two either side are sharp");
+        }
     }
 
     TEST_METHOD (NothingIsPlannedWithoutHistoryOrRoom)
@@ -178,6 +345,34 @@ public:
 
         Assert::IsFalse (cache.Contains (1), L"a smaller capacity drops the oldest");
         Assert::IsTrue  (cache.Contains (3), L"and keeps the newest");
+    }
+
+
+    //  A spare picture, one drawn for a thumbnail rather than asked for at
+    //  full size, is kept only in room to spare: it never pushes out a
+    //  picture in use, and it is the first to go when one needs the room.
+    TEST_METHOD (ASparePictureNeverPushesOutOneInUse)
+    {
+        HistoryImageCache  cache (3);
+
+
+
+        cache.Put      (1, std::make_shared<DxuiIconImage>());
+        cache.Put      (2, std::make_shared<DxuiIconImage>());
+        cache.PutSpare (3, std::make_shared<DxuiIconImage>());
+
+        Assert::IsTrue (cache.Contains (3), L"kept while there is room");
+
+        cache.PutSpare (4, std::make_shared<DxuiIconImage>());
+
+        Assert::IsFalse (cache.Contains (4), L"not kept once the cache is full");
+        Assert::IsTrue  (cache.Contains (1), L"the pictures in use stay");
+        Assert::IsTrue  (cache.Contains (2), L"the pictures in use stay");
+
+        cache.Put (5, std::make_shared<DxuiIconImage>());
+
+        Assert::IsFalse (cache.Contains (3), L"the spare goes first when a picture in use needs room");
+        Assert::IsTrue  (cache.Contains (1), L"ahead of the pictures in use");
     }
 
 
@@ -266,9 +461,10 @@ public:
         Assert::AreEqual<size_t> (1, queue.GetPendingCount(), L"due again: the next picture");
         Assert::IsTrue (queue.TryRunNext(), L"drawn");
 
-        Assert::IsNotNull (thumbnails.GetCellImage (1).get(), L"then the points, newest first");
-        Assert::AreEqual ((int) s_kThumbCell.cx, thumbnails.GetCellImage (1)->width,  L"a thumbnail is the cell's width");
-        Assert::AreEqual ((int) s_kThumbCell.cy, thumbnails.GetCellImage (1)->height, L"and the cell's height");
+        Assert::IsNotNull (thumbnails.GetCellImage (0).get(), L"then the first cell, where history begins");
+        Assert::IsNull    (thumbnails.GetCellImage (1).get(), L"ahead of the grid points");
+        Assert::AreEqual ((int) s_kThumbCell.cx, thumbnails.GetCellImage (0)->width,  L"a thumbnail is the cell's width");
+        Assert::AreEqual ((int) s_kThumbCell.cy, thumbnails.GetCellImage (0)->height, L"and the cell's height");
     }
 
 
@@ -431,16 +627,19 @@ public:
 
 
     //  Once history is full every new keyframe drops the oldest, and the
-    //  keyframes come faster than pictures are drawn. The points must hold
-    //  still while history scrolls, so each step brings at most a few new
-    //  points at the right, and every point gets its own picture.
+    //  keyframes come faster than pictures are drawn. The grid points must
+    //  hold still while history scrolls, so each step brings at most a few
+    //  new points at the right, and every point gets its own picture; the
+    //  first cell, the oldest keyframe, follows each drop.
     TEST_METHOD (TheStripHoldsStillWhileHistoryScrolls)
     {
-        constexpr size_t  kRounds         = 400;
-        constexpr size_t  kWarmUpRounds   = 100;
-        constexpr int     kCount          = 8;
-        constexpr int     kLiveCell       = kCount - 1;
-        constexpr size_t  kMaxNewPerRound = 2;
+        constexpr size_t  kRounds          = 400;
+        constexpr size_t  kWarmUpRounds    = 100;
+        constexpr int     kCount           = 8;
+        constexpr int     kLiveCell        = kCount - 1;
+        constexpr size_t  kMaxNewPerRound  = 2;
+        constexpr size_t  kMostNumerator   = 10;
+        constexpr size_t  kMostDenominator = 9;
 
         FakeHistoryFrameRenderer           renderer;
         InlineWorkQueue                    thumbQueue;
@@ -458,6 +657,8 @@ public:
         size_t                             round    = 0;
         size_t                             i        = 0;
         size_t                             fresh    = 0;
+        size_t                             ownGrid  = 0;
+        size_t                             checked  = 0;
         HRESULT                            hr       = S_OK;
 
 
@@ -503,18 +704,31 @@ public:
 
             Assert::IsTrue (fresh <= kMaxNewPerRound, L"a scroll step brings only a few new points");
 
-            for (i = 0; i < kLiveCell; i++)
+            //  The first cell moves with every drop of the oldest and is drawn
+            //  ahead of the grid points, so it is always the oldest itself.
+            image = thumbnails.GetCellImage (0);
+
+            Assert::IsNotNull (image.get(), L"the first cell is drawn");
+            Assert::AreEqual<uint32_t> (s_kThumbOpaque | GetTag (cells[0].position), image->bgraPremul[0], L"with the oldest keyframe's own picture");
+
+            //  Here the oldest is dropped every round and only one picture is
+            //  drawn a round, so a grid point arriving at the right can wait a
+            //  round or two; it still shows a picture meanwhile.
+            for (i = 1; i < kLiveCell; i++)
             {
                 image = thumbnails.GetCellImage ((int) i);
 
-                Assert::IsNotNull (image.get(), L"every point is drawn");
-                Assert::AreEqual<uint32_t> (s_kThumbOpaque | GetTag (cells[i].position), image->bgraPremul[0], L"with its own picture");
+                Assert::IsNotNull (image.get(), L"every grid point shows a picture");
+
+                ownGrid += (image->bgraPremul[0] == (s_kThumbOpaque | GetTag (cells[i].position))) ? 1 : 0;
+                checked++;
             }
 
             Assert::IsNotNull (thumbnails.GetCellImage (kLiveCell).get(), L"the live end is drawn");
         }
 
         Assert::IsTrue (store.GetInfo (0).position > dropped, L"the oldest kept being dropped");
+        Assert::IsTrue (ownGrid * kMostNumerator > checked * kMostDenominator, L"the grid points nearly always show their own pictures");
     }
 
 

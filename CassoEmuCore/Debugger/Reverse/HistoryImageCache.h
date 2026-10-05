@@ -12,8 +12,9 @@
 //
 //  Pictures of points in history by a key, least recently used first out:
 //  once it holds its capacity, adding one drops the picture used longest
-//  ago. Finding a picture counts as using it. Not thread safe; the owner
-//  locks around it.
+//  ago. Finding a picture counts as using it. A spare picture is kept only
+//  while there is room, as the least recently used. Not thread safe; the
+//  owner locks around it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +29,7 @@ public:
     bool      Contains       (uint64_t key) const { return m_index.contains (key); }
     bool      TryFindNearest (uint64_t key, uint64_t & outKey) const;
     void      Put            (uint64_t key, Image image);
+    void      PutSpare       (uint64_t key, Image image);
     void      Clear          ();
     void      SetCapacity    (size_t capacity);
 

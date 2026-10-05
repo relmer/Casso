@@ -330,23 +330,131 @@ void HistoryThumbnails::OnTrailingLabelClicked()
 //  HistoryThumbnails::Service
 //
 //  Lays the points out again, and while the strip shows and nothing is being
-//  drawn, at most kRendersPerSecond times a second, unpacks the keyframe the
-//  next wanted picture comes from and hands it to the worker. Unpacking is
-//  the only part on this thread.
+//  drawn, unpacks the keyframe the next wanted picture comes from and hands
+//  it to the worker: a full-size picture for the pointer at once, a
+//  thumbnail at most kRendersPerSecond times a second. Unpacking is the only
+//  part on this thread. Unpacking first collects the keyframes in flight,
+//  which can drop the oldest; a point dropped that way is forgotten, the
+//  points are laid out again over what history holds now, and the next
+//  wanted picture is tried in the same turn, so the first cell moves to the
+//  new oldest keyframe without waiting a turn for every drop.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 {
-    HRESULT                            hr       = S_OK;
+    constexpr int  kAttempts = 2;
+
+
+
+    HRESULT        hr        = S_OK;
+    uint64_t       position  = 0;
+    bool           isFound   = false;
+    bool           isPicked  = false;
+    bool           isIdle    = false;
+    bool           isPreview = false;
+    bool           isDue     = false;
+    int            attempt   = 0;
+    LARGE_INTEGER  start     = {};
+    LARGE_INTEGER  end       = {};
+    LARGE_INTEGER  freq      = {};
+
+
+
+    LayOutCells (keyframes);
+
+    isIdle = IsVisible() && !m_isInFlight.load (std::memory_order_acquire);
+    BAIL_OUT_IF (!isIdle, S_OK);
+
+    QueryPerformanceFrequency (&freq);
+
+    for (attempt = 0; attempt < kAttempts && !isFound; attempt++)
+    {
+        isPicked = TryPickWanted (position, isPreview);
+
+        if (!isPicked)
+        {
+            m_isCatchingUp.store (false, std::memory_order_release);
+            break;
+        }
+
+        //  Only the thumbnails keep the pace; a full-size picture for the
+        //  pointer goes now.
+        isDue = isPreview || IsRenderDue();
+
+        if (!isDue)
+        {
+            break;
+        }
+
+        QueryPerformanceCounter (&start);
+
+        hr = keyframes.RestoreAtPosition (position, m_job.state, isFound);
+        CHR (hr);
+
+        QueryPerformanceCounter (&end);
+
+        if (!isFound)
+        {
+            ForgetPoint (position);
+            LayOutCells (keyframes);
+        }
+    }
+
+    BAIL_OUT_IF (!isFound, S_OK);
+
+    if (m_queue == nullptr)
+    {
+        hr = m_ownQueue.Create (1);
+        CHRA (hr);
+
+        m_queue = &m_ownQueue;
+    }
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        m_job.thumbPx  = m_cellPx;
+        m_job.layoutId = m_layoutId;
+    }
+
+    m_job.position  = position;
+    m_job.isPreview = isPreview;
+    m_job.unpackMs  = (double) (end.QuadPart - start.QuadPart) * 1000.0 / (double) freq.QuadPart;
+
+    m_isInFlight.store (true, std::memory_order_release);
+    m_lastSubmitMs = GetNowMs();
+    m_hasSubmitted = true;
+
+    hr = m_queue->Submit (&RunJob, &m_job);
+
+    if (FAILED (hr))
+    {
+        m_isInFlight.store (false, std::memory_order_release);
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::LayOutCells
+//
+//  The points over the keyframes held, published only when they changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::LayOutCells (const KeyframeStore & keyframes)
+{
     std::vector<HistoryThumbnailCell>  cells;
-    int                                count    = 0;
-    uint64_t                           position = 0;
-    bool                               isFound  = false;
-    bool                               isIdle   = false;
-    LARGE_INTEGER                      start    = {};
-    LARGE_INTEGER                      end      = {};
-    LARGE_INTEGER                      freq     = {};
+    int                                count = 0;
 
 
 
@@ -369,66 +477,6 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
             Bump();
         }
     }
-
-    isIdle = IsVisible() && !m_isInFlight.load (std::memory_order_acquire) && IsRenderDue();
-    BAIL_OUT_IF (!isIdle, S_OK);
-
-    isFound = TryPickWanted (position);
-
-    if (!isFound)
-    {
-        m_isCatchingUp.store (false, std::memory_order_release);
-    }
-
-    BAIL_OUT_IF (!isFound, S_OK);
-
-    QueryPerformanceFrequency (&freq);
-    QueryPerformanceCounter   (&start);
-
-    hr = keyframes.RestoreAtPosition (position, m_job.state, isFound);
-    CHR (hr);
-
-    QueryPerformanceCounter (&end);
-
-    if (!isFound)
-    {
-        ForgetPoint (position);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    if (m_queue == nullptr)
-    {
-        hr = m_ownQueue.Create (1);
-        CHRA (hr);
-
-        m_queue = &m_ownQueue;
-    }
-
-    {
-        std::lock_guard<std::mutex>  held (m_lock);
-
-        m_job.thumbPx  = m_cellPx;
-        m_job.layoutId = m_layoutId;
-    }
-
-    m_job.position = position;
-    m_job.unpackMs = (double) (end.QuadPart - start.QuadPart) * 1000.0 / (double) freq.QuadPart;
-
-    m_isInFlight.store (true, std::memory_order_release);
-    m_lastSubmitMs = GetNowMs();
-    m_hasSubmitted = true;
-
-    hr = m_queue->Submit (&RunJob, &m_job);
-
-    if (FAILED (hr))
-    {
-        m_isInFlight.store (false, std::memory_order_release);
-    }
-
-    CHR (hr);
-
-Error:
-    return hr;
 }
 
 
@@ -474,12 +522,13 @@ void HistoryThumbnails::Clear()
 //
 //  HistoryThumbnails::PlanCells
 //
-//  The last cell is the live end, the newest keyframe. The others are the
-//  grid points below it, one step apart and ending at the last multiple of
-//  the step before the live end, each the keyframe at or before it; a point
-//  older than history shows the oldest keyframe. Because the grid is fixed
-//  to absolute positions, a point keeps its keyframe until that keyframe is
-//  dropped.
+//  The first cell is the oldest keyframe held and the last the live end,
+//  the newest, so the strip always runs from where history begins to where
+//  it ends. The cells between are the grid points below the live end, one
+//  step apart and ending at the last multiple of the step before it, each
+//  the keyframe at or before it; a point older than history shows the
+//  oldest keyframe. Because the grid is fixed to absolute positions, a point
+//  keeps its keyframe until that keyframe is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -517,17 +566,19 @@ void HistoryThumbnails::PlanCells (
     {
         back = (uint64_t) (count - 2 - i) * ioStep;
 
-        if (back > top || !TryFindAtOrBefore (keyframes, top - back, index))
+        if (i == 0 || back > top || !TryFindAtOrBefore (keyframes, top - back, index))
         {
             index = 0;
         }
 
         outCells[(size_t) i].position = keyframes.GetInfo (index).position;
         outCells[(size_t) i].cycle    = keyframes.GetInfo (index).cycle;
+        outCells[(size_t) i].wallTime = keyframes.GetInfo (index).wallTime;
     }
 
     outCells.back().position = newest;
     outCells.back().cycle    = keyframes.GetInfo (held - 1).cycle;
+    outCells.back().wallTime = keyframes.GetInfo (held - 1).wallTime;
     outCells.back().isLive   = true;
 }
 
@@ -737,7 +788,8 @@ void HistoryThumbnails::RunJob (void * context)
 //  empty one, so it is not asked for again and again; the strip shows its
 //  cell empty. The thumbnail is scaled from the base copy, as every later
 //  cell size will be; one drawn for a cell size since replaced is dropped,
-//  and the base copy kept.
+//  and the base copy kept. A full-size picture drawn only for a thumbnail
+//  is kept in room to spare, never in place of one the pointer wanted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -781,7 +833,14 @@ void HistoryThumbnails::Draw (Job & job)
 
         m_bases.Put (job.position, base);
 
-        m_previews.Put (job.position, full);
+        if (job.isPreview)
+        {
+            m_previews.Put (job.position, full);
+        }
+        else
+        {
+            m_previews.PutSpare (job.position, full);
+        }
 
         if (m_wantedPreview == job.position)
         {
@@ -804,16 +863,20 @@ void HistoryThumbnails::Draw (Job & job)
 //
 //  HistoryThumbnails::TryPickWanted
 //
-//  The preview the pointer rests on first, then the live end if it has never
-//  had a picture, then the points newest first, where history scrolling
-//  brings new ones in, and then the live end's latest. The live end moves on
-//  with every keyframe and keeps its last picture meanwhile, so redrawing it
-//  first every time would leave the points waiting for as long as the
-//  machine runs.
+//  The full-size pictures around the pointer first (outIsPreview), then the
+//  live end if it has never had a picture, then the first cell, which moves
+//  to the new oldest keyframe each time the oldest are dropped and must show
+//  where history begins, then the points newest first, where history
+//  scrolling brings new ones in, and then the live end's latest. The live
+//  end moves on with every keyframe and keeps its last picture meanwhile, so
+//  redrawing it first every time would leave the points waiting for as long
+//  as the machine runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
+bool HistoryThumbnails::TryPickWanted (
+    uint64_t  & outPosition,
+    bool      & outIsPreview)
 {
     std::lock_guard<std::mutex>  held (m_lock);
     bool                         hasCellSize = m_cellPx.cx > 0 && m_cellPx.cy > 0;
@@ -824,11 +887,11 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
 
 
 
-    outPosition = 0;
+    outPosition  = 0;
+    outIsPreview = TryPickFull (outPosition);
 
-    if (m_wantedPreview.has_value() && !m_previews.Contains (*m_wantedPreview))
+    if (outIsPreview)
     {
-        outPosition = *m_wantedPreview;
         return true;
     }
 
@@ -847,6 +910,12 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
         return true;
     }
 
+    if (!HasPicture (m_cells.front().position))
+    {
+        outPosition = m_cells.front().position;
+        return true;
+    }
+
     for (i = m_cells.size() - 1; i-- > 0; )
     {
         if (!HasPicture (m_cells[i].position))
@@ -860,6 +929,56 @@ bool HistoryThumbnails::TryPickWanted (uint64_t & outPosition)
     {
         outPosition = live;
         return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::TryPickFull
+//
+//  Under the lock: the next full-size picture the pointer wants. The one
+//  asked for first, then the cell under the pointer and the cells nearest
+//  it out to kPrefetchReach either side, so a move to a neighbor finds its
+//  picture ready.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::TryPickFull (uint64_t & outPosition)
+{
+    int  count    = (int) m_cells.size();
+    int  distance = 0;
+
+
+
+    if (m_wantedPreview.has_value() && !m_previews.Contains (*m_wantedPreview))
+    {
+        outPosition = *m_wantedPreview;
+        return true;
+    }
+
+    if (m_hoveredCell < 0 || m_hoveredCell >= count)
+    {
+        return false;
+    }
+
+    for (distance = 0; distance <= (int) kPrefetchReach; distance++)
+    {
+        for (int index : { m_hoveredCell + distance, m_hoveredCell - distance })
+        {
+            if (index < 0 || index >= count || m_previews.Contains (m_cells[(size_t) index].position))
+            {
+                continue;
+            }
+
+            outPosition = m_cells[(size_t) index].position;
+            return true;
+        }
     }
 
     return false;
@@ -1389,6 +1508,76 @@ PCWSTR HistoryThumbnails::GetModeText (bool isBehindLive)
 {
     return isBehindLive ? L"Replay" : L"Live";
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::SetHoveredCell
+//
+//  The cells around the one under the pointer are drawn at full size next,
+//  so a move to one of them shows it sharp at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::SetHoveredCell (int index)
+{
+    std::lock_guard<std::mutex>  held (m_lock);
+
+
+
+    m_hoveredCell = index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::TryGetCellLabels
+//
+//  The labeler's lines for the time the cell's keyframe was taken, as the
+//  playhead line's are for where the machine stands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::TryGetCellLabels (
+    int             index,
+    std::wstring  & outTop,
+    std::wstring  & outBottom)
+{
+    HistoryThumbnailCell  cell;
+    bool                  isCell = false;
+
+
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        isCell = index >= 0 && (size_t) index < m_cells.size();
+
+        if (isCell)
+        {
+            cell = m_cells[(size_t) index];
+        }
+    }
+
+    outTop.clear();
+    outBottom.clear();
+
+    if (!isCell || !m_labeler)
+    {
+        return false;
+    }
+
+    m_labeler (cell.cycle, cell.wallTime, outTop, outBottom);
+
+    return !outTop.empty() || !outBottom.empty();
+}
+
 
 
 

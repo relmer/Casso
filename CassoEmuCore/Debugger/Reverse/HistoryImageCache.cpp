@@ -109,6 +109,42 @@ void HistoryImageCache::Put (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryImageCache::PutSpare
+//
+//  Kept only in room to spare, behind every picture in use, so it is the
+//  first to go; a key already held takes the new picture where it stands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryImageCache::PutSpare (
+    uint64_t  key,
+    Image     image)
+{
+    auto  found = m_index.find (key);
+
+
+
+    if (found != m_index.end())
+    {
+        found->second->second = std::move (image);
+        return;
+    }
+
+    if (m_entries.size() >= m_capacity)
+    {
+        return;
+    }
+
+    m_entries.emplace_back (key, std::move (image));
+    m_index[key] = std::prev (m_entries.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryImageCache::Clear
 //
 ////////////////////////////////////////////////////////////////////////////////
