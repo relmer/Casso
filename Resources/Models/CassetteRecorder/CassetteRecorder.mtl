@@ -20,7 +20,7 @@ d 1
 
 newmtl door_relief
 Ka 0 0 0 
-Kd 0.15 0.165 0.19
+Kd 0.28 0.29 0.31
 d 1
 
 newmtl door_print

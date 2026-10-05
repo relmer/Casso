@@ -1600,6 +1600,23 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
                 v.g *= kLidGlassAlpha;
                 v.b *= kLidGlassAlpha;
             }
+
+            // What is molded up out of the pane, more solid than the pane so
+            // its tops read as raised, but still showing what is under it.
+            size_t  first = m_recorderGlassVerts.size();
+
+            AppendHinged (m_recorder.LidReliefVerts(), lid[4], lid[2] + kLidHingeAboveMm,
+                          -m_recorderLidRad, m_recorderGlassVerts);
+
+            for (size_t i = first; i < m_recorderGlassVerts.size(); i++)
+            {
+                Dxui3DRenderer::Vertex &  v = m_recorderGlassVerts[i];
+
+                v.a  = kLidReliefAlpha;
+                v.r *= kLidReliefAlpha;
+                v.g *= kLidReliefAlpha;
+                v.b *= kLidReliefAlpha;
+            }
         }
 
         if (m_recorderCassette)

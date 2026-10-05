@@ -181,6 +181,7 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   LidVerts      () const { return m_lid; }
     const std::vector<Dxui3DRenderer::Vertex> &   CassetteVerts () const { return m_cassette; }
     const std::vector<Dxui3DRenderer::Vertex> &   LidGlassVerts () const { return m_lidGlass; }
+    const std::vector<Dxui3DRenderer::Vertex> &   LidReliefVerts () const { return m_lidRelief; }   // molded up out of the pane
     const std::vector<Dxui3DRenderer::Vertex> &   CassetteGlassVerts () const { return m_cassetteGlass; }   // its window, see-through
     const float *                                 LidBox        () const { return m_lidBox.data(); }
 
@@ -418,9 +419,10 @@ public:
     static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
     static constexpr const char *  s_kpszAcPinPrefix = "acpin";   // the mains blades
     static constexpr const char *  s_kpszKeyPrefix   = "keys_";   // the recorder's keys, keys_0 to keys_5
-    static constexpr const char *  s_kpszLidParts[]  = { "door_print", "door_relief" };
+    static constexpr const char *  s_kpszLidParts[]  = { "door_print" };
     static constexpr const char *  s_kpszLidGlass    = "door_glass";   // the smoked pane and its struts
     static constexpr const char *  s_kpszCassetteGlass = "cassette_window";   // the cassette's clear window
+    static constexpr const char *  s_kpszLidRelief     = "door_relief";       // the arrow and legends raised on the pane
     static constexpr const char *  s_kpszChromePrefix = "chrome";     // polished metal, as the blades
     static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, ...
     static constexpr const char *  s_kpszVolumeWheel    = "volume_wheel";   // volume_wheel, volume_wheel_mark
@@ -640,6 +642,7 @@ private:
     std::vector<Dxui3DRenderer::Vertex>                                 m_lid;
     std::vector<Dxui3DRenderer::Vertex>                                 m_cassette;
     std::vector<Dxui3DRenderer::Vertex>                                 m_lidGlass;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_lidRelief;
     std::vector<Dxui3DRenderer::Vertex>                                 m_cassetteGlass;
     std::vector<Dxui3DRenderer::Vertex>                                 m_chrome;
     std::array<float, 6>                                                m_lidBox           = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };

@@ -669,12 +669,12 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             }
         }
         else if (kind == DeskDeviceKind::CassetteRecorder &&
-                 (part == s_kpszLidGlass ||
+                 (part == s_kpszLidGlass || part == s_kpszLidRelief ||
                   std::find (std::begin (s_kpszLidParts), std::end (s_kpszLidParts), part) != std::end (s_kpszLidParts)))
         {
             // The door, kept apart so the scene can open it, and its pane
             // apart again so the scene can draw it see-through.
-            AppendLitTri ((part == s_kpszLidGlass) ? m_lidGlass : m_lid, tri, corners);
+            AppendLitTri ((part == s_kpszLidGlass) ? m_lidGlass : (part == s_kpszLidRelief) ? m_lidRelief : m_lid, tri, corners);
 
             for (const float * p : { tri.p0, tri.p1, tri.p2 })
             {

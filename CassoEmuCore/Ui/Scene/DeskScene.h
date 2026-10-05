@@ -207,6 +207,7 @@ public:
 
     // How much of the room the smoked pane lets through.
     static constexpr float  kLidGlassAlpha      = 0.35f;
+    static constexpr float  kLidReliefAlpha     = 0.6f;    // raised on the pane: plainer, but still see-through
     static constexpr float  kCassetteGlassAlpha = 0.55f;   // the cassette's window: dims what is under it
 
     // Draws the scene into `dstRtv` (bound here -- the CRT offscreen pass

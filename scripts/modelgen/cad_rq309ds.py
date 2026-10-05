@@ -63,7 +63,7 @@ PERF    = (0.200, 0.200, 0.205)
 BAND    = (0.050, 0.050, 0.055)
 PRINT   = (0.940, 0.940, 0.940)
 DOOR    = (0.075, 0.095, 0.120)     # the smoked lid's frame
-RELIEF  = (0.150, 0.165, 0.190)     # the same plastic, molded up out of the lid
+RELIEF  = (0.280, 0.290, 0.310)     # the same plastic, molded up out of the lid
 CASSETTE= (0.120, 0.120, 0.130)     # the shell
 CASS_LBL= (0.930, 0.900, 0.800)     # cream paper
 CASS_STRIPE = (0.780, 0.270, 0.150) # the label's colored band
@@ -213,8 +213,8 @@ def build():
              .cut(plane.polyline(pts).close().offset2D(-0.4, kind="intersection")
                   .offset2D(0.0).extrude(0.4)))
     m.add("door_glass", pane, DOOR, angular=0.2)
-    # Drawn solid, a shade lighter than the pane: seen through the clear pane
-    # a raised outline's far walls read as the walls of a groove instead.
+    # Lighter than the pane and less clear, so its tops read as raised: as
+    # clear as the pane, a raised outline's far walls read as a groove's.
     m.add("door_relief", arrow.union(door_legends(top, EMBOSS_H)), RELIEF)
     m.add("door_print", door_legends(top + EMBOSS_H, PAINT_H), PRINT)
 
