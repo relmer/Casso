@@ -9,6 +9,7 @@
 //  ReverseCommand
 //
 //  What a reverse execution request asks for. Seek goes to a position given
+//  with it, and SeekCycle to the first instruction at or after a cycle given
 //  with it; GoLive returns to the end of history; StepForward replays the
 //  recorded future one instruction. ReverseContinue goes back to the latest
 //  position a stop test fires at.
@@ -23,5 +24,6 @@ enum class ReverseCommand
     ReverseContinue,
     StepForward,
     Seek,
+    SeekCycle,
     GoLive,
 };

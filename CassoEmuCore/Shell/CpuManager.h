@@ -55,6 +55,7 @@ public:
     using ServiceFn     = std::function<void()>;
     using TimePoint     = std::chrono::steady_clock::time_point;
     using Now           = std::function<TimePoint ()>;
+    using GateFn        = std::function<bool (WORD, const std::string &)>;
 
 
     CpuManager  ();
@@ -68,6 +69,10 @@ public:
     void    Stop  ();
 
     void    PostCommand    (WORD id, const std::string & payload = {});
+
+    //  Asked about every command before it is queued, on the posting thread;
+    //  false drops it. Set before Start.
+    void    SetCommandGate (GateFn gate) { m_gate = std::move (gate); }
 
     //  Whether a posted command is still waiting for the CPU thread.
     bool    HasPendingCommands ();
@@ -126,6 +131,7 @@ private:
 
     //  CPU thread only, except m_now, which PostCommand also reads.
     Now                           m_now          = [] { return std::chrono::steady_clock::now(); };
+    GateFn                        m_gate;
     TimePoint                     m_tickStart    = {};
     std::optional<TimePoint>      m_dispatchedAt;
 

@@ -269,6 +269,13 @@ public:
 
     void                       SetStateFileRequester (StateFileRequester requester) { m_stateFileRequester = std::move (requester); }
     const StateFileRequester & GetStateFileRequester () const                       { return m_stateFileRequester; }
+
+    // Behind live, an edit of registers or memory discards recorded history,
+    // so the guard is asked first with the line the edit came from, and the
+    // edit is made only when it returns true. Empty where nothing is recorded.
+    using HistoryGuard = std::function<bool (const std::string &, CommandMode)>;
+
+    void                       SetHistoryGuard     (HistoryGuard guard)            { m_historyGuard = std::move (guard); }
     // BPV: stop when the video scanline enters the range, once.
     void   SetVideoBreak         (uint32_t first, uint32_t last);
     void   ClearVideoBreak       ();
@@ -401,12 +408,15 @@ private:
     std::optional<BeamBreak>              m_beamBreak;
     bool                                  m_beamBreakHit  = false;
 
-    std::optional<Word>                   m_assemblyAddress;
-    std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;
-    bool                                  m_isViewQuery   = false;
-    ScriptLineRunner                      m_scriptLineRunner;
-    ReverseRequester                      m_reverseRequester;
-    StateFileRequester                    m_stateFileRequester;
+    std::optional<Word>           m_assemblyAddress;
+    std::unique_ptr<OpcodeTable>  m_assemblyOpcodes;
+    bool                          m_isViewQuery        = false;
+    ScriptLineRunner              m_scriptLineRunner;
+    ReverseRequester              m_reverseRequester;
+    StateFileRequester            m_stateFileRequester;
+    HistoryGuard                  m_historyGuard;
+    std::string                   m_guardLine;   // the outermost line being run, for the guard
+    CommandMode                   m_guardMode          = CommandMode::AppleWin;
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;

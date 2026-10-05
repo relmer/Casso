@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiImageStrip.h"
+#include "Theme/DxuiTheme.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
 
@@ -226,18 +227,31 @@ void DxuiImageStrip::Layout (
     bool                  labeled,
     const DxuiDpiScaler & scaler)
 {
-    int  width     = rc.right - rc.left;
-    int  height    = rc.bottom - rc.top;
-    int  thickness = 0;
-    int  count     = 0;
+    int   width     = rc.right - rc.left;
+    int   height    = rc.bottom - rc.top;
+    int   thickness = 0;
+    int   count     = 0;
+    LONG  room      = 0;
 
 
 
     UNREFERENCED_PARAMETER (labeled);
 
     m_scaler   = scaler;
+    m_outer    = rc;
     m_rc       = rc;
     m_vertical = height > width;
+
+    //  Lying down, the pictures keep out of the label room above and below.
+    if (!m_vertical && m_labelRoomDp > 0.0f)
+    {
+        room         = (LONG) std::lround (scaler.ToPxf (m_labelRoomDp));
+        room         = std::min (room, (LONG) ((height - kMinThicknessPx) / 2));
+        m_rc.top    += room;
+        m_rc.bottom -= room;
+        height       = m_rc.bottom - m_rc.top;
+    }
+
     thickness  = (std::max) (kMinThicknessPx, m_vertical ? width : height);
     m_idealPx  = GetCellLength (thickness, m_aspect, m_vertical);
     count      = GetCellCount (m_vertical ? height : width, m_idealPx);
@@ -289,12 +303,23 @@ void DxuiImageStrip::Paint (
     HRESULT                       hr    = S_OK;
     int                           mark  = (m_source != nullptr) ? m_source->GetMarkedCell() : -1;
     LONG                          bar   = (LONG) std::lround (m_scaler.ToPxf (kMarkerDip));
+    float                         line  = 0.0f;
+    bool                          isOn  = false;
+    std::wstring                  top;
+    std::wstring                  bottom;
+    std::wstring                  lead;
 
 
 
     UNREFERENCED_PARAMETER (hovered);
     UNREFERENCED_PARAMETER (pressed);
     UNREFERENCED_PARAMETER (labeled);
+
+    //  The playhead line takes the place of the marked cell's bar; while it
+    //  is dragged it follows the pointer rather than the source.
+    isOn = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
+    mark = isOn ? -1 : mark;
+    lead = (m_source != nullptr && !m_vertical && m_labelRoomDp > 0.0f) ? m_source->GetLeadingLabel() : std::wstring();
 
     for (int i = 0; i < m_count; i++)
     {
@@ -335,6 +360,16 @@ void DxuiImageStrip::Paint (
                                   (float) (cell.right - cell.left) - inset * 2.0f,
                                   (float) (cell.bottom - cell.top) - inset * 2.0f);
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (!lead.empty())
+    {
+        PaintLabel (painter, text, theme, lead, (float) m_outer.left, (float) m_outer.top, true);
+    }
+
+    if (isOn)
+    {
+        PaintPlayhead (painter, text, theme, m_isDragging ? m_dragOffset : line, top, bottom);
     }
 }
 
@@ -380,6 +415,13 @@ bool DxuiImageStrip::OnClick (
 
 
 
+    //  The release that ended a drag of the playhead line is not a click.
+    if (m_isClickEaten)
+    {
+        m_isClickEaten = false;
+        return true;
+    }
+
     if (index < 0 || m_source == nullptr)
     {
         return false;
@@ -407,6 +449,18 @@ bool DxuiImageStrip::OnMouseMove (
 
 
 
+    if (m_isDragging)
+    {
+        m_dragOffset = GetOffsetAt (x, y);
+
+        if (m_source != nullptr)
+        {
+            m_source->OnPlayheadDragged (m_dragOffset, false);
+        }
+
+        return true;
+    }
+
     if (index != m_hovered)
     {
         m_hovered = index;
@@ -433,6 +487,26 @@ bool DxuiImageStrip::OnLButtonDown (
     int  x,
     int  y)
 {
+    float         line   = 0.0f;
+    std::wstring  top;
+    std::wstring  bottom;
+    bool          isOn   = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
+
+
+
+    m_isClickEaten = false;
+
+    //  A press within reach of the playhead line takes hold of it, and the
+    //  preview gives way to the drag.
+    if (isOn && IsOnPlayhead (m_vertical ? y : x, GetLineAlong (line), m_scaler.ToPxf (kPlayheadGripDip)))
+    {
+        m_isDragging = true;
+        m_dragOffset = line;
+        m_hovered    = -1;
+        HidePreview();
+        return true;
+    }
+
     return HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y) >= 0;
 }
 
@@ -448,6 +522,17 @@ bool DxuiImageStrip::OnLButtonDown (
 
 void DxuiImageStrip::OnMouseLeave()
 {
+    //  A drag taken off the strip ends where it last was.
+    if (m_isDragging)
+    {
+        m_isDragging = false;
+
+        if (m_source != nullptr)
+        {
+            m_source->OnPlayheadDragged (m_dragOffset, true);
+        }
+    }
+
     m_hovered = -1;
     HidePreview();
 }
@@ -701,3 +786,210 @@ void DxuiImageStrip::RenderPreview (
                                scaler->ToPxf ((float) m_previewDip.cy));
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::IsOnPlayhead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::IsOnPlayhead (
+    int    along,
+    float  lineAlong,
+    float  gripPx)
+{
+    return std::fabs ((float) along - lineAlong) <= gripPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetLineAlong
+//
+//  Where an offset in cells lies along the strip, in pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiImageStrip::GetLineAlong (float offset) const
+{
+    float  start = (float) (m_vertical ? m_rc.top : m_rc.left);
+
+
+
+    return start + offset * (float) m_cellPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetOffsetAt
+//
+//  The offset in cells of a point along the strip, within the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiImageStrip::GetOffsetAt (
+    int  x,
+    int  y) const
+{
+    float  start = (float) (m_vertical ? m_rc.top : m_rc.left);
+    float  along = (float) (m_vertical ? y : x);
+
+
+
+    if (m_cellPx <= 0)
+    {
+        return 0.0f;
+    }
+
+    return std::clamp ((along - start) / (float) m_cellPx, 0.0f, (float) m_count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintPlayhead
+//
+//  A line in the accent color across the pictures, and lying down, its
+//  labels in the room above and below them, each kept within the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintPlayhead (
+    IDxuiPainter        & painter,
+    IDxuiTextRenderer   & text,
+    const IDxuiTheme    & theme,
+    float                 offset,
+    const std::wstring  & top,
+    const std::wstring  & bottom)
+{
+    constexpr uint32_t  kOpaque = 0xFF000000u;
+    HRESULT             hr      = S_OK;
+    float               thick   = std::max (1.0f, m_scaler.ToPxf (kPlayheadDip));
+    float               along   = GetLineAlong (offset);
+    float               room    = (float) (m_rc.top - m_outer.top);
+    uint32_t            ink     = theme.Accent() | kOpaque;
+
+
+
+    //  The line is drawn as a picture is, one pixel stretched, since pictures
+    //  draw over shapes and the line must cross them.
+    if (m_vertical)
+    {
+        hr = text.DrawIconBitmap (&ink, 1, 1, (float) m_outer.left, along - thick / 2.0f, (float) (m_outer.right - m_outer.left), thick);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    hr = text.DrawIconBitmap (&ink, 1, 1, along - thick / 2.0f, (float) m_rc.top, thick, (float) (m_rc.bottom - m_rc.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (room <= 0.0f)
+    {
+        return;
+    }
+
+    PaintLabel (painter, text, theme, top,    along, (float) m_outer.top, false);
+    PaintLabel (painter, text, theme, bottom, along, (float) m_rc.bottom, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintLabel
+//
+//  One line of text in the label room starting at top: centered on centerX,
+//  or from the leading edge, on a plate of the background so the line and
+//  the pictures do not show through.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintLabel (
+    IDxuiPainter        & painter,
+    IDxuiTextRenderer   & text,
+    const IDxuiTheme    & theme,
+    const std::wstring  & label,
+    float                 centerX,
+    float                 top,
+    bool                  isLeading)
+{
+    HRESULT  hr     = S_OK;
+    float    size   = m_scaler.ToPxf (kLabelFontDip);
+    float    pad    = m_scaler.ToPxf (kLabelPadDip);
+    float    room   = (float) (m_rc.top - m_outer.top);
+    float    width  = 0.0f;
+    float    height = 0.0f;
+    float    left   = 0.0f;
+
+
+
+    if (label.empty())
+    {
+        return;
+    }
+
+    hr = text.MeasureString (label.c_str(), size, DxuiTheme::kBodyFace, width, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    width += pad * 2.0f;
+    left   = isLeading ? centerX : centerX - width / 2.0f;
+    left   = std::clamp (left, (float) m_outer.left, std::max ((float) m_outer.left, (float) m_outer.right - width));
+
+    painter.FillRect (left, top, width, room, theme.Background());
+
+    hr = text.DrawString (label.c_str(), left, top, width, room, theme.Foreground(), size, DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::OnLButtonUp
+//
+//  Letting go of the playhead line ends its drag where it was let go, and
+//  the click the toolbar may send for the same release is eaten.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::OnLButtonUp (
+    int  x,
+    int  y)
+{
+    if (!m_isDragging)
+    {
+        return;
+    }
+
+    m_isDragging   = false;
+    m_isClickEaten = true;
+    m_dragOffset   = GetOffsetAt (x, y);
+
+    if (m_source != nullptr)
+    {
+        m_source->OnPlayheadDragged (m_dragOffset, true);
+    }
+}
+
+
+
+

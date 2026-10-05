@@ -136,6 +136,7 @@ void CpuManager::Stop()
 //  pause mutex so it cannot slip into the window between the waiter
 //  evaluating its predicate and actually blocking -- a lost wakeup there
 //  would strand the command until something else resumed the thread.
+//  The gate, when one is set, may drop the command first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +145,11 @@ void CpuManager::PostCommand (WORD id, const std::string & payload)
     TimePoint  postedAt = m_now();
 
 
+
+    if (m_gate && !m_gate (id, payload))
+    {
+        return;
+    }
 
     {
         std::lock_guard<std::mutex>  lock (m_cmdMutex);

@@ -97,6 +97,10 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
                                { "S",  std::format ("{:02X}", r.sp) },
                                { "PC", std::format ("{:04X}", r.pc) } };
 
+        //  The CPU cycles since power-on, as other emulators' register views
+        //  show them; a replay or a seek restores the count with the machine.
+        snapshot.registers.push_back ({ std::string (kCyclesRegister), std::format ("{}", session.GetTarget().GetCycleCount()) });
+
         for (int bit = 7; bit >= 0; bit--)
         {
             snapshot.flags += ((r.p >> bit) & 1) ? kFlagNames[7 - bit] : '.';

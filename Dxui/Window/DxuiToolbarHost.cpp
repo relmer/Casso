@@ -171,7 +171,7 @@ POINT DxuiToolbarHost::GetTearOffTopLeft (POINT screenPx, bool vertical, int gri
 
 void DxuiToolbarHost::Layout (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler)
 {
-    int   band   = scaler.ToPx (DxuiToolbar::GetBandDip());
+    int   band   = scaler.ToPx (GetBandDipOfBar());
     int   margin = scaler.ToPx (kMarginDp);
     RECT  bar    = {};
 
@@ -270,7 +270,7 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        if (DxuiToolbarDock::IsPulledOut (at, m_dock.edge, m_area, m_scaler.ToPx (DxuiToolbar::GetBandDip() + kDockReachDp), m_scaler.ToPx (kPullDp)))
+        if (DxuiToolbarDock::IsPulledOut (at, m_dock.edge, m_area, m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp), m_scaler.ToPx (kPullDp)))
         {
             TearOff (at);
             break;
@@ -320,7 +320,7 @@ void DxuiToolbarHost::TearOff (POINT clientPx)
 {
     POINT  screen = clientPx;
     int    grip   = m_scaler.ToPx (DxuiToolbar::kGripDp);
-    int    band   = m_scaler.ToPx (DxuiToolbar::GetBandDip());
+    int    band   = m_scaler.ToPx (GetBandDipOfBar());
 
 
 
@@ -366,7 +366,7 @@ void DxuiToolbarHost::TearOff (POINT clientPx)
 RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx)
 {
     int   length = 0;
-    int   band   = m_scaler.ToPx (DxuiToolbar::GetBandDip());
+    int   band   = m_scaler.ToPx (GetBandDipOfBar());
     RECT  rect   = {};
     RECT  owner  = {};
 
@@ -697,7 +697,7 @@ void DxuiToolbarHost::OnFloatDragEnd (POINT screenPx)
 {
     POINT  client = screenPx;
     RECT   rect   = (m_float != nullptr) ? m_float->GetScreenRect() : RECT {};
-    int    reach  = m_scaler.ToPx (DxuiToolbar::GetBandDip() + kDockReachDp);
+    int    reach  = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
     POINT  grab   = POINT { screenPx.x - rect.left, screenPx.y - rect.top };
 
 
@@ -774,7 +774,7 @@ void DxuiToolbarHost::OnFloatDrag (POINT screenPx)
 {
     POINT  client   = screenPx;
     RECT   rect     = {};
-    int    reach    = m_scaler.ToPx (DxuiToolbar::GetBandDip() + kDockReachDp);
+    int    reach    = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
     bool   vertical = false;
 
 

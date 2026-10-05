@@ -34,4 +34,15 @@ public:
 
     //  The cell to mark as where the source stands, or -1 for none.
     virtual int     GetMarkedCell   ()                       { return -1; }
+
+    //  A line across the strip where the source stands between its cells:
+    //  its offset in cells from the leading edge, and a label for each end of
+    //  it. False for no line, when the marked cell is shown instead.
+    virtual bool    TryGetPlayhead  (float & outOffset, std::wstring & outTop, std::wstring & outBottom) { (void) outOffset; (void) outTop; (void) outBottom; return false; }
+
+    //  The line dragged to an offset in cells; isFinal once it is let go.
+    virtual void    OnPlayheadDragged (float offset, bool isFinal) { (void) offset; (void) isFinal; }
+
+    //  Text for the strip's leading end, such as where it begins, or empty.
+    virtual std::wstring  GetLeadingLabel () { return std::wstring(); }
 };

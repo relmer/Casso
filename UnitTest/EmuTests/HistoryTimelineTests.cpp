@@ -98,7 +98,61 @@ public:
         Assert::AreEqual (-1, HistoryThumbnails::FindPlayheadCell ({},    450, true),  L"no cells, no marker");
     }
 
+    //  The playhead line stands between the points it lies between, a cell
+    //  each, and past the newest keyframe it runs through the live cell to
+    //  the end of history.
+    TEST_METHOD (ThePlayheadLiesBetweenThePointsByCycle)
+    {
+        std::vector<HistoryThumbnailCell>  cells = { MakeCell (0, 0, false), MakeCell (10, 300, false), MakeCell (20, 600, false), MakeCell (30, 900, true) };
+
+
+
+        Assert::AreEqual (1.5f, HistoryThumbnails::GetPlayheadOffset (cells, 450,  1200), L"halfway from the second point");
+        Assert::AreEqual (2.0f, HistoryThumbnails::GetPlayheadOffset (cells, 600,  1200), L"on a point");
+        Assert::AreEqual (0.0f, HistoryThumbnails::GetPlayheadOffset (cells, 0,    1200), L"the oldest");
+        Assert::AreEqual (3.5f, HistoryThumbnails::GetPlayheadOffset (cells, 1050, 1200), L"through the live cell");
+        Assert::AreEqual (4.0f, HistoryThumbnails::GetPlayheadOffset (cells, 1500, 1200), L"no farther than the end");
+        Assert::AreEqual (-1.0f, HistoryThumbnails::GetPlayheadOffset ({}, 450, 1200), L"no cells, no line");
+    }
+
+
+    TEST_METHOD (AnOffsetAlongTheStripIsACycle)
+    {
+        std::vector<HistoryThumbnailCell>  cells = { MakeCell (0, 0, false), MakeCell (10, 300, false), MakeCell (20, 600, false), MakeCell (30, 900, true) };
+
+
+
+        Assert::AreEqual<uint64_t> (450,  HistoryThumbnails::GetCycleAtOffset (cells, 1.5f,  1200));
+        Assert::AreEqual<uint64_t> (1050, HistoryThumbnails::GetCycleAtOffset (cells, 3.5f,  1200));
+        Assert::AreEqual<uint64_t> (0,    HistoryThumbnails::GetCycleAtOffset (cells, -2.0f, 1200), L"before the strip: the oldest");
+        Assert::AreEqual<uint64_t> (1200, HistoryThumbnails::GetCycleAtOffset (cells, 9.0f,  1200), L"past it: the end");
+    }
+
+
+    //  A drag moves in whole seconds of emulated time, never out of history.
+    TEST_METHOD (ADragSnapsToWholeSecondsWithinHistory)
+    {
+        constexpr uint64_t  kSecond = 1000;
+
+        Assert::AreEqual<uint64_t> (5000, HistoryThumbnails::SnapToSecond (5400, kSecond, 1500, 9000), L"down to the nearer second");
+        Assert::AreEqual<uint64_t> (6000, HistoryThumbnails::SnapToSecond (5600, kSecond, 1500, 9000), L"up to the nearer second");
+        Assert::AreEqual<uint64_t> (1500, HistoryThumbnails::SnapToSecond (1200, kSecond, 1500, 9000), L"no earlier than history begins");
+        Assert::AreEqual<uint64_t> (9000, HistoryThumbnails::SnapToSecond (9400, kSecond, 1500, 9000), L"no later than it ends");
+    }
+
 private:
+
+    static HistoryThumbnailCell MakeCell (uint64_t position, uint64_t cycle, bool isLive)
+    {
+        HistoryThumbnailCell  cell = MakeCell (position, isLive);
+
+
+
+        cell.cycle = cycle;
+
+        return cell;
+    }
+
 
     static HistoryThumbnailCell MakeCell (uint64_t position, bool isLive)
     {

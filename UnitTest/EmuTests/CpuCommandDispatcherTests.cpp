@@ -402,6 +402,27 @@ public:
     }
 
 
+    TEST_METHOD (ADivergeDropsTheHistoryAhead)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_DIVERGE, "", target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("DivergeHistory"), target.calls[0]);
+    }
+
+
+    TEST_METHOD (ASeekByCycleHoldsItsCycle)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::SeekCycle, 12345).c_str(), target);
+
+        Assert::AreEqual (std::format ("RunReverseCommand {} 12345", static_cast<int> (ReverseCommand::SeekCycle)), target.calls[0]);
+    }
+
+
 private:
 
     //  A target that writes down what it was asked, one line per call.
@@ -551,6 +572,11 @@ private:
         void     RedrawDebugFrame() override
         {
             calls.push_back ("RedrawDebugFrame");
+        }
+
+        void     DivergeHistory() override
+        {
+            calls.push_back ("DivergeHistory");
         }
     };
 

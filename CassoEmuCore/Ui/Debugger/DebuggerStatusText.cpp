@@ -156,32 +156,7 @@ std::wstring DebuggerStatusText::GetBeginClock (
     const HistoryStatus  & status,
     LPCWSTR                locale)
 {
-    HRESULT         hr        = S_OK;
-    ULARGE_INTEGER  wall      = {};
-    FILETIME        utc       = {};
-    SYSTEMTIME      utcTime   = {};
-    SYSTEMTIME      localTime = {};
-    BOOL            converted = FALSE;
-    std::wstring    clock;
-
-
-
-    CBR (status.beginWallTime != 0);
-
-    wall.QuadPart      = status.beginWallTime;
-    utc.dwLowDateTime  = wall.LowPart;
-    utc.dwHighDateTime = wall.HighPart;
-
-    converted = FileTimeToSystemTime (&utc, &utcTime);
-    CWR (converted);
-
-    converted = SystemTimeToTzSpecificLocalTime (nullptr, &utcTime, &localTime);
-    CWR (converted);
-
-    clock = FormatClock (localTime, locale);
-
-Error:
-    return SUCCEEDED (hr) ? clock : std::wstring();
+    return FormatWallClock (status.beginWallTime, locale);
 }
 
 
@@ -315,6 +290,92 @@ std::wstring DebuggerStatusText::FormatTime (
     }
 
     return std::format (L"{}:{:02}:{:02}", seconds / kSecondsPerHour, (seconds % kSecondsPerHour) / kSecondsPerMin, seconds % kSecondsPerMin);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::FormatWallClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::FormatWallClock (
+    uint64_t  wallTime,
+    LPCWSTR   locale)
+{
+    HRESULT         hr        = S_OK;
+    ULARGE_INTEGER  wall      = {};
+    FILETIME        utc       = {};
+    SYSTEMTIME      utcTime   = {};
+    SYSTEMTIME      localTime = {};
+    BOOL            converted = FALSE;
+    std::wstring    clock;
+
+
+
+    CBR (wallTime != 0);
+
+    wall.QuadPart      = wallTime;
+    utc.dwLowDateTime  = wall.LowPart;
+    utc.dwHighDateTime = wall.HighPart;
+
+    converted = FileTimeToSystemTime (&utc, &utcTime);
+    CWR (converted);
+
+    converted = SystemTimeToTzSpecificLocalTime (nullptr, &utcTime, &localTime);
+    CWR (converted);
+
+    clock = FormatClock (localTime, locale);
+
+Error:
+    return SUCCEEDED (hr) ? clock : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::GetPowerText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::GetPowerText (
+    uint64_t  cycle,
+    LPCWSTR   locale)
+{
+    return std::format (L"(Power + {})", FormatTime (cycle, locale));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::GetReplayCaption
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::GetReplayCaption (
+    uint64_t  wallTime,
+    uint64_t  cycle,
+    LPCWSTR   locale)
+{
+    std::wstring  clock = FormatWallClock (wallTime, locale);
+
+
+
+    if (clock.empty())
+    {
+        return std::format (L" [Replaying @ Power + {}]", FormatTime (cycle, locale));
+    }
+
+    return std::format (L" [Replaying @ {}]", clock);
 }
 
 

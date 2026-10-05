@@ -4,6 +4,7 @@
 
 #include "Core/StateWriter.h"
 #include "Debugger/DebugMemoryView.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Shell/MachineHost.h"
@@ -142,6 +143,7 @@ void ReverseController::Stop()
     m_isLive        = true;
     m_isEditPending = false;
     m_nextDueCycle  = 0;
+    m_isArrivalDue  = false;
 }
 
 
@@ -683,6 +685,35 @@ HRESULT ReverseController::SeekToPosition (
 bool ReverseController::IsInHistory() const
 {
     return m_isRecording && !m_isLive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWallTimeAt
+//
+//  The host's clock when the machine stood at cycle live: the newest
+//  keyframe at or before it, counted on by the emulated time since. 0 with
+//  no keyframe to count from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ReverseController::GetWallTimeAt (uint64_t cycle) const
+{
+    size_t  index   = 0;
+    bool    isFound = m_keyframes.TryFindAtOrBefore (cycle, index);
+
+
+
+    if (!isFound)
+    {
+        return 0;
+    }
+
+    return HistoryStatus::GetWallTimeAt (m_keyframes.GetInfo (index).wallTime, m_keyframes.GetInfo (index).cycle, cycle);
 }
 
 
@@ -1754,8 +1785,8 @@ Error:
 //
 //  A keyframe fell due, or the machine is in history, where every
 //  instruction start comes here. During a replay the keyframes exist
-//  already. A machine stepped from the past by anything but a replay is
-//  running live from there, so the recorded future goes first.
+//  already. A machine run or stepped from the past by anything but a replay
+//  replays the recorded future as it goes, until it reaches the end of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1772,7 +1803,11 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
         return;
     }
 
-    if (!m_isLive || m_isEditPending)
+    if (!m_isLive)
+    {
+        hr = ReplayHere (true);
+    }
+    else if (m_isEditPending)
     {
         m_isEditPending = false;
 
@@ -1783,6 +1818,117 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
         hr = CaptureNow();
     }
 
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplayHere
+//
+//  The machine is about to run the instruction at its position itself,
+//  behind live: the debugger's step or run, or the emulator running on from
+//  a point in history. That is replaying the recorded future, so the inputs
+//  recorded there are applied first, as a replay applies them, and the
+//  instruction then runs with the debug hook attached, so breakpoints stop
+//  it as they stop a live run. A stretch that ends in a gap goes on at the
+//  keyframe after it, and reaching the end of history makes the machine
+//  live there. Sound and the printer stay muted, and the disk files are not
+//  touched, as in any replay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::ReplayHere (bool isStarting)
+{
+    HRESULT       hr       = S_OK;
+    uint64_t      position = m_machine.GetPosition();
+    bool          isFound  = false;
+    Stretch       stretch;
+    ReplayReport  report;
+    ReverseResult cut;
+
+
+
+    if (position >= m_liveEndPosition)
+    {
+        hr = m_replayer.PrepareStepHere (report, false);
+        CHR (hr);
+
+        BecomeLive();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    m_machine.SetOutputMuted (true);
+    m_machine.GetDiskStore().SetReplaying (true);
+
+    // The stretch is looked up only when the machine leaves the one it was in.
+    if (position < m_hereStart || position >= m_hereEnd)
+    {
+        isFound = TryFindStretch (position, stretch);
+        CBRAEx (isFound, E_UNEXPECTED);
+
+        if (position >= stretch.end && stretch.keyframe + 1 < m_keyframes.GetCount())
+        {
+            hr = m_replayer.RestoreKeyframe (stretch.keyframe + 1);
+            CHR (hr);
+
+            position = m_machine.GetPosition();
+            isFound  = TryFindStretch (position, stretch);
+            CBRAEx (isFound, E_UNEXPECTED);
+        }
+
+        m_hereStart = stretch.start;
+        m_hereEnd   = std::max (stretch.end, stretch.start + 1);
+    }
+
+    hr = m_replayer.PrepareStepHere (report, isStarting);
+    CHR (hr);
+
+    if (report.isDiverged)
+    {
+        hr = HandleDivergence (report, cut);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_machine.GetPosition() >= m_liveEndPosition)
+    {
+        BecomeLive();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnArrived
+//
+//  Behind live, after an instruction the machine ran itself: the inputs
+//  recorded where it arrived are applied, so it stands there as a replay
+//  stopping there would leave it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::OnArrived()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_replayer.IsReplaying() || m_isLive)
+    {
+        return;
+    }
+
+    hr = ReplayHere (false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1835,6 +1981,7 @@ HRESULT ReverseController::LeaveLive()
     }
 
     m_nextDueCycle = 0;
+    m_isArrivalDue = true;
 
 Error:
     return hr;
@@ -1890,9 +2037,13 @@ bool ReverseController::IsStopDue (
 
 void ReverseController::BecomeLive()
 {
-    m_isLive = true;
+    m_isLive    = true;
+    m_hereStart = 0;
+    m_hereEnd   = 0;
 
     m_machine.GetDiskStore().SetFlushHold (false);
+    m_machine.GetDiskStore().SetReplaying (false);
+    m_machine.SetOutputMuted (false);
 
     DiscardStepTable();
     DiscardCallerLinks();
@@ -1922,6 +2073,8 @@ void ReverseController::BecomeLive()
 
 void ReverseController::ScheduleCaptures()
 {
+    m_isArrivalDue = m_isRecording && !m_isLive;
+
     if (!m_isLive)
     {
         m_nextDueCycle = 0;

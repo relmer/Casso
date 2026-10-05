@@ -199,6 +199,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Diverge
+//
+//  The user agreed to discard the recorded history after where the machine
+//  stands, so a change can be made there: the future is dropped and the
+//  machine is live where it is. Live, there is nothing to drop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseHost::Diverge()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (!m_controller.IsInHistory(), S_OK);
+
+    hr = m_controller.OnMachineChanged();
+    CHR (hr);
+
+Error:
+    SyncInputGate();
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Move
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,6 +269,10 @@ HRESULT ReverseHost::Move (
 
         case ReverseCommand::Seek:
             hr = m_controller.SeekToPosition (argument, result);
+            break;
+
+        case ReverseCommand::SeekCycle:
+            hr = m_controller.SeekToCycle (argument, result);
             break;
 
         case ReverseCommand::GoLive:
@@ -310,6 +345,8 @@ HistoryStatus ReverseHost::GetStatus() const
 
     status.isRecording  = m_controller.IsRecording();
     status.isBehindLive = m_controller.IsInHistory();
+    status.cycle        = cycle;
+    status.wallTime     = m_controller.GetWallTimeAt (cycle);
 
     if (status.isRecording)
     {

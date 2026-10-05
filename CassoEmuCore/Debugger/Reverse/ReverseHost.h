@@ -43,6 +43,7 @@ public:
     HRESULT  OnFrame        (bool isUserMaximumSpeed);
     void     SyncInputGate  ();
     HRESULT  Execute        (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
+    HRESULT  Diverge        ();
 
     void     SetLiveCallback (std::function<void()> onLive) { m_onLive = std::move (onLive); }
 

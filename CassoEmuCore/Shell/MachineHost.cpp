@@ -785,6 +785,11 @@ Byte MachineHost::FinishStep()
 
     m_position++;
 
+    if (m_historyRecorder != nullptr)
+    {
+        m_historyRecorder->OnInstructionEnd();
+    }
+
     return (cycles);
 }
 

@@ -241,6 +241,15 @@ Reply DebugSession::Execute (const DebugCommand & command)
         return reply;
     }
 
+    //  Behind live the change would discard recorded history: the host asks
+    //  the user first, and runs the line again on a yes.
+    if (IsMachineWrite (command.verb) && m_historyGuard && !m_historyGuard (m_guardLine, m_guardMode))
+    {
+        SetError (reply, CommandStatus::Error, "history kept",
+                  "This change discards the history recorded after this point. Answer the question in the Casso window to make it.");
+        return reply;
+    }
+
     for (IDebugCommandHandler * handler : m_handlers)
     {
         if (handler->TryExecute (*this, command, reply))
@@ -430,12 +439,21 @@ Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
     Reply                       reply;
     std::string                 text          = Trim (line);
     std::optional<CommandMode>  outerLineMode = m_lineMode;
+    bool                        isOuter       = false;
 
 
 
     //  A handler that answers in the line's dialect, as HELP does, reads it
-    //  here; a script line run from inside this one sets its own.
+    //  here; a script line run from inside this one sets its own. The history
+    //  guard hears the outermost line, the one the user typed.
     m_lineMode = mode;
+
+    if (m_guardLine.empty())
+    {
+        m_guardLine = line;
+        m_guardMode = mode;
+        isOuter     = true;
+    }
 
     switch (mode)
     {
@@ -443,6 +461,11 @@ Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
     case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text, mode); break;
     case CommandMode::WinDbg:     reply = ExecuteWinDbgLine    (text); break;
     default:                      reply = ExecuteAppleWinLine  (text); break;
+    }
+
+    if (isOuter)
+    {
+        m_guardLine.clear();
     }
 
     m_lineMode    = outerLineMode;

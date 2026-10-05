@@ -116,6 +116,7 @@ private:
     void  Save             ();
     RECT  GetFloatingRect  (POINT topLeftPx);
     HWND  GetOwnerHwnd     () const;
+    int   GetBandDipOfBar  () const { return (m_toolbar != nullptr) ? m_toolbar->GetBandDp() : DxuiToolbar::GetBandDip(); }
 
     DxuiWindow                          * m_owner     = nullptr;
     DxuiToolbar                         * m_toolbar   = nullptr;

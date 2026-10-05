@@ -39,6 +39,24 @@ TEST_CLASS (CpuManagerCommandTests)
 {
 public:
 
+    //  The command gate sees each command first, and a false drops it before it
+    //  is queued.
+    TEST_METHOD (TheGateDropsTheCommandsItDoesNotAllow)
+    {
+        CpuManager  cpu;
+
+
+
+        cpu.SetCommandGate ([] (WORD id, const std::string &) { return id != IDM_MACHINE_RESET; });
+
+        cpu.PostCommand (IDM_MACHINE_RESET);
+        Assert::IsFalse (cpu.HasPendingCommands(), L"not allowed, not queued");
+
+        cpu.PostCommand (IDM_DISK_EJECT1);
+        Assert::IsTrue (cpu.HasPendingCommands(), L"allowed, queued");
+    }
+
+
     TEST_METHOD (PostCommand_WhilePaused_StillDispatches)
     {
         CpuManager         cpu;

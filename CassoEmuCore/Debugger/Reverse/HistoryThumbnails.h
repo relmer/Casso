@@ -18,13 +18,14 @@ class KeyframeStore;
 //  HistoryThumbnailCell
 //
 //  One point a history strip shows: the keyframe it is drawn from, by its
-//  position, and whether it stands for the live end.
+//  position and cycle, and whether it stands for the live end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct HistoryThumbnailCell
 {
     uint64_t  position = 0;
+    uint64_t  cycle    = 0;
     bool      isLive   = false;
 };
 
@@ -76,6 +77,8 @@ class HistoryThumbnails : public IDxuiImageStripSource
 public:
     using SeekFn  = std::function<void (const HistoryThumbnailCell & cell)>;
     using ClockFn = std::function<uint64_t()>;
+    using LabelFn = std::function<void (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)>;
+    using ScrubFn = std::function<void (uint64_t cycle, bool isFinal)>;
 
     static constexpr int     kRendersPerSecond        = 8;
     static constexpr int     kCatchUpRendersPerSecond = 60;
@@ -94,6 +97,8 @@ public:
     void               SetWorkQueue (IWorkQueue * queue);
     void               SetClock     (ClockFn clock)  { m_clock = std::move (clock); }
     void               SetOnSeek    (SeekFn onSeek)  { m_onSeek = std::move (onSeek); }
+    void               SetLabeler   (LabelFn labeler) { m_labeler = std::move (labeler); }
+    void               SetOnScrub   (ScrubFn onScrub) { m_onScrub = std::move (onScrub); }
 
     //  UI thread.
     void               SetVisible   (bool visible)   { m_isVisible.store (visible, std::memory_order_release); }
@@ -106,10 +111,18 @@ public:
     Image              GetPreviewImage (int index) override;
     void               OnCellClicked   (int index) override;
     int                GetMarkedCell   () override;
+    bool               TryGetPlayhead  (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override;
+    void               OnPlayheadDragged (float offset, bool isFinal) override;
+    std::wstring       GetLeadingLabel () override;
     bool               IsBehindLive    () const      { return m_isBehindLive.load (std::memory_order_acquire); }
 
     //  Machine thread.
     void               SetPlayhead  (uint64_t position, bool isBehindLive);
+
+    //  Where the machine stands in cycles and by the host's clock, where
+    //  history ends in cycles, and where and when it begins.
+    void               SetPlayheadTime (uint64_t cycle, uint64_t wallTime, uint64_t endCycle);
+    void               SetBegin        (uint64_t cycle, uint64_t wallTime);
     HRESULT            Service      (KeyframeStore & keyframes);
     void               Clear        ();
     void               WaitForWork  ();
@@ -129,6 +142,14 @@ public:
     //  calls the state it is in.
     static int         FindPlayheadCell (const std::vector<HistoryThumbnailCell> & cells, uint64_t position, bool isBehindLive);
     static PCWSTR      GetModeText      (bool isBehindLive);
+
+    //  Where the playhead line stands along the strip, in cells from the
+    //  leading edge, for the machine at cycle with history ending at endCycle,
+    //  or -1 with no cells; the cycle at such an offset; and a cycle moved to
+    //  the nearest whole second of emulated time, within first and last.
+    static float       GetPlayheadOffset (const std::vector<HistoryThumbnailCell> & cells, uint64_t cycle, uint64_t endCycle);
+    static uint64_t    GetCycleAtOffset  (const std::vector<HistoryThumbnailCell> & cells, float offset, uint64_t endCycle);
+    static uint64_t    SnapToSecond      (uint64_t cycle, uint64_t cyclesPerSecond, uint64_t first, uint64_t last);
 
     //  A picture shrunk to `width` by `height`, each pixel the average of
     //  the ones it covers.
@@ -174,6 +195,13 @@ private:
     std::atomic<uint64_t>             m_renderCount  = 0;
     std::atomic<uint64_t>             m_playhead     = 0;
     std::atomic<bool>                 m_isBehindLive = false;
+    std::atomic<uint64_t>             m_cycle        = 0;
+    std::atomic<uint64_t>             m_wallTime     = 0;
+    std::atomic<uint64_t>             m_endCycle     = 0;
+    std::atomic<uint64_t>             m_beginCycle   = 0;
+    std::atomic<uint64_t>             m_beginWall    = 0;
+    LabelFn                           m_labeler;
+    ScrubFn                           m_onScrub;
     std::atomic<bool>                 m_isCatchingUp = false;
 
     //  Shared between the threads, under the lock.

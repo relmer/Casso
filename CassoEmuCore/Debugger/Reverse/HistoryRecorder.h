@@ -51,11 +51,23 @@ public:
         }
     }
 
+    //  Behind live, after each instruction the machine runs itself, so the
+    //  inputs recorded where it arrives are applied there, as a replay does.
+    __forceinline void  OnInstructionEnd()
+    {
+        if (m_isArrivalDue)
+        {
+            OnArrived();
+        }
+    }
+
     virtual void  OnMediaChanged  (MachineHost & machine) = 0;
     virtual void  OnMachineEdited (MachineHost & machine) = 0;
 
 protected:
     virtual void        OnCaptureDue (uint64_t cycle) = 0;
+    virtual void        OnArrived    () {}
 
     uint64_t  m_nextDueCycle = 0;     // the first cycle at which OnCaptureDue is called
+    bool      m_isArrivalDue = false; // whether OnArrived is called after each instruction
 };

@@ -2,7 +2,9 @@
 
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 #include "Debugger/Reverse/HistoryTimelineClick.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Video/MachineFrameRenderer.h"
 
@@ -14,19 +16,24 @@
 //
 //  DebuggerWindow::ConfigureTimeline
 //
-//  The history timeline is a toolbar with two entries, Live or Replay and
-//  the strip of thumbnails, and a grab handle; it docks and floats through a
-//  Dxui toolbar host of its own, as the command bar does, and keeps its place
-//  in the debugger's preferences. The pictures come from the host, which draws them
-//  from its recorded history.
+//  The history timeline is a toolbar with two entries, the strip of
+//  thumbnails and Live at its right, where live time is, and a grab handle;
+//  it docks and floats through a Dxui toolbar host of its own, as the
+//  command bar does, and keeps its place in the debugger's preferences. The
+//  pictures come from the host, which draws them from its recorded history.
+//  The band is taller than a button by room above and below the pictures,
+//  so a replay's playhead line can show the host's time above it and the
+//  time since power-on below it, and the left end where history begins.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ConfigureTimeline()
 {
-    constexpr int  kTimelineId     = 1;
-    constexpr int  kTimelineModeId = 2;
-    constexpr int  kStripGroup     = 1;
+    constexpr int    kTimelineId     = 1;
+    constexpr int    kTimelineModeId = 2;
+    constexpr int    kStripGroup     = 1;
+    constexpr float  kLabelRoomDp    = 16.0f;
+    constexpr int    kLabelRooms     = 2;       // above the pictures and below them
 
 
 
@@ -46,13 +53,12 @@ void DebuggerWindow::ConfigureTimeline()
     entry.group         = kStripGroup;
     entry.neverOverflow = true;
 
-    //  Live or Replay, read every paint; replaying, it is checked and a click
-    //  goes live.
+    //  Live, read every paint: checked, in the accent, while the machine is
+    //  live; replaying, a click goes live.
     m_timelineModeCommand            = std::make_shared<DxuiCommand>();
     m_timelineModeCommand->id        = kTimelineModeId;
     m_timelineModeCommand->label     = HistoryThumbnails::GetModeText (false);
-    m_timelineModeCommand->labelText = [this] { return std::wstring (HistoryThumbnails::GetModeText (IsTimelineBehindLive())); };
-    m_timelineModeCommand->isChecked = [this] { return IsTimelineBehindLive(); };
+    m_timelineModeCommand->isChecked = [this] { return !IsTimelineBehindLive(); };
     m_timelineModeCommand->tipText   = [this] { return std::wstring (IsTimelineBehindLive() ? L"Replaying history; click to go live" : L"Running live"); };
     m_timelineModeCommand->dispatch  = [this] { OnTimelineModeClicked(); };
 
@@ -63,15 +69,31 @@ void DebuggerWindow::ConfigureTimeline()
     m_timelineStrip.SetSource    (thumbnails);
     m_timelineStrip.SetAspect    ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
     m_timelineStrip.SetPopupHost (GetPopupHost());
+    m_timelineStrip.SetLabelRoomDp (kLabelRoomDp);
 
     m_timelineBar->SetTextRenderer (GetTextRenderer());
     m_timelineBar->SetPopupHost    (GetPopupHost());
     m_timelineBar->SetGrabHandle   (true);
-    m_timelineBar->SetEntries      ({ modeEntry, entry });
+    m_timelineBar->SetBandDp       (DxuiToolbar::GetBandDip() + (int) kLabelRoomDp * kLabelRooms);
+    m_timelineBar->SetEntries      ({ entry, modeEntry });
 
     if (thumbnails != nullptr)
     {
-        thumbnails->SetOnSeek ([this] (const HistoryThumbnailCell & cell) { OnTimelineSeek (cell); });
+        thumbnails->SetOnSeek  ([this] (const HistoryThumbnailCell & cell) { OnTimelineSeek (cell); });
+        thumbnails->SetOnScrub ([this] (uint64_t cycle, bool isFinal) { OnTimelineScrub (cycle, isFinal); });
+
+        //  The host's time of day above, or the time since power-on alone
+        //  when the host's time is unknown, and the time since power-on below.
+        thumbnails->SetLabeler ([] (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)
+        {
+            outTop    = DebuggerStatusText::FormatWallClock (wallTime, LOCALE_NAME_USER_DEFAULT);
+            outBottom = DebuggerStatusText::GetPowerText (cycle, LOCALE_NAME_USER_DEFAULT);
+
+            if (outTop.empty())
+            {
+                outTop.swap (outBottom);
+            }
+        });
     }
 
     m_timelineHost.Attach (this, m_timelineBar, nullptr, m_hInstance);
@@ -127,7 +149,7 @@ void DebuggerWindow::PlaceTimeline (RECT & area)
     const DxuiToolbarDock  & dock     = m_timelineHost.GetDock();
     bool                     floating = m_timelineHost.IsFloating();
     bool                     carried  = m_timelineHost.IsDragging();
-    int                      band     = m_scaler.ToPx (DxuiToolbar::GetBandDip());
+    int                      band     = m_scaler.ToPx ((m_timelineBar != nullptr) ? m_timelineBar->GetBandDp() : DxuiToolbar::GetBandDip());
     int                      edge     = dock.IsVertical() ? area.bottom - area.top : area.right - area.left;
 
 
@@ -258,6 +280,101 @@ void DebuggerWindow::SyncTimeline()
         m_pendingSeek.reset();
 
         OnTimelineSeek (cell);
+    }
+
+    SyncTimelineScrub();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnTimelineScrub
+//
+//  The playhead line dragged to a cycle, in whole seconds of emulated time.
+//  A drag of a running machine stops it first; each second the line crosses
+//  is sought once the machine is stopped, and when the line is let go, a
+//  machine that was running runs on from there, replaying the recorded
+//  future, and one that was stopped stays stopped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OnTimelineScrub (
+    uint64_t  cycle,
+    bool      isFinal)
+{
+    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
+
+
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    if (!m_isScrubbing)
+    {
+        m_isScrubbing           = true;
+        m_isScrubEnded          = false;
+        m_wasRunningBeforeScrub = !paused;
+
+        if (!paused)
+        {
+            m_host->PauseDebugger();
+        }
+    }
+
+    m_pendingScrub = HistoryThumbnails::SnapToSecond (cycle, (uint64_t) HistoryStatus::kCyclesPerSecond, 0, UINT64_MAX);
+    m_isScrubEnded = m_isScrubEnded || isFinal;
+
+    SyncTimelineScrub();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SyncTimelineScrub
+//
+//  Once the machine is stopped: the second the line was last dragged to,
+//  when it moved, and once let go, the run that was going on before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SyncTimelineScrub()
+{
+    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
+
+
+
+    if (!m_isScrubbing || !paused || m_host == nullptr)
+    {
+        return;
+    }
+
+    if (m_pendingScrub.has_value() && *m_pendingScrub != m_lastScrubCycle)
+    {
+        m_lastScrubCycle = *m_pendingScrub;
+        m_host->SeekHistoryCycle (m_lastScrubCycle);
+    }
+
+    m_pendingScrub.reset();
+
+    if (!m_isScrubEnded)
+    {
+        return;
+    }
+
+    m_isScrubbing    = false;
+    m_lastScrubCycle = UINT64_MAX;
+
+    if (m_wasRunningBeforeScrub)
+    {
+        RunCommandBarEntry (DebuggerCommands::kRun);
     }
 }
 

@@ -655,6 +655,11 @@ int DxuiToolbar::GetSpacingDp (Spacing which) const
 
 int DxuiToolbar::GetBandDp() const
 {
+    if (m_bandDp > 0)
+    {
+        return m_bandDp;
+    }
+
     return m_compact ? kCompactBandDp : kBandDp;
 }
 
@@ -1003,6 +1008,11 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
     m_labeledCount = labeled;
     ShrinkToFit (clientWidthPx);
+
+    if (m_bandDp > 0)
+    {
+        return m_bandDp;
+    }
 
     return m_compact ? kCompactBandDp : kBandDp;
 }
@@ -1690,6 +1700,14 @@ bool DxuiToolbar::OnToolbarLButtonUp (int x, int y)
 
 
     ForwardToFlyout (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, handled);
+
+    for (Slot & slot : m_slots)
+    {
+        if (slot.entry.custom != nullptr)
+        {
+            slot.entry.custom->OnLButtonUp (x, y);
+        }
+    }
 
     for (Slot & slot : m_slots)
     {

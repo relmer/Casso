@@ -10,16 +10,17 @@
 
 
 //  The words of an IDM_DEBUG_REVERSE payload. Seek is followed by its
-//  position in decimal.
+//  position in decimal, and SeekCycle by its cycle.
 static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
 {
-    { ReverseCommand::StepBack,        "back"      },
-    { ReverseCommand::StepBackOver,    "back-over" },
-    { ReverseCommand::StepBackOut,     "back-out"  },
-    { ReverseCommand::ReverseContinue, "continue"  },
-    { ReverseCommand::StepForward,     "forward"   },
-    { ReverseCommand::Seek,            "seek"      },
-    { ReverseCommand::GoLive,          "live"      },
+    { ReverseCommand::StepBack,        "back"       },
+    { ReverseCommand::StepBackOver,    "back-over"  },
+    { ReverseCommand::StepBackOut,     "back-out"   },
+    { ReverseCommand::ReverseContinue, "continue"   },
+    { ReverseCommand::StepForward,     "forward"    },
+    { ReverseCommand::Seek,            "seek"       },
+    { ReverseCommand::SeekCycle,       "seek-cycle" },
+    { ReverseCommand::GoLive,          "live"       },
 };
 
 
@@ -174,6 +175,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
         case IDM_DEBUG_REVERSE_OPTIONS:
             DispatchReverseOptions (cmd.payload, target);
+            break;
+
+        case IDM_DEBUG_DIVERGE:
+            target.DivergeHistory();
             break;
 
         case IDM_FILE_SAVE_STATE:
@@ -589,7 +594,7 @@ std::string CpuCommandDispatcher::FormatReversePayload (
         }
     }
 
-    if (command == ReverseCommand::Seek)
+    if (command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle)
     {
         payload += std::format (" {}", argument);
     }
@@ -605,8 +610,8 @@ std::string CpuCommandDispatcher::FormatReversePayload (
 //
 //  TryParseReversePayload
 //
-//  A word from the table, and for seek a decimal position after one space;
-//  anything else asks for nothing.
+//  A word from the table, and for a seek a decimal position or cycle after
+//  one space; anything else asks for nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -640,7 +645,7 @@ bool CpuCommandDispatcher::TryParseReversePayload (
         return false;
     }
 
-    isSeek = command == ReverseCommand::Seek;
+    isSeek = command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle;
 
     if (isSeek != !rest.empty())
     {

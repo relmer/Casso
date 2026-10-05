@@ -479,9 +479,11 @@ void HistoryThumbnails::PlanCells (
         }
 
         outCells[(size_t) i].position = keyframes.GetInfo (index).position;
+        outCells[(size_t) i].cycle    = keyframes.GetInfo (index).cycle;
     }
 
     outCells.back().position = newest;
+    outCells.back().cycle    = keyframes.GetInfo (held - 1).cycle;
     outCells.back().isLive   = true;
 }
 
@@ -999,6 +1001,151 @@ void HistoryThumbnails::SetPlayhead (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryThumbnails::SetPlayheadTime
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::SetPlayheadTime (
+    uint64_t  cycle,
+    uint64_t  wallTime,
+    uint64_t  endCycle)
+{
+    m_cycle.store    (cycle,    std::memory_order_release);
+    m_wallTime.store (wallTime, std::memory_order_release);
+    m_endCycle.store (endCycle, std::memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::SetBegin
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::SetBegin (
+    uint64_t  cycle,
+    uint64_t  wallTime)
+{
+    m_beginCycle.store (cycle,    std::memory_order_release);
+    m_beginWall.store  (wallTime, std::memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::TryGetPlayhead
+//
+//  Behind live, the line stands where the machine does among the points,
+//  labeled by the labeler. Live, there is none and the live end is marked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::TryGetPlayhead (
+    float         & outOffset,
+    std::wstring  & outTop,
+    std::wstring  & outBottom)
+{
+    uint64_t  cycle = m_cycle.load (std::memory_order_acquire);
+
+
+
+    if (!IsBehindLive())
+    {
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        outOffset = GetPlayheadOffset (m_cells, cycle, m_endCycle.load (std::memory_order_acquire));
+    }
+
+    if (outOffset < 0.0f)
+    {
+        return false;
+    }
+
+    outTop.clear();
+    outBottom.clear();
+
+    if (m_labeler)
+    {
+        m_labeler (cycle, m_wallTime.load (std::memory_order_acquire), outTop, outBottom);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::OnPlayheadDragged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::OnPlayheadDragged (
+    float  offset,
+    bool   isFinal)
+{
+    uint64_t  cycle = 0;
+
+
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        cycle = GetCycleAtOffset (m_cells, offset, m_endCycle.load (std::memory_order_acquire));
+    }
+
+    if (m_onScrub)
+    {
+        m_onScrub (cycle, isFinal);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetLeadingLabel
+//
+//  Where history begins, by the labeler's top line, which moves on as the
+//  oldest history is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HistoryThumbnails::GetLeadingLabel()
+{
+    std::wstring  top;
+    std::wstring  bottom;
+
+
+
+    if (m_labeler)
+    {
+        m_labeler (m_beginCycle.load (std::memory_order_acquire), m_beginWall.load (std::memory_order_acquire), top, bottom);
+    }
+
+    return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryThumbnails::GetMarkedCell
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1055,6 +1202,133 @@ int HistoryThumbnails::FindPlayheadCell (
     }
 
     return marked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetPlayheadOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float HistoryThumbnails::GetPlayheadOffset (
+    const std::vector<HistoryThumbnailCell>  & cells,
+    uint64_t                                   cycle,
+    uint64_t                                   endCycle)
+{
+    size_t    count = cells.size();
+    size_t    i     = 0;
+    uint64_t  from  = 0;
+    uint64_t  to    = 0;
+
+
+
+    if (count == 0)
+    {
+        return -1.0f;
+    }
+
+    if (cycle <= cells[0].cycle)
+    {
+        return 0.0f;
+    }
+
+    while (i + 1 < count && cells[i + 1].cycle <= cycle)
+    {
+        i++;
+    }
+
+    from = cells[i].cycle;
+    to   = (i + 1 < count) ? cells[i + 1].cycle : endCycle;
+
+    if (to <= from)
+    {
+        return (float) i;
+    }
+
+    return (float) i + (float) (std::min (cycle, to) - from) / (float) (to - from);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetCycleAtOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t HistoryThumbnails::GetCycleAtOffset (
+    const std::vector<HistoryThumbnailCell>  & cells,
+    float                                      offset,
+    uint64_t                                   endCycle)
+{
+    size_t    count = cells.size();
+    size_t    i     = 0;
+    float     part  = 0.0f;
+    uint64_t  from  = 0;
+    uint64_t  to    = 0;
+
+
+
+    if (count == 0)
+    {
+        return 0;
+    }
+
+    if (offset <= 0.0f)
+    {
+        return cells[0].cycle;
+    }
+
+    if (offset >= (float) count)
+    {
+        return std::max (endCycle, cells[count - 1].cycle);
+    }
+
+    i    = (size_t) offset;
+    part = offset - (float) i;
+    from = cells[i].cycle;
+    to   = (i + 1 < count) ? cells[i + 1].cycle : endCycle;
+
+    if (to <= from)
+    {
+        return from;
+    }
+
+    return from + (uint64_t) std::llround ((double) part * (double) (to - from));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::SnapToSecond
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t HistoryThumbnails::SnapToSecond (
+    uint64_t  cycle,
+    uint64_t  cyclesPerSecond,
+    uint64_t  first,
+    uint64_t  last)
+{
+    uint64_t  snapped = cycle;
+
+
+
+    if (cyclesPerSecond > 0)
+    {
+        snapped = (cycle + cyclesPerSecond / 2) / cyclesPerSecond * cyclesPerSecond;
+    }
+
+    return std::clamp (snapped, first, std::max (first, last));
 }
 
 

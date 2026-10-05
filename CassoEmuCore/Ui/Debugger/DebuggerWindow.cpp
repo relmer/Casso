@@ -6227,7 +6227,11 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ L"Show in code", [this] { ShowCode (std::nullopt); } });
         }
 
-        AddShowInMemory (Widen (name), name, items);
+        if (name != DebuggerViewState::kCyclesRegister)
+        {
+            AddShowInMemory (Widen (name), name, items);
+        }
+
         items.push_back ({ L"Copy",           copy });
 
         if (m_registerHistory.CanUndo())
@@ -6821,7 +6825,7 @@ void DebuggerWindow::ApplySnapshot()
         DxuiListView::Cell  value = { Widen (reg.value) };
         DxuiListView::Cell  flags = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
 
-        if (m_stopChanges.IsChanged ("R:" + reg.name))
+        if (reg.name != DebuggerViewState::kCyclesRegister && m_stopChanges.IsChanged ("R:" + reg.name))
         {
             value.argb = GetChangedArgb();
             flags.argb = GetChangedArgb();
@@ -7868,6 +7872,11 @@ void DebuggerWindow::EditRegister (int row, bool onFlags)
 
     name  = m_snapshot->registers[(size_t) row].name;
     value = GetRegisterByte (name);
+
+    if (name == DebuggerViewState::kCyclesRegister)
+    {
+        return;
+    }
 
     if (name == "PC")
     {

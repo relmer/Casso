@@ -2311,6 +2311,8 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     std::shared_lock<std::shared_mutex>  gate;
     bool                                 hasKeyboard = false;
     bool                                 isGateOpen  = false;
+    bool                                 isConfirmed = false;
+    DivergenceVerdict                    verdict     = DivergenceVerdict::Proceed;
 
 
 
@@ -2326,6 +2328,40 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // Each press and release is tracked either way, so a key let go of behind
     // live is released once the machine is live.
     isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+
+    // A key into the machine while it replays history would change it: the
+    // first press asks whether to discard the history ahead, and the keys
+    // that follow wait on the answer, then for the machine to be live.
+    verdict = m_divergenceGate.JudgeKey (!isGateOpen, ev);
+
+    if (verdict == DivergenceVerdict::Hold)
+    {
+        m_divergenceGate.Hold (ev);
+        return true;
+    }
+
+    if (verdict == DivergenceVerdict::Ask)
+    {
+        m_divergenceGate.Hold (ev);
+        lifetime.unlock();
+
+        isConfirmed = AskToDiverge();
+        m_divergenceGate.Answer (isConfirmed);
+
+        if (isConfirmed)
+        {
+            m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+        }
+
+        // Live already, the replay having caught up while the question was
+        // open: no return to live will hand the keys back, so hand them now.
+        if (isConfirmed && !IsBehindLiveForUi())
+        {
+            PostMessageW (m_hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+        }
+
+        return true;
+    }
 
     if (ev.kind == DxuiKeyEventKind::Down && !ev.repeat)
     {

@@ -712,6 +712,8 @@ Error:
 
 void EmulatorShell::RunDebugCommand (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
 {
+    m_debugCommandClient = clientId;
+
     if (m_debugCommandHandler)
     {
         m_debugCommandHandler (clientId, line, mode);
@@ -873,6 +875,11 @@ HRESULT EmulatorShell::OpenDebugger()
 
     //  Loading replaces the machine, so both go to the CPU thread as the
     //  File menu's commands do, and run there between instructions.
+    m_debugger->GetSession().SetHistoryGuard ([this] (const std::string & line, CommandMode mode)
+    {
+        return GuardHistoryEdit (line, mode);
+    });
+
     m_debugger->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
     {
         PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
@@ -1141,6 +1148,7 @@ void EmulatorShell::ExecuteCpuSlices()
     Byte      pasted          = 0;
     bool      isPauseLanding  = false;
     bool      hasRunEnded     = false;
+    bool      isBehindLive    = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
 
 
 
@@ -1154,7 +1162,12 @@ void EmulatorShell::ExecuteCpuSlices()
 
     // Real time, not the cycle budget below: the keyboard's repeat cadence is
     // the one thing in this frame that must not follow the emulated clock.
-    TickKeyboardAutoRepeat();
+    // Behind live the keyboard holds a recorded position, whose repeats the
+    // replay applies from the journal.
+    if (!isBehindLive)
+    {
+        TickKeyboardAutoRepeat();
+    }
 
     audioActive = (m_machine.GetRefs().speaker != nullptr && m_wasapiAudio.IsInitialized());
 
@@ -1205,7 +1218,7 @@ void EmulatorShell::ExecuteCpuSlices()
 
         // Feed the next paste character if available; the slice budget is
         // the guest-time currency the settle pacing is measured in.
-        pasted = m_clipboardManager->DrainPasteBuffer (sliceTarget);
+        pasted = isBehindLive ? 0 : m_clipboardManager->DrainPasteBuffer (sliceTarget);
 
         if (pasted != 0)
         {

@@ -49,6 +49,18 @@ public:
     //  The length the entry asks for, in pixels; 0 asks for kDefaultLengthDp.
     void  SetPreferredLengthPx (int lengthPx)                { m_preferredPx = lengthPx; }
 
+    //  Room kept above and below the pictures of a strip lying down, for the
+    //  labels of the source's playhead line and its leading end.
+    void  SetLabelRoomDp   (float roomDp)                   { m_labelRoomDp = roomDp; }
+
+    bool  IsDraggingPlayhead () const { return m_isDragging; }
+
+    //  How far either side of the playhead line a press takes hold of it.
+    static constexpr float  kPlayheadGripDip = 9.0f;
+
+    //  Whether a point along the strip is close enough to the line to grab it.
+    static bool  IsOnPlayhead  (int along, float lineAlong, float gripPx);
+
     int   GetCellCount     () const { return m_count; }
     int   GetHoveredCell   () const { return m_hovered; }
     bool  IsPreviewShown   () const { return m_preview != nullptr; }
@@ -79,17 +91,25 @@ public:
     bool             OnMouseMove   (int x, int y) override;
     bool             OnLButtonDown (int x, int y) override;
     void             OnMouseLeave  () override;
+    void             OnLButtonUp   (int x, int y) override;
 
 private:
     static constexpr float  kDefaultAspect  = 560.0f / 384.0f;
     static constexpr float  kHoverEdgeDip   = 2.0f;
     static constexpr float  kMarkerDip      = 4.0f;
     static constexpr int    kMinThicknessPx = 1;
+    static constexpr float  kPlayheadDip    = 3.0f;
+    static constexpr float  kLabelFontDip   = 11.0f;
+    static constexpr float  kLabelPadDip    = 3.0f;
 
     void  ShowPreview      ();
     void  MovePreview      ();
     RECT  GetPreviewAnchor () const;
     void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
+    void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
+    void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, bool isLeading);
+    float GetLineAlong     (float offset) const;
+    float GetOffsetAt      (int x, int y) const;
 
     IDxuiImageStripSource           * m_source      = nullptr;
     DxuiHwndSource                  * m_popupHost   = nullptr;
@@ -100,11 +120,16 @@ private:
     float                             m_aspect      = kDefaultAspect;
     int                               m_preferredPx = 0;
 
-    DxuiDpiScaler                     m_scaler;
-    RECT                              m_rc          = {};
-    bool                              m_vertical    = false;
-    int                               m_cellPx      = 0;
-    int                               m_idealPx     = 0;
-    int                               m_count       = 0;
-    int                               m_hovered     = -1;
+    DxuiDpiScaler  m_scaler;
+    RECT           m_rc           = {};   // the pictures
+    RECT           m_outer        = {};   // the whole entry, labels included
+    float          m_labelRoomDp  = 0.0f;
+    float          m_dragOffset   = 0.0f;
+    bool           m_isDragging   = false;
+    bool           m_isClickEaten = false;
+    bool           m_vertical     = false;
+    int            m_cellPx       = 0;
+    int            m_idealPx      = 0;
+    int            m_count        = 0;
+    int            m_hovered      = -1;
 };

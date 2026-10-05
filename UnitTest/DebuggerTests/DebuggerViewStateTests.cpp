@@ -90,6 +90,26 @@ namespace DebuggerViewStateTests
     {
     public:
 
+        //  The registers pane ends with the machine's CPU cycle count since
+        //  power-on, which the registers views of other emulators show too.
+        TEST_METHOD (TheRegisterPaneShowsTheCycleCount)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            uint64_t              cycles = 0;
+
+
+
+            rig.machine.RunCycles (1234);
+
+            cycles   = rig.machine.GetCpu()->GetTotalCycles();
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse  (snapshot.registers.empty(), L"the register pane is filled");
+            Assert::AreEqual (std::string ("Cycles"),     snapshot.registers.back().name);
+            Assert::AreEqual (std::format ("{}", cycles), snapshot.registers.back().value);
+        }
+
         TEST_METHOD (TheCodePaneShowsThePcWithWhatLedToItAbove)
         {
             MachineRig            rig;
@@ -1385,7 +1405,7 @@ namespace DebuggerViewStateTests
 
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::AreEqual ((size_t) 6, snapshot.registers.size());
+            Assert::AreEqual ((size_t) 7, snapshot.registers.size(), L"six registers and the cycle count");
             Assert::AreEqual (std::string ("A"),  snapshot.registers[0].name);
             Assert::AreEqual (std::string ("41"), snapshot.registers[0].value);
             Assert::AreEqual (std::string ("PC"), snapshot.registers[5].name);
@@ -1723,7 +1743,7 @@ namespace DebuggerViewStateTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the assembly is still open");
-            Assert::AreEqual ((size_t) 6, snapshot.registers.size());
+            Assert::AreEqual ((size_t) 7, snapshot.registers.size(), L"six registers and the cycle count");
             Assert::IsFalse  (snapshot.memory.empty());
             Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300), L"nothing was assembled");
 

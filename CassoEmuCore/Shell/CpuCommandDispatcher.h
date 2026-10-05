@@ -86,10 +86,14 @@ public:
     //  Scrolls a code view by instructions: down when positive.
     virtual void     ScrollDebugCode          (int lines, int view)                             = 0;
 
-    //  A reverse execution command; argument is Seek's position.
+    //  A reverse execution command; argument is Seek's position or SeekCycle's cycle.
     virtual void     RunReverseCommand        (ReverseCommand command, uint64_t argument)       = 0;
     //  Tools > Options' recording switch and memory budget, applied at once.
     virtual void     ApplyReverseOptions      (bool isRecording, int budgetMb)                  { (void) isRecording; (void) budgetMb; }
+
+    //  Behind live, the user agreed to discard the history recorded after where
+    //  the machine stands, ahead of the change that asked.
+    virtual void     DivergeHistory           ()                                                { }
 
     //  Saves the whole machine to a state file, or loads one.
     virtual void     SaveMachineState         (const std::filesystem::path & path)              = 0;

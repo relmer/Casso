@@ -72,8 +72,9 @@ struct ReverseResult
 //  Running backward leaves the recorded future in place: seeking forward
 //  replays it, and reaching its end makes the machine live again. A change
 //  made in the past (memory, registers, a disk) must be reported through
-//  OnMachineChanged, which drops the future and keyframes the changed state;
-//  running the machine from the past without a seek does the same. A disk
+//  OnMachineChanged, which drops the future and keyframes the changed state.
+//  Running the machine from the past without a seek replays the recorded
+//  future instead, inputs and all, until it reaches the end of it. A disk
 //  change reaches it through OnMediaChanged, and a debugger edit through
 //  OnMachineEdited: in the past at once, and while live once, before the next
 //  instruction or reverse command, however many edits came first.
@@ -142,6 +143,7 @@ public:
     uint64_t  GetOldestPosition   () const;
     uint64_t  GetLiveEndPosition  () const;
     uint64_t  GetLiveEndCycle     () const { return m_liveEndCycle; }
+    uint64_t  GetWallTimeAt       (uint64_t cycle) const;
     size_t    GetTableBuildCount  () const { return m_tableBuilds; }
     bool      HasStepTable        () const { return m_hasSteps; }
 
@@ -180,6 +182,8 @@ private:
     HRESULT   CaptureNow         ();
     HRESULT   CaptureBoundary    (bool isAfterGap, uint64_t gapStart);
     void      OnCaptureDue       (uint64_t cycle) override;
+    void      OnArrived          () override;
+    HRESULT   ReplayHere         (bool isStarting);
     HRESULT   LeaveLive          ();
     bool      IsStopDue          (uint64_t from, uint64_t reached);
     void      BecomeLive         ();
@@ -221,4 +225,6 @@ private:
     uint64_t                   m_pauseStart        = 0;      // while paused and live: where recording stopped
     uint64_t                   m_liveEndPosition   = 0;
     uint64_t                   m_liveEndCycle      = 0;
+    uint64_t                   m_hereStart         = 0;      // the stretch the machine last ran an instruction in behind live
+    uint64_t                   m_hereEnd           = 0;
 };

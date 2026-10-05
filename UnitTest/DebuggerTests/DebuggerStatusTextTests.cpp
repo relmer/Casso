@@ -68,6 +68,44 @@ public:
     }
 
 
+    //  The timeline's line gives the emulated time below it as the history
+    //  text gives where history begins.
+    TEST_METHOD (PowerText_IsTheEmulatedTimeSincePowerOnInParentheses)
+    {
+        uint64_t  sixAndAHalf = (uint64_t) (DebuggerStatusText::kCyclesPerSecond * 6.5) + 1;
+
+        Assert::AreEqual (std::wstring (L"(Power + 6.5 s)"),  DebuggerStatusText::GetPowerText (sixAndAHalf, L"en-US"));
+        Assert::AreEqual (std::wstring (L"(Power + 0.0 s)"),  DebuggerStatusText::GetPowerText (0, L"en-US"));
+    }
+
+
+    //  Replaying, the caption gives where the machine stands by the host's
+    //  clock, or by the emulated time when no host time is known.
+    TEST_METHOD (ReplayCaption_GivesTheClockOrTheEmulatedTime)
+    {
+        uint64_t      sixAndAHalf = (uint64_t) (DebuggerStatusText::kCyclesPerSecond * 6.5) + 1;
+        uint64_t      wall        = 133000000000000000ull;
+        std::wstring  clock       = DebuggerStatusText::FormatWallClock (wall, L"en-US");
+
+        Assert::AreEqual (std::wstring (L" [Replaying @ Power + 6.5 s]"), DebuggerStatusText::GetReplayCaption (0, sixAndAHalf, L"en-US"));
+        Assert::IsFalse  (clock.empty(), L"the clock is formatted");
+        Assert::AreEqual (L" [Replaying @ " + clock + L"]", DebuggerStatusText::GetReplayCaption (wall, sixAndAHalf, L"en-US"));
+    }
+
+
+    //  The host time at a cycle is the newest keyframe's time at or before
+    //  it, moved on by the emulated time since: 100 ns ticks to the second.
+    TEST_METHOD (WallTimeAtACycleCountsOnFromTheKeyframe)
+    {
+        constexpr uint64_t  kTicksPerSecond = 10000000;
+        uint64_t            base            = 133000000000000000ull;
+        uint64_t            oneSecond       = (uint64_t) DebuggerStatusText::kCyclesPerSecond;
+
+        Assert::AreEqual<uint64_t> (base,                   HistoryStatus::GetWallTimeAt (base, 5000, 5000));
+        Assert::AreEqual<uint64_t> (base + kTicksPerSecond, HistoryStatus::GetWallTimeAt (base, 5000, 5000 + oneSecond));
+        Assert::AreEqual<uint64_t> (0,                      HistoryStatus::GetWallTimeAt (0,    5000, 9000), L"no base time, no time");
+    }
+
     TEST_METHOD (HistoryText_IsOffWhileNotRecording)
     {
         HistoryStatus  off = MakeRecording (10, 100);

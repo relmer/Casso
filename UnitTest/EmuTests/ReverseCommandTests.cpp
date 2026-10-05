@@ -296,9 +296,65 @@ public:
     }
 
 
-    //  Running the machine from the past, without a seek, drops the recorded
-    //  future, and a change reported in the past does the same.
-    TEST_METHOD (RunningFromThePastDropsTheFuture)
+    //  Running the machine from the past, without a seek, replays the
+    //  recorded future: every instruction gives the state the live run had
+    //  there, recorded keys included, the history is kept the whole way, and
+    //  the machine is live again once it reaches the end of it.
+    TEST_METHOD (RunningFromThePastReplaysTheRecordedFuture)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        std::vector<Step>  steps;
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           liveEnd    = 0;
+        size_t             start      = 0;
+        size_t             index      = 0;
+
+
+
+        Record (machine, controller, steps, nullptr);
+
+        liveEnd = machine.GetPosition();
+        start   = steps.size() / 4;
+
+        hr = controller.SeekToPosition (steps[start].position, result);
+        AssertSucceeded (hr, L"SeekToPosition");
+
+        Assert::IsTrue (controller.IsInHistory());
+
+        for (index = start + 1; index < steps.size(); index++)
+        {
+            machine.StepOne();
+
+            //  A key the host pressed is recorded when the guest reads it, so
+            //  between the press and the read the live machine held a latch
+            //  the replay sets only at the read. The path is compared at
+            //  every position, and the whole machine at the end.
+            Assert::AreEqual<uint64_t> (steps[index].position, machine.GetPosition(), L"one instruction on");
+            Assert::AreEqual<Word>     (steps[index].pc,       machine.GetCpu()->GetPC(),
+                                        std::format (L"the PC at position {}", steps[index].position).c_str());
+            Assert::AreEqual<uint64_t> (steps[index].cycle,    machine.GetCpu()->GetTotalCycles(), L"the cycle count");
+
+            if (index + 1 < steps.size())
+            {
+                Assert::IsTrue (controller.IsInHistory(), L"still replaying");
+                Assert::AreEqual<uint64_t> (liveEnd, controller.GetLiveEndPosition(), L"the recorded future is kept");
+            }
+        }
+
+        Assert::AreEqual<uint64_t> (steps.back().checksum, ReverseSessionRig::Checksum (machine), L"the whole machine at the end of history");
+
+        machine.StepOne();
+
+        Assert::IsFalse (controller.IsInHistory(), L"live once the end of history is reached");
+        Assert::AreEqual<uint64_t> (liveEnd + 1, machine.GetPosition());
+    }
+
+
+    //  A change made in the past still drops the recorded future and makes
+    //  the machine live where it stands.
+    TEST_METHOD (AChangeInThePastDropsTheFuture)
     {
         TestMachine        machine    ("Apple2e");
         ReverseController  controller (machine);
@@ -316,12 +372,10 @@ public:
         hr = controller.SeekToPosition (steps[steps.size() / 2].position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
-        Assert::IsTrue (controller.IsInHistory());
-        Assert::AreEqual<uint64_t> (liveEnd, controller.GetLiveEndPosition(), L"the recorded future is kept");
+        hr = controller.OnMachineChanged();
+        AssertSucceeded (hr, L"OnMachineChanged");
 
-        machine.StepOne();
-
-        Assert::IsFalse (controller.IsInHistory(), L"running from the past made the machine live there");
+        Assert::IsFalse (controller.IsInHistory(), L"live where the change was made");
         Assert::IsTrue (controller.GetLiveEndPosition() < liveEnd, L"and the future is gone");
     }
 

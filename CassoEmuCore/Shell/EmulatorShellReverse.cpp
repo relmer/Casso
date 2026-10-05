@@ -6,6 +6,8 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Debugger/DebugCommandPayload.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 #include "resource.h"
 
 
@@ -262,6 +264,226 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AllowCommand
+//
+//  The command queue's gate, asked on the posting thread. A command that
+//  changes the machine, posted from the UI thread while the machine is behind
+//  live, asks first; a yes queues the cut ahead of it, a no drops it. The CPU
+//  thread's own commands, and the rest, go ahead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AllowCommand (
+    WORD                 id,
+    const std::string  & payload)
+{
+    bool               isUiThread = m_hwnd != nullptr && GetWindowThreadProcessId (m_hwnd, nullptr) == GetCurrentThreadId();
+    DivergenceVerdict  verdict    = DivergenceVerdict::Proceed;
+    bool               isAllowed  = true;
+
+
+
+    UNREFERENCED_PARAMETER (payload);
+
+    if (!isUiThread || id == IDM_DEBUG_DIVERGE)
+    {
+        return true;
+    }
+
+    verdict = DivergenceGate::Judge (IsBehindLiveForUi(), DivergenceGate::IsStateChangingCommand (id));
+
+    if (verdict == DivergenceVerdict::Ask)
+    {
+        isAllowed = AskToDiverge();
+
+        if (isAllowed)
+        {
+            m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+        }
+    }
+
+    return isAllowed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AskToDiverge
+//
+//  UI thread. Whether the user agrees to discard the recorded history after
+//  where the machine stands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AskToDiverge()
+{
+    int  choice = DxuiMessageBox (m_hwnd, &m_chromeTheme, DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
+                                  MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
+
+
+
+    return choice == IDYES;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DivergeHistory
+//
+//  CPU thread: the yes, acted on ahead of the change that asked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DivergeHistory()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_reverseHost == nullptr, S_OK);
+
+    hr = m_reverseHost->Diverge();
+    CHR (hr);
+
+    UpdateReplayCaption();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuardHistoryEdit
+//
+//  CPU thread, the debugger session's history guard. Live, the edit is
+//  made. Behind live it is held back: the command it came from is handed to
+//  the UI thread, which asks, and on a yes queues the cut and the command
+//  again, when it runs live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::GuardHistoryEdit (
+    const std::string  & line,
+    CommandMode          mode)
+{
+    bool  isBehind = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+
+
+
+    if (!isBehind)
+    {
+        return true;
+    }
+
+    {
+        std::lock_guard<std::mutex>  held (m_divergeMutex);
+
+        m_pendingDivergeCommand = DebugCommandPayload::Encode (m_debugCommandClient, line, mode);
+    }
+
+    PostMessageW (m_hwnd, WM_APP_CONFIRM_DIVERGE, 0, 0);
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnConfirmDiverge
+//
+//  UI thread: asks about the debugger edit held back, and on a yes queues
+//  the cut and the edit's command again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnConfirmDiverge()
+{
+    std::optional<std::string>  command;
+
+
+
+    {
+        std::lock_guard<std::mutex>  held (m_divergeMutex);
+
+        command.swap (m_pendingDivergeCommand);
+    }
+
+    if (!command.has_value() || !AskToDiverge())
+    {
+        return;
+    }
+
+    m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, *command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateReplayCaption
+//
+//  CPU thread. Behind live the caption says where the machine stands, by the
+//  host's clock to the second, so it ticks once a second while the replay
+//  runs and moves with every step; live it says nothing. The caption is
+//  composed again only when the note changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateReplayCaption()
+{
+    EmuCpu        * cpu       = m_machine.GetCpu();
+    bool            isBehind  = m_reverseHost != nullptr && cpu != nullptr && m_reverseHost->IsBehindLive();
+    uint64_t        cycle     = 0;
+    std::wstring    caption;
+    bool            isChanged = false;
+
+
+
+    if (isBehind)
+    {
+        cycle   = cpu->GetTotalCycles();
+        caption = DebuggerStatusText::GetReplayCaption (m_reverseHost->GetController().GetWallTimeAt (cycle), cycle, LOCALE_NAME_USER_DEFAULT);
+    }
+
+    {
+        std::lock_guard<std::mutex>  held (m_replayCaptionMutex);
+
+        isChanged = caption != m_replayCaption;
+
+        if (isChanged)
+        {
+            m_replayCaption = std::move (caption);
+        }
+    }
+
+    if (isChanged)
+    {
+        UpdateWindowTitle();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SeekHistory
 //
 //  UI thread: the debugger's timeline asks for a point in history for a
@@ -281,28 +503,62 @@ void EmulatorShell::SeekHistory (uint64_t position)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SeekHistoryCycle
+//
+//  UI thread: the timeline's playhead was dragged to a cycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SeekHistoryCycle (uint64_t cycle)
+{
+    PostReverseCommand (ReverseCommand::SeekCycle, cycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ServiceHistoryThumbnails
 //
 //  CPU thread, between frames and while paused: the timeline's points are
 //  laid out over the keyframes and the next wanted picture is handed to its
 //  worker. Never during a reverse command, which runs from the command
 //  queue. The timeline hears where the machine stands every turn, so its
-//  live or replay state and its marker follow the machine as it runs.
+//  live or replay state, its line and its labels follow the machine as it
+//  runs, as does the caption's replay note.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ServiceHistoryThumbnails()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                 hr        = S_OK;
+    EmuCpu                * cpu       = m_machine.GetCpu();
+    uint64_t                cycle     = 0;
+    bool                    isBehind  = false;
+    const KeyframeStore   * keyframes = nullptr;
 
 
 
-    if (m_reverseHost == nullptr || !m_reverseHost->IsRecording())
+    if (m_reverseHost == nullptr || !m_reverseHost->IsRecording() || cpu == nullptr)
     {
         return;
     }
 
-    m_historyThumbnails.SetPlayhead (m_machine.GetPosition(), m_reverseHost->IsBehindLive());
+    cycle     = cpu->GetTotalCycles();
+    isBehind  = m_reverseHost->IsBehindLive();
+    keyframes = &m_reverseHost->GetController().GetKeyframes();
+
+    m_historyThumbnails.SetPlayhead     (m_machine.GetPosition(), isBehind);
+    m_historyThumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetLiveEndCycle() : cycle);
+
+    if (keyframes->GetCount() > 0)
+    {
+        m_historyThumbnails.SetBegin (keyframes->GetInfo (0).cycle, keyframes->GetInfo (0).wallTime);
+    }
+
+    UpdateReplayCaption();
 
     hr = m_historyThumbnails.Service (m_reverseHost->GetController().GetKeyframes());
     IGNORE_RETURN_VALUE (hr, S_OK);

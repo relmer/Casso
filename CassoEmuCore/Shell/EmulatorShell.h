@@ -14,6 +14,7 @@
 #include "Shell/ControllerInputThread.h"
 #include "Shell/MachineGamePortSink.h"
 #include "Core/ComponentRegistry.h"
+#include "Debugger/Reverse/DivergenceGate.h"
 #include "Core/EmuCpu.h"
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
@@ -500,6 +501,22 @@ private:
 
     const ReverseHost *  GetReverseHost() const { return m_reverseHost.get(); }
 
+    // Behind live, a change to the machine first asks whether to discard the
+    // history recorded after where it stands. The command gate asks on the
+    // UI thread before a state-changing command is queued; a key into the
+    // machine asks from the viewport; a debugger edit is held back on the
+    // CPU thread, asked about on the UI thread, and run again on a yes. A
+    // yes queues IDM_DEBUG_DIVERGE ahead of the change.
+    bool  AllowCommand          (WORD id, const std::string & payload);
+    bool  AskToDiverge          ();
+    void  DivergeHistory        () override;
+    bool  GuardHistoryEdit      (const std::string & line, CommandMode mode);
+    void  OnConfirmDiverge      ();
+    bool  IsBehindLiveForUi     () { return m_machine.GetHostInputGate().IsHeld(); }
+
+    // CPU thread: the caption's replay note, kept in step with the machine.
+    void  UpdateReplayCaption   ();
+
     // Machine state files. The two dialogs run on the UI thread and post the
     // chosen path; the save and the load run on the CPU thread. A load of a
     // state another machine saved opens that machine first, and history
@@ -597,6 +614,7 @@ private:
 
     HistoryThumbnails *  GetHistoryThumbnails () override { return &m_historyThumbnails; }
     void                 SeekHistory          (uint64_t position) override;
+    void                 SeekHistoryCycle     (uint64_t cycle) override;
     std::string  GetDebuggerFocusedPane () override;
     void         SetDebuggerFocusedPane (const std::string & text) override;
     int          GetDebuggerTextZoomPercent () override;
@@ -2244,9 +2262,18 @@ private:
     // The driver of a debugger run, when one is attached. Null on a machine
     // nobody is debugging, which is what keeps the slice loop's cost to a
     // comparison. Owned by whoever attached the session, not by the shell.
-    CpuManagerRunDriver         * m_debugRunDriver = nullptr;
-    DebugSession                * m_debugSession   = nullptr;
-    DebugCommandHandler           m_debugCommandHandler;
+    CpuManagerRunDriver  * m_debugRunDriver      = nullptr;
+    DebugSession         * m_debugSession        = nullptr;
+    DebugCommandHandler    m_debugCommandHandler;
+    uint32_t               m_debugCommandClient  = 0;   // the client of the command being run, for the history guard
+
+    // The divergence question's state: the keys waiting on it, and a held
+    // debugger edit's command for the UI thread to ask about.
+    DivergenceGate                m_divergenceGate;
+    std::mutex                    m_divergeMutex;
+    std::optional<std::string>    m_pendingDivergeCommand;
+    std::mutex                    m_replayCaptionMutex;
+    std::wstring                  m_replayCaption;                 // " [Replaying @ ...]" behind live, else empty
 
     // Reverse execution's history of this machine, recording while a machine
     // is built; null until the CPU thread first starts it. The stop test is

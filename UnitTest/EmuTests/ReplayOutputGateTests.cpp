@@ -75,9 +75,20 @@ public:
 
         Assert::IsFalse (machine.IsOutputMuted(), L"no replay leaves the output muted");
 
+        //  Running on from the past replays the recorded future, silently,
+        //  until the machine is live again.
+        machine.RunCycles (s_kGateAfterCycles);
+        AssertSilent (machine, L"running on behind live");
+
+        while (controller.IsInHistory())
+        {
+            machine.RunCycles (s_kGateAfterCycles);
+        }
+
+        Drain (machine);
         machine.RunCycles (s_kGateAfterCycles);
 
-        Assert::IsFalse (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"running on, the speaker clicks again");
+        Assert::IsFalse (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"live again, the speaker clicks again");
         Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"and the printer gets bytes again");
     }
 

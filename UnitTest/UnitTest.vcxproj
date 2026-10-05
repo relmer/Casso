@@ -848,7 +848,7 @@
     <ClCompile Include="DebuggerTests\ReverseOptionsDialogTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
-    <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\ReplayStopTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\DivergenceGateTests.cpp" /><ClCompile Include="DebuggerTests\HistoryGuardTests.cpp" /><ClCompile Include="EmuTests\ReplayStopTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />
     <ClCompile Include="EmuTests\ReverseDebuggerEditTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseOptionsPayloadTests.cpp" />

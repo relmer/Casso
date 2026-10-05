@@ -88,6 +88,11 @@ public:
     virtual int              GetMinWidthPx (const DxuiDpiScaler & scaler) const                                           { (void) scaler; return -1; }
     virtual void             OnMouseLeave  ()                                                                           {}
     virtual bool             OnLButtonDown (int x, int y)                                                               { (void) x; (void) y; return false; }
+
+    //  Every release over the strip, whether or not the entry was armed: a
+    //  drag the entry took from its press ends here even when the pointer
+    //  moved and disarmed it.
+    virtual void             OnLButtonUp   (int x, int y)                                                               { (void) x; (void) y; }
 };
 
 
@@ -268,6 +273,10 @@ public:
     //  docking the chrome bands.
     int   PlanForWidth     (int clientWidthPx, const DxuiDpiScaler & scaler);
     int   GetBandDp        () const;
+
+    //  A thickness of its own for a strip whose entries need more room than a
+    //  button, such as pictures with text above and below; 0 for the usual.
+    void  SetBandDp        (int bandDp)                  { m_bandDp = bandDp; }
     bool  IsLabeled        (int commandId) const;
     bool  TryGetEntryRect  (int commandId, RECT & outRect) const;
 
@@ -452,6 +461,7 @@ private:
     std::shared_ptr<DxuiCommand>    m_seeMore;
 
     bool                     m_compact        = false;
+    int                      m_bandDp         = 0;
     bool                     m_vertical       = false;
     bool                     m_labels         = true;
     bool                     m_grip           = false;

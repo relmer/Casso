@@ -165,11 +165,12 @@ public:
     virtual std::string  GetDebuggerTimelineDock   ()                      { return {}; }
     virtual void         SetDebuggerTimelineDock   (const std::string &)   {}
 
-    //  The history timeline's pictures, and a seek to a position in history
-    //  for a stopped machine. A host that records no history, as a test's
-    //  does not, has no pictures and moves nowhere.
+    //  The history timeline's pictures, and a seek to a position or a cycle
+    //  in history for a stopped machine. A host that records no history, as
+    //  a test's does not, has no pictures and moves nowhere.
     virtual HistoryThumbnails *  GetHistoryThumbnails ()                   { return nullptr; }
     virtual void                 SeekHistory          (uint64_t position)  { (void) position; }
+    virtual void                 SeekHistoryCycle     (uint64_t cycle)     { (void) cycle; }
 
     //  The pane that had the keys when the window closed, by its layout id,
     //  kept the same way. A host with no preferences has none saved.
@@ -634,6 +635,8 @@ private:
     void     SyncTimeline          ();
     void     OnTimelineSeek        (const HistoryThumbnailCell & cell);
     void     OnTimelineModeClicked ();
+    void     OnTimelineScrub       (uint64_t cycle, bool isFinal);
+    void     SyncTimelineScrub     ();
     bool     IsTimelineBehindLive  () const;
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
@@ -1068,11 +1071,16 @@ private:
     //  The history timeline, its entries the Live or Replay state and the strip
     //  of thumbnails, its own dock, a seek asked for while the machine ran,
     //  made once it stops, and the state the bar was last laid out for.
-    DxuiToolbar                          * m_timelineBar          = nullptr;
+    DxuiToolbar                          * m_timelineBar           = nullptr;
     DxuiImageStrip                         m_timelineStrip;
     DxuiToolbarHost                        m_timelineHost;
     std::shared_ptr<DxuiCommand>           m_timelineCommand;
     std::shared_ptr<DxuiCommand>           m_timelineModeCommand;
-    bool                                   m_isTimelineBehindLive = false;
+    bool                                   m_isTimelineBehindLive  = false;
     std::optional<HistoryThumbnailCell>    m_pendingSeek;
+    std::optional<uint64_t>                m_pendingScrub;   // a cycle the playhead was dragged to, sought once the machine is stopped
+    bool                                   m_isScrubbing           = false;
+    bool                                   m_isScrubEnded          = false;
+    bool                                   m_wasRunningBeforeScrub = false;
+    uint64_t                               m_lastScrubCycle        = UINT64_MAX;
 };

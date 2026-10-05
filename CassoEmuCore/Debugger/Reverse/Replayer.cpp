@@ -180,6 +180,53 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrepareStepHere
+//
+//  Everything a replay does before an instruction, for one the machine is
+//  about to run itself: the inputs recorded up to and at its position, a
+//  boundary keyframe due there, and the check of a keyframe due there; the
+//  records the instruction itself observed only when it is about to run,
+//  not when the machine has just arrived there. The machine then runs the instruction as it ordinarily would, with the debug
+//  hook and the debugger's watchpoints attached, so running forward from the
+//  past replays the recorded future while breakpoints still stop it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Replayer::PrepareStepHere (
+    ReplayReport  & report,
+    bool            includeObserved)
+{
+    HRESULT   hr       = S_OK;
+    uint64_t  position = m_machine.GetPosition();
+
+
+
+    report = ReplayReport();
+
+    hr = ApplyInputs (position, false);
+    CHR (hr);
+
+    hr = LoadBoundaryIfDue();
+    CHR (hr);
+
+    hr = CheckKeyframe (report);
+    CHR (hr);
+
+    BAIL_OUT_IF (report.isDiverged, S_OK);
+
+    hr = ApplyInputs (m_machine.GetPosition(), includeObserved);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Step
 //
 //  One instruction of a replay: its registers and bytes when they are

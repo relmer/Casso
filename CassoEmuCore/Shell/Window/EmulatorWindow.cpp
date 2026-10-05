@@ -1338,6 +1338,7 @@ int EmulatorShell::RunMessageLoop()
     // The debug channel has to answer clients while the machine is paused,
     // when no frame runs, so it is pumped from the CPU manager's service tick.
     m_cpuManager.SetServiceFunction ([this] { ServiceDebugger(); ServiceHistoryThumbnails(); });
+    m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return AllowCommand (id, payload); });
 
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
@@ -2218,6 +2219,13 @@ void EmulatorShell::UpdateWindowTitle()
         title += L" [Stopped]";
     }
 
+    // Behind live, where the replay stands.
+    {
+        std::lock_guard<std::mutex>  held (m_replayCaptionMutex);
+
+        title += m_replayCaption;
+    }
+
 #if defined (_DEBUG)
     // Dev builds stamp the exact binary identity (version, arch, compile
     // timestamp) so a window is never mistaken for a stale rebuild. Same " - "
@@ -2527,8 +2535,28 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // of behind live are released here first.
     if (msg == WM_APP_GAMEPORT_FLUSH)
     {
+        std::vector<DxuiKeyEvent>  held;
+
+
+
         ReleaseInputsLetGoBehindLive();
         m_gamePortMixer.FlushPending();
+
+        // Keys that asked to discard history, and were told yes, land now.
+        m_divergenceGate.TakeHeld (held);
+
+        for (const DxuiKeyEvent & ev : held)
+        {
+            (void) OnViewportKey (ev);
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A debugger edit behind live waits on this question.
+    if (msg == WM_APP_CONFIRM_DIVERGE)
+    {
+        OnConfirmDiverge();
 
         return DxuiMessageResult::Handled;
     }

@@ -50,6 +50,19 @@ TEST_CLASS (DxuiImageStripTests)
 {
 public:
 
+    //  The playhead line is easy to take hold of: a press within the grip
+    //  either side of it grabs it, not only one on its pixel.
+    TEST_METHOD (APressWithinTheGripTakesHoldOfThePlayhead)
+    {
+        constexpr float  kGrip = 9.0f;
+
+        Assert::IsTrue  (DxuiImageStrip::IsOnPlayhead (100, 100.0f, kGrip), L"on the line");
+        Assert::IsTrue  (DxuiImageStrip::IsOnPlayhead (109, 100.0f, kGrip), L"at the edge of the grip to the right");
+        Assert::IsTrue  (DxuiImageStrip::IsOnPlayhead (91,  100.0f, kGrip), L"and to the left");
+        Assert::IsFalse (DxuiImageStrip::IsOnPlayhead (110, 100.0f, kGrip), L"past it");
+    }
+
+
     TEST_METHOD (CellsKeepThePictureAspect)
     {
         Assert::AreEqual (47, DxuiImageStrip::GetCellLength (32, s_kStripAspect, false), L"lying down: 32 * 560 / 384, rounded");

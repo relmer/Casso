@@ -315,6 +315,9 @@ public:
     static constexpr int       kMemoryRows      = 16;
     static constexpr uint64_t  kBuildIntervalMs = 16;   // one frame at 60 Hz
 
+    //  The registers pane's last row: the CPU cycle count, read only.
+    static constexpr const char  * kCyclesRegister = "Cycles";
+
     //  Memory windows: the first is always open, and up to three more. Each
     //  reads this many bytes from a sixteen-byte boundary, enough for the rows a
     //  window shows at its widest columns and some to scroll into.

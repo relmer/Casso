@@ -206,6 +206,101 @@ public:
     }
 
 
+    //  The timeline's drag seeks by cycle: the machine lands on the first
+    //  instruction boundary at or after it, still behind live.
+    TEST_METHOD (SeekCycleLandsAtOrAfterTheCycle)
+    {
+        TestMachine    machine ("Apple2e");
+        ReverseHost    host    (machine);
+        ReverseResult  result;
+        HRESULT        hr      = S_OK;
+        uint64_t       target  = 0;
+
+
+
+        PrepareRecording (machine, host);
+
+        target = (host.GetController().GetKeyframes().GetInfo (0).cycle + machine.GetCpu()->GetTotalCycles()) / 2;
+
+        hr = host.Execute (ReverseCommand::SeekCycle, target, nullptr, result);
+        AssertSucceeded (hr, L"SeekCycle");
+
+        Assert::IsTrue (machine.GetCpu()->GetTotalCycles() >= target, L"at or after the cycle");
+        Assert::IsTrue (machine.GetCpu()->GetTotalCycles() < target + ReverseController::kScanlineCycles, L"within an instruction of it");
+        Assert::IsTrue (host.IsBehindLive(), L"behind live");
+    }
+
+
+    //  Diverging is the yes to the question asked before a change behind
+    //  live: the recorded future is dropped where the machine stands, which
+    //  is live from then on, with the gate released and the callback told.
+    //  Live, there is nothing to drop.
+    TEST_METHOD (DivergingBehindLiveDropsTheFutureAndGoesLive)
+    {
+        TestMachine    machine ("Apple2e");
+        ReverseHost    host    (machine);
+        ReverseResult  result;
+        HRESULT        hr      = S_OK;
+        uint64_t       liveEnd = 0;
+        uint64_t       target  = 0;
+        size_t         count   = 0;
+        int            lives   = 0;
+
+
+
+        PrepareRecording (machine, host);
+
+        host.SetLiveCallback ([&lives] () { lives++; });
+
+        count = host.GetController().GetKeyframes().GetCount();
+
+        hr = host.Diverge();
+        AssertSucceeded (hr, L"Diverge while live");
+
+        Assert::AreEqual (count, host.GetController().GetKeyframes().GetCount(), L"live, nothing is dropped or kept");
+
+        liveEnd = machine.GetPosition();
+        target  = liveEnd - 100;
+
+        hr = host.Execute (ReverseCommand::Seek, target, nullptr, result);
+        AssertSucceeded (hr, L"Seek");
+
+        hr = host.Diverge();
+        AssertSucceeded (hr, L"Diverge behind live");
+
+        Assert::IsFalse (host.IsBehindLive(), L"live where it stood");
+        Assert::AreEqual<uint64_t> (target, machine.GetPosition(), L"the machine did not move");
+        Assert::AreEqual<uint64_t> (target, host.GetController().GetLiveEndPosition(), L"the future is gone");
+        Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"host input flows again");
+        Assert::AreEqual (1, lives, L"the live callback ran once");
+    }
+
+
+    //  Behind live the status holds where the machine stands, in cycles and
+    //  by the host's clock, for the timeline's line and the caption.
+    TEST_METHOD (TheStatusHoldsThePlayheadCycleAndClock)
+    {
+        TestMachine    machine ("Apple2e");
+        ReverseHost    host    (machine);
+        ReverseResult  result;
+        HistoryStatus  status;
+        HRESULT        hr      = S_OK;
+
+
+
+        PrepareRecording (machine, host);
+
+        hr = host.Execute (ReverseCommand::Seek, machine.GetPosition() - 100, nullptr, result);
+        AssertSucceeded (hr, L"Seek");
+
+        status = host.GetStatus();
+
+        Assert::AreEqual<uint64_t> (machine.GetCpu()->GetTotalCycles(), status.cycle, L"the machine's cycle count");
+        Assert::IsTrue (status.wallTime >= host.GetController().GetKeyframes().GetInfo (0).wallTime, L"no earlier than history begins");
+        Assert::IsTrue (status.wallTime != 0, L"a host time");
+    }
+
+
     TEST_METHOD (StepBackAtTheOldestPositionReportsTheStartOfHistory)
     {
         TestMachine    machine ("Apple2e");

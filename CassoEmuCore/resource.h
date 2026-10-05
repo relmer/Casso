@@ -98,6 +98,10 @@
 //  CpuCommandDispatcher::FormatReverseOptionsPayload).
 #define IDM_DEBUG_REVERSE_OPTIONS   40181
 
+//  Behind live, the yes to discarding the recorded history after where the
+//  machine stands, sent ahead of the change that asked for it.
+#define IDM_DEBUG_DIVERGE           40182
+
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
 #define IDM_VIEW_AMBER              40032

@@ -116,6 +116,7 @@ public:
 
     HRESULT   RestoreKeyframe   (size_t index);
     HRESULT   RunTo             (const ReplayTarget & target, uint64_t endPosition, IReverseStopTest * stopTest, ReplayReport & report, std::vector<ReplayStep> * steps = nullptr, std::vector<Byte> * stackPointers = nullptr);
+    HRESULT   PrepareStepHere   (ReplayReport & report, bool includeObserved);
 
     bool      IsReplaying       () const          { return m_isReplaying; }
     uint64_t  GetReplayedCount  () const          { return m_replayedCount; }

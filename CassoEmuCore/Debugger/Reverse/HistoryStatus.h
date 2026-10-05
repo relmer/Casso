@@ -23,6 +23,10 @@
 //  forward, and isFull says so. beginWallTime is the host's clock when that
 //  snapshot was taken, as a UTC FILETIME, or 0 when unknown.
 //
+//  cycle is the machine's CPU cycle count since power-on, where it stands,
+//  and wallTime the host's clock when the machine stood there live, counted
+//  on from the newest snapshot at or before it; 0 when unknown.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct HistoryStatus
@@ -40,4 +44,13 @@ struct HistoryStatus
     uint64_t                       beginWallTime      = 0;
     size_t                         budgetBytes        = 0;
     size_t                         usedBytes          = 0;
+
+    uint64_t                       cycle              = 0;
+    uint64_t                       wallTime           = 0;
+
+    //  The emulated clock's rate, and the host time at cycle given the host
+    //  time at baseCycle: 0 when that is unknown.
+    static constexpr double        kCyclesPerSecond   = 1020484.0;
+
+    static uint64_t                GetWallTimeAt      (uint64_t baseWallTime, uint64_t baseCycle, uint64_t cycle);
 };

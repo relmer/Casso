@@ -29,7 +29,7 @@ public:
     //  reuses its oldest snapshots, so the meter never turns a warning color.
     static constexpr uint32_t  kEmptyArgb       = 0xFF3FB950u;
     static constexpr uint32_t  kFullArgb        = 0xFF388BFDu;
-    static constexpr double    kCyclesPerSecond = 1020484.0;
+    static constexpr double    kCyclesPerSecond = HistoryStatus::kCyclesPerSecond;
     static constexpr float     kPercent         = 100.0f;
 
     //  How long a replay runs before the note adds its progress.
@@ -71,6 +71,17 @@ public:
 
     //  A local time of day in the locale's own time format, with seconds.
     static std::wstring  FormatClock     (const SYSTEMTIME & localTime, LPCWSTR locale);
+
+    //  A host time, a UTC FILETIME, as the locale's local time of day; empty
+    //  for 0.
+    static std::wstring  FormatWallClock (uint64_t wallTime, LPCWSTR locale);
+
+    //  "(Power + 6:48.1)": the emulated time since power-on.
+    static std::wstring  GetPowerText    (uint64_t cycle, LPCWSTR locale);
+
+    //  " [Replaying @ 7:15:33 AM]" for the main window's caption, or the
+    //  emulated time without a host time.
+    static std::wstring  GetReplayCaption (uint64_t wallTime, uint64_t cycle, LPCWSTR locale);
 
     //  A count with the locale's digit grouping and no decimals.
     static std::wstring  FormatCount     (uint64_t count, LPCWSTR locale);
