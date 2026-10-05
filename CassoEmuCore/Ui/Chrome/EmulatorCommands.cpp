@@ -69,9 +69,9 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
 // The paddle picker is the one exception: it wears the source that is
 // driving, because that answer is worth a permanent place on the strip and
 // having it there is what lets the input cluster stop carrying it. Its width
-// moves as a result, so the strip is laid out again whenever it changes, and
-// the label is fitted to a cap (EmulatorCommands::kPickerLabelMaxDip) so the
-// movement stays small.
+// moves as a result, so the strip is laid out again whenever it changes. The
+// label is drawn whole: a controller's description cut short no longer says
+// which controller it is.
 struct ToolbarRow
 {
     int                id;
@@ -217,12 +217,6 @@ EmulatorCommands::EmulatorCommands()
         {
             paddle->shortLabel.clear();
             paddle->labelText = [this] () { return GetPickerLabel(); };
-
-            // Past the cap the description loses its middle, and the mark for
-            // a second player stays whole, with the disconnected mark before
-            // it while Player 1's slot is held.
-            paddle->labelFit  = DxuiLabelFit { kPickerLabelMaxDip, DxuiElide::Middle, InputModeRules::kpszSecondPlayerSuffix,
-                                               { std::wstring (InputModeRules::kpszDisconnected) + InputModeRules::kpszSecondPlayerSuffix } };
 
             // A labeled slot shows only an explicit tip, so the word for what
             // the picker is for moves there once the face wears the answer.
