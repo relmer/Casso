@@ -79,6 +79,10 @@ SCREW   = (0.260, 0.255, 0.250)     # blackened steel
 FOOT    = (0.090, 0.090, 0.095)     # rubber
 
 
+LETTERED = {"brand", "legend", "mic_legend", "door_relief", "door_print", "wheel_legend",
+            "bottom_warning", "bottom_label_ink"}
+
+
 def box(x0, x1, y0, y1, z0, z1):
     return (cq.Workplane("XY")
             .box(x1 - x0, y1 - y0, z1 - z0, centered=False)
@@ -695,14 +699,166 @@ def build():
         marks = mark if marks is None else marks.union(mark)
     m.add("wheel_legend", on_face(marks), SILVER)
     bottom(m)
-    return m
 
+    # Lettering is meshed finely: at the model's default tolerance a letter
+    # a few millimeters tall comes out with its curves visibly faceted.
+    for part in m.parts:
+        if part.name in LETTERED:
+            part.tolerance, part.angular = 0.04, 0.2
+    return m
 
 def _under(shape, y_mid):
     """Mirrors lettering laid out on the XY plane front to back about y_mid,
     so it reads the right way round seen from underneath with the handle
     away from the reader, as the bottom's writing does."""
     return shape.mirror("XZ", (0, y_mid, 0))
+
+def _word_width(word, size, bold):
+    return text(word, size, 0, 0, 0, bold=bold).val().BoundingBox().xlen
+
+
+def _text_block(lines, x0, x1, y0, y1, depth, bold=True):
+    """Lines of capitals from y1 down to y0 between x0 and x1, as large as
+    the longest fits, every line but the last justified to both edges by
+    spreading its words. Laid out to be read from above; _under turns it."""
+    size  = 3.2
+    space = size * 0.3                    # a word space in Arial, about 0.28 em
+    widest = max(sum(_word_width(w, size, bold) for w in s.split()) + space * (len(s.split()) - 1) for s in lines)
+    pitch = (y1 - y0) / len(lines)
+    size  = min(size * (x1 - x0) / widest, pitch * 0.85)
+    space = size * 0.3
+    block = None
+    for i, s in enumerate(lines):
+        words  = s.split()
+        widths = [_word_width(w, size, bold) for w in words]
+        last   = i == len(lines) - 1
+        gap    = space if last or len(words) < 2 else (x1 - x0 - sum(widths)) / (len(words) - 1)
+        y      = y1 - pitch * (i + 0.5)
+        x      = x0
+        for w, ww in zip(words, widths):
+            piece = text(w, size, 0, 0, 0, bold=bold, depth=depth)
+            bb    = piece.val().BoundingBox()
+            piece = piece.translate((x - bb.xmin, y, 0))
+            block = piece if block is None else block.union(piece)
+            x += ww + gap
+    return block
+
+
+def _arc_text(s, radius, center_deg, clockwise, size, x_scale, z, depth):
+    """Letters set along a circle about the origin, centered on center_deg.
+    Clockwise runs read along the top with the letters' tops outward; the
+    others run counterclockwise with their tops toward the center."""
+    glyphs = []
+    for ch in s:
+        if ch == " ":
+            glyphs.append((None, size * 0.35 * x_scale))
+            continue
+        g = text(ch, size, 0, 0, 0, depth=depth).val()
+        bb = g.BoundingBox()
+        g = g.translate(cq.Vector(-(bb.xmin + bb.xmax) / 2, -(bb.ymin + bb.ymax) / 2, z))
+        g = g.transformGeometry(cq.Matrix([[x_scale, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]]))
+        glyphs.append((g, bb.xlen * x_scale + size * 0.08))
+    total = sum(adv for _, adv in glyphs)
+    step  = -1.0 if clockwise else 1.0
+    angle = math.radians(center_deg) - step * total / radius / 2
+    out = []
+    for g, adv in glyphs:
+        a = angle + step * adv / radius / 2
+        if g is not None:
+            turn = math.degrees(a) - 90 if clockwise else math.degrees(a) + 90
+            out.append(g.rotate(cq.Vector(0, 0, 0), cq.Vector(0, 0, 1), turn)
+                        .translate(cq.Vector(radius * math.cos(a), radius * math.sin(a), 0)))
+        angle += step * adv / radius
+    return out
+
+
+def _ul_mark(cx, cy, radius, z, depth):
+    """The UL mark, read from above: a ring, tiny writing round its outer
+    third, and a solid disc inside with U and L knocked out of it, the U
+    set a little high and the L a little low. The ring is drawn as thick
+    as the letters' strokes."""
+    size   = radius * 0.62
+    stroke = size * 0.15
+    inner  = radius * 2.0 / 3.0
+    ring   = (cq.Workplane("XY").workplane(offset=z).circle(radius).circle(radius - stroke).extrude(depth))
+    disc   = cq.Workplane("XY").workplane(offset=z).circle(inner).extrude(depth)
+    u = text("U", size, -size * 0.36, size * 0.12, z - 0.05, bold=True, depth=depth + 0.1)
+    l = text("L", size,  size * 0.36, -size * 0.12, z - 0.05, bold=True, depth=depth + 0.1)
+    disc   = disc.cut(u).cut(l)
+    band_r = (radius - stroke + inner) / 2
+    tiny   = (radius - stroke - inner) * 0.85
+    letters = (_arc_text("LISTED", band_r, 90, True, tiny, 0.55, z, depth)
+               + _arc_text("UNDERWRITERS LABORATORIES INC.", band_r, 270, False, tiny, 0.5, z, depth))
+    # The tiny letters are returned apart and gathered, not fused: dozens of
+    # booleans on glyphs that small are slow and fragile.
+    mark = ring.union(disc).translate((cx, cy, 0))
+    return mark, [g.translate(cq.Vector(cx, cy, 0)) for g in letters]
+
+
+def _small_caps(s, size, z, bold, depth, small=0.75):
+    """A line with its lowercase letters set as capitals `small` as tall, on
+    the same baseline, as the label prints them. Its left end is at x = 0
+    and its baseline at y = 0."""
+    runs, x, line = [], 0.0, None
+    for ch in s:
+        low = ch.islower()
+        if runs and runs[-1][0] == low:
+            runs[-1][1] += ch
+        else:
+            runs.append([low, ch])
+    for low, run in runs:
+        rsize = size * small if low else size
+        piece = (cq.Workplane("XY").workplane(offset=z)
+                 .text(run.upper(), rsize, depth, halign="left", valign="bottom",
+                       kind="bold" if bold else "regular", font="Arial"))
+        # Spaces carry no outline, so a run's advance is measured from its
+        # letters with the spaces put back.
+        bb = piece.val().BoundingBox()
+        lead = (len(run) - len(run.lstrip(" "))) * rsize * 0.28
+        trail = (len(run) - len(run.rstrip(" "))) * rsize * 0.28
+        piece = piece.translate((x + lead - bb.xmin, -bb.ymin, 0))
+        line = piece if line is None else line.union(piece)
+        x += lead + bb.xlen + trail + rsize * 0.08
+    return line
+
+
+def _rating_ink(x0, x1, y0, y1, z, depth):
+    """The rating label's silver, read from above: the UL mark at the left,
+    spanning the label's height, and four lines to its right -- the model
+    and a blank plate for the serial number, the ratings, the maker, and the
+    country of origin centered under them."""
+    margin = 0.6
+    radius = (y1 - y0) / 2 - margin
+    mark, tiny = _ul_mark(x0 + margin + radius, (y0 + y1) / 2, radius, z, depth)
+    tx0, tx1 = x0 + margin * 2 + radius * 2, x1 - margin
+    lines = ("RQ-309AS No.", "AC 120V 50/60Hz 5W OR DC 6V", "MATSUSHITA ELECTRIC INDUSTRIAL CO. LTD", "MADE IN JAPAN")
+    pitch = (y1 - y0 - margin * 2) / len(lines)
+    size  = min(2.0 * (tx1 - tx0) / _word_width(lines[2], 2.0, False), pitch * 0.8)
+    ink   = mark
+    for i, s in enumerate(lines):
+        y  = y1 - margin - pitch * (i + 0.5)
+        ln = _small_caps(s, size, z, i == 0, depth).translate((0, -size * 0.36, 0))
+        bb = ln.val().BoundingBox()
+        x  = (tx0 + tx1) / 2 - (bb.xmin + bb.xmax) / 2 if i == 3 else tx0 - bb.xmin
+        ink = ink.union(ln.translate((x, y, 0)))
+        if i == 0:
+            # The plate the serial number was stamped into, left blank.
+            ink = ink.union(box(tx0 + bb.xlen + size * 0.5, tx0 + bb.xlen + size * 7.5,
+                                y - pitch * 0.38, y + pitch * 0.38, z, z + depth))
+    return cq.Workplane("XY").add(cq.Compound.makeCompound(ink.solids().vals() + tiny))
+
+
+def _phillips_head(cx, cy, seat_z, radius, dome=0.8):
+    """A domed Phillips pan head seated at seat_z, its dome facing down out
+    of the hole, with a cross cut into it."""
+    sphere_r = (radius ** 2 + dome ** 2) / (2 * dome)
+    apex     = seat_z - dome
+    head = (cq.Workplane("XY").sphere(sphere_r).translate((cx, cy, apex + sphere_r))
+            .intersect(cq.Workplane("XY").workplane(offset=apex).center(cx, cy).circle(radius).extrude(dome)))
+    arm = radius * 0.6
+    for w, l in ((0.45, arm * 2), (arm * 2, 0.45)):
+        head = head.cut(box(cx - w / 2, cx + w / 2, cy - l / 2, cy + l / 2, apex - 0.1, apex + 0.5))
+    return head
 
 
 def bottom(m):
@@ -717,39 +873,26 @@ def bottom(m):
 
     # The warning panel: recessed, its lettering standing up from the
     # recess floor flush with the bottom, so it reads in the light alone.
+    # Every line but the last is justified to both edges.
     WARN_X0, WARN_X1, WARN_Y0, WARN_Y1, WARN_D = 22.0, 120.0, 77.0, 103.0, 0.6
     body = body.cut(box(WARN_X0, WARN_X1, WARN_Y0, WARN_Y1, -0.1, WARN_D))
     lines = ("CAUTION-TO PREVENT ELECTRIC SHOCK, DO",
              "NOT REMOVE COVER. NO USER-SERVICEABLE",
              "PARTS INSIDE. REFER SERVICING TO",
              "QUALIFIED SERVICE PERSONNEL.")
-    pitch = (WARN_Y1 - WARN_Y0 - 4.0) / len(lines)
-    # As large as the panel takes: the longest line spans it, less a margin.
-    widest = max(text(s, 3.2, 0, 0, 0, bold=True).val().BoundingBox().xlen for s in lines)
-    size   = min(3.2 * (WARN_X1 - WARN_X0 - 6.0) / widest, pitch * 0.8)
-    warn  = None
-    for i, s in enumerate(lines):
-        # The first line is the one nearest the front, read from below with
-        # the front at the top.
-        y = WARN_Y0 + 2.0 + pitch * (i + 0.5)
-        ln = text(s, size, WARN_X0 + 3.0, y, 0.0, halign="left", bold=True, depth=WARN_D)
-        warn = ln if warn is None else warn.union(ln)
-    m.add("bottom_warning", _under(warn, (WARN_Y0 + WARN_Y1) / 2), BODY)
+    m.add("bottom_warning",
+          _under(_text_block(lines, WARN_X0 + 3.0, WARN_X1 - 3.0, WARN_Y0 + 2.0, WARN_Y1 - 2.0, WARN_D),
+                 (WARN_Y0 + WARN_Y1) / 2),
+          BODY)
 
     # The rating label, in a shallow recess: a black sticker printed in
-    # silver -- the model, the ratings, the maker, and a UL mark.
+    # silver. The UL mark at its left spans its height and sets the margin
+    # for the four lines beside it.
     LBL_X0, LBL_X1, LBL_Y0, LBL_Y1 = 37.0, 104.0, 123.5, 134.5
     body = body.cut(box(LBL_X0, LBL_X1, LBL_Y0, LBL_Y1, -0.1, 0.35))
-    m.add("bottom_label", box(LBL_X0 + 0.3, LBL_X1 - 0.3, LBL_Y0 + 0.3, LBL_Y1 - 0.3, 0.2, 0.35), BAND)
-    ly = (LBL_Y0 + LBL_Y1) / 2
-    ink = (text("RQ-309DS", 2.6, LBL_X1 - 3.0, ly - 2.6, 0.12, halign="right", bold=True, depth=0.08)
-           .union(text("AC 120V 60Hz 5W  DC 6V", 1.3, LBL_X1 - 3.0, ly - 0.2, 0.12, halign="right", depth=0.08))
-           .union(text("MATSUSHITA ELECTRIC INDUSTRIAL CO., LTD.", 1.3, LBL_X1 - 3.0, ly + 1.7, 0.12, halign="right", depth=0.08))
-           .union(text("MADE IN JAPAN", 1.3, LBL_X1 - 3.0, ly + 3.5, 0.12, halign="right", depth=0.08)))
-    ul_x = LBL_X0 + 5.5
-    ul = (cq.Workplane("XY").workplane(offset=0.12).center(ul_x, ly).circle(3.6).circle(3.2).extrude(0.08)
-          .union(text("UL", 2.4, ul_x, ly, 0.12, bold=True, depth=0.08)))
-    m.add("bottom_label_ink", _under(ink.union(ul), ly), SILVER)
+    sx0, sx1, sy0, sy1 = LBL_X0 + 0.3, LBL_X1 - 0.3, LBL_Y0 + 0.3, LBL_Y1 - 0.3
+    m.add("bottom_label", box(sx0, sx1, sy0, sy1, 0.2, 0.35), BAND)
+    m.add("bottom_label_ink", _under(_rating_ink(sx0, sx1, sy0, sy1, 0.12, 0.08), (sy0 + sy1) / 2), SILVER)
 
     # The vents: four columns of fifteen slots, black inside.
     VENT_Y0, VENT_Y1, VENT_D = 145.0, 190.0, 2.5
@@ -766,14 +909,20 @@ def bottom(m):
     # The panel between the vents and the battery cover.
     body = body.cut(box(49.0, 85.0, 196.0, 216.0, -0.1, 0.8))
 
-    # Two screws: one in a shallow counterbore beside the vents, its head
-    # showing, and one down a deep hole on the other side.
-    body = body.cut(cq.Workplane("XY").workplane(offset=-0.1).center(12.5, 185.0).circle(2.6).extrude(1.6))
-    head = (cq.Workplane("XY").workplane(offset=0.9).center(12.5, 185.0).circle(2.1).extrude(0.6)
-            .cut(box(12.5 - 1.5, 12.5 + 1.5, 185.0 - 0.25, 185.0 + 0.25, 0.8, 1.2)))
-    m.add("bottom_screw", head, SCREW)
-    body = body.cut(cq.Workplane("XY").workplane(offset=-0.1).center(124.0, 157.0).circle(2.2).extrude(6.0))
-    m.add("bottom_screw_deep", cq.Workplane("XY").workplane(offset=5.0).center(124.0, 157.0).circle(2.2).extrude(0.4), BAND)
+    # Two screws, each a domed Phillips head at the bottom of its hole: one
+    # in a shallow counterbore beside the vents, one down a deep hole on the
+    # other side. The holes are black inside.
+    screws = None
+    lining = None
+    for hx, hy, hole_r, depth, head_r in ((12.5, 185.0, 2.6, 1.6, 2.1), (124.0, 157.0, 2.2, 6.0, 1.8)):
+        body   = body.cut(cq.Workplane("XY").workplane(offset=-0.1).center(hx, hy).circle(hole_r).extrude(depth + 0.1))
+        sleeve = (cq.Workplane("XY").workplane(offset=0.05).center(hx, hy)
+                  .circle(hole_r).circle(hole_r - 0.05).extrude(depth - 0.05))
+        lining = sleeve if lining is None else lining.union(sleeve)
+        head   = _phillips_head(hx, hy, depth, head_r)
+        screws = head if screws is None else screws.union(head)
+    m.add("bottom_screw", screws, SCREW)
+    m.add("bottom_screw_hole", lining, BAND)
 
     # The battery cover: a seam around it, a half-round finger notch at its
     # front edge, and a slot in the notch for the catch.
@@ -786,14 +935,16 @@ def bottom(m):
                     .intersect(box(notch_x - 7, notch_x + 7, BAT_Y0 - 7, BAT_Y0 + 0.5, -0.2, 1.0)))
     body = body.cut(box(notch_x - 4.0, notch_x + 4.0, BAT_Y0 - 0.2, BAT_Y0 + 1.6, -0.1, 1.8))
 
-    # Two round rubber feet at the front, standing just proud of the bottom.
+    # Two round rubber feet at the front: flat where they meet the case, and
+    # below a thin slice of a sphere, thickest in the middle.
+    FOOT_R, FOOT_H = 5.0, 1.0
+    sphere_r = (FOOT_R ** 2 + FOOT_H ** 2) / (2 * FOOT_H)
     feet = None
     for fx in (20.0, 124.0):
-        foot = cq.Workplane("XY").workplane(offset=-0.8).center(fx, 50.0).circle(5.0).extrude(0.9)
-        foot = foot.faces("<Z").edges().fillet(0.5)
+        foot = (cq.Workplane("XY").sphere(sphere_r).translate((fx, 50.0, sphere_r - FOOT_H))
+                .intersect(box(fx - FOOT_R - 1, fx + FOOT_R + 1, 50.0 - FOOT_R - 1, 50.0 + FOOT_R + 1, -FOOT_H, 0.0)))
         feet = foot if feet is None else feet.union(foot)
     m.add("bottom_feet", feet, FOOT)
-
     m.parts[0].solid = body
 
 

@@ -223,7 +223,7 @@ Ka 0 0 0
 Kd 0.26 0.255 0.25
 d 1
 
-newmtl bottom_screw_deep
+newmtl bottom_screw_hole
 Ka 0 0 0 
 Kd 0.05 0.05 0.055
 d 1
