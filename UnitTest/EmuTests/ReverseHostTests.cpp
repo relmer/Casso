@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EmuTests/ReverseSessionRig.h"
+#include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Shell/CpuManager.h"
@@ -13,6 +14,7 @@ static constexpr uint64_t  s_kHostWarmupCycles = 60000;
 static constexpr uint64_t  s_kHostGapCycles    = KeyframeSettings::kFrameCycles * 3;
 static constexpr int       s_kHostBudgetMb     = 16;
 static constexpr Byte      s_kHostPaddle       = 0x5A;
+static uint64_t            s_wallClock         = 0;
 
 
 
@@ -32,6 +34,10 @@ static constexpr Byte      s_kHostPaddle       = 0x5A;
 TEST_CLASS (ReverseHostTests)
 {
 public:
+
+    //  The keyframe store's wall clock, held where a test puts it.
+    static uint64_t  ReadWallClock() { return s_wallClock; }
+
 
     TEST_METHOD (StartingRecordsTheMachineAndStoppingDetaches)
     {
@@ -173,6 +179,80 @@ public:
         Assert::IsFalse (host.IsBehindLive(), L"live");
         Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"host input flows again");
         Assert::AreEqual (1, lives, L"the live callback ran once");
+    }
+
+
+    //  A minute spent in history and then going live leaves no hole in the
+    //  timeline: the machine carries on from the old live end, keyframes
+    //  keep their cycle spacing, and the cells are placed by machine time.
+    //  Only the wall time stamped on the next keyframe jumps, which a label
+    //  shows and nothing lays out by.
+    TEST_METHOD (TimeSpentInHistoryLeavesNoHoleInTheTimeline)
+    {
+        constexpr uint64_t                 kTicksPerSecond = 10'000'000;
+        constexpr uint64_t                 kMinuteTicks    = 60 * kTicksPerSecond;
+        constexpr int                      kCellCount      = 8;
+        TestMachine                        machine ("Apple2e");
+        ReverseHost                        host    (machine);
+        ReverseResult                      result;
+        HRESULT                            hr      = S_OK;
+        uint64_t                           liveEnd = 0;
+        uint64_t                           step    = 0;
+        uint64_t                           span    = 0;
+        uint64_t                           widest  = 0;
+        uint64_t                           mean    = 0;
+        uint64_t                           wallGap = 0;
+        size_t                             count   = 0;
+        KeyframeStore                    & store   = host.GetController().GetKeyframes();
+        std::vector<HistoryThumbnailCell>  cells;
+        KeyframeInfo                       before;
+        KeyframeInfo                       after;
+
+
+
+        s_wallClock = kMinuteTicks;
+        store.SetWallClock (&ReadWallClock);
+
+        PrepareRecording (machine, host);
+
+        liveEnd = machine.GetPosition();
+        count   = store.GetCount();
+
+        hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
+        AssertSucceeded (hr, L"StepBack");
+
+        s_wallClock += kMinuteTicks;
+
+        hr = host.Execute (ReverseCommand::GoLive, 0, nullptr, result);
+        AssertSucceeded (hr, L"GoLive");
+
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"live again from the old live end");
+        Assert::AreEqual (count, store.GetCount(), L"no history was dropped");
+
+        machine.RunCycles (s_kHostGapCycles);
+
+        Assert::IsTrue (store.GetCount() > count, L"keyframes taken after going live");
+
+        before  = store.GetInfo (count - 1);
+        after   = store.GetInfo (count);
+        wallGap = after.wallTime - before.wallTime;
+
+        Assert::IsTrue (wallGap >= kMinuteTicks, L"the wall time stamped after going live jumps by the minute");
+        Assert::IsTrue (after.cycle - before.cycle <= KeyframeSettings::kFrameCycles * 2, L"but the machine time between them is one interval");
+
+        HistoryThumbnails::PlanCells (store, kCellCount, step, cells);
+
+        Assert::IsTrue (cells.size() > 2, L"cells were planned");
+
+        for (size_t i = 1; i < cells.size(); i++)
+        {
+            span   = cells[i].cycle - cells[i - 1].cycle;
+            widest = (std::max) (widest, span);
+        }
+
+        mean = (cells.back().cycle - cells.front().cycle) / (cells.size() - 1);
+
+        Assert::IsTrue (widest <= mean * 2, L"no cell spans the minute: they are spaced by machine time");
     }
 
 
