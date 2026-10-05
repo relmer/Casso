@@ -145,9 +145,10 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "create | new",
         "Make a new image file, formatted and ready to use",
         "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
-        "                               [%Lbootable [<image>]]\n"
+        "                               [%Lbootable [<image>]] [%Lflux [<tracks>]]\n"
         "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
         "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
+                                   "If the name has no extension, the default extension for the type is appended. "
                                    "Valid types are: %C\n"
         "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
@@ -156,8 +157,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lboot <file>           Loads and executes the binary <file> directly without copying or relying on operating system files\n"
         "  %Lload $XXXX            Where a %Lboot binary is loaded into memory. Valid addresses are $0900-$BFFF, inclusive\n"
         "  %Lexec $XXXX            Memory address to jump to after loading the %Lboot binary file. Defaults to the load"
-                                   " address, and must be an address within the loaded binary\n",
-        nullptr,
+                                   " address, and must be an address within the loaded binary\n"
+        "  %Lflux [<tracks>]       Stores tracks as flux rather than bits, in a WOZ image only. Every track by default, or only"
+                                   " the whole tracks listed, such as 0-2,17\n",        nullptr,
         "CassoCli disk create mydisk.dsk %Lbootable" 
     },
 
@@ -165,11 +167,13 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Init,
         "init | format",
         "Format an existing disk, erasing any existing files",
-        "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]]",
+        "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]] [%Lflux [<tracks>]]",
         "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
-                                   " for the selected format, but this can be overridden by supplying an image of your own\n",
+                                   " for the selected format, but this can be overridden by supplying an image of your own\n"
+        "  %Lflux [<tracks>]       Stores tracks as flux rather than bits, in a WOZ image only. Every track by default, or only"
+                                   " the whole tracks listed, such as 0-2,17. Without it, tracks already stored as flux stay flux\n",
         nullptr,
         "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" 
     },

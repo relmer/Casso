@@ -3585,9 +3585,6 @@ namespace CommandLineTests
             Assert::IsTrue (parsed.erase ("no-image-watch") == 1,
                 L"the developer switch is parsed and deliberately not described");
 
-            Assert::IsTrue (parsed.erase ("title") == 1,
-                L"the caption label is parsed and deliberately not described");
-
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");
         }

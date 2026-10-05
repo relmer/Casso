@@ -474,6 +474,12 @@
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
+    <ClCompile Include="EmuTests\FluxTestImages.cpp" />
+    <ClCompile Include="EmuTests\WozFluxLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\Disk2NibbleEngineFluxTests.cpp" />
+    <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
+    <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
@@ -757,6 +763,7 @@
     <ClCompile Include="Dxui\DxuiToolbarCompactTests.cpp" />
     <ClCompile Include="Dxui\DxuiToggleTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewFocusClickTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />
     <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />
@@ -808,6 +815,7 @@
     <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
     <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
+    <ClCompile Include="ExeManifestTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />

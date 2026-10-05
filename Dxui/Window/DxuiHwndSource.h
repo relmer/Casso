@@ -363,6 +363,11 @@ public:
     DxuiPanel  &  GetRoot          ()       { return *GetRootPanel(); }
     const DxuiDpiScaler &  GetScaler  () const { return m_scaler; }
 
+    //  Where the placement this window was created with puts a frame of
+    //  `windowSizePx`. False for a Default placement, or when the system
+    //  will not say where the anchor or its monitor is.
+    bool  TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const;
+
     //  The rect of the system button (minimize, maximize, close) under a
     //  screen point, in client pixels -- the space a tooltip anchor takes.
     //  False when the point is over no system button.

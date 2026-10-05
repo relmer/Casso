@@ -830,9 +830,8 @@ Error:
 //  fits inside `work`, else flush against the other side.
 //
 //  Which side is preferred is the caller's call because it is about what
-//  the window is for, not about geometry: the Settings sheet opens to the
-//  left, the printer panel to the right, so a user who
-//  opens two of them does not get them stacked on the same edge.
+//  the window is for, not about geometry: the printer panel opens to the
+//  right, leaving the left edge for a window that wants the other side.
 //
 //  `work` is the OWNER's monitor work area, so neither side placement can
 //  put the window on a neighboring monitor or split it across two -- the
@@ -1087,6 +1086,38 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
     placed = true;
 
 Error:
+
+    return placed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TryGetPlacementForSize
+//
+//  The creation-time placement, asked again for a different frame size. A
+//  window that measures its content only after it exists -- and so resizes
+//  before it is shown -- uses this to land where its placement would have
+//  put a window of the size it really opens at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const
+{
+    HWND  anchorHwnd = (m_params.placementAnchorHwnd != nullptr) ? m_params.placementAnchorHwnd
+                                                                 : m_params.ownerHwnd;
+    bool  placed     = false;
+
+
+
+    if (m_params.placement != DxuiWindowPlacement::Default)
+    {
+        placed = TryGetWindowPlacement (anchorHwnd, windowSizePx, m_params.placement,
+                                        m_params.placementAnchorRectPx, outTopLeft);
+    }
 
     return placed;
 }

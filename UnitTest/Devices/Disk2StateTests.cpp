@@ -6,6 +6,7 @@
 #include "Devices/Disk/DiskTrackSnapshot.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "EmuTests/FluxTestImages.h"
 
 // Disk2Controller carries two DiskImage instances; per-test heap
 // allocation would otherwise blow the C6262 stack-frame budget.
@@ -113,6 +114,20 @@ namespace Disk2State
             m_weakRngState  = kRngBase + seed;
             m_readNibbles   = kCountBase + seed;
             m_writeNibbles  = kCountBase + seed + 4;
+
+            // The flux fields, with no write held: a held write needs a flux
+            // track on an attached disk.
+            m_fluxNow              = kCountBase + seed + 5;
+            m_fluxDue              = kCountBase + seed + 6;
+            m_fluxLastPulse        = kCountBase + seed + 7;
+            m_fluxRevUnits         = kCountBase + seed + 8;
+            m_fluxCursor.nextIndex = kBitBase + seed + 9;
+            m_fluxCursor.tick      = kCountBase + seed + 10;
+            m_fluxPulseClock       = kCountBase + seed + 11;
+            m_fluxPulseCount       = kCountBase + seed + 12;
+            m_burstSlot            = seed % kTrackBase;
+            m_burstStartTick       = kCountBase + seed + 13;
+            m_burstBits.assign (seed % kTrackBase + 1, static_cast<uint8_t> (seed & 0x01));
         }
 
         void SetBitPosition (size_t bitPos)
@@ -122,20 +137,31 @@ namespace Disk2State
 
         void AssertSameState (const StateProbeEngine & other) const
         {
-            Assert::AreEqual (m_currentTrack,  other.m_currentTrack,  L"current track");
-            Assert::AreEqual (m_motorOn,       other.m_motorOn,       L"motor on");
-            Assert::AreEqual (m_writeMode,     other.m_writeMode,     L"write mode");
-            Assert::AreEqual (m_shiftLoadMode, other.m_shiftLoadMode, L"shift/load mode");
-            Assert::AreEqual (m_latchIsFresh,  other.m_latchIsFresh,  L"latch is fresh");
-            Assert::AreEqual (m_bitPos,        other.m_bitPos,        L"bit position");
-            Assert::AreEqual (m_lssState,      other.m_lssState,      L"LSS state");
-            Assert::AreEqual (m_lssClock,      other.m_lssClock,      L"LSS clock");
-            Assert::AreEqual (m_readLatch,     other.m_readLatch,     L"read latch");
-            Assert::AreEqual (m_bus,           other.m_bus,           L"bus");
-            Assert::AreEqual (m_headWindow,    other.m_headWindow,    L"head window");
-            Assert::AreEqual (m_weakRngState,  other.m_weakRngState,  L"weak-bit generator");
-            Assert::AreEqual (m_readNibbles,   other.m_readNibbles,   L"read nibbles");
-            Assert::AreEqual (m_writeNibbles,  other.m_writeNibbles,  L"write nibbles");
+            Assert::AreEqual (m_currentTrack,         other.m_currentTrack,         L"current track");
+            Assert::AreEqual (m_motorOn,              other.m_motorOn,              L"motor on");
+            Assert::AreEqual (m_writeMode,            other.m_writeMode,            L"write mode");
+            Assert::AreEqual (m_shiftLoadMode,        other.m_shiftLoadMode,        L"shift/load mode");
+            Assert::AreEqual (m_latchIsFresh,         other.m_latchIsFresh,         L"latch is fresh");
+            Assert::AreEqual (m_bitPos,               other.m_bitPos,               L"bit position");
+            Assert::AreEqual (m_lssState,             other.m_lssState,             L"LSS state");
+            Assert::AreEqual (m_lssClock,             other.m_lssClock,             L"LSS clock");
+            Assert::AreEqual (m_readLatch,            other.m_readLatch,            L"read latch");
+            Assert::AreEqual (m_bus,                  other.m_bus,                  L"bus");
+            Assert::AreEqual (m_headWindow,           other.m_headWindow,           L"head window");
+            Assert::AreEqual (m_weakRngState,         other.m_weakRngState,         L"weak-bit generator");
+            Assert::AreEqual (m_readNibbles,          other.m_readNibbles,          L"read nibbles");
+            Assert::AreEqual (m_writeNibbles,         other.m_writeNibbles,         L"write nibbles");
+            Assert::AreEqual (m_fluxNow,              other.m_fluxNow,              L"flux time");
+            Assert::AreEqual (m_fluxDue,              other.m_fluxDue,              L"next flux transition");
+            Assert::AreEqual (m_fluxLastPulse,        other.m_fluxLastPulse,        L"last flux pulse");
+            Assert::AreEqual (m_fluxRevUnits,         other.m_fluxRevUnits,         L"flux revolution");
+            Assert::AreEqual (m_fluxCursor.nextIndex, other.m_fluxCursor.nextIndex, L"flux cursor index");
+            Assert::AreEqual (m_fluxCursor.tick,      other.m_fluxCursor.tick,      L"flux cursor tick");
+            Assert::AreEqual (m_fluxPulseClock,       other.m_fluxPulseClock,       L"flux pulse clock");
+            Assert::AreEqual (m_fluxPulseCount,       other.m_fluxPulseCount,       L"flux pulse count");
+            Assert::AreEqual (m_burstSlot,            other.m_burstSlot,            L"held write slot");
+            Assert::AreEqual (m_burstStartTick,       other.m_burstStartTick,       L"held write start");
+            Assert::IsTrue   (m_burstBits ==          other.m_burstBits,            L"held write cells");
         }
     };
 
@@ -272,6 +298,8 @@ namespace Disk2State
         {
             Assert::AreEqual (expected.GetTrackBitCount (track), actual.GetTrackBitCount (track), L"track bit count");
             Assert::IsTrue   (expected.GetTrackBits (track) == actual.GetTrackBits (track),        L"track bits");
+            Assert::IsTrue   (expected.GetTrackKind (track) == actual.GetTrackKind (track),        L"track kind");
+            Assert::IsTrue   (expected.GetFluxTrack (track).GetBytes() == actual.GetFluxTrack (track).GetBytes(), L"flux bytes");
         }
 
         // The dirty flags say what the host file lacks, so a load does not
@@ -291,6 +319,57 @@ namespace Disk2State
 
         hr = LoadFrom (target, bytes);
         Assert::AreEqual (S_OK, hr);
+    }
+
+
+    // Turns a track into the flux track its bits would be at nominal cells.
+    static void MakeFluxTrack (DiskImage & disk, int track)
+    {
+        disk.SetFluxTrack (track, FluxTestImages::BitsToNominalFlux (disk.GetTrackBits (track), disk.GetTrackBitCount (track)));
+        Assert::IsTrue (disk.GetTrackKind (track) == TrackKind::Flux);
+    }
+
+
+    // Puts the controller in write mode and writes `count` bytes.
+    static void WriteBytes (Disk2Controller & controller, int count)
+    {
+        constexpr uint32_t  kByteCycles = 32;
+        int                 i           = 0;
+
+
+
+        for (i = 0; i < count; i++)
+        {
+            controller.Write (kQ7High, static_cast<Byte> (0x96 + i));
+            controller.Tick (kByteCycles);
+        }
+    }
+
+
+    // Finishes a write started before a save, then reads, returning every
+    // latch value the CPU saw.
+    static std::vector<Byte> FinishWriteAndRead (Disk2Controller & controller)
+    {
+        constexpr int       kWrites     = 100;
+        constexpr int       kReads      = 3000;
+        constexpr uint32_t  kReadCycles = 7;
+        std::vector<Byte>   seen;
+        int                 i           = 0;
+
+
+
+        WriteBytes (controller, kWrites);
+
+        seen.push_back (controller.Read (kQ7Low));
+        seen.push_back (controller.Read (kQ6Low));
+
+        for (i = 0; i < kReads; i++)
+        {
+            controller.Tick (kReadCycles);
+            seen.push_back (controller.Read (kQ6Low));
+        }
+
+        return seen;
     }
 
 
@@ -446,6 +525,93 @@ namespace Disk2State
             Assert::AreEqual (S_OK, hr);
 
             AssertSameMedia (*source, *target);
+        }
+
+
+        //  A flux track's kind and bytes are saved, so a load puts back a
+        //  guest write spliced into one and turns a track that became flux
+        //  since the save back into bits.
+        TEST_METHOD (DiskRoundTripsFluxTracks)
+        {
+            constexpr int       kFluxTrack  = 2;
+            constexpr int       kOtherTrack = 4;
+            constexpr uint64_t  kSpliceTick = 5000;
+            constexpr size_t    kSpliceBits = 64;
+            auto                source      = std::make_unique<DiskImage>();
+            auto                target      = std::make_unique<DiskImage>();
+            std::vector<Byte>   unspliced;
+            HRESULT             hr          = S_OK;
+
+
+
+            LoadTestDisk (*source);
+            LoadTestDisk (*target);
+
+            MakeFluxTrack (*source, kFluxTrack);
+            unspliced = source->GetFluxTrack (kFluxTrack).GetBytes();
+            source->SpliceFluxBulk (kFluxTrack, kSpliceTick, std::vector<uint8_t> (kSpliceBits, 1));
+            Assert::IsFalse (source->GetFluxTrack (kFluxTrack).GetBytes() == unspliced, L"the splice changed the flux");
+
+            MakeFluxTrack (*target, kOtherTrack);
+            target->ClearDirty();
+
+            hr = LoadFrom (*target, SavePart (*source));
+            Assert::AreEqual (S_OK, hr);
+
+            AssertSameMedia (*source, *target);
+            Assert::IsTrue (target->IsTrackDirty (kFluxTrack),  L"the load changed this track to flux");
+            Assert::IsTrue (target->IsTrackDirty (kOtherTrack), L"and this one back to bits");
+        }
+
+
+        //  Saved in the middle of a guest write to a flux track, the drive
+        //  runs the same from the load: the flux timeline and the write held
+        //  for the track are part of the state.
+        TEST_METHOD (FluxDriveRunsTheSameAfterLoadMidWrite)
+        {
+            constexpr int       kWritesBeforeSave = 100;
+            auto                controller        = std::make_unique<Disk2Controller> (kSlot);
+            DiskImage         * disk              = controller->GetDisk (0);
+            std::vector<Byte>   savedDisk;
+            std::vector<Byte>   savedController;
+            std::vector<Byte>   firstRun;
+            std::vector<Byte>   secondRun;
+            std::vector<Byte>   firstMedia;
+            std::vector<Byte>   secondMedia;
+            HRESULT             hr                = S_OK;
+
+
+
+            LoadTestDisk (*disk);
+            MakeFluxTrack (*disk, 0);
+
+            controller->Read (kMotorOn);
+            RunScript (*controller);
+
+            controller->Read (kQ6High);
+            controller->Read (kQ7Low);
+            WriteBytes (*controller, kWritesBeforeSave);
+
+            Assert::IsTrue (controller->GetEngine (0).IsOnFluxTrack(), L"the head is over the flux track");
+
+            savedDisk       = SavePart (*disk);
+            savedController = SavePart (*controller);
+
+            firstRun   = FinishWriteAndRead (*controller);
+            firstMedia = SavePart (*disk);
+
+            hr = LoadFrom (*disk, savedDisk);
+            Assert::AreEqual (S_OK, hr);
+
+            hr = LoadFrom (*controller, savedController);
+            Assert::AreEqual (S_OK, hr);
+
+            secondRun   = FinishWriteAndRead (*controller);
+            secondMedia = SavePart (*disk);
+
+            Assert::IsFalse (firstMedia == savedDisk,   L"the write after the save reached the disk");
+            Assert::IsTrue  (firstRun   == secondRun,   L"latch values after load");
+            Assert::IsTrue  (firstMedia == secondMedia, L"disk flux after load");
         }
 
 

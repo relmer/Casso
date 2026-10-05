@@ -63,6 +63,12 @@ enum class DiskFormat
 //                        damage and leave nothing able to detect it, so the
 //                        disk is held read-only for the session instead.
 //
+//      damagedTracks     some of the image's tracks could not be read from the
+//                        file -- a track whose data lies outside it, or is cut
+//                        short. The rest of the disk mounts and reads, and is
+//                        held read-only for the same reason as a checksum
+//                        mismatch.
+//
 //  checksumMismatch is deliberately NOT the image flag: that flag lives in
 //  the file, so setting it would mean writing the very file being protected
 //  from writes. It is session state, like userSetting.
@@ -76,10 +82,20 @@ struct WriteProtectInfo
     bool  readOnlyFile     = false;
     bool  noPermission     = false;
     bool  checksumMismatch = false;
+    bool  damagedTracks    = false;
+
+    // One quarter track per damaged track, for the report; see
+    // DamagedMountReport::GetDamagedQuarterTracks.
+    std::vector<int>  damagedQuarterTracks;
 
     bool  Any () const
     {
-        return imageFlag || userSetting || readOnlyFile || noPermission || checksumMismatch;
+        return imageFlag || userSetting || readOnlyFile || noPermission || IsDamaged();
+    }
+
+    bool  IsDamaged () const
+    {
+        return checksumMismatch || damagedTracks;
     }
 
     bool  operator== (const WriteProtectInfo & o) const
@@ -88,7 +104,9 @@ struct WriteProtectInfo
                userSetting      == o.userSetting      &&
                readOnlyFile     == o.readOnlyFile     &&
                noPermission     == o.noPermission     &&
-               checksumMismatch == o.checksumMismatch;
+               checksumMismatch == o.checksumMismatch &&
+               damagedTracks    == o.damagedTracks    &&
+               damagedQuarterTracks == o.damagedQuarterTracks;
     }
 
     bool  operator!= (const WriteProtectInfo & o) const { return !(*this == o); }

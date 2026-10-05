@@ -164,6 +164,9 @@ public:
     //  says the file may not be written.
     static std::string  DescribeReplaceFailure (HRESULT hr);
 
+    //  The same job for writing the temporary beside the image.
+    static std::string  DescribeTemporaryWriteFailure (HRESULT hr);
+
 private:
     IDiskFileIo &  m_fileIo;
 

@@ -231,8 +231,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         if (FAILED (hr) || fileBytes.size() < config.systemRom.romBankSize)
         {
             wideError = L"Cannot read banked system ROM: " +
-                        std::wstring (config.systemRom.resolvedPath.begin(),
-                                      config.systemRom.resolvedPath.end());
+                        TextEncoding::NarrowToWide (config.systemRom.resolvedPath);
             CBRN (false, wideError.c_str());
         }
 
@@ -260,7 +259,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
         if (!romOk)
         {
-            wideError.assign (error.begin(), error.end());
+            wideError = TextEncoding::NarrowToWide (error);
             CBRN (false, wideError.c_str());
         }
 
@@ -492,7 +491,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
             if (device == nullptr)
             {
-                wideError.assign (error.begin(), error.end());
+                wideError = TextEncoding::NarrowToWide (error);
                 CBRN (false, wideError.c_str());
             }
 

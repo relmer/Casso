@@ -57,6 +57,7 @@
 #include "Cassque/Model/KnownFolderStore.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DamagedMountReport.h"
 
 
 
@@ -686,7 +687,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
 //
 //  The damage report, with salvage offered inline so the dialog is not a dead
 //  end. Reached after every mount; silent unless the image failed its stored
-//  checksum.
+//  checksum or has tracks that could not be read from the file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -718,7 +719,7 @@ void EmulatorShell::ReportDamagedMount (int drive)
         return;
     }
 
-    if (!image->HasSourceCrcMismatch())
+    if (!image->IsDamaged())
     {
         return;
     }
@@ -729,12 +730,8 @@ void EmulatorShell::ReportDamagedMount (int drive)
     // saying anything about it makes the reader hold a path in mind with no
     // reason to yet.
     def.body.push_back (DialogTextRun {
-        L"This disk image's stored checksum does not match its contents. "
-        L"The file is damaged or was written by a tool that miscomputed it.\n\n" +
-        fs::path (m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring() + L"\n\n"
-        L"Casso has loaded it so you can read it, and has write-protected it "
-        L"for this session. Rewriting the file would give it a newly computed "
-        L"checksum, silently hiding the damaged sectors.",
+        DamagedMountReport::FormatBody (*image,
+            fs::path (m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring()),
         false, std::wstring() });
 
     hr = m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);

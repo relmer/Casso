@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ScreenshotsPage.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -145,7 +146,7 @@ std::wstring ScreenshotsPage::FolderForDisplay (const std::string &  configured,
         return defaultFolder;
     }
 
-    return std::wstring (configured.begin(), configured.end());
+    return TextEncoding::Utf8ToWide (configured);
 }
 
 

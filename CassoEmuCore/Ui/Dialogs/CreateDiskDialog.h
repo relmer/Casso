@@ -75,6 +75,7 @@ private:
     void  RebuildImageTypeChoices ();
     void  ApplyImageTypeExtension ();
     void  UpdateBootableRow    ();
+    void  UpdateFluxCheck      ();
 
     //  NO FORMAT OR CONTENTS LOOKUP LIVES HERE. Three of them did, each a
     //  switch ending in a default arm that answered with another entry's name,
@@ -102,6 +103,7 @@ private:
     DxuiComboBox          m_formatDropdown;      // DOS 3.3 / ProDOS / Unformatted
     DxuiLabel             m_imageTypeLabel;
     DxuiComboBox          m_imageTypeDropdown;   // WOZ / DSK / PO
+    DxuiCheckbox          m_fluxCheck;
     DxuiCheckbox          m_bootableCheck;
     DxuiButton            m_downloadButton;
     DxuiLabel             m_nameLabel;

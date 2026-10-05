@@ -124,4 +124,25 @@ public:
         Assert::IsTrue (TextEncoding::GetNarrowCodePage() != 0,
                         L"and so is the process's own");
     }
+
+    TEST_METHOD (Utf8ToWide_DecodesEveryCharacter_WhateverTheProcessCodePage)
+    {
+        std::string   utf8 = "Br\xC3\xB8" "derbund \xCE\xA9\xE6\x97\xA5\xE6\x9C\xAC";
+        std::wstring  wide = TextEncoding::Utf8ToWide (utf8);
+
+        Assert::AreEqual (std::wstring (L"Br\x00F8" L"derbund \x03A9\x65E5\x672C"), wide);
+        Assert::AreEqual (utf8, TextEncoding::WideToUtf8 (wide), L"and comes back byte for byte");
+    }
+
+    //  The explicit-code-page crossings are what the process code page versions
+    //  call. Under 1252 a character it cannot hold, and has no look-alike for,
+    //  becomes `?`; under UTF-8 every character survives.
+    TEST_METHOD (WideToNarrow_InAnExplicitCodePage_KeepsOnlyWhatThatCodePageHolds)
+    {
+        std::wstring  wide = L"Br\x00F8" L"derbund \x65E5";
+
+        Assert::AreEqual (std::string ("Br\xF8" "derbund ?"), TextEncoding::WideToNarrow (wide, kWindows1252));
+        Assert::AreEqual (wide, TextEncoding::NarrowToWide (TextEncoding::WideToNarrow (wide, kUtf8), kUtf8),
+                          L"UTF-8 round-trips every character");
+    }
 };

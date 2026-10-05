@@ -59,6 +59,9 @@ public:
     //  would let a message naming the wrong cause pass.
     HRESULT      nextReplaceError    = E_FAIL;
 
+    //  WHICH failure the write reports, for the same reason.
+    HRESULT      nextWriteError      = E_FAIL;
+
     //  Set to make Stat report something different from what was recorded at
     //  read time, which is how the staleness check is exercised without a
     //  second process.
@@ -100,7 +103,7 @@ public:
             files[path]  = vector<Byte> (bytes.begin(), bytes.begin() + (bytes.size() / 2));
             stamps[path] = FileStamp { files[path].size(), 1 };
 
-            return E_FAIL;
+            return nextWriteError;
         }
 
         files[path]  = bytes;

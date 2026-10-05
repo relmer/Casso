@@ -833,7 +833,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (PickerCommand_WearsTheLabelFittedInTheMiddleKeepingPlusOne)
+        TEST_METHOD (PickerCommand_WearsTheWholeLabel)
         {
             EmulatorCommands                    commands;
             std::shared_ptr<const DxuiCommand>  paddle = commands.Find (EmulatorCommands::kIdPaddle);
@@ -841,10 +841,7 @@ namespace ControllerTests
             Assert::IsTrue   (paddle != nullptr);
             Assert::AreEqual (std::wstring (L"Joystick and paddle source"), paddle->tip,
                 L"the face already carries the answer, so the tooltip gives the purpose");
-            Assert::IsTrue   (paddle->labelFit.has_value());
-            Assert::IsTrue   (paddle->labelFit->mode == DxuiElide::Middle);
-            Assert::AreEqual (std::wstring (L" +1"), paddle->labelFit->keptSuffix);
-            Assert::AreEqual (EmulatorCommands::kPickerLabelMaxDip, paddle->labelFit->maxWidthDip);
+            Assert::IsFalse  (paddle->labelFit.has_value(), L"the button grows to the whole description");
         }
 
 
@@ -926,17 +923,12 @@ namespace ControllerTests
         }
 
 
-        //  The face while Player 1's slot is held ends in "(disconnected) +1",
-        //  and the command's fit keeps that whole suffix when the toolbar
-        //  cuts the description in the middle, not only its " +1".
-        TEST_METHOD (PickerCommand_KeepsTheDisconnectedSuffixWhole)
+        //  The face while Player 1's slot is held ends in "(disconnected) +1".
+        TEST_METHOD (PickerLabel_EndsInTheDisconnectedSuffixWhileHeld)
         {
-            EmulatorCommands                    commands;
-            std::shared_ptr<const DxuiCommand>  paddle = commands.Find (EmulatorCommands::kIdPaddle);
-            InputModeRules::PickerSource        source = MakeSource();
-            ControllerDeviceInfo                gone   = MakeStick ("{GONE}", L"Gone Stick (231d:0121)");
-            InputModeRules::Picker              picker;
-            bool                                isKept = false;
+            InputModeRules::PickerSource  source = MakeSource();
+            ControllerDeviceInfo          gone   = MakeStick ("{GONE}", L"Gone Stick (231d:0121)");
+            InputModeRules::Picker        picker;
 
 
 
@@ -947,14 +939,6 @@ namespace ControllerTests
             picker                                                              = InputModeRules::BuildPicker (source);
 
             Assert::AreEqual (std::wstring (L"Gone Stick (disconnected) +1"), picker.label);
-            Assert::IsTrue   (paddle != nullptr && paddle->labelFit.has_value());
-
-            for (const std::wstring & suffix : paddle->labelFit->keptSuffixes)
-            {
-                isKept = isKept || (suffix == L" (disconnected) +1" && picker.label.ends_with (suffix));
-            }
-
-            Assert::IsTrue (isKept, L"the whole suffix is kept");
         }
 
 

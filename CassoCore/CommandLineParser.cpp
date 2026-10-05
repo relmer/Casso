@@ -249,6 +249,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "volume",
     "bootable",
     "boot",
+    "flux",
     "load",
     "exec",
     "track",
@@ -333,8 +334,8 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 //  what canonicalizes a `/` form; this one is what the reader is shown, and a
 //  sweep holds the two together.
 //
-//  `no-image-watch` AND `title` ARE ABSENT ON PURPOSE, being developer
-//  switches rather than options a user has a reason to find. `--help` is here
+//  `no-image-watch` IS ABSENT ON PURPOSE, being a developer switch rather than
+//  an option a user has a reason to find. `--help` is here
 //  and is NOT in the table above, because IsHelpRequest matches its six forms
 //  exactly and has no `/` name to rewrite.
 static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
@@ -350,6 +351,8 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--debugger", "",        "Open the debugger window and the debug channel at "
                               "start, without pausing the machine. The call stack "
                               "is recorded from the first instruction." },
+    { "--title",   " <text>",  "Add a label to the window title, to tell running "
+                              "instances apart." },
     { "--help",    "",         "Show this message and exit." },
 };
 
@@ -1532,8 +1535,25 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
-        if (arg == "--boot" && hasValue)
+        //  --flux STANDS ALONE OR TAKES A TRACK LIST. Only an argument that
+        //  starts with a digit is taken as the list, so a file name or the
+        //  next option after a bare --flux is left alone.
+        if (arg == "--flux")
         {
+            bool  listed = hasValue && isdigit ((unsigned char) argv[i + 1][0]) != 0;
+
+            options.disk.flux       = true;
+            options.disk.fluxTracks = listed ? argv[i + 1] : "";
+
+            if (listed)
+            {
+                i++;
+            }
+
+            continue;
+        }
+
+        if (arg == "--boot" && hasValue)        {
             options.disk.directBootFile = argv[i + 1];
             i++;
             continue;

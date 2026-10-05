@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "DamagedMountReport.h"
 #include "DiskImageStore.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
@@ -34,6 +35,8 @@ DiskImage::DiskImage()
     m_trackBits.resize      (kDefaultTrackCount);
     m_trackBitCounts.resize (kDefaultTrackCount, 0);
     m_trackDirty.resize     (kDefaultTrackCount, false);
+    m_slotKind.resize       (kDefaultTrackCount, TrackKind::Bits);
+    m_fluxTracks.resize     (kDefaultTrackCount);
     InitWholeTrackMap();
     RenewIdentity();
 }
@@ -60,6 +63,7 @@ void DiskImage::InitWholeTrackMap()
 
 
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+    m_layoutGeneration++;
 
     for (qt = 0; qt < kQuarterTrackCount; qt++)
     {
@@ -110,15 +114,181 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 
     // Three ways to hold no data -- off the end of the map, an unmapped or
     // out-of-range slot, or a slot whose stream is empty -- and callers
-    // treat them identically, so they all fold into the one -1.
-    if (slot < 0
-        || slot >= static_cast<int> (m_trackBitCounts.size())
-        || m_trackBitCounts[slot] == 0)
+    // treat them identically, so they all fold into the one -1. A flux slot
+    // keeps its bit buffer empty, so it counts as data by its kind instead.
+    if (slot < 0 || slot >= static_cast<int> (m_trackBitCounts.size()))
+    {
+        slot = -1;
+    }
+    else if (m_trackBitCounts[slot] == 0 && m_slotKind[slot] != TrackKind::Flux)
     {
         slot = -1;
     }
 
     return slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMappedSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::GetMappedSlot (int quarterTrack) const
+{
+    bool  inMap = (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()));
+
+
+
+    return inMap ? m_quarterTrackMap[quarterTrack] : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTrackKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TrackKind DiskImage::GetTrackKind (int slot) const
+{
+    bool  inRange = (slot >= 0 && slot < static_cast<int> (m_slotKind.size()));
+
+
+
+    return inRange ? m_slotKind[slot] : TrackKind::Bits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFluxTrack
+//
+//  Makes a slot a flux track holding these bytes. Its bit buffer is emptied,
+//  so nothing that reads bits can mistake leftover bits for the track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::SetFluxTrack (int slot, const vector<Byte> & fluxBytes)
+{
+    if (slot < 0 || slot >= static_cast<int> (m_slotKind.size()))
+    {
+        return;
+    }
+
+    m_trackBits[slot].clear();
+    m_trackBitCounts[slot] = 0;
+    m_slotKind[slot]       = TrackKind::Flux;
+    m_fluxTracks[slot].Assign (fluxBytes);
+    m_layoutGeneration++;
+
+    TouchTrack (slot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasFluxTracks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImage::HasFluxTracks() const
+{
+    bool    found = false;
+    size_t  i     = 0;
+
+
+
+    for (i = 0; !found && i < m_slotKind.size(); i++)
+    {
+        found = (m_slotKind[i] == TrackKind::Flux);
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SpliceFluxWrite
+//
+//  The flux counterpart of WriteBit, for a whole write at once. Protection is
+//  checked first for the same reason WriteBit checks it first: a refused write
+//  must never mark the track dirty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::SpliceFluxWrite (int slot, uint64_t startTick, const vector<uint8_t> & bits)
+{
+    if (IsWriteProtected())
+    {
+        return;
+    }
+
+    SpliceFluxBulk (slot, startTick, bits);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SpliceFluxBulk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::SpliceFluxBulk (int slot, uint64_t startTick, const vector<uint8_t> & bits)
+{
+    bool  isFluxSlot = (GetTrackKind (slot) == TrackKind::Flux);
+
+
+
+    if (!isFluxSlot || bits.empty())
+    {
+        return;
+    }
+
+    m_fluxTracks[slot].SpliceWrite (startTick, bits);
+    MarkTrackDirty (slot);
+    m_layoutGeneration++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitPendingWrite
+//
+//  Asks whoever holds an unfinished write to put it in now. The owner clears
+//  itself as part of committing, so this is safe to call at any time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::CommitPendingWrite()
+{
+    if (m_pendingWriteOwner != nullptr)
+    {
+        m_pendingWriteOwner->CommitPendingWrite();
+    }
 }
 
 
@@ -139,6 +309,7 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 void DiskImage::ClearQuarterTrackMap()
 {
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+    m_layoutGeneration++;
 }
 
 
@@ -147,6 +318,7 @@ void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
     if (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()))
     {
         m_quarterTrackMap[quarterTrack] = slot;
+        m_layoutGeneration++;
     }
 }
 
@@ -162,7 +334,7 @@ void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
 
 void DiskImage::EnsureTrackSlots (int slotCount)
 {
-    // Grow only -- the three vectors are index-parallel and shrinking one
+    // Grow only -- the slot vectors are index-parallel and shrinking one
     // would orphan the quarter-track map entries pointing past the new end.
     if (slotCount > static_cast<int> (m_trackBits.size()))
     {
@@ -170,6 +342,9 @@ void DiskImage::EnsureTrackSlots (int slotCount)
         m_trackBitCounts.resize (slotCount, 0);
         m_trackDirty.resize     (slotCount, false);
         m_trackGeneration.resize (slotCount, 0);
+        m_slotKind.resize       (slotCount, TrackKind::Bits);
+        m_fluxTracks.resize     (slotCount);
+        m_layoutGeneration++;
     }
 }
 
@@ -355,7 +530,7 @@ bool DiskImage::IsWriteProtected() const
         || m_userWriteProtected
         || m_fileReadOnly
         || m_fileNoPermission
-        || m_sourceCrcMismatch;
+        || IsDamaged();
 }
 
 
@@ -379,6 +554,12 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo() const
     info.readOnlyFile     = m_fileReadOnly;
     info.noPermission     = m_fileNoPermission;
     info.checksumMismatch = m_sourceCrcMismatch;
+    info.damagedTracks    = HasDamagedTracks();
+
+    if (info.damagedTracks)
+    {
+        info.damagedQuarterTracks = DamagedMountReport::GetDamagedQuarterTracks (*this);
+    }
 
     return info;
 }
@@ -544,8 +725,12 @@ void DiskImage::ResizeTrack (int track, size_t bitCount)
 
     bytesNeeded = (bitCount + 7) / 8;
 
+    // Sizing a bit buffer makes the slot a bit track, whatever it held before.
     m_trackBits[track].assign (bytesNeeded, 0);
     m_trackBitCounts[track] = bitCount;
+    m_slotKind[track]       = TrackKind::Bits;
+    m_fluxTracks[track]     = FluxTrack();
+    m_layoutGeneration++;
 
     TouchTrack (track);
 }
@@ -573,6 +758,7 @@ void DiskImage::SetTrackBitCount (int track, size_t bitCount)
     }
 
     m_trackBitCounts[track] = bitCount;
+    m_layoutGeneration++;
 
     TouchTrack (track);
 }
@@ -620,6 +806,9 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_dirty          = false;
     m_rawSourceBytes = raw;
     m_wozMetadata.Clear();
+    m_damagedTracks.clear();
+    m_slotKind.assign   (m_slotKind.size(), TrackKind::Bits);
+    m_fluxTracks.assign (m_fluxTracks.size(), FluxTrack());
     InitWholeTrackMap();
     RenewIdentity();
 
@@ -734,6 +923,8 @@ void DiskImage::Eject()
 
 
 
+    CommitPendingWrite();
+
     if (m_dirty && !IsWriteProtected())
     {
         hr = Flush();
@@ -746,6 +937,8 @@ void DiskImage::Eject()
     m_trackBits.assign      (kDefaultTrackCount, vector<Byte> ());
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);
+    m_slotKind.assign       (kDefaultTrackCount, TrackKind::Bits);
+    m_fluxTracks.assign     (kDefaultTrackCount, FluxTrack());
     InitWholeTrackMap();
     RenewIdentity();
     m_loaded              = false;
@@ -755,6 +948,7 @@ void DiskImage::Eject()
     m_fileReadOnly        = false;
     m_fileNoPermission    = false;
     m_sourceCrcMismatch   = false;
+    m_damagedTracks.clear();
 }
 
 
@@ -791,6 +985,8 @@ HRESULT DiskImage::Flush()
     vector<Byte>  bytes;
 
 
+
+    CommitPendingWrite();
 
     BAIL_OUT_IF (!m_dirty, S_OK);
 
@@ -882,9 +1078,10 @@ uint64_t DiskImage::GetTrackGeneration (int track) const
 //
 //  SaveState
 //
-//  Every track in full. A sharing writer gets each track as a buffer kept
-//  until the track's next write, so saves in between share it rather than
-//  copy it; the blob they stand for is the same.
+//  Every track in full: its bits, then whether it is a flux track and, if it
+//  is, its flux bytes. A sharing writer gets each track as buffers kept until
+//  the track's next write, so saves in between share them rather than copy
+//  them; the blob they stand for is the same.
 //
 //  The dirty flags are not here. They say what the host file lacks, which a
 //  flush changes without the machine changing, so a snapshot that held them
@@ -897,6 +1094,7 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
     constexpr size_t  kHeaderBytes = sizeof (uint64_t) + sizeof (uint32_t);
     Byte              header[kHeaderBytes];
     size_t            track        = 0;
+    bool              isFlux       = false;
 
 
 
@@ -907,6 +1105,10 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
 
     for (track = 0; track < m_trackBits.size(); track++)
     {
+        const vector<Byte>  & flux = m_fluxTracks[track].GetBytes();
+
+
+
         // The bit count and the byte count, as WriteUInt64 and WriteUInt32
         // would put them, in one write: a ring checkpoint saves every track,
         // so this runs dozens of times a frame.
@@ -916,11 +1118,31 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
 
         if (writer.IsSharing())
         {
-            writer.WriteShared (GetSharedTrack (track), m_trackBits[track].data());
+            writer.WriteShared (GetSharedTrack (track).bits, m_trackBits[track].data());
         }
         else
         {
             writer.WriteBytes (m_trackBits[track].data(), m_trackBits[track].size());
+        }
+
+        isFlux = (m_slotKind[track] == TrackKind::Flux);
+
+        writer.WriteBool (isFlux);
+
+        if (!isFlux)
+        {
+            continue;
+        }
+
+        writer.WriteUInt32 (static_cast<uint32_t> (flux.size()));
+
+        if (writer.IsSharing())
+        {
+            writer.WriteShared (GetSharedTrack (track).flux, flux.data());
+        }
+        else
+        {
+            writer.WriteBytes (flux.data(), flux.size());
         }
     }
 
@@ -971,13 +1193,13 @@ void DiskImage::MakeTrackHeader (
 //
 //  GetSharedTrack
 //
-//  The track's bits as an immutable buffer: the one made last time while the
-//  medium and the track's generation are unchanged, since a generation is
-//  renewed on every write, or a fresh copy.
+//  The track's bits and flux bytes as immutable buffers: the ones made last
+//  time while the medium and the track's generation are unchanged, since a
+//  generation is renewed on every write, or fresh copies.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const shared_ptr<const vector<Byte>> & DiskImage::GetSharedTrack (size_t track) const
+const DiskImage::SharedTrack & DiskImage::GetSharedTrack (size_t track) const
 {
     SharedTrack  * shared = nullptr;
 
@@ -994,10 +1216,11 @@ const shared_ptr<const vector<Byte>> & DiskImage::GetSharedTrack (size_t track) 
     if (shared->bits == nullptr || shared->generation != m_trackGeneration[track])
     {
         shared->bits       = make_shared<const vector<Byte>> (m_trackBits[track]);
+        shared->flux       = make_shared<const vector<Byte>> (m_fluxTracks[track].GetBytes());
         shared->generation = m_trackGeneration[track];
     }
 
-    return shared->bits;
+    return *shared;
 }
 
 
@@ -1010,15 +1233,16 @@ const shared_ptr<const vector<Byte>> & DiskImage::GetSharedTrack (size_t track) 
 //
 //  The medium must already be mounted: a saved state whose loaded flag or
 //  track count differs from this image's belongs to another disk. Each track's
-//  byte size is capped before it is allocated, and its bit count must fit in
-//  its bytes, so a corrupt blob cannot size a buffer or send ReadBit past one.
-//  The tracks are read into a staging copy and committed only after the
-//  section closes cleanly.
+//  byte size is capped before it is allocated, its bit count must fit in its
+//  bytes, and a flux track's bytes must be a whole stream, so a corrupt blob
+//  cannot size a buffer or send a reader past one. The tracks are read into a
+//  staging copy and committed only after the section closes cleanly.
 //
-//  A track whose bits the load changes is marked dirty, and the dirty flags of
-//  the rest are kept: the host file holds what the disk held before the load,
-//  so a track that now differs from it is one the next flush must write. That
-//  is what makes a flush after a step back write the disk at that position.
+//  A track whose bits or flux the load changes is marked dirty, and the dirty
+//  flags of the rest are kept: the host file holds what the disk held before
+//  the load, so a track that now differs from it is one the next flush must
+//  write. That is what makes a flush after a step back write the disk at that
+//  position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1029,14 +1253,12 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     bool                  loaded              = false;
     uint32_t              trackCount          = 0;
     uint32_t              track               = 0;
-    uint32_t              byteCount           = 0;
-    uint64_t              bitCount            = 0;
-    uint64_t              maxBits             = 0;
-    bool                  isChanged           = false;
     bool                  imageWriteProtected = false;
     bool                  userWriteProtected  = false;
     vector<vector<Byte>>  trackBits;
     vector<size_t>        trackBitCounts;
+    vector<TrackKind>     slotKinds;
+    vector<vector<Byte>>  fluxBytes;
     uint32_t              diskTracks          = static_cast<uint32_t> (m_trackBits.size());
 
 
@@ -1044,7 +1266,7 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    // Version 1 carried the dirty flags.
+    // Version 1 carried the dirty flags; version 2 had no flux tracks.
     CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     reader.ReadBool   (loaded);
@@ -1055,21 +1277,13 @@ HRESULT DiskImage::LoadState (StateReader & reader)
 
     trackBits.resize      (trackCount);
     trackBitCounts.resize (trackCount, 0);
+    slotKinds.resize      (trackCount, TrackKind::Bits);
+    fluxBytes.resize      (trackCount);
 
     for (track = 0; track < trackCount; track++)
     {
-        reader.ReadUInt64 (bitCount);
-        reader.ReadUInt32 (byteCount);
-
-        maxBits = static_cast<uint64_t> (byteCount) * CHAR_BIT;
-
-        CBREx (byteCount <= kMaxStateTrackSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-        CBREx (bitCount  <= maxBits,            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-        trackBits[track].resize (byteCount);
-        reader.ReadBytes (trackBits[track].data(), byteCount);
-
-        trackBitCounts[track] = static_cast<size_t> (bitCount);
+        hr = ReadStateTrack (reader, trackBits[track], trackBitCounts[track], slotKinds[track], fluxBytes[track]);
+        CHR (hr);
     }
 
     reader.ReadBool (imageWriteProtected);
@@ -1080,13 +1294,7 @@ HRESULT DiskImage::LoadState (StateReader & reader)
 
     for (track = 0; track < trackCount; track++)
     {
-        isChanged = trackBitCounts[track] != m_trackBitCounts[track] || trackBits[track] != m_trackBits[track];
-
-        if (isChanged)
-        {
-            m_trackDirty[track] = true;
-            m_dirty             = true;
-        }
+        CommitStateTrack (static_cast<int> (track), trackBits[track], trackBitCounts[track], slotKinds[track], fluxBytes[track]);
     }
 
     m_trackBits.swap      (trackBits);
@@ -1100,8 +1308,119 @@ HRESULT DiskImage::LoadState (StateReader & reader)
         TouchTrack (static_cast<int> (track));
     }
 
+    m_layoutGeneration++;
 Error:
     return hr;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadStateTrack
+//
+//  One track of a saved state, as SaveState wrote it, checked as LoadState
+//  describes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImage::ReadStateTrack (
+    StateReader   & reader,
+    vector<Byte>  & outBits,
+    size_t        & outBitCount,
+    TrackKind     & outKind,
+    vector<Byte>  & outFlux)
+{
+    HRESULT   hr        = S_OK;
+    uint32_t  byteCount = 0;
+    uint64_t  bitCount  = 0;
+    uint64_t  maxBits   = 0;
+    bool      isFlux    = false;
+    bool      isWhole   = false;
+
+
+
+    reader.ReadUInt64 (bitCount);
+    reader.ReadUInt32 (byteCount);
+
+    maxBits = static_cast<uint64_t> (byteCount) * CHAR_BIT;
+
+    CBREx (byteCount <= kMaxStateTrackSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (bitCount  <= maxBits,            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outBits.resize (byteCount);
+    reader.ReadBytes (outBits.data(), byteCount);
+
+    outBitCount = static_cast<size_t> (bitCount);
+
+    reader.ReadBool (isFlux);
+
+    outKind = isFlux ? TrackKind::Flux : TrackKind::Bits;
+
+    BAIL_OUT_IF (!isFlux, S_OK);
+
+    reader.ReadUInt32 (byteCount);
+    CBREx (byteCount <= kMaxStateTrackSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outFlux.resize (byteCount);
+    reader.ReadBytes (outFlux.data(), byteCount);
+
+    isWhole = FluxTrack::IsValidStream (outFlux);
+    CBREx (isWhole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitStateTrack
+//
+//  Marks a track dirty when the loaded bits, kind or flux differ from what it
+//  holds, and puts the loaded kind and flux in. The bits themselves are
+//  swapped in by the caller, all tracks at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::CommitStateTrack (
+    int                   track,
+    const vector<Byte>  & bits,
+    size_t                bitCount,
+    TrackKind             kind,
+    const vector<Byte>  & flux)
+{
+    bool  isFlux        = (kind == TrackKind::Flux);
+    bool  isFluxChanged = (kind != m_slotKind[track]) || (isFlux && flux != m_fluxTracks[track].GetBytes());
+    bool  isChanged     = isFluxChanged || bitCount != m_trackBitCounts[track] || bits != m_trackBits[track];
+
+
+
+    if (isChanged)
+    {
+        m_trackDirty[track] = true;
+        m_dirty             = true;
+    }
+
+    if (!isFluxChanged)
+    {
+        return;
+    }
+
+    m_slotKind[track] = kind;
+
+    if (isFlux)
+    {
+        m_fluxTracks[track].Assign (flux);
+    }
+    else
+    {
+        m_fluxTracks[track] = FluxTrack();
+    }
+}
 

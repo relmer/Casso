@@ -64,6 +64,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -126,7 +127,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
         // the persisted lower-case token ("alps"/"shugart") can be handed
         // over as-is. A stale/unknown name leaves the mixer on its default
         // mechanism, which is fine -- not worth aborting startup for.
-        std::wstring  mechWide (mechNarrow.begin(), mechNarrow.end());
+        std::wstring  mechWide = TextEncoding::Utf8ToWide (mechNarrow);
 
         hrOpt = m_driveAudioMixer.SetMechanism (mechWide);
         IGNORE_RETURN_VALUE (hrOpt, S_OK);

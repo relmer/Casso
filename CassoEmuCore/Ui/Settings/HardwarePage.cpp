@@ -3,6 +3,7 @@
 #include "HardwarePage.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -93,17 +94,7 @@ DxuiTreeCapabilityFlag HardwarePage::MapFlag (CapabilityFlag flag)
 
 std::wstring HardwarePage::Widen (const std::string & narrow)
 {
-    std::wstring  w;
-
-
-
-    w.reserve (narrow.size());
-    for (char c : narrow)
-    {
-        w.push_back ((wchar_t) (unsigned char) c);
-    }
-
-    return w;
+    return TextEncoding::Utf8ToWide (narrow);
 }
 
 

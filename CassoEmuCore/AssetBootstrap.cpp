@@ -213,7 +213,7 @@ static std::wstring MachineDisplayName (std::string_view machineId)
 {
     // An id with no pretty name widens as-is, so a machine added to the
     // catalog still shows something recognizable before it is listed here.
-    std::wstring  name (machineId.begin(), machineId.end());
+    std::wstring  name = TextEncoding::Utf8ToWide (std::string (machineId));
 
 
 
@@ -398,15 +398,15 @@ static constexpr string_view s_kDiskAudioMechanisms[] = { "Shugart", "Alps" };
 //
 //  AsciiToWide
 //
-//  Compile-time-friendly widening for ASCII string literals (descriptions,
-//  filenames). Only safe for 7-bit input; anything else would need
-//  MultiByteToWideChar.
+//  Widening for the catalog's string literals (descriptions, filenames).
+//  They are ASCII today; decoding them as UTF-8 keeps a non-ASCII one intact
+//  rather than turning each byte into its own character.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static wstring AsciiToWide (string_view s)
 {
-    return wstring (s.begin(), s.end());
+    return TextEncoding::Utf8ToWide (std::string (s));
 }
 
 
@@ -1697,12 +1697,7 @@ static HRESULT LoadEmbeddedJson (
 
     outJsonText.clear();
     outNarrowName.clear();
-    outNarrowName.reserve (machineName.size());
-
-    for (wchar_t wch : machineName)
-    {
-        outNarrowName.push_back (static_cast<char> (wch & 0x7F));
-    }
+    outNarrowName = TextEncoding::WideToUtf8 (machineName);
 
     cfg = FindEmbeddedConfig (machineName);
     CBRF (cfg != nullptr,
@@ -1895,7 +1890,7 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 
     if (SUCCEEDED (hr) && root.HasString ("name", name) && !name.empty())
     {
-        result.assign (name.begin(), name.end());
+        result = TextEncoding::Utf8ToWide (std::string (name));
     }
 
     return result;
@@ -3212,12 +3207,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
         slash = wUrl.find_last_of (L'/');
         tail = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
 
-        narrowName.reserve (tail.size());
-
-        for (wchar_t wch : tail)
-        {
-            narrowName.push_back (static_cast<char> (wch & 0x7F));
-        }
+        narrowName = TextEncoding::WideToNarrow (tail);
     }
 
     hr = DownloadHttp (hSession,
@@ -3450,12 +3440,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     outUserExited = false;
 
-    narrowMachine.reserve (machineName.size());
-
-    for (wchar_t wch : machineName)
-    {
-        narrowMachine.push_back (static_cast<char> (wch & 0x7F));
-    }
+    narrowMachine = TextEncoding::WideToUtf8 (machineName);
 
     hr = GetRequiredRoms (hInstance, machineName, romFiles, outError);
     CHR (hr);
@@ -3668,7 +3653,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     {
                         DEBUGMSG (L"Drive audio: skipping %S (%s)\n",
                                   spec.oggBasename.data(),
-                                  wstring (err.begin(), err.end()).c_str());
+                                  TextEncoding::NarrowToWide (err).c_str());
                         err.clear();
                         hr = S_OK;
                         continue;
@@ -3682,7 +3667,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     {
                         DEBUGMSG (L"Drive audio: write failed for %S (%s)\n",
                                   spec.wavBasename.data(),
-                                  wstring (err.begin(), err.end()).c_str());
+                                  TextEncoding::NarrowToWide (err).c_str());
                         err.clear();
                         hr = S_OK;
                         continue;
