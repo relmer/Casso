@@ -789,6 +789,35 @@ void DebuggerWindow::ConfigureConsoleBar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetModeChoices
+//
+//  Only the order is the drop-down's; the mode a choice sets, and so the
+//  name saved for it, is unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<DebuggerWindow::ModeChoice> & DebuggerWindow::GetModeChoices()
+{
+    static const std::vector<ModeChoice>  kChoices =
+    {
+        { CommandMode::AppleWin,  L"AppleWin"  },
+        { CommandMode::Casso,     L"Casso"     },
+        { CommandMode::GSSquared, L"GSSquared" },
+        { CommandMode::Monitor,   L"Monitor"   },
+        { CommandMode::WinDbg,    L"WinDbg"    },
+    };
+
+
+
+    return kChoices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::SetConsoleBarMenus
 //
 //  The dialects, the one in force checked. Rebuilt before the drop-down
@@ -804,11 +833,7 @@ void DebuggerWindow::SetConsoleBarMenus()
 
 
 
-    for (const auto & [mode, label] : { std::pair { CommandMode::AppleWin,  L"AppleWin"  },
-                                        std::pair { CommandMode::Monitor,   L"Monitor"   },
-                                        std::pair { CommandMode::GSSquared, L"GSSquared" },
-                                        std::pair { CommandMode::WinDbg,    L"WinDbg"    },
-                                        std::pair { CommandMode::Casso,     L"Casso"     } })
+    for (const auto & [mode, label] : GetModeChoices())
     {
         CommandMode  target  = mode;
         bool         current = (m_snapshot != nullptr) && m_snapshot->mode == mode;

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Core/TextEncoding.h"
+#include "Debugger/CommandModeNames.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -92,7 +94,9 @@ namespace DebuggerReviewPolishTests
         using DebuggerWindow::GetFindControls;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::GetFindStatus;
+        using DebuggerWindow::GetModeChoices;
         using DebuggerWindow::GetModeLabel;
+        using DebuggerWindow::ModeChoice;
         using DebuggerWindow::GetWatchList;
         using DebuggerWindow::OpenFindIn;
         using DebuggerWindow::TakeSnapshot;
@@ -284,6 +288,44 @@ namespace DebuggerReviewPolishTests
             Assert::AreEqual (std::wstring (L"AppleWin"), PolishWindow::GetModeLabel (L"AppleWin"));
             Assert::AreEqual (std::wstring (L"Mode:"),    label.GetCommand()->label);
             Assert::IsTrue   (label.OnClick (0, 0), L"a click on the label runs nothing");
+        }
+
+
+        TEST_METHOD (TheDropDownListsTheModesAlphabetically)
+        {
+            const std::vector<PolishWindow::ModeChoice> &  choices = PolishWindow::GetModeChoices();
+            std::wstring                                   labels;
+
+
+
+            for (const auto & [mode, label] : choices)
+            {
+                labels += (labels.empty() ? L"" : L", ") + std::wstring (label);
+            }
+
+            Assert::AreEqual (std::wstring (L"AppleWin, Casso, GSSquared, Monitor, WinDbg"), labels);
+
+            for (size_t i = 1; i < choices.size(); i++)
+            {
+                Assert::IsTrue (_wcsicmp (choices[i - 1].second, choices[i].second) < 0, choices[i].second);
+            }
+        }
+
+
+        TEST_METHOD (EachLabelSetsItsOwnMode)
+        {
+            const std::vector<PolishWindow::ModeChoice> &  choices = PolishWindow::GetModeChoices();
+            std::string                                    name;
+
+
+
+            Assert::AreEqual ((size_t) 5, choices.size(), L"one row for each mode");
+
+            for (const auto & [mode, label] : choices)
+            {
+                name = CommandModeNames::GetName (mode);
+                Assert::AreEqual (0, _wcsicmp (TextEncoding::NarrowToWide (name).c_str(), label), label);
+            }
         }
     };
 

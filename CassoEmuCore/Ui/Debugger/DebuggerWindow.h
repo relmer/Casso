@@ -453,6 +453,12 @@ protected:
     DxuiToolbar *                         GetSourceBar       (int slot) const { return m_sourceDocs[(size_t) slot].bar; }
     DxuiMenuBar *                         GetMenuBar         () const { return m_menuBar; }
 
+    //  The console's modes in its drop-down's order: alphabetical by label,
+    //  without regard to case.
+    using ModeChoice = std::pair<CommandMode, const wchar_t *>;
+
+    static const std::vector<ModeChoice> &  GetModeChoices ();
+
     //  Protected so a test can see whether a tip shows over the command bar,
     //  and that none shows while a menu is open.
     const DxuiTooltip &  GetTooltip    () const { return m_tooltip; }
