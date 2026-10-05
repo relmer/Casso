@@ -16,7 +16,9 @@
 //  answers with a picture per cell, at that size or any other (the strip
 //  scales it), and a full-size picture for the cell under the pointer. A
 //  picture not ready yet is null: the strip draws an empty cell, and asks
-//  again on the next paint. All on the UI thread.
+//  again on the next paint. A cell's preview and labels are of the same
+//  snapshot as the picture the cell last answered with, so the three always
+//  agree. All on the UI thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,8 +53,11 @@ public:
     //  The line dragged to an offset in cells; isFinal once it is let go.
     virtual void    OnPlayheadDragged (float offset, bool isFinal) { (void) offset; (void) isFinal; }
 
-    //  Text for the strip's leading end, such as where it begins, or empty.
-    virtual std::wstring  GetLeadingLabel () { return std::wstring(); }
+    //  Text for the strip's leading end, such as where it begins, or empty;
+    //  its tip, and a click on it.
+    virtual std::wstring  GetLeadingLabel       () { return std::wstring(); }
+    virtual std::wstring  GetLeadingTip         () { return std::wstring(); }
+    virtual void          OnLeadingLabelClicked () {}
 
     //  Text for the strip's trailing end, such as where live time is, or
     //  empty; whether it shows in the accent color, its tip, and a click on it.

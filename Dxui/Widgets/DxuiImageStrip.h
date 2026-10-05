@@ -28,7 +28,9 @@ class DxuiPopupHost;
 //  full-size picture in a popup beside the strip, past the labels and
 //  centered on the pointer as it moves: the picture's own pixels, scaled for
 //  the window's DPI, in a popup that takes neither focus nor the pointer. A
-//  click goes to the source with the cell's index.
+//  click goes to the source with the cell's index. The labels at the strip's
+//  two ends are buttons, with the toolbar's hover and pressed chrome, a tip
+//  each and a click of their own.
 //
 //  The host calls Sync once a frame, so a preview the source had not drawn
 //  yet appears when it has, and keeps its popup host current as the toolbar
@@ -124,7 +126,12 @@ private:
     static constexpr float  kHoverFrameDip  = 1.5f;
     static constexpr float  kHoverEdgeDip   = 1.0f;
 
+    //  The end labels, each a button.
+    enum class Part { None, Leading, Trailing };
+
     void  SetHovered       (int index);
+    Part  HitTestPart      (int x, int y) const;
+    void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
     void  ShowPreview      ();
     void  FollowPointer    ();
     void  PaintHoverFrame  (IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & cell);
@@ -155,6 +162,7 @@ private:
     DxuiHwndSource                  * m_popupHost   = nullptr;
     DxuiPopupHost                   * m_preview     = nullptr;
     IDxuiImageStripSource::Image      m_previewImage;
+    IDxuiImageStripSource::Image      m_previewThumb;      // the hovered cell's picture when the preview was chosen
     SIZE                              m_previewDip  = {};   // the last full-size picture's size; a thumbnail scales to it
     POINT                             m_pointer     = {};   // where the pointer last moved over the strip
     float                             m_aspect      = kDefaultAspect;
@@ -169,11 +177,14 @@ private:
     float          m_dragOffset   = 0.0f;
     bool           m_isDragging   = false;
     bool           m_isClickEaten = false;
+    Part           m_hoverPart    = Part::None;
+    Part           m_pressPart    = Part::None;
+    Part           m_armedPart    = Part::None;   // the label pressed for the click that follows the release
     bool           m_vertical     = false;
     int            m_cellPx       = 0;
     int            m_idealPx      = 0;
     int            m_count        = 0;
     int            m_hovered      = -1;
 
-    mutable std::wstring  m_tip;          // the trailing label's tip, kept while it shows
+    mutable std::wstring  m_tip;          // an end label's tip, kept while it shows
 };

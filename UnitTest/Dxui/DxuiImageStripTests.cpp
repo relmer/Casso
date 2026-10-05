@@ -31,8 +31,11 @@ public:
 
     int           GetMarkedCell() override           { return marked; }
     std::wstring  GetLeadingLabel() override         { return leading; }
+    std::wstring  GetLeadingTip() override           { return leadingTip; }
+    void          OnLeadingLabelClicked() override   { leadingClicks++; }
     std::wstring  GetTrailingLabel() override        { return trailing; }
     bool          IsTrailingLabelAccented() override { return isLive; }
+    std::wstring  GetTrailingTip() override          { return trailingTip; }
     void          OnTrailingLabelClicked() override  { trailingClicks++; }
 
     bool  TryGetPlayhead (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override
@@ -56,7 +59,10 @@ public:
     int               layouts        = 0;
     std::vector<int>  clicked;
     std::wstring      leading;
+    std::wstring      leadingTip;
+    int               leadingClicks  = 0;
     std::wstring      trailing;
+    std::wstring      trailingTip;
     bool              isLive         = false;
     int               trailingClicks = 0;
     bool              hasPlayhead    = false;
@@ -344,8 +350,110 @@ public:
         Assert::IsTrue  (strip.OnLButtonDown (599, y), L"a press on the trailing label is taken");
         Assert::IsTrue  (strip.OnClick       (599, y), L"and its click");
         Assert::AreEqual (1, source.trailingClicks,    L"goes to the source");
-        Assert::IsFalse (strip.OnLButtonDown (1, y),   L"the leading label takes no press");
+        Assert::IsTrue  (strip.OnLButtonDown (1, y),   L"a press on the leading label is taken");
+        Assert::IsTrue  (strip.OnClick       (1, y),   L"and its click");
+        Assert::AreEqual (1, source.leadingClicks,     L"goes to the source");
         Assert::IsTrue  (source.clicked.empty(),       L"no cell was clicked");
+    }
+
+
+    //  Both end labels are buttons: the pointer over one gives it the
+    //  toolbar's hover chrome from the theme, a press its pressed chrome,
+    //  and it has the source's tip. Nothing else on the strip takes either.
+    TEST_METHOD (EndLabelsAreButtonsWithHoverPressedAndTips)
+    {
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        RECT                           pictures = {};
+        RECT                           anchor   = {};
+        RecordedTextCall               lead;
+        RecordedTextCall               trail;
+        const wchar_t                * tip      = nullptr;
+        POINT                          onLead   = {};
+        POINT                          onTrail  = {};
+        int                            y        = 0;
+
+
+
+        source.leading     = L"10:00 PM";
+        source.leadingTip  = L"Go to the start of history";
+        source.trailing    = L"Live";
+        source.trailingTip = L"Return to live";
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (16.0f);
+        strip.Layout          (RECT { 0, 0, 600, 74 }, true, scaler);
+        strip.Paint           (painter, text, theme, false, false, true);
+
+        pictures = strip.GetPicturesRect();
+        y        = (pictures.top + pictures.bottom) / 2;
+        Assert::IsNotNull (FindText (text, source.leading),  L"the leading label is drawn");
+        Assert::IsNotNull (FindText (text, source.trailing), L"the trailing label is drawn");
+
+        lead    = *FindText (text, source.leading);
+        trail   = *FindText (text, source.trailing);
+        onLead  = POINT { (LONG) lead.x + 1,  y };
+        onTrail = POINT { (LONG) trail.x + 1, y };
+
+        Assert::IsFalse (HasButtonChrome (painter, theme.ButtonHover()),   L"idle, neither label has chrome");
+        Assert::IsFalse (HasButtonChrome (painter, theme.ButtonPressed()), L"idle, neither label has chrome");
+
+        for (POINT pt : { onLead, onTrail })
+        {
+            const RecordedTextCall  * label = (pt.x == onLead.x) ? &lead : &trail;
+
+            strip.OnMouseMove (pt.x, pt.y);
+            painter.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            Assert::IsTrue (HasButtonChrome (painter, theme.ButtonHover(), label), L"the pointer over a label gives it the hover chrome around its text");
+
+            strip.OnLButtonDown (pt.x, pt.y);
+            painter.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            Assert::IsTrue  (HasButtonChrome (painter, theme.ButtonPressed(), label), L"a press gives it the pressed chrome");
+            Assert::IsFalse (HasButtonChrome (painter, theme.ButtonHover()),          L"in place of the hover chrome");
+
+            strip.OnLButtonUp (pt.x, pt.y);
+            strip.OnClick     (pt.x, pt.y);
+            painter.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            Assert::IsFalse (HasButtonChrome (painter, theme.ButtonPressed()), L"the release lets it up");
+        }
+
+        tip = strip.GetTooltipAt (onLead.x, onLead.y, anchor);
+        Assert::IsNotNull (tip, L"the leading label has a tip");
+        Assert::AreEqual (source.leadingTip, std::wstring (tip), L"the source's");
+        Assert::IsTrue (anchor.right <= pictures.left, L"anchored on the label");
+
+        tip = strip.GetTooltipAt (onTrail.x, onTrail.y, anchor);
+        Assert::IsNotNull (tip, L"the trailing label has a tip");
+        Assert::AreEqual (source.trailingTip, std::wstring (tip), L"the source's");
+
+        Assert::IsNull (strip.GetTooltipAt (pictures.left + 5, y, anchor), L"the pictures have no tip");
+
+        strip.OnMouseMove (pictures.left + 5, y);
+        painter.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+
+        Assert::IsFalse (HasButtonChrome (painter, theme.ButtonHover()), L"over the pictures, neither label has chrome");
+
+        strip.OnMouseMove (onLead.x, onLead.y);
+        strip.OnMouseLeave();
+        painter.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+
+        Assert::IsFalse (HasButtonChrome (painter, theme.ButtonHover()), L"leaving the strip takes the hover away");
+        Assert::AreEqual (1, source.leadingClicks,  L"the leading label was clicked once");
+        Assert::AreEqual (1, source.trailingClicks, L"and the trailing one once");
     }
 
 
@@ -677,6 +785,29 @@ private:
 
         return found;
     }
+
+
+    //  Whether a rounded fill in `fill` was drawn, around `label`'s text
+    //  when one is given, with the theme's button border around it.
+    static bool HasButtonChrome (const MockDxuiPainter & painter, uint32_t fill, const RecordedTextCall * label = nullptr)
+    {
+        bool  isFilled   = false;
+        bool  isBordered = false;
+
+
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            bool  isAround = label == nullptr ||
+                             (call.x <= label->x && call.x + call.width  >= label->x + 1.0f &&
+                              call.y <= label->y && call.y + call.height >= label->y + label->height);
+
+            isFilled   = isFilled   || (call.kind == RecordedPaintKind::FillRoundedRect    && call.argb == fill && isAround);
+            isBordered = isBordered || (call.kind == RecordedPaintKind::OutlineRoundedRect && isAround);
+        }
+
+        return isFilled && isBordered;
+    }
 };
 
 
@@ -822,15 +953,18 @@ public:
     }
 
 
-    //  Moving to a cell whose full-size picture is not drawn yet keeps the
-    //  sharp picture already up, rather than a thumbnail scaled up to it,
-    //  until the cell's own arrives.
-    TEST_METHOD (ANewCellKeepsTheSharpPictureUntilItsOwnIsReady)
+    //  The preview always shows the snapshot the hovered cell shows, whichever
+    //  way the pointer came. Moving to a cell whose full-size picture is not
+    //  drawn yet shows its own thumbnail scaled up, never the sharp picture
+    //  of the cell the pointer came from, until its own arrives; a cell
+    //  showing the same snapshot as the one before keeps the sharp picture.
+    TEST_METHOD (ThePreviewShowsTheHoveredCellsSnapshotFromEitherSide)
     {
         DxuiHwndSource      host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
         DxuiImageStrip      strip;
         PictureStripSource  source;
         DxuiDpiScaler       scaler;
+        size_t              i = 0;
 
 
 
@@ -839,20 +973,48 @@ public:
         strip.SetPopupHost (&host);
         strip.Layout       (RECT { 400, 300, 879, 332 }, false, scaler);
 
-        source.thumbs[0]   = PictureStripSource::MakePicture (47, 32);
-        source.thumbs[1]   = PictureStripSource::MakePicture (47, 32);
-        source.previews[0] = PictureStripSource::MakePicture (280, 192);
+        for (i = 0; i < source.thumbs.size(); i++)
+        {
+            source.thumbs[i] = PictureStripSource::MakePicture (47, 32);
+        }
 
+        source.thumbs[3]   = source.thumbs[2];
+        source.previews[0] = PictureStripSource::MakePicture (280, 192);
+        source.previews[2] = PictureStripSource::MakePicture (280, 192);
+
+        //  Forward from the first cell onto the second.
         strip.OnMouseMove (405, 310);
         Assert::IsTrue (strip.GetShownPreview() == source.previews[0], L"the first cell's sharp picture");
 
         strip.OnMouseMove (452, 310);
         strip.Sync();
-        Assert::IsTrue (strip.GetShownPreview() == source.previews[0], L"stays up while the next cell's is drawn");
+        Assert::IsTrue (strip.GetShownPreview() == source.thumbs[1], L"coming forward, the second cell's own snapshot, not the first's");
+
+        //  Back from the third cell onto the second.
+        strip.OnMouseMove (499, 310);
+        strip.Sync();
+        Assert::IsTrue (strip.GetShownPreview() == source.previews[2], L"the third cell's sharp picture");
+
+        strip.OnMouseMove (452, 310);
+        strip.Sync();
+        Assert::IsTrue (strip.GetShownPreview() == source.thumbs[1], L"coming back, the same snapshot as coming forward");
 
         source.previews[1] = PictureStripSource::MakePicture (280, 192);
         strip.Sync();
-        Assert::IsTrue (strip.GetShownPreview() == source.previews[1], L"and gives way to it once it is ready");
+        Assert::IsTrue (strip.GetShownPreview() == source.previews[1], L"its sharp picture replaces it once it is ready");
+
+        //  The fourth cell shows the third's snapshot: its sharp picture stays.
+        strip.OnMouseMove (499, 310);
+        strip.Sync();
+        strip.OnMouseMove (546, 310);
+        strip.Sync();
+        Assert::IsTrue (strip.GetShownPreview() == source.previews[2], L"a cell showing the same snapshot keeps the sharp picture");
+
+        //  A cell with no picture at all has nothing of its own to preview.
+        source.thumbs[4] = nullptr;
+        strip.OnMouseMove (593, 310);
+        strip.Sync();
+        Assert::IsFalse (strip.IsPreviewShown(), L"no picture of the cell's snapshot, no preview of another's");
     }
 
 

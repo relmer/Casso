@@ -232,6 +232,118 @@ public:
     }
 
 
+    //  While history is short and growing, the grid moves under a cell
+    //  faster than its new point is drawn, so for a while the cell shows the
+    //  picture of a snapshot that is no longer its point. Its labels give the
+    //  time of the snapshot its picture shows, and its preview shows that
+    //  same snapshot, painted before the worker draws and after.
+    TEST_METHOD (AHoveredCellsTimeAndPreviewMatchItsPictureWhileHistoryGrows)
+    {
+        constexpr size_t  kRounds   = 80;
+        constexpr size_t  kPerRound = 3;
+        constexpr int     kCount    = 8;
+        constexpr int     kHovered  = 1;
+        constexpr int     kSlower   = 2;
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        KeyframeSettings          settings;
+        std::vector<Byte>         state (s_kThumbStateBytes);
+        uint64_t                  now     = 0;
+        uint64_t                  cycle   = 0;
+        size_t                    round   = 0;
+        size_t                    added   = 0;
+        size_t                    i       = 0;
+        size_t                    checked = 0;
+        size_t                    stale   = 0;
+        HRESULT                   hr      = S_OK;
+
+
+
+        settings.intervalCycles = s_kThumbInterval;
+        store.Configure (settings);
+
+        thumbnails.SetWorkQueue   (&queue);
+        thumbnails.SetClock       ([&now] { return now; });
+        thumbnails.SetCellLayout  (kCount, s_kThumbCell);
+        thumbnails.SetVisible     (true);
+        thumbnails.SetHoveredCell (kHovered);
+
+        thumbnails.SetLabeler ([&cycle] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        {
+            (void) w;
+            cycle     = c;
+            outTop    = L"top";
+            outBottom = L"bottom";
+        });
+
+        for (round = 0; round < kRounds; round++)
+        {
+            //  Keyframes come faster than pictures are drawn.
+            for (i = 0; i < kPerRound; i++, added++)
+            {
+                state[0] = static_cast<Byte> (added + 1);
+
+                hr = store.Add (added * s_kThumbStride, added * s_kThumbInterval, state);
+                AssertSucceeded (hr, L"Add");
+            }
+
+            hr = thumbnails.Service (store);
+            AssertSucceeded (hr, L"Service");
+
+            CheckShownTime (thumbnails, kHovered, cycle, checked, stale);
+
+            queue.TryRunNext();
+
+            CheckShownTime (thumbnails, kHovered, cycle, checked, stale);
+
+            now += 1000 / HistoryThumbnails::kRendersPerSecond / kSlower;
+        }
+
+        Assert::IsTrue (checked > 0, L"the hovered cell showed pictures");
+        Assert::IsTrue (stale > 0,   L"and the grid moved under it before its new point was drawn");
+    }
+
+
+    //  The start time before the pictures goes to where history begins: the
+    //  same seek a click on the first cell asks for.
+    TEST_METHOD (TheStartTimeGoesToTheOldestHistoryAndBothEndsHaveTips)
+    {
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        HistoryThumbnailCell      asked;
+        uint64_t                  now   = 0;
+        int                       seeks = 0;
+        HRESULT                   hr    = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+        thumbnails.SetOnSeek ([&] (const HistoryThumbnailCell & cell) { asked = cell; seeks++; });
+
+        thumbnails.OnLeadingLabelClicked();
+        Assert::AreEqual (0, seeks, L"no history laid out, nowhere to go");
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out 0, 400 and 800");
+
+        thumbnails.OnLeadingLabelClicked();
+
+        Assert::AreEqual (1, seeks, L"one seek");
+        Assert::AreEqual<uint64_t> (0, asked.position, L"to the oldest keyframe held");
+        Assert::IsFalse (asked.isLive, L"a point in the past");
+
+        Assert::AreEqual (std::wstring (L"Go to the start of history"), thumbnails.GetLeadingTip(), L"the start time's tip");
+
+        thumbnails.SetPlayhead (400, true);
+        Assert::AreEqual (std::wstring (L"Return to live"), thumbnails.GetTrailingTip(), L"Live's tip while replaying");
+    }
+
+
     //  The cell under the pointer is drawn as soon as nothing else is being
     //  drawn, not after the wait that paces the thumbnails.
     TEST_METHOD (TheHoveredPreviewIsDrawnWithoutWaitingItsTurn)
@@ -937,6 +1049,49 @@ public:
     }
 
 private:
+
+    //  Paints a cell as the strip does, picture first, and checks that the
+    //  time its labels give and its preview belong to the snapshot whose
+    //  picture it shows; counts a cell showing a snapshot that is no longer
+    //  its point as stale.
+    static void CheckShownTime (HistoryThumbnails & thumbnails, int index, const uint64_t & labeledCycle, size_t & ioChecked, size_t & ioStale)
+    {
+        constexpr uint32_t  kTagMask = 0xFFu;
+
+        std::vector<HistoryThumbnailCell>  cells;
+        HistoryThumbnails::Image           image   = thumbnails.GetCellImage (index);
+        HistoryThumbnails::Image           preview;
+        std::wstring                       top;
+        std::wstring                       bottom;
+        uint64_t                           shown   = 0;
+        bool                               isShown = false;
+
+
+
+        if (image == nullptr || image->bgraPremul.empty())
+        {
+            return;
+        }
+
+        shown   = (uint64_t) ((image->bgraPremul[0] & kTagMask) - 1) * s_kThumbInterval;
+        isShown = thumbnails.TryGetCellLabels (index, top, bottom);
+
+        Assert::IsTrue (isShown, L"a cell with a picture has labels");
+        Assert::AreEqual<uint64_t> (shown, labeledCycle, L"the labels give the time of the snapshot the picture shows");
+
+        preview = thumbnails.GetPreviewImage (index);
+
+        if (preview != nullptr)
+        {
+            Assert::AreEqual<uint32_t> (image->bgraPremul[0], preview->bgraPremul[0], L"the preview shows the snapshot the cell shows");
+        }
+
+        thumbnails.GetCells (cells);
+
+        ioStale += (cells[(size_t) index].cycle != shown) ? 1 : 0;
+        ioChecked++;
+    }
+
 
     //  Runs the strip until every cell's picture is drawn.
     static void DrawAll (HistoryThumbnails & thumbnails, InlineWorkQueue & queue, KeyframeStore & store, uint64_t & now)

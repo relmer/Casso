@@ -137,7 +137,7 @@ void HistoryThumbnails::SetCellLayout (
 
     m_thumbs.SetCapacity (capacity);
     m_bases.SetCapacity  (capacity);
-    m_shown.assign ((size_t) m_count, nullptr);
+    m_shown.assign ((size_t) m_count, ShownPicture {});
 
     Bump();
 }
@@ -150,22 +150,11 @@ void HistoryThumbnails::SetCellLayout (
 //
 //  HistoryThumbnails::GetCellImage
 //
-//  A thumbnail missing at this cell size is scaled from its point's base
-//  copy and kept. A cell whose point is not drawn yet keeps the picture it
-//  last showed, so it never goes blank between one point and the next. With
-//  none, once a layout has changed over pictures already drawn, it shows the
-//  nearest point drawn, scaled once and kept as shown, so a resize never
-//  empties the strip while the new points are drawn.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HistoryThumbnails::Image HistoryThumbnails::GetCellImage (int index)
 {
     std::lock_guard<std::mutex>  held (m_lock);
-    Image                        image;
-    uint64_t                     position = 0;
-    uint64_t                     nearest  = 0;
-    bool                         isNear   = false;
 
 
 
@@ -174,37 +163,74 @@ HistoryThumbnails::Image HistoryThumbnails::GetCellImage (int index)
         return nullptr;
     }
 
+    return ResolveShown ((size_t) index).image;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::ResolveShown
+//
+//  Under the lock: the picture cell `index` shows and the snapshot it is
+//  of. A thumbnail missing at this cell size is scaled from its point's base
+//  copy and kept. A cell whose point is not drawn yet keeps the picture it
+//  last showed, so it never goes blank between one point and the next. With
+//  none, once a layout has changed over pictures already drawn, it shows the
+//  nearest point drawn, scaled once and kept as shown, so a resize never
+//  empties the strip while the new points are drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HistoryThumbnails::ShownPicture HistoryThumbnails::ResolveShown (size_t index)
+{
+    const HistoryThumbnailCell  & cell    = m_cells[index];
+    Image                         image;
+    uint64_t                      nearest = 0;
+    bool                          isNear  = false;
+    PointMap::const_iterator      found;
+
+
+
     if (m_shown.size() < m_cells.size())
     {
         m_shown.resize (m_cells.size());
     }
 
-    position = m_cells[(size_t) index].position;
-    image    = m_thumbs.Find (position);
+    image = m_thumbs.Find (cell.position);
 
     if (image == nullptr)
     {
-        image = ScaleBase (position);
+        image = ScaleBase (cell.position);
 
         if (image != nullptr)
         {
-            m_thumbs.Put (position, image);
+            m_thumbs.Put (cell.position, image);
         }
     }
 
-    if (image == nullptr && m_shown[(size_t) index] == nullptr && m_useStandIns)
+    if (image != nullptr)
     {
-        isNear = m_bases.TryFindNearest (position, nearest);
-        image  = isNear ? ScaleBase (nearest) : nullptr;
+        m_shown[index] = ShownPicture { image, cell };
+        return m_shown[index];
     }
 
-    if (image == nullptr)
+    if (m_shown[index].image != nullptr || !m_useStandIns)
     {
-        return m_shown[(size_t) index];
+        return m_shown[index];
     }
 
-    m_shown[(size_t) index] = image;
-    return image;
+    isNear = m_bases.TryFindNearest (cell.position, nearest);
+    found  = isNear ? m_points.find (nearest) : m_points.end();
+
+    if (found != m_points.end())
+    {
+        m_shown[index] = ShownPicture { ScaleBase (nearest), found->second };
+    }
+
+    return m_shown[index];
 }
 
 
@@ -215,14 +241,17 @@ HistoryThumbnails::Image HistoryThumbnails::GetCellImage (int index)
 //
 //  HistoryThumbnails::GetPreviewImage
 //
-//  A picture not drawn yet is asked for, ahead of every thumbnail.
+//  The full-size picture of the snapshot the cell shows, so the preview and
+//  the cell's labels agree with its picture; while the cell still shows an
+//  older snapshot, that one's when there is one to hand. The cell's own
+//  point not drawn at full size yet is asked for, ahead of every thumbnail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HistoryThumbnails::Image HistoryThumbnails::GetPreviewImage (int index)
 {
     std::lock_guard<std::mutex>  held (m_lock);
-    Image                        image;
+    ShownPicture                 shown;
     uint64_t                     position = 0;
 
 
@@ -232,15 +261,15 @@ HistoryThumbnails::Image HistoryThumbnails::GetPreviewImage (int index)
         return nullptr;
     }
 
+    shown    = ResolveShown ((size_t) index);
     position = m_cells[(size_t) index].position;
-    image    = m_previews.Find (position);
 
-    if (image == nullptr)
+    if (!m_previews.Contains (position))
     {
         m_wantedPreview = position;
     }
 
-    return image;
+    return m_previews.Find ((shown.image != nullptr) ? shown.point.position : position);
 }
 
 
@@ -289,7 +318,25 @@ void HistoryThumbnails::OnCellClicked (int index)
 
 std::wstring HistoryThumbnails::GetTrailingTip()
 {
-    return IsBehindLive() ? L"Replaying history; click to go live" : L"Running live";
+    return IsBehindLive() ? L"Return to live" : L"Running live";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetLeadingTip
+//
+//  A click on the start time seeks to the first cell, the oldest keyframe
+//  held.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HistoryThumbnails::GetLeadingTip()
+{
+    return L"Go to the start of history";
 }
 
 
@@ -349,11 +396,13 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 
     HRESULT        hr        = S_OK;
     uint64_t       position  = 0;
+    size_t         index     = 0;
     bool           isFound   = false;
     bool           isPicked  = false;
     bool           isIdle    = false;
     bool           isPreview = false;
     bool           isDue     = false;
+    bool           isHeld    = false;
     int            attempt   = 0;
     LARGE_INTEGER  start     = {};
     LARGE_INTEGER  end       = {};
@@ -402,6 +451,14 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     }
 
     BAIL_OUT_IF (!isFound, S_OK);
+
+    //  The snapshot the picture is of, so a cell showing it gives its time.
+    isHeld = TryFindAtOrBefore (keyframes, position, index);
+    CBRA (isHeld);
+
+    m_job.point.position = keyframes.GetInfo (index).position;
+    m_job.point.cycle    = keyframes.GetInfo (index).cycle;
+    m_job.point.wallTime = keyframes.GetInfo (index).wallTime;
 
     if (m_queue == nullptr)
     {
@@ -504,6 +561,7 @@ void HistoryThumbnails::Clear()
         m_thumbs.Clear();
         m_bases.Clear();
         m_previews.Clear();
+        m_points.clear();
         m_wantedPreview.reset();
 
         m_useStandIns = false;
@@ -832,6 +890,8 @@ void HistoryThumbnails::Draw (Job & job)
         }
 
         m_bases.Put (job.position, base);
+        m_points[job.position] = job.point;
+        PrunePoints();
 
         if (job.isPreview)
         {
@@ -902,7 +962,7 @@ bool HistoryThumbnails::TryPickWanted (
 
     live        = m_cells.back().position;
     isLiveShown = HasPicture (live);
-    hasLivePast = m_shown.size() == m_cells.size() && m_shown.back() != nullptr;
+    hasLivePast = m_shown.size() == m_cells.size() && m_shown.back().image != nullptr;
 
     if (!isLiveShown && !hasLivePast)
     {
@@ -1103,6 +1163,24 @@ HistoryThumbnails::Image HistoryThumbnails::ScaleBase (uint64_t position)
     Shrink (*base, isSet ? (int) m_cellPx.cx : 0, isSet ? (int) m_cellPx.cy : 0, *thumb);
 
     return thumb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::PrunePoints
+//
+//  Under the lock: the snapshots of base copies no longer held are
+//  forgotten, as nothing can stand in with their pictures any more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::PrunePoints()
+{
+    std::erase_if (m_points, [this] (const PointMap::value_type & entry) { return !m_bases.Contains (entry.first); });
 }
 
 
@@ -1539,8 +1617,10 @@ void HistoryThumbnails::SetHoveredCell (int index)
 //
 //  HistoryThumbnails::TryGetCellLabels
 //
-//  The labeler's lines for the time the cell's keyframe was taken, as the
-//  playhead line's are for where the machine stands.
+//  The labeler's lines for the time the snapshot the cell shows was taken,
+//  as the playhead line's are for where the machine stands. That is the
+//  cell's own keyframe once it is drawn; until then, the snapshot of the
+//  picture the cell still shows, so the time matches the picture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1550,6 +1630,7 @@ bool HistoryThumbnails::TryGetCellLabels (
     std::wstring  & outBottom)
 {
     HistoryThumbnailCell  cell;
+    ShownPicture          shown;
     bool                  isCell = false;
 
 
@@ -1561,7 +1642,8 @@ bool HistoryThumbnails::TryGetCellLabels (
 
         if (isCell)
         {
-            cell = m_cells[(size_t) index];
+            shown = ResolveShown ((size_t) index);
+            cell  = (shown.image != nullptr) ? shown.point : m_cells[(size_t) index];
         }
     }
 

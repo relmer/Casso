@@ -28,8 +28,11 @@ public:
     void   OnCellClicked   (int index) override              { clicked.push_back (index); }
 
     std::wstring  GetLeadingLabel() override         { return leading; }
+    std::wstring  GetLeadingTip() override           { return L"Go to the start of history"; }
+    void          OnLeadingLabelClicked() override   { leadingClicks++; }
     std::wstring  GetTrailingLabel() override        { return trailing; }
     bool          IsTrailingLabelAccented() override { return true; }
+    std::wstring  GetTrailingTip() override          { return L"Return to live"; }
     void          OnTrailingLabelClicked() override  { trailingClicks++; }
 
     bool  TryGetPlayhead (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override
@@ -43,6 +46,7 @@ public:
     std::vector<int>  clicked;
     std::wstring      leading        = L"10:00:00 PM";
     std::wstring      trailing       = L"Live";
+    int               leadingClicks  = 0;
     int               trailingClicks = 0;
     bool              hasPlayhead    = false;
     float             playhead       = 0.0f;
@@ -151,6 +155,83 @@ public:
         Assert::IsTrue   (strip.OnClick       (kWidth / 2, y), L"and its click");
         Assert::AreEqual (1, source.trailingClicks,            L"goes to the source");
         Assert::IsTrue   (source.clicked.empty(),              L"no cell was clicked");
+    }
+
+
+    //  Standing up, both end labels are buttons as they are lying down: the
+    //  toolbar's hover and pressed chrome from the theme across the strip
+    //  around their text, a tip each, and the start time's click goes to the
+    //  source.
+    TEST_METHOD (EndLabelsStandingUpAreButtonsWithHoverPressedAndTips)
+    {
+        DxuiImageStrip            strip;
+        StandingStripSource       source;
+        MockDxuiTextRenderer      text;
+        MockDxuiPainter           painter;
+        MockDxuiTheme             theme;
+        RECT                      anchor = {};
+        const wchar_t           * tip    = nullptr;
+        int                       yLead  = 0;
+        int                       yTrail = 0;
+
+        SetUpStrip (strip, source, text);
+
+        yLead  = strip.GetPicturesRect().top / 2;
+        yTrail = (strip.GetPicturesRect().bottom + kHeight) / 2;
+
+        for (int y : { yLead, yTrail })
+        {
+            const std::wstring  & label = (y == yLead) ? source.leading : source.trailing;
+
+            strip.OnMouseMove (kWidth / 2, y);
+            text.Reset();
+            painter.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            Assert::IsTrue (HasChromeAround (painter, theme.ButtonHover(), FindText (text, label)), L"the pointer over a label gives it the hover chrome");
+
+            strip.OnLButtonDown (kWidth / 2, y);
+            text.Reset();
+            painter.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            Assert::IsTrue (HasChromeAround (painter, theme.ButtonPressed(), FindText (text, label)), L"a press gives it the pressed chrome");
+
+            strip.OnLButtonUp (kWidth / 2, y);
+            strip.OnClick     (kWidth / 2, y);
+        }
+
+        Assert::AreEqual (1, source.leadingClicks,  L"the start time's click goes to the source");
+        Assert::AreEqual (1, source.trailingClicks, L"and Live's");
+        Assert::IsTrue   (source.clicked.empty(),   L"no cell was clicked");
+
+        tip = strip.GetTooltipAt (kWidth / 2, yLead, anchor);
+        Assert::IsNotNull (tip, L"the start time has a tip");
+        Assert::AreEqual (std::wstring (L"Go to the start of history"), std::wstring (tip));
+
+        tip = strip.GetTooltipAt (kWidth / 2, yTrail, anchor);
+        Assert::IsNotNull (tip, L"Live has a tip");
+        Assert::AreEqual (std::wstring (L"Return to live"), std::wstring (tip));
+    }
+
+
+    static bool HasChromeAround (const MockDxuiPainter & painter, uint32_t fill, const RecordedTextCall * label)
+    {
+        bool  isFilled = false;
+
+        if (label == nullptr)
+        {
+            return false;
+        }
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            isFilled = isFilled || (call.kind == RecordedPaintKind::FillRoundedRect && call.argb == fill &&
+                                    call.x <= label->x && call.x + call.width  >= label->x + label->width &&
+                                    call.y <= label->y && call.y + call.height >= label->y + label->height);
+        }
+
+        return isFilled;
     }
 
 

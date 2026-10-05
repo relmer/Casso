@@ -72,7 +72,9 @@ struct HistoryThumbnailCell
 //  no picture yet shows the last picture it showed, so the live end does not
 //  blink out each time it moves on. After a resize moves the points, a cell
 //  with none shows the nearest point's picture, and the new points are drawn
-//  at the faster kCatchUpRendersPerSecond until each has its own.
+//  at the faster kCatchUpRendersPerSecond until each has its own. Whatever
+//  picture a cell shows, its labels and its preview are of that picture's
+//  snapshot, so the time shown always matches the screen shown.
 //
 //  Where the machine stands, live or replaying history, is told to it by
 //  the machine thread every turn, so the strip can mark that cell.
@@ -124,6 +126,8 @@ public:
     bool               TryGetPlayhead  (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override;
     void               OnPlayheadDragged (float offset, bool isFinal) override;
     std::wstring       GetLeadingLabel () override;
+    std::wstring       GetLeadingTip           () override;
+    void               OnLeadingLabelClicked   () override { OnCellClicked (0); }
     std::wstring       GetTrailingLabel        () override { return GetModeText (false); }
     bool               IsTrailingLabelAccented () override { return !IsBehindLive(); }
     std::wstring       GetTrailingTip          () override;
@@ -175,11 +179,22 @@ public:
     static Image       MakeBase      (const Image & full);
 
 private:
+    using PointMap = std::unordered_map<uint64_t, HistoryThumbnailCell>;
+
+    //  The picture a cell last showed and the snapshot it is of, which is
+    //  not the cell's point while that point is not drawn yet.
+    struct ShownPicture
+    {
+        Image                 image;
+        HistoryThumbnailCell  point;
+    };
+
     //  The one picture in flight.
     struct Job
     {
         HistoryThumbnails      * owner     = nullptr;
         std::vector<Byte>        state;
+        HistoryThumbnailCell     point;
         uint64_t                 position  = 0;
         SIZE                     thumbPx   = {};
         uint64_t                 layoutId  = 0;
@@ -194,6 +209,8 @@ private:
     bool               TryPickFull   (uint64_t & outPosition);
     bool               HasPicture    (uint64_t position) const;
     Image              ScaleBase     (uint64_t position);
+    ShownPicture       ResolveShown  (size_t index);
+    void               PrunePoints   ();
     void               ForgetPoint   (uint64_t position);
     bool               IsRenderDue   ();
     uint64_t           GetNowMs      () const;
@@ -232,7 +249,8 @@ private:
     HistoryImageCache                 m_previews     { kPreviewCount };
     std::optional<uint64_t>           m_wantedPreview;
     int                               m_hoveredCell  = -1;
-    std::vector<Image>                m_shown;               // the last picture each cell showed
+    std::vector<ShownPicture>         m_shown;               // the last picture each cell showed
+    PointMap                          m_points;              // the snapshot of every base copy held
     bool                              m_useStandIns  = false; // set once a layout changes over pictures drawn
 
     //  Machine thread's own.

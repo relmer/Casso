@@ -312,7 +312,8 @@ void DxuiImageStrip::Layout (
 //  under the pointer is framed in the theme's hover frame color instead, a
 //  thin line rather than an accent one, so it cannot be mistaken for the
 //  playhead line beside it, and its labels take the place of the line's
-//  where the two would overlap.
+//  where the two would overlap. An end label under the pointer or pressed
+//  has the toolbar's button chrome behind it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,13 +356,6 @@ void DxuiImageStrip::Paint (
     lead  = (m_source != nullptr && m_lead.right  > m_lead.left)  ? m_source->GetLeadingLabel()  : std::wstring();
     trail = (m_source != nullptr && m_trail.right > m_trail.left) ? m_source->GetTrailingLabel() : std::wstring();
 
-    if (m_hovered >= 0 && m_hovered < m_count)
-    {
-        hoverCell = GetCellRect (m_rc, m_hovered, m_count, m_cellPx, m_vertical);
-        hoverX    = (float) (hoverCell.left + hoverCell.right) / 2.0f;
-        isLabeled = !m_vertical && m_source != nullptr && m_source->TryGetCellLabels (m_hovered, cellTop, cellBottom);
-    }
-
     for (int i = 0; i < m_count; i++)
     {
         cell  = GetCellRect (m_rc, i, m_count, m_cellPx, m_vertical);
@@ -394,10 +388,19 @@ void DxuiImageStrip::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    //  The hovered cell's labels are asked for after its picture, so they
+    //  give the time of the snapshot it was just drawn with.
     if (m_hovered >= 0 && m_hovered < m_count)
     {
+        hoverCell = GetCellRect (m_rc, m_hovered, m_count, m_cellPx, m_vertical);
+        hoverX    = (float) (hoverCell.left + hoverCell.right) / 2.0f;
+        isLabeled = !m_vertical && m_source != nullptr && m_source->TryGetCellLabels (m_hovered, cellTop, cellBottom);
+
         PaintHoverFrame (text, theme, hoverCell);
     }
+
+    PaintPartChrome (painter, theme, m_lead,  Part::Leading);
+    PaintPartChrome (painter, theme, m_trail, Part::Trailing);
 
     PaintSideLabel (painter, text, theme, lead,  m_lead,  false);
     PaintSideLabel (painter, text, theme, trail, m_trail, true);
@@ -429,8 +432,8 @@ void DxuiImageStrip::Paint (
 //
 //  DxuiImageStrip::GetTooltipAt
 //
-//  The preview takes the place of a tip over the pictures; the trailing
-//  label has the source's tip.
+//  The preview takes the place of a tip over the pictures; each end label
+//  has the source's tip for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -439,17 +442,17 @@ const wchar_t * DxuiImageStrip::GetTooltipAt (
     int     y,
     RECT  & anchor) const
 {
-    POINT  pt = { x, y };
+    Part  part = HitTestPart (x, y);
 
 
 
-    if (m_source == nullptr || !PtInRect (&m_trail, pt))
+    if (m_source == nullptr || part == Part::None)
     {
         return nullptr;
     }
 
-    m_tip  = m_source->GetTrailingTip();
-    anchor = m_trail;
+    m_tip  = (part == Part::Leading) ? m_source->GetLeadingTip() : m_source->GetTrailingTip();
+    anchor = (part == Part::Leading) ? m_lead : m_trail;
 
     return m_tip.empty() ? nullptr : m_tip.c_str();
 }
@@ -460,7 +463,77 @@ const wchar_t * DxuiImageStrip::GetTooltipAt (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiImageStrip::HitTestPart
+//
+//  Which end label a point is over, if either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiImageStrip::Part DxuiImageStrip::HitTestPart (
+    int  x,
+    int  y) const
+{
+    POINT  pt = { x, y };
+
+
+
+    if (PtInRect (&m_lead, pt))
+    {
+        return Part::Leading;
+    }
+
+    return PtInRect (&m_trail, pt) ? Part::Trailing : Part::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintPartChrome
+//
+//  An end label under the pointer, or pressed while the pointer is still
+//  over it, takes the chrome the toolbar draws behind a button: a rounded
+//  fill in the theme's hover or pressed color inside its border color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintPartChrome (
+    IDxuiPainter       & painter,
+    const IDxuiTheme   & theme,
+    const RECT         & rc,
+    Part                 part)
+{
+    float     radius    = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
+    float     left      = (float) rc.left;
+    float     top       = (float) rc.top;
+    float     width     = (float) (rc.right - rc.left);
+    float     height    = (float) (rc.bottom - rc.top);
+    bool      isHovered = m_hoverPart == part;
+    bool      isPressed = isHovered && m_pressPart == part;
+    uint32_t  fill      = isPressed ? theme.ButtonPressed() : theme.ButtonHover();
+
+
+
+    if (!isHovered || width <= 0.0f || height <= 0.0f)
+    {
+        return;
+    }
+
+    painter.FillRoundedRect    (left, top, width, height, radius, fill);
+    painter.OutlineRoundedRect (left, top, width, height, radius, 1.0f, theme.ButtonBorder());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiImageStrip::OnClick
+//
+//  An end label acts only for a press and release both on it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,10 +541,13 @@ bool DxuiImageStrip::OnClick (
     int  x,
     int  y)
 {
-    int    index = HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y);
-    POINT  pt    = { x, y };
+    int   index = HitTestCell (m_rc, m_count, m_cellPx, m_vertical, x, y);
+    Part  part  = HitTestPart (x, y);
+    Part  armed = m_armedPart;
 
 
+
+    m_armedPart = Part::None;
 
     //  The release that ended a drag of the playhead line is not a click.
     if (m_isClickEaten)
@@ -480,9 +556,17 @@ bool DxuiImageStrip::OnClick (
         return true;
     }
 
-    if (m_source != nullptr && PtInRect (&m_trail, pt))
+    if (part != Part::None)
     {
-        m_source->OnTrailingLabelClicked();
+        if (m_source != nullptr && part == armed && part == Part::Leading)
+        {
+            m_source->OnLeadingLabelClicked();
+        }
+        else if (m_source != nullptr && part == armed)
+        {
+            m_source->OnTrailingLabelClicked();
+        }
+
         return true;
     }
 
@@ -528,7 +612,8 @@ bool DxuiImageStrip::OnMouseMove (
         return true;
     }
 
-    m_pointer = POINT { x, y };
+    m_pointer   = POINT { x, y };
+    m_hoverPart = HitTestPart (x, y);
 
     if (index != m_hovered)
     {
@@ -540,7 +625,7 @@ bool DxuiImageStrip::OnMouseMove (
         FollowPointer();
     }
 
-    return index >= 0;
+    return index >= 0 || m_hoverPart != Part::None;
 }
 
 
@@ -571,8 +656,9 @@ void DxuiImageStrip::SetHovered (int index)
 //
 //  DxuiImageStrip::OnLButtonDown
 //
-//  A press on a cell arms the entry for the click that follows; the toolbar
-//  arms a labeled custom entry only through a part that takes the press.
+//  A press on a cell or an end label arms the entry for the click that
+//  follows; the toolbar arms a labeled custom entry only through a part that
+//  takes the press. A pressed end label shows pressed until the release.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -584,14 +670,17 @@ bool DxuiImageStrip::OnLButtonDown (
     std::wstring  top;
     std::wstring  bottom;
     bool          isOn   = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
-    POINT         pt     = { x, y };
+    Part          part   = HitTestPart (x, y);
 
 
 
     m_isClickEaten = false;
+    m_pressPart    = part;
+    m_armedPart    = part;
 
-    if (PtInRect (&m_trail, pt))
+    if (part != Part::None)
     {
+        m_hoverPart = part;
         return true;
     }
 
@@ -621,6 +710,9 @@ bool DxuiImageStrip::OnLButtonDown (
 
 void DxuiImageStrip::OnMouseLeave()
 {
+    m_hoverPart = Part::None;
+    m_pressPart = Part::None;
+
     //  A drag taken off the strip ends where it last was.
     if (m_isDragging)
     {
@@ -646,16 +738,21 @@ void DxuiImageStrip::OnMouseLeave()
 //
 //  The preview follows the pointer in one popup, opened once and moved along
 //  the strip, never closed and opened again on the way: a window hidden and
-//  shown for each cell crossed flickers. A sharp picture already up stays
-//  until the cell under the pointer has its own; a thumbnail scaled up
-//  stands in only when there is none up yet to keep.
+//  shown for each cell crossed flickers. The preview always shows the
+//  snapshot the hovered cell shows, whichever cell the pointer came from:
+//  its full-size picture, or until that is drawn, the cell's own thumbnail
+//  scaled up. A sharp picture already up stays only while the cell shows the
+//  same picture it was chosen for, as neighbors showing one snapshot do; a
+//  cell with no picture at all has no preview.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiImageStrip::Sync()
 {
     IDxuiImageStripSource::Image  image;
+    IDxuiImageStripSource::Image  thumb;
     bool                          isFull = false;
+    bool                          isSame = false;
 
 
 
@@ -665,22 +762,34 @@ void DxuiImageStrip::Sync()
         return;
     }
 
+    thumb  = m_source->GetCellImage (m_hovered);
     image  = m_source->GetPreviewImage (m_hovered);
     isFull = image != nullptr;
+    isSame = m_preview != nullptr && thumb != nullptr && thumb == m_previewThumb;
 
-    if (!isFull && m_preview == nullptr && m_previewDip.cx > 0)
+    if (!isFull && !isSame && m_previewDip.cx > 0)
     {
-        image = m_source->GetCellImage (m_hovered);
+        image = thumb;
+    }
+
+    //  Nothing of the cell's own to show: another cell's picture is no
+    //  preview of this one.
+    if (image == nullptr && !isSame)
+    {
+        HidePreview();
+        return;
     }
 
     //  Nothing new to show: what is up stays, and keeps up with the pointer.
     if (image == nullptr || (m_preview != nullptr && image == m_previewImage))
     {
+        m_previewThumb = thumb;
         FollowPointer();
         return;
     }
 
     m_previewImage = std::move (image);
+    m_previewThumb = thumb;
 
     if (isFull)
     {
@@ -716,6 +825,7 @@ void DxuiImageStrip::HidePreview()
     // Cleared first, so the popup's close callback finds nothing to clear.
     m_preview      = nullptr;
     m_previewImage = nullptr;
+    m_previewThumb = nullptr;
 
     if (popup != nullptr && m_popupHost != nullptr)
     {
@@ -1300,8 +1410,9 @@ void DxuiImageStrip::PaintLabel (
 //
 //  DxuiImageStrip::OnLButtonUp
 //
-//  Letting go of the playhead line ends its drag where it was let go, and
-//  the click the toolbar may send for the same release is eaten.
+//  Any release lets a pressed end label up. Letting go of the playhead line
+//  ends its drag where it was let go, and the click the toolbar may send for
+//  the same release is eaten.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1309,6 +1420,8 @@ void DxuiImageStrip::OnLButtonUp (
     int  x,
     int  y)
 {
+    m_pressPart = Part::None;
+
     if (!m_isDragging)
     {
         return;
