@@ -26,7 +26,8 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     uint32_t foreground,
     uint32_t muted,
     uint32_t resultText,
-    uint32_t accent)
+    uint32_t accent,
+    uint32_t changedText)
 {
     Set                    set;
     bool                   dark    = IsDark (background);
@@ -62,14 +63,35 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     set.muted            = set.syntax.bytes;
     set.syntax.comment   = set.annotation;
 
-    //  A changed value is meant to stand out, so on a dark page it is held to
-    //  a higher ratio than the rest.
-    if (dark)
+    //  A changed value is meant to stand out, so on a dark page with no red of
+    //  its own it is held to a higher ratio than the rest, on every row fill.
+    //  A theme's own red, and the light page's, need only read on the page:
+    //  a row fill lifts it where it sits on one, by GetChangedOn.
+    if (changedText != 0 || !dark)
+    {
+        set.changed = GetReadable (changedText != 0 ? changedText : 0xFFD00000, dark ? background : GetRowShade (background));
+    }
+    else
     {
         set.changed = GetReadable (set.changed, against, s_kChangedContrast);
     }
 
     return set;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerTextColors::GetChangedOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerTextColors::GetChangedOn (const Set & set, uint32_t fill)
+{
+    return (fill == 0) ? set.changed : GetReadable (set.changed, fill);
 }
 
 

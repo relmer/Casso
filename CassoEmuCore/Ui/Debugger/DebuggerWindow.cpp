@@ -6527,7 +6527,7 @@ void DebuggerWindow::ApplyCodeView (int view)
         //  edit changed it.
         for (const auto & [first, last] : m_codeChanges.GetChangedRanges (line->address, line->bytes))
         {
-            cells[3].colorRanges.push_back ({ first, last, GetChangedArgb() });
+            cells[3].colorRanges.push_back ({ first, last, DebuggerTextColors::GetChangedOn (textColors, fill) });
         }
 
         cells[5].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[5].text, textColors);
@@ -9089,10 +9089,11 @@ DebuggerTextColors::Set DebuggerWindow::GetTextColors() const
     uint32_t  muted      = (m_theme != nullptr) ? m_theme->ForegroundMuted()   : 0xFFC0C0C0;
     uint32_t  result     = (m_theme != nullptr) ? m_theme->resultText          : 0u;
     uint32_t  accent     = (m_theme != nullptr) ? m_theme->Accent()            : 0xFF3C8CE6;
+    uint32_t  changed    = (m_theme != nullptr) ? m_theme->changedText         : 0u;
 
 
 
-    return DebuggerTextColors::Make (background, foreground, muted, result, accent);
+    return DebuggerTextColors::Make (background, foreground, muted, result, accent, changed);
 }
 
 

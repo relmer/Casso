@@ -57,12 +57,18 @@ public:
         uint32_t              navigatedRow   = 0;
     };
 
-    //  `resultText` of zero means the theme gives no result color.
+    //  `resultText` or `changedText` of zero means the theme gives no color
+    //  of its own for it.
     static Set       Make        (uint32_t background,
                                   uint32_t foreground,
                                   uint32_t muted,
                                   uint32_t resultText,
-                                  uint32_t accent = 0xFF3C8CE6);
+                                  uint32_t accent      = 0xFF3C8CE6,
+                                  uint32_t changedText = 0);
+
+    //  The changed color on a row filled with `fill`, moved until it reads
+    //  there; a zero `fill` is the page, where it is `set.changed` itself.
+    static uint32_t  GetChangedOn (const Set & set, uint32_t fill);
 
     static bool      IsDark      (uint32_t background);
 

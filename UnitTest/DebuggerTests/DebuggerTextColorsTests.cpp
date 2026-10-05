@@ -52,7 +52,7 @@ public:
         {
             const DxuiTheme &        theme  = DebuggerThemes::Choose (choice.name, emulator, light, dark, own);
             uint32_t                 bg     = theme.ContentBackground();
-            DebuggerTextColors::Set  colors = DebuggerTextColors::Make (bg, theme.Foreground(), theme.ForegroundMuted(), theme.resultText);
+            DebuggerTextColors::Set  colors = DebuggerTextColors::Make (bg, theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent(), theme.changedText);
 
             CheckRatio (choice.name, L"mnemonic",   colors.syntax.mnemonic,  bg, failures);
             CheckRatio (choice.name, L"directive",  colors.syntax.directive, bg, failures);

@@ -29,7 +29,37 @@ public:
 
     static DebuggerTextColors::Set  MakeFor (const DxuiTheme & theme)
     {
-        return DebuggerTextColors::Make (theme.ContentBackground(), theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent());
+        return DebuggerTextColors::Make (theme.ContentBackground(), theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent(), theme.changedText);
+    }
+
+
+
+    //  The changed color as it was before the row fills were made opaque: a
+    //  coral on a dark page and the red on a light one, each read against the
+    //  page alone, or a light page's darkest row shade.
+    static uint32_t  GetEarlierChanged (const DxuiTheme & theme)
+    {
+        uint32_t  background = theme.ContentBackground();
+        bool      dark       = DebuggerTextColors::IsDark (background);
+
+
+
+        return DebuggerTextColors::GetReadable (dark ? 0xFFFF6B68 : 0xFFD00000, dark ? background : DebuggerTextColors::GetRowShade (background));
+    }
+
+
+
+    static float  GetSaturation (uint32_t argb)
+    {
+        float  r   = (float) ((argb >> 16) & 0xFF) / 255.0f;
+        float  g   = (float) ((argb >> 8)  & 0xFF) / 255.0f;
+        float  b   = (float) ( argb        & 0xFF) / 255.0f;
+        float  max = (std::max) ({ r, g, b });
+        float  min = (std::min) ({ r, g, b });
+
+
+
+        return (max > 0) ? (max - min) / max : 0.0f;
     }
 
 
@@ -105,7 +135,7 @@ public:
                 CheckRatio (choice.name, L"operand",   c.operandAddress,  row, failures);
                 CheckRatio (choice.name, L"annotation", c.annotation,     row, failures);
                 CheckRatio (choice.name, L"result",    c.result,          row, failures);
-                CheckRatio (choice.name, L"changed",   c.changed,         row, failures);
+                CheckRatio (choice.name, L"changed",   DebuggerTextColors::GetChangedOn (c, row), row, failures);
             }
         }
 
@@ -176,6 +206,48 @@ public:
 
 
         Assert::IsTrue (DxuiColor::ComputeContrastRatio (c.changed, dark.ContentBackground()) >= 7.0f);
+    }
+
+
+    TEST_METHOD (SkeuomorphicChangedIsARedderRedThanBefore)
+    {
+        CassoTheme               skeuo  = CassoTheme::MakeSkeuomorphic();
+        DebuggerTextColors::Set  c      = MakeFor (skeuo);
+        uint32_t                 before = GetEarlierChanged (skeuo);
+
+
+
+        Assert::AreEqual (skeuo.changedText, c.changed, L"the theme's own red, unmoved, since it reads on the page");
+        Assert::IsTrue   (GetSaturation (c.changed) >= GetSaturation (before) + 0.1f, L"noticeably more saturated than before");
+        Assert::IsTrue   (GetSaturation (c.changed) < 0.9f, L"but not fully");
+        Assert::IsTrue   (GetHueDistance (GetHue (c.changed), 0.0f) <= GetHueDistance (GetHue (before), 0.0f), L"and no farther from red");
+        Assert::IsTrue   (DxuiColor::ComputeContrastRatio (c.changed, skeuo.ContentBackground()) >= DebuggerTextColors::s_kMinTextContrast);
+    }
+
+
+    TEST_METHOD (OtherThemesKeepTheirEarlierChangedColor)
+    {
+        CassoTheme      darkModern = CassoTheme::MakeDarkModern();
+        CassoTheme      retro      = CassoTheme::MakeRetroTerminal();
+        DxuiLightTheme  light;
+
+
+
+        Assert::AreEqual (GetEarlierChanged (darkModern), MakeFor (darkModern).changed, L"Dark Modern");
+        Assert::AreEqual (GetEarlierChanged (retro),      MakeFor (retro).changed,      L"Retro Terminal");
+        Assert::AreEqual (GetEarlierChanged (light),      MakeFor (light).changed,      L"System light");
+    }
+
+
+    TEST_METHOD (ChangedIsLiftedOnARowFillOnly)
+    {
+        CassoTheme               skeuo = CassoTheme::MakeSkeuomorphic();
+        DebuggerTextColors::Set  c     = MakeFor (skeuo);
+
+
+
+        Assert::AreEqual    (c.changed, DebuggerTextColors::GetChangedOn (c, 0),       L"no fill: the page color");
+        Assert::AreNotEqual (c.changed, DebuggerTextColors::GetChangedOn (c, c.pcRow), L"lifted to read on the PC row");
     }
 
 

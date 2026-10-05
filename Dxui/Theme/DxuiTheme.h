@@ -85,6 +85,10 @@ struct DxuiTheme : public IDxuiTheme
     //  falls back to a cyan for the surface's darkness.
     uint32_t  resultText               = 0;
 
+    //  A value that changed since the last stop. A zero value falls back to a
+    //  red for the surface's darkness.
+    uint32_t  changedText              = 0;
+
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
     uint32_t  Background          () const override { return panelBg;            }
