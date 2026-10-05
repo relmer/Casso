@@ -41,6 +41,7 @@ Launch per the project rules (background, `--title <worktree name>`).
    memory matches. Open the WAV in another Apple II tape tool and confirm it
    decodes the same.
 5. **Controls and persistence (US4, FR-016)**: insert, play part way, stop,
-   check that the position holds, rewind to 0, restart Casso, and check that
-   the tape comes back at 0. Switch to the //c and check that there is no tape
-   deck.
+   and check that the position holds. Then play part way again, quit Casso,
+   relaunch it, and check that the same tape is back in the deck, stopped at
+   0:00 -- a remembered tape always comes back rewound. Switch to the //c and
+   check that there is no tape deck.

@@ -75,6 +75,8 @@ BRASS   = (0.700, 0.600, 0.380)
 CHROME  = (0.330, 0.335, 0.345)     # dark base: the scene adds the sheen from above
 PLATE   = (0.800, 0.790, 0.750)     # the brushed plate under the cassette window
 POST    = (0.110, 0.110, 0.115)     # the spindles' black plastic
+SCREW   = (0.260, 0.255, 0.250)     # blackened steel
+FOOT    = (0.090, 0.090, 0.095)     # rubber
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -692,7 +694,107 @@ def build():
         mark  = round_top(arrow.union(label), 0.1, "<Y")
         marks = mark if marks is None else marks.union(mark)
     m.add("wheel_legend", on_face(marks), SILVER)
+    bottom(m)
     return m
+
+
+def _under(shape, y_mid):
+    """Mirrors lettering laid out on the XY plane front to back about y_mid,
+    so it reads the right way round seen from underneath with the handle
+    away from the reader, as the bottom's writing does."""
+    return shape.mirror("XZ", (0, y_mid, 0))
+
+
+def bottom(m):
+    """THE UNDERSIDE, from a photograph of the bottom with the handle toward
+    the camera, scaled off the case's own width and length. Seen from below
+    the photo's left is the model's right, so every x here is mirrored from
+    it. Front to back: two round feet, a recessed panel of molded warning
+    text, a recessed rating label, four columns of vents, a recessed panel,
+    and the battery cover across the back. Everything is cut up into the
+    flat bottom face, z = 0."""
+    body = m.parts[0].solid
+
+    # The warning panel: recessed, its lettering standing up from the
+    # recess floor flush with the bottom, so it reads in the light alone.
+    WARN_X0, WARN_X1, WARN_Y0, WARN_Y1, WARN_D = 22.0, 120.0, 77.0, 103.0, 0.6
+    body = body.cut(box(WARN_X0, WARN_X1, WARN_Y0, WARN_Y1, -0.1, WARN_D))
+    lines = ("CAUTION-TO PREVENT ELECTRIC SHOCK, DO",
+             "NOT REMOVE COVER. NO USER-SERVICEABLE",
+             "PARTS INSIDE. REFER SERVICING TO",
+             "QUALIFIED SERVICE PERSONNEL.")
+    pitch = (WARN_Y1 - WARN_Y0 - 4.0) / len(lines)
+    # As large as the panel takes: the longest line spans it, less a margin.
+    widest = max(text(s, 3.2, 0, 0, 0, bold=True).val().BoundingBox().xlen for s in lines)
+    size   = min(3.2 * (WARN_X1 - WARN_X0 - 6.0) / widest, pitch * 0.8)
+    warn  = None
+    for i, s in enumerate(lines):
+        # The first line is the one nearest the front, read from below with
+        # the front at the top.
+        y = WARN_Y0 + 2.0 + pitch * (i + 0.5)
+        ln = text(s, size, WARN_X0 + 3.0, y, 0.0, halign="left", bold=True, depth=WARN_D)
+        warn = ln if warn is None else warn.union(ln)
+    m.add("bottom_warning", _under(warn, (WARN_Y0 + WARN_Y1) / 2), BODY)
+
+    # The rating label, in a shallow recess: a black sticker printed in
+    # silver -- the model, the ratings, the maker, and a UL mark.
+    LBL_X0, LBL_X1, LBL_Y0, LBL_Y1 = 37.0, 104.0, 123.5, 134.5
+    body = body.cut(box(LBL_X0, LBL_X1, LBL_Y0, LBL_Y1, -0.1, 0.35))
+    m.add("bottom_label", box(LBL_X0 + 0.3, LBL_X1 - 0.3, LBL_Y0 + 0.3, LBL_Y1 - 0.3, 0.2, 0.35), BAND)
+    ly = (LBL_Y0 + LBL_Y1) / 2
+    ink = (text("RQ-309DS", 2.6, LBL_X1 - 3.0, ly - 2.6, 0.12, halign="right", bold=True, depth=0.08)
+           .union(text("AC 120V 60Hz 5W  DC 6V", 1.3, LBL_X1 - 3.0, ly - 0.2, 0.12, halign="right", depth=0.08))
+           .union(text("MATSUSHITA ELECTRIC INDUSTRIAL CO., LTD.", 1.3, LBL_X1 - 3.0, ly + 1.7, 0.12, halign="right", depth=0.08))
+           .union(text("MADE IN JAPAN", 1.3, LBL_X1 - 3.0, ly + 3.5, 0.12, halign="right", depth=0.08)))
+    ul_x = LBL_X0 + 5.5
+    ul = (cq.Workplane("XY").workplane(offset=0.12).center(ul_x, ly).circle(3.6).circle(3.2).extrude(0.08)
+          .union(text("UL", 2.4, ul_x, ly, 0.12, bold=True, depth=0.08)))
+    m.add("bottom_label_ink", _under(ink.union(ul), ly), SILVER)
+
+    # The vents: four columns of fifteen slots, black inside.
+    VENT_Y0, VENT_Y1, VENT_D = 145.0, 190.0, 2.5
+    slot_h = (VENT_Y1 - VENT_Y0) / 15 * 0.55
+    dark   = None
+    for cx0, cx1 in ((24.0, 43.0), (48.5, 68.5), (74.0, 94.5), (100.0, 119.5)):
+        for row in range(15):
+            sy = VENT_Y0 + (VENT_Y1 - VENT_Y0) * (row + 0.5) / 15 - slot_h / 2
+            body = body.cut(box(cx0, cx1, sy, sy + slot_h, -0.1, VENT_D))
+            floor = box(cx0, cx1, sy, sy + slot_h, VENT_D - 0.3, VENT_D)
+            dark = floor if dark is None else dark.union(floor)
+    m.add("bottom_vents", dark, BAND)
+
+    # The panel between the vents and the battery cover.
+    body = body.cut(box(49.0, 85.0, 196.0, 216.0, -0.1, 0.8))
+
+    # Two screws: one in a shallow counterbore beside the vents, its head
+    # showing, and one down a deep hole on the other side.
+    body = body.cut(cq.Workplane("XY").workplane(offset=-0.1).center(12.5, 185.0).circle(2.6).extrude(1.6))
+    head = (cq.Workplane("XY").workplane(offset=0.9).center(12.5, 185.0).circle(2.1).extrude(0.6)
+            .cut(box(12.5 - 1.5, 12.5 + 1.5, 185.0 - 0.25, 185.0 + 0.25, 0.8, 1.2)))
+    m.add("bottom_screw", head, SCREW)
+    body = body.cut(cq.Workplane("XY").workplane(offset=-0.1).center(124.0, 157.0).circle(2.2).extrude(6.0))
+    m.add("bottom_screw_deep", cq.Workplane("XY").workplane(offset=5.0).center(124.0, 157.0).circle(2.2).extrude(0.4), BAND)
+
+    # The battery cover: a seam around it, a half-round finger notch at its
+    # front edge, and a slot in the notch for the catch.
+    BAT_X0, BAT_X1, BAT_Y0, BAT_Y1 = 6.0, 126.0, 230.0, 247.0
+    seam = (box(BAT_X0, BAT_X1, BAT_Y0, BAT_Y1, -0.1, 0.5)
+            .cut(box(BAT_X0 + 0.5, BAT_X1 - 0.5, BAT_Y0 + 0.5, BAT_Y1 + 0.1, -0.2, 0.6)))
+    body = body.cut(seam)
+    notch_x = (BAT_X0 + BAT_X1) / 2
+    body = body.cut(cq.Workplane("XY").workplane(offset=-0.1).center(notch_x, BAT_Y0).circle(6.0).extrude(0.9)
+                    .intersect(box(notch_x - 7, notch_x + 7, BAT_Y0 - 7, BAT_Y0 + 0.5, -0.2, 1.0)))
+    body = body.cut(box(notch_x - 4.0, notch_x + 4.0, BAT_Y0 - 0.2, BAT_Y0 + 1.6, -0.1, 1.8))
+
+    # Two round rubber feet at the front, standing just proud of the bottom.
+    feet = None
+    for fx in (20.0, 124.0):
+        foot = cq.Workplane("XY").workplane(offset=-0.8).center(fx, 50.0).circle(5.0).extrude(0.9)
+        foot = foot.faces("<Z").edges().fillet(0.5)
+        feet = foot if feet is None else feet.union(foot)
+    m.add("bottom_feet", feet, FOOT)
+
+    m.parts[0].solid = body
 
 
 if __name__ == "__main__":
