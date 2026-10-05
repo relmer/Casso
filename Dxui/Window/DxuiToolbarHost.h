@@ -65,6 +65,13 @@ public:
     const DxuiToolbarDock  &  GetDock () const { return m_dock; }
     void                      SetDock (const DxuiToolbarDock & dock) { m_dock = dock; }
 
+    //  A toolbar that runs the whole length of whichever edge it docks to,
+    //  such as a strip of pictures with an entry that fills. Torn off, it
+    //  keeps the length it had, and its floating window resizes along that
+    //  length only; the length is saved with the rest of its place.
+    void  SetFillsEdge  (bool fills) { m_fillsEdge = fills; }
+    bool  IsFillingEdge () const     { return m_fillsEdge; }
+
     //  The default place, saved.
     void  ResetDock ();
 
@@ -104,6 +111,12 @@ public:
     //  The dock site's side for a toolbar's edge.
     static DxuiDockSide  EdgeToDockSide (DxuiToolbarDock::Edge edge);
 
+    //  The length a toolbar docked in `bar` keeps when it is torn off, in
+    //  DIPs, and the floating window's length in pixels for `dock`: its kept
+    //  length for a toolbar that fills its edge, or 0 for the natural length.
+    static int  GetTearOffLengthDip (const RECT & bar, bool vertical, int dpi);
+    static int  GetFloatLengthPx    (const DxuiToolbarDock & dock, bool fillsEdge, int dpi);
+
 private:
     void  TearOff          (POINT clientPx);
     void  Float            ();
@@ -113,8 +126,9 @@ private:
     void  FinishSnap       ();
     void  ResumeSnapDrag   ();
     void  FitFloatWindow   ();
+    int   AdoptFloatLength (const RECT & window);
     void  Save             ();
-    RECT  GetFloatingRect  (POINT topLeftPx);
+    RECT  GetFloatingRect  (POINT topLeftPx, int lengthPx);
     HWND  GetOwnerHwnd     () const;
     int   GetBandDipOfBar  () const { return (m_toolbar != nullptr) ? m_toolbar->GetBandDp() : DxuiToolbar::GetBandDip(); }
 
@@ -123,6 +137,7 @@ private:
     DxuiDockSite                        * m_dockSite  = nullptr;
     HINSTANCE                             m_hInstance = nullptr;
     DxuiDpiScaler                         m_scaler;
+    bool                                  m_fillsEdge = false;
 
     //  The toolbar's place, and a drag of its grab handle in progress, with
     //  where in the toolbar the handle was taken and the region it docks

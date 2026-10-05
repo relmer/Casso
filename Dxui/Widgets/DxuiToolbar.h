@@ -176,6 +176,10 @@ public:
         //  Stays on the strip however little room is left, where every other
         //  entry, custom ones included, moves into the See more menu.
         bool  neverOverflow = false;
+
+        //  A custom entry that takes whatever length the strip has to spare,
+        //  so it runs to the strip's far end, as a row of pictures does.
+        bool  fill = false;
     };
 
     DxuiToolbar  ();
@@ -421,6 +425,7 @@ private:
     void          OpenSeeMore          ();
     void          PlanSeeMore          (int clientWidthPx);
     void          ShrinkToFit          (int clientWidthPx);
+    void          GrowToFill           (int clientWidthPx);
 
     std::function<void (POINT)>  m_onDropDownClickOutside;
     void          WireDropDown         ();

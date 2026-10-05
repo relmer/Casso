@@ -100,6 +100,8 @@ bool DxuiToolbarWindow::OnMouse (const DxuiMouseEvent & ev)
 
 void DxuiToolbarWindow::BeginMove()
 {
+    m_isMoving = true;
+
     ReleaseCapture();
     PostMessage (GetHwnd(), WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
 }
@@ -132,6 +134,9 @@ LPCWSTR DxuiToolbarWindow::GetCursorForPoint (POINT clientPx) const
 //
 //  DxuiToolbarWindow::OnMoveLoopTick
 //
+//  A loop the window's ends started is a resize, which is no drag to
+//  report; the owner's frames go on either way.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarWindow::OnMoveLoopTick()
@@ -140,7 +145,10 @@ void DxuiToolbarWindow::OnMoveLoopTick()
 
 
 
-    Report (m_drag.OnTick (buttonDown, GetScreenSize()));
+    if (m_isMoving)
+    {
+        Report (m_drag.OnTick (buttonDown, GetScreenSize()));
+    }
 
     if (m_onMoveFrame)
     {
@@ -162,6 +170,8 @@ void DxuiToolbarWindow::OnMoveLoopTick()
 
 void DxuiToolbarWindow::OnWindowPlaced()
 {
+    m_isMoving = false;
+
     Report (m_drag.OnLoopEnd (GetScreenSize()));
 }
 
@@ -200,6 +210,9 @@ void DxuiToolbarWindow::PollCaptionDrag()
     bool  buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
 
+
+    //  A move asked for after the button came up never starts its loop.
+    m_isMoving = m_isMoving && buttonDown;
 
     Report (m_drag.OnPoll (buttonDown, GetScreenSize()));
 }
@@ -306,4 +319,108 @@ RECT DxuiToolbarWindow::GetScreenRect() const
 
     GetWindowRect (GetHwnd(), &rect);
     return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::SetLengthResizable
+//
+//  The window's own hit test answers for its ends ahead of the usual resize
+//  border, so the long sides and the corners are plain client area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarWindow::SetLengthResizable (bool resizable)
+{
+    DxuiHwndSource  * source = GetPopupHost();
+
+
+
+    if (source == nullptr)
+    {
+        return;
+    }
+
+    if (!resizable)
+    {
+        source->SetHitTestDelegate (nullptr);
+        return;
+    }
+
+    source->SetHitTestDelegate ([this] (POINT screenPx) { return HitTestLength (screenPx); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::HitTestLength
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT DxuiToolbarWindow::HitTestLength (POINT screenPx) const
+{
+    HRESULT  hr     = S_OK;
+    HWND     hwnd   = GetHwnd();
+    POINT    client = screenPx;
+    RECT     rect   = {};
+    BOOL     isDone = FALSE;
+    LRESULT  result = HTNOWHERE;
+
+
+
+    CBR (hwnd != nullptr && m_toolbar != nullptr);
+
+    isDone = ScreenToClient (hwnd, &client);
+    CWR (isDone);
+
+    isDone = GetClientRect (hwnd, &rect);
+    CWR (isDone);
+
+    result = ClassifyLengthResize (client, SIZE { rect.right - rect.left, rect.bottom - rect.top }, m_toolbar->IsVertical(),
+                                   MulDiv (kResizeEndDp, (int) GetDpi(), USER_DEFAULT_SCREEN_DPI));
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::ClassifyLengthResize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LRESULT DxuiToolbarWindow::ClassifyLengthResize (POINT clientPx, SIZE clientSizePx, bool vertical, int endPx)
+{
+    int  along  = vertical ? clientPx.y : clientPx.x;
+    int  length = vertical ? clientSizePx.cy : clientSizePx.cx;
+
+
+
+    if (clientPx.x < 0 || clientPx.y < 0 || clientPx.x >= clientSizePx.cx || clientPx.y >= clientSizePx.cy)
+    {
+        return HTNOWHERE;
+    }
+
+    if (along < endPx)
+    {
+        return vertical ? HTTOP : HTLEFT;
+    }
+
+    if (along >= length - endPx)
+    {
+        return vertical ? HTBOTTOM : HTRIGHT;
+    }
+
+    return HTCLIENT;
 }

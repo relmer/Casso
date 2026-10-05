@@ -17,10 +17,11 @@
 //  DebuggerWindow::ConfigureTimeline
 //
 //  The history timeline is a toolbar holding the strip of thumbnails, with
-//  where history begins left of the pictures and Live right of them, where
+//  where history begins before the pictures and Live after them, where
 //  live time is, and a grab handle; it docks and floats through a Dxui
 //  toolbar host of its own, as the command bar does, and keeps its place in
-//  the debugger's preferences. The pictures come from the host, which draws
+//  the debugger's preferences. Docked, the strip runs the whole length of
+//  its edge; floating, it keeps the length it was given. The pictures come from the host, which draws
 //  them from its recorded history. The band is taller than a button by room
 //  above and below the pictures, so a replay's playhead line can show the
 //  host's time above it and the time since power-on below it.
@@ -50,6 +51,7 @@ void DebuggerWindow::ConfigureTimeline()
     entry.custom        = &m_timelineStrip;
     entry.group         = kStripGroup;
     entry.neverOverflow = true;
+    entry.fill          = true;
 
     m_timelineStrip.SetSource       (thumbnails);
     m_timelineStrip.SetAspect       ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
@@ -82,7 +84,8 @@ void DebuggerWindow::ConfigureTimeline()
         });
     }
 
-    m_timelineHost.Attach (this, m_timelineBar, nullptr, m_hInstance);
+    m_timelineHost.Attach       (this, m_timelineBar, nullptr, m_hInstance);
+    m_timelineHost.SetFillsEdge (true);
 
     m_timelineHost.SetOnLayout        ([this] { LayoutWidgets(); });
     m_timelineHost.SetOnFloatMouse    ([this] (const DxuiMouseEvent & ev) { return RouteTimelineMouse (ev); });
@@ -124,9 +127,9 @@ void DebuggerWindow::ConfigureTimeline()
 //
 //  DebuggerWindow::PlaceTimeline
 //
-//  Docked, the timeline runs the length of its edge of `area` and takes its
-//  band out of it; floating or being carried, it asks for its default length
-//  instead, so a window torn off is not the width of the debugger.
+//  Docked, the timeline runs the length of its edge of `area`, however it
+//  was carried there, and takes its band out of it; floating, the area is
+//  left whole.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,9 +137,7 @@ void DebuggerWindow::PlaceTimeline (RECT & area)
 {
     const DxuiToolbarDock  & dock     = m_timelineHost.GetDock();
     bool                     floating = m_timelineHost.IsFloating();
-    bool                     carried  = m_timelineHost.IsDragging();
     int                      band     = m_scaler.ToPx ((m_timelineBar != nullptr) ? m_timelineBar->GetBandDp() : DxuiToolbar::GetBandDip());
-    int                      edge     = dock.IsVertical() ? area.bottom - area.top : area.right - area.left;
 
 
 
@@ -145,7 +146,6 @@ void DebuggerWindow::PlaceTimeline (RECT & area)
         return;
     }
 
-    m_timelineStrip.SetPreferredLengthPx ((floating || carried) ? 0 : edge);
     m_timelineHost.Layout (area, RECT { 0, 0, m_widthDip, m_heightDip }, m_scaler);
 
     if (floating)

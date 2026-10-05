@@ -69,6 +69,21 @@ public:
     void  SetScreenRect (const RECT & rectPx);
     RECT  GetScreenRect () const;
 
+    //  Lets the ends of the window, along the toolbar's length, be dragged
+    //  to resize it; its long sides stay put. The hit test alone starts the
+    //  system's size loop, so the window keeps no sizing frame, which would
+    //  have sides of its own.
+    void  SetLengthResizable (bool resizable);
+
+    //  How far in from each end of the window a press resizes it.
+    static constexpr int  kResizeEndDp = 4;
+
+    //  The hit-test code for a point in the window's client pixels: the end
+    //  it is on, within `endPx` of it, for a window that resizes along a
+    //  toolbar lying down or standing up, plain client area anywhere else in
+    //  the window, and HTNOWHERE outside it.
+    static LRESULT  ClassifyLengthResize (POINT clientPx, SIZE clientSizePx, bool vertical, int endPx);
+
 protected:
     void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool     OnMouse           (const DxuiMouseEvent & ev) override;
@@ -77,10 +92,15 @@ protected:
     void     OnDpiChanged      (UINT newDpi) override;
 
 private:
-    void  OnMoveLoopTick ();
-    void  Report         (DxuiCaptionDragTracker::Event ev);
-    SIZE  GetScreenSize  () const;
+    void     OnMoveLoopTick ();
+    void     Report         (DxuiCaptionDragTracker::Event ev);
+    SIZE     GetScreenSize  () const;
+    LRESULT  HitTestLength  (POINT screenPx) const;
 
+    //  Whether the system's move loop running now is a move by the grab
+    //  handle; a loop the window's ends started is a resize, and reports no
+    //  drag.
+    bool                      m_isMoving     = false;
     DxuiToolbar             * m_toolbar      = nullptr;
     MouseFn                   m_onMouse;
     PointFn                   m_onDrag;

@@ -96,6 +96,45 @@ DxuiDockSide DxuiToolbarHost::EdgeToDockSide (DxuiToolbarDock::Edge edge)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbarHost::GetTearOffLengthDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbarHost::GetTearOffLengthDip (const RECT & bar, bool vertical, int dpi)
+{
+    int  lengthPx = vertical ? bar.bottom - bar.top : bar.right - bar.left;
+
+
+
+    return MulDiv (lengthPx, USER_DEFAULT_SCREEN_DPI, (std::max) (dpi, 1));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::GetFloatLengthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbarHost::GetFloatLengthPx (const DxuiToolbarDock & dock, bool fillsEdge, int dpi)
+{
+    if (!fillsEdge || dock.floatLengthDip <= 0)
+    {
+        return 0;
+    }
+
+    return MulDiv (dock.floatLengthDip, dpi, USER_DEFAULT_SCREEN_DPI);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbarHost::GetDockedRect
 //
 //  The toolbar takes a band along its edge, at its place along that edge,
@@ -164,8 +203,10 @@ POINT DxuiToolbarHost::GetTearOffTopLeft (POINT screenPx, bool vertical, int gri
 //
 //  Docked, the band is the dock site's edge strip too, so auto-hidden panes'
 //  tabs on that edge run beside the toolbar rather than in a strip of their
-//  own, and the panes beside it draw its long sides. Floating, the toolbar
-//  is in its own window and the dock site has every edge.
+//  own, and the panes beside it draw its long sides. A toolbar that fills
+//  its edge takes all of it, however it was carried or where it was put.
+//  Floating, the toolbar is in its own window and the dock site has every
+//  edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,6 +214,7 @@ void DxuiToolbarHost::Layout (const RECT & area, const RECT & hostClient, const 
 {
     int   band   = scaler.ToPx (GetBandDipOfBar());
     int   margin = scaler.ToPx (kMarginDp);
+    int   length = 0;
     RECT  bar    = {};
 
 
@@ -201,7 +243,8 @@ void DxuiToolbarHost::Layout (const RECT & area, const RECT & hostClient, const 
     m_toolbar->SetHostClientRect (hostClient);
     m_toolbar->SetVertical       (m_dock.IsVertical());
 
-    bar = GetDockedRect (m_dock, area, m_toolbar->GetNaturalLengthPx (scaler), band, margin, (int) scaler.GetDpi());
+    length = m_fillsEdge ? INT_MAX : m_toolbar->GetNaturalLengthPx (scaler);
+    bar    = GetDockedRect (m_dock, area, length, band, margin, (int) scaler.GetDpi());
 
     if (m_dockSite != nullptr)
     {
@@ -312,24 +355,27 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
 //
 //  A drag of the docked toolbar that leaves the edges floats it at once, its
 //  grab handle under the pointer, and the floating window carries on with
-//  the drag while the button is still down.
+//  the drag while the button is still down. A toolbar that fills its edge
+//  floats as long as it was docked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarHost::TearOff (POINT clientPx)
 {
-    POINT  screen = clientPx;
-    int    grip   = m_scaler.ToPx (DxuiToolbar::kGripDp);
-    int    band   = m_scaler.ToPx (GetBandDipOfBar());
+    POINT  screen   = clientPx;
+    int    grip     = m_scaler.ToPx (DxuiToolbar::kGripDp);
+    int    band     = m_scaler.ToPx (GetBandDipOfBar());
+    bool   vertical = m_dock.IsVertical();
 
 
 
     ClientToScreen (GetOwnerHwnd(), &screen);
 
-    m_dragging           = false;
-    m_dock.floatVertical = m_dock.IsVertical();
-    m_dock.floating      = true;
-    m_dock.floatPx       = GetTearOffTopLeft (screen, m_dock.floatVertical, grip, band);
+    m_dragging            = false;
+    m_dock.floatVertical  = vertical;
+    m_dock.floating       = true;
+    m_dock.floatPx        = GetTearOffTopLeft (screen, m_dock.floatVertical, grip, band);
+    m_dock.floatLengthDip = m_fillsEdge ? GetTearOffLengthDip (m_toolbar->GetBounds(), vertical, (int) m_scaler.GetDpi()) : 0;
 
     Float();
 
@@ -357,15 +403,16 @@ void DxuiToolbarHost::TearOff (POINT clientPx)
 //
 //  DxuiToolbarHost::GetFloatingRect
 //
-//  The floating window: as long as the toolbar's icons need and one band
-//  high, with its top left at `topLeftPx`, or by the owner's when that is
-//  on no monitor, as a place saved on a monitor since unplugged would be.
+//  The floating window: `lengthPx` long, or as long as the toolbar's icons
+//  need for 0, and one band high, with its top left at `topLeftPx`, or by
+//  the owner's when that is on no monitor, as a place saved on a monitor
+//  since unplugged would be.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx)
+RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx, int lengthPx)
 {
-    int   length = 0;
+    int   length = lengthPx;
     int   band   = m_scaler.ToPx (GetBandDipOfBar());
     RECT  rect   = {};
     RECT  owner  = {};
@@ -375,9 +422,13 @@ RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx)
     m_toolbar->SetVertical (m_dock.floatVertical);
     m_toolbar->SetLabels   (false);
 
-    length = m_toolbar->GetNaturalLengthPx (m_scaler);
-    rect   = m_dock.floatVertical ? RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + band, topLeftPx.y + length }
-                                  : RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + length, topLeftPx.y + band };
+    if (length <= 0)
+    {
+        length = m_toolbar->GetNaturalLengthPx (m_scaler);
+    }
+
+    rect = m_dock.floatVertical ? RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + band, topLeftPx.y + length }
+                                : RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + length, topLeftPx.y + band };
 
     if (MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) == nullptr && GetWindowRect (GetOwnerHwnd(), &owner))
     {
@@ -396,7 +447,9 @@ RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx)
 //  DxuiToolbarHost::Float
 //
 //  A window for the floating toolbar, with no title, at its saved place,
-//  and the toolbar moved into it, showing icons alone.
+//  and the toolbar moved into it, showing icons alone. A toolbar that fills
+//  its edge keeps its length, and its window resizes along it, never
+//  shorter than the band is thick.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -417,11 +470,12 @@ void DxuiToolbarHost::Float()
         return;
     }
 
-    rect = GetFloatingRect (m_dock.floatPx);
+    rect = GetFloatingRect (m_dock.floatPx, GetFloatLengthPx (m_dock, m_fillsEdge, dpi));
 
     params.hInstance        = m_hInstance;
     params.ownerHwnd        = GetOwnerHwnd();
     params.initialSizeDip   = { MulDiv (rect.right - rect.left, USER_DEFAULT_SCREEN_DPI, dpi), MulDiv (rect.bottom - rect.top, USER_DEFAULT_SCREEN_DPI, dpi) };
+    params.minSizeDip       = m_fillsEdge ? SIZE { GetBandDipOfBar(), GetBandDipOfBar() } : SIZE {};
     params.resizable        = false;
     params.captionStyle     = DxuiCaptionStyle::None;
     params.createNoActivate = true;
@@ -454,7 +508,8 @@ void DxuiToolbarHost::Float()
     m_toolbar->OnToolbarMouseLeave();
 
     window->SetToolbar             (m_toolbar);
-    window->SetOnContentMouse      ([this] (const DxuiMouseEvent & ev) { return m_onFloatMouse ? m_onFloatMouse (ev) : false; });
+    window->SetLengthResizable     (m_fillsEdge);
+    window->SetOnContentMouse     ([this] (const DxuiMouseEvent & ev) { return m_onFloatMouse ? m_onFloatMouse (ev) : false; });
     window->SetOnCaptionDrag       ([this] (POINT screen)              { OnFloatDrag (screen); });
     window->SetOnCaptionDragEnd    ([this] (POINT screen)              { OnFloatDragEnd (screen); });
     window->SetOnCaptionDragCancel ([this]                             { FinishSnap(); });
@@ -626,7 +681,9 @@ void DxuiToolbarHost::Sync()
 //  The window stays as long as the toolbar's entries need, so the toolbar
 //  never falls back on See more while it floats: a length measured before
 //  the window had its DPI, or before a theme or entry change, comes right
-//  here. The window's frame comes on top of the toolbar's length.
+//  here. The window's frame comes on top of the toolbar's length. A toolbar
+//  that fills its edge is as long as its window has been made instead, and
+//  only its thickness comes right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -635,9 +692,10 @@ void DxuiToolbarHost::FitFloatWindow()
     HWND  hwnd    = m_float->GetHwnd();
     RECT  client  = {};
     RECT  current = m_float->GetScreenRect();
-    RECT  wanted  = GetFloatingRect (POINT { current.left, current.top });
+    RECT  wanted  = {};
     int   frameX  = 0;
     int   frameY  = 0;
+    int   length  = 0;
 
 
 
@@ -649,6 +707,13 @@ void DxuiToolbarHost::FitFloatWindow()
     frameX = (current.right - current.left) - (client.right - client.left);
     frameY = (current.bottom - current.top) - (client.bottom - client.top);
 
+    if (m_fillsEdge)
+    {
+        length = AdoptFloatLength (current) - (m_dock.floatVertical ? frameY : frameX);
+    }
+
+    wanted = GetFloatingRect (POINT { current.left, current.top }, length);
+
     if (wanted.right - wanted.left + frameX != current.right - current.left || wanted.bottom - wanted.top + frameY != current.bottom - current.top)
     {
         m_float->SetScreenRect (RECT { current.left, current.top, current.left + wanted.right - wanted.left + frameX, current.top + wanted.bottom - wanted.top + frameY });
@@ -658,6 +723,44 @@ void DxuiToolbarHost::FitFloatWindow()
     //  Measuring planned the toolbar for any length, so it is laid out
     //  again for the window it is in.
     m_toolbar->Layout (client, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::AdoptFloatLength
+//
+//  The floating window's length in pixels, frame and all, as its ends were
+//  last dragged to, and never shorter than the band is thick. The window
+//  is created at the length kept, so the length holds from one run to the
+//  next. A new length goes into the place and is saved, with the window's
+//  top left, which a drag of its leading end moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbarHost::AdoptFloatLength (const RECT & window)
+{
+    int  dpi       = (int) m_scaler.GetDpi();
+    int  lengthPx  = m_dock.floatVertical ? window.bottom - window.top : window.right - window.left;
+    int  lengthDip = 0;
+
+
+
+    lengthPx  = (std::max) (lengthPx, m_scaler.ToPx (GetBandDipOfBar()));
+    lengthDip = MulDiv (lengthPx, USER_DEFAULT_SCREEN_DPI, (std::max) (dpi, 1));
+
+    if (lengthDip != m_dock.floatLengthDip)
+    {
+        m_dock.floatLengthDip = lengthDip;
+        m_dock.floatPx        = POINT { window.left, window.top };
+
+        Save();
+    }
+
+    return lengthPx;
 }
 
 
@@ -813,6 +916,6 @@ void DxuiToolbarHost::OnFloatDrag (POINT screenPx)
     m_dock.floatVertical = vertical;
     m_dock.floatPx       = POINT { rect.left, rect.top };
 
-    m_float->SetScreenRect (GetFloatingRect (m_dock.floatPx));
+    m_float->SetScreenRect (GetFloatingRect (m_dock.floatPx, GetFloatLengthPx (m_dock, m_fillsEdge, (int) m_scaler.GetDpi())));
     m_float->Invalidate();
 }

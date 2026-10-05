@@ -1008,6 +1008,7 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
     m_labeledCount = labeled;
     ShrinkToFit (clientWidthPx);
+    GrowToFill  (clientWidthPx);
 
     if (m_bandDp > 0)
     {
@@ -1062,6 +1063,41 @@ void DxuiToolbar::ShrinkToFit (int clientWidthPx)
         full          = slot.entry.custom->GetWidthPx (true, m_scaler, m_textRenderer);
         slot.shrunkPx = (std::max) (0, (std::min) (excess, full - least));
         excess       -= slot.shrunkPx;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GrowToFill
+//
+//  The length the entries leave over goes to the first entry that fills,
+//  so it runs to the strip's far end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::GrowToFill (int clientWidthPx)
+{
+    //  Standing up, the entries show as icons, so labels take no room.
+    int  spare = clientWidthPx - GetTotalWidthPx (m_vertical ? 0 : m_labeledCount);
+
+
+
+    if (spare <= 0)
+    {
+        return;
+    }
+
+    for (Slot & slot : m_slots)
+    {
+        if (!slot.hidden && slot.entry.fill && slot.entry.custom != nullptr)
+        {
+            slot.shrunkPx -= spare;
+            break;
+        }
     }
 }
 
@@ -1274,7 +1310,8 @@ void DxuiToolbar::LayoutVertical (const RECT & bounds)
 //  DxuiToolbar::GetNaturalLengthPx
 //
 //  Planned against a length nothing overflows, so only the entries that
-//  always live in See more are left off.
+//  always live in See more are left off, and an entry that fills counts
+//  only its own length, not the spare length it would take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1285,6 +1322,12 @@ int DxuiToolbar::GetNaturalLengthPx (const DxuiDpiScaler & scaler)
 
 
     PlanForWidth (INT_MAX / 4, scaler);
+
+    //  Nothing shrinks at that length, so the only adjustment is the growth.
+    for (Slot & slot : m_slots)
+    {
+        slot.shrunkPx = 0;
+    }
 
     return grip + GetTotalWidthPx ((m_vertical || !m_labels) ? 0 : (int) m_slots.size());
 }

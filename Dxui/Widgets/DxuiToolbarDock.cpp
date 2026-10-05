@@ -32,7 +32,8 @@ std::wstring DxuiToolbarDock::ToText() const
 
     if (floating)
     {
-        return std::format (L"float {} {}{}", floatPx.x, floatPx.y, floatVertical ? L" vertical" : L"");
+        return std::format (L"float {} {}{}{}", floatPx.x, floatPx.y, floatVertical ? L" vertical" : L"",
+                            (floatLengthDip > 0) ? std::format (L" length {}", floatLengthDip) : std::wstring());
     }
 
     for (const auto & [e, w] : s_kEdgeWords)
@@ -105,18 +106,26 @@ DxuiToolbarDock DxuiToolbarDock::FromText (const std::wstring & text)
 //
 //  DxuiToolbarDock::ReadFloating
 //
-//  "300 -40" after the "float": two numbers, then " vertical" or nothing, or the
-//  default place.
+//  "300 -40" after the "float": two numbers, then " vertical" or nothing,
+//  then " length 640" or nothing, or the default place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiToolbarDock DxuiToolbarDock::ReadFloating (const std::wstring & text)
 {
+    constexpr std::wstring_view  kVertical = L" vertical";
+    constexpr std::wstring_view  kLength   = L" length ";
+
+
+
     DxuiToolbarDock    dock;
-    const wchar_t    * start = text.c_str();
-    wchar_t          * end   = nullptr;
-    long               x     = 0;
-    long               y     = 0;
+    const wchar_t    * start  = text.c_str();
+    wchar_t          * end    = nullptr;
+    long               x      = 0;
+    long               y      = 0;
+    long               length = 0;
+    bool               isRead = true;
+    std::wstring_view  rest;
 
 
 
@@ -129,15 +138,32 @@ DxuiToolbarDock DxuiToolbarDock::ReadFloating (const std::wstring & text)
 
     start = end + 1;
     y     = wcstol (start, &end, 10);
+    rest  = std::wstring_view (end);
 
-    if (end == start || (*end != L'\0' && std::wstring (end) != L" vertical"))
+    if (end == start)
     {
         return DxuiToolbarDock {};
     }
 
-    dock.floating      = true;
-    dock.floatPx       = POINT { x, y };
-    dock.floatVertical = *end != L'\0';
+    dock.floatVertical = rest.starts_with (kVertical);
+    rest               = dock.floatVertical ? rest.substr (kVertical.size()) : rest;
+
+    if (rest.starts_with (kLength))
+    {
+        start  = rest.data() + kLength.size();
+        length = wcstol (start, &end, 10);
+        isRead = end != start && length > 0;
+        rest   = std::wstring_view (end);
+    }
+
+    if (!isRead || !rest.empty())
+    {
+        return DxuiToolbarDock {};
+    }
+
+    dock.floating       = true;
+    dock.floatPx        = POINT { x, y };
+    dock.floatLengthDip = (int) length;
     return dock;
 }
 
