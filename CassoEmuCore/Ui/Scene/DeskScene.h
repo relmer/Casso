@@ -206,7 +206,8 @@ public:
     static constexpr float  kEnvLampRgb[3]    = { 1.00f, 1.00f, 1.00f };
 
     // How much of the room the smoked pane lets through.
-    static constexpr float  kLidGlassAlpha    = 0.35f;
+    static constexpr float  kLidGlassAlpha      = 0.35f;
+    static constexpr float  kCassetteGlassAlpha = 0.55f;   // the cassette's window: dims what is under it
 
     // Draws the scene into `dstRtv` (bound here -- the CRT offscreen pass
     // that runs just before leaves ITS target bound, so relying on ambient

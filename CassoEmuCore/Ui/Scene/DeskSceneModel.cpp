@@ -725,6 +725,12 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
                 }
             }
         }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part == s_kpszCassetteGlass)
+        {
+            // The cassette's window, kept apart so the scene can draw it
+            // see-through over what lies under the cassette.
+            AppendLitTri (m_cassetteGlass, tri, corners);
+        }
         else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszCassettePrefix, 0) == 0)
         {
             // The cassette, which goes out with the tape.

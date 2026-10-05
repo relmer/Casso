@@ -69,6 +69,7 @@ CASS_LBL= (0.930, 0.900, 0.800)     # cream paper
 CASS_STRIPE = (0.780, 0.270, 0.150) # the label's colored band
 CASS_LINE   = (0.550, 0.540, 0.500) # its writing lines
 TAPE    = (0.300, 0.180, 0.100)     # oxide brown
+WINDOW  = (0.420, 0.420, 0.400)     # the cassette's clear window, drawn see-through
 HUB     = (0.920, 0.920, 0.910)     # white hubs
 BRASS   = (0.700, 0.600, 0.380)
 CHROME  = (0.330, 0.335, 0.345)     # dark base: the scene adds the sheen from above
@@ -249,8 +250,14 @@ def build():
     for sx in (-1, 1):
         s = cq.Workplane("XY").workplane(offset=cz - 2.2).center(ccx + sx * HUB_DX, hub_y).circle(6.6).extrude(3.0)
         sink = s if sink is None else sink.union(s)
-    sink = sink.union(box(ccx - 12.0, ccx + 12.0, hub_y - 5.5, hub_y + 5.5, cz - 2.2, cz + 0.8).edges("|Z").fillet(2.0))
+    # The window goes right through, top and bottom, as a cassette's does, and
+    # is glazed with clear plastic the scene draws see-through: the plate
+    # under the cassette shows through it, dimmed.
+    sink = sink.union(box(ccx - 12.0, ccx + 12.0, hub_y - 5.5, hub_y + 5.5, cz - CT - 0.1, cz + 0.8).edges("|Z").fillet(2.0))
     m.parts[-2].solid = m.parts[-2].solid.cut(sink)
+    m.add("cassette_window",
+          box(ccx - 12.0, ccx + 12.0, hub_y - 5.5, hub_y + 5.5, cz - 0.4, cz - 0.2).edges("|Z").fillet(2.0),
+          WINDOW)
 
     stripe = (box(ccx - LBL_HW, ccx + LBL_HW, LBL_Y1 - 9.0, LBL_Y1 - 5.0, cz + 0.15, cz + 0.2))
     m.add("cassette_stripe", stripe, CASS_STRIPE)

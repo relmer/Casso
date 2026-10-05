@@ -1605,6 +1605,18 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
         if (m_recorderCassette)
         {
             AppendHinged (m_recorder.CassetteVerts(), 0.0f, 0.0f, 0.0f, m_recorderKeyVerts);
+
+            // Its window, clear plastic: what lies under the cassette shows
+            // through it, dimmed.
+            for (Dxui3DRenderer::Vertex v : m_recorder.CassetteGlassVerts())
+            {
+                v.a  = kCassetteGlassAlpha;
+                v.r *= kCassetteGlassAlpha;
+                v.g *= kCassetteGlassAlpha;
+                v.b *= kCassetteGlassAlpha;
+
+                m_recorderGlassVerts.push_back (v);
+            }
         }
 
         // The spindles, and with a tape in the hubs on them, turned about

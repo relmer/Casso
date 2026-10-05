@@ -38,6 +38,11 @@ Ka 0 0 0
 Kd 0.93 0.9 0.8
 d 1
 
+newmtl cassette_window
+Ka 0 0 0 
+Kd 0.42 0.42 0.4
+d 1
+
 newmtl cassette_stripe
 Ka 0 0 0 
 Kd 0.78 0.27 0.15
