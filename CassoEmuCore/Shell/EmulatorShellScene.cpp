@@ -1538,6 +1538,20 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         m_recorderKeyLatched.fill (false);
     }
 
+    // A key lets go when the deck stops by itself -- auto stop, or the end of
+    // a load -- as the mechanism releases it. A press of STOP or EJECT is
+    // handled above, after its own stroke.
+    {
+        bool  wasMoving = m_seenTransport != TapeTransport::Empty && m_seenTransport != TapeTransport::Stopped;
+
+        if (wasMoving && transport == TapeTransport::Stopped && m_recorderReleaseAtMs == 0)
+        {
+            m_recorderKeyLatched.fill (false);
+        }
+
+        m_seenTransport = transport;
+    }
+
     // A wind key lets go by itself once the deck has wound to the end it was
     // winding toward and stopped there.
     if (m_recorderKeyLatched[kRewind] && transport != TapeTransport::Rewinding && view.positionSeconds <= 0.0)

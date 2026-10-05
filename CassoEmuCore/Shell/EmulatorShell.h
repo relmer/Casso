@@ -1843,6 +1843,7 @@ private:
     // only STOP, EJECT or a reset lets them back up.
     std::array<bool, 6>       m_recorderKeyLatched    = {};
     uint32_t                  m_seenTapeResets        = 0;
+    TapeTransport             m_seenTransport         = TapeTransport::Empty;  // as of the last frame
     int64_t                   m_recorderReleaseAtMs   = 0;    // when a pressed STOP or EJECT bottoms out
 
     // How long a key takes to go all the way down.

@@ -71,6 +71,7 @@ TAPE    = (0.300, 0.180, 0.100)     # oxide brown
 HUB     = (0.920, 0.920, 0.910)     # white hubs
 BRASS   = (0.700, 0.600, 0.380)
 CHROME  = (0.330, 0.335, 0.345)     # dark base: the scene adds the sheen from above
+PLATE   = (0.800, 0.790, 0.750)     # the brushed plate under the cassette window
 POST    = (0.110, 0.110, 0.115)     # the spindles' black plastic
 
 
@@ -80,9 +81,9 @@ def box(x0, x1, y0, y1, z0, z1):
             .translate((x0, y0, z0)))
 
 
-def text(s, size, x, y, z, halign="center", bold=False):
+def text(s, size, x, y, z, halign="center", bold=False, depth=0.3):
     return (cq.Workplane("XY").workplane(offset=z)
-            .text(s, size, 0.3, halign=halign, valign="center",
+            .text(s, size, depth, halign=halign, valign="center",
                   kind="bold" if bold else "regular", font="Arial")
             .translate((x, y, 0)))
 
@@ -183,6 +184,18 @@ def build():
     # curve back under the grille to the hinge, just behind the door's back
     # edge -- so the door swings up about a point below and behind it.
     pane = box(x0, x1, dy0, dy1, top - DOOR_T, top)
+
+    # The door's legends are molded in its plastic, standing proud of it, and
+    # painted only on their tops: a box around AUTO STOP, and AC/BATTERY.
+    EMBOSS_H, PAINT_H = 0.4, 0.05
+
+    def door_legends(z, depth):
+        frame = (box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, z, z + depth)
+                 .cut(box(x0 + 6.5, x0 + 29.5, dy1 - 7.0, dy1 - 4.0, z - 0.1, z + depth + 0.1)))
+        return (frame.union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, z, depth=depth))
+                     .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, z, depth=depth)))
+
+    pane = pane.union(door_legends(top, EMBOSS_H))
     for sx in (x0 + 3.0, x1 - 3.0 - DOOR_T):
         pane = pane.union(strut(sx, HINGE_Y, top - DOOR_T, STRUT_RO, STRUT_RI, DOOR_T))
     # THE PLAY ARROW, embossed in the pane over the cassette window: an
@@ -194,16 +207,13 @@ def build():
     shaft_h, head_h = 1.8, 4.6
     pts = [(ax0, ay0), (ax1, ay0), (head_x, ay0 + head_h), (head_x, ay0 + shaft_h), (ax0, ay0 + shaft_h)]
     plane = cq.Workplane("XY").workplane(offset=top)
-    arrow = (plane.polyline(pts).close().extrude(0.35)
-             .cut(plane.polyline(pts).close().offset2D(-0.4).extrude(0.35)))
+    # Lines 0.7 mm wide, every corner and point slightly rounded.
+    arrow = (plane.polyline(pts).close().offset2D(0.3, kind="arc").extrude(0.4)
+             .cut(plane.polyline(pts).close().offset2D(-0.4, kind="intersection")
+                  .offset2D(0.0).extrude(0.4)))
     pane = pane.union(arrow)
     m.add("door_glass", pane, DOOR, angular=0.2)
-    m.add("door_print",
-          box(x0 + 6, x0 + 30, dy1 - 7.5, dy1 - 3.5, top, top + 0.1)
-          .cut(box(x0 + 6.5, x0 + 29.5, dy1 - 7.0, dy1 - 4.0, top - 0.1, top + 0.2))
-          .union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top).union(text("AUTO STOP", 2.6, x0 + 18, dy1 - 5.5, top + 0.3)))
-          .union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top).union(text("AC/BATTERY", 2.6, x0 + 46, dy1 - 5.5, top + 0.3))),
-          PRINT)
+    m.add("door_print", door_legends(top + EMBOSS_H, PAINT_H), PRINT)
 
     # THE CASSETTE, a compact cassette lying label up with its tape edge
     # toward the keys, as it sits in the deck: dark shell, a paper label with
@@ -302,11 +312,12 @@ def build():
         m.add(f"spindle_cap_{i}",
               cq.Workplane("XY").workplane(offset=cz - 0.8).center(hx, hub_y).circle(0.7).extrude(0.2), SILVER)
 
-    # A polished plate on the well floor between the spindles, under the
+    # A brushed metal plate on the well floor between the spindles, under the
     # cassette's window: lined up with it and a little larger all round.
-    m.add("chrome_window_plate",
+    # Matte, not chrome: down in the well there is nothing for it to mirror.
+    m.add("window_plate",
           box(ccx - 13.5, ccx + 13.5, hub_y - 7.0, hub_y + 7.0, floor_z, floor_z + 0.4).edges("|Z").fillet(3.0),
-          CHROME)
+          PLATE)
 
     screws = None
     for sx, sy in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
