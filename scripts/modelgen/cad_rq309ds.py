@@ -94,22 +94,30 @@ def round_top(solid, r, sel=">Z"):
     """Rounds over the edges of a raised feature's top face, so nothing
     embossed has a hard edge. Narrow letter strokes cannot always take the
     full radius, so it tries smaller ones before giving up."""
+    # Lettering is rounded one letter at a time, each checked on its own: a
+    # broken letter hides among good ones when the whole word is checked.
+    pieces = solid.solids().vals()
+    if len(pieces) > 1:
+        parts = []
+        for piece in pieces:
+            parts += round_top(cq.Workplane("XY").add(piece), r, sel).solids().vals()
+        return cq.Workplane("XY").add(cq.Compound.makeCompound(parts))
+
     for rr in (r, r * 0.6, r * 0.35):
+        # A fillet can "succeed" and still leave a broken solid, which
+        # tessellates as garbage -- an S came out mangled that way -- so the
+        # result is checked, not just the call.
         try:
-            return solid.faces(sel).edges().fillet(rr)
+            rounded = solid.faces(sel).edges().fillet(rr)
+            pieces  = rounded.solids().vals()
+            before  = sum(s.Volume() for s in solid.solids().vals())
+            after   = sum(s.Volume() for s in pieces)
+            if all(s.isValid() for s in pieces) and 0.8 * before <= after <= before + 1e-6:
+                return rounded
         except Exception:
             pass
-    # Letter by letter, then: one glyph the kernel cannot round must not
-    # leave every other one sharp.
-    pieces = solid.solids().vals()
-    if len(pieces) < 2:
-        print(f"round_top: could not round a piece at {r} mm or less")
-        return solid
-    out = None
-    for piece in pieces:
-        one = round_top(cq.Workplane("XY").add(piece), r, sel)
-        out = one if out is None else out.union(one)
-    return out
+    print(f"round_top: left one piece sharp; it could not be rounded at {r} mm or less")
+    return solid
 
 
 def _bulge(p0, p1, amount):
