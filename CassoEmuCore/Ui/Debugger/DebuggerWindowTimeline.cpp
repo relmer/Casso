@@ -31,7 +31,7 @@ void DebuggerWindow::ConfigureTimeline()
 {
     constexpr int    kTimelineId  = 1;
     constexpr int    kStripGroup  = 1;
-    constexpr float  kLabelRoomDp = 16.0f;
+    constexpr float  kLabelRoomDp = 20.0f;
     constexpr int    kLabelRooms  = 2;      // above the pictures and below them
 
 

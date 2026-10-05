@@ -301,11 +301,11 @@ void DxuiImageStrip::Layout (
 //  DxuiImageStrip::Paint
 //
 //  A cell not drawn yet is the content background. The cell under the
-//  pointer is framed by drawing its picture inset over the accent color, so
-//  the frame does not depend on whether pictures draw over shapes or under
-//  them. The cell the source marks gives up a band along its far edge, below
-//  a strip lying down and right of one standing up, to a bar in the accent
-//  color, for the same reason.
+//  pointer and the cell the source marks each give up a band along the far
+//  edge, below a strip lying down and right of one standing up, to a bar in
+//  the accent color, so the bar does not depend on whether pictures draw over
+//  shapes or under them. An underline rather than a frame, so it cannot be
+//  mistaken for the playhead line beside it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -317,8 +317,6 @@ void DxuiImageStrip::Paint (
     bool                pressed,
     bool                labeled)
 {
-    float                         edge  = m_scaler.ToPxf (kHoverEdgeDip);
-    float                         inset = 0.0f;
     RECT                          cell  = {};
     IDxuiImageStripSource::Image  image;
     HRESULT                       hr    = S_OK;
@@ -326,6 +324,7 @@ void DxuiImageStrip::Paint (
     LONG                          bar   = (LONG) std::lround (m_scaler.ToPxf (kMarkerDip));
     float                         line  = 0.0f;
     bool                          isOn  = false;
+    bool                          isBar = false;
     std::wstring                  top;
     std::wstring                  bottom;
     std::wstring                  lead;
@@ -348,40 +347,31 @@ void DxuiImageStrip::Paint (
     {
         cell  = GetCellRect (m_rc, i, m_count, m_cellPx, m_vertical);
         image = (m_source != nullptr) ? m_source->GetCellImage (i) : nullptr;
-        inset = (i == m_hovered) ? edge : 0.0f;
+        isBar = i == mark || i == m_hovered;
 
         //  The bar takes its band out of the cell, so the picture cannot cover it.
-        if (i == mark && m_vertical)
+        if (isBar && m_vertical)
         {
             cell.right -= bar;
             painter.FillRect ((float) cell.right, (float) cell.top, (float) bar, (float) (cell.bottom - cell.top), theme.Accent());
         }
-        else if (i == mark)
+        else if (isBar)
         {
             cell.bottom -= bar;
             painter.FillRect ((float) cell.left, (float) cell.bottom, (float) (cell.right - cell.left), (float) bar, theme.Accent());
         }
 
-        if (i == m_hovered)
-        {
-            painter.FillRect ((float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top), theme.Accent());
-        }
-
         if (image == nullptr || image->width <= 0 || image->height <= 0)
         {
-            painter.FillRect ((float) cell.left + inset,
-                              (float) cell.top + inset,
-                              (float) (cell.right - cell.left) - inset * 2.0f,
-                              (float) (cell.bottom - cell.top) - inset * 2.0f,
-                              theme.ContentBackground());
+            painter.FillRect ((float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top), theme.ContentBackground());
             continue;
         }
 
         hr = text.DrawIconBitmap (image->bgraPremul.data(), image->width, image->height,
-                                  (float) cell.left + inset,
-                                  (float) cell.top + inset,
-                                  (float) (cell.right - cell.left) - inset * 2.0f,
-                                  (float) (cell.bottom - cell.top) - inset * 2.0f);
+                                  (float) cell.left,
+                                  (float) cell.top,
+                                  (float) (cell.right - cell.left),
+                                  (float) (cell.bottom - cell.top));
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -906,8 +896,9 @@ float DxuiImageStrip::GetOffsetAt (
 //
 //  DxuiImageStrip::PaintPlayhead
 //
-//  A line in the accent color across the pictures, and lying down, its
-//  labels in the room above and below them, each kept within the strip.
+//  A line in the accent color across the pictures and a little past them,
+//  and lying down, its labels in the room above and below that, each kept
+//  within the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -924,6 +915,7 @@ void DxuiImageStrip::PaintPlayhead (
     float               thick   = std::max (1.0f, m_scaler.ToPxf (kPlayheadDip));
     float               along   = GetLineAlong (offset);
     float               room    = (float) (m_rc.top - m_outer.top);
+    float               reach   = std::min (room, m_scaler.ToPxf (kLineReachDip));
     uint32_t            ink     = theme.Accent() | kOpaque;
 
 
@@ -937,7 +929,7 @@ void DxuiImageStrip::PaintPlayhead (
         return;
     }
 
-    hr = text.DrawIconBitmap (&ink, 1, 1, along - thick / 2.0f, (float) m_rc.top, thick, (float) (m_rc.bottom - m_rc.top));
+    hr = text.DrawIconBitmap (&ink, 1, 1, along - thick / 2.0f, (float) m_rc.top - reach, thick, (float) (m_rc.bottom - m_rc.top) + reach * 2.0f);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (room <= 0.0f)
@@ -945,8 +937,8 @@ void DxuiImageStrip::PaintPlayhead (
         return;
     }
 
-    PaintLabel (painter, text, theme, top,    along, (float) m_outer.top);
-    PaintLabel (painter, text, theme, bottom, along, (float) m_rc.bottom);
+    PaintLabel (painter, text, theme, top,    along, (float) m_outer.top,          room - reach);
+    PaintLabel (painter, text, theme, bottom, along, (float) m_rc.bottom + reach, room - reach);
 }
 
 
@@ -957,9 +949,9 @@ void DxuiImageStrip::PaintPlayhead (
 //
 //  DxuiImageStrip::PaintLabel
 //
-//  One line of text in the label room starting at top, centered on centerX,
-//  on a plate of the background so the line and the pictures do not show
-//  through.
+//  One line of text on a plate of the background, height tall from top,
+//  centered on centerX and kept within the strip, so the pictures do not
+//  show through.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -969,14 +961,14 @@ void DxuiImageStrip::PaintLabel (
     const IDxuiTheme    & theme,
     const std::wstring  & label,
     float                 centerX,
-    float                 top)
+    float                 top,
+    float                 height)
 {
     HRESULT  hr     = S_OK;
     float    size   = m_scaler.ToPxf (kLabelFontDip);
     float    pad    = m_scaler.ToPxf (kLabelPadDip);
-    float    room   = (float) (m_rc.top - m_outer.top);
     float    width  = 0.0f;
-    float    height = 0.0f;
+    float    textH  = 0.0f;
     float    left   = 0.0f;
 
 
@@ -986,16 +978,16 @@ void DxuiImageStrip::PaintLabel (
         return;
     }
 
-    hr = text.MeasureString (label.c_str(), size, DxuiTheme::kBodyFace, width, height);
+    hr = text.MeasureString (label.c_str(), size, DxuiTheme::kBodyFace, width, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     width += pad * 2.0f;
     left   = centerX - width / 2.0f;
     left   = std::clamp (left, (float) m_outer.left, std::max ((float) m_outer.left, (float) m_outer.right - width));
 
-    painter.FillRect (left, top, width, room, theme.Background());
+    painter.FillRect (left, top, width, height, theme.Background());
 
-    hr = text.DrawString (label.c_str(), left, top, width, room, theme.Foreground(), size, DxuiTheme::kBodyFace,
+    hr = text.DrawString (label.c_str(), left, top, width, height, theme.Foreground(), size, DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

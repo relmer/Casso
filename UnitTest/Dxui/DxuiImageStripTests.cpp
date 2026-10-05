@@ -34,6 +34,14 @@ public:
     bool          IsTrailingLabelAccented() override { return isLive; }
     void          OnTrailingLabelClicked() override  { trailingClicks++; }
 
+    bool  TryGetPlayhead (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override
+    {
+        outOffset = playhead;
+        outTop    = playheadTop;
+        outBottom = playheadBottom;
+        return hasPlayhead;
+    }
+
     int               cells          = -1;
     SIZE              size           = {};
     int               layouts        = 0;
@@ -42,6 +50,10 @@ public:
     std::wstring      trailing;
     bool              isLive         = false;
     int               trailingClicks = 0;
+    bool              hasPlayhead    = false;
+    float             playhead       = 0.0f;
+    std::wstring      playheadTop;
+    std::wstring      playheadBottom;
 };
 
 
@@ -304,6 +316,161 @@ public:
         Assert::AreEqual (1, source.trailingClicks,    L"goes to the source");
         Assert::IsFalse (strip.OnLButtonDown (1, y),   L"the leading label takes no press");
         Assert::IsTrue  (source.clicked.empty(),       L"no cell was clicked");
+    }
+
+
+    //  The cell under the pointer is underlined in the accent color, not
+    //  boxed: a box beside the playhead line looks like the line itself.
+    TEST_METHOD (TheHoveredCellIsUnderlinedNotBoxed)
+    {
+        constexpr float       kBarPx   = 4.0f;
+        DxuiImageStrip        strip;
+        RecordingStripSource  source;
+        MockDxuiTextRenderer  text;
+        MockDxuiPainter       painter;
+        MockDxuiTheme         theme;
+        DxuiDpiScaler         scaler;
+        RECT                  cell     = {};
+        int                   cellPx   = 0;
+        bool                  isUnder  = false;
+        bool                  isBoxed  = false;
+
+
+
+        strip.SetSource (&source);
+        strip.SetAspect (s_kStripAspect);
+        strip.Layout    (RECT { 0, 0, 479, 32 }, false, scaler);
+
+        cellPx = source.size.cx;
+        cell   = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 2, strip.GetCellCount(), cellPx, false);
+
+        strip.OnMouseMove (cell.left + 1, 5);
+        strip.Paint       (painter, text, theme, false, false, false);
+
+        Assert::AreEqual (2, strip.GetHoveredCell(), L"the pointer is over the third cell");
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind != RecordedPaintKind::FillRect || call.argb != theme.Accent())
+            {
+                continue;
+            }
+
+            isUnder = isUnder || (call.x == (float) cell.left && call.width == (float) (cell.right - cell.left) &&
+                                  call.y == (float) cell.bottom - kBarPx && call.height == kBarPx);
+            isBoxed = isBoxed || call.height > kBarPx;
+        }
+
+        Assert::IsTrue  (isUnder, L"a bar along the bottom of the hovered cell");
+        Assert::IsFalse (isBoxed, L"no accent fill behind the whole cell");
+    }
+
+
+    //  The playhead line reaches past the pictures above and below, so it
+    //  reads as a line across the strip rather than the edge of a cell.
+    TEST_METHOD (ThePlayheadReachesPastThePictures)
+    {
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        RECT                           pictures = {};
+        const RecordedTextCall       * line     = nullptr;
+
+
+
+        source.hasPlayhead = true;
+        source.playhead    = 3.0f;
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, 600, 82 }, true, scaler);
+        strip.Paint           (painter, text, theme, false, false, true);
+
+        pictures = strip.GetPicturesRect();
+
+        Assert::AreEqual<size_t> (1, text.IconCalls().size(), L"only the line draws as a picture; the cells are empty");
+
+        line = &text.IconCalls()[0];
+
+        Assert::IsTrue (line->y < (float) pictures.top,                     L"the line starts above the pictures");
+        Assert::IsTrue (line->y + line->height > (float) pictures.bottom,   L"and ends below them");
+        Assert::IsTrue (line->y >= 0.0f && line->y + line->height <= 82.0f, L"within the strip");
+    }
+
+
+    //  The line's labels stay inside the strip with the line at either end
+    //  of it, clear of the part of the line past the pictures, and with room
+    //  for a line of text.
+    TEST_METHOD (PlayheadLabelsStayInsideTheStripAtBothEnds)
+    {
+        constexpr LONG                 kWidth   = 600;
+        constexpr LONG                 kHeight  = 82;
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        const RecordedTextCall       * top      = nullptr;
+        const RecordedTextCall       * bottom   = nullptr;
+        const RecordedTextCall       * line     = nullptr;
+        float                          textW    = 0.0f;
+        float                          textH    = 0.0f;
+        HRESULT                        hr       = S_OK;
+
+
+
+        source.hasPlayhead    = true;
+        source.playheadTop    = L"10:42:17 PM";
+        source.playheadBottom = L"(Power + 1:02:03)";
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, kWidth, kHeight }, true, scaler);
+
+        hr = text.MeasureString (source.playheadBottom.c_str(), 11.0f, L"", textW, textH);
+        Assert::AreEqual (S_OK, hr);
+
+        for (float offset : { 0.0f, (float) strip.GetCellCount() })
+        {
+            source.playhead = offset;
+            text.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            top    = nullptr;
+            bottom = nullptr;
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                top    = (call.text == source.playheadTop)    ? &call : top;
+                bottom = (call.text == source.playheadBottom) ? &call : bottom;
+            }
+
+            Assert::IsNotNull (top,    L"the top label is drawn");
+            Assert::IsNotNull (bottom, L"the bottom label is drawn");
+            Assert::AreEqual<size_t> (1, text.IconCalls().size(), L"the line is drawn");
+
+            line = &text.IconCalls()[0];
+
+            for (const RecordedTextCall * label : { top, bottom })
+            {
+                Assert::IsTrue (label->x >= 0.0f,                            L"not past the leading end");
+                Assert::IsTrue (label->x + label->width <= (float) kWidth,   L"not past the trailing end");
+                Assert::IsTrue (label->y >= 0.0f,                            L"not above the strip");
+                Assert::IsTrue (label->y + label->height <= (float) kHeight, L"not below it");
+                Assert::IsTrue (label->height >= textH,                      L"tall enough for its text");
+            }
+
+            Assert::IsTrue (top->y + top->height <= line->y,                L"the top label clears the line above the pictures");
+            Assert::IsTrue (bottom->y >= line->y + line->height,            L"the bottom label clears it below");
+        }
     }
 };
 

@@ -105,10 +105,10 @@ public:
 
 private:
     static constexpr float  kDefaultAspect  = 560.0f / 384.0f;
-    static constexpr float  kHoverEdgeDip   = 2.0f;
     static constexpr float  kMarkerDip      = 4.0f;
     static constexpr int    kMinThicknessPx = 1;
     static constexpr float  kPlayheadDip    = 3.0f;
+    static constexpr float  kLineReachDip   = 4.0f;   // how far the line runs past the pictures
     static constexpr float  kLabelFontDip   = 11.0f;
     static constexpr float  kLabelPadDip    = 3.0f;
     static constexpr float  kSidePadDip     = 6.0f;
@@ -121,7 +121,7 @@ private:
     RECT  GetPreviewAnchor () const;
     void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
     void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
-    void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top);
+    void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
     float GetLineAlong     (float offset) const;
     float GetOffsetAt      (int x, int y) const;
 

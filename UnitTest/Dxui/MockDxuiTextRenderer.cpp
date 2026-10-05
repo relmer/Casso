@@ -301,9 +301,8 @@ HRESULT MockDxuiTextRenderer::MeasureStringWrapped (
 //
 //  DrawIconBitmap
 //
-//  No-op for tests: paint paths in this phase don't exercise icon
-//  blitting. Returns S_OK so callers' IGNORE_RETURN_VALUE flows match
-//  the runtime path.
+//  Records the destination only, in a list of its own so tests counting
+//  the other calls see none of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -311,11 +310,21 @@ HRESULT MockDxuiTextRenderer::DrawIconBitmap (
     const uint32_t * /*srcBgraPremul*/,
     int              /*srcWidthPx*/,
     int              /*srcHeightPx*/,
-    float            /*destXDip*/,
-    float            /*destYDip*/,
-    float            /*destWidthDip*/,
-    float            /*destHeightDip*/)
+    float            destXDip,
+    float            destYDip,
+    float            destWidthDip,
+    float            destHeightDip)
 {
+    RecordedTextCall  call;
+
+
+
+    call.x      = destXDip;
+    call.y      = destYDip;
+    call.width  = destWidthDip;
+    call.height = destHeightDip;
+    m_iconCalls.push_back (call);
+
     return S_OK;
 }
 

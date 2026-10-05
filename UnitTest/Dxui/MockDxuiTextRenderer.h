@@ -58,7 +58,10 @@ public:
     ~MockDxuiTextRenderer() override = default;
 
     const std::vector<RecordedTextCall> &  Calls() const { return m_calls; }
-    void  Reset() { m_calls.clear(); }
+    void  Reset() { m_calls.clear(); m_iconCalls.clear(); }
+
+    //  DrawIconBitmap's destinations, apart from the other calls.
+    const std::vector<RecordedTextCall> &  IconCalls() const { return m_iconCalls; }
 
     void  SetCannedMetrics  (const std::wstring & text, SIZE sizeDip);
 
@@ -131,6 +134,7 @@ public:
 
 private:
     std::vector<RecordedTextCall>          m_calls;
+    std::vector<RecordedTextCall>          m_iconCalls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;
     bool                                   m_measureReturnsZero = false;
     int                                    m_lastFramebufferW   = 0;
