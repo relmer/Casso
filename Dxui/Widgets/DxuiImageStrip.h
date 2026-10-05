@@ -23,10 +23,12 @@ class DxuiPopupHost;
 //  against a side, the toolbar stands the entry on end and the cells run top
 //  to bottom. An IDxuiImageStripSource supplies the pictures.
 //
-//  The pointer over a cell outlines it and shows the cell's full-size picture
-//  in a popup beside the strip: the picture's own pixels, scaled for the
-//  window's DPI, in a popup that takes neither focus nor the pointer. A click
-//  goes to the source with the cell's index.
+//  The pointer over a cell frames it, shows the source's labels for it above
+//  and below the pictures of a strip lying down, and shows the cell's
+//  full-size picture in a popup beside the strip, past the labels and
+//  centered on the pointer as it moves: the picture's own pixels, scaled for
+//  the window's DPI, in a popup that takes neither focus nor the pointer. A
+//  click goes to the source with the cell's index.
 //
 //  The host calls Sync once a frame, so a preview the source had not drawn
 //  yet appears when it has, and keeps its popup host current as the toolbar
@@ -76,6 +78,11 @@ public:
     int   GetHoveredCell   () const { return m_hovered; }
     bool  IsPreviewShown   () const { return m_preview != nullptr; }
 
+    //  Where the preview's picture sits on screen, empty with none up, and
+    //  the picture it shows.
+    RECT                                  GetPreviewRectPx () const;
+    const IDxuiImageStripSource::Image &  GetShownPreview  () const { return m_previewImage; }
+
     void  Sync             ();
     void  HidePreview      ();
 
@@ -114,8 +121,17 @@ private:
     static constexpr float  kLabelPadDip    = 3.0f;
     static constexpr float  kSidePadDip     = 6.0f;
     static constexpr float  kLiveDotDip     = 6.0f;
+    static constexpr float  kHoverFrameDip  = 1.5f;
+    static constexpr float  kHoverEdgeDip   = 1.0f;
 
+    void  SetHovered       (int index);
     void  ShowPreview      ();
+    void  FollowPointer    ();
+    void  PaintHoverFrame  (IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & cell);
+    void  PaintRing        (IDxuiTextRenderer & text, const RECT & rc, float thick, uint32_t argb);
+    void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
+    void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
+    void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
     int   GetSideLabelPx   (const std::wstring & label, bool isTrailing) const;
     void  PaintSideLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
     void  MovePreview      ();
@@ -139,8 +155,8 @@ private:
     DxuiHwndSource                  * m_popupHost   = nullptr;
     DxuiPopupHost                   * m_preview     = nullptr;
     IDxuiImageStripSource::Image      m_previewImage;
-    int                               m_previewCell = -1;
     SIZE                              m_previewDip  = {};   // the last full-size picture's size; a thumbnail scales to it
+    POINT                             m_pointer     = {};   // where the pointer last moved over the strip
     float                             m_aspect      = kDefaultAspect;
     int                               m_preferredPx = 0;
 

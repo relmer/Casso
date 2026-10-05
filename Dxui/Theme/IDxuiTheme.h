@@ -198,6 +198,20 @@ public:
     virtual uint32_t  Border              () const = 0;
     virtual uint32_t  Divider             () const = 0;
 
+    //  The thin frame around the picture under the pointer in a strip of
+    //  pictures, drawn over the picture's edge, and the line just outside it.
+    //  The frame is near white, so it reads against the pictures whatever the
+    //  theme; the outer line is dark on a light background, where a near-white
+    //  edge would run into the panel beside it, and absent on a dark one.
+    virtual uint32_t  PictureHoverFrame     () const { return 0xFFF0F0F0u; }
+    virtual uint32_t  PictureHoverFrameEdge () const
+    {
+        constexpr float     kLightLuminance = 0.5f;
+        constexpr uint32_t  kDarkEdge       = 0xFF5D5D5Du;
+
+        return (DxuiColor::ComputeRelativeLuminance (Background()) > kLightLuminance) ? kDarkEdge : 0u;
+    }
+
     // Button palette. Default-styled buttons read these directly rather
     // than remapping from Background/Hover/Pressed because button
     // surfaces are typically tinted distinctly from generic panels.

@@ -29,6 +29,7 @@ public:
     Image  GetPreviewImage (int index) override              { (void) index; return nullptr; }
     void   OnCellClicked   (int index) override              { clicked.push_back (index); }
 
+    int           GetMarkedCell() override           { return marked; }
     std::wstring  GetLeadingLabel() override         { return leading; }
     std::wstring  GetTrailingLabel() override        { return trailing; }
     bool          IsTrailingLabelAccented() override { return isLive; }
@@ -40,6 +41,14 @@ public:
         outTop    = playheadTop;
         outBottom = playheadBottom;
         return hasPlayhead;
+    }
+
+    bool  TryGetCellLabels (int index, std::wstring & outTop, std::wstring & outBottom) override
+    {
+        (void) index;
+        outTop    = cellTop;
+        outBottom = cellBottom;
+        return !cellTop.empty();
     }
 
     int               cells          = -1;
@@ -54,6 +63,27 @@ public:
     float             playhead       = 0.0f;
     std::wstring      playheadTop;
     std::wstring      playheadBottom;
+    int               marked         = -1;
+    std::wstring      cellTop;
+    std::wstring      cellBottom;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LightMockTheme
+//
+//  The mock theme on a light background.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class LightMockTheme : public MockDxuiTheme
+{
+public:
+    uint32_t  Background() const override { return 0xFFFBFBFBu; }
 };
 
 
@@ -319,32 +349,40 @@ public:
     }
 
 
-    //  The cell under the pointer is underlined in the accent color, not
-    //  boxed: a box beside the playhead line looks like the line itself.
-    TEST_METHOD (TheHoveredCellIsUnderlinedNotBoxed)
+    //  The cell under the pointer is framed by a thin line in the theme's
+    //  hover frame color, over the picture's edge; the marked cell keeps its
+    //  accent underline, and the hovered one has none.
+    TEST_METHOD (TheHoveredCellIsFramedAndTheMarkedCellUnderlined)
     {
         constexpr float       kBarPx   = 4.0f;
+        constexpr float       kThinPx  = 2.0f;
         DxuiImageStrip        strip;
         RecordingStripSource  source;
         MockDxuiTextRenderer  text;
         MockDxuiPainter       painter;
         MockDxuiTheme         theme;
         DxuiDpiScaler         scaler;
-        RECT                  cell     = {};
+        RECT                  hovered  = {};
+        RECT                  marked   = {};
+        RECT                  frame    = {};
         int                   cellPx   = 0;
+        int                   pieces   = 0;
         bool                  isUnder  = false;
-        bool                  isBoxed  = false;
+        bool                  isHovBar = false;
 
 
+
+        source.marked = 4;
 
         strip.SetSource (&source);
         strip.SetAspect (s_kStripAspect);
         strip.Layout    (RECT { 0, 0, 479, 32 }, false, scaler);
 
-        cellPx = source.size.cx;
-        cell   = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 2, strip.GetCellCount(), cellPx, false);
+        cellPx  = source.size.cx;
+        hovered = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 2, strip.GetCellCount(), cellPx, false);
+        marked  = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 4, strip.GetCellCount(), cellPx, false);
 
-        strip.OnMouseMove (cell.left + 1, 5);
+        strip.OnMouseMove (hovered.left + 1, 5);
         strip.Paint       (painter, text, theme, false, false, false);
 
         Assert::AreEqual (2, strip.GetHoveredCell(), L"the pointer is over the third cell");
@@ -356,13 +394,136 @@ public:
                 continue;
             }
 
-            isUnder = isUnder || (call.x == (float) cell.left && call.width == (float) (cell.right - cell.left) &&
-                                  call.y == (float) cell.bottom - kBarPx && call.height == kBarPx);
-            isBoxed = isBoxed || call.height > kBarPx;
+            isUnder  = isUnder  || (call.x == (float) marked.left && call.y == (float) marked.bottom - kBarPx && call.height == kBarPx);
+            isHovBar = isHovBar || (call.x < (float) hovered.right && call.x + call.width > (float) hovered.left);
         }
 
-        Assert::IsTrue  (isUnder, L"a bar along the bottom of the hovered cell");
-        Assert::IsFalse (isBoxed, L"no accent fill behind the whole cell");
+        Assert::IsTrue  (isUnder,  L"the marked cell keeps its accent underline");
+        Assert::IsFalse (isHovBar, L"the hovered cell has no accent bar");
+
+        pieces = GetIconBounds (text, theme.PictureHoverFrame(), kThinPx, frame);
+
+        Assert::IsTrue   (pieces >= 4,                  L"a frame of four thin sides in the hover frame color");
+        Assert::AreEqual (hovered.left,   frame.left,   L"along the cell's left edge");
+        Assert::AreEqual (hovered.right,  frame.right,  L"its right edge");
+        Assert::AreEqual (hovered.top,    frame.top,    L"its top");
+        Assert::AreEqual (hovered.bottom, frame.bottom, L"and its bottom");
+        Assert::AreEqual (0u, theme.PictureHoverFrameEdge(), L"no outer line on a dark background");
+    }
+
+
+    //  On a light background the near-white frame gets a dark line outside
+    //  it, so its edge does not run into the panel.
+    TEST_METHOD (OnALightThemeTheHoverFrameHasADarkOuterLine)
+    {
+        constexpr float       kThinPx  = 2.0f;
+        DxuiImageStrip        strip;
+        RecordingStripSource  source;
+        MockDxuiTextRenderer  text;
+        MockDxuiPainter       painter;
+        LightMockTheme        theme;
+        DxuiDpiScaler         scaler;
+        RECT                  hovered  = {};
+        RECT                  edge     = {};
+        RECT                  frame    = {};
+        int                   pieces   = 0;
+
+
+
+        strip.SetSource (&source);
+        strip.SetAspect (s_kStripAspect);
+        strip.Layout    (RECT { 0, 0, 479, 32 }, false, scaler);
+
+        hovered = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 2, strip.GetCellCount(), source.size.cx, false);
+
+        strip.OnMouseMove (hovered.left + 1, 5);
+        strip.Paint       (painter, text, theme, false, false, false);
+
+        Assert::AreNotEqual (0u, theme.PictureHoverFrameEdge(), L"a light background has an outer line");
+
+        pieces = GetIconBounds (text, theme.PictureHoverFrameEdge(), kThinPx, edge);
+
+        Assert::IsTrue   (pieces >= 4,                 L"the outer line goes all the way round");
+        Assert::AreEqual (hovered.left,   edge.left,   L"at the cell's edges");
+        Assert::AreEqual (hovered.bottom, edge.bottom, L"at the cell's edges");
+
+        pieces = GetIconBounds (text, theme.PictureHoverFrame(), kThinPx, frame);
+
+        Assert::IsTrue (pieces >= 4,                L"the frame is still drawn");
+        Assert::IsTrue (frame.left > edge.left,     L"inside the outer line");
+        Assert::IsTrue (frame.bottom < edge.bottom, L"inside the outer line");
+    }
+
+
+    //  Over a cell, its time shows above it and its "(Power + x)" below, in
+    //  the room kept for the playhead's labels, centered on the cell and
+    //  kept within the strip at either end. Off the strip they are gone.
+    TEST_METHOD (TheHoveredCellsTimeShowsAboveAndBelowIt)
+    {
+        constexpr LONG                 kWidth   = 600;
+        constexpr LONG                 kHeight  = 82;
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        RECT                           pictures = {};
+        RECT                           cell     = {};
+        const RecordedTextCall       * top      = nullptr;
+        const RecordedTextCall       * bottom   = nullptr;
+        int                            count    = 0;
+
+
+
+        source.cellTop    = L"10:42:17 PM";
+        source.cellBottom = L"(Power + 1:02:03)";
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, kWidth, kHeight }, true, scaler);
+
+        pictures = strip.GetPicturesRect();
+        count    = strip.GetCellCount();
+
+        Assert::IsTrue (count > 2, L"cells to hover");
+
+        for (int index : { 0, count / 2, count - 1 })
+        {
+            cell = DxuiImageStrip::GetCellRect (pictures, index, count, source.size.cx, false);
+
+            strip.OnMouseMove ((cell.left + cell.right) / 2, (pictures.top + pictures.bottom) / 2);
+            text.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            top    = FindText (text, source.cellTop);
+            bottom = FindText (text, source.cellBottom);
+
+            Assert::IsNotNull (top,    L"the cell's time is drawn");
+            Assert::IsNotNull (bottom, L"its time since power-on is drawn");
+
+            Assert::IsTrue (top->y >= 0.0f && top->y + top->height <= (float) pictures.top,           L"the time sits above the pictures, inside the strip");
+            Assert::IsTrue (bottom->y >= (float) pictures.bottom && bottom->y + bottom->height <= (float) kHeight, L"the power time below them, inside the strip");
+
+            for (const RecordedTextCall * label : { top, bottom })
+            {
+                Assert::IsTrue (label->x >= 0.0f,                          L"not past the leading end");
+                Assert::IsTrue (label->x + label->width <= (float) kWidth, L"not past the trailing end");
+            }
+
+            if (index == count / 2)
+            {
+                Assert::AreEqual ((float) (cell.left + cell.right) / 2.0f, top->x + top->width / 2.0f, 0.5f, L"centered on the cell");
+            }
+        }
+
+        strip.OnMouseLeave();
+        text.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+
+        Assert::IsNull (FindText (text, source.cellTop), L"gone once the pointer leaves");
     }
 
 
@@ -472,6 +633,50 @@ public:
             Assert::IsTrue (bottom->y >= line->y + line->height,            L"the bottom label clears it below");
         }
     }
+
+private:
+
+    //  How many lines in `argb` were drawn, each no thicker than `thinPx`
+    //  across, and the rect they span together.
+    static int GetIconBounds (const MockDxuiTextRenderer & text, uint32_t argb, float thinPx, RECT & outBounds)
+    {
+        int  pieces = 0;
+
+
+
+        outBounds = RECT { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
+
+        for (const RecordedTextCall & call : text.IconCalls())
+        {
+            if (call.argb != argb || (std::min) (call.width, call.height) > thinPx)
+            {
+                continue;
+            }
+
+            outBounds.left   = (std::min) (outBounds.left,   (LONG) std::lround (call.x));
+            outBounds.top    = (std::min) (outBounds.top,    (LONG) std::lround (call.y));
+            outBounds.right  = (std::max) (outBounds.right,  (LONG) std::lround (call.x + call.width));
+            outBounds.bottom = (std::max) (outBounds.bottom, (LONG) std::lround (call.y + call.height));
+            pieces++;
+        }
+
+        return pieces;
+    }
+
+
+    static const RecordedTextCall * FindText (const MockDxuiTextRenderer & text, const std::wstring & label)
+    {
+        const RecordedTextCall  * found = nullptr;
+
+
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            found = (call.text == label) ? &call : found;
+        }
+
+        return found;
+    }
 };
 
 
@@ -499,6 +704,7 @@ public:
     Image  GetCellImage    (int index) override              { return thumbs[(size_t) index]; }
     Image  GetPreviewImage (int index) override              { return previews[(size_t) index]; }
     void   OnCellClicked   (int index) override              { (void) index; }
+    void   SetHoveredCell  (int index) override              { hovered = index; }
 
     static Image  MakePicture (int width, int height)
     {
@@ -514,6 +720,7 @@ public:
 
     std::vector<Image>  thumbs;
     std::vector<Image>  previews;
+    int                 hovered = -2;
 };
 
 
@@ -612,6 +819,129 @@ public:
 
         strip.OnMouseLeave();
         Assert::IsFalse (strip.IsPreviewShown(), L"leaving the strip closes it");
+    }
+
+
+    //  Moving to a cell whose full-size picture is not drawn yet keeps the
+    //  sharp picture already up, rather than a thumbnail scaled up to it,
+    //  until the cell's own arrives.
+    TEST_METHOD (ANewCellKeepsTheSharpPictureUntilItsOwnIsReady)
+    {
+        DxuiHwndSource      host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
+        DxuiImageStrip      strip;
+        PictureStripSource  source;
+        DxuiDpiScaler       scaler;
+
+
+
+        strip.SetSource    (&source);
+        strip.SetAspect    (s_kStripAspect);
+        strip.SetPopupHost (&host);
+        strip.Layout       (RECT { 400, 300, 879, 332 }, false, scaler);
+
+        source.thumbs[0]   = PictureStripSource::MakePicture (47, 32);
+        source.thumbs[1]   = PictureStripSource::MakePicture (47, 32);
+        source.previews[0] = PictureStripSource::MakePicture (280, 192);
+
+        strip.OnMouseMove (405, 310);
+        Assert::IsTrue (strip.GetShownPreview() == source.previews[0], L"the first cell's sharp picture");
+
+        strip.OnMouseMove (452, 310);
+        strip.Sync();
+        Assert::IsTrue (strip.GetShownPreview() == source.previews[0], L"stays up while the next cell's is drawn");
+
+        source.previews[1] = PictureStripSource::MakePicture (280, 192);
+        strip.Sync();
+        Assert::IsTrue (strip.GetShownPreview() == source.previews[1], L"and gives way to it once it is ready");
+    }
+
+
+    //  The preview opens below the labels kept under the pictures, so it
+    //  never covers the hovered cell's time.
+    TEST_METHOD (ThePreviewOpensBelowTheLabels)
+    {
+        constexpr RECT        kStrip = { 400, 300, 1000, 382 };
+        DxuiHwndSource        host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
+        DxuiImageStrip        strip;
+        PictureStripSource    source;
+        MockDxuiTextRenderer  text;
+        DxuiDpiScaler         scaler;
+        RECT                  pictures = {};
+
+
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetPopupHost    (&host);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (kStrip, true, scaler);
+
+        std::fill (source.previews.begin(), source.previews.end(), PictureStripSource::MakePicture (280, 192));
+
+        pictures = strip.GetPicturesRect();
+        strip.OnMouseMove (pictures.left + 60, (pictures.top + pictures.bottom) / 2);
+
+        Assert::IsTrue (strip.IsPreviewShown(), L"the preview is up");
+        Assert::IsTrue (strip.GetPreviewRectPx().top >= kStrip.bottom, L"below the room for the labels, not over it");
+    }
+
+
+    //  The preview follows the pointer along the strip a pixel at a time,
+    //  within a cell as well as across cells, rather than jumping from one
+    //  cell's edge to the next.
+    TEST_METHOD (ThePreviewFollowsThePointer)
+    {
+        DxuiHwndSource      host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
+        DxuiImageStrip      strip;
+        PictureStripSource  source;
+        DxuiDpiScaler       scaler;
+        LONG                first    = 0;
+        size_t              acquired = 0;
+
+
+
+        strip.SetSource    (&source);
+        strip.SetAspect    (s_kStripAspect);
+        strip.SetPopupHost (&host);
+        strip.Layout       (RECT { 400, 300, 879, 332 }, false, scaler);
+
+        std::fill (source.previews.begin(), source.previews.end(), PictureStripSource::MakePicture (280, 192));
+
+        strip.OnMouseMove (460, 310);
+        first    = strip.GetPreviewRectPx().left;
+        acquired = host.GetPopupHits() + host.GetPopupMisses();
+
+        strip.OnMouseMove (463, 310);
+        Assert::AreEqual (first + 3, strip.GetPreviewRectPx().left, L"three pixels along within the cell, three along on screen");
+
+        strip.OnMouseMove (550, 310);
+        strip.Sync();
+        Assert::AreEqual (first + 90, strip.GetPreviewRectPx().left, L"and across cells the same way");
+
+        Assert::AreEqual (acquired, host.GetPopupHits() + host.GetPopupMisses(), L"moved, never reopened");
+    }
+
+
+    //  The source hears which cell the pointer is over, so it can draw the
+    //  pictures around it, and that it has left.
+    TEST_METHOD (HoveringTellsTheSourceWhichCell)
+    {
+        DxuiImageStrip      strip;
+        PictureStripSource  source;
+        DxuiDpiScaler       scaler;
+
+
+
+        strip.SetSource (&source);
+        strip.SetAspect (s_kStripAspect);
+        strip.Layout    (RECT { 0, 0, 479, 32 }, false, scaler);
+
+        strip.OnMouseMove (100, 5);
+        Assert::AreEqual (2, source.hovered, L"the third cell");
+
+        strip.OnMouseLeave();
+        Assert::AreEqual (-1, source.hovered, L"and then none");
     }
 };
 

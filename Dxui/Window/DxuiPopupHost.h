@@ -246,6 +246,13 @@ public:
     //
     HRESULT  MoveTo    (RECT anchorRectScreen, SIZE sizeDip);
 
+    //
+    //  Place an open popup against a new anchor at the size it has, moving
+    //  the window without rendering it again. For a popup that glides with
+    //  the pointer while its content stays the same.
+    //
+    HRESULT  Reposition (RECT anchorRectScreen);
+
     //  The open reveal: the menu is rendered once at full size and the WINDOW
     //  then uncovers it, top to bottom, which is the unfold a Windows menu
     //  plays. The swap chain is not resized with the window, so the content

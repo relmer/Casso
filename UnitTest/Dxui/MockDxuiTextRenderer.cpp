@@ -301,15 +301,16 @@ HRESULT MockDxuiTextRenderer::MeasureStringWrapped (
 //
 //  DrawIconBitmap
 //
-//  Records the destination only, in a list of its own so tests counting
-//  the other calls see none of them.
+//  Records the destination and the first source pixel, the color of a line
+//  drawn as one pixel stretched, in a list of its own so tests counting the
+//  other calls see none of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MockDxuiTextRenderer::DrawIconBitmap (
-    const uint32_t * /*srcBgraPremul*/,
-    int              /*srcWidthPx*/,
-    int              /*srcHeightPx*/,
+    const uint32_t * srcBgraPremul,
+    int              srcWidthPx,
+    int              srcHeightPx,
     float            destXDip,
     float            destYDip,
     float            destWidthDip,
@@ -323,6 +324,7 @@ HRESULT MockDxuiTextRenderer::DrawIconBitmap (
     call.y      = destYDip;
     call.width  = destWidthDip;
     call.height = destHeightDip;
+    call.argb   = (srcBgraPremul != nullptr && srcWidthPx > 0 && srcHeightPx > 0) ? srcBgraPremul[0] : 0;
     m_iconCalls.push_back (call);
 
     return S_OK;

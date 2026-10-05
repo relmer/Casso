@@ -285,7 +285,7 @@ void DxuiImageStrip::Layout (
 
     if (count != m_count)
     {
-        m_hovered = -1;
+        SetHovered (-1);
         HidePreview();
     }
 
@@ -305,12 +305,14 @@ void DxuiImageStrip::Layout (
 //
 //  DxuiImageStrip::Paint
 //
-//  A cell not drawn yet is the content background. The cell under the
-//  pointer and the cell the source marks each give up a band along the far
-//  edge, below a strip lying down and right of one standing up, to a bar in
-//  the accent color, so the bar does not depend on whether pictures draw over
-//  shapes or under them. An underline rather than a frame, so it cannot be
-//  mistaken for the playhead line beside it.
+//  A cell not drawn yet is the content background. The cell the source
+//  marks gives up a band along the far edge, below a strip lying down and
+//  right of one standing up, to a bar in the accent color, so the bar does
+//  not depend on whether pictures draw over shapes or under them. The cell
+//  under the pointer is framed in the theme's hover frame color instead, a
+//  thin line rather than an accent one, so it cannot be mistaken for the
+//  playhead line beside it, and its labels take the place of the line's
+//  where the two would overlap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -322,18 +324,23 @@ void DxuiImageStrip::Paint (
     bool                pressed,
     bool                labeled)
 {
-    RECT                          cell  = {};
+    RECT                          cell      = {};
+    RECT                          hoverCell = {};
     IDxuiImageStripSource::Image  image;
-    HRESULT                       hr    = S_OK;
-    int                           mark  = (m_source != nullptr) ? m_source->GetMarkedCell() : -1;
-    LONG                          bar   = (LONG) std::lround (m_scaler.ToPxf (kMarkerDip));
-    float                         line  = 0.0f;
-    bool                          isOn  = false;
-    bool                          isBar = false;
+    HRESULT                       hr        = S_OK;
+    int                           mark      = (m_source != nullptr) ? m_source->GetMarkedCell() : -1;
+    LONG                          bar       = (LONG) std::lround (m_scaler.ToPxf (kMarkerDip));
+    float                         line      = 0.0f;
+    float                         hoverX    = 0.0f;
+    bool                          isOn      = false;
+    bool                          isBar     = false;
+    bool                          isLabeled = false;
     std::wstring                  top;
     std::wstring                  bottom;
     std::wstring                  lead;
     std::wstring                  trail;
+    std::wstring                  cellTop;
+    std::wstring                  cellBottom;
 
 
 
@@ -348,11 +355,18 @@ void DxuiImageStrip::Paint (
     lead  = (m_source != nullptr && m_lead.right  > m_lead.left)  ? m_source->GetLeadingLabel()  : std::wstring();
     trail = (m_source != nullptr && m_trail.right > m_trail.left) ? m_source->GetTrailingLabel() : std::wstring();
 
+    if (m_hovered >= 0 && m_hovered < m_count)
+    {
+        hoverCell = GetCellRect (m_rc, m_hovered, m_count, m_cellPx, m_vertical);
+        hoverX    = (float) (hoverCell.left + hoverCell.right) / 2.0f;
+        isLabeled = !m_vertical && m_source != nullptr && m_source->TryGetCellLabels (m_hovered, cellTop, cellBottom);
+    }
+
     for (int i = 0; i < m_count; i++)
     {
         cell  = GetCellRect (m_rc, i, m_count, m_cellPx, m_vertical);
         image = (m_source != nullptr) ? m_source->GetCellImage (i) : nullptr;
-        isBar = i == mark || i == m_hovered;
+        isBar = i == mark;
 
         //  The bar takes its band out of the cell, so the picture cannot cover it.
         if (isBar && m_vertical)
@@ -380,12 +394,30 @@ void DxuiImageStrip::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    if (m_hovered >= 0 && m_hovered < m_count)
+    {
+        PaintHoverFrame (text, theme, hoverCell);
+    }
+
     PaintSideLabel (painter, text, theme, lead,  m_lead,  false);
     PaintSideLabel (painter, text, theme, trail, m_trail, true);
 
     if (isOn)
     {
-        PaintPlayhead (painter, text, theme, m_isDragging ? m_dragOffset : line, top, bottom);
+        line = m_isDragging ? m_dragOffset : line;
+
+        if (isLabeled)
+        {
+            HideOverlap (text, top,    GetLineAlong (line), cellTop,    hoverX);
+            HideOverlap (text, bottom, GetLineAlong (line), cellBottom, hoverX);
+        }
+
+        PaintPlayhead (painter, text, theme, line, top, bottom);
+    }
+
+    if (isLabeled)
+    {
+        PaintLabelPair (painter, text, theme, cellTop, cellBottom, hoverX);
     }
 }
 
@@ -471,6 +503,9 @@ bool DxuiImageStrip::OnClick (
 //
 //  DxuiImageStrip::OnMouseMove
 //
+//  A move onto another cell brings up its preview; a move within the cell
+//  carries the preview along with the pointer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiImageStrip::OnMouseMove (
@@ -493,13 +528,39 @@ bool DxuiImageStrip::OnMouseMove (
         return true;
     }
 
+    m_pointer = POINT { x, y };
+
     if (index != m_hovered)
     {
-        m_hovered = index;
+        SetHovered (index);
         Sync();
+    }
+    else
+    {
+        FollowPointer();
     }
 
     return index >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::SetHovered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::SetHovered (int index)
+{
+    m_hovered = index;
+
+    if (m_source != nullptr)
+    {
+        m_source->SetHoveredCell (index);
+    }
 }
 
 
@@ -540,7 +601,7 @@ bool DxuiImageStrip::OnLButtonDown (
     {
         m_isDragging = true;
         m_dragOffset = line;
-        m_hovered    = -1;
+        SetHovered (-1);
         HidePreview();
         return true;
     }
@@ -571,7 +632,7 @@ void DxuiImageStrip::OnMouseLeave()
         }
     }
 
-    m_hovered = -1;
+    SetHovered (-1);
     HidePreview();
 }
 
@@ -583,18 +644,18 @@ void DxuiImageStrip::OnMouseLeave()
 //
 //  DxuiImageStrip::Sync
 //
-//  The preview follows the cell under the pointer in one popup, opened once
-//  and moved from cell to cell, never closed and opened again on the way: a
-//  window hidden and shown for each cell crossed flickers. A cell whose
-//  full-size picture is not drawn yet shows its thumbnail scaled up until it
-//  is, and a picture already up stays until its replacement is ready.
+//  The preview follows the pointer in one popup, opened once and moved along
+//  the strip, never closed and opened again on the way: a window hidden and
+//  shown for each cell crossed flickers. A sharp picture already up stays
+//  until the cell under the pointer has its own; a thumbnail scaled up
+//  stands in only when there is none up yet to keep.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiImageStrip::Sync()
 {
     IDxuiImageStripSource::Image  image;
-    bool                          isFull = true;
+    bool                          isFull = false;
 
 
 
@@ -604,33 +665,22 @@ void DxuiImageStrip::Sync()
         return;
     }
 
-    image = m_source->GetPreviewImage (m_hovered);
+    image  = m_source->GetPreviewImage (m_hovered);
+    isFull = image != nullptr;
 
-    if (image == nullptr)
+    if (!isFull && m_preview == nullptr && m_previewDip.cx > 0)
     {
-        // What is up for this cell stays until its full-size picture arrives.
-        if (m_preview != nullptr && m_previewCell == m_hovered)
-        {
-            return;
-        }
-
-        image  = m_source->GetCellImage (m_hovered);
-        isFull = false;
+        image = m_source->GetCellImage (m_hovered);
     }
 
-    // No picture at all, or no size to scale a thumbnail to yet: keep what is up.
-    if (image == nullptr || (!isFull && m_previewDip.cx <= 0))
+    //  Nothing new to show: what is up stays, and keeps up with the pointer.
+    if (image == nullptr || (m_preview != nullptr && image == m_previewImage))
     {
-        return;
-    }
-
-    if (m_preview != nullptr && image == m_previewImage && m_previewCell == m_hovered)
-    {
+        FollowPointer();
         return;
     }
 
     m_previewImage = std::move (image);
-    m_previewCell  = m_hovered;
 
     if (isFull)
     {
@@ -666,7 +716,6 @@ void DxuiImageStrip::HidePreview()
     // Cleared first, so the popup's close callback finds nothing to clear.
     m_preview      = nullptr;
     m_previewImage = nullptr;
-    m_previewCell  = -1;
 
     if (popup != nullptr && m_popupHost != nullptr)
     {
@@ -682,11 +731,11 @@ void DxuiImageStrip::HidePreview()
 //
 //  DxuiImageStrip::ShowPreview
 //
-//  Beside the cell: below a strip lying down, to the right of one standing
-//  up, flipped when there is no room. The picture's pixels are its size in
-//  DIPs, so the popup scales them for the window's DPI. The popup lets the
-//  pointer through and never activates, so the strip keeps the hover and the
-//  window keeps the focus.
+//  Beside the strip: below one lying down, to the right of one standing up,
+//  flipped when there is no room, centered on the pointer. The picture's
+//  pixels are its size in DIPs, so the popup scales them for the window's
+//  DPI. The popup lets the pointer through and never activates, so the strip
+//  keeps the hover and the window keeps the focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -738,8 +787,8 @@ void DxuiImageStrip::ShowPreview()
 //
 //  DxuiImageStrip::MovePreview
 //
-//  The open popup moves beside the cell now under the pointer and redraws
-//  with its picture, staying on screen throughout.
+//  The open popup redraws with its new picture where the pointer now is,
+//  staying on screen throughout.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -763,22 +812,73 @@ void DxuiImageStrip::MovePreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiImageStrip::FollowPointer
+//
+//  The open popup moves to stay centered on the pointer, its picture as it
+//  was, so it glides along the strip rather than jumping from cell to cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::FollowPointer()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_preview == nullptr)
+    {
+        return;
+    }
+
+    hr = m_preview->Reposition (GetPreviewAnchor());
+
+    if (FAILED (hr))
+    {
+        HidePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiImageStrip::GetPreviewAnchor
 //
-//  The previewed cell, in screen pixels.
+//  In screen pixels: as wide as the preview and centered on the pointer
+//  along the strip, and across it the whole entry, labels included, so the
+//  preview opens past the hovered cell's labels rather than over them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiImageStrip::GetPreviewAnchor() const
 {
-    RECT   cell     = GetCellRect (m_rc, m_previewCell, m_count, m_cellPx, m_vertical);
-    POINT  topLeft  = { cell.left, cell.top };
-    POINT  botRight = { cell.right, cell.bottom };
-    HWND   owner    = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
+    const DxuiDpiScaler  * scaler   = (m_popupHost != nullptr) ? &m_popupHost->GetScaler() : &m_scaler;
+    int                    widthPx  = scaler->ToPx (m_previewDip.cx);
+    int                    heightPx = scaler->ToPx (m_previewDip.cy);
+    RECT                   anchor   = m_outer;
+    POINT                  topLeft  = {};
+    POINT                  botRight = {};
+    HWND                   owner    = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
 
 
 
-    // No window, as in tests: the cell's client pixels stand in for the screen.
+    if (m_vertical)
+    {
+        anchor.top    = m_pointer.y - heightPx / 2;
+        anchor.bottom = anchor.top + heightPx;
+    }
+    else
+    {
+        anchor.left  = m_pointer.x - widthPx / 2;
+        anchor.right = anchor.left + widthPx;
+    }
+
+    topLeft  = POINT { anchor.left,  anchor.top };
+    botRight = POINT { anchor.right, anchor.bottom };
+
+    // No window, as in tests: the client pixels stand in for the screen.
     if (owner != nullptr)
     {
         ClientToScreen (owner, &topLeft);
@@ -786,6 +886,100 @@ RECT DxuiImageStrip::GetPreviewAnchor() const
     }
 
     return RECT { topLeft.x, topLeft.y, botRight.x, botRight.y };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintHoverFrame
+//
+//  A thin ring in the theme's hover frame color over the edge of the cell's
+//  picture, inside a line of the theme's frame edge color where it has one.
+//  Drawn as pictures are, since pictures draw over shapes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintHoverFrame (
+    IDxuiTextRenderer & text,
+    const IDxuiTheme  & theme,
+    const RECT        & cell)
+{
+    float     frame = std::max (1.0f, (float) std::lround (m_scaler.ToPxf (kHoverFrameDip)));
+    float     line  = std::max (1.0f, (float) std::lround (m_scaler.ToPxf (kHoverEdgeDip)));
+    uint32_t  edge  = theme.PictureHoverFrameEdge();
+    RECT      inner = cell;
+
+
+
+    if (edge != 0)
+    {
+        PaintRing (text, cell, line, edge);
+        InflateRect (&inner, -(int) line, -(int) line);
+    }
+
+    PaintRing (text, inner, frame, theme.PictureHoverFrame());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintRing
+//
+//  Four sides `thick` pixels wide just inside rc, each one pixel stretched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintRing (
+    IDxuiTextRenderer & text,
+    const RECT        & rc,
+    float               thick,
+    uint32_t            argb)
+{
+    HRESULT  hr     = S_OK;
+    float    left   = (float) rc.left;
+    float    top    = (float) rc.top;
+    float    width  = (float) (rc.right - rc.left);
+    float    height = (float) (rc.bottom - rc.top);
+
+
+
+    if (width < thick * 2.0f || height < thick * 2.0f)
+    {
+        return;
+    }
+
+    hr = text.DrawIconBitmap (&argb, 1, 1, left,                 top,                  width, thick);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawIconBitmap (&argb, 1, 1, left,                 top + height - thick, width, thick);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawIconBitmap (&argb, 1, 1, left,                 top + thick,          thick, height - thick * 2.0f);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawIconBitmap (&argb, 1, 1, left + width - thick, top + thick,          thick, height - thick * 2.0f);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetPreviewRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiImageStrip::GetPreviewRectPx() const
+{
+    return (m_preview != nullptr) ? m_preview->GetPlacedRectScreenPx() : RECT {};
 }
 
 
@@ -939,13 +1133,119 @@ void DxuiImageStrip::PaintPlayhead (
     hr = text.DrawIconBitmap (&ink, 1, 1, along - thick / 2.0f, (float) m_rc.top - reach, thick, (float) (m_rc.bottom - m_rc.top) + reach * 2.0f);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (room <= 0.0f)
+    PaintLabelPair (painter, text, theme, top, bottom, along);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintLabelPair
+//
+//  Lying down, one label in the room above the pictures and one in the room
+//  below, each clear of the playhead line's reach past them and centered on
+//  centerX within the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintLabelPair (
+    IDxuiPainter        & painter,
+    IDxuiTextRenderer   & text,
+    const IDxuiTheme    & theme,
+    const std::wstring  & top,
+    const std::wstring  & bottom,
+    float                 centerX)
+{
+    float  room  = (float) (m_rc.top - m_outer.top);
+    float  reach = std::min (room, m_scaler.ToPxf (kLineReachDip));
+
+
+
+    if (m_vertical || room <= 0.0f)
     {
         return;
     }
 
-    PaintLabel (painter, text, theme, top,    along, (float) m_outer.top,          room - reach);
-    PaintLabel (painter, text, theme, bottom, along, (float) m_rc.bottom + reach, room - reach);
+    PaintLabel (painter, text, theme, top,    centerX, (float) m_outer.top,          room - reach);
+    PaintLabel (painter, text, theme, bottom, centerX, (float) m_rc.bottom + reach, room - reach);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::HideOverlap
+//
+//  A label that would overlap another, each centered where it is drawn, is
+//  cleared, so the other reads clearly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::HideOverlap (
+    IDxuiTextRenderer   & text,
+    std::wstring        & label,
+    float                 centerX,
+    const std::wstring  & other,
+    float                 otherX) const
+{
+    float  left       = 0.0f;
+    float  width      = 0.0f;
+    float  otherLeft  = 0.0f;
+    float  otherWidth = 0.0f;
+
+
+
+    if (label.empty() || other.empty())
+    {
+        return;
+    }
+
+    GetLabelSpan (text, label, centerX, left, width);
+    GetLabelSpan (text, other, otherX,  otherLeft, otherWidth);
+
+    if (left < otherLeft + otherWidth && otherLeft < left + width)
+    {
+        label.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetLabelSpan
+//
+//  Where a label's plate lies along the strip: its text padded either side,
+//  centered on centerX and kept within the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::GetLabelSpan (
+    IDxuiTextRenderer   & text,
+    const std::wstring  & label,
+    float                 centerX,
+    float               & outLeft,
+    float               & outWidth) const
+{
+    HRESULT  hr    = S_OK;
+    float    textH = 0.0f;
+
+
+
+    outWidth = 0.0f;
+
+    hr = text.MeasureString (label.c_str(), m_scaler.ToPxf (kLabelFontDip), DxuiTheme::kBodyFace, outWidth, textH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    outWidth += m_scaler.ToPxf (kLabelPadDip) * 2.0f;
+    outLeft   = centerX - outWidth / 2.0f;
+    outLeft   = std::clamp (outLeft, (float) m_outer.left, std::max ((float) m_outer.left, (float) m_outer.right - outWidth));
 }
 
 
@@ -973,9 +1273,7 @@ void DxuiImageStrip::PaintLabel (
 {
     HRESULT  hr     = S_OK;
     float    size   = m_scaler.ToPxf (kLabelFontDip);
-    float    pad    = m_scaler.ToPxf (kLabelPadDip);
     float    width  = 0.0f;
-    float    textH  = 0.0f;
     float    left   = 0.0f;
 
 
@@ -985,12 +1283,7 @@ void DxuiImageStrip::PaintLabel (
         return;
     }
 
-    hr = text.MeasureString (label.c_str(), size, DxuiTheme::kBodyFace, width, textH);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    width += pad * 2.0f;
-    left   = centerX - width / 2.0f;
-    left   = std::clamp (left, (float) m_outer.left, std::max ((float) m_outer.left, (float) m_outer.right - width));
+    GetLabelSpan (text, label, centerX, left, width);
 
     painter.FillRect (left, top, width, height, theme.Background());
 
