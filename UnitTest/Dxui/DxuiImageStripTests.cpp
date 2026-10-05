@@ -29,10 +29,10 @@ public:
     Image  GetPreviewImage (int index) override              { (void) index; return nullptr; }
     void   OnCellClicked   (int index) override              { clicked.push_back (index); }
 
-    std::wstring  GetLeadingLabel         () override { return leading; }
-    std::wstring  GetTrailingLabel        () override { return trailing; }
-    bool          IsTrailingLabelAccented () override { return isLive; }
-    void          OnTrailingLabelClicked  () override { trailingClicks++; }
+    std::wstring  GetLeadingLabel() override         { return leading; }
+    std::wstring  GetTrailingLabel() override        { return trailing; }
+    bool          IsTrailingLabelAccented() override { return isLive; }
+    void          OnTrailingLabelClicked() override  { trailingClicks++; }
 
     int               cells          = -1;
     SIZE              size           = {};

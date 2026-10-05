@@ -44,6 +44,11 @@ bool StopChanges::IsChanged (const std::string & key) const
 
     return m_isPaused && now != m_stop.end() && was != m_previous.end() && now->second != was->second;
 }
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StopChanges::GetDelta
