@@ -916,7 +916,7 @@ HRESULT DiskImage::SaveState (StateWriter & writer) const
 
         if (writer.IsSharing())
         {
-            writer.WriteShared (GetSharedTrack (track));
+            writer.WriteShared (GetSharedTrack (track), m_trackBits[track].data());
         }
         else
         {

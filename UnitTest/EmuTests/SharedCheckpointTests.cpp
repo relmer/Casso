@@ -180,11 +180,11 @@ private:
 
         writer.BeginSection (s_kOuterTag, 1);
         writer.WriteByte    (0x11);
-        writer.WriteShared  (first);
+        writer.WriteShared  (first, first->data());
         writer.BeginSection (s_kInnerTag, 2);
         writer.WriteUInt32  (0x22334455);
-        writer.WriteShared  (second);
-        writer.WriteShared  (first);
+        writer.WriteShared  (second, second->data());
+        writer.WriteShared  (first, first->data());
 
         hr = writer.EndSection();
         AssertSucceeded (hr, L"inner EndSection");

@@ -12,14 +12,18 @@
 //
 //  A run of bytes a sharing StateWriter kept by reference instead of copying:
 //  it belongs at offset in the writer's own bytes, ahead of whatever was
-//  written there after it.
+//  written there after it. source is the live buffer the run stands for,
+//  which holds the same bytes at the moment of the save unless a write to it
+//  was missed; MachineHost::CheckSharedSave compares the two right after the
+//  save, and nothing may read through it once the machine runs on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct StateSegment
 {
-    size_t                                    offset = 0;
-    std::shared_ptr<const std::vector<Byte>>  bytes;
+    size_t                                      offset = 0;
+    std::shared_ptr<const std::vector<Byte>>    bytes;
+    const Byte                                * source = nullptr;
 };
 
 
@@ -65,7 +69,7 @@ public:
     void                      WriteUInt32  (uint32_t value) { WriteLittleEndian (value, sizeof (value)); }
     void                      WriteUInt64  (uint64_t value) { WriteLittleEndian (value, sizeof (value)); }
     void                      WriteBytes   (const Byte * data, size_t count);
-    void                      WriteShared  (const std::shared_ptr<const std::vector<Byte>> & bytes);
+    void                      WriteShared  (const std::shared_ptr<const std::vector<Byte>> & bytes, const Byte * source);
 
     const std::vector<Byte> & GetBytes        () const;
     std::vector<Byte>         TakeBytes       ();
@@ -78,6 +82,9 @@ public:
 
     void                      FlattenInto     (std::vector<Byte> & outBytes) const;
     static void               Flatten         (const std::vector<Byte> & own, const std::vector<StateSegment> & segments, std::vector<Byte> & outBytes);
+
+    // The runs kept so far, for a check made right after the save.
+    const std::vector<StateSegment> & GetSegments () const { return m_segments; }
 
 private:
     static constexpr size_t   kSegmentReserve = 64;

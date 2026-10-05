@@ -331,9 +331,10 @@ public:
     //  afterwards; running it is undefined.
     HRESULT   LoadStateForPicture       (StateReader & reader);
 
-    //  Debug builds only: asserts that a sharing save, flattened, is the
-    //  same blob a full save of the machine gives now, which catches a RAM
-    //  write no page marking saw. Call it right after the save.
+    //  Debug builds only: asserts that every run a sharing save kept by
+    //  reference still holds the bytes of the buffer it stands for, which
+    //  catches a RAM write no page marking saw and a track change no
+    //  generation saw. Call it right after the save.
     void      CheckSharedSave (const StateWriter & writer) const;
 
     //  A hash of every ROM image the machine was built with. It is kept until a
@@ -421,12 +422,6 @@ private:
 
     // The part list a save or load fills; kept so it keeps its capacity.
     mutable std::vector<IMachineState *>  m_stateParts;
-
-#ifdef _DEBUG
-    // CheckSharedSave's full save and flattened copy, kept between checks.
-    mutable StateWriter        m_checkWriter;
-    mutable std::vector<Byte>  m_checkFlat;
-#endif
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;

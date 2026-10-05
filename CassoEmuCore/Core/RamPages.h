@@ -27,7 +27,8 @@ class MemoryBus;
 //  makes itself and MarkAllWritten when it fills or loads the whole buffer.
 //  A sharing save clears the flags of the chunks it copied. A missed write
 //  leaves a stale chunk in every later save, so the debug build checks
-//  every sharing save against a full save (MachineHost::CheckSharedSave).
+//  every chunk a sharing save keeps against the buffer it was copied from
+//  (MachineHost::CheckSharedSave).
 //
 //  Chunk copies come from a pool of the buffers no save holds any
 //  more, so a recording that has reached its working size allocates none.

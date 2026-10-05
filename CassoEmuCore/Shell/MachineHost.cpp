@@ -1264,10 +1264,16 @@ Error:
 //  MachineHost::CheckSharedSave
 //
 //  A sharing save keeps each RAM chunk nobody wrote since the last one by
-//  reference, trusting the written-page marks; a write that left no mark
-//  would leave a stale chunk in this and every later save. In a debug
-//  build each such save is flattened and compared with a full save taken
-//  now, and a difference asserts. A release build does nothing.
+//  reference, trusting the written-page marks, and each disk track by
+//  reference while its generation is unchanged; a write either one missed
+//  would leave a stale run in this and every later save. In a debug build
+//  every run the save kept is compared with the live buffer it stands for,
+//  and a difference asserts. A release build does nothing.
+//
+//  Only the kept runs are compared, not the whole blob against a second
+//  save. The keyboard, the game port and the Joyport save values the UI
+//  thread writes, so a key or a joystick move landing between two saves
+//  makes them differ although no write was missed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1275,20 +1281,17 @@ void MachineHost::CheckSharedSave (const StateWriter & writer) const
 {
 #ifdef _DEBUG
     HRESULT  hr     = S_OK;
+    size_t   size   = 0;
     bool     isSame = false;
 
 
 
-    // Kept from check to check, so the check adds no allocation of its own.
-    m_checkWriter.Reuse (m_checkWriter.TakeBytes());
-
-    hr = SaveState (m_checkWriter);
-    CHRA (hr);
-
-    writer.FlattenInto (m_checkFlat);
-
-    isSame = m_checkFlat == m_checkWriter.GetBytes();
-    CBRA (isSame);
+    for (const StateSegment & segment : writer.GetSegments())
+    {
+        size   = segment.bytes->size();
+        isSame = size == 0 || (segment.source != nullptr && memcmp (segment.bytes->data(), segment.source, size) == 0);
+        CBRA (isSame);
+    }
 
 Error:
     return;

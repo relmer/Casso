@@ -227,10 +227,14 @@ void StateWriter::WriteBytes (const Byte * data, size_t count)
 //
 //  A raw run of bytes, as WriteBytes, that a sharing writer keeps by
 //  reference. The buffer must not change while any save holding it lives.
+//  source is the live buffer the run was copied from, kept with the segment
+//  for CheckSharedSave.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void StateWriter::WriteShared (const std::shared_ptr<const std::vector<Byte>> & bytes)
+void StateWriter::WriteShared (
+    const std::shared_ptr<const std::vector<Byte>>  & bytes,
+    const Byte                                      * source)
 {
     StateSegment  segment;
 
@@ -250,6 +254,7 @@ void StateWriter::WriteShared (const std::shared_ptr<const std::vector<Byte>> & 
 
     segment.offset = m_size;
     segment.bytes  = bytes;
+    segment.source = source;
 
     m_sharedBytes += bytes->size();
     m_segments.push_back (std::move (segment));

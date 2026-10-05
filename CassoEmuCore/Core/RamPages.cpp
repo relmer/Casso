@@ -161,7 +161,7 @@ void RamPages::Save (
             }
         }
 
-        writer.WriteShared (m_chunks[chunk]);
+        writer.WriteShared (m_chunks[chunk], data + chunk * kChunkBytes);
     }
 }
 

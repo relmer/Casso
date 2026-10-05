@@ -8,6 +8,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DebugMemoryView.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/RamDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -29,6 +30,20 @@ static constexpr Word  s_kHiresOn       = 0xC057;
 static constexpr Word  s_kLcBank1RamRw  = 0xC08B;
 static constexpr Word  s_kLcBank2RamRw  = 0xC083;
 static constexpr Byte  s_kWritten       = 0xA5;
+static constexpr Byte  s_kHostKey       = 'A';
+static constexpr Byte  s_kHostPaddle    = 0x11;
+
+// Each //e banking switch as its off and on address: RAMRD, RAMWRT, ALTZP,
+// 80STORE, PAGE2 and HIRES.
+static constexpr Word  s_kBankingSwitches[][2] =
+{
+    { 0xC002, 0xC003 },
+    { 0xC004, 0xC005 },
+    { 0xC008, 0xC009 },
+    { 0xC000, 0xC001 },
+    { 0xC054, 0xC055 },
+    { 0xC056, 0xC057 },
+};
 
 
 
@@ -260,6 +275,134 @@ public:
         }
     }
 
+
+    //  Every RAM page the bus maps, $0000-$BFFF and the language card's
+    //  $D000-$FFFF, written under every combination of the //e's banking
+    //  switches and the language card's two banks, on each path a bus write
+    //  can take: the page table, the watched path and the trace. Each pass
+    //  ends with a sharing save that must be the full save.
+    TEST_METHOD (EveryRamPageIsCapturedUnderEveryBankingAndBusPath)
+    {
+        static constexpr int  kBusPaths    = 3;
+        static constexpr int  kSwitchCount = static_cast<int> (sizeof (s_kBankingSwitches) / sizeof (s_kBankingSwitches[0]));
+        static constexpr int  kBankings    = 1 << (kSwitchCount + 1);
+        static constexpr int  kPageCount   = 0x100;
+        static constexpr int  kFirstIoPage = 0xC0;
+        static constexpr int  kLastIoPage  = 0xCF;
+        static constexpr int  kPageShift   = 8;
+        static constexpr int  kOffsetMask  = 0xFF;
+        static constexpr int  kValueStep   = 31;
+
+        TestMachine            machine ("Apple2e");
+        MemoryBus            & bus     = machine.GetMemoryBus();
+        int                    path    = 0;
+        int                    banking = 0;
+        int                    page    = 0;
+        int                    pass    = 0;
+        std::wostringstream    what;
+
+
+
+        machine.PowerCycle();
+
+        SaveShared (machine);
+
+        for (path = 0; path < kBusPaths; path++)
+        {
+            SetBusPath (bus, path);
+
+            for (banking = 0; banking < kBankings; banking++)
+            {
+                SetBanking (bus, banking, kSwitchCount);
+
+                for (page = 0; page < kPageCount; page++)
+                {
+                    if (page >= kFirstIoPage && page <= kLastIoPage)
+                    {
+                        continue;
+                    }
+
+                    bus.WriteByte (static_cast<Word> ((page << kPageShift) | (pass & kOffsetMask)), static_cast<Byte> (pass * kValueStep + page + 1));
+                }
+
+                what.str (L"");
+                what << L"bus path " << path << L", banking " << banking;
+
+                ExpectSharedSaveIsFull (machine, what.str().c_str());
+
+                pass++;
+            }
+        }
+
+        SetBusPath (bus, 0);
+    }
+
+
+    TEST_METHOD (HostInputBetweenASaveAndItsCheckIsNotAMissedWrite)
+    {
+        TestMachine        machine ("Apple2e");
+        StateWriter        writer;
+        std::vector<Byte>  before;
+        HRESULT            hr      = S_OK;
+
+
+
+        machine.PowerCycle();
+
+        SaveShared (machine);
+
+        writer.SetSharing (true);
+
+        hr = machine.SaveState (writer);
+        AssertSucceeded (hr, L"SaveState");
+
+        before = ReverseSessionRig::Save (machine);
+
+        // What the UI thread does while the emulation thread is between the
+        // keyframe save and its check: a key, a joystick move, a button.
+        machine.GetRefs().keyboard->PressKey (s_kHostKey);
+        machine.GetRefs().iieSoftSwitches->SetPaddle (0, s_kHostPaddle);
+        machine.GetRefs().iieKeyboard->SetOpenApple (true);
+
+        Assert::IsTrue (ReverseSessionRig::Save (machine) != before, L"the host input is in the save");
+
+        machine.CheckSharedSave (writer);
+    }
+
+
+    TEST_METHOD (AnUnmarkedTrackChangeFailsTheDebugCheck)
+    {
+        TestMachine    machine ("Apple2e");
+        StateWriter    writer;
+        DiskImage    * disk    = nullptr;
+        HRESULT        hr      = S_OK;
+
+
+
+        ReverseSessionRig::Prepare (machine);
+
+        disk = machine.GetDiskStore().GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+        Assert::IsNotNull (disk, L"the rig's disk");
+
+        SaveShared (machine);
+
+        // Straight into the track, past its generation.
+        const_cast<std::vector<Byte> &> (disk->GetTrackBits (0))[0] ^= 0xFF;
+
+        writer.SetSharing (true);
+
+        hr = machine.SaveState (writer);
+        AssertSucceeded (hr, L"SaveState");
+
+        {
+            ExpectedEhmAssert  expect;
+
+            machine.CheckSharedSave (writer);
+
+            expect.RequireCount (1);
+        }
+    }
+
 private:
 
     using Change = std::function<void (TestMachine &)>;
@@ -309,6 +452,67 @@ private:
 
         Assert::IsTrue (full != firstFlat, what);
         Assert::IsTrue (secondFlat == full, what);
+    }
+
+
+    //  A sharing save, flattened, is the full save, and every run it kept
+    //  still holds its buffer's bytes.
+    static void ExpectSharedSaveIsFull (TestMachine & machine, const wchar_t * what)
+    {
+        StateWriter        writer;
+        std::vector<Byte>  flat;
+        HRESULT            hr     = S_OK;
+
+
+
+        writer.SetSharing (true);
+
+        hr = machine.SaveState (writer);
+        AssertSucceeded (hr, L"SaveState");
+
+        writer.FlattenInto (flat);
+
+        Assert::IsTrue (flat == ReverseSessionRig::Save (machine), what);
+
+        machine.CheckSharedSave (writer);
+    }
+
+
+    //  0: the page table; 1: every page watched; 2: the trace.
+    static void SetBusPath (MemoryBus & bus, int path)
+    {
+        static constexpr int  kWatched   = 1;
+        static constexpr int  kTrace     = 2;
+        static constexpr int  kPageCount = 0x100;
+        int                   page       = 0;
+
+
+
+        for (page = 0; page < kPageCount; page++)
+        {
+            bus.SetWatchedPage (page, path == kWatched);
+        }
+
+        bus.SetTraceAllPages (path == kTrace);
+    }
+
+
+    //  Bit n of banking turns banking switch n on; the bit past them picks
+    //  language card bank 2 over bank 1, read and write enabled either way.
+    static void SetBanking (MemoryBus & bus, int banking, int switchCount)
+    {
+        Word  lcSwitch = ((banking >> switchCount) & 1) != 0 ? s_kLcBank2RamRw : s_kLcBank1RamRw;
+        int   i        = 0;
+
+
+
+        for (i = 0; i < switchCount; i++)
+        {
+            bus.WriteByte (s_kBankingSwitches[i][(banking >> i) & 1], 0);
+        }
+
+        bus.ReadByte (lcSwitch);
+        bus.ReadByte (lcSwitch);
     }
 
 
