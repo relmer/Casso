@@ -31,6 +31,7 @@
 #define WM_APP_INTENT_REPLY    (WM_APP + 0x2B)
 #define WM_APP_CONFIRM_DIVERGE (WM_APP + 0x2C)
 #define WM_APP_CONFIRM_INPUT   (WM_APP + 0x2D)
+#define WM_APP_HELD_INPUT_READ (WM_APP + 0x2E)
 
 
 

@@ -690,23 +690,28 @@ bool EmulatorShell::IsGuestMouseLive() const
 
 void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 {
-    const RECT                          & vp        = m_viewportBoundsPx;
-    int                                   vpW       = vp.right  - vp.left;
-    int                                   vpH       = vp.bottom - vp.top;
-    bool                                  isLive    = IsGuestMouseLive() && vpW > 1 && vpH > 1;
-    uint16_t                              fx        = 0;
-    uint16_t                              fy        = 0;
-    bool                                  isInside  = xPx >= vp.left && xPx < vp.right &&
-                                                      yPx >= vp.top  && yPx < vp.bottom;
+    const RECT                          & vp         = m_viewportBoundsPx;
+    int                                   vpW        = vp.right  - vp.left;
+    int                                   vpH        = vp.bottom - vp.top;
+    bool                                  isMouseOn  = IsGuestMouseLive() && vpW > 1 && vpH > 1;
+    bool                                  isGateOpen = false;
+    uint32_t                              fx         = 0;
+    uint32_t                              fy         = 0;
+    bool                                  isInside   = xPx >= vp.left && xPx < vp.right &&
+                                                       yPx >= vp.top  && yPx < vp.bottom;
+    std::optional<uint32_t>               target;
     std::shared_lock<std::shared_mutex>   gate;
 
 
 
-    // Behind live in reverse execution's history the mouse holds a recorded
-    // position, so the host pointer leaves it alone.
-    isLive = isLive && m_machine.GetHostInputGate().TryEnter (gate);
+    // Only Mouse mode with the guest's mouse on makes the pointer guest
+    // input; anything else over the picture is the host's own pointer.
+    if (!isMouseOn)
+    {
+        return;
+    }
 
-    if (isLive && CrtMonitorActive())
+    if (CrtMonitorActive())
     {
         // Curvature-correct mapping (spec 018): the pixel comes from the
         // inverse projection through the glass, so only the picture counts
@@ -716,23 +721,12 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 
         if (hit.target == SceneHitResult::Target::Glass)
         {
-            fx = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.x, 65535, kFramebufferWidth - 1));
-            fy = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.y, 65535, kFramebufferHeight - 1));
-
-            m_machine.GetMouse()->SetHostTargetFraction (fx, fy);
-        }
-        else
-        {
-            m_machine.GetMouse()->ClearHostTarget();
+            fx     = static_cast<uint32_t> (MulDiv (hit.emulatedPixel.x, 65535, kFramebufferWidth - 1));
+            fy     = static_cast<uint32_t> (MulDiv (hit.emulatedPixel.y, 65535, kFramebufferHeight - 1));
+            target = (fx << 16) | fy;
         }
     }
-    else if (isLive && !isInside)
-    {
-        // Leaving the viewport releases the guest mouse to wherever the
-        // firmware last put it (non-capturing contract).
-        m_machine.GetMouse()->ClearHostTarget();
-    }
-    else if (isLive)
+    else if (isInside)
     {
         // Publish the viewport fraction only. The DEVICE projects it into the
         // firmware's live clamp window on the CPU thread (AppleMouse::Tick ->
@@ -740,10 +734,30 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
         // -- the CPU's debug array is not the live MMU-mapped RAM, and bus
         // reads here would race the CPU thread. (The original PeekByte-based
         // mapping read stale bytes and silently no-oped in production.)
-        fx = static_cast<uint16_t> (MulDiv (xPx - vp.left, 65535, vpW - 1));
-        fy = static_cast<uint16_t> (MulDiv (yPx - vp.top,  65535, vpH - 1));
+        // Leaving the viewport releases the guest mouse to wherever the
+        // firmware last put it (non-capturing contract).
+        fx     = static_cast<uint32_t> (MulDiv (xPx - vp.left, 65535, vpW - 1));
+        fy     = static_cast<uint32_t> (MulDiv (yPx - vp.top,  65535, vpH - 1));
+        target = (fx << 16) | fy;
+    }
 
-        m_machine.GetMouse()->SetHostTargetFraction (fx, fy);
+    // Behind live in reverse execution's history the mouse holds a recorded
+    // position, so the pointer's place is held instead, until the guest's
+    // mouse would move to it or the machine is live.
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+
+    if (!isGateOpen)
+    {
+        m_divergenceGate.SetMouseTarget (target);
+        PublishHeldInput();
+    }
+    else if (target.has_value())
+    {
+        m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (fx), static_cast<uint16_t> (fy));
+    }
+    else
+    {
+        m_machine.GetMouse()->ClearHostTarget();
     }
 }
 
@@ -1256,7 +1270,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         // Not behind live in reverse execution's history, where the mouse
         // holds a recorded position. The press is tracked either way, so a
         // release made behind live is injected once the machine is live.
-        // Behind live the press asks whether to discard the history ahead.
+        // Behind live the press is held until the guest reads the button.
         if (overDisplay)
         {
             isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
@@ -1645,11 +1659,18 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // //c Mouse mode: any left-release drops the guest mouse button --
     // unconditionally (not viewport-gated), so a press inside the viewport
     // released outside it can never leave the guest button stuck. Behind
-    // live the release is kept for when the machine is live again.
+    // live the release is kept for when the machine is live again, and a
+    // press held there that the guest has not read yet is dropped.
     if (IsGuestMouseActive())
     {
         isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
         m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
+    }
+
+    if (IsGuestMouseActive() && !isGateOpen)
+    {
+        m_divergenceGate.ReleaseMousePress();
+        PublishHeldInput();
     }
 
     if (IsGuestMouseActive() && isGateOpen)
@@ -2287,8 +2308,9 @@ static bool HostKeyboardLayoutIsDvorak()
 //  Joystick emulation overlays the arrows and X / Z, and only when the mode
 //  is on AND a game-port paddle bank exists. Three details matter:
 //
-//    - driveJoystick is recomputed per event, so a mode change between a
-//      press and its release is honored and nothing is left held
+//    - whether the keys drive the joystick is asked per event, so a mode
+//      change between a press and its release is honored and nothing is
+//      left held
 //    - arrows are WITHHELD from the keyboard latch in this mode; a held
 //      direction would otherwise flood $C000 and starve a game's reads
 //    - the fire buttons are re-resolved on EVERY key event, not just X / Z,
@@ -2306,6 +2328,10 @@ static bool HostKeyboardLayoutIsDvorak()
 //  paste bypasses this path entirely and calls PressKey directly -- pasted
 //  text is never remapped, matching the hardware encoder.
 //
+//  Behind live every event is held, with the key it would latch, until the
+//  replayed guest reads the keyboard where it would differ or the machine
+//  is live; the game-port side goes to the mixer at once, which holds it.
+//
 //  Always returns true: nothing here bubbles back to the framework, since the
 //  shell's escape routes live in the OnKeyDown pre-checks, not in the sink.
 //
@@ -2313,12 +2339,13 @@ static bool HostKeyboardLayoutIsDvorak()
 
 bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime     (m_machine.GetLifetimeLock(), std::try_to_lock);
     std::shared_lock<std::shared_mutex>  gate;
-    bool                                 hasKeyboard = false;
-    bool                                 isGateOpen  = false;
-    bool                                 isConfirmed = false;
-    DivergenceVerdict                    verdict     = DivergenceVerdict::Proceed;
+    bool                                 hasKeyboard  = false;
+    bool                                 isGateOpen   = false;
+    bool                                 isMachineKey = false;
+    std::optional<Byte>                  latch;
+    DivergenceVerdict                    verdict      = DivergenceVerdict::Proceed;
 
 
 
@@ -2335,40 +2362,6 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // live is released once the machine is live.
     isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
 
-    // A key into the machine while it replays history would change it: the
-    // first press asks whether to discard the history ahead, and the keys
-    // that follow wait on the answer, then for the machine to be live.
-    verdict = m_divergenceGate.JudgeKey (!isGateOpen, ev);
-
-    if (verdict == DivergenceVerdict::Hold)
-    {
-        m_divergenceGate.Hold (ev);
-        return true;
-    }
-
-    if (verdict == DivergenceVerdict::Ask)
-    {
-        m_divergenceGate.Hold (ev);
-        lifetime.unlock();
-
-        isConfirmed = AskToDiverge();
-        m_divergenceGate.Answer (isConfirmed);
-
-        if (isConfirmed)
-        {
-            m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
-        }
-
-        // Live already, the replay having caught up while the question was
-        // open: no return to live will hand the keys back, so hand them now.
-        if (isConfirmed && !IsBehindLiveForUi())
-        {
-            PostMessageW (m_hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
-        }
-
-        return true;
-    }
-
     if (ev.kind == DxuiKeyEventKind::Down && !ev.repeat)
     {
         m_heldHostInputs.OnPress (ev.vk, isGateOpen);
@@ -2378,18 +2371,29 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         m_heldHostInputs.OnRelease (ev.vk, isGateOpen);
     }
 
+    // A key into the machine while it replays history would change it. It is
+    // held, with no question, until the replayed guest reads the keyboard
+    // where the key would change what it reads, or the machine is live; the
+    // keys that follow wait with it. A key that drives the game port goes to
+    // the mixer now, which holds it there the same way.
+    verdict = m_divergenceGate.JudgeKey (!isGateOpen, ev);
+
+    if (verdict == DivergenceVerdict::Hold)
+    {
+        latch = GetHeldKeyLatch (ev, isMachineKey);
+
+        m_divergenceGate.HoldKey (ev, latch, isMachineKey);
+        RouteKeyToGamePort (ev);
+        PublishHeldInput();
+
+        return true;
+    }
+
     if (!isGateOpen)
     {
         return true;
     }
 
-    // Arrow keys double as the emulated joystick axes / the X / Z keys as
-    // fire buttons when "Map arrows to joystick" is on AND a game-port
-    // paddle bank is present. Recomputed per event so a mode change between
-    // press and release is always honored.
-    bool  driveJoystick = m_arrowsJoystick &&
-                          (m_machine.GetRefs().iieSoftSwitches != nullptr ||
-                           m_machine.GetRefs().gamePort != nullptr);
     // The guest owns every key that reaches here either way; with no keyboard
     // device there is simply nothing to deliver it to.
     hasKeyboard = m_machine.GetRefs().keyboard != nullptr;
@@ -2411,8 +2415,6 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         {
             m_machine.GetRefs().keyboard->SetKeyDown (true);
         }
-
-        ApplyAppleModifierKeys (vk, true);
 
         // TAB and Escape reach us twice: once as this keydown, and again as
         // the WM_CHAR Windows manufactures from it. The key route below is
@@ -2437,7 +2439,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // game-port paddle bank present), arrow keys are withheld from the
         // keyboard latch so a held direction cannot flood $C000 and starve a
         // joystick game's reads.
-        if (!ev.repeat && isSpecial && !(driveJoystick && AppleKeyMapping::IsArrowVk (vk)))
+        if (!ev.repeat && isSpecial && !(IsDrivingJoystickFromKeys() && AppleKeyMapping::IsArrowVk (vk)))
         {
             appleCode = m_machine.GetRefs().keyboard->PressSpecialKey (specialKey);
 
@@ -2447,33 +2449,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             }
         }
 
-        // Record the last-pressed direction per axis so opposing keys
-        // resolve last-pressed-wins, then re-resolve both axes from the
-        // current key state.
-        if (driveJoystick && AppleKeyMapping::IsArrowVk (vk))
-        {
-            if (vk == VK_LEFT || vk == VK_RIGHT)
-            {
-                m_lastHorizontalArrowVk = vk;
-            }
-            else
-            {
-                m_lastVerticalArrowVk = vk;
-            }
-
-            UpdateJoystickAxesFromKeys();
-        }
-
-        // Re-resolve the joystick fire buttons on every key event in
-        // joystick mode (not just on X / Z) so that an Alt press/release
-        // re-applies its Open/Closed-Apple mapping without clobbering a
-        // still-held X / Z, and a released X / Z can't leave a button stuck
-        // while Alt is down. The matching X / Z WM_CHAR is suppressed in
-        // OnChar so the letters don't also type into the //e keyboard latch.
-        if (driveJoystick)
-        {
-            UpdateJoystickButtonsFromKeys();
-        }
+        RouteKeyToGamePort (ev);
     }
     else if (hasKeyboard && ev.kind == DxuiKeyEventKind::Up)
     {
@@ -2501,6 +2477,103 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             m_machine.GetRefs().keyboard->EndKeyRepeat();
         }
 
+        RouteKeyToGamePort (ev);
+    }
+    else if (hasKeyboard && ev.vk <= 127)   // DxuiKeyEventKind::Char
+    {
+        // $00 is a real character: Windows sends it for Ctrl+Shift+2, the
+        // PC's Ctrl+@, and some games wait for it.
+        Byte  code = MapHostCharToApple (ev.vk);
+
+        m_machine.GetRefs().keyboard->PressKey (code);
+        m_machine.GetRefs().keyboard->BeginKeyRepeat (code);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDrivingJoystickFromKeys
+//
+//  Arrow keys double as the emulated joystick axes / the X / Z keys as fire
+//  buttons when "Map arrows to joystick" is on AND a game-port paddle bank
+//  is present. Asked per event so a mode change between press and release
+//  is always honored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDrivingJoystickFromKeys() const
+{
+    return m_arrowsJoystick &&
+           (m_machine.GetRefs().iieSoftSwitches != nullptr || m_machine.GetRefs().gamePort != nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RouteKeyToGamePort
+//
+//  The game-port side of a key event: the //e's Open and Closed Apple and
+//  Shift lines, and with the joystick on the keys, the arrows' axes and the
+//  fire buttons. Each goes through the mixer, which writes it live and holds
+//  it behind live.
+//
+//  Opposing arrows resolve last-pressed-wins via the per-axis memory, which
+//  is what makes a quick left-right reversal read as a reversal rather than
+//  as centered. The fire buttons are re-resolved on EVERY key event in
+//  joystick mode, not just X / Z, so an Alt press/release re-applies its
+//  Open/Closed-Apple mapping without clobbering a still-held X / Z, and a
+//  released X / Z can't leave a button stuck while Alt is down. The matching
+//  X / Z WM_CHAR is suppressed in OnChar so the letters don't also type into
+//  the //e keyboard latch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RouteKeyToGamePort (const DxuiKeyEvent & ev)
+{
+    WPARAM  vk            = ev.vk;
+    bool    driveJoystick = IsDrivingJoystickFromKeys();
+
+
+
+    if (m_machine.GetRefs().keyboard == nullptr)
+    {
+        return;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        ApplyAppleModifierKeys (vk, true);
+
+        if (driveJoystick && AppleKeyMapping::IsArrowVk (vk))
+        {
+            if (vk == VK_LEFT || vk == VK_RIGHT)
+            {
+                m_lastHorizontalArrowVk = vk;
+            }
+            else
+            {
+                m_lastVerticalArrowVk = vk;
+            }
+
+            UpdateJoystickAxesFromKeys();
+        }
+
+        if (driveJoystick)
+        {
+            UpdateJoystickButtonsFromKeys();
+        }
+    }
+    else if (ev.kind == DxuiKeyEventKind::Up)
+    {
         // Release the //e Open/Closed-Apple and Shift modifiers as the host
         // releases the physical keys.
         ApplyAppleModifierKeys (vk, false);
@@ -2515,47 +2588,101 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             UpdateJoystickButtonsFromKeys();
         }
     }
-    else if (hasKeyboard)   // DxuiKeyEventKind::Char
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapHostCharToApple
+//
+//  A typed character as the keyboard will latch it. The //c keyboard switch
+//  remaps to Dvorak when engaged; the host's own layout is probed live and
+//  pushed in, so a host that is ALREADY Dvorak skips the remap instead of
+//  translating twice. Clipboard paste bypasses this path entirely and calls
+//  PressKey directly -- pasted text is never remapped, matching the hardware
+//  encoder.
+//
+//  Caps Lock brackets the remap. The host's comes out first, so the remap
+//  sees the key the user pressed with only Shift applied; the emulated one
+//  goes on last, because the encoder raises the letter a key produces, and
+//  on Dvorak some QWERTY letter keys produce punctuation it must leave
+//  alone. Paste skips both, keeping its case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte EmulatorShell::MapHostCharToApple (WPARAM ch)
+{
+    Byte  code         = static_cast<Byte> (ch);
+    bool  hostCapsLock = (GetKeyState (VK_CAPITAL) & 1) != 0;
+
+
+
+    code = CapsLockTracker::RemoveHostCapsLock (code, hostCapsLock);
+
+    if (m_machine.GetRefs().iieKeyboard != nullptr)
     {
-        WPARAM  ch = ev.vk;
+        m_machine.GetRefs().iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
 
-        // $00 is a real character: Windows sends it for Ctrl+Shift+2, the
-        // PC's Ctrl+@, and some games wait for it.
-        if (ch <= 127)
-        {
-            // //c keyboard switch: remap physical keystrokes to Dvorak when the
-            // switch is engaged. A no-op on the //e, when the switch is out, and
-            // when the HOST layout is already Dvorak (the shell feeds that live
-            // so MapTypedChar can skip the remap and avoid double-translating).
-            // Clipboard paste feeds PressKey directly (not this path), so pasted
-            // text is never remapped -- matching the hardware encoder.
-            //
-            // Caps Lock brackets the remap. The host's comes out first, so the
-            // remap sees the key the user pressed with only Shift applied; the
-            // emulated one goes on last, because the encoder raises the letter
-            // a key produces, and on Dvorak some QWERTY letter keys produce
-            // punctuation it must leave alone. Paste skips both, keeping its
-            // case.
-            Byte  code         = static_cast<Byte> (ch);
-            bool  hostCapsLock = (GetKeyState (VK_CAPITAL) & 1) != 0;
-
-            code = CapsLockTracker::RemoveHostCapsLock (code, hostCapsLock);
-
-            if (m_machine.GetRefs().iieKeyboard != nullptr)
-            {
-                m_machine.GetRefs().iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
-
-                code = m_machine.GetRefs().iieKeyboard->MapTypedChar (code);
-            }
-
-            code = CapsLockTracker::ApplyCapsLock (code, m_capsLock.IsOn (hostCapsLock));
-
-            m_machine.GetRefs().keyboard->PressKey (code);
-            m_machine.GetRefs().keyboard->BeginKeyRepeat (code);
-        }
+        code = m_machine.GetRefs().iieKeyboard->MapTypedChar (code);
     }
 
-    return true;
+    return CapsLockTracker::ApplyCapsLock (code, m_capsLock.IsOn (hostCapsLock));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHeldKeyLatch
+//
+//  Behind live, what a key event will leave in the latch once it goes in: a
+//  fresh press of a special key the machine has, unless the arrows drive the
+//  joystick, or a typed character. Whether the event is a key this
+//  machine's keyboard has decides whether it holds any-key-down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Byte> EmulatorShell::GetHeldKeyLatch (
+    const DxuiKeyEvent  & ev,
+    bool                & outIsMachineKey)
+{
+    AppleKeyboard        * keyboard   = m_machine.GetRefs().keyboard;
+    AppleSpecialKey        specialKey = AppleSpecialKey::Left;
+    bool                   isSpecial  = false;
+    Byte                   code       = 0;
+    std::optional<Byte>    latch;
+
+
+
+    outIsMachineKey = false;
+
+    if (keyboard == nullptr)
+    {
+        return latch;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        isSpecial       = AppleKeyMapping::TryMapVkToSpecialKey (ev.vk, specialKey);
+        code            = isSpecial ? keyboard->MapSpecialKey (specialKey) : 0;
+        outIsMachineKey = !isSpecial || code != 0;
+
+        if (!ev.repeat && code != 0 && !(IsDrivingJoystickFromKeys() && AppleKeyMapping::IsArrowVk (ev.vk)))
+        {
+            latch = keyboard->GetTypedLatch (code);
+        }
+    }
+    else if (ev.kind == DxuiKeyEventKind::Char && ev.vk <= 127)
+    {
+        latch = keyboard->GetTypedLatch (MapHostCharToApple (ev.vk));
+    }
+
+    return latch;
 }
 
 
@@ -3782,18 +3909,23 @@ void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
 //  The notice appears only when the paste actually differs from the
 //  clipboard, which is the moment the user can see the result and wonder why.
 //
-//  Behind live a paste goes through the same question as any other input
-//  to the machine: a yes discards the history after this point and the text
-//  types in live, a no drops it.
+//  Behind live a paste is held as typed keys are: its text waits in the
+//  buffer, which drains only once the machine is live, and the question
+//  whether to discard the history after this point waits until the guest
+//  reads the keyboard where the first character would change what it reads.
+//  A yes types the text in live from there, a no drops it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PasteClipboardText()
 {
-    bool  hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
-    bool  hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
-    bool  capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
-    bool  raisedLetters  = false;
+    bool    hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
+    bool    hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
+    bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
+    bool    raisedLetters  = false;
+    bool    isBehindLive   = IsBehindLiveForUi();
+    Byte    first          = 0;
+    size_t  length         = 0;
 
 
 
@@ -3802,7 +3934,19 @@ void EmulatorShell::PasteClipboardText()
         return;
     }
 
+    if (isBehindLive && !m_divergenceGate.HasHeldPaste())
+    {
+        m_pasteLengthBeforeHold = m_clipboardManager->GetPasteLength (first);
+    }
+
     raisedLetters = m_clipboardManager->PasteFromClipboard (m_hwnd, capsLockOn);
+    length        = m_clipboardManager->GetPasteLength (first);
+
+    if (isBehindLive && length > m_pasteLengthBeforeHold && m_machine.GetRefs().keyboard != nullptr)
+    {
+        m_divergenceGate.HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
+        PublishHeldInput();
+    }
 
     if (raisedLetters)
     {

@@ -7,6 +7,7 @@
 #include "Core/MemoryBus.h"
 #include "Debugger/IDiagnosticsProvider.h"
 
+class HeldInputWatch;
 class IInputEventSink;
 class InputJournal;
 struct InputRecord;
@@ -122,6 +123,13 @@ public:
     // changed since it was last seen, as a read would.
     virtual void SampleHostInputs();
 
+    // Reverse execution, behind live: while attached, a read the input held
+    // back would change is reported to the watch. Null detaches.
+    void SetHeldInputWatch (HeldInputWatch * watch) { m_heldInputWatch = watch; }
+
+    // The latch a typed character leaves, strobe set, as PressKey sets it.
+    Byte GetTypedLatch (Byte asciiChar) const { return static_cast<Byte> (TranslateTypedChar (asciiChar) | 0x80); }
+
     // Latch a key from the CPU thread when the caller journals the key
     // itself (a paste), so the next read does not record it a second time.
     void PressKeyOnCpuThread (Byte asciiChar);
@@ -209,9 +217,10 @@ protected:
     // the CPU thread itself rewrites it (reset, load).
     virtual void SyncObservedInputs();
 
-    InputJournal * m_inputJournal     = nullptr;
-    Byte           m_observedLatch    = 0;
-    bool           m_observedKeyDown  = false;
+    InputJournal   * m_inputJournal     = nullptr;
+    HeldInputWatch * m_heldInputWatch   = nullptr;
+    Byte             m_observedLatch    = 0;
+    bool             m_observedKeyDown  = false;
 
     // m_latchedKey bit 7 = strobe (new key available).  Atomic because
     // PressKey is called from the UI thread while Read is called from

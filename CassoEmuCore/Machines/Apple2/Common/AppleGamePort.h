@@ -6,6 +6,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 
+class HeldInputWatch;
 class IInputEventSink;
 class SiriusJoyport;
 class InputJournal;
@@ -76,6 +77,10 @@ public:
     // staged since it was last seen, as a read would.
     void SampleHostInputs();
 
+    // Reverse execution, behind live: while attached, a button or paddle read
+    // the input held back would change is reported to the watch.
+    void SetHeldInputWatch (HeldInputWatch * watch) { m_heldInputWatch = watch; }
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
@@ -120,6 +125,7 @@ protected:
     const SiriusJoyport  * m_joyport                                    = nullptr;
     const uint64_t       * m_cpuCycleSource                             = nullptr;
     InputJournal         * m_inputJournal                               = nullptr;
+    HeldInputWatch       * m_heldInputWatch                             = nullptr;
     bool                   m_observedButton[s_knButtonCount]            = {};
     Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
     uint64_t               m_paddleTriggerCycle                         = 0;

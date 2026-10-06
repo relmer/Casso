@@ -2544,6 +2544,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     {
         std::vector<DxuiKeyEvent>  held;
         std::vector<HeldInput>     heldInputs;
+        std::optional<uint32_t>    mouseTarget;
 
 
 
@@ -2565,9 +2566,11 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
             SyncJoyport();
         }
 
-        // Keys and other inputs that asked to discard history, and were told
-        // yes, land now.
+        // Input held behind live lands now: told yes at a read, or never
+        // read before the replay reached live.
+        mouseTarget = m_divergenceGate.GetMouseTarget();
         m_divergenceGate.TakeHeld (held, heldInputs);
+        PublishHeldInput();
 
         for (const DxuiKeyEvent & ev : held)
         {
@@ -2576,14 +2579,28 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         ApplyHeldInputs (heldInputs);
 
+        if (mouseTarget.has_value())
+        {
+            ApplyHeldMouseTarget (*mouseTarget);
+        }
+
+        ResumeAfterHeldInput();
+
         return DxuiMessageResult::Handled;
     }
 
-    // A game-port change, the guest mouse's button or the //c's 80/40 switch
-    // behind live waits on this question.
+    // The //c's 80/40 switch behind live waits on this question.
     if (msg == WM_APP_CONFIRM_INPUT)
     {
         OnConfirmInputDiverge();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // The replay stopped where the guest reads input held behind live.
+    if (msg == WM_APP_HELD_INPUT_READ)
+    {
+        OnHeldInputRead();
 
         return DxuiMessageResult::Handled;
     }

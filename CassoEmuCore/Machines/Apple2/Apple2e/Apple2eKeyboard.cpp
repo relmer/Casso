@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/HeldInputWatch.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
@@ -133,11 +134,15 @@ Byte Apple2eKeyboard::Read (Word address)
 
 Byte Apple2eKeyboard::ReadButton (Word address)
 {
-    int   index    = static_cast<int> (address - kFirstButtonAddress);
-    Byte  value    = 0;
-    bool  isHost   = false;
-    bool  isDown   = false;
-    Byte  joyValue = 0;
+    constexpr int  kOpenAppleButton   = 0;
+    constexpr int  kClosedAppleButton = 1;
+    constexpr int  kShiftButton       = 2;
+    int            index              = static_cast<int> (address - kFirstButtonAddress);
+    Byte           value              = 0;
+    bool           isHost             = false;
+    bool           isHeld             = false;
+    bool           isDown             = false;
+    Byte           joyValue           = 0;
 
 
 
@@ -154,8 +159,14 @@ Byte Apple2eKeyboard::ReadButton (Word address)
             ObserveLine (InputLine::OpenApple, isHost);
         }
 
-        isDown = isHost || m_holdOpenApple.load (memory_order_acquire);
+        isHeld = m_holdOpenApple.load (memory_order_acquire);
+        isDown = isHost || isHeld;
         value  = isDown ? 0x80 : 0x00;
+
+        if (m_heldInputWatch != nullptr && !isHeld)
+        {
+            m_heldInputWatch->CheckButton (kOpenAppleButton, isHost);
+        }
     }
     else if (address == 0xC062)
     {
@@ -166,8 +177,14 @@ Byte Apple2eKeyboard::ReadButton (Word address)
             ObserveLine (InputLine::ClosedApple, isHost);
         }
 
-        isDown = isHost || m_holdClosedApple.load (memory_order_acquire);
+        isHeld = m_holdClosedApple.load (memory_order_acquire);
+        isDown = isHost || isHeld;
         value  = isDown ? 0x80 : 0x00;
+
+        if (m_heldInputWatch != nullptr && !isHeld)
+        {
+            m_heldInputWatch->CheckButton (kClosedAppleButton, isHost);
+        }
     }
     else if (m_mouse != nullptr)
     {
@@ -180,6 +197,11 @@ Byte Apple2eKeyboard::ReadButton (Word address)
         if (m_inputJournal != nullptr)
         {
             ObserveLine (InputLine::Shift, isHost);
+        }
+
+        if (m_heldInputWatch != nullptr)
+        {
+            m_heldInputWatch->CheckButton (kShiftButton, isHost);
         }
 
         value = isHost ? 0x80 : 0x00;

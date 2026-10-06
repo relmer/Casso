@@ -469,3 +469,48 @@ Byte ClipboardManager::DrainPasteBuffer (uint32_t cyclesElapsed)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPasteLength
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ClipboardManager::GetPasteLength (Byte & outFirst) const
+{
+    std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+
+
+    outFirst = m_pasteBuffer.empty() ? 0 : static_cast<Byte> (m_pasteBuffer[0]);
+
+    return m_pasteBuffer.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TruncatePaste
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ClipboardManager::TruncatePaste (size_t length)
+{
+    std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+
+
+    if (length < m_pasteBuffer.size())
+    {
+        m_pasteBuffer.resize (length);
+    }
+}
+
+
+
+

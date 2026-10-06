@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Devices/IInputEventSink.h"
 
@@ -69,6 +70,11 @@ Byte AppleKeyboard::Read (Word address)
             ObserveLatch (value);
         }
 
+        if (m_heldInputWatch != nullptr)
+        {
+            m_heldInputWatch->CheckLatch (value);
+        }
+
         EmitKbdDataRead (address, value);
     }
     else if (address >= 0xC010 && address <= 0xC01F)
@@ -84,6 +90,11 @@ Byte AppleKeyboard::Read (Word address)
             ObserveLatch   (old);
             ObserveKeyDown (isDown);
             m_observedLatch = value;
+        }
+
+        if (m_heldInputWatch != nullptr)
+        {
+            m_heldInputWatch->CheckKeyDown (isDown);
         }
 
         // Return the key with bit 7 reflecting any-key-down state

@@ -61,9 +61,9 @@ public:
 
     void SetInputGate (HostInputGate * inputGate) { m_inputGate = inputGate; }
 
-    // Behind live, a write the input gate refuses is judged here, and
-    // requestAsk is called when it would change what the machine reads.
-    void SetDivergenceGate (DivergenceGate * divergenceGate, std::function<void()> requestAsk);
+    // Behind live, a write the input gate blocks is held here, line by line,
+    // and onHeld is called so the shell can watch for the guest reading it.
+    void SetDivergenceGate (DivergenceGate * divergenceGate, std::function<void()> onHeld);
 
     bool TryApply (const GamePortState & target, const GamePortState * lastApplied) override;
 
@@ -72,7 +72,6 @@ private:
     static void           WritePaddles (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
     static void           WriteButtons (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
     static void           WriteJacks   (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
-    static GamePortState  ReadRecorded (const GamePortTargets & targets);
     static void           MaskUnread   (const GamePortTargets & targets, GamePortState & state);
 
     void                  JudgeBehindLive (const GamePortTargets & targets, const GamePortState & target, const GamePortState * lastApplied);
@@ -80,6 +79,6 @@ private:
     std::shared_mutex      & m_lifetimeLock;
     HostInputGate          * m_inputGate      = nullptr;
     DivergenceGate         * m_divergenceGate = nullptr;
-    std::function<void()>    m_requestAsk;
+    std::function<void()>    m_onHeld;
     TargetsFn                m_getTargets;
 };

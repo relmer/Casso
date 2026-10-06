@@ -44,10 +44,10 @@ MachineGamePortSink::MachineGamePortSink (
 
 void MachineGamePortSink::SetDivergenceGate (
     DivergenceGate         * divergenceGate,
-    std::function<void()>    requestAsk)
+    std::function<void()>    onHeld)
 {
     m_divergenceGate = divergenceGate;
-    m_requestAsk     = std::move (requestAsk);
+    m_onHeld         = std::move (onHeld);
 }
 
 
@@ -63,8 +63,8 @@ void MachineGamePortSink::SetDivergenceGate (
 //  and the mixer keeps the state pending until the machine is live again. A
 //  machine with no game port accepts the state and writes nothing (FR-017).
 //
-//  Behind live the refused state is judged against the recording, so a real
-//  press or deflection asks whether to discard the history ahead.
+//  Behind live the refused state is held, line by line, until the guest reads
+//  a line it changes or the machine is live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,9 +106,8 @@ bool MachineGamePortSink::TryApply (const GamePortState & target, const GamePort
 //
 //  JudgeBehindLive
 //
-//  The three states compared see only the lines the machine reads, so a
-//  line it has no wire for, or one the Joyport stands in front of, never
-//  asks.
+//  The states compared see only the lines the machine reads, so a line it
+//  has no wire for, or one the Joyport stands in front of, is never held.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,10 +116,8 @@ void MachineGamePortSink::JudgeBehindLive (
     const GamePortState    & target,
     const GamePortState    * lastApplied)
 {
-    GamePortState      lastWritten;
-    GamePortState      wanted   = target;
-    GamePortState      recorded = ReadRecorded (targets);
-    DivergenceVerdict  verdict  = DivergenceVerdict::Proceed;
+    GamePortState  lastWritten;
+    GamePortState  wanted = target;
 
 
 
@@ -136,71 +133,13 @@ void MachineGamePortSink::JudgeBehindLive (
 
     MaskUnread (targets, lastWritten);
     MaskUnread (targets, wanted);
-    MaskUnread (targets, recorded);
 
-    verdict = m_divergenceGate->JudgeGamePort (true, lastWritten, wanted, recorded);
+    m_divergenceGate->JudgeGamePort (true, lastWritten, wanted);
 
-    if (verdict == DivergenceVerdict::Ask && m_requestAsk)
+    if (m_onHeld)
     {
-        m_requestAsk();
+        m_onHeld();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReadRecorded
-//
-//  Behind live the devices hold what the recording has the machine reading.
-//  On the //e the buttons are the keyboard's Apple keys and Shift line.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-GamePortState MachineGamePortSink::ReadRecorded (const GamePortTargets & targets)
-{
-    constexpr int   kOpenAppleButton  = 0;
-    constexpr int   kSolidAppleButton = 1;
-    constexpr int   kShiftButton      = 2;
-    GamePortState   recorded;
-    int             axisCount         = static_cast<int> (std::min (targets.axisCount, recorded.paddle.size()));
-
-
-
-    for (int axis = 0; axis < axisCount; axis++)
-    {
-        if (targets.gamePort != nullptr)
-        {
-            recorded.paddle[axis] = targets.gamePort->GetPaddle (axis);
-        }
-        else if (targets.iieSwitches != nullptr)
-        {
-            recorded.paddle[axis] = targets.iieSwitches->GetPaddle (axis);
-        }
-    }
-
-    if (targets.iieKeyboard != nullptr)
-    {
-        recorded.buttons.set (kOpenAppleButton,  targets.iieKeyboard->IsOpenApplePressed());
-        recorded.buttons.set (kSolidAppleButton, targets.iieKeyboard->IsClosedApplePressed());
-        recorded.buttons.set (kShiftButton,      targets.iieKeyboard->IsShiftPressed());
-    }
-    else if (targets.gamePort != nullptr)
-    {
-        for (int index = 0; index < static_cast<int> (recorded.buttons.size()); index++)
-        {
-            recorded.buttons.set (index, targets.gamePort->IsButtonPressed (index));
-        }
-    }
-
-    for (size_t jack = 0; targets.joyport != nullptr && jack < JoyportJacks::kJackCount; jack++)
-    {
-        recorded.jacks.jack[jack] = targets.joyport->GetJackSwitches (jack);
-    }
-
-    return recorded;
 }
 
 

@@ -11,6 +11,7 @@ class IVideoTiming;
 class IInputEventSink;
 class IRomBankSwitch;
 class SiriusJoyport;
+class HeldInputWatch;
 class InputJournal;
 struct InputRecord;
 
@@ -109,6 +110,10 @@ public:
     // thread staged since it was last seen, as a read would.
     void SampleHostInputs();
 
+    // Reverse execution, behind live: while attached, a paddle read the input
+    // held back would change is reported to the watch.
+    void SetHeldInputWatch (HeldInputWatch * watch) { m_heldInputWatch = watch; }
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
@@ -163,6 +168,7 @@ private:
     const uint64_t       * m_cpuCycleSource                             = nullptr;
     const SiriusJoyport  * m_joyport                                    = nullptr;
     InputJournal         * m_inputJournal                               = nullptr;
+    HeldInputWatch       * m_heldInputWatch                             = nullptr;
     Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
     uint64_t               m_paddleTriggerCycle                         = 0;
     bool                   m_80colMode                                  = false;

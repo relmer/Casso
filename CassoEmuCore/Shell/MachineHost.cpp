@@ -7,6 +7,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/RomDevice.h"
@@ -580,6 +581,54 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::SetHeldInputWatch
+//
+//  The devices whose reads see host input, pointed at the watch or at
+//  nothing, with the watch told where the machine's position is kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetHeldInputWatch (HeldInputWatch * watch)
+{
+    m_heldInputWatch = watch;
+
+    if (watch != nullptr)
+    {
+        watch->SetPositionSource (&m_position);
+    }
+
+    if (m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->SetHeldInputWatch (watch);
+    }
+
+    if (m_refs.gamePort != nullptr)
+    {
+        m_refs.gamePort->SetHeldInputWatch (watch);
+    }
+
+    if (m_refs.iieSoftSwitches != nullptr)
+    {
+        m_refs.iieSoftSwitches->SetHeldInputWatch (watch);
+    }
+
+    if (m_mouse != nullptr)
+    {
+        m_mouse->SetHeldInputWatch (watch);
+    }
+
+    if (m_joyport != nullptr)
+    {
+        m_joyport->SetHeldInputWatch (watch);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SampleHostInputs
 //
 //  A key pressed or a paddle moved between two guest reads is in the live
@@ -823,6 +872,13 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
         // A hook stop returns a short slice: StepOne declined to execute, or
         // the instruction it just ran raised a stop for the next boundary.
         if (m_debugHook != nullptr && (cycles == 0 || (m_debugHook->GetFilter().everyInstruction && m_debugHook->HasPendingStop())))
+        {
+            break;
+        }
+
+        // The instruction just run read a line the input held back behind
+        // live would change: the caller puts the machine back before it.
+        if (m_heldInputWatch != nullptr && m_heldInputWatch->HasHit())
         {
             break;
         }

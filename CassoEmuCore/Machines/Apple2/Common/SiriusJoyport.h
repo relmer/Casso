@@ -6,6 +6,7 @@
 #include "Debugger/Reverse/InputJournal.h"
 
 class AppleSoftSwitchBank;
+class HeldInputWatch;
 
 
 
@@ -68,6 +69,10 @@ public:
     // changed since it was last seen, as a read would.
     void  SampleHostInputs();
 
+    // Reverse execution, behind live: while attached, a switch read the input
+    // held back would change is reported to the watch.
+    void  SetHeldInputWatch (HeldInputWatch * watch) { m_heldInputWatch = watch; }
+
     // IMachineState: the jack switches, whether the Joyport is attached and
     // the rear sockets are in use, and the reset window. Version 1 held no
     // attached setting or sockets, so loading it leaves both as they are.
@@ -114,6 +119,7 @@ protected:
     bool                         m_hasResetStamp       = false;
 
     InputJournal               * m_inputJournal        = nullptr;
+    HeldInputWatch             * m_heldInputWatch      = nullptr;
     mutable bool                 m_observedAttached    = false;
     mutable bool                 m_observedPaddles     = false;
     mutable ObservedJacks        m_observedJacks       = {};

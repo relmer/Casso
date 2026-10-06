@@ -6,6 +6,7 @@
 #include "Core/ICycleSink.h"
 #include "Core/IInterruptController.h"
 
+class HeldInputWatch;
 class IVideoTiming;
 class MemoryBus;
 class InputJournal;
@@ -108,6 +109,10 @@ public:
     // and motion not yet taken in, where each changed since last seen.
     void    SampleHostInputs();
 
+    // Reverse execution, behind live: while attached, a button read or a
+    // retarget pass the input held back would change is reported to the watch.
+    void    SetHeldInputWatch (HeldInputWatch * watch) { m_heldInputWatch = watch; }
+
     // ICycleSink (CPU thread, from EmuCpu::AddCycles)
 
     // Cadence for the mouse's per-tick bookkeeping (retarget countdown, VBL
@@ -169,6 +174,8 @@ public:
 protected:
     void    UpdateIrqLines();
     void    RetargetFromHoles  (uint32_t cpuCycles);
+    bool    TryProjectTarget   (uint32_t target, int & outPendingX, int & outPendingY) const;
+    void    CheckHeldTarget    ();
     void    ObserveButton      (bool isDown) const;
     void    SyncObservedInputs ();
 
@@ -200,6 +207,7 @@ protected:
     // The host state the journal last saw (CPU thread, journal attached).
     // The button is read by a const status read, so it is mutable.
     InputJournal     * m_inputJournal      = nullptr;
+    HeldInputWatch   * m_heldInputWatch    = nullptr;
     mutable bool       m_observedButton    = false;
     bool               m_observedHasTarget = false;
     uint32_t           m_observedTarget    = 0;

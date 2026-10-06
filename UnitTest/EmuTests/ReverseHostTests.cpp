@@ -486,10 +486,10 @@ public:
 
 
     //  Owner report 2026-10-05: rewound in a game and played on, a joystick
-    //  moved behind live asked nothing. Judged against what the recording has
-    //  the machine reading, the recorded position asks nothing, and a
-    //  deflection or a button press asks; neither is written.
-    TEST_METHOD (AStickOrButtonBehindLiveAsksToDiscardHistory)
+    //  moved behind live asked nothing. Behind live nothing is written: a
+    //  deflection or a button press is held, line by line, for the guest's
+    //  reads to judge, and a position the host already held is not.
+    TEST_METHOD (AStickOrButtonBehindLiveIsHeldNotWritten)
     {
         constexpr Byte       kRecorded = 0;
         constexpr Byte       kFarEnd   = 255;
@@ -500,16 +500,15 @@ public:
         ReverseResult        result;
         HRESULT              hr        = S_OK;
         GamePortState        rest;
-        GamePortState        recorded;
         GamePortState        deflected;
         GamePortState        pressed;
-        int                  asks      = 0;
+        int                  helds     = 0;
         bool                 isApplied = false;
 
 
 
         sink.SetInputGate      (&machine.GetHostInputGate());
-        sink.SetDivergenceGate (&gate, [&asks] () { asks++; });
+        sink.SetDivergenceGate (&gate, [&helds] () { helds++; });
 
         PrepareRecording (machine, host);
 
@@ -518,30 +517,30 @@ public:
 
         Assert::AreEqual<int> (kRecorded, machine.GetRefs().iieSoftSwitches->GetPaddle (0), L"the recording has paddle 0 at its near end");
 
-        recorded.paddle[0]  = kRecorded;
         deflected.paddle[0] = kFarEnd;
         pressed.buttons.set (0);
 
-        isApplied = sink.TryApply (recorded, &rest);
+        isApplied = sink.TryApply (rest, &rest);
 
         Assert::IsFalse (isApplied, L"behind live nothing is written");
-        Assert::AreEqual (0, asks, L"the recorded position changes nothing");
+        Assert::IsFalse (gate.IsHolding(), L"the state the host held holds nothing");
 
         isApplied = sink.TryApply (deflected, &rest);
 
-        Assert::IsFalse (isApplied, L"nor while the question is open");
-        Assert::AreEqual (1, asks, L"a deflection asks");
+        Assert::IsFalse (isApplied);
+        Assert::IsTrue  (gate.IsHolding(), L"a deflection is held");
+        Assert::IsFalse (gate.IsAsking(),  L"with no question yet");
+        Assert::IsTrue  (gate.GetHeldLines().paddles[0] == std::optional<Byte> (kFarEnd));
         Assert::AreEqual<int> (kRecorded, machine.GetRefs().iieSoftSwitches->GetPaddle (0), L"the paddle kept its recorded value");
-
-        gate.Answer (false);
 
         isApplied = sink.TryApply (pressed, &rest);
 
         Assert::IsFalse (isApplied);
-        Assert::AreEqual (2, asks, L"Open Apple pressed asks");
+        Assert::IsTrue  (gate.GetHeldLines().buttons[0] == std::optional<bool> (true), L"Open Apple pressed is held");
+        Assert::IsFalse (gate.GetHeldLines().paddles[0].has_value(), L"and the stick let go of is not");
         Assert::IsFalse (machine.GetRefs().iieKeyboard->IsOpenApplePressed(), L"Open Apple kept its recorded state");
+        Assert::AreEqual (3, helds, L"the shell hears of each refused write");
     }
-
 
     TEST_METHOD (AHeldGateTurnsAWriterAway)
     {

@@ -226,6 +226,7 @@
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
     <ClCompile Include="Debugger\Reverse\DivergenceGate.cpp" />
+    <ClCompile Include="Debugger\Reverse\HeldInputWatch.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryStatus.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
     <ClCompile Include="Shell\EmulatorShellReverse.cpp" />
@@ -685,6 +686,7 @@
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
     <ClInclude Include="Debugger\Reverse\ReverseHost.h" />
     <ClInclude Include="Debugger\Reverse\DivergenceGate.h" />
+    <ClInclude Include="Debugger\Reverse\HeldInputWatch.h" />
     <ClInclude Include="Debugger\Reverse\ReverseStopTest.h" />
     <ClInclude Include="Debugger\Reverse\HistoryStatus.h" />
     <ClInclude Include="Debugger\Reverse\ReverseOutcome.h" />

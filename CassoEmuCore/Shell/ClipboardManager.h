@@ -66,6 +66,12 @@ public:
     // -- the settle pacing below is measured in guest time.
     Byte  DrainPasteBuffer   (uint32_t cyclesElapsed);
 
+    // The queued text's length and, when there is any, the character it
+    // types first; and the queue cut back to a length it had before, which
+    // drops what was pasted since.
+    size_t  GetPasteLength    (Byte & outFirst) const;
+    void    TruncatePaste     (size_t length);
+
     // Screen-text scrape, factored out of CopyScreenText so it can be unit
     // tested without the Win32 clipboard. Returns CRLF-terminated rows with
     // trailing spaces trimmed.

@@ -2031,7 +2031,8 @@ bool ReverseController::IsStopDue (
 //
 //  The machine is at the end of history: the journal records again and the
 //  keyframes fall due on their own schedule, or, while paused, recording
-//  stops where the machine stands. The automatic disk flushes resume.
+//  stops where the machine stands. The automatic disk flushes resume, and
+//  the watch on input held back behind live comes off the devices.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2044,6 +2045,8 @@ void ReverseController::BecomeLive()
     m_machine.GetDiskStore().SetFlushHold (false);
     m_machine.GetDiskStore().SetReplaying (false);
     m_machine.SetOutputMuted (false);
+
+    m_machine.SetHeldInputWatch (nullptr);
 
     DiscardStepTable();
     DiscardCallerLinks();

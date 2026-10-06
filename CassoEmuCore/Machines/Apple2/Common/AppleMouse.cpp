@@ -4,6 +4,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Core/MemoryBus.h"
+#include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/IVideoTiming.h"
 
@@ -224,6 +225,8 @@ void AppleMouse::RetargetFromHoles (uint32_t cpuCycles)
 {
     bool      hasTarget = m_hasTarget.load (std::memory_order_acquire);
     uint32_t  target    = m_hostTarget.load (std::memory_order_acquire);
+    int       pendingX  = 0;
+    int       pendingY  = 0;
 
 
 
@@ -236,55 +239,128 @@ void AppleMouse::RetargetFromHoles (uint32_t cpuCycles)
         m_observedTarget    = target;
     }
 
-    // No bus, or no host position staged: nothing to project.
-    if (m_bus != nullptr && hasTarget)
+    // No host position staged: nothing to project.
+    if (hasTarget && TryProjectTarget (target, pendingX, pendingY))
     {
-        uint32_t  packed = target;
-        int       fx     = static_cast<int> (packed >> 16);
-        int       fy     = static_cast<int> (packed & 0xFFFF);
-        int       xMin   = 0;
-        int       xMax   = 0;
-        int       yMin   = 0;
-        int       yMax   = 0;
-        int       curX   = 0;
-        int       curY   = 0;
+        m_pendingX = pendingX;
+        m_pendingY = pendingY;
+    }
 
-        auto rd16 = [this] (Word lo, Word hi)
-        {
-            return static_cast<int> (m_bus->ReadByte (lo))
-                 | (static_cast<int> (m_bus->ReadByte (hi)) << 8);
-        };
+    if (m_heldInputWatch != nullptr)
+    {
+        CheckHeldTarget();
+    }
+}
 
-        xMin = rd16 (kHoleXMinLo, kHoleXMinHi);
-        xMax = rd16 (kHoleXMaxLo, kHoleXMaxHi);
-        yMin = rd16 (kHoleYMinLo, kHoleYMinHi);
-        yMax = rd16 (kHoleYMaxLo, kHoleYMaxHi);
-        curX = rd16 (kHoleXPosLo, kHoleXPosHi);
-        curY = rd16 (kHoleYPosLo, kHoleYPosHi);
 
-        // Sanity: a live clamp window is ordered, spans at most the firmware's
-        // 0..1023 default range, and contains the current position. Failing
-        // any of these means the holes are pre-INITMOUSE garbage, so the
-        // retarget is skipped entirely rather than acting on nonsense.
-        bool  holesLive = xMax > xMin && yMax > yMin
-                          && xMax - xMin <= 1023 && yMax - yMin <= 1023
-                          && curX >= xMin && curX <= xMax
-                          && curY >= yMin && curY <= yMax;
 
-        if (holesLive)
-        {
-            int  targetX = xMin + (fx * (xMax - xMin)) / 65535;
-            int  targetY = yMin + (fy * (yMax - yMin)) / 65535;
 
-            // A latched, unacknowledged unit will land as +/-1 when the
-            // firmware services it; count it as already applied so it isn't
-            // double-queued.
-            int  inFlightX = m_xInt ? (((m_mouX1 & 0x80) != 0) ? +1 : -1) : 0;
-            int  inFlightY = m_yInt ? (((m_mouY1 & 0x80) != 0) ? -1 : +1) : 0;
 
-            m_pendingX = (targetX - curX) - inFlightX;
-            m_pendingY = (targetY - curY) - inFlightY;
-        }
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryProjectTarget
+//
+//  The motion a host target asks of the firmware now: the target projected
+//  into the live clamp window, less the firmware's current position, less a
+//  latched, unacknowledged unit, which will land as +/-1 when the firmware
+//  services it and so counts as already applied. False with no bus, or while
+//  the holes are not live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleMouse::TryProjectTarget (
+    uint32_t  target,
+    int     & outPendingX,
+    int     & outPendingY) const
+{
+    constexpr int  kMaxSpan      = 1023;
+    constexpr int  kFullFraction = 65535;
+    int            fx            = static_cast<int> (target >> 16);
+    int            fy            = static_cast<int> (target & 0xFFFF);
+    int            xMin          = 0;
+    int            xMax          = 0;
+    int            yMin          = 0;
+    int            yMax          = 0;
+    int            curX          = 0;
+    int            curY          = 0;
+    int            inFlightX     = 0;
+    int            inFlightY     = 0;
+    bool           holesLive     = false;
+
+
+
+    if (m_bus == nullptr)
+    {
+        return false;
+    }
+
+    auto rd16 = [this] (Word lo, Word hi)
+    {
+        return static_cast<int> (m_bus->ReadByte (lo))
+             | (static_cast<int> (m_bus->ReadByte (hi)) << 8);
+    };
+
+    xMin = rd16 (kHoleXMinLo, kHoleXMinHi);
+    xMax = rd16 (kHoleXMaxLo, kHoleXMaxHi);
+    yMin = rd16 (kHoleYMinLo, kHoleYMinHi);
+    yMax = rd16 (kHoleYMaxLo, kHoleYMaxHi);
+    curX = rd16 (kHoleXPosLo, kHoleXPosHi);
+    curY = rd16 (kHoleYPosLo, kHoleYPosHi);
+
+    // Sanity: a live clamp window is ordered, spans at most the firmware's
+    // 0..1023 default range, and contains the current position. Failing
+    // any of these means the holes are pre-INITMOUSE garbage, so the
+    // retarget is skipped entirely rather than acting on nonsense.
+    holesLive = xMax > xMin && yMax > yMin
+                && xMax - xMin <= kMaxSpan && yMax - yMin <= kMaxSpan
+                && curX >= xMin && curX <= xMax
+                && curY >= yMin && curY <= yMax;
+
+    if (!holesLive)
+    {
+        return false;
+    }
+
+    inFlightX = m_xInt ? (((m_mouX1 & 0x80) != 0) ? +1 : -1) : 0;
+    inFlightY = m_yInt ? (((m_mouY1 & 0x80) != 0) ? -1 : +1) : 0;
+
+    outPendingX = (xMin + (fx * (xMax - xMin)) / kFullFraction - curX) - inFlightX;
+    outPendingY = (yMin + (fy * (yMax - yMin)) / kFullFraction - curY) - inFlightY;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CheckHeldTarget
+//
+//  Watch attached, after a retarget pass. The pass is where the host pointer
+//  enters the machine: the motion the held target would queue, against the
+//  motion the recorded pass left queued. Before the guest has set the mouse
+//  up the holes are not live and nothing is queued either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) void AppleMouse::CheckHeldTarget()
+{
+    const std::optional<uint32_t>  & held     = m_heldInputWatch->GetLines().mouseTarget;
+    int                              pendingX = 0;
+    int                              pendingY = 0;
+
+
+
+    if (!held.has_value() || !TryProjectTarget (*held, pendingX, pendingY))
+    {
+        return;
+    }
+
+    if (pendingX != m_pendingX || pendingY != m_pendingY)
+    {
+        m_heldInputWatch->ReportDifference();
     }
 }
 
@@ -312,6 +388,11 @@ Byte AppleMouse::ReadButton() const
     if (m_inputJournal != nullptr)
     {
         ObserveButton (isDown);
+    }
+
+    if (m_heldInputWatch != nullptr)
+    {
+        m_heldInputWatch->CheckMouseButton (isDown);
     }
 
     return isDown ? 0x00 : 0x80;

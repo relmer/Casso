@@ -441,13 +441,14 @@ void EmulatorShell::OnConfirmDiverge()
 //  HoldInputBehindLive
 //
 //  UI thread. The guest mouse's button or the //c's 80/40 switch, refused by
-//  the host input gate: held, and the first asks.
+//  the host input gate. The button is held until the guest reads it; the
+//  switch asks at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::HoldInputBehindLive (HeldInput input)
 {
-    DivergenceVerdict  verdict = m_divergenceGate.JudgeInput (true);
+    DivergenceVerdict  verdict = m_divergenceGate.JudgeInput (true, input == HeldInput::MousePress);
 
 
 
@@ -455,6 +456,8 @@ void EmulatorShell::HoldInputBehindLive (HeldInput input)
     {
         m_divergenceGate.HoldInput (input);
     }
+
+    PublishHeldInput();
 
     if (verdict == DivergenceVerdict::Ask)
     {
@@ -468,17 +471,146 @@ void EmulatorShell::HoldInputBehindLive (HeldInput input)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PublishHeldInput
+//
+//  UI thread, after any change to what is held: the lines the CPU thread
+//  watches the guest's reads of, empty unless input is held unasked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PublishHeldInput()
+{
+    m_heldInputWatch.Publish (m_divergenceGate.GetHeldLines());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StopForHeldInputRead
+//
+//  CPU thread, after a slice that ended on a read the held input would
+//  change. The machine stops, a debugger run ending as a pause does, and is
+//  put back where the reading instruction began, so a yes makes the input
+//  live before that instruction runs. Whether it was running decides
+//  whether it runs on after the answer; a debugger step stays stopped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StopForHeldInputRead()
+{
+    uint64_t  position  = m_heldInputWatch.GetHitPosition();
+    bool      isStep    = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
+    bool      isRunning = !m_cpuManager.IsPaused() && !isStep;
+
+
+
+    m_heldInputWatch.ClearHit();
+
+    m_cpuManager.SetPaused (true);
+    NotifyDebugPauseChanged (true);
+
+    RunReverseCommand (ReverseCommand::Seek, position);
+
+    m_isResumeOwedAfterHeldRead.store (isRunning, memory_order_release);
+
+    UpdateWindowTitle();
+    PostMessageW (m_hwnd, WM_APP_HELD_INPUT_READ, 0, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHeldInputRead
+//
+//  UI thread: the replay stopped where the guest reads held input. With
+//  input still held, that asks; with nothing held any more -- let go of
+//  while the message was on its way -- the replay runs on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnHeldInputRead()
+{
+    bool  isAsking = false;
+
+
+
+    // A question already open answers for this read too, and its answer runs
+    // the replay on.
+    if (m_divergenceGate.IsAsking())
+    {
+        return;
+    }
+
+    isAsking = m_divergenceGate.OnHeldInputRead();
+
+    PublishHeldInput();
+
+    if (isAsking)
+    {
+        OnConfirmInputDiverge();
+    }
+    else
+    {
+        ResumeAfterHeldInput();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResumeAfterHeldInput
+//
+//  UI thread: a replay stopped at a held read runs on, as the pause button
+//  would run it, once the question is answered and, after a yes, the input
+//  has gone in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ResumeAfterHeldInput()
+{
+    bool  isOwed = m_isResumeOwedAfterHeldRead.exchange (false, memory_order_acq_rel);
+
+
+
+    if (!isOwed)
+    {
+        return;
+    }
+
+    m_cpuManager.SetPaused (false);
+    m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
+
+    UpdateWindowTitle();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnConfirmInputDiverge
 //
 //  UI thread: asks about the input held back. A yes queues the cut; the
 //  machine going live then writes the game port as the host has it now and
-//  hands back what was held. A no drops it, and the replay goes on.
+//  hands back what was held, and a stopped replay runs on from there. A no
+//  drops it, a paste included, and the replay goes on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnConfirmInputDiverge()
 {
-    bool  isConfirmed = false;
+    bool  isConfirmed  = false;
+    bool  hasHeldPaste = m_divergenceGate.HasHeldPaste();
 
 
 
@@ -490,14 +622,24 @@ void EmulatorShell::OnConfirmInputDiverge()
     isConfirmed = AskToDiverge();
     m_divergenceGate.Answer (isConfirmed);
 
-    if (isConfirmed)
+    PublishHeldInput();
+
+    if (!isConfirmed)
     {
-        m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+        if (hasHeldPaste && m_clipboardManager != nullptr)
+        {
+            m_clipboardManager->TruncatePaste (m_pasteLengthBeforeHold);
+        }
+
+        ResumeAfterHeldInput();
+        return;
     }
+
+    m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
 
     // Live already, the replay having caught up while the question was
     // open: no return to live will hand the input back, so hand it now.
-    if (isConfirmed && !IsBehindLiveForUi())
+    if (!IsBehindLiveForUi())
     {
         PostMessageW (m_hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
     }
@@ -533,6 +675,39 @@ void EmulatorShell::ApplyHeldInputs (const std::vector<HeldInput> & inputs)
                 break;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyHeldMouseTarget
+//
+//  UI thread, the machine live: the pointer's place over the picture, held
+//  behind live, becomes the guest mouse's target, as a move there would.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyHeldMouseTarget (uint32_t target)
+{
+    HRESULT                              hr         = S_OK;
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = false;
+
+
+
+    BAIL_OUT_IF (!lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
+
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    BAIL_OUT_IF (!isGateOpen, S_OK);
+
+    m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (target >> 16), static_cast<uint16_t> (target & 0xFFFF));
+
+Error:
+    return;
 }
 
 

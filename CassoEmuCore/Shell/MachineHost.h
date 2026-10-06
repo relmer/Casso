@@ -27,6 +27,7 @@ class Apple2eMmu;
 class AppleMouse;
 class DebugHook;
 struct DebugHookFilter;
+class HeldInputWatch;
 class HistoryRecorder;
 class IDriveAudioSink;
 class SiriusJoyport;
@@ -265,6 +266,13 @@ public:
     //  With the journal off it does nothing.
     void  SampleHostInputs();
 
+    //  CPU thread: the watch on the input held back behind live, or null. Set,
+    //  the devices whose reads see host input report a read the held input
+    //  would change, and RunCycles ends after the instruction that made it;
+    //  unset, each instruction costs one pointer test.
+    void              SetHeldInputWatch (HeldInputWatch * watch);
+    HeldInputWatch *  GetHeldInputWatch () const noexcept { return m_heldInputWatch; }
+
     //  The saved state of every device whose state another thread writes
     //  (keyboard, game port, //e paddles and buttons, mouse, Joyport), as
     //  one blob, and back; see InputKind::HostState.
@@ -411,6 +419,7 @@ private:
     const bool        *  m_watchOpcodes     = nullptr;
     IOpcodeWatcher    *  m_watcher          = nullptr;
     HistoryRecorder   *  m_historyRecorder  = nullptr;
+    HeldInputWatch    *  m_heldInputWatch   = nullptr;
     IDriveAudioSink   *  m_mutedDiskAudio   = nullptr;  // the Disk II's sound sink, held while muted
     uint64_t             m_position         = 0;
     bool                 m_isOutputMuted    = false;

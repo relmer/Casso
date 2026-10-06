@@ -398,6 +398,9 @@ private:
     void ExecuteCpuSlices();
     void RenderFramebuffer();
 
+    // One slice of a frame, watching input held back behind live.
+    uint32_t  RunWatchedSlice (uint32_t sliceTarget);
+
     // Take a screenshot in the user's configured mode: copy it to the
     // clipboard, write the PNG if saving is on, and say what happened.
     // Bound to the toolbar camera, Edit > Copy screenshot, and Ctrl+Alt+C.
@@ -503,10 +506,10 @@ private:
 
     // Behind live, a change to the machine first asks whether to discard the
     // history recorded after where it stands. The command gate asks on the
-    // UI thread before a state-changing command is queued; a key into the
-    // machine asks from the viewport; a debugger edit is held back on the
-    // CPU thread, asked about on the UI thread, and run again on a yes. A
-    // yes queues IDM_DEBUG_DIVERGE ahead of the change.
+    // UI thread before a state-changing command is queued; a debugger edit is
+    // held back on the CPU thread, asked about on the UI thread, and run again
+    // on a yes. A yes queues IDM_DEBUG_DIVERGE ahead of the change. Input the
+    // guest reads asks only once the guest reads it; see below.
     bool  AllowCommand          (WORD id, const std::string & payload);
     bool  AskToDiverge          ();
     void  DivergeHistory        () override;
@@ -514,12 +517,21 @@ private:
     void  OnConfirmDiverge      ();
     bool  IsBehindLiveForUi     () { return m_machine.GetHostInputGate().IsHeld(); }
 
-    // Behind live, the game port, the guest mouse's button and the //c's
-    // 80/40 switch ask too: each is held, asked about on the UI thread, and
-    // on a yes made once the machine is live.
+    // Behind live, input the guest reads -- keys, a paste, the game port, the
+    // guest mouse -- is held without a question, and the lines it would
+    // change are published to the watch the CPU thread attaches to the
+    // devices. The first read the held input would change stops the replay,
+    // puts the machine back before that read, and asks on the UI thread; a
+    // yes makes the input live there, a no drops it, and either way a replay
+    // that was running runs on. The //c's 80/40 switch asks at once.
     void  HoldInputBehindLive           (HeldInput input);
+    void  PublishHeldInput              ();
+    void  StopForHeldInputRead          ();
+    void  OnHeldInputRead               ();
+    void  ResumeAfterHeldInput          ();
     void  OnConfirmInputDiverge         ();
     void  ApplyHeldInputs               (const std::vector<HeldInput> & inputs);
+    void  ApplyHeldMouseTarget          (uint32_t target);
     void  PressGuestMouseHeldBehindLive ();
     void  ReleaseGuestMouseAfterClick   ();
     void  ToggleHeldEightyColumnSwitch  ();
@@ -771,6 +783,13 @@ private:
 
     // Stage the emulated joystick fire buttons from the host X / Y keys.
     void    UpdateJoystickButtonsFromKeys ();
+
+    // A key event's parts: the game-port lines it drives, the character a
+    // typed key latches, and behind live, the latch a held event will leave.
+    bool                 IsDrivingJoystickFromKeys () const;
+    void                 RouteKeyToGamePort        (const DxuiKeyEvent & ev);
+    Byte                 MapHostCharToApple        (WPARAM ch);
+    std::optional<Byte>  GetHeldKeyLatch           (const DxuiKeyEvent & ev, bool & outIsMachineKey);
 
     // Hands PDL0/PDL1 to whichever host input mode currently drives them.
     void    SyncGamePortAxisOwner ();
@@ -2284,10 +2303,14 @@ private:
     DebugCommandHandler    m_debugCommandHandler;
     uint32_t               m_debugCommandClient  = 0;   // the client of the command being run, for the history guard
 
-    // The divergence question's state: the keys waiting on it, and a held
-    // debugger edit's command for the UI thread to ask about.
+    // The divergence question's state: the input held behind live and the
+    // lines it would change, and a held debugger edit's command for the UI
+    // thread to ask about.
     DivergenceGate                m_divergenceGate;
-    bool                          m_isJoyportSyncOwed = false;   // a players' change made behind live, for the Joyport once live
+    HeldInputWatch                m_heldInputWatch;                        // the held lines, published here, taken by the CPU thread
+    std::atomic<bool>             m_isResumeOwedAfterHeldRead = false;     // a replay stopped at a held read was running
+    size_t                        m_pasteLengthBeforeHold     = 0;         // the paste buffer before a paste held behind live
+    bool                          m_isJoyportSyncOwed         = false;     // a players' change made behind live, for the Joyport once live
     std::mutex                    m_divergeMutex;
     std::optional<std::string>    m_pendingDivergeCommand;
     std::mutex                    m_replayCaptionMutex;

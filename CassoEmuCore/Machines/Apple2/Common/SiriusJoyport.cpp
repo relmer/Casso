@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 
@@ -144,6 +145,11 @@ bool SiriusJoyport::TryReadButton (int index, Byte & value) const
 
     value       = switches.test (static_cast<size_t> (selected)) ? kSwitchClosed : kSwitchOpen;
     isAnswering = true;
+
+    if (m_heldInputWatch != nullptr)
+    {
+        m_heldInputWatch->CheckJackSwitch (jack, static_cast<size_t> (selected), switches.test (static_cast<size_t> (selected)));
+    }
 
 Error:
     return isAnswering;

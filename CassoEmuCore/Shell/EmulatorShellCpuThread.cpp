@@ -1095,6 +1095,44 @@ void EmulatorShell::TickKeyboardAutoRepeat()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RunWatchedSlice
+//
+//  One slice. Behind live, with input held back, the devices report a read
+//  the held input would change for this slice only, so neither a reverse
+//  command's replay nor a debugger's look at the machine between slices can
+//  count as the guest reading it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget)
+{
+    bool      isBehind   = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+    bool      isWatching = isBehind && m_heldInputWatch.Refresh();
+    uint32_t  actual     = 0;
+
+
+
+    if (isWatching)
+    {
+        m_machine.SetHeldInputWatch (&m_heldInputWatch);
+    }
+
+    actual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
+
+    if (isWatching)
+    {
+        m_machine.SetHeldInputWatch (nullptr);
+    }
+
+    return actual;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecuteCpuSlices
 //
 //  One emulated frame's worth of CPU time, cut into ~1023-cycle slices.
@@ -1230,8 +1268,17 @@ void EmulatorShell::ExecuteCpuSlices()
         // slice, here where the machine first holds it. Off, one bool test.
         m_machine.SampleHostInputs();
 
-        sliceActual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
+        sliceActual = RunWatchedSlice (sliceTarget);
         executed   += sliceActual;
+
+        // Behind live, the slice ended after a read that input held back
+        // would change: the machine stops there and the user is asked.
+        if (m_heldInputWatch.HasHit())
+        {
+            StopForHeldInputRead();
+            hasRunEnded = true;
+            break;
+        }
 
         // A debugger run ends HERE, on the thread that ran it, because this is
         // where a stop becomes observable: the hook stopped the CPU partway

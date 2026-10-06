@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
@@ -112,6 +113,11 @@ Byte AppleGamePort::ReadButton (Word address)
         {
             ObserveButton (idx, pressed);
         }
+
+        if (m_heldInputWatch != nullptr)
+        {
+            m_heldInputWatch->CheckButton (static_cast<size_t> (idx), pressed);
+        }
     }
 
     return value;
@@ -160,6 +166,10 @@ Byte AppleGamePort::ReadPaddle (Word address)
     if (m_joyport != nullptr && m_joyport->IsDrivingPaddles())
     {
         value = s_knPaddleTiming;
+    }
+    else if (m_heldInputWatch != nullptr)
+    {
+        m_heldInputWatch->CheckPaddle (static_cast<size_t> (axis), pos, elapsed, s_knPaddleCyclesPerUnit);
     }
 
     return value;
