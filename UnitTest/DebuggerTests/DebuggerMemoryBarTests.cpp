@@ -26,7 +26,7 @@ namespace DebuggerTests
     class MemoryBarHost : public IDebuggerWindowHost
     {
     public:
-        void  RunDebuggerCommand      (const std::string &)                      override {}
+        void  RunDebuggerCommand      (const std::string & line)                 override { lines.push_back (line); }
         void  PauseDebugger           ()                                         override {}
         void  SetDebuggerCodeLines    (int, int)                                 override {}
         void  SetDebuggerCodeAddress  (std::optional<Word>, int)                 override {}
@@ -43,7 +43,8 @@ namespace DebuggerTests
         void  SetDebuggerOpenViews    (const std::string &)                      override {}
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
-        void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
+        void  RunDebuggerCommandInMode (const std::string & line, CommandMode) override { lines.push_back (line); }
+        void  RunDebuggerAction        (const DebuggerAction & action)         override { lines.push_back (action.echo); }
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -58,6 +59,7 @@ namespace DebuggerTests
 
         std::vector<int>          windows;
         std::vector<std::string>  goTos;
+        std::vector<std::string>  lines;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -90,6 +92,7 @@ namespace DebuggerTests
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::SubmitMemoryBox;
         using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::FocusControl;
         using DebuggerWindow::GetMemoryBar;
         using DebuggerWindow::GetMemoryHistory;
         using DebuggerWindow::RunMemoryBarEntry;
@@ -236,6 +239,35 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"0300"), window.GetMemoryHistory()[0], L"the newest first");
             Assert::AreEqual (std::wstring (L"PC"),   window.GetMemoryHistory()[1]);
             Assert::AreEqual ((size_t) 1,           host.goTos.size(), L"PC still goes through the host, as the Go to box did");
+        }
+
+
+        //  Only the console steps on Space or runs on Enter from an empty line,
+        //  as AppleWin's does. The Address box is not a command line: an empty
+        //  one keeps both keys, so starting an address with a space sends no
+        //  step to the console.
+        TEST_METHOD (AnEmptyAddressBoxKeepsSpaceAndEnter)
+        {
+            CassoTheme       theme     = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost    host;
+            MemoryBarWindow  window (theme, host);
+            DxuiKeyEvent     space     = { DxuiKeyEventKind::Down, VK_SPACE,  false, false, false, false };
+            DxuiKeyEvent     overDown  = { DxuiKeyEventKind::Down, VK_SPACE,  false, true,  false, false };
+            DxuiKeyEvent     enter     = { DxuiKeyEventKind::Down, VK_RETURN, false, false, false, false };
+
+
+
+            window.Build();
+            window.ApplyKeyScheme (DebuggerKeyScheme::AppleWin);
+            window.FocusControl   (window.GetMemoryBox());
+
+            for (const DxuiKeyEvent & key : { overDown, space, enter })
+            {
+                window.GetMemoryBox()->SetText (L"");
+                (void) (window.OnKey (key) || window.RouteMappedKey (key));
+            }
+
+            Assert::AreEqual ((size_t) 0, host.lines.size(), host.lines.empty() ? L"" : std::wstring (host.lines[0].begin(), host.lines[0].end()).c_str());
         }
 
 

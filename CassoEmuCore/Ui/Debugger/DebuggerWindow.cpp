@@ -2777,8 +2777,9 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 //  DebuggerWindow::RouteBoxKey
 //
 //  A key-down in a focused text box that the box does not keep goes to the
-//  scheme first. A memory window counts as a box that is never empty, since
-//  every character typed into it is an edit. When the scheme took a Space, the character WM_CHAR delivers
+//  scheme first. A memory window and the Address box count as boxes that are
+//  never empty: every character typed into the one is an edit, and the
+//  other is no command line. When the scheme took a Space, the character WM_CHAR delivers
 //  for it is swallowed, or an empty box that stepped would be left holding a
 //  space. Returns true when the key was decided here.
 //
@@ -2813,8 +2814,10 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
                   ? DebuggerViewState::GetConsoleKeyAction (mode, ev.vk, ev.ctrl, ev.alt, ev.shift, box->GetText().empty())
                   : std::nullopt;
 
-    boxEmpty = box != nullptr && box->GetText().empty() &&
-               !(box == m_commandBox && DebuggerViewState::DoesConsoleKeepKey (mode, ev.vk, ev.ctrl, ev.alt));
+    //  Only the command line steps from an empty line; the Address box is no
+    //  command line, so it keeps Space and Return however empty it is.
+    boxEmpty = box != nullptr && box == m_commandBox && box->GetText().empty() &&
+               !DebuggerViewState::DoesConsoleKeepKey (mode, ev.vk, ev.ctrl, ev.alt);
 
     boxKeeps = DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, boxEmpty,
                                                    box != nullptr && box == m_commandBox && mode == CommandMode::Monitor);
