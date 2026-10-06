@@ -39,49 +39,6 @@ uint32_t SourceSyntax::Colors::Get (Token token) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourceSyntax::Colors::GetBlended
-//
-//  Each channel halfway to the background's, alpha kept, so the colors fade
-//  toward the page: lighter on a light theme, darker on a dark one. A color
-//  of 0, none, stays none.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SourceSyntax::Colors SourceSyntax::Colors::GetBlended (uint32_t backgroundArgb) const
-{
-    constexpr uint32_t  kHalves = 2;
-    Colors              blended = *this;
-
-
-
-    for (uint32_t * color : { &blended.mnemonic, &blended.directive, &blended.symbol, &blended.number,
-                              &blended.string, &blended.comment, &blended.address, &blended.bytes })
-    {
-        uint32_t  argb = *color;
-        uint32_t  mix  = argb & 0xFF000000u;
-
-        if (argb == 0)
-        {
-            continue;
-        }
-
-        for (uint32_t shift : { 16u, 8u, 0u })
-        {
-            mix |= (((argb >> shift) & 0xFFu) + ((backgroundArgb >> shift) & 0xFFu)) / kHalves << shift;
-        }
-
-        *color = mix;
-    }
-
-    return blended;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SourceSyntax::IsDirectiveLine
 //
 ////////////////////////////////////////////////////////////////////////////////

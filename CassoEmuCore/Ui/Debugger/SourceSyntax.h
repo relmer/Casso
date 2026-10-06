@@ -64,9 +64,6 @@ public:
 
         uint32_t  Get        (Token token) const;
 
-        //  Each color faded halfway to the background, for text shown under
-        //  the source it explains.
-        Colors    GetBlended (uint32_t backgroundArgb) const;
         bool operator== (const Colors & other) const = default;
     };
 
