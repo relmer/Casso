@@ -2448,22 +2448,7 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kLineAddresses:     return m_previewBarMode == 1;
         case CassqueCommands::kFindNext:          return IsHexPreviewShowing() && !m_findBytes.empty();
         case CassqueCommands::kFind:
-        case CassqueCommands::kNoData:
-        case CassqueCommands::kFormatHex:
-        case CassqueCommands::kFormatSigned:
-        case CassqueCommands::kFormatUnsigned:
-        case CassqueCommands::kColumns:
-        case CassqueCommands::kColumnsAuto:
-        case CassqueCommands::kColumns1:
-        case CassqueCommands::kColumns2:
-        case CassqueCommands::kColumns4:
-        case CassqueCommands::kColumns8:
-        case CassqueCommands::kColumns16:
-        case CassqueCommands::kGoToOffset:
-        case CassqueCommands::kGroup1:
-        case CassqueCommands::kGroup2:
-        case CassqueCommands::kGroup4:
-        case CassqueCommands::kGroup8:            return IsHexPreviewShowing();
+        case CassqueCommands::kGoToOffset:        return IsHexPreviewShowing();
         case CassqueCommands::kCloseTab:
         case CassqueCommands::kNextTab:
         case CassqueCommands::kPreviousTab:       return model.GetTabCount() > 1;
@@ -2521,20 +2506,6 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kThemeSkeuomorphic: return m_prefs.theme == CassquePrefs::kThemeSkeuomorphic;
         case CassqueCommands::kThemeDarkModern:   return m_prefs.theme == CassquePrefs::kThemeDarkModern;
         case CassqueCommands::kThemeRetroTerminal: return m_prefs.theme == CassquePrefs::kThemeRetroTerminal;
-        case CassqueCommands::kNoData:            return !m_hexView->IsShowingValues();
-        case CassqueCommands::kGroup1:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 1;
-        case CassqueCommands::kGroup2:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 2;
-        case CassqueCommands::kGroup4:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 4;
-        case CassqueCommands::kGroup8:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 8;
-        case CassqueCommands::kFormatHex:         return m_prefs.hexFormat == CassquePrefs::kHexFormatHex;
-        case CassqueCommands::kFormatSigned:      return m_prefs.hexFormat == CassquePrefs::kHexFormatSigned;
-        case CassqueCommands::kFormatUnsigned:    return m_prefs.hexFormat == CassquePrefs::kHexFormatUnsigned;
-        case CassqueCommands::kColumnsAuto:       return m_prefs.hexColumns == 0;
-        case CassqueCommands::kColumns1:          return m_prefs.hexColumns == 1;
-        case CassqueCommands::kColumns2:          return m_prefs.hexColumns == 2;
-        case CassqueCommands::kColumns4:          return m_prefs.hexColumns == 4;
-        case CassqueCommands::kColumns8:          return m_prefs.hexColumns == 8;
-        case CassqueCommands::kColumns16:         return m_prefs.hexColumns == 16;
         default:                                  return false;
     }
 }
@@ -2922,6 +2893,28 @@ DxuiHexView::ValueFormat CassqueWindow::ParseHexFormat (const std::string & name
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::GetHexFormatName
+//
+//  The name the preferences keep for a format, as ParseHexFormat reads it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * CassqueWindow::GetHexFormatName (DxuiHexView::ValueFormat format)
+{
+    switch (format)
+    {
+    case DxuiHexView::ValueFormat::Signed:   return CassquePrefs::kHexFormatSigned;
+    case DxuiHexView::ValueFormat::Unsigned: return CassquePrefs::kHexFormatUnsigned;
+    default:                                 return CassquePrefs::kHexFormatHex;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::GetPreviewStopIndex
 //
 //  A command's place among the hex view toolbar's stops, or -1 while that
@@ -3116,61 +3109,66 @@ void CassqueWindow::FindNext (bool incremental)
 //
 //  CassqueWindow::ShowHexContextMenu
 //
-//  Copy, Select all and Go to offset, the commands that apply to a run of
-//  bytes. Each item uses the same command object as the Edit menu, so the two
-//  menus stay consistent.
+//  The hex view's layout choices, which every hex view's menu shares, then
+//  Copy and Go to offset, the commands that apply to a run of bytes. Those
+//  two use the same command objects as the Edit menu, so the two menus stay
+//  consistent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassqueWindow::ShowHexContextMenu (int x, int y)
 {
-    std::vector<DxuiPopupMenuItem>  items;
+    std::vector<DxuiPopupMenuItem>  items = DxuiHexLayoutMenu::BuildItems (*m_hexView, [this] (DxuiHexLayoutMenu::Choice choice) { ChooseHexLayout (choice); });
 
 
 
-    static constexpr int  kIds[] = { (int) CassqueCommands::kNoData,
-                                     (int) CassqueCommands::kGroup1,
-                                     (int) CassqueCommands::kGroup2,
-                                     (int) CassqueCommands::kGroup4,
-                                     kSeparatorId,
-                                     (int) CassqueCommands::kFormatHex,
-                                     (int) CassqueCommands::kFormatSigned,
-                                     (int) CassqueCommands::kFormatUnsigned,
-                                     kSeparatorId,
-                                     (int) CassqueCommands::kColumns,
-                                     kSeparatorId,
-                                     (int) CassqueCommands::kCopy,
-                                     (int) CassqueCommands::kGoToOffset };
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    static constexpr int  kColumnIds[] = { (int) CassqueCommands::kColumnsAuto,
-                                           (int) CassqueCommands::kColumns1,
-                                           (int) CassqueCommands::kColumns2,
-                                           (int) CassqueCommands::kColumns4,
-                                           (int) CassqueCommands::kColumns8,
-                                           (int) CassqueCommands::kColumns16 };
-
-    for (int id : kIds)
+    for (int id : { (int) CassqueCommands::kCopy, (int) CassqueCommands::kGoToOffset })
     {
-        std::shared_ptr<const DxuiCommand>  command = (id == kSeparatorId) ? nullptr : m_commands.Find (id);
-        std::vector<DxuiPopupMenuItem>      columns;
-
-        if (id == CassqueCommands::kColumns)
-        {
-            for (int columnId : kColumnIds)
-            {
-                columns.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (columnId)));
-            }
-
-            items.push_back (DxuiPopupMenuItem::ForSubmenu (command, std::move (columns)));
-        }
-        else
-        {
-            items.push_back ((command != nullptr) ? DxuiPopupMenuItem::ForCommand (command)
-                                                  : DxuiPopupMenuItem::ForSeparator());
-        }
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (id)));
     }
 
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ChooseHexLayout
+//
+//  A layout choice from the hex view's menu, kept in the preferences.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ChooseHexLayout (DxuiHexLayoutMenu::Choice choice)
+{
+    DxuiHexLayoutMenu::Change  change = DxuiHexLayoutMenu::GetChange (choice, *m_hexView);
+
+
+
+    if (change.grouping.has_value())
+    {
+        SetHexGrouping (*change.grouping);
+    }
+
+    if (change.format.has_value())
+    {
+        SetHexFormat (GetHexFormatName (*change.format));
+    }
+
+    if (change.columns.has_value())
+    {
+        SetHexColumns (*change.columns);
+    }
+
+    if (change.showValues.has_value())
+    {
+        SetHexShowValues (*change.showValues);
+    }
 }
 
 
@@ -3347,22 +3345,6 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kZoomOut:        SetPreviewZoom (m_prefs.previewZoom - kPreviewZoomStep); break;
         case CassqueCommands::kZoomReset:      SetPreviewZoom (CassquePrefs::kDefaultPreviewZoom);      break;
         case CassqueCommands::kFindNext:       FindNext();                                      break;
-        case CassqueCommands::kNoData:         SetHexShowValues (!m_hexView->IsShowingValues()); break;
-        case CassqueCommands::kFormatHex:      SetHexFormat (CassquePrefs::kHexFormatHex);      break;
-        case CassqueCommands::kFormatSigned:   SetHexFormat (CassquePrefs::kHexFormatSigned);   break;
-        case CassqueCommands::kFormatUnsigned: SetHexFormat (CassquePrefs::kHexFormatUnsigned); break;
-        case CassqueCommands::kColumns:                                                         break;
-        case CassqueCommands::kColumnsAuto:    SetHexColumns (0);                               break;
-        case CassqueCommands::kColumns1:       SetHexColumns (1);                               break;
-        case CassqueCommands::kColumns2:       SetHexColumns (2);                               break;
-        case CassqueCommands::kColumns4:       SetHexColumns (4);                               break;
-        case CassqueCommands::kColumns8:       SetHexColumns (8);                               break;
-        case CassqueCommands::kColumns16:      SetHexColumns (16);                              break;
-
-        case CassqueCommands::kGroup1: SetHexGrouping (1); break;
-        case CassqueCommands::kGroup2: SetHexGrouping (2); break;
-        case CassqueCommands::kGroup4: SetHexGrouping (4); break;
-        case CassqueCommands::kGroup8: SetHexGrouping (8); break;
 
         case CassqueCommands::kOptions:           ShowOptions(); break;
 

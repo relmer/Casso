@@ -386,6 +386,14 @@ protected:
     void                               ChooseMemoryColumns  (int columns);
     void                               ChooseMemoryGrouping (int grouping);
 
+    //  Protected so a test can read a memory window's menu, choose from it,
+    //  and see what the open views text keeps of it.
+    MemoryPane *                       GetActiveMemoryPane  () const;
+    std::vector<DxuiPopupMenuItem>     BuildMemoryMenu      (MemoryPane * memory);
+    void                               ChooseMemoryLayout   (MemoryPane * memory, DxuiHexLayoutMenu::Choice choice);
+    std::string                        FormatMemoryLayouts  () const;
+    void                               ApplyMemoryLayouts   (const std::string & saved);
+
     //  Protected so a test can see that every find bar control has a tip.
     const wchar_t *              GetFindBarTip   (POINT clientPx, RECT & anchor) const;
     std::vector<IDxuiControl *>  GetFindControls () const;
@@ -769,6 +777,10 @@ private:
     void     UpdateTooltip    (POINT clientPx);
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool     TryGetMemoryTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    void     ShowMemoryMenu   (MemoryPane * memory, POINT clientPx);
+
+    //  After any change to a memory window's layout, from its menu or its bar.
+    void     OnMemoryLayoutChanged();
     std::optional<Byte>  GetRegisterByte (const std::string & name) const;
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the
@@ -797,7 +809,6 @@ private:
 
     std::vector<DxuiListView *>  GetLists          () const;
     std::vector<MemoryPane *>    GetOpenMemoryPanes () const;
-    MemoryPane *                 GetActiveMemoryPane () const;
     MemoryPane *                 GetFocusedMemoryPane () const;
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
