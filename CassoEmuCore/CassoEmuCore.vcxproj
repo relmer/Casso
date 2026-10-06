@@ -190,6 +190,7 @@
     </ClCompile>
     <ClCompile Include="Core\AppleSingleCodec.cpp" />
     <ClCompile Include="Core\JsonParser.cpp" />
+    <ClCompile Include="Net\WinHttpClient.cpp" />
     <ClCompile Include="Core\JsonValue.cpp" />
     <ClCompile Include="Core\JsonWriter.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
@@ -483,6 +484,8 @@
     <ClInclude Include="Core\Cpu65C02.h" />
     <ClInclude Include="Core\Cpu65C02Table.h" />
     <ClInclude Include="Core\JsonParser.h" />
+    <ClInclude Include="Net\IHttpClient.h" />
+    <ClInclude Include="Net\WinHttpClient.h" />
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\JsonWriter.h" />
     <ClInclude Include="Core\MemoryBus.h" />
