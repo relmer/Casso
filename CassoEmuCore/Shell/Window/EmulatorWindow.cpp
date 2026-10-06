@@ -608,8 +608,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
+    // Ctrl+click on the center is Ctrl+0: the whole view reset, zoom and
+    // window size included, with the window's placement saved.
     m_sceneCompass.SetOnHome ([this] ()
     {
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            PostMessage (m_hwnd, WM_COMMAND, IDM_VIEW_RESET_SIZE, 0);
+            return;
+        }
+
         m_sceneView.orbitYawRad   = 0.0f;
         m_sceneView.orbitPitchRad = 0.0f;
         InvalidateSceneComposition();

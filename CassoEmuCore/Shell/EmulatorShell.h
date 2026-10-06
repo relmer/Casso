@@ -1974,6 +1974,7 @@ private:
     void  LayoutSceneCompass ();
     bool  StepCompassHint    (int64_t nowMs);
     void  PanSceneByCompass  (float dx, float dy);   // in pan units, down positive
+    bool  PointOnCompass     (int x, int y) const;
 
     // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
     // mirrored along the top edge: shown while the pointer is up there,

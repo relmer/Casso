@@ -1347,10 +1347,11 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // Ctrl turns the press into a pan, the mouse's road to what the touchpad
     // does with a two-finger slide. Beside the Shift orbit, for the same
-    // reasons, and like it never in fullscreen.
+    // reasons, and like it never in fullscreen. Not on the compass, which
+    // has its own Ctrl gestures and is handled below.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
         (wParam & MK_CONTROL) != 0 && !m_mainMenu.IsOpen() &&
-        PointInSceneRect (x, y) && !chromeTook)
+        PointInSceneRect (x, y) && !chromeTook && !PointOnCompass (x, y))
     {
         m_scenePanning    = true;
         m_scenePanStartPx = POINT { x, y };

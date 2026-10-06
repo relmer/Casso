@@ -1149,6 +1149,26 @@ bool EmulatorShell::StepCompassHint (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::PointOnCompass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::PointOnCompass (int x, int y) const
+{
+    RECT   rc = m_sceneCompass.GetBounds();
+    POINT  pt = { x, y };
+
+
+
+    return m_sceneCompass.IsVisible() && PtInRect (&rc, pt) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::PanSceneByCompass
 //
 //  A Ctrl+compass gesture moved into the scene's pan, in the pan's own units
