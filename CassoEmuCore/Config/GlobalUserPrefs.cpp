@@ -83,6 +83,10 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "masterMuted",
     "settingsWidthDip",
     "settingsHeightDip",
+    "autoUpdateCheck",
+    "lastUpdateCheckUtc",
+    "latestKnownVersion",
+    "skippedVersion",
     "screenshotMode",
     "screenshotSaveFile",
     "screenshotFolder"
@@ -1154,6 +1158,12 @@ JsonValue GlobalUserPrefs::ToJson() const
         root.emplace_back ("settingsHeightDip", JsonValue ((double) settingsHeightDip));
     }
 
+    // The update check.
+    root.emplace_back ("autoUpdateCheck",    JsonValue (autoUpdateCheck));
+    root.emplace_back ("lastUpdateCheckUtc", JsonValue ((double) lastUpdateCheckUtc));
+    root.emplace_back ("latestKnownVersion", JsonValue (latestKnownVersion));
+    root.emplace_back ("skippedVersion",     JsonValue (skippedVersion));
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -1373,6 +1383,12 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // The Settings sheet's size; a negative one reads as never resized.
     settingsWidthDip  = std::max (GetIntOpt (v, "settingsWidthDip",  settingsWidthDip),  0);
     settingsHeightDip = std::max (GetIntOpt (v, "settingsHeightDip", settingsHeightDip), 0);
+
+    // The update check; absent keys keep struct defaults.
+    autoUpdateCheck    = TryGetBoolOpt (v, "autoUpdateCheck", autoUpdateCheck);
+    lastUpdateCheckUtc = (std::int64_t) GetNumberOpt (v, "lastUpdateCheckUtc", (double) lastUpdateCheckUtc);
+    latestKnownVersion = GetStringOpt  (v, "latestKnownVersion", latestKnownVersion);
+    skippedVersion     = GetStringOpt  (v, "skippedVersion",     skippedVersion);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

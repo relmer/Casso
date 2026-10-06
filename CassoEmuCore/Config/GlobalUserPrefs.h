@@ -239,6 +239,16 @@ struct GlobalUserPrefs
     int          settingsWidthDip         = 0;
     int          settingsHeightDip        = 0;
 
+    // THE UPDATE CHECK. Whether the once-a-day check runs at all; when it last
+    // ran (Unix seconds, 0 == never); the newest release it found, so the
+    // title-bar indicator can show between checks without a request; and the
+    // release the user chose to skip. Both versions are bare "1.30.0" strings,
+    // empty when unknown or nothing is skipped.
+    bool          autoUpdateCheck          = true;
+    std::int64_t  lastUpdateCheckUtc       = 0;
+    std::string   latestKnownVersion;
+    std::string   skippedVersion;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
