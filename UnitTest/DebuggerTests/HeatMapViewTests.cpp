@@ -189,7 +189,8 @@ namespace DebuggerTests
             Assert::AreEqual (kExecute, GetPixelAt (view, GetPointOf (view, 0x0102)));
             Assert::AreEqual (kCold,    GetPixelAt (view, GetPointOf (view, 0x0103)));
 
-            Assert::AreEqual (map.left + (0x0102 % view.GetColumns()) * pitch, view.GetCellRect (0x0102).left, L"its column is the address within its row");
+            Assert::AreEqual (map.left + (0x0142 % view.GetColumns()) * (map.right - map.left) / view.GetColumns(), view.GetCellRect (0x0142).left,
+                              L"its column is the address within its row, the row stretched across the map");
             Assert::AreEqual (map.top  + (0x0102 / view.GetColumns()) * pitch, view.GetCellRect (0x0102).top,  L"and its row the address over the columns");
         }
 
@@ -217,8 +218,9 @@ namespace DebuggerTests
         TEST_METHOD (EveryZoomKeepsTheStreets)
         {
             HeatMapView  view;
-            RECT         map  = {};
-            int          cell = 0;
+            RECT         map   = {};
+            RECT         first = {};
+            int          cell  = 0;
 
 
 
@@ -229,12 +231,14 @@ namespace DebuggerTests
 
             while (cell != view.GetCellPx())
             {
-                cell = view.GetCellPx();
-                map  = view.GetMapRect();
+                cell  = view.GetCellPx();
+                map   = view.GetMapRect();
+                first = view.GetCellRect (0);
 
-                Assert::AreEqual (kCold,       GetPixelAt (view, { map.left + cell - 1, map.top }), L"a cell's last pixel");
-                Assert::AreEqual (kBackground, GetPixelAt (view, { map.left + cell,     map.top }), L"the street after it");
-                Assert::AreEqual (kBackground, GetPixelAt (view, { map.left,            map.top + cell }));
+                Assert::IsTrue   (first.right - first.left >= 1, L"a cell is at least a pixel wide");
+                Assert::AreEqual (kCold,       GetPixelAt (view, { first.right - 1, map.top }), L"a cell's last pixel");
+                Assert::AreEqual (kBackground, GetPixelAt (view, { first.right,     map.top }), L"the street after it");
+                Assert::AreEqual (kBackground, GetPixelAt (view, { map.left,        map.top + cell }));
 
                 view.ScrollBy (-100000, -100000);
                 view.ZoomAt ({ map.left, map.top }, 1.0f);
@@ -245,10 +249,13 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (ARowHoldsTheMostAddressesAPowerOfTwoThatFit)
+        TEST_METHOD (ARowHoldsThePowerOfTwoOfAddressesNearestTheZoom)
         {
             Assert::AreEqual (256,  HeatMapView::GetColumnsFor (1024,   4), L"256 cells of four pixels fill 1,024");
-            Assert::AreEqual (128,  HeatMapView::GetColumnsFor (1023,   4), L"a pixel short, half as many");
+            Assert::AreEqual (128,  HeatMapView::GetColumnsFor (700,    4), L"128 stretched 1.37 times fill 700");
+            Assert::AreEqual (256,  HeatMapView::GetColumnsFor (1023,   4), L"128 would stretch twice over, so 256 a little narrower");
+            Assert::AreEqual (256,  HeatMapView::GetColumnsFor (800,    4), L"and past one and a half times, too");
+            Assert::AreEqual (128,  HeatMapView::GetColumnsFor (500,    2), L"never narrower than a pixel and its street");
             Assert::AreEqual (512,  HeatMapView::GetColumnsFor (2048,   4), L"more than a page when wide");
             Assert::AreEqual (1024, HeatMapView::GetColumnsFor (100000, 2), L"no more than kMaxColumns");
             Assert::AreEqual (16,   HeatMapView::GetColumnsFor (10,     4), L"never fewer than kMinColumns, which then scroll across");
@@ -256,27 +263,114 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (TheRowsFillThePaneAndTheRestIsLeftAtTheRight)
+        TEST_METHOD (TheRowsStretchToFillThePaneAtEveryWidth)
         {
-            HeatMapView  narrow;
-            HeatMapView  wide;
-            RECT         map   = {};
-            int          pitch = 0;
+            constexpr int  kFirst = 200;
+            constexpr int  kLast  = 1600;
+            constexpr int  kStep  = 23;
+            int            placed = 0;
 
 
 
-            Place (narrow, 340, kHeight);
-            Place (wide,   1200, kHeight);
+            for (int width = kFirst; width <= kLast; width += kStep)
+            {
+                HeatMapView   view;
+                RECT          map    = {};
+                RECT          last   = {};
+                long          right  = 0;
+                int           pitch  = 0;
+                int           narrow = INT_MAX;
+                int           wide   = 0;
+                std::wstring  at     = std::format (L"at a width of {}", width);
 
-            map   = narrow.GetMapRect();
-            pitch = narrow.GetCellPx() + HeatMapView::kStreetPx;
 
-            Assert::AreEqual (64,  narrow.GetColumns(), L"a narrow pane holds fewer addresses a row");
-            Assert::AreEqual (256, wide.GetColumns(),   L"and a wide one more");
-            Assert::AreEqual ((long) (narrow.GetColumns() * pitch), map.right - map.left, L"the map is as wide as its rows");
-            Assert::AreEqual ((long) HeatMapView::kGutterDip, map.left, L"left-aligned, beside the row labels");
-            Assert::IsTrue   (340 - HeatMapView::kInsetDip - HeatMapView::kScrollbarDip - map.right < narrow.GetColumns() * pitch,
-                              L"a row twice as long would not fit in what is left");
+
+                Place (view, width, kHeight);
+                map   = view.GetMapRect();
+                pitch = view.GetCellPx() + HeatMapView::kStreetPx;
+                right = width - HeatMapView::kInsetDip - (view.HasVerticalScroll() ? HeatMapView::kScrollbarDip : 0);
+                last  = view.GetCellRect ((Word) (view.GetColumns() - 1));
+
+                Assert::IsFalse  (view.HasHorizontalScroll(), at.c_str());
+                Assert::AreEqual (right, map.right, (L"no empty strip right of the map " + at).c_str());
+                Assert::AreEqual (map.right, last.right + HeatMapView::kStreetPx, (L"the last cell and its street end the map " + at).c_str());
+
+                for (int column = 0; column < view.GetColumns(); column++)
+                {
+                    RECT  cell = view.GetCellRect ((Word) column);
+                    RECT  next = view.GetCellRect ((Word) (column + 1));
+                    int   step = (column + 1 < view.GetColumns()) ? (int) (next.left - cell.left) : (int) (map.right - cell.left);
+
+
+
+                    narrow = std::min (narrow, step);
+                    wide   = std::max (wide,   step);
+
+                    Assert::AreEqual (kBackground, GetPixelAt (view, { cell.right, map.top }), (L"a street after every cell " + at).c_str());
+                    Assert::AreEqual (kCold,       GetPixelAt (view, { cell.right - 1, map.top }), (L"and the cell up to it " + at).c_str());
+                }
+
+                Assert::IsTrue (wide - narrow <= 1, (L"every column within a pixel of the others " + at).c_str());
+                Assert::IsTrue (wide * 2 <= pitch * 3 + 1, (L"no column past one and a half times the zoom's " + at).c_str());
+                Assert::IsTrue (narrow * 4 >= pitch * 3 - 3, (L"nor narrower than three quarters of it " + at).c_str());
+                Assert::AreEqual ((long) view.GetCellPx(), view.GetCellRect (0).bottom - view.GetCellRect (0).top, L"a row is as tall as the zoom's cell");
+                placed++;
+            }
+
+            Assert::IsTrue (placed > 50, L"the widths were tried");
+        }
+
+
+
+        TEST_METHOD (AStretchedCellIsHitAndPickedAcrossItsWholeWidth)
+        {
+            HeatMapView        view;
+            std::vector<Byte>  execute (0x10000, 0);
+            std::vector<Byte>  none;
+            Word               picked = 0;
+            Word               last   = 0;
+            POINT              edge   = {};
+            int                wider  = 0;
+
+
+
+            Place (view, 700, kHeight);
+            view.SetOnPickAddress ([&picked] (Word address) { picked = address; });
+
+            for (int column = 0; column < view.GetColumns(); column += 2)
+            {
+                execute[(size_t) (0x1200 + column)] = 255;
+            }
+
+            view.SetLevels (execute, none, none);
+
+            for (int column = 1; column < view.GetColumns(); column++)
+            {
+                Word      address = (Word) (0x1200 + column);
+                RECT      cell    = view.GetCellRect (address);
+                uint32_t  color   = (column % 2 == 0) ? kExecute : kCold;
+                POINT     farEdge = { cell.right - 1, cell.top + 1 };
+
+
+
+                wider += (cell.right - cell.left > view.GetCellPx()) ? 1 : 0;
+
+                Assert::AreEqual (color,   GetPixelAt (view, farEdge), L"the cell is drawn to its far edge");
+                Assert::AreEqual (address, view.GetAddressAt ({ cell.left, cell.top + 1 }).value_or (0), L"its near edge");
+                Assert::AreEqual (address, view.GetAddressAt (farEdge).value_or (0),                      L"its far edge");
+                Assert::AreEqual (address, view.GetAddressAt ({ cell.right, cell.top + 1 }).value_or (0), L"and its street");
+                Assert::AreEqual ((Word) (address - 1), view.GetAddressAt ({ cell.left - 1, cell.top + 1 }).value_or (0), L"the street before it is the cell before");
+            }
+
+            Assert::IsTrue (wider > view.GetColumns() / 2, L"the cells were stretched");
+
+            view.SetLevels (none, none, none);
+            last = (Word) (0x1200 + view.GetColumns() - 1);
+            edge = { view.GetCellRect (last).right - 1, view.GetCellRect (last).top + 1 };
+
+            view.OnMouse (MakeEvent (DxuiMouseEventKind::Down, edge));
+            view.OnMouse (MakeEvent (DxuiMouseEventKind::Up,   edge));
+            Assert::AreEqual (last, picked, L"a click on the far edge of the row's last cell picks it");
         }
 
 
@@ -345,6 +439,28 @@ namespace DebuggerTests
             view.ZoomAt (point, -3.0f);
             Assert::AreEqual (columns, view.GetColumns());
             Assert::IsTrue (IsAtHeight (view, 0x1456, point.y), L"and zooming out");
+        }
+
+
+
+        TEST_METHOD (ZoomThatKeepsTheRowKeepsTheStretchedCellUnderThePointer)
+        {
+            HeatMapView  view;
+            POINT        point = {};
+            RECT         cell  = {};
+
+
+
+            Place (view, 700, kHeight);
+            Assert::AreEqual (128, view.GetColumns());
+
+            cell  = view.GetCellRect (0x1277);
+            point = { cell.right - 1, cell.top + 1 };
+
+            view.ZoomAt (point, 1.0f);
+            Assert::AreEqual (4,   view.GetCellPx(), L"taller cells");
+            Assert::AreEqual (128, view.GetColumns(), L"since 64 would stretch past one and a half times");
+            Assert::AreEqual ((Word) 0x1277, view.GetAddressAt (point).value_or (0), L"the cell under the pointer stays under it");
         }
 
 
@@ -640,8 +756,8 @@ namespace DebuggerTests
             view.ZoomAt (GetPointOf (view, 0x2000), 5.0f);
             Assert::IsTrue (view.GetCellPx() >= HeatMapView::kComfortCellDip);
 
-            at = GetPointOf (view, 0x2000, view.GetCellPx() - 1);
-            Assert::AreEqual ((Word) 0x2000, view.GetPickAt (at).value_or (0));
+            at = { view.GetCellRect (0x2000).right - 1, view.GetCellRect (0x2000).bottom - 1 };
+            Assert::AreEqual ((Word) 0x2000, view.GetPickAt (at).value_or (0), L"the cell's far corner, next to the hot one");
         }
 
 

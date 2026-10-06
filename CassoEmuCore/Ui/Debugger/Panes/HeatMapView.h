@@ -19,11 +19,13 @@
 //  its neighbors by a street of the page between them, and an untouched one
 //  is a gray, not the page.
 //
-//  The rows fill the pane: each row is the most addresses, a power of two
-//  from kMinColumns to kMaxColumns, whose cells fit across it at the zoom in
-//  force, so a row always starts at a round address and its label down the
-//  left reads as one. A row narrower than the pane leaves the rest of it
-//  empty at the right, beside the scrollbar.
+//  The rows fill the pane: each row holds a power of two of addresses, from
+//  kMinColumns to kMaxColumns, so a row always starts at a round address and
+//  its label down the left reads as one. The count is the one that brings
+//  the cells nearest the zoom's size, and the cells are then widened or
+//  narrowed so the row spans the pane exactly, every column within a pixel of
+//  the others; a row is always as tall as the zoom's cell. Only kMinColumns
+//  wider than the pane at the zoom's size scroll across.
 //
 //  Over the map a row of views: All shows everything, with code ahead of data
 //  where an address is both; Code shows executes alone; Data shows reads and
@@ -70,6 +72,12 @@ public:
     static constexpr int    kMaxCellPx      = 64;
     static constexpr float  kZoomPerNotch   = 1.25f;
 
+    //  The most a row's cells are widened to fill the pane before the row
+    //  takes twice the addresses instead, each a little narrower than the
+    //  zoom's: a column stays between three quarters and one and a half times
+    //  the zoom's width, except where kMaxColumns or a one-pixel cell stop it.
+    static constexpr double kMaxStretch     = 1.5;
+
     //  How far one notch of the wheel scrolls, rounded to whole rows.
     static constexpr int    kWheelStepDip   = 48;
 
@@ -101,8 +109,9 @@ public:
     void   SetOnOptionsChanged (std::function<void()> fn)     { m_onOptionsChanged = std::move (fn); }
     void   SetOnPickAddress    (std::function<void(Word)> fn) { m_onPickAddress    = std::move (fn); }
 
-    //  The zoom, as a cell's side in pixels; the addresses in a row and the
-    //  rows; and how far the map is scrolled in pixels from its top left.
+    //  The zoom, as a cell's height in pixels and the width a row's cells are
+    //  stretched from; the addresses in a row and the rows; and how far the
+    //  map is scrolled in pixels from its top left.
     int    GetCellPx  () const { return m_cellPx; }
     int    GetColumns () const { return m_columns; }
     int    GetRows    () const { return kAddressCount / m_columns; }
@@ -114,7 +123,8 @@ public:
     void   ResetZoom  ();
 
     //  The addresses a row holds for a width at a pitch: the largest power of
-    //  two from kMinColumns to kMaxColumns whose cells fit, or kMinColumns.
+    //  two from kMinColumns to kMaxColumns whose cells fit, or twice that when
+    //  those would stretch past kMaxStretch and a cell still has a pixel.
     static int  GetColumnsFor (long widthPx, long pitchPx);
 
     //  Whether the map is wider or taller than its area, so it scrolls that
@@ -172,6 +182,8 @@ private:
 
     Byte                 GetShownLevel  (Word address) const;
     int                  GetPitch       () const { return m_cellPx + kStreetPx; }
+    long                 GetColumnLeft  (long column) const;
+    long                 GetColumnAt    (long x) const;
     std::wstring         FormatAmount   (Byte level) const;
     void                 ApplyCellPx    (int cellPx, POINT point);
     void                 PlaceMap       ();
@@ -202,6 +214,7 @@ private:
     double                     m_top          = 0.0;
     int                        m_cellPx       = 0;
     int                        m_columns      = kMaxColumns / 4;
+    long                       m_rowPx        = 0;
     int                        m_gutterPx     = 0;
     RECT                       m_map          = {};
     bool                       m_hasHorzBar   = false;
