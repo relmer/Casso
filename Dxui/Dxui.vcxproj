@@ -223,7 +223,6 @@
     <ClCompile Include="Window\DxuiToolbarDockGroup.cpp" />
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
     <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
-    <ClCompile Include="Widgets\DxuiHexLayoutMenu.cpp" />
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
     <ClCompile Include="Core\DxuiClipboard.cpp" />
     <ClCompile Include="Core\DxuiStandardCommand.cpp" />
@@ -341,7 +340,6 @@
     <ClInclude Include="Window\DxuiToolbarDockGroup.h" />
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
     <ClInclude Include="Widgets\DxuiFramebufferView.h" />
-    <ClInclude Include="Widgets\DxuiHexLayoutMenu.h" />
     <ClInclude Include="Widgets\DxuiHexView.h" />
     <ClInclude Include="Core\DxuiClipboard.h" />
     <ClInclude Include="Core\DxuiStandardCommand.h" />

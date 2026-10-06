@@ -42,9 +42,6 @@ public:
     int            GetGrouping () const { return m_grouping; }
     int            GetColumns  () const { return m_columns; }
 
-    DxuiHexView::ValueFormat  GetValueFormat  () const { return m_format; }
-    bool                      IsShowingValues () const { return m_showValues; }
-
     //  The address of the first byte on screen.
     Word           GetTopAddress () const { return m_model.GetAddressOf (m_view->GetTopRow() * (uint64_t) m_view->GetBytesPerRow()); }
 
@@ -66,21 +63,14 @@ public:
     //  Scrolls to an address and asks for a read there.
     void  GoTo (Word address);
 
+    //  One, two, four bytes a value, and round again. Returns the new grouping.
+    int   CycleGrouping ();
+
     //  One, two or four bytes a value.
     void  SetGrouping (int bytesPerValue);
 
     //  Values across a row, or 0 for as many as the pane's width holds.
     void  SetColumns (int valuesPerRow);
-
-    //  How the values read, and whether they show at all or only the text.
-    void  SetValueFormat (DxuiHexView::ValueFormat format);
-    void  SetShowValues  (bool show);
-
-    //  The window's layout as the preferences keep it, memlayout2=2,signed,8,values,
-    //  or empty while it is the one a window starts with. Applying a token
-    //  for another window, or one this build cannot read, changes nothing.
-    std::string  FormatLayout   () const;
-    bool         TryApplyLayout (const std::string & token);
 
     //  Asks again for the bytes the window last read.
     void  Refresh ();
@@ -109,17 +99,15 @@ private:
 
     void  NoteRefusal (uint64_t offset) const;
 
-    int                         m_id          = 0;
-    DxuiHexView               * m_view        = nullptr;
-    MemoryEditModel             m_model;
-    MoveFn                      m_move;
-    RunFn                       m_note;
-    Word                        m_readFirst   = 0;
-    bool                        m_placed      = false;
-    int                         m_grouping    = 1;
-    int                         m_columns     = kDefaultColumns;
-    DxuiHexView::ValueFormat    m_format      = DxuiHexView::ValueFormat::Hex;
-    bool                        m_showValues  = true;
-    std::optional<Word>         m_requested;
-    uint32_t                    m_changedArgb = 0xFFFF6B68;
+    int                    m_id          = 0;
+    DxuiHexView          * m_view        = nullptr;
+    MemoryEditModel        m_model;
+    MoveFn                 m_move;
+    RunFn                  m_note;
+    Word                   m_readFirst   = 0;
+    bool                   m_placed      = false;
+    int                    m_grouping    = 1;
+    int                    m_columns     = kDefaultColumns;
+    std::optional<Word>    m_requested;
+    uint32_t               m_changedArgb = 0xFFFF6B68;
 };

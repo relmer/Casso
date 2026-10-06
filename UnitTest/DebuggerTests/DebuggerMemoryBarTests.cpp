@@ -4,7 +4,6 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
-#include "Ui/Debugger/Panes/MemoryPane.h"
 
 #include "CppUnitTest.h"
 
@@ -95,11 +94,6 @@ namespace DebuggerTests
         using DebuggerWindow::GetMemoryBox;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::GetTooltip;
-        using DebuggerWindow::GetActiveMemoryPane;
-        using DebuggerWindow::BuildMemoryMenu;
-        using DebuggerWindow::ChooseMemoryLayout;
-        using DebuggerWindow::FormatMemoryLayouts;
-        using DebuggerWindow::ApplyMemoryLayouts;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::GetMemoryBar;
         using DebuggerWindow::GetMemoryHistory;
@@ -332,59 +326,7 @@ namespace DebuggerTests
         }
 
 
-        //  A memory window's menu has Casso Explorer's layout rows, shares
-        //  their state with the bar, and the layout is kept per window.
-        TEST_METHOD (TheMemoryMenuOffersTheHexLayoutAndKeepsIt)
-        {
-            CassoTheme                      theme   = CassoTheme::MakeSkeuomorphic();
-            MemoryBarHost                   host;
-            MemoryBarWindow                 window (theme, host);
-            MemoryBarWindow                 later  (theme, host);
-            MemoryPane                    * pane    = nullptr;
-            std::vector<DxuiPopupMenuItem>  menu;
-            std::wstring                    labels;
-            std::string                     kept;
-
-
-
-            window.Build();
-            pane = window.GetActiveMemoryPane();
-            Assert::IsNotNull (pane);
-
-            menu = window.BuildMemoryMenu (pane);
-
-            for (const DxuiPopupMenuItem & item : menu)
-            {
-                labels += (item.kind == DxuiPopupMenuItem::Kind::Separator) ? std::wstring (L"|") : item.command->GetLabelText() + L";";
-            }
-
-            Assert::IsTrue (labels.starts_with (L"Show &text only;&1-byte integer;&2-byte integer;&4-byte integer;|&Hexadecimal;&Signed;&Unsigned;|Columns;|Copy;Go to...;"), labels.c_str());
-
-            window.ChooseMemoryGrouping (4);
-            Assert::IsTrue (menu[3].command->IsChecked(), L"a grouping chosen on the bar shows in the menu");
-
-            window.ChooseMemoryLayout (pane, DxuiHexLayoutMenu::Choice::Group2);
-            window.ChooseMemoryLayout (pane, DxuiHexLayoutMenu::Choice::Signed);
-            window.ChooseMemoryLayout (pane, DxuiHexLayoutMenu::Choice::TextOnly);
-
-            Assert::AreEqual (2, pane->GetGrouping(), L"the bar's grouping drop-down reads the pane");
-            Assert::IsTrue   (pane->GetView()->GetValueFormat() == DxuiHexView::ValueFormat::Signed);
-            Assert::IsFalse  (pane->GetView()->IsShowingValues());
-
-            kept = window.FormatMemoryLayouts();
-            Assert::AreEqual (std::string (" memlayout1=2,signed,0,text"), kept);
-
-            later.Build();
-            later.ApplyMemoryLayouts ("memory2=0300 " + kept.substr (1) + " memlayout9=bad");
-
-            Assert::AreEqual (2,     later.GetActiveMemoryPane()->GetGrouping());
-            Assert::IsTrue   (later.GetActiveMemoryPane()->GetValueFormat() == DxuiHexView::ValueFormat::Signed);
-            Assert::IsFalse  (later.GetActiveMemoryPane()->GetView()->IsShowingValues(), L"restored as it was left");
-        }
-
-
-        TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)
-        {
+        TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)        {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
             MemoryBarHost    host;
             MemoryBarWindow  window (theme, host);

@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryPane.h"
-#include "Ui/Debugger/MemoryBarCommands.h"
 
 
 
@@ -58,8 +57,7 @@ void MemoryPane::Configure (HWND hwnd)
     m_view->SetOwnerWindow  (hwnd);
     (void) m_view->SetGrouping (m_grouping);
     m_view->SetColumns      (m_columns);
-    m_view->SetValueFormat  (m_format);
-    m_view->SetShowValues   (m_showValues);
+    m_view->SetShowValues   (true);
     m_view->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
     m_view->SetEditable     (true);
 
@@ -175,6 +173,24 @@ void MemoryPane::GoTo (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryPane::CycleGrouping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int MemoryPane::CycleGrouping()
+{
+    m_grouping = (m_grouping >= 4) ? 1 : m_grouping * 2;
+    (void) m_view->SetGrouping (m_grouping);
+
+    return m_grouping;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryPane::SetGrouping
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,145 +220,6 @@ void MemoryPane::SetColumns (int valuesPerRow)
     m_columns = valuesPerRow;
     m_view->SetColumns (valuesPerRow);
     FollowScroll();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryPane::SetValueFormat
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryPane::SetValueFormat (DxuiHexView::ValueFormat format)
-{
-    m_format = format;
-    m_view->SetValueFormat (format);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryPane::SetShowValues
-//
-//  The text column alone holds more bytes a row, so the read may have to
-//  follow, as it does for a new row width.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryPane::SetShowValues (bool show)
-{
-    m_showValues = show;
-    m_view->SetShowValues (show);
-    FollowScroll();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryPane::FormatLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string MemoryPane::FormatLayout() const
-{
-    const char  * format = (m_format == DxuiHexView::ValueFormat::Signed)   ? "signed"
-                         : (m_format == DxuiHexView::ValueFormat::Unsigned) ? "unsigned"
-                                                                            : "hex";
-    bool          plain  = m_grouping == 1 && m_format == DxuiHexView::ValueFormat::Hex &&
-                           m_columns == kDefaultColumns && m_showValues;
-
-
-
-    if (plain)
-    {
-        return std::string();
-    }
-
-    return std::format ("memlayout{}={},{},{},{}", m_id, m_grouping, format, m_columns, m_showValues ? "values" : "text");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryPane::TryApplyLayout
-//
-//  All four parts or none: a token missing one, or with one out of range,
-//  leaves the window as it is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool MemoryPane::TryApplyLayout (const std::string & token)
-{
-    static constexpr int          kMaxColumns = 64;
-    static constexpr size_t       kPartCount  = 4;
-    static constexpr size_t       kFormatPart = 1;
-    static constexpr size_t       kColumnPart = 2;
-    static constexpr size_t       kShowPart   = 3;
-    const std::vector<int>      & groupings   = MemoryBarCommands::GetGroupingChoices();
-    std::string                   prefix      = std::format ("memlayout{}=", m_id);
-    std::vector<std::string>      parts;
-    std::istringstream            in;
-    std::string                   part;
-    int                           grouping    = 0;
-    int                           columns     = -1;
-    DxuiHexView::ValueFormat      format      = DxuiHexView::ValueFormat::Hex;
-    std::from_chars_result        read;
-
-
-
-    if (!token.starts_with (prefix))
-    {
-        return false;
-    }
-
-    in.str (token.substr (prefix.size()));
-
-    while (std::getline (in, part, ','))
-    {
-        parts.push_back (part);
-    }
-
-    if (parts.size() != kPartCount || (parts[kShowPart] != "values" && parts[kShowPart] != "text"))
-    {
-        return false;
-    }
-
-    read = std::from_chars (parts[0].data(), parts[0].data() + parts[0].size(), grouping);
-
-    if (read.ec != std::errc() || std::ranges::find (groupings, grouping) == groupings.end())
-    {
-        return false;
-    }
-
-    read = std::from_chars (parts[kColumnPart].data(), parts[kColumnPart].data() + parts[kColumnPart].size(), columns);
-
-    if (read.ec != std::errc() || columns < 0 || columns > kMaxColumns)
-    {
-        return false;
-    }
-
-    if      (parts[kFormatPart] == "signed")   { format = DxuiHexView::ValueFormat::Signed;   }
-    else if (parts[kFormatPart] == "unsigned") { format = DxuiHexView::ValueFormat::Unsigned; }
-    else if (parts[kFormatPart] != "hex")      { return false;                                 }
-
-    SetGrouping    (grouping);
-    SetValueFormat (format);
-    SetColumns     (columns);
-    SetShowValues  (parts[kShowPart] == "values");
-
-    return true;
 }
 
 

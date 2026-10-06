@@ -280,10 +280,12 @@ private:
 
     void  ShowListContextMenu (int x, int y);
     void  ShowHexContextMenu  (int x, int y);
-    void  ChooseHexLayout     (DxuiHexLayoutMenu::Choice choice);
     void  ShowTextContextMenu (int x, int y);
     void  GoToTyped (const std::wstring & text);
     void  SetHexGrouping (int grouping);
+
+    //  Stands for a separator in a list of command ids.
+    static constexpr int  kSeparatorId = 0;
 
     //  The focused pane's control, where routing of a standard command such as
     //  Copy or Select all starts.
@@ -310,8 +312,7 @@ private:
     void  SetHexShowValues (bool show);
     int   GetPreviewStopIndex (int commandId) const;
 
-    static DxuiHexView::ValueFormat  ParseHexFormat   (const std::string & name);
-    static const char *              GetHexFormatName (DxuiHexView::ValueFormat format);
+    static DxuiHexView::ValueFormat  ParseHexFormat (const std::string & name);
     static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
     bool  RouteToolbarMouse   (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
 

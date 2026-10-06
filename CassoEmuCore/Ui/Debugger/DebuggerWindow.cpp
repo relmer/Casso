@@ -795,7 +795,9 @@ void DebuggerWindow::RunMemoryBarEntry (int id)
 void DebuggerWindow::ChooseMemoryColumns (int columns)
 {
     GetActiveMemoryPane()->SetColumns (columns);
-    OnMemoryLayoutChanged();
+    SetMemoryBarMenus();
+    LayoutWidgets();
+    Invalidate();
 }
 
 
@@ -811,7 +813,9 @@ void DebuggerWindow::ChooseMemoryColumns (int columns)
 void DebuggerWindow::ChooseMemoryGrouping (int grouping)
 {
     GetActiveMemoryPane()->SetGrouping (grouping);
-    OnMemoryLayoutChanged();
+    SetMemoryBarMenus();
+    LayoutWidgets();
+    Invalidate();
 }
 
 
@@ -5913,8 +5917,20 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     if (memory != nullptr)
     {
-        ShowMemoryMenu (memory, clientPx);
-        return true;
+        m_activePane = memory;
+        items.push_back ({ L"Copy",         [memory] { memory->GetView()->CopySelection(); } });
+        items.push_back ({ L"Go to...",     [this]   { SetFocusedControl (m_memoryBox); } });
+        items.push_back ({ L"Change bytes per value", [memory] { (void) memory->CycleGrouping(); } });
+
+        if (memory->CanUndo())
+        {
+            items.push_back ({ GetUndoLabel (false, memory->GetUndoText()), [this, memory] { UndoMemoryEdit (memory, false); } });
+        }
+
+        if (memory->CanRedo())
+        {
+            items.push_back ({ GetUndoLabel (true, memory->GetRedoText()), [this, memory] { UndoMemoryEdit (memory, true); } });
+        }
     }
 
     if (items.empty())
@@ -5933,140 +5949,6 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ShowMemoryMenu
-//
-//  A memory window's menu: the layout choices every hex view's menu offers,
-//  the same rows Casso Explorer's has, then Copy, Go to and the window's own
-//  Undo and Redo. A layout choice goes through ChooseMemoryLayout, so the
-//  bar's drop-downs show it too.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowMemoryMenu (MemoryPane * memory, POINT clientPx)
-{
-    m_activePane = memory;
-    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, BuildMemoryMenu (memory));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::BuildMemoryMenu
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiPopupMenuItem> DebuggerWindow::BuildMemoryMenu (MemoryPane * memory)
-{
-    std::vector<std::pair<std::wstring, std::function<void()>>>  actions;
-    std::vector<DxuiPopupMenuItem>                               menu;
-
-
-
-    m_menuCommands.clear();
-    SetWindowMenus();
-
-    menu = DxuiHexLayoutMenu::BuildItems (*memory->GetView(), [this, memory] (DxuiHexLayoutMenu::Choice choice) { ChooseMemoryLayout (memory, choice); });
-    menu.push_back (DxuiPopupMenuItem::ForSeparator());
-
-    actions.push_back ({ L"Copy",     [memory] { memory->GetView()->CopySelection(); } });
-    actions.push_back ({ L"Go to...", [this]   { SetFocusedControl (m_memoryBox); } });
-
-    if (memory->CanUndo())
-    {
-        actions.push_back ({ GetUndoLabel (false, memory->GetUndoText()), [this, memory] { UndoMemoryEdit (memory, false); } });
-    }
-
-    if (memory->CanRedo())
-    {
-        actions.push_back ({ GetUndoLabel (true, memory->GetRedoText()), [this, memory] { UndoMemoryEdit (memory, true); } });
-    }
-
-    for (auto & [label, action] : actions)
-    {
-        m_menuCommands.push_back (MakeMenuCommand (label, false, action));
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    return menu;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ChooseMemoryLayout
-//
-//  A layout choice from a memory window's menu, made as the bar's Columns and
-//  grouping make theirs, and kept with the window's other settings.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ChooseMemoryLayout (MemoryPane * memory, DxuiHexLayoutMenu::Choice choice)
-{
-    DxuiHexLayoutMenu::Change  change = DxuiHexLayoutMenu::GetChange (choice, *memory->GetView());
-
-
-
-    if (change.grouping.has_value())
-    {
-        memory->SetGrouping (*change.grouping);
-    }
-
-    if (change.format.has_value())
-    {
-        memory->SetValueFormat (*change.format);
-    }
-
-    if (change.columns.has_value())
-    {
-        memory->SetColumns (*change.columns);
-    }
-
-    if (change.showValues.has_value())
-    {
-        memory->SetShowValues (*change.showValues);
-    }
-
-    OnMemoryLayoutChanged();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OnMemoryLayoutChanged
-//
-//  The bar's drop-downs show the active window's layout, and the open views
-//  the preferences keep include every window's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OnMemoryLayoutChanged()
-{
-    SetMemoryBarMenus();
-    LayoutWidgets();
-
-    if (m_snapshot != nullptr)
-    {
-        KeepOpenViews();
-    }
-
-    Invalidate();
 }
 
 
@@ -7445,66 +7327,6 @@ void DebuggerWindow::UndoMemoryEdit (MemoryPane * pane, bool redo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::FormatMemoryLayouts
-//
-//  Each window's layout that differs from the one a window starts with, as
-//  the open views text keeps it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerWindow::FormatMemoryLayouts() const
-{
-    std::string  text;
-
-
-
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        std::string  layout = pane->FormatLayout();
-
-        if (!layout.empty())
-        {
-            text += " " + layout;
-        }
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ApplyMemoryLayouts
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplyMemoryLayouts (const std::string & saved)
-{
-    std::istringstream  in (saved);
-    std::string         token;
-
-
-
-    while (in >> token)
-    {
-        for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-        {
-            (void) pane->TryApplyLayout (token);
-        }
-    }
-
-    SetMemoryBarMenus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::KeepOpenViews
 //
 //  The first snapshot reopens whatever was open when Casso last closed; each
@@ -7556,7 +7378,6 @@ void DebuggerWindow::KeepOpenViews()
     text += m_documents.Format (nameOf);
     text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
     text += BreakpointColumns::FormatShown (m_breakpointShown);
-    text += FormatMemoryLayouts();
 
     if (!text.empty() && text.front() == ' ')
     {
@@ -7573,7 +7394,6 @@ void DebuggerWindow::KeepOpenViews()
         m_breakpointShown   = BreakpointColumns::ParseShown (m_openViewsSaved);
 
         SetBreakpointColumns();
-        ApplyMemoryLayouts (m_openViewsSaved);
 
         for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
         {
