@@ -19,7 +19,7 @@ scripts/RunTests.ps1 -Build
 ## Unsigned local build
 
 The same build is unsigned, so the dialog must show the developer-build text
-and no **Update to <version>**.
+and **Update to <version>** disabled.
 
 ## Signed build
 
