@@ -12,8 +12,8 @@
 //
 //  UpdateDialogContent
 //
-//  The body of the update dialog, top to bottom: the versions line, the
-//  release date, the release notes in a scrolling area that takes the
+//  The body of the update dialog, top to bottom: the versions sentence with
+//  the release date, the release notes in a scrolling area that takes the
 //  height left over, a status line (developer text, progress, or a
 //  failure), and a link to the release page. Laid out in physical pixels.
 //
@@ -33,7 +33,7 @@ public:
     UpdateDialogContent             (const UpdateDialogContent &) = delete;
     UpdateDialogContent & operator= (const UpdateDialogContent &) = delete;
 
-    void  SetHeader        (const std::wstring & header, const std::wstring & dateLine);
+    void  SetHeader        (const std::wstring & header);
     void  SetNotesLines    (std::vector<FormattedLine> lines);
     void  SetNotesMessage  (const std::wstring & message);
     void  SetStatus        (const std::wstring & status, bool isError);
@@ -48,7 +48,6 @@ private:
     void  LayoutNotes      ();
 
     DxuiLabel         m_header;
-    DxuiLabel         m_date;
     DxuiScrollPanel   m_scroll;
     ReleaseNotesView  m_notes;
     DxuiLabel         m_status;

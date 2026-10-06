@@ -1408,6 +1408,7 @@ private:
     bool                   OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx, int yPx);
     void                   OpenUrl                     (const std::wstring & url);
     static ReleaseVersion  GetRunningVersion           ();
+    static size_t          GetRandomIndex              (size_t count);
 
     std::unique_ptr<UpdateRuntime>  m_updateRuntime;
     UpdateIndicatorButton           m_updateIndicator;

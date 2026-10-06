@@ -28,6 +28,28 @@ ReleaseVersion EmulatorShell::GetRunningVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::GetRandomIndex
+//
+//  A uniform index below `count`, for picking the update dialog's remark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t EmulatorShell::GetRandomIndex (size_t count)
+{
+    std::random_device                     device;
+    std::uniform_int_distribution<size_t>  pick (0, (count > 0) ? count - 1 : 0);
+
+
+
+    return pick (device);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::GetUpdateService
 //
 //  Built on first use, once there is a window to post results to.
@@ -463,8 +485,11 @@ void EmulatorShell::OpenUpdateDialog()
     };
 
     dlg.Configure (buttons,
-                   UpdateDialogModel::MakeHeader (m_updateRelease.version, running),
-                   UpdateDialogModel::MakeDateLine (m_updateRelease.publishedDate),
+                   UpdateDialogModel::MakeHeader (m_updateRelease.version,
+                                                  m_updateRelease.publishedDate,
+                                                  running,
+                                                  UpdateDialogModel::PickJudgement (&EmulatorShell::GetRandomIndex)),
+                   UpdateDialogModel::MakeUpdateLabel (m_updateRelease.version),
                    pageUrl,
                    std::move (callbacks));
 

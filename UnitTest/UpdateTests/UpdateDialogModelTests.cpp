@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Update/UpdateDialogModel.h"
+#include "Core/UnicodeSymbols.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -88,10 +89,12 @@ public:
 
     TEST_METHOD (Text_HeaderDateAndProgress)
     {
-        Assert::AreEqual (std::wstring (L"Casso 1.31.0 is available. You have 1.30.0."),
-                          UpdateDialogModel::MakeHeader ({ 1, 31, 0 }, { 1, 30, 0 }));
-        Assert::AreEqual (std::wstring (L"Released 2026-10-20"), UpdateDialogModel::MakeDateLine ("2026-10-20"));
-        Assert::IsTrue   (UpdateDialogModel::MakeDateLine ("").empty());
+        Assert::AreEqual (std::wstring (L"Casso 1.31.0 (released 2026-10-20) is available. Sadly, you're still using 1.30.0") + s_kchEmDash + L"how gauche.",
+                          UpdateDialogModel::MakeHeader ({ 1, 31, 0 }, "2026-10-20", { 1, 30, 0 }, L"how gauche"));
+        Assert::AreEqual (std::wstring (L"Casso 1.31.0 is available. Sadly, you're still using 1.30.0") + s_kchEmDash + L"how quaint.",
+                          UpdateDialogModel::MakeHeader ({ 1, 31, 0 }, "", { 1, 30, 0 }, L"how quaint"),
+                          L"no date, no parenthesis");
+        Assert::AreEqual (std::wstring (L"Update to 1.30.0"), UpdateDialogModel::MakeUpdateLabel ({ 1, 30, 0 }));
         Assert::AreEqual (std::wstring (L"Downloading: 1.0 of 4.0 MB"),
                           UpdateDialogModel::MakeProgressText (1024 * 1024, 4 * 1024 * 1024));
         Assert::AreEqual (std::wstring (L"Downloading: 0.5 MB"), UpdateDialogModel::MakeProgressText (512 * 1024, 0));
@@ -112,6 +115,53 @@ public:
 
         Assert::IsTrue (UpdateDialogModel::MakeCheckFailedText (UpdateFailure::Network).starts_with (L"Error: update check failed\n"));
         Assert::IsTrue (UpdateDialogModel::DescribeFailure (UpdateFailure::None).empty());
+    }
+
+
+
+    //  Every remark, dropped into the header, makes one well-formed sentence:
+    //  lower-case start (it follows the dash), no punctuation of its own at
+    //  the end, no stray spaces, and exactly one closing period.
+    TEST_METHOD (Judgements_EveryEntryMakesAWellFormedHeader)
+    {
+        UpdateDialogModel::JudgementList  list  = UpdateDialogModel::GetJudgements();
+        std::wstring                      header;
+
+
+
+        Assert::IsTrue (list.size() >= 10, L"a list to rotate through, not one remark");
+
+        for (LPCWSTR judgement : list)
+        {
+            std::wstring_view  text = judgement;
+
+            Assert::IsFalse (text.empty());
+            Assert::IsTrue  (text.front() != L' ' && text.back() != L' ');
+            Assert::IsTrue  (std::wstring_view (L".!?,;:").find (text.back()) == std::wstring_view::npos);
+            Assert::IsTrue  (iswlower (text.front()) || text.starts_with (L"Woz") || text.starts_with (L"the Apple"),
+                             judgement);
+
+            header = UpdateDialogModel::MakeHeader ({ 1, 30, 0 }, "2026-10-03", { 1, 29, 0 }, text);
+            Assert::IsTrue  (header.ends_with (std::wstring (L"1.29.0") + s_kchEmDash + judgement + L"."));
+            Assert::IsTrue  (header.find (L"  ") == std::wstring::npos);
+            Assert::IsTrue  (header.find (L"..") == std::wstring::npos);
+        }
+    }
+
+
+
+    TEST_METHOD (PickJudgement_UsesTheInjectedRandomSource)
+    {
+        UpdateDialogModel::JudgementList  list  = UpdateDialogModel::GetJudgements();
+        size_t                            asked = 0;
+
+
+
+        Assert::AreEqual (std::wstring (list[0]), UpdateDialogModel::PickJudgement ([] (size_t) { return (size_t) 0; }));
+        Assert::AreEqual (std::wstring (list[2]), UpdateDialogModel::PickJudgement ([&asked] (size_t count) { asked = count; return (size_t) 2; }));
+        Assert::AreEqual (list.size(), asked, L"the source is told how many there are");
+        Assert::AreEqual (std::wstring (list.back()), UpdateDialogModel::PickJudgement ([] (size_t) { return (size_t) 9999; }),
+                          L"an index out of range is clamped");
     }
 
 

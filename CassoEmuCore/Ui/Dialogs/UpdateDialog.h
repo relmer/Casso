@@ -16,12 +16,13 @@ class UpdateDialogContent;
 //
 //  UpdateDialog
 //
-//  "Casso update": both versions, the release date, the release notes, and
-//  the actions UpdateDialogModel picks for this copy. The primary button
-//  keeps the dialog open: Update now starts the update and turns into
-//  Cancel while the download runs; Open release page opens the page and
-//  closes. Skip this version closes with kIdSkip, and closing the window
-//  any other way returns IDCANCEL.
+//  "Casso update": the versions and release date, the release notes, and the
+//  actions UpdateDialogModel selects for this copy. Skip this version sits
+//  bottom-left and closes with kIdSkip. The primary button, bottom-right,
+//  keeps the dialog open: Update to <version> starts the update and turns
+//  into Cancel while the download runs; Open release page opens the page and
+//  closes. A developer build shows Update to <version> disabled. Closing the
+//  window any other way returns IDCANCEL.
 //
 //  The owner feeds progress and results in through the Show calls; the
 //  dialog itself starts nothing.
@@ -47,7 +48,7 @@ public:
 
     void  Configure          (UpdateButtonSet         buttons,
                               const std::wstring    & header,
-                              const std::wstring    & dateLine,
+                              const std::wstring    & updateLabel,
                               const std::wstring    & pageUrl,
                               Callbacks               callbacks);
 
@@ -80,6 +81,7 @@ private:
     DxuiButton                          * m_skipBtn      = nullptr;
     UpdateButtonSet                       m_buttons      = UpdateButtonSet::ReleasePage;
     std::wstring                          m_pageUrl;
+    std::wstring                          m_updateLabel;
     Callbacks                             m_callbacks;
     RECT                                  m_lastBoundsPx = {};
     DxuiDpiScaler                         m_lastScaler;

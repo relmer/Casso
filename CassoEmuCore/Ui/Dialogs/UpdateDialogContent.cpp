@@ -21,7 +21,6 @@
 UpdateDialogContent::UpdateDialogContent()
 {
     Adopt (m_header);
-    Adopt (m_date);
     Adopt (m_scroll);
     Adopt (m_status);
     Adopt (m_pageLink);
@@ -31,9 +30,6 @@ UpdateDialogContent::UpdateDialogContent()
     m_header.SetTextRole   (DxuiTextRole::Heading);
     m_header.SetFontWeight (DxuiFontWeight::Bold);
     m_header.SetTextAlign  (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-
-    m_date.SetTextRole  (DxuiTextRole::Muted);
-    m_date.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_status.SetTextRole  (DxuiTextRole::Body);
     m_status.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
@@ -67,10 +63,9 @@ UpdateDialogContent::UpdateDialogContent()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UpdateDialogContent::SetHeader (const std::wstring & header, const std::wstring & dateLine)
+void UpdateDialogContent::SetHeader (const std::wstring & header)
 {
     m_header.SetText (header);
-    m_date.SetText   (dateLine);
 }
 
 
@@ -233,6 +228,7 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     constexpr int  kLineDip       = 20;
     constexpr int  kGapDip        = 8;
     constexpr int  kStatusLines   = 2;
+    constexpr int  kHeaderLines   = 2;
     constexpr int  kLinkHeightDip = 22;
 
 
@@ -249,11 +245,9 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_scaler    = scaler;
     m_isLaidOut = true;
 
-    m_header.Layout (RECT { boundsPx.left, y, boundsPx.right, y + line }, scaler);
-    y += line;
-
-    m_date.Layout (RECT { boundsPx.left, y, boundsPx.right, y + line }, scaler);
-    y += line + gap;
+    // Two lines: the versions sentence wraps on a dialog of ordinary width.
+    m_header.Layout (RECT { boundsPx.left, y, boundsPx.right, y + line * kHeaderLines }, scaler);
+    y += line * kHeaderLines + gap;
 
     m_pageLink.Layout (RECT { boundsPx.left, bottom - link, boundsPx.right, bottom });
     m_pageLink.SetDpi (scaler.GetDpi());

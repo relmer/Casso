@@ -9,7 +9,7 @@
 Casso learns about new releases from the GitHub Releases API, shows a title-bar
 indicator when a newer, unskipped release exists, and opens a dialog with the
 release's own CHANGELOG entries (and README highlights for major or minor
-versions in the range) read from the release tag. **Update now** installs the
+versions in the range) read from the release tag. **Update to <version>** installs the
 release by the method for this copy's install type: an in-place MSIX upgrade
 from the release's `.msixbundle`, or a verified replace-and-restore of the
 release zip's files. A developer build, meaning any executable without a valid

@@ -37,14 +37,14 @@ startup while a program keeps running at full speed.
 
 The user clicks the title-bar indicator. A dialog shows the running version,
 the new version, its release date and its release notes. The dialog offers
-**Update now** and **Skip this version**. Closing the dialog leaves the
+**Update to <version>** and **Skip this version**. Closing the dialog leaves the
 indicator in place.
 
 **Why this priority**: The indicator is useless without a place to read what
 changed and act on it.
 
 **Independent Test**: With the indicator showing, click it and use each of
-the three actions in turn.
+both actions in turn.
 
 **Acceptance Scenarios**:
 
@@ -57,7 +57,7 @@ the three actions in turn.
 
 ### User Story 3 - Update in place (Priority: P2)
 
-From the dialog, the user chooses **Update now**. Casso gets the new build
+From the dialog, the user chooses **Update to <version>**. Casso gets the new build
 through the channel this copy was installed from, then restarts on the new
 version. If anything fails, the user keeps a working copy of the old version
 and sees what went wrong.
@@ -67,18 +67,18 @@ value. Installing it for them removes the remaining friction, but it carries
 most of the risk.
 
 **Independent Test**: For each install type, start an old build, choose
-**Update now**, and confirm Casso restarts on the new version. Then simulate a
+**Update to <version>**, and confirm Casso restarts on the new version. Then simulate a
 failed download and a failed install, and confirm the old version still runs.
 
 **Acceptance Scenarios**:
 
-1. **Given** a copy unpacked from the release zip, **When** the user chooses **Update now**, **Then** Casso downloads the matching zip for its architecture, verifies it, replaces its own files, and restarts on the new version.
-2. **Given** a copy installed from the MSIX package, whether by hand from the release page or by winget, **When** the user chooses **Update now**, **Then** Casso downloads the new MSIX bundle from the release, installs it as an in-place upgrade of the installed package, and restarts on the new version with its settings intact.
-3. **Given** a copy running from a source checkout, **When** a newer release exists, **Then** the dialog shows the release notes and tells the user to pull and rebuild, and offers no **Update now**.
-4. **Given** an emulated disk has unsaved writes, **When** the user chooses **Update now**, **Then** Casso flushes them or asks first, exactly as it does on a normal exit, before it restarts.
+1. **Given** a copy unpacked from the release zip, **When** the user chooses **Update to <version>**, **Then** Casso downloads the matching zip for its architecture, verifies it, replaces its own files, and restarts on the new version.
+2. **Given** a copy installed from the MSIX package, whether by hand from the release page or by winget, **When** the user chooses **Update to <version>**, **Then** Casso downloads the new MSIX bundle from the release, installs it as an in-place upgrade of the installed package, and restarts on the new version with its settings intact.
+3. **Given** a copy running from a source checkout, **When** a newer release exists, **Then** the dialog shows the release notes and tells the user to pull and rebuild, and shows **Update to <version>** disabled.
+4. **Given** an emulated disk has unsaved writes, **When** the user chooses **Update to <version>**, **Then** Casso flushes them or asks first, exactly as it does on a normal exit, before it restarts.
 5. **Given** the download fails, is incomplete, or does not verify, **When** the update runs, **Then** no file of the installed copy is changed, and the dialog reports the failure and offers a link to the release page.
 6. **Given** the install step fails partway, **When** the update runs, **Then** the previous version is restored and still launches.
-7. **Given** the folder of the zip copy cannot be written to, **When** the user chooses **Update now**, **Then** Casso explains this and offers the release page instead.
+7. **Given** the folder of the zip copy cannot be written to, **When** the user chooses **Update to <version>**, **Then** Casso explains this and offers the release page instead.
 
 ---
 
@@ -107,7 +107,7 @@ confirm startup makes no network request.
 ### Edge Cases
 
 - The running build is newer than the latest release (a developer or prerelease build): no indicator, and the manual check reports that the build is up to date.
-- A release exists but has no asset for this architecture or install type: the indicator still appears, and **Update now** is replaced by a link to the release page.
+- A release exists but has no asset for this architecture or install type: the indicator still appears, and **Update to <version>** is replaced by a link to the release page.
 - A copy installed by winget is updated from the release's MSIX directly. Afterward winget sees the same package at the new version, so a later `winget upgrade` has nothing to do and does not conflict.
 - The user skipped several releases: the dialog shows the changelog entries for every version between the running one and the new one, newest first.
 - A copy built locally and then moved outside the source checkout: it is still recognized as a developer build and is never updated in place.
@@ -132,11 +132,11 @@ confirm startup makes no network request.
 - **FR-007a**: The dialog MUST show the CHANGELOG entry for each version newer than the running one, up to and including the new version, newest first.
 - **FR-007b**: When the README has a release highlight for a major or minor version in that range, the dialog MUST show that highlight above the changelog entries. It MUST NOT show the rest of the README.
 - **FR-007c**: Both MUST be read from the released version's own README and CHANGELOG, not from the running copy, and MUST be shown as formatted text.
-- **FR-008**: The dialog MUST offer **Update now** and **Skip this version**. Closing the dialog MUST leave the indicator in place.
+- **FR-008**: The dialog MUST offer **Update to <version>** (for example, Update to 1.30.0) and **Skip this version**. Closing the dialog MUST leave the indicator in place.
 - **FR-009**: **Skip this version** MUST suppress the indicator for that version only, and MUST persist across restarts.
 - **FR-010**: Casso MUST detect how this copy is running: as an installed MSIX package (by hand or by winget, which installs the same package), as an unpacked release zip, or as a developer build.
-- **FR-011**: **Update now** MUST apply the update by the method for that install type, and MUST restart Casso on the new version when it is done: for MSIX, an in-place upgrade of the installed package from the release's MSIX bundle; for a zip copy, replacing its files from the release zip for its architecture.
-- **FR-011a**: A developer build MUST NOT offer **Update now**. The dialog MUST tell the user to pull and rebuild instead.
+- **FR-011**: **Update to <version>** MUST apply the update by the method for that install type, and MUST restart Casso on the new version when it is done: for MSIX, an in-place upgrade of the installed package from the release's MSIX bundle; for a zip copy, replacing its files from the release zip for its architecture.
+- **FR-011a**: A developer build MUST show **Update to <version>** disabled, so it cannot update in place, and MUST tell the user to pull and rebuild instead.
 - **FR-011b**: A copy MUST count as an official release only when its executable has a valid signature from Casso's publisher. Any other copy, unsigned or signed by anyone else, MUST count as a developer build, wherever it runs from.
 - **FR-011c**: The release build MUST fail rather than publish an unsigned release, so that every official release has the signature that FR-011b checks.
 - **FR-012**: A zip update MUST verify the downloaded package before it changes any installed file, and MUST restore the previous version if the replacement fails.
@@ -158,7 +158,7 @@ confirm startup makes no network request.
 
 - **SC-001**: Within 10 seconds of startup, an out-of-date copy with automatic checks on shows the indicator, given a working network.
 - **SC-002**: During a check, a download or an install, emulation speed stays within normal run-to-run variation, and the UI never stops responding.
-- **SC-003**: For both the MSIX and the zip install types, **Update now** brings Casso to the new version and restarts it without the user visiting a web page or running a command.
+- **SC-003**: For both the MSIX and the zip install types, **Update to <version>** brings Casso to the new version and restarts it without the user visiting a web page or running a command.
 - **SC-004**: In every simulated failure (interrupted download, corrupt package, failed file replacement, failed package install), the previously installed version still launches.
 - **SC-005**: A skipped version never shows the indicator again, across at least three restarts.
 - **SC-006**: With automatic checks off, a startup makes no update-related network request.

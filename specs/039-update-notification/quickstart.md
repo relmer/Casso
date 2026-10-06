@@ -19,19 +19,19 @@ scripts/RunTests.ps1 -Build
 ## Unsigned local build
 
 The same build is unsigned, so the dialog must show the developer-build text
-and no **Update now**.
+and no **Update to <version>**.
 
 ## Signed build
 
 Sign a copy of the old-versioned build with a test certificate whose subject
 matches the publisher constant only for the duration of the check (or use a
 released build with its version resource unchanged and a newer release
-present). Expect **Update now** for the zip install type. Do not run the update
+present). Expect **Update to <version>** for the zip install type. Do not run the update
 against a real install folder without a backup.
 
 ## Failure checks
 
 - Offline: the startup check shows nothing; **Check for updates** reports the
   failure.
-- Read-only folder: **Update now** is replaced by **Open release page**.
+- Read-only folder: **Update to <version>** is replaced by **Open release page**.
 - Settings off: no request at startup (confirm with a proxy or the log).

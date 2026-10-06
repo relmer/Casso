@@ -51,15 +51,16 @@ UpdateDialog::~UpdateDialog()
 void UpdateDialog::Configure (
     UpdateButtonSet         buttons,
     const std::wstring    & header,
-    const std::wstring    & dateLine,
+    const std::wstring    & updateLabel,
     const std::wstring    & pageUrl,
     Callbacks               callbacks)
 {
-    m_buttons   = buttons;
-    m_pageUrl   = pageUrl;
-    m_callbacks = std::move (callbacks);
+    m_buttons     = buttons;
+    m_pageUrl     = pageUrl;
+    m_updateLabel = updateLabel;
+    m_callbacks   = std::move (callbacks);
 
-    m_pendingContent->SetHeader       (header, dateLine);
+    m_pendingContent->SetHeader       (header);
     m_pendingContent->SetPageUrl      (pageUrl);
     m_pendingContent->SetNotesMessage (UpdateDialogModel::kpszNotesLoading);
     m_pendingContent->SetStatus       (buttons == UpdateButtonSet::Developer ? UpdateDialogModel::kpszDeveloperText : L"",
@@ -81,8 +82,8 @@ void UpdateDialog::Configure (
 //
 //  UpdateDialog::OnCreate
 //
-//  A developer build gets no primary button, only Skip; every other set
-//  gets the primary to the left of Skip.
+//  Skip this version goes bottom-left, the primary bottom-right. A developer
+//  build still gets the primary, disabled, beside the text saying why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,13 +96,9 @@ void UpdateDialog::OnCreate()
     m_content = m_pendingContent.get();
     SetDialogContentOwned (std::move (m_pendingContent));
 
-    if (m_buttons != UpdateButtonSet::Developer)
-    {
-        m_primaryBtn = AddDialogButton (UpdateDialogModel::kpszUpdateNow, kIdPrimary);
-        m_primaryBtn->SetOnClick ([this] () { OnPrimaryClick(); });
-    }
-
-    m_skipBtn = AddDialogButton (UpdateDialogModel::kpszSkip, kIdSkip);
+    m_skipBtn    = AddDialogButton (UpdateDialogModel::kpszSkip, kIdSkip, DxuiButtonRow::Anchor::Left);
+    m_primaryBtn = AddDialogButton (m_updateLabel, kIdPrimary);
+    m_primaryBtn->SetOnClick ([this] () { OnPrimaryClick(); });
 
     ApplyButtonLabels();
     SetDialogTickIntervalMs (kTickMs);
@@ -194,13 +191,13 @@ void UpdateDialog::ApplyButtonLabels()
     {
         label = UpdateDialogModel::kpszCancel;
     }
-    else if (m_buttons == UpdateButtonSet::UpdateNow)
+    else if (m_buttons != UpdateButtonSet::ReleasePage)
     {
-        label = UpdateDialogModel::kpszUpdateNow;
+        label = m_updateLabel.c_str();
     }
 
     m_primaryBtn->SetLabel   (label);
-    m_primaryBtn->SetEnabled (!m_isBusy || m_canCancel);
+    m_primaryBtn->SetEnabled (m_isBusy ? m_canCancel : m_buttons != UpdateButtonSet::Developer);
 
     if (m_skipBtn != nullptr)
     {
@@ -235,7 +232,7 @@ void UpdateDialog::SetBusy (bool isBusy, bool canCancel)
 //
 //  UpdateDialog::OnPrimaryClick
 //
-//  The release page closes the dialog once it is open; Update now and
+//  The release page closes the dialog once it is open; the update and
 //  Cancel keep it open, since the result arrives later.
 //
 ////////////////////////////////////////////////////////////////////////////////

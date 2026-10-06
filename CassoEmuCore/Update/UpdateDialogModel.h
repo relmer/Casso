@@ -16,14 +16,15 @@
 //
 //  UpdateButtonSet
 //
-//  The actions the update dialog offers:
+//  The actions the update dialog offers. Skip this version is always there,
+//  bottom-left; the set decides the primary button, bottom-right:
 //
-//    UpdateNow    Update now and Skip this version: an official copy with a
-//                 download for it
-//    ReleasePage  Open release page and Skip this version: no download for
-//                 this copy, or a folder Casso cannot write to
-//    Developer    Skip this version only, with the pull-and-rebuild text and
-//                 a release page link
+//    UpdateNow    Update to <version>: an official copy with a download
+//                 for it
+//    ReleasePage  Open release page: no download for this copy, or a
+//                 folder Casso cannot write to
+//    Developer    Update to <version>, disabled, with the pull-and-rebuild
+//                 text and a release page link
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,6 @@ class UpdateDialogModel
 {
 public:
     static constexpr LPCWSTR  kpszTitle          = L"Casso update";
-    static constexpr LPCWSTR  kpszUpdateNow      = L"Update now";
     static constexpr LPCWSTR  kpszSkip           = L"Skip this version";
     static constexpr LPCWSTR  kpszOpenPage       = L"Open release page";
     static constexpr LPCWSTR  kpszCancel         = L"Cancel";
@@ -67,8 +67,16 @@ public:
     static UpdateButtonSet  SelectAfterFailure   (UpdateButtonSet current, UpdateFailure failure);
     static bool             HasAsset             (const ReleaseInfo & release, InstallType installType, ReleaseArch arch);
 
-    static std::wstring     MakeHeader           (const ReleaseVersion & newer, const ReleaseVersion & running);
-    static std::wstring     MakeDateLine         (const std::string & publishedDate);
+    using RandomIndexFn = std::function<size_t (size_t count)>;
+    using JudgementList = std::span<const LPCWSTR>;
+
+    static std::wstring     MakeHeader           (const ReleaseVersion  & newer,
+                                                  const std::string     & publishedDate,
+                                                  const ReleaseVersion  & running,
+                                                  std::wstring_view       judgement);
+    static std::wstring     MakeUpdateLabel      (const ReleaseVersion & newer);
+    static JudgementList    GetJudgements        ();
+    static std::wstring     PickJudgement        (const RandomIndexFn & randomIndex);
     static std::wstring     MakeUpToDateText     (const ReleaseVersion & running);
     static std::wstring     MakeProgressText     (std::uint64_t bytesDone, std::uint64_t bytesTotal);
     static std::wstring     DescribeFailure      (UpdateFailure failure);

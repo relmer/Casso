@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Update/UpdateDialogModel.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -10,7 +11,7 @@
 //
 //  UpdateDialogModel::SelectButtons
 //
-//  Only an official copy with a download for it is offered Update now. A
+//  Only an official copy with a download for it is offered the update. A
 //  developer build is told to pull and rebuild. Anything else, including a
 //  copy whose install type is not known yet, gets the release page.
 //
@@ -44,8 +45,8 @@ UpdateButtonSet UpdateDialogModel::SelectButtons (InstallType installType, bool 
 //  UpdateDialogModel::SelectAfterFailure
 //
 //  A failed update that a retry cannot fix -- a folder Casso cannot write
-//  to, or no download for this copy -- swaps Update now for the release
-//  page. Any other failure leaves Update now in place to try again.
+//  to, or no download for this copy -- swaps the update button for the release
+//  page. Any other failure leaves the update button in place to try again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,20 +101,66 @@ bool UpdateDialogModel::HasAsset (const ReleaseInfo & release, InstallType insta
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateDialogModel::MakeHeader
+//  s_kJudgements
+//
+//  The closing remark on the update dialog's header, one picked per dialog.
+//  Dry and good-natured: the joke is on the old version, never the user.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UpdateDialogModel::MakeHeader (const ReleaseVersion & newer, const ReleaseVersion & running)
+static constexpr LPCWSTR  s_kJudgements[] =
 {
-    std::string  newerText   = newer.ToString();
-    std::string  runningText = running.ToString();
+    L"how gauche",
+    L"how quaint",
+    L"positively vintage",
+    L"the Apple II approves, at least",
+    L"very retro of you",
+    L"a bold fashion choice",
+    L"practically an heirloom",
+    L"how delightfully last season",
+    L"Woz would understand",
+    L"charming, in a museum sort of way",
+    L"the floppy drives are blushing",
+    L"a classic, if not a current one",
+};
 
 
 
-    return std::format (L"Casso {} is available. You have {}.",
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::MakeHeader
+//
+//  "Casso 1.30.0 (released 2026-10-03) is available. Sadly, you're still
+//  using 1.29.0--how gauche." with an em dash abutting both sides. A release
+//  with no date leaves the parenthesis out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::MakeHeader (
+    const ReleaseVersion  & newer,
+    const std::string     & publishedDate,
+    const ReleaseVersion  & running,
+    std::wstring_view       judgement)
+{
+    std::string   newerText   = newer.ToString();
+    std::string   runningText = running.ToString();
+    std::wstring  released;
+
+
+
+    if (!publishedDate.empty())
+    {
+        released = L" (released " + std::wstring (publishedDate.begin(), publishedDate.end()) + L")";
+    }
+
+    return std::format (L"Casso {}{} is available. Sadly, you're still using {}{}{}.",
                         std::wstring (newerText.begin(),   newerText.end()),
-                        std::wstring (runningText.begin(), runningText.end()));
+                        released,
+                        std::wstring (runningText.begin(), runningText.end()),
+                        s_kchEmDash,
+                        judgement);
 }
 
 
@@ -122,25 +169,55 @@ std::wstring UpdateDialogModel::MakeHeader (const ReleaseVersion & newer, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateDialogModel::MakeDateLine
-//
-//  Empty when the release record gave no date, so the dialog shows nothing
-//  rather than a label with no value.
+//  UpdateDialogModel::MakeUpdateLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UpdateDialogModel::MakeDateLine (const std::string & publishedDate)
+std::wstring UpdateDialogModel::MakeUpdateLabel (const ReleaseVersion & newer)
 {
-    std::wstring  line;
+    std::string  newerText = newer.ToString();
 
 
 
-    if (!publishedDate.empty())
-    {
-        line = L"Released " + std::wstring (publishedDate.begin(), publishedDate.end());
-    }
+    return L"Update to " + std::wstring (newerText.begin(), newerText.end());
+}
 
-    return line;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::GetJudgements
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UpdateDialogModel::JudgementList UpdateDialogModel::GetJudgements()
+{
+    return JudgementList (s_kJudgements);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::PickJudgement
+//
+//  The random source returns an index below the count it is given; one out
+//  of range is clamped rather than read past the end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::PickJudgement (const RandomIndexFn & randomIndex)
+{
+    JudgementList  list  = GetJudgements();
+    size_t         index = randomIndex ? randomIndex (list.size()) : 0;
+
+
+
+    return list[std::min (index, list.size() - 1)];
 }
 
 
@@ -267,7 +344,7 @@ std::wstring UpdateDialogModel::DescribeFailure (UpdateFailure failure)
             break;
 
         case UpdateFailure::OtherInstanceRunning:
-            text = L"Another copy of Casso is open. Close it, then choose Update now again.";
+            text = L"Another copy of Casso is open. Close it, then try the update again.";
             break;
 
         case UpdateFailure::InstallFailed:

@@ -46,7 +46,7 @@
   compares the bundle's signer subject to the manifest Publisher; the plan adds
   the core constant to that comparison).
 - Runs only on the check worker thread (decision from spec owner). The UI thread
-  starts with install type "unknown" and never shows **Update now** until the
+  starts with install type "unknown" and never shows **Update to <version>** until the
   worker has classified the copy.
 
 ## R-4 Install type
