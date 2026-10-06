@@ -42,6 +42,31 @@ public:
 
     static int  ComputeVisibleMs (size_t textLength, int systemMs);
 
+    //  How far the pointer's image reaches above and below its hot spot, in
+    //  pixels: what a tip that follows the pointer must keep clear of.
+    struct PointerExtent
+    {
+        int  aboveHotspotPx = 0;
+        int  belowHotspotPx = 0;
+    };
+
+    using PointerMeasurer = PointerExtent (*) ();
+
+    //  The current pointer's extent, read from its image, or the system's
+    //  cursor height below the hot spot where the image cannot be read.
+    static PointerExtent  MeasurePointerExtent ();
+
+    //  An anchor grown to clear the pointer anywhere inside it, by `extent`
+    //  and `gapPx` above and below.
+    static RECT  MakePointerClearAnchor (const RECT & anchor, const PointerExtent & extent, int gapPx);
+
+    //  Replaces MeasurePointerExtent, so a test can supply a pointer.
+    void  SetPointerMeasurer (PointerMeasurer measurer) { m_pfnMeasurePointer = measurer; }
+
+    //  The rect the tip is placed against: the anchor, or for a tip that
+    //  follows the pointer, the anchor grown to clear the pointer's image.
+    RECT  GetPlacementAnchor () const;
+
     // A tip fades in when it appears and out when it goes. Short enough that
     // it never delays reading the tip, long enough that the tip does not
     // appear to blink into place.
@@ -115,6 +140,9 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
+    //  The room between a tip that follows the pointer and the pointer.
+    static constexpr int  kPointerGapDip = 4;
+
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
     static int  GetSystemVisibleMs ();
@@ -144,26 +172,27 @@ private:
     //
     void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
-    DxuiDpiScaler     m_scaler;
-    RECT              m_anchor        = {};
-    std::wstring      m_text;
-    std::wstring      m_pendingText;
-    RECT              m_pendingAnchor = {};
-    int64_t           m_showAtMs      = 0;
-    int64_t           m_hideAtMs      = 0;
-    int               m_dwellOpenMs   = 500;
-    int               m_dwellCloseMs  = 100;
-    float             m_fontDip       = 12.0f;
-    bool              m_monospace     = false;
-    uint32_t          m_bgArgb        = 0xFF2D2D2D;
-    uint32_t          m_borderArgb    = 0xFF606060;
-    uint32_t          m_textArgb      = 0xFFE8EEF4;
-    int               m_viewportWPx   = 0;
-    int               m_viewportHPx   = 0;
-    bool              m_visible       = false;
-    bool              m_pending       = false;
-    bool              m_fadingOut     = false;
-    bool              m_isInstant     = false;
-    DxuiHwndSource  * m_popupHost     = nullptr;
-    DxuiPopupHost   * m_activePopup   = nullptr;
+    DxuiDpiScaler      m_scaler;
+    RECT               m_anchor            = {};
+    std::wstring       m_text;
+    std::wstring       m_pendingText;
+    RECT               m_pendingAnchor     = {};
+    int64_t            m_showAtMs          = 0;
+    int64_t            m_hideAtMs          = 0;
+    int                m_dwellOpenMs       = 500;
+    int                m_dwellCloseMs      = 100;
+    float              m_fontDip           = 12.0f;
+    bool               m_monospace         = false;
+    uint32_t           m_bgArgb            = 0xFF2D2D2D;
+    uint32_t           m_borderArgb        = 0xFF606060;
+    uint32_t           m_textArgb          = 0xFFE8EEF4;
+    int                m_viewportWPx       = 0;
+    int                m_viewportHPx       = 0;
+    bool               m_visible           = false;
+    bool               m_pending           = false;
+    bool               m_fadingOut         = false;
+    bool               m_isInstant         = false;
+    DxuiHwndSource   * m_popupHost         = nullptr;
+    DxuiPopupHost    * m_activePopup       = nullptr;
+    PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;
 };

@@ -176,4 +176,47 @@ public:
         t.Tick (600);
         Assert::IsTrue  (t.IsVisible());
     }
+
+    //  A pointer twenty pixels tall below its hot spot, and two above it.
+    static DxuiTooltip::PointerExtent  GetTallPointer() { return DxuiTooltip::PointerExtent { 2, 20 }; }
+
+    //  An instant tip follows the pointer, so it is placed clear of the
+    //  pointer's whole image plus a gap, below it, or above it where below
+    //  would run off the work area. A dwelled tip keeps its control's anchor.
+    TEST_METHOD (RequestShowNow_PlacesTheTipClearOfThePointer)
+    {
+        constexpr int  kGapPx   = 4;
+        DxuiTooltip    t;
+        RECT           cell     = MakeRect (100, 200, 120, 216);
+        RECT           anchor   = {};
+        RECT           work     = MakeRect (0, 0, 1000, 800);
+        RECT           placed   = {};
+        SIZE           tipPx    = { 60, 22 };
+
+
+
+        t.SetPointerMeasurer (GetTallPointer);
+        t.RequestShowNow (cell, L"$0400", 0);
+
+        anchor = t.GetPlacementAnchor();
+
+        Assert::AreEqual (cell.left,                 anchor.left,   L"along the byte, as before");
+        Assert::AreEqual (cell.bottom + 20 + kGapPx, anchor.bottom, L"below the lowest the pointer's image reaches from anywhere in the byte, and a gap");
+        Assert::AreEqual (cell.top - 2 - kGapPx,     anchor.top,    L"above the highest it reaches, and a gap");
+
+        placed = DxuiPopupHost::ComputePlacementForTest (anchor, work, DxuiPopupPlacement::Below, tipPx, true);
+        Assert::IsTrue (placed.top >= cell.bottom + 20, L"below the pointer, not over it");
+
+        work.bottom = cell.bottom + 20;
+        placed      = DxuiPopupHost::ComputePlacementForTest (anchor, work, DxuiPopupPlacement::Below, tipPx, true);
+        Assert::IsTrue (placed.bottom <= cell.top - 2, L"above the pointer where below would leave the work area");
+
+        t.HideImmediate();
+        t.SetDwellOpenMs (0);
+        t.RequestShow (cell, L"a control's tip", 0);
+        t.Tick (0);
+        anchor = t.GetPlacementAnchor();
+
+        Assert::IsTrue (EqualRect (&anchor, &cell) != FALSE, L"a dwelled tip keeps its control's anchor");
+    }
 };
