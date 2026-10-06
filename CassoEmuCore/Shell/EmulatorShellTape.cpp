@@ -232,6 +232,17 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         LatchRecorderKeys (region);
     }
 
+    // A TRANSPORT KEY THAT CANNOT ACT STILL KNOCKS THE OTHERS UP, as the real
+    // mechanism does: pressing it releases whatever key was holding the tape
+    // moving, and with nothing holding it the tape stops.
+    if (!TapeDeckWidget::IsRegionEnabled (region, view) && m_tapeManager != nullptr &&
+        ReleaseOtherRecorderKeys (region) &&
+        view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped)
+    {
+        m_tapeManager->Stop();
+        m_recorderKeyLatched.fill (false);
+    }
+
     if (!TapeDeckWidget::IsRegionEnabled (region, view) || m_tapeManager == nullptr)
     {
         return;
@@ -244,7 +255,16 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         case TapeDeckRegion::Name:        PickTape();                                                                 break;
         case TapeDeckRegion::Rewind:      m_tapeManager->Rewind();                                                    break;
         case TapeDeckRegion::FastForward: m_tapeManager->FastForward();                                               break;
-        case TapeDeckRegion::Play:        m_tapeManager->Play();                                                      break;
+        // Play over a wind lets the wind key up first; the deck plays only
+        // from a stop, and the two go to the CPU thread in this order.
+        case TapeDeckRegion::Play:
+            if (view.transport == TapeTransport::FastForwarding || view.transport == TapeTransport::Rewinding)
+            {
+                m_tapeManager->Stop();
+            }
+
+            m_tapeManager->Play();
+            break;
         case TapeDeckRegion::Stop:        m_tapeManager->Stop();                                                      break;
         case TapeDeckRegion::Record:      m_tapeManager->SetRecordArmed (view.transport != TapeTransport::Recording); break;
         case TapeDeckRegion::Eject:       EjectAndPickTape();                                                         break;
@@ -308,6 +328,55 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReleaseOtherRecorderKeys
+//
+//  Lets up every latched key but the one a transport key press went to.
+//  Returns whether any was down. Only RECORD, REWIND, FAST-FORWARD and PLAY
+//  knock the others up this way; STOP and EJECT release everything through
+//  LatchRecorderKeys.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ReleaseOtherRecorderKeys (TapeDeckRegion region)
+{
+    constexpr size_t  kRecord = 0, kRewind = 1, kForward = 2, kPlay = 3;
+    size_t            pressed = 0;
+    bool              any     = false;
+
+
+
+    switch (region)
+    {
+        case TapeDeckRegion::Record:      pressed = kRecord;  break;
+        case TapeDeckRegion::Rewind:      pressed = kRewind;  break;
+        case TapeDeckRegion::FastForward: pressed = kForward; break;
+        case TapeDeckRegion::Play:        pressed = kPlay;    break;
+        default:                          return false;
+    }
+
+    for (size_t key = 0; key < m_recorderKeyLatched.size(); key++)
+    {
+        if (key != pressed && m_recorderKeyLatched[key])
+        {
+            m_recorderKeyLatched[key] = false;
+            any                       = true;
+        }
+    }
+
+    if (any)
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    return any;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LatchRecorderKeys
 //
 //  The RQ-309DS's key mechanism, for the desk recorder: RECORD takes PLAY
@@ -336,6 +405,10 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
         case TapeDeckRegion::Rewind:
         case TapeDeckRegion::FastForward:
         case TapeDeckRegion::Play:
+            // Any of these knocks every other key up, whether or not it then
+            // stays down itself.
+            m_recorderKeyLatched.fill (false);
+
             // Winding toward the end the tape is already at goes nowhere, so
             // the key does not stay down; it only dips.
             if ((region == TapeDeckRegion::Rewind && view.positionSeconds <= 0.0) ||
@@ -344,7 +417,6 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
                 break;
             }
 
-            m_recorderKeyLatched.fill (false);
             m_recorderKeyLatched[region == TapeDeckRegion::Rewind      ? kRewind  :
                                  region == TapeDeckRegion::FastForward ? kForward : kPlay] = true;
             break;

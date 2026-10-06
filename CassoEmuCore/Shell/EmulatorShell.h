@@ -1124,6 +1124,7 @@ private:
     void          CreateBlankTape        ();
     void          PromptTapePosition     ();
     void          LatchRecorderKeys      (TapeDeckRegion region);
+    bool          ReleaseOtherRecorderKeys (TapeDeckRegion region);
     void          EjectAndPickTape       ();
     int           GetDriveRowWidthPx     ();
     void          RegisterTapeDropTarget ();

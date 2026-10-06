@@ -273,7 +273,7 @@ bool TapeDeckWidget::IsRegionEnabled (TapeDeckRegion region, const TapeDeckView 
         case TapeDeckRegion::Name:        return true;
         case TapeDeckRegion::Rewind:      return hasTape && !isRecording;
         case TapeDeckRegion::FastForward: return hasTape && !isRecording;
-        case TapeDeckRegion::Play:        return view.transport == TapeTransport::Stopped;
+        case TapeDeckRegion::Play:        return hasTape && !isRecording && view.transport != TapeTransport::Playing;   // from a wind too
         case TapeDeckRegion::Stop:        return isMoving;
         case TapeDeckRegion::Record:      return hasTape && view.isWritable && (isRecording || view.transport == TapeTransport::Stopped);
         case TapeDeckRegion::Eject:       return true;   // with no tape it just opens the picker

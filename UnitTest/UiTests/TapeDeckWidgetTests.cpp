@@ -167,7 +167,7 @@ public:
     }
 
 
-    TEST_METHOD (MovingDeckOffersStopNotPlayOrRecord)
+    TEST_METHOD (MovingDeckOffersStopAndPlaysOnlyFromAWind)
     {
         constexpr TapeTransport  kMoving[] = { TapeTransport::Playing, TapeTransport::FastForwarding, TapeTransport::Rewinding };
 
@@ -180,7 +180,9 @@ public:
 
 
             Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,   view));
-            Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,   view));
+            // Play from a wind stops the wind and plays, as the real keys do;
+            // while playing it has nothing to do.
+            Assert::AreEqual (transport != TapeTransport::Playing, TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play, view));
             Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Record, view));
         }
     }
