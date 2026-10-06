@@ -6,11 +6,9 @@
 [![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
 -->
 
-Casso is a retro platform emulator, 6502/65C02 assembler, and disk manager,
-written in C++ with hardware-accelerated DirectX rendering and a multithreaded
-core.
-
-*It's your retro Swiss Army knife.*
+Casso is your Apple II Swiss Army knife: emulator, 6502/65C02 assembler, and
+disk manager, all in one Windows app, written in C++ with hardware-accelerated
+DirectX rendering and a multithreaded core.
 
 Today it emulates the Apple II family:
 
