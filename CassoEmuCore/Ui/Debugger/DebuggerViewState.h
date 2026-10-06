@@ -278,6 +278,7 @@ struct DebuggerViewSnapshot
         int                  window = 0;
         std::optional<Word>  address;
         std::string          text;
+        std::string          error;
         uint32_t             serial = 0;
     };
 
@@ -584,13 +585,11 @@ public:
 
     static std::string  GetRegionLabel (MemoryRegion region);
 
-    //  A memory pane's Go to (FR-090): a hex address; PC, A, X, Y or S; or a
-    //  6502 operand -- zp, abs, zp,X, zp,Y, abs,X, abs,Y, (zp,X), (zp),Y or
-    //  (abs) -- resolved against the registers and the bytes `peek` returns.
-    //  Two hex digits or fewer is a zero-page operand. Nothing when the text
-    //  is none of these, or a pointer would be read from I/O (peek empty).
+    //  A memory address, from the memory address box or the console's MD: any
+    //  expression the console evaluates, alone or inside a 6502 operand form.
+    //  `peek` reads the pointer of an indirect form; empty for I/O.
     using GoToPeek = std::function<std::optional<Byte> (Word address)>;
-    static std::optional<Word>  ResolveGoTo (const std::string & text, const Cpu6502Registers & registers, const GoToPeek & peek);
+    static bool  TryResolveGoTo (const std::string & text, const IDebugExpressionContext & context, const GoToPeek & peek, Word & address, std::string & error);
 
     //  Resolves a Go to on the CPU thread, for the window to act on when the
     //  next snapshot carries it.
@@ -601,6 +600,20 @@ private:
 
     static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
     void  MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply);
+
+    struct GoToOperand
+    {
+        std::string  core;
+        char         index         = 0;
+        bool         isIndirect    = false;
+        bool         isIndexInside = false;
+    };
+
+    static bool         TryResolveMemoryAddress (DebugSession & session, const std::string & text, Word & address, std::string & error);
+    static GoToOperand  SplitGoToOperand        (const std::string & text);
+    static size_t       FindClosingParen        (const std::string & text);
+    static bool         IsWrittenAbsolute       (const std::string & core);
+    static bool         TryReadGoToPointer      (const GoToOperand & operand, Word value, Word index, bool isZeroPage, const GoToPeek & peek, Word & address, std::string & error);
     void  GoToMemory     (int window, Word address);
     void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
     void  ImportBreakpoints (DebugSession & session, const std::string & path, const BreakpointImport::LineRunner & run, std::vector<std::string> & lines);

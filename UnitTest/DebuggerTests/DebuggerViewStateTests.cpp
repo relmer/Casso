@@ -12,6 +12,7 @@
 #include "InMemoryPipeTransport.h"
 #include "TestHelpers.h"
 #include "MockDebugTarget.h"
+#include "MockExpressionContext.h"
 #include "Shell/CpuManager.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
@@ -277,7 +278,7 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (GoToResolvesRegistersAndEveryAddressingForm)
         {
-            Cpu6502Registers              r;
+            MockExpressionContext         context;
             std::map<Word, Byte>          memory = { { 0x0010, 0x34 }, { 0x0011, 0x12 },
                                                      { 0x0014, 0x78 }, { 0x0015, 0x56 },
                                                      { 0x0300, 0xCD }, { 0x0301, 0xAB } };
@@ -286,15 +287,17 @@ namespace DebuggerViewStateTests
                 if (address >= 0xC000 && address < 0xC100) { return std::nullopt; }
                 return memory.contains (address) ? memory[address] : (Byte) 0;
             };
-            auto                          go     = [&] (const char * text) { return DebuggerViewState::ResolveGoTo (text, r, peek); };
+            auto                          go     = [&] (const char * text) -> std::optional<Word>
+            {
+                Word         address = 0;
+                std::string  error;
+
+                return DebuggerViewState::TryResolveGoTo (text, context, peek, address, error) ? std::optional<Word> (address) : std::nullopt;
+            };
 
 
 
-            r.pc = 0x0812;
-            r.a  = 0x42;
-            r.x  = 0x04;
-            r.y  = 0x02;
-            r.sp = 0xF6;
+            context.registers = { { "PC", 0x0812 }, { "A", 0x42 }, { "X", 0x04 }, { "Y", 0x02 }, { "S", 0xF6 }, { "P", 0x30 } };
 
             Assert::IsTrue (go ("0400")      == std::optional<Word> (0x0400));
             Assert::IsTrue (go ("$fff0")     == std::optional<Word> (0xFFF0));
@@ -311,6 +314,52 @@ namespace DebuggerViewStateTests
             Assert::IsFalse (go ("(C000)").has_value(),  L"a pointer in I/O is not read");
             Assert::IsFalse (go ("(0300),Y").has_value(), L"(abs),Y is not a 6502 form");
             Assert::IsFalse (go ("KBD").has_value());
+        }
+
+
+        //  The memory address box reads its address with the console's own
+        //  evaluator, so a symbol, decimal or arithmetic is an address there
+        //  too, inside the 6502 addressing forms as much as on its own.
+        TEST_METHOD (GoToTakesEveryExpressionTheConsoleTakes)
+        {
+            MockExpressionContext         context;
+            std::map<Word, Byte>          memory = { { 0x0028, 0x00 }, { 0x0029, 0x04 },
+                                                     { 0x002A, 0x80 }, { 0x002B, 0x07 } };
+            DebuggerViewState::GoToPeek   peek   = [&memory] (Word address) -> std::optional<Byte>
+            {
+                return memory.contains (address) ? memory[address] : (Byte) 0;
+            };
+            std::string                   error;
+            auto                          go     = [&] (const char * text) -> std::optional<Word>
+            {
+                Word  address = 0;
+
+                return DebuggerViewState::TryResolveGoTo (text, context, peek, address, error) ? std::optional<Word> (address) : std::nullopt;
+            };
+
+
+
+            context.symbols["BASL"]   = 0x0028;
+            context.symbols["BAS2L"]  = 0x002A;
+            context.registers["X"]    = 0x02;
+            context.registers["Y"]    = 0x05;
+
+            Assert::IsTrue (go ("(basl),y")      == std::optional<Word> (0x0405), L"a symbol in (zp),Y, in lowercase");
+            Assert::IsTrue (go ("(BASL),Y")      == std::optional<Word> (0x0405));
+            Assert::IsTrue (go ("( BASL ) , Y")  == std::optional<Word> (0x0405), L"spaces anywhere");
+            Assert::IsTrue (go ("(BASL,X)")      == std::optional<Word> (0x0780), L"(zp,X) over a symbol");
+            Assert::IsTrue (go ("(BASL+2)")      == std::optional<Word> (0x0780), L"arithmetic inside the parentheses");
+            Assert::IsTrue (go ("basl")          == std::optional<Word> (0x0028), L"a bare symbol");
+            Assert::IsTrue (go ("BASL,X")        == std::optional<Word> (0x002A), L"a symbol, indexed");
+            Assert::IsTrue (go ("home+3")        == std::optional<Word> (0xFC5B), L"symbol arithmetic");
+            Assert::IsTrue (go ("PC+2")          == std::optional<Word> (0x0302), L"register arithmetic");
+            Assert::IsTrue (go ("#1024")         == std::optional<Word> (0x0400), L"decimal");
+            Assert::IsTrue (go ("(#40),Y")       == std::optional<Word> (0x0405), L"a decimal pointer");
+
+            Assert::IsFalse (go ("(NOSUCH),Y").has_value());
+            Assert::IsTrue  (error.find ("NOSUCH") != std::string::npos, L"the evaluator's own reason is kept");
+            Assert::IsFalse (go ("(HOME),Y").has_value(), L"(zp),Y takes a zero-page pointer");
+            Assert::IsFalse (go ("").has_value());
         }
 
 
@@ -2476,6 +2525,33 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue   (RunInWindow (rig, "MA1 PC").status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x0300, rig.view.GetMemoryAddress(), L"a register");
+        }
+
+
+        //  The console's MD and the memory address box take the same text to
+        //  the same place.
+        TEST_METHOD (TheConsoleAndTheAddressBoxResolveAlike)
+        {
+            MachineRig            rig;
+            DebugSession        & session  = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot;
+            Cpu6502Registers      r        = session.GetTarget().GetRegisters();
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0028, 0x00);
+            rig.machine.GetMemoryBus().WriteByte (0x0029, 0x05);
+            r.y = 0x03;
+            session.GetTarget().SetRegisters (r);
+
+            rig.view.RequestGoTo (session, 1, "(basl),y");
+            snapshot = rig.view.Build (session);
+
+            Assert::IsTrue   (snapshot.goTo.has_value());
+            Assert::IsTrue   (snapshot.goTo->address == std::optional<Word> (0x0503), L"the box: BASL is a ROM symbol, read in any case");
+
+            Assert::IsTrue   (RunInWindow (rig, "MD1 (basl),y").status == CommandStatus::Ok, L"the console takes the same text");
+            Assert::AreEqual ((Word) 0x0503, rig.view.GetMemoryAddress());
         }
 
 
