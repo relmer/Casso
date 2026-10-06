@@ -460,6 +460,11 @@
     <ClCompile Include="UiTests\MachineInputPrefsTests.cpp" />
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseInfoTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesExtractorTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesFormatterTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseVersionTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateScheduleTests.cpp" />
     <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />

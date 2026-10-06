@@ -191,6 +191,11 @@
     <ClCompile Include="Core\AppleSingleCodec.cpp" />
     <ClCompile Include="Core\JsonParser.cpp" />
     <ClCompile Include="Net\WinHttpClient.cpp" />
+    <ClCompile Include="Update\ReleaseInfo.cpp" />
+    <ClCompile Include="Update\ReleaseNotesExtractor.cpp" />
+    <ClCompile Include="Update\ReleaseNotesFormatter.cpp" />
+    <ClCompile Include="Update\ReleaseVersion.cpp" />
+    <ClCompile Include="Update\UpdateSchedule.cpp" />
     <ClCompile Include="Core\JsonValue.cpp" />
     <ClCompile Include="Core\JsonWriter.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
@@ -486,6 +491,11 @@
     <ClInclude Include="Core\JsonParser.h" />
     <ClInclude Include="Net\IHttpClient.h" />
     <ClInclude Include="Net\WinHttpClient.h" />
+    <ClInclude Include="Update\ReleaseInfo.h" />
+    <ClInclude Include="Update\ReleaseNotesExtractor.h" />
+    <ClInclude Include="Update\ReleaseNotesFormatter.h" />
+    <ClInclude Include="Update\ReleaseVersion.h" />
+    <ClInclude Include="Update\UpdateSchedule.h" />
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\JsonWriter.h" />
     <ClInclude Include="Core\MemoryBus.h" />
