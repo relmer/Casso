@@ -713,6 +713,72 @@ void GuestSession::BootToPrompt (MachineHost              & host,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::MountWoz
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GuestSession::MountWoz (MachineHost              & host,
+                             const std::vector<Byte>  & wozBytes,
+                             const std::vector<Byte>  & expectedSectors)
+{
+    DiskImage *  image = nullptr;
+
+
+
+    host.PowerCycle();
+
+    AssertSucceeded (host.GetDiskStore().MountFromBytes (kSlot6, kDrive1, kpszWozGateName,
+                                                         DiskFormat::Woz, wozBytes),
+        L"MountFromBytes must succeed");
+
+    image = host.GetDiskStore().GetImage (kSlot6, kDrive1);
+    Assert::IsNotNull (image, L"the mounted image must be present");
+    host.GetRefs().diskController->SetExternalDisk (kDrive1, image);
+
+    AssertTheDrivePresentsWhatWasMounted (*image, expectedSectors, L"the WOZ this gate mounts");
+    AssertTheDriveCanReadTheBootSector   (*image,                  L"the WOZ this gate mounts");
+
+    host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+    host.GetCpu()->SetPC (kBootRomEntry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::BootWozToPrompt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GuestSession::BootWozToPrompt (MachineHost              & host,
+                                    const std::vector<Byte>  & wozBytes,
+                                    const std::vector<Byte>  & expectedSectors)
+{
+    std::vector<std::string>  rows;
+    bool                      atPrompt = false;
+
+
+
+    MountWoz (host, wozBytes, expectedSectors);
+    MachineIdle::RunUntilIdle (host, kBootCycles);
+
+    atPrompt = TryPageToPrompt (host, rows);
+
+    Assert::IsTrue (atPrompt,
+        L"the WOZ must boot its operating system through to a BASIC prompt");
+
+    Assert::IsFalse (AnyRowContains (rows, "I/O ERROR"),
+        L"and must not have hit a read error on the way");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::GuestBytesAt
 //
 ////////////////////////////////////////////////////////////////////////////////

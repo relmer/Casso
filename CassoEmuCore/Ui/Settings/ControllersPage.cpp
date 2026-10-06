@@ -5,6 +5,7 @@
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/PlayerModeRules.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -3196,27 +3197,7 @@ std::wstring ControllersPage::DescribeButton (ControllerKind kind, const ButtonB
 
 std::wstring ControllersPage::Utf8ToWide (const std::string & text)
 {
-    int           length = 0;
-    std::wstring  wide;
-
-
-
-    if (text.empty())
-    {
-        return wide;
-    }
-
-    length = MultiByteToWideChar (CP_UTF8, 0, text.data(), (int) text.size(), nullptr, 0);
-
-    if (length <= 0)
-    {
-        return wide;
-    }
-
-    wide.resize ((size_t) length);
-    MultiByteToWideChar (CP_UTF8, 0, text.data(), (int) text.size(), wide.data(), length);
-
-    return wide;
+    return TextEncoding::Utf8ToWide (text);
 }
 
 
@@ -3231,25 +3212,5 @@ std::wstring ControllersPage::Utf8ToWide (const std::string & text)
 
 std::string ControllersPage::WideToUtf8 (const std::wstring & text)
 {
-    int          length = 0;
-    std::string  narrow;
-
-
-
-    if (text.empty())
-    {
-        return narrow;
-    }
-
-    length = WideCharToMultiByte (CP_UTF8, 0, text.data(), (int) text.size(), nullptr, 0, nullptr, nullptr);
-
-    if (length <= 0)
-    {
-        return narrow;
-    }
-
-    narrow.resize ((size_t) length);
-    WideCharToMultiByte (CP_UTF8, 0, text.data(), (int) text.size(), narrow.data(), length, nullptr, nullptr);
-
-    return narrow;
+    return TextEncoding::WideToUtf8 (text);
 }

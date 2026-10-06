@@ -108,6 +108,32 @@ public:
             L"Motor off must freeze the bit cursor");
     }
 
+    TEST_METHOD (EmptyDriveReadsNoiseAndHoldsPosition)
+    {
+        Disk2NibbleEngine  eng;
+
+        eng.SetMotorOn (true);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 4000);
+
+        Assert::AreEqual (size_t (0), eng.GetBitPosition(),
+            L"with no disk there is nothing to turn under the head");
+        Assert::IsTrue (eng.GetReadNibbles() > 0,
+            L"an empty drive must still assemble nibbles out of noise");
+    }
+
+    TEST_METHOD (UnrecordedTrackStillTurnsUnderTheHead)
+    {
+        DiskImage          img;
+        Disk2NibbleEngine  eng;
+
+        eng.SetDiskImage (&img);
+        eng.SetMotorOn   (true);
+        eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 10);
+
+        Assert::AreEqual (size_t (10), eng.GetBitPosition(),
+            L"a disk with nothing recorded under the head still turns");
+    }
+
     TEST_METHOD (SetCurrentTrackClampsToValidRange)
     {
         Disk2NibbleEngine    eng;

@@ -95,11 +95,6 @@ public:
 
     static constexpr int  kMenuCount = 7;
 
-    // Widest the paddle picker's label is drawn on the strip. The label moves
-    // with what is playing, and every entry to its right moves with it, so it
-    // is capped (FR-008b).
-    static constexpr float  kPickerLabelMaxDip = 120.0f;
-
     EmulatorCommands ();
 
     // The menu placement table and its helpers, for the parity test and the

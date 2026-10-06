@@ -170,7 +170,7 @@ std::string TextEncoding::Utf8ToNarrow (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TextEncoding::WideToNarrow
+//  TextEncoding::WideToNarrow (code page)
 //
 //  Like Convert, a failure returns something readable rather than nothing:
 //  here that is the empty string, since wide bytes are not printable through
@@ -178,9 +178,8 @@ std::string TextEncoding::Utf8ToNarrow (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string TextEncoding::WideToNarrow (const std::wstring & text)
+std::string TextEncoding::WideToNarrow (const std::wstring & text, unsigned codePage)
 {
-    unsigned     codePage      = GetNarrowCodePage();
     bool         canSubstitute = codePage != CP_UTF8 && codePage != CP_UTF7;
     std::string  narrow;
     int          count         = 0;
@@ -216,15 +215,14 @@ std::string TextEncoding::WideToNarrow (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TextEncoding::NarrowToWide
+//  TextEncoding::NarrowToWide (code page)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring TextEncoding::NarrowToWide (const std::string & text)
+std::wstring TextEncoding::NarrowToWide (const std::string & text, unsigned codePage)
 {
-    unsigned      codePage = GetNarrowCodePage();
     std::wstring  wide;
-    int           count    = 0;
+    int           count = 0;
 
 
 
@@ -247,4 +245,64 @@ std::wstring TextEncoding::NarrowToWide (const std::string & text)
                                  wide.data(), count);
 
     return (count > 0) ? wide : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextEncoding::WideToNarrow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TextEncoding::WideToNarrow (const std::wstring & text)
+{
+    return WideToNarrow (text, GetNarrowCodePage());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextEncoding::NarrowToWide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TextEncoding::NarrowToWide (const std::string & text)
+{
+    return NarrowToWide (text, GetNarrowCodePage());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextEncoding::Utf8ToWide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TextEncoding::Utf8ToWide (const std::string & text)
+{
+    return NarrowToWide (text, CP_UTF8);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextEncoding::WideToUtf8
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TextEncoding::WideToUtf8 (const std::wstring & text)
+{
+    return WideToNarrow (text, CP_UTF8);
 }

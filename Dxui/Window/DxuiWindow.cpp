@@ -903,7 +903,9 @@ bool DxuiWindow::TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, con
 //
 //  FitToMaxSize
 //
-//  Sizes the window to TryGetMaxClientSizePx within its monitor's work area.
+//  Sizes the window to TryGetMaxClientSizePx within its monitor's work area,
+//  and places it there by its creation-time placement. Called before the
+//  window is first shown, once its content has been laid out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -949,6 +951,8 @@ void DxuiWindow::ResizeToMaxSize (bool growOnly)
     RECT         rect    = {};
     RECT         fitted  = {};
     SIZE         maxPx   = {};
+    SIZE         sizePx  = {};
+    POINT        topLeft = {};
     bool         hasMax  = false;
     bool         isSame  = false;
     bool         grows   = false;
@@ -976,6 +980,16 @@ void DxuiWindow::ResizeToMaxSize (bool growOnly)
     else
     {
         fitted = FitRectToMaxSize (rect, maxPx, info.rcWork);
+
+        // The fit runs while the window is still hidden, once its content can
+        // be measured, so it is placed here at the size it really opens at:
+        // the creation-time placement measured a size that was only a guess.
+        sizePx = { fitted.right - fitted.left, fitted.bottom - fitted.top };
+
+        if (m_source->TryGetPlacementForSize (sizePx, topLeft))
+        {
+            fitted = RECT { topLeft.x, topLeft.y, topLeft.x + sizePx.cx, topLeft.y + sizePx.cy };
+        }
     }
 
     isSame = EqualRect (&fitted, &rect) != FALSE;

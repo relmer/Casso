@@ -2061,8 +2061,8 @@ bool ControllerProfileStore::ReadCalibration (const std::string & token, const J
         return false;
     }
 
-    // HasArray's annotation does not carry through the || above, so the
-    // build server's code analysis needs the pointer tested on its own.
+    // The x86-hosted code analysis the build server runs loses track of the
+    // pointer across the || above and reports C6011 without this test.
     if (axesArr == nullptr)
     {
         return false;

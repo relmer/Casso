@@ -407,11 +407,12 @@ unsatisfiable while looking rigorous.
   Story 1.
 - **The emulated part's own acoustic data does not exist publicly.** Its
   datasheet documents registers, phonemes, and timing but no formant values;
-  those live in an internal ROM that has never been extracted. Every existing
-  emulator of this card substitutes the data from the *earlier, related* chip,
-  whose ROM was extracted decades ago — an approximation their own communities
-  describe as inaccurate, the two parts having 64 phonemes in different orders
-  that do not map one-to-one.
+  those live in an internal ROM that has never been extracted. No existing
+  emulator has it. AppleWin plays recorded phoneme samples with no inflection or
+  filter response; MAME's only SSI-263 maps its phonemes onto the data of the
+  *earlier, related* chip, whose ROM was read from a die photograph — an
+  approximation MAME's own source calls "completely wrong", the two parts having
+  64 phonemes in different orders that do not map one-to-one.
 - **Casso ships that same substitution initially, and says so** (FR-023). The
   formant table is treated as a swappable input so accuracy can improve later
   without rework: two routes to the real data remain open — reading the ROM from

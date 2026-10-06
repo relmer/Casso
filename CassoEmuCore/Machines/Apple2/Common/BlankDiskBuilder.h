@@ -56,6 +56,7 @@ enum class BlankDiskVerdict
 {
     Ok,
     ContentsNotInContainer,
+    FluxNeedsWoz,
     BootableNeedsFilesystem,
     ProDosNameUnusable,
 };
@@ -80,6 +81,9 @@ struct BlankDiskSpec
     //  6,656-byte tracks, the very mismatch the reader has to cope with in
     //  files from elsewhere.
     size_t             nibbleTrackSize = 0;
+
+    //  WOZ only: bit t set stores whole track t as flux rather than bits.
+    uint64_t           fluxTrackMask   = 0;
 };
 
 
@@ -123,6 +127,12 @@ public:
     //  in the test assembly could reach it, the dialog being in the exe.
     static std::wstring             GetContentsCaption (BlankDiskContents contents);
 
+    //  Whether a container can store flux tracks. Only WOZ can.
+    static bool                     CanHoldFlux (DiskFormat format) { return format == DiskFormat::Woz; }
+
+    //  A fluxTrackMask with every whole track set.
+    static constexpr uint64_t       kAllFluxTracks = (1ull << NibblizationLayer::kTrackCount) - 1;
+
     //  Why the format / contents / bootable / volume-name combination
     //  cannot be written, or Ok. Does not assert: user input reaches it.
     static BlankDiskVerdict  CheckSpec (const BlankDiskSpec & spec);
@@ -146,9 +156,11 @@ public:
     static HRESULT  WrapInContainer (DiskFormat            format,
                                      size_t                nibbleTrackSize,
                                      bool                  unformatted,
+                                     uint64_t              fluxTrackMask,
                                      const vector<Byte> &  sectors,
                                      vector<Byte>       &  outBytes);
 
 private:
+    static void  ConvertTracksToFlux (uint64_t fluxTrackMask, DiskImage & inOutImage);
     static void  ReorderDosToPo (const vector<Byte> & dosOrdered, vector<Byte> & outPo);
 };

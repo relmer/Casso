@@ -9,6 +9,7 @@
 #include "Core/MachineConfigUpgrade.h"
 
 #include "Devices/Disk/PreservedCopy.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -22,17 +23,7 @@
 
 std::wstring UserConfigStore::Widen (const std::string & narrow)
 {
-    std::wstring  out;
-
-
-
-    out.reserve (narrow.size());
-    for (char c : narrow)
-    {
-        out.push_back ((wchar_t) (unsigned char) c);
-    }
-
-    return out;
+    return TextEncoding::Utf8ToWide (narrow);
 }
 
 
@@ -1238,7 +1229,7 @@ HRESULT UserConfigStore::LoadAll (
                                                    path,
                                                    err.line,
                                                    err.column,
-                                                   std::wstring (err.message.begin(), err.message.end())));
+                                                   TextEncoding::Utf8ToWide (err.message)));
 
     hr = LoadCombinedJson (root, prefs);
     CHR (hr);

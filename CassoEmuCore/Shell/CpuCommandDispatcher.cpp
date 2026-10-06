@@ -3,6 +3,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 
 #include "resource.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -29,7 +30,7 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
     switch (cmd.id)
     {
         case IDM_FILE_OPEN:
-            hr = target.SwitchMachine (std::wstring (cmd.payload.begin(), cmd.payload.end()));
+            hr = target.SwitchMachine (TextEncoding::NarrowToWide (cmd.payload));
             if (FAILED (hr))
             {
                 DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hr);
@@ -96,7 +97,7 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
         case IDM_AUDIO_DRIVE_MECHANISM:
             // "shugart" or "alps", canonical lower-case from the settings
             // state; the mixer matches case-insensitively anyway.
-            hr = target.SetDriveAudioMechanism (std::wstring (cmd.payload.begin(), cmd.payload.end()));
+            hr = target.SetDriveAudioMechanism (TextEncoding::NarrowToWide (cmd.payload));
             IGNORE_RETURN_VALUE (hr, S_OK);
             break;
 

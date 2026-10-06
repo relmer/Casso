@@ -697,7 +697,8 @@ branch to `master`** (and re-run after resolving merge conflicts).
 - **ALL** tests MUST pass before merging to master
 - Build MUST succeed with no errors before merging to master
 - Every commit that lands on `master` must leave the codebase compilable and tests-passing
-- **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -RunCodeAnalysis` to verify
+- **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis` to verify.
+  It compiles on the x86-hosted compiler, as CI does; the x64-hosted one misses C6011s CI reports
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
 - **NEVER** add a changelog entry for a `docs` commit. The changelog records
   code changes -- what the software now does differently. Checking in a spec,

@@ -990,6 +990,12 @@ void WindowCommandManager::OnViewCommand (int id)
                     h = (int) (sized.bottom - sized.top);
 
                     SetWindowPos (m_shell.m_hwnd, nullptr, 0, 0, w, h, SWP_NOZORDER | SWP_NOMOVE);
+
+                    // Persisted here because nothing else will: placement is saved
+                    // only at the end of the OS drag loop or on a user maximize or
+                    // restore, precisely so a programmatic SetWindowPos cannot
+                    // stomp it. This one is the user's, so it has to say so.
+                    m_shell.m_windowManager.SaveWindowPlacement (m_shell.m_hwnd, false);
                 }
             }
 

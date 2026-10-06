@@ -7,6 +7,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/PathResolver.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -92,24 +93,7 @@ Error:
 
 std::string  DiskSettings::WideToUtf8 (const std::wstring & w)
 {
-    HRESULT      hr   = S_OK;
-    std::string  utf8;
-    int          len  = 0;
-
-
-
-    BAIL_OUT_IF (w.empty(), S_OK);
-
-    len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), nullptr, 0, nullptr, nullptr);
-    CWRA (len);
-
-    utf8.resize (static_cast<size_t> (len));
-
-    len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), utf8.data(), len, nullptr, nullptr);
-    CWRA (len);
-
-Error:
-    return utf8;
+    return TextEncoding::WideToUtf8 (w);
 }
 
 
@@ -124,24 +108,7 @@ Error:
 
 std::wstring DiskSettings::Utf8ToWide (const std::string & s)
 {
-    HRESULT       hr   = S_OK;
-    std::wstring  wide;
-    int           len  = 0;
-
-
-
-    BAIL_OUT_IF (s.empty(), S_OK);
-
-    len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), nullptr, 0);
-    CWRA (len);
-
-    wide.resize (static_cast<size_t> (len));
-
-    len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), wide.data(), len);
-    CWRA (len);
-
-Error:
-    return wide;
+    return TextEncoding::Utf8ToWide (s);
 }
 
 
@@ -262,8 +229,7 @@ HRESULT DiskSettings::ReadSavedPath (
 
     // The remaining lookups are for optional keys; absent = nothing saved.
     hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_OK);
-    _Analysis_assume_ (uiPrefs != nullptr);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     hr = uiPrefs->GetString (keyName, pathNarrow);
     BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_OK);

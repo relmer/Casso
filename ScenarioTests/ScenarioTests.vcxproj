@@ -171,6 +171,7 @@
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />
     <ClCompile Include="GuestVisiblePlacementTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
+    <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
@@ -180,6 +181,7 @@
     <ClCompile Include="..\UnitTest\EmuTests\KeystrokeInjector.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\MachineIdle.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TextScreenScraper.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\FluxTestImages.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />

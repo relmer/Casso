@@ -524,7 +524,7 @@ private:
     // Why a damaged image will not be written to. A checksum mismatch
     // write-protects the image for the session, so the file is never
     // rewritten and the damage it carries stays detectable.
-    static wstring FormatDamagedImageMessage (const string & path);
+    static wstring FormatDamagedImageMessage (const string & path, bool hasDamagedTracks);
 
     // Why a salvaged copy could not be written. Names the copy, and says the
     // original is untouched -- which is the thing the user will worry about.

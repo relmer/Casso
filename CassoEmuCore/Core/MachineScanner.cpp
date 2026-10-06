@@ -3,6 +3,7 @@
 #include "MachineScanner.h"
 #include "JsonParser.h"
 #include "JsonValue.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -40,7 +41,7 @@ static void ExtractFields (const string  & jsonText,
     hr = root.GetString ("name", name);
     if (SUCCEEDED (hr))
     {
-        outDisplayName.assign (name.begin(), name.end());
+        outDisplayName = TextEncoding::Utf8ToWide (std::string (name));
     }
 
     hr = root.GetInt ("releaseYear", year);

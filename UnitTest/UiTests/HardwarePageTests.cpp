@@ -60,6 +60,26 @@ public:
     }
 
 
+    //  Display names come from machine JSON, which is UTF-8. Hex escapes,
+    //  because the source files are CP-1252.
+    TEST_METHOD (BuildNodes_DecodesUtf8DisplayNames)
+    {
+        std::vector<HardwareEntry>  entries;
+        std::vector<DxuiTreeNode>   nodes;
+
+
+
+        entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Br\xC3\xB8" "derbund \xCE\xA9\xE6\x97\xA5",
+                                      CapabilityFlag::PlatformLocked, true, "\xC3\xA9t\xC3\xA9"));
+        nodes = HardwarePage::BuildNodes (entries);
+
+        Assert::AreEqual<size_t> (1u, nodes.size());
+        Assert::AreEqual<size_t> (1u, nodes[0].children.size());
+        Assert::AreEqual (std::wstring (L"Br\x00F8" L"derbund \x03A9\x65E5"), nodes[0].children[0].label);
+        Assert::AreEqual (std::wstring (L"\x00E9t\x00E9"),                   nodes[0].children[0].lockReason);
+    }
+
+
     TEST_METHOD (BuildNodes_HidesEmptyGroup)
     {
         std::vector<HardwareEntry>  entries;

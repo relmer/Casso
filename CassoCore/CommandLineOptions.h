@@ -177,6 +177,10 @@ struct CommandLineOptions
         std::string  bootableFrom;                     // --bootable <os image>, when named
         std::string  directBootFile;                   // --boot <binary>
 
+        //  --flux, bare for every track or with a list such as "0-2,17".
+        bool         flux           = false;          // --flux, with or without a list
+        std::string  fluxTracks;                       // --flux <tracks>, when given
+
         //  --exec, for a direct-boot payload whose first byte is not its
         //  first instruction. A header, a jump table or a length word at the
         //  front is ordinary, and making the entry follow the load address

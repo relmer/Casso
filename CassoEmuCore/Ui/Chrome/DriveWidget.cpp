@@ -708,7 +708,7 @@ void DriveWidget::PaintBasenameLabel (
     float                  drawX         = 0.0f;
     bool                   clipped       = false;
     bool                   locked        = m_state.writeProtect.Any();
-    bool                   damaged       = m_state.writeProtect.checksumMismatch;
+    bool                   damaged       = m_state.writeProtect.IsDamaged();
     float                  badgeW        = 0.0f;
     float                  badgeH        = 0.0f;
     float                  badgeGap      = 0.0f;

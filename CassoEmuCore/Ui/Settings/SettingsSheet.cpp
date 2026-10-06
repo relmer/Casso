@@ -215,13 +215,11 @@ HRESULT SettingsSheet::OpenModeless (
     // dim the panel and reveal the emulator through the overlap region.
     params.composited               = true;
 
-    // Open alongside the emulator window (its left edge, or its right when
-    // the left will not fit on that monitor) rather than wherever the OS
-    // would drop it -- which for a WS_POPUP window is the top-left corner
-    // of the primary monitor. When neither side fits the sheet stays on the
-    // emulator's monitor and overlaps it; splitting across two screens or
-    // wandering onto another one is the worse outcome.
-    params.placement                = DxuiWindowPlacement::BesideOwnerLeft;
+    // Centered on the emulator window rather than wherever the OS would drop
+    // it -- which for a WS_POPUP window is the top-left corner of the primary
+    // monitor -- and clamped to the emulator's monitor, so it never splits
+    // across two screens or wanders onto another one.
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);

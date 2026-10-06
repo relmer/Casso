@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1363,6 +1364,46 @@ public:
                         L"and points at the command that does mean it");
     }
 
+    TEST_METHOD (Create_AppendsTheTypeExtensionToABareName)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("dir.v2\\foo");
+        DiskCommandResult   result;
+
+
+
+        options.disk.containerType = "WOZ";
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue  (io.Exists ("dir.v2\\foo.woz"), L"the extension follows --type");
+        Assert::IsFalse (io.Exists ("dir.v2\\foo"),     L"and the bare name is not written");
+    }
+
+    TEST_METHOD (Create_KeepsAnExtensionOrTrailingDotAsGiven)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  dotted  = MakeCreate ("foo.");
+        CommandLineOptions  named   = MakeCreate ("bar.img");
+        DiskCommandResult   result;
+
+
+
+        dotted.disk.containerType = "dsk";
+        named.disk.containerType  = "dsk";
+
+        result = runner.Run (dotted);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (io.Exists ("foo."), L"a trailing dot means no extension");
+
+        result = runner.Run (named);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue  (io.Exists ("bar.img"),     L"an existing extension is kept");
+        Assert::IsFalse (io.Exists ("bar.img.dsk"), L"and nothing is added to it");
+    }
+
     //  The container follows the name when --type is not given, which is what
     //  makes `disk create mydisk.po` do the obvious thing.
     TEST_METHOD (Create_TakesTheContainerFromTheNameWhenTypeIsNotGiven)
@@ -1950,6 +1991,64 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos,
             L"and the refusal identifies the image");
+    }
+
+    //  A name Windows rejects first fails at the temporary, and was once
+    //  reported there as a read-only or full folder.
+    TEST_METHOD (Commit_WhenTheNameIsInvalid_ReportsTheNameRatherThanTheFolder)
+    {
+        FakeDiskFileIo                 io;
+        DiskCommandRunner              runner (io);
+        DiskImageSession::OpenedImage  opened;
+        DiskCommandResult              result;
+        HRESULT                        hr     = S_OK;
+
+
+
+        SeedRealDisk (io);
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
+
+        io.failNextWrite  = true;
+        io.nextWriteError = HRESULT_FROM_WIN32 (ERROR_INVALID_NAME);
+
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_NAME), hr);
+        Assert::IsTrue (result.diagnostics.find (std::string (kImage) + ": is not a valid file name") != std::string::npos,
+                        L"the refusal reports the name");
+        Assert::IsTrue (result.diagnostics.find ("read-only") == std::string::npos,
+                        L"and does not blame the folder");
+    }
+
+    TEST_METHOD (DescribeTemporaryWriteFailure_GivesTheCauseTheCodeReports)
+    {
+        struct Case
+        {
+            DWORD         win32Error;
+            const char  * expected;
+        };
+
+        static constexpr Case  kCases[] =
+        {
+            { ERROR_INVALID_NAME,     "is not a valid file name"                          },
+            { ERROR_PATH_NOT_FOUND,   "could not be written. Its folder does not exist"   },
+            { ERROR_ACCESS_DENIED,    "could not be written. Its folder is read-only, or you do not have permission to write there" },
+            { ERROR_DISK_FULL,        "could not be written. The disk is full"            },
+            { ERROR_HANDLE_DISK_FULL, "could not be written. The disk is full"            },
+            { ERROR_WRITE_FAULT,      "could not be written"                              },
+        };
+
+
+
+        for (const Case & c : kCases)
+        {
+            Assert::AreEqual (std::string (c.expected),
+                              DiskImageSession::DescribeTemporaryWriteFailure (HRESULT_FROM_WIN32 (c.win32Error)));
+        }
+
+        Assert::AreEqual (std::string ("could not be written"),
+                          DiskImageSession::DescribeTemporaryWriteFailure (E_FAIL),
+                          L"a code with no specific cause gets no guessed one");
     }
 
     TEST_METHOD (Commit_WhenTheReplaceFails_LeavesTheImageByteIdenticalAndRemovesTheTemporary)
@@ -3957,5 +4056,135 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("cannot be read") != std::string::npos);
+    }
+
+
+    static int  CountFluxTracks (const vector<Byte> & woz)
+    {
+        DiskImage  image;
+        int        count = 0;
+        int        track = 0;
+        int        slot  = 0;
+
+        AssertSucceeded (WozLoader::Load (woz, image), L"the WOZ must load");
+
+        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            slot = image.ResolveQuarterTrack (track * DiskImage::kQuarterTracksPerWholeTrack);
+
+            if (slot >= 0 && image.GetTrackKind (slot) == TrackKind::Flux)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    TEST_METHOD (CreateFlux_ListedTracksAreFluxAndTheSummarySaysWhich)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner  (io);
+        CommandLineOptions  options = MakeCreate ("f.woz");
+        DiskCommandResult   result;
+
+        options.disk.flux       = true;
+        options.disk.fluxTracks = "0-2,17";
+        result                  = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::AreEqual (4, CountFluxTracks (io.files["f.woz"]));
+        Assert::IsTrue (result.output.find (", flux tracks 0-2, 17") != std::string::npos);
+    }
+
+    TEST_METHOD (CreateFlux_BareIsEveryTrack)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner  (io);
+        CommandLineOptions  options = MakeCreate ("f.woz");
+        DiskCommandResult   result;
+
+        options.disk.flux = true;
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::AreEqual (NibblizationLayer::kTrackCount, CountFluxTracks (io.files["f.woz"]));
+    }
+
+    TEST_METHOD (CreateFlux_ABadTrackListIsRefused)
+    {
+        const char *  bad[] = { "35", "3-1", "1,", "-2", "1..3", "a" };
+
+        for (const char * list : bad)
+        {
+            FakeDiskFileIo      io;
+            DiskCommandRunner   runner  (io);
+            CommandLineOptions  options = MakeCreate ("f.woz");
+            DiskCommandResult   result;
+
+            options.disk.flux       = true;
+            options.disk.fluxTracks = list;
+            result                  = runner.Run (options);
+
+            Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+            Assert::IsTrue (result.diagnostics.find ("illegal track list") != std::string::npos);
+            Assert::IsFalse (io.Exists ("f.woz"));
+        }
+    }
+
+    TEST_METHOD (CreateFlux_ANonWozContainerIsRefused)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner  (io);
+        CommandLineOptions  options = MakeCreate ("f.dsk");
+        DiskCommandResult   result;
+
+        options.disk.flux = true;
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("flux tracks need a WOZ image") != std::string::npos);
+        Assert::IsFalse (io.Exists ("f.dsk"));
+    }
+
+    TEST_METHOD (InitFlux_KeepsTheTracksThatWereFlux)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner  (io);
+        CommandLineOptions  create  = MakeCreate ("f.woz");
+        CommandLineOptions  init    = MakeCreate ("f.woz");
+        DiskCommandResult   result;
+
+        create.disk.flux       = true;
+        create.disk.fluxTracks = "5-7";
+        runner.Run (create);
+
+        init.disk.command     = CommandLineOptions::DiskOptions::Command::Init;
+        init.disk.commandWord = "init";
+        init.disk.formatName  = "prodos";
+        result                = runner.Run (init);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::AreEqual (3, CountFluxTracks (io.files["f.woz"]), L"reformatting keeps the flux tracks");
+    }
+
+    TEST_METHOD (CreateFlux_ADirectBootDiskCanBeFluxToo)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeDirectBoot ("boot.woz", "prog.bin");
+
+        io.files["prog.bin"]    = vector<Byte> (64, (Byte) 0xEA);
+        options.disk.flux       = true;
+        options.disk.fluxTracks = "0";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (1, CountFluxTracks (io.files["boot.woz"]));
+
+        options                 = MakeDirectBoot ("boot.dsk", "prog.bin");
+        options.disk.flux       = true;
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, runner.Run (options).exitStatus,
+                          L"and a direct-boot disk that is not a WOZ is refused");
     }
 };

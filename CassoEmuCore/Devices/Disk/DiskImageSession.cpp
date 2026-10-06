@@ -466,6 +466,52 @@ std::string DiskImageSession::DescribeReplaceFailure (HRESULT hr)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageSession::DescribeTemporaryWriteFailure
+//
+//  The new bytes go to a temporary file in the image's folder first, so this
+//  is the first write that touches the host filesystem, and the first place a
+//  bad name or a bad folder shows up. The temporary's name is derived from the
+//  image's, so a name Windows rejects is reported as the image's own name.
+//
+//  The Win32 code decides the sentence. A guess at the cause sends the user to
+//  fix the wrong thing: a file name with a character Windows does not allow
+//  was once reported as a read-only or full folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeTemporaryWriteFailure (HRESULT hr)
+{
+    std::string  sentence = "could not be written";
+
+
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))
+    {
+        sentence = "is not a valid file name";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND))
+    {
+        sentence = "could not be written. Its folder does not exist";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
+    {
+        sentence = "could not be written. Its folder is read-only, or you do not have "
+                   "permission to write there";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL) || hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_DISK_FULL))
+    {
+        sentence = "could not be written. The disk is full";
+    }
+
+    return sentence;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageSession::CommitImage
 //
 //  The whole of putting a computed image where the old one was, in the order
@@ -566,9 +612,7 @@ HRESULT DiskImageSession::CommitImage (
     progress.furthestAttempted = CommitPlan::Step::WriteTemporary;
 
     hr = m_fileIo.WriteAllBytes (tempPath, newImageBytes);
-    CHRF (hr, RefuseCommit (opened.imagePath,
-                            "could not be written beside. The folder may be read-only "
-                            "or full", result));
+    CHRF (hr, RefuseCommit (opened.imagePath, DescribeTemporaryWriteFailure (hr), result));
 
     progress.furthestAttempted = CommitPlan::Step::Replace;
 

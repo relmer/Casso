@@ -1640,8 +1640,8 @@ HRESULT SettingsPanelState::ExtractMachinePorts (
         return S_OK;
     }
 
-    // HasArray's annotation does not carry through the || above, so the
-    // build server's code analysis needs the pointer tested on its own.
+    // The x86-hosted code analysis the build server runs loses track of the
+    // pointer across the || above and reports C6011 without this test.
     if (portsArr == nullptr)
     {
         return S_OK;

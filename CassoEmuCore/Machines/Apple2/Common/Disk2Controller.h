@@ -119,7 +119,6 @@ public:
     // DiskImageStore::FlushAll so guest writes survive a crash / kill before
     // the next eject / exit. Caller-owned; null = no-op (tests, headless).
     void          SetMotorOffFlushCallback (std::function<void ()> cb) { m_motorOffFlushCallback = std::move (cb); }
-
     // Idle hook. Invoked on the CPU thread when no disk operation is in
     // flight, which is nearly always -- the motor is off, or on and between
     // accesses.

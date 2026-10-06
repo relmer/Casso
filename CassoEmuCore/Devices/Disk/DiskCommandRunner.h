@@ -152,6 +152,8 @@ public:
     static size_t  GetSectorRecordOffset (CommandLineOptions::DiskOptions::Numbering numbering,
                                           size_t                                     running);
 
+    static void  AppendTypeExtension (std::string & imagePath, const std::string & containerType);
+
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 
@@ -223,6 +225,15 @@ public:
     //  to the one command the reader named. One routine, so the F-suffixed
     //  macros can carry a snprintf-composed refusal in one action.
     static void  RefuseBadValue (DiskCommandResult & result, const char * summary);
+
+    //  --flux as a mask of whole tracks. Without it, init keeps the tracks
+    //  the existing WOZ already stores as flux.
+    HRESULT  ResolveFlux (const CommandLineOptions & options,
+                          bool                       overExisting,
+                          uint64_t                 & outMask,
+                          DiskCommandResult        & result);
+
+    static HRESULT  ParseTrackList (const std::string & text, uint64_t & outMask);
 
     void  ReportMissingParameter (const std::string & parameter,
                                   DiskCommandResult & result) const;
