@@ -58,23 +58,15 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     set.syntax.bytes     = GetReadable (muted,      against);
     set.operandAddress   = GetReadable (dark ? 0xFFDCDCAA : 0xFF795E26, against);
     set.annotation       = GetReadable (dark ? 0xFF57A64A : 0xFF008000, against);
-    set.changed          = GetReadable (dark ? 0xFFFF8A80 : 0xFFD00000, against);
     set.result           = GetReadable (result, against);
     set.muted            = set.syntax.bytes;
     set.syntax.comment   = set.annotation;
 
-    //  A changed value is meant to stand out, so on a dark page with no red of
-    //  its own it is held to a higher ratio than the rest, on every row fill.
-    //  A theme's own red, and the light page's, need only read on the page:
-    //  a row fill lifts it where it sits on one, by GetChangedOn.
-    if (changedText != 0 || !dark)
-    {
-        set.changed = GetReadable (changedText != 0 ? changedText : 0xFFD00000, dark ? background : GetRowShade (background));
-    }
-    else
-    {
-        set.changed = GetReadable (set.changed, against, s_kChangedContrast);
-    }
+    //  A changed value is the theme's own red, or, for a theme with none,
+    //  the dark page's coral or the light page's red. It need only read on
+    //  the page, or on a light page's darkest row shade: a row fill lifts it
+    //  where it sits on one, by GetChangedOn.
+    set.changed = GetReadable (changedText != 0 ? changedText : (dark ? 0xFFFF6B68 : 0xFFD00000), dark ? background : GetRowShade (background));
 
     return set;
 }

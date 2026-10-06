@@ -198,14 +198,16 @@ public:
 
 
 
-    TEST_METHOD (DarkChangedIsBrightOnTheDarkPage)
+    TEST_METHOD (SystemDarkChangedIsDarkModernRed)
     {
         DxuiDarkTheme            dark;
-        DebuggerTextColors::Set  c = MakeFor (dark);
+        CassoTheme               darkModern = CassoTheme::MakeDarkModern();
+        DebuggerTextColors::Set  c          = MakeFor (dark);
 
 
 
-        Assert::IsTrue (DxuiColor::ComputeContrastRatio (c.changed, dark.ContentBackground()) >= 7.0f);
+        Assert::AreEqual (darkModern.changedText, c.changed, L"Dark Modern's red, unmoved, since it reads on the page");
+        Assert::AreEqual (MakeFor (darkModern).changed, c.changed, L"the same red Dark Modern shows");
     }
 
 
@@ -241,13 +243,18 @@ public:
 
     TEST_METHOD (ChangedIsLiftedOnARowFillOnly)
     {
-        CassoTheme               skeuo = CassoTheme::MakeSkeuomorphic();
-        DebuggerTextColors::Set  c     = MakeFor (skeuo);
+        CassoTheme               skeuo  = CassoTheme::MakeSkeuomorphic();
+        DxuiDarkTheme            dark;
+        DebuggerTextColors::Set  c      = MakeFor (skeuo);
+        DebuggerTextColors::Set  system = MakeFor (dark);
 
 
 
         Assert::AreEqual    (c.changed, DebuggerTextColors::GetChangedOn (c, 0),       L"no fill: the page color");
         Assert::AreNotEqual (c.changed, DebuggerTextColors::GetChangedOn (c, c.pcRow), L"lifted to read on the PC row");
+        Assert::AreEqual    (system.changed, DebuggerTextColors::GetChangedOn (system, 0), L"System dark, no fill: the page color");
+        Assert::IsTrue      (DxuiColor::ComputeContrastRatio (DebuggerTextColors::GetChangedOn (system, system.pcRow), system.pcRow) >= DebuggerTextColors::s_kMinTextContrast,
+                             L"System dark, lifted to read on the PC row");
     }
 
 

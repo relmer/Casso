@@ -36,9 +36,6 @@ public:
     static constexpr float  s_kDarkTargetRowMix    = 0.16f;
     static constexpr float  s_kLightTargetRowMix   = 0.20f;
 
-    //  The ratio a changed value reaches on a dark page.
-    static constexpr float  s_kChangedContrast     = 7.0f;
-
     struct Set
     {
         SourceSyntax::Colors  syntax;
