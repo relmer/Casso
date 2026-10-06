@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/DxuiCommand.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiSlide.h"
 #include "Widgets/DxuiPopupMenu.h"
 
 
@@ -230,6 +231,22 @@ public:
 
     static constexpr int    kGripDp         = 12;
 
+    //  Lifted off its place while it is carried by its handle: a raised
+    //  surface a little larger than the strip, with a shadow under it and
+    //  an accent edge, so it is plain the toolbar is on the move. It rises
+    //  over the time a menu opens in, or at once with animations off, and
+    //  settles back at once when it is put down.
+    void   SetLifted       (bool lifted, int64_t nowMs, bool isAnimated);
+    bool   IsLifted        () const                      { return m_lifted; }
+    float  GetLiftLevel    (int64_t nowMs) const;
+    bool   IsLiftSettling  (int64_t nowMs) const         { return m_lifted && !m_liftSlide.IsDone (nowMs); }
+
+    //  How far past the strip on every side the lifted surface reaches.
+    static constexpr float  kLiftGrowDip    = 2.0f;
+
+    //  The move cursor over the grab handle.
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+
     //  A strip docked in a band between panes: a hairline across each short
     //  end and none along its long sides, which the panes beside it draw.
     //  Off, a horizontal strip draws its bottom hairline.
@@ -419,6 +436,7 @@ private:
     void          PlaceTrailingEntries (int rightPx);
     void          LayoutVertical       (const RECT & bounds);
     void          PaintGrip            (IDxuiPainter & painter, const IDxuiTheme & theme);
+    void          PaintLift            (IDxuiPainter & painter, const IDxuiTheme & theme, float level);
     void          OpenFlyout           (bool byKeyboard);
     void          CloseFlyout          ();
     void          OpenDropDown         (int commandId);
@@ -472,6 +490,8 @@ private:
     bool                     m_grip           = false;
     bool                     m_endEdges       = false;
     RECT                     m_gripRect       = {};
+    bool                     m_lifted         = false;
+    DxuiSlide                m_liftSlide;
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;

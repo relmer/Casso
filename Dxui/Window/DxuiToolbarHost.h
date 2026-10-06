@@ -24,9 +24,13 @@
 //
 //  The owner hands it the window, the toolbar (a child of that window), and
 //  optionally the dock site whose edges the toolbar shares. It calls Layout
-//  from its own layout, RouteDrag first from its mouse routing for the
-//  toolbar, and Sync once a frame. Where the toolbar is goes back to the
-//  owner as DxuiToolbarDock text through the save callback, for it to keep.
+//  from its own layout and Sync once a frame. Everything about a drag is the
+//  host's own: it takes the owner's mouse input ahead of the owner's routing
+//  while a drag lasts, keeps the owner's frames going through the system's
+//  move loop, and snaps the toolbar into whichever band it is dragged up
+//  to, so no toolbar needs wiring of its own for any of it. Where the
+//  toolbar is goes back to the owner as DxuiToolbarDock text through the
+//  save callback, for it to keep.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,14 +50,20 @@ public:
     static constexpr int  kPullDp      = 32;
     static constexpr int  kMarginDp    = 8;
 
+    DxuiToolbarHost  () = default;
+    ~DxuiToolbarHost ();
+
+    DxuiToolbarHost             (const DxuiToolbarHost &) = delete;
+    DxuiToolbarHost & operator= (const DxuiToolbarHost &) = delete;
+
     void  Attach (DxuiWindow * owner, DxuiToolbar * toolbar, DxuiDockSite * dockSite, HINSTANCE hInstance);
 
     //  Run when the docked toolbar has moved and the owner must lay out
     //  again, when its place should be saved, for mouse input over the
     //  floating window less the grab handle, on each tick of a floating
-    //  drag's move loop, when a drag of the grab handle starts, once a
-    //  floating window has been created (before it is shown), and once the
-    //  toolbar has floated or docked.
+    //  drag's move loop in place of the owner's own modal tick, when a drag
+    //  of the grab handle starts, once a floating window has been created
+    //  (before it is shown), and once the toolbar has floated or docked.
     void  SetOnLayout        (ClosedFn fn) { m_onLayout       = std::move (fn); }
     void  SetOnSave          (SaveFn fn)   { m_onSave         = std::move (fn); }
     void  SetOnFloatMouse    (MouseFn fn)  { m_onFloatMouse   = std::move (fn); }
@@ -75,6 +85,10 @@ public:
     //  The default place, saved.
     void  ResetDock ();
 
+    //  Whether a lift plays as an animation, in place of the system's
+    //  setting, for a test that must see the same thing on every machine.
+    void  SetAnimationsEnabled (bool on) { m_animations = on; }
+
     bool                  IsFloating     () const { return m_float != nullptr; }
     DxuiToolbarWindow  *  GetFloatWindow () const { return m_float.get(); }
     bool                  IsDragging     () const { return m_dragging; }
@@ -85,7 +99,7 @@ public:
     void  Layout (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler);
 
     //  A press on the grab handle and the drag that follows; true while the
-    //  host takes the event.
+    //  host takes the event. Attach puts it ahead of the owner's routing.
     bool  RouteDrag (const DxuiMouseEvent & ev);
 
     //  Once a frame: a floating window while the place is floating and none
@@ -124,6 +138,9 @@ private:
     void  OnFloatDrag      (POINT screenPx);
     void  OnFloatDragEnd   (POINT screenPx);
     void  FinishSnap       ();
+    bool  TrySnapFarEnd    (const RECT & screenRect);
+    void  RunMoveLoopFrame ();
+    void  UpdateLift       ();
     void  ResumeSnapDrag   ();
     void  FitFloatWindow   ();
     int   AdoptFloatLength (const RECT & window);
@@ -138,6 +155,7 @@ private:
     HINSTANCE                             m_hInstance = nullptr;
     DxuiDpiScaler                         m_scaler;
     bool                                  m_fillsEdge = false;
+    std::optional<bool>                   m_animations;
 
     //  The toolbar's place, and a drag of its grab handle in progress, with
     //  where in the toolbar the handle was taken and the region it docks
@@ -148,11 +166,16 @@ private:
     POINT                                 m_grab     = {};
 
     //  A floating toolbar dragged into a band snaps into it: the place it
-    //  takes once the move loop has ended, and, until the frame docks it,
-    //  whether the drag goes on in the owner.
+    //  takes once the move loop has ended, whether the drag goes on along
+    //  the band once it has, and, until the frame docks it, whether it will.
+    //  The floating toolbar's rectangle at the last tick of the drag, in the
+    //  owner's client pixels, shows which way its far end is going.
     DxuiToolbarDock                       m_snapDock;
-    bool                                  m_snapping   = false;
-    bool                                  m_snapDragOn = false;
+    bool                                  m_snapping     = false;
+    bool                                  m_snapResumes  = false;
+    bool                                  m_snapDragOn   = false;
+    RECT                                  m_lastFloat    = {};
+    bool                                  m_hasLastFloat = false;
 
     std::unique_ptr<DxuiToolbarWindow>    m_float;
 

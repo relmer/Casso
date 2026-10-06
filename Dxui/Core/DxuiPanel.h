@@ -122,7 +122,13 @@ public:
     //  cover the text of those beneath it. A subclass can add what it draws
     //  around them.
     void              SetTopLayer   (std::vector<IDxuiControl *> children) { m_topLayer = std::move (children); }
-    virtual bool      HasTopLayer   () const                               { return !m_topLayer.empty(); }
+    virtual bool      HasTopLayer   () const                               { return !m_topLayer.empty() || m_raised != nullptr; }
+
+    //  One child painted above even the top layer while it is lifted off its
+    //  place, as a toolbar carried by its handle is, so its shadow falls
+    //  over its neighbors and their text; null for none.
+    void              SetRaisedChild (IDxuiControl * child)                { m_raised = child; }
+    IDxuiControl *    GetRaisedChild () const                              { return m_raised; }
     virtual void      PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     size_t            GetChildCount () const                   override { return m_children.size(); }
@@ -158,6 +164,7 @@ private:
 
     std::vector<ChildSlot>                          m_children;
     std::vector<IDxuiControl *>                     m_topLayer;
+    IDxuiControl                                  * m_raised        = nullptr;
     std::unordered_map<const IDxuiControl *, RECT>  m_childClips;
     std::unique_ptr<IDxuiLayout>                    m_layout;
     bool                                            m_dirty         = false;

@@ -131,6 +131,7 @@ public:
         HWND                     ownerHwnd        = nullptr;
         bool                     borderless       = true;
         bool                     resizable        = true;
+        bool                     frameless        = false;   // no frame at all: the client area is the whole window
         bool                     roundedCorners   = true;
         bool                     darkMode         = true;
         DxuiHwndSourceBackdrop   backdrop         = DxuiHwndSourceBackdrop::Mica;

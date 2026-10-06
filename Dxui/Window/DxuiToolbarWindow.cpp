@@ -54,11 +54,38 @@ Error:
 
 void DxuiToolbarWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    if (m_toolbar != nullptr)
+    RECT  bar = {};
+
+
+
+    if (m_toolbar == nullptr)
     {
-        m_toolbar->SetHostClientRect (boundsDip);
-        m_toolbar->Layout            (boundsDip, scaler);
+        return;
     }
+
+    bar = GetToolbarBounds (boundsDip);
+
+    m_toolbar->SetHostClientRect (boundsDip);
+    m_toolbar->Layout            (bar, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::GetToolbarBounds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiToolbarWindow::GetToolbarBounds (const RECT & clientPx) const
+{
+    bool  vertical = m_toolbar != nullptr && m_toolbar->IsVertical();
+
+
+
+    return GetToolbarRect (clientPx, vertical, GetEndPx());
 }
 
 
@@ -69,7 +96,8 @@ void DxuiToolbarWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
 //
 //  DxuiToolbarWindow::OnMouse
 //
-//  A press on the grab handle moves the window; the rest is the owner's.
+//  A press on an end sizes the window and one on the grab handle moves it;
+//  the rest is the owner's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +107,11 @@ bool DxuiToolbarWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    if (OnSizingMouse (ev))
+    {
+        return true;
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && onGrip && !m_toolbar->IsMenuOpen())
     {
         BeginMove();
@@ -86,6 +119,85 @@ bool DxuiToolbarWindow::OnMouse (const DxuiMouseEvent & ev)
     }
 
     return m_onMouse ? m_onMouse (ev) : false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::OnSizingMouse
+//
+//  A press on an end starts a size drag, which the window's own capture
+//  carries: each move puts that end where the pointer is, along the length
+//  only, and the release, or a move with the button found up, ends it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarWindow::OnSizingMouse (const DxuiMouseEvent & ev)
+{
+    POINT    screen   = ClientToScreenPx (ev.positionDip);
+    bool     vertical = m_toolbar != nullptr && m_toolbar->IsVertical();
+    int      delta    = 0;
+    int      minimum  = 0;
+    LRESULT  end      = HTNOWHERE;
+
+
+
+    if (m_sizingEnd == HTNOWHERE)
+    {
+        end = HitTestEnd (ev.positionDip);
+
+        if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left || GetResizeCursor (end) == nullptr)
+        {
+            return false;
+        }
+
+        m_sizingEnd    = end;
+        m_sizeFromPx   = screen;
+        m_sizeFromRect = GetScreenRect();
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up || (ev.kind == DxuiMouseEventKind::Move && ev.button != DxuiMouseButton::Left))
+    {
+        m_sizingEnd = HTNOWHERE;
+        return true;
+    }
+
+    if (ev.kind != DxuiMouseEventKind::Move)
+    {
+        return true;
+    }
+
+    delta   = vertical ? screen.y - m_sizeFromPx.y : screen.x - m_sizeFromPx.x;
+    minimum = vertical ? m_sizeFromRect.right - m_sizeFromRect.left : m_sizeFromRect.bottom - m_sizeFromRect.top;
+
+    SetScreenRect (GetResizedRect (m_sizeFromRect, m_sizingEnd, delta, minimum));
+    Invalidate();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::ClientToScreenPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiToolbarWindow::ClientToScreenPx (POINT clientPx) const
+{
+    POINT  screen = clientPx;
+
+
+
+    ClientToScreen (GetHwnd(), &screen);
+    return screen;
 }
 
 
@@ -118,6 +230,15 @@ void DxuiToolbarWindow::BeginMove()
 
 LPCWSTR DxuiToolbarWindow::GetCursorForPoint (POINT clientPx) const
 {
+    LPCWSTR  cursor = GetResizeCursor ((m_sizingEnd != HTNOWHERE) ? m_sizingEnd : HitTestEnd (clientPx));
+
+
+
+    if (cursor != nullptr)
+    {
+        return cursor;
+    }
+
     if (m_toolbar != nullptr && m_toolbar->IsOnGrip (clientPx.x, clientPx.y))
     {
         return IDC_SIZEALL;
@@ -329,29 +450,21 @@ RECT DxuiToolbarWindow::GetScreenRect() const
 //
 //  DxuiToolbarWindow::SetLengthResizable
 //
-//  The window's own hit test answers for its ends ahead of the usual resize
-//  border, so the long sides and the corners are plain client area.
+//  The window sizes itself rather than through the system's size loop. It
+//  is made without a sizing frame, so that loop never starts for it:
+//  DefWindowProc runs SC_SIZE only for a window with WS_THICKFRAME, and
+//  that style would bring a frame along the long sides too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarWindow::SetLengthResizable (bool resizable)
 {
-    DxuiHwndSource  * source = GetPopupHost();
-
-
-
-    if (source == nullptr)
-    {
-        return;
-    }
+    m_lengthResizable = resizable;
 
     if (!resizable)
     {
-        source->SetHitTestDelegate (nullptr);
-        return;
+        m_sizingEnd = HTNOWHERE;
     }
-
-    source->SetHitTestDelegate ([this] (POINT screenPx) { return HitTestLength (screenPx); });
 }
 
 
@@ -360,34 +473,120 @@ void DxuiToolbarWindow::SetLengthResizable (bool resizable)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarWindow::HitTestLength
+//  DxuiToolbarWindow::GetEndPx
+//
+//  How long each end is in this window's pixels; 0 for a window that does
+//  not resize.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DxuiToolbarWindow::HitTestLength (POINT screenPx) const
+int DxuiToolbarWindow::GetEndPx() const
 {
-    HRESULT  hr     = S_OK;
-    HWND     hwnd   = GetHwnd();
-    POINT    client = screenPx;
-    RECT     rect   = {};
-    BOOL     isDone = FALSE;
-    LRESULT  result = HTNOWHERE;
+    return m_lengthResizable ? MulDiv (kResizeEndDp, (int) GetDpi(), USER_DEFAULT_SCREEN_DPI) : 0;
+}
 
 
 
-    CBR (hwnd != nullptr && m_toolbar != nullptr);
 
-    isDone = ScreenToClient (hwnd, &client);
-    CWR (isDone);
 
-    isDone = GetClientRect (hwnd, &rect);
-    CWR (isDone);
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::HitTestEnd
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    result = ClassifyLengthResize (client, SIZE { rect.right - rect.left, rect.bottom - rect.top }, m_toolbar->IsVertical(),
-                                   MulDiv (kResizeEndDp, (int) GetDpi(), USER_DEFAULT_SCREEN_DPI));
+LRESULT DxuiToolbarWindow::HitTestEnd (POINT clientPx) const
+{
+    RECT  rect = {};
 
-Error:
-    return result;
+
+
+    if (!m_lengthResizable || m_toolbar == nullptr || !GetClientRect (GetHwnd(), &rect))
+    {
+        return HTNOWHERE;
+    }
+
+    return ClassifyLengthResize (clientPx, SIZE { rect.right - rect.left, rect.bottom - rect.top }, m_toolbar->IsVertical(), GetEndPx());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::GetToolbarRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiToolbarWindow::GetToolbarRect (const RECT & clientPx, bool vertical, int endPx)
+{
+    RECT  rect = clientPx;
+
+
+
+    if (vertical)
+    {
+        rect.top    += endPx;
+        rect.bottom -= endPx;
+    }
+    else
+    {
+        rect.left  += endPx;
+        rect.right -= endPx;
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::GetResizedRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiToolbarWindow::GetResizedRect (const RECT & startPx, LRESULT end, int deltaPx, int minLengthPx)
+{
+    RECT  rect = startPx;
+
+
+
+    switch (end)
+    {
+    case HTLEFT:   rect.left   = (std::min) (startPx.left   + deltaPx, startPx.right  - minLengthPx); break;
+    case HTRIGHT:  rect.right  = (std::max) (startPx.right  + deltaPx, startPx.left   + minLengthPx); break;
+    case HTTOP:    rect.top    = (std::min) (startPx.top    + deltaPx, startPx.bottom - minLengthPx); break;
+    case HTBOTTOM: rect.bottom = (std::max) (startPx.bottom + deltaPx, startPx.top    + minLengthPx); break;
+    default:       break;
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarWindow::GetResizeCursor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiToolbarWindow::GetResizeCursor (LRESULT end)
+{
+    switch (end)
+    {
+    case HTLEFT:
+    case HTRIGHT:  return IDC_SIZEWE;
+    case HTTOP:
+    case HTBOTTOM: return IDC_SIZENS;
+    default:       return nullptr;
+    }
 }
 
 

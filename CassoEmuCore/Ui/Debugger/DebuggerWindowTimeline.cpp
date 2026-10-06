@@ -87,10 +87,9 @@ void DebuggerWindow::ConfigureTimeline()
     m_timelineHost.Attach       (this, m_timelineBar, nullptr, m_hInstance);
     m_timelineHost.SetFillsEdge (true);
 
-    m_timelineHost.SetOnLayout        ([this] { LayoutWidgets(); });
-    m_timelineHost.SetOnFloatMouse    ([this] (const DxuiMouseEvent & ev) { return RouteTimelineMouse (ev); });
-    m_timelineHost.SetOnMoveLoopFrame ([this] { RunModalLoopTick(); });
-    m_timelineHost.SetOnDragStart     ([this] { m_timelineStrip.HidePreview(); });
+    m_timelineHost.SetOnLayout     ([this] { LayoutWidgets(); });
+    m_timelineHost.SetOnFloatMouse ([this] (const DxuiMouseEvent & ev) { return RouteTimelineMouse (ev); });
+    m_timelineHost.SetOnDragStart  ([this] { m_timelineStrip.HidePreview(); });
 
     m_timelineHost.SetOnSave ([this] (const std::wstring & text)
     {
@@ -170,8 +169,8 @@ void DebuggerWindow::PlaceTimeline (RECT & area)
 //
 //  DebuggerWindow::RouteTimelineMouse
 //
-//  The grab handle's drags first, then the strip under the pointer; leaving
-//  it hides the preview.
+//  The strip under the pointer; leaving it hides the preview. The grab
+//  handle's drags are the toolbar host's, ahead of any of this.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,11 +186,6 @@ bool DebuggerWindow::RouteTimelineMouse (const DxuiMouseEvent & ev)
     if (m_timelineBar == nullptr)
     {
         return false;
-    }
-
-    if (m_timelineHost.RouteDrag (ev))
-    {
-        return true;
     }
 
     bar  = m_timelineBar->GetBounds();

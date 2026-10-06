@@ -272,4 +272,64 @@ public:
 
         Assert::AreEqual ((LRESULT) HTNOWHERE, DxuiToolbarWindow::ClassifyLengthResize (POINT { 700, 40 }, kFlat, false, kEnd), L"outside the window");
     }
+
+
+    TEST_METHOD (TheEndsAreRoomyAndTheToolbarSitsBetweenThem)
+    {
+        constexpr RECT  kClient = { 0, 0, 600, 82 };
+        constexpr RECT  kTall   = { 0, 0, 82, 600 };
+        constexpr int   kEnd    = 10;
+
+        RECT  flat    = DxuiToolbarWindow::GetToolbarRect (kClient, false, kEnd);
+        RECT  upright = DxuiToolbarWindow::GetToolbarRect (kTall,   true,  kEnd);
+        RECT  whole   = DxuiToolbarWindow::GetToolbarRect (kClient, false, 0);
+
+        Assert::IsTrue (DxuiToolbarWindow::kResizeEndDp >= 8, L"an end is wide enough to find with a real mouse");
+
+        Assert::AreEqual (10L,  flat.left,      L"lying down, the toolbar starts past the left end");
+        Assert::AreEqual (590L, flat.right,     L"and stops short of the right end");
+        Assert::AreEqual (0L,   flat.top,       L"and keeps the whole thickness");
+        Assert::AreEqual (82L,  flat.bottom);
+
+        Assert::AreEqual (10L,  upright.top,    L"standing up, it starts below the top end");
+        Assert::AreEqual (590L, upright.bottom, L"and stops above the bottom end");
+        Assert::AreEqual (0L,   upright.left);
+        Assert::AreEqual (82L,  upright.right);
+
+        Assert::IsTrue (whole.left == 0 && whole.right == 600, L"a window that does not resize gives the toolbar all of it");
+    }
+
+
+    TEST_METHOD (DraggingAnEndResizesTheWindowAlongItsLengthOnly)
+    {
+        constexpr RECT  kStart = { 100, 200, 700, 282 };
+        constexpr RECT  kTall  = { 100, 200, 182, 800 };
+        constexpr int   kMin   = 82;
+
+        RECT  right  = DxuiToolbarWindow::GetResizedRect (kStart, HTRIGHT,  150,  kMin);
+        RECT  left   = DxuiToolbarWindow::GetResizedRect (kStart, HTLEFT,   -50,  kMin);
+        RECT  floor  = DxuiToolbarWindow::GetResizedRect (kStart, HTRIGHT,  -900, kMin);
+        RECT  floorL = DxuiToolbarWindow::GetResizedRect (kStart, HTLEFT,   900,  kMin);
+        RECT  bottom = DxuiToolbarWindow::GetResizedRect (kTall,  HTBOTTOM, 40,   kMin);
+        RECT  top    = DxuiToolbarWindow::GetResizedRect (kTall,  HTTOP,    40,   kMin);
+
+        Assert::IsTrue (right.left == 100 && right.right == 850 && right.top == 200 && right.bottom == 282, L"the right end follows the pointer");
+        Assert::IsTrue (left.left == 50 && left.right == 700,                                                L"the left end does, and the right end stays");
+        Assert::AreEqual (kMin, (int) (floor.right - floor.left),                                           L"never shorter than the floor");
+        Assert::AreEqual (100L, floor.left);
+        Assert::AreEqual (kMin, (int) (floorL.right - floorL.left),                                         L"from the left end too");
+        Assert::AreEqual (700L, floorL.right,                                                               L"which keeps the right end put");
+        Assert::IsTrue (bottom.top == 200 && bottom.bottom == 840 && bottom.left == 100 && bottom.right == 182, L"standing up, the bottom end");
+        Assert::IsTrue (top.top == 240 && top.bottom == 800,                                                 L"and the top end");
+    }
+
+
+    TEST_METHOD (AnEndShowsTheSizingCursor)
+    {
+        Assert::IsTrue (DxuiToolbarWindow::GetResizeCursor (HTLEFT)   == IDC_SIZEWE, L"left end");
+        Assert::IsTrue (DxuiToolbarWindow::GetResizeCursor (HTRIGHT)  == IDC_SIZEWE, L"right end");
+        Assert::IsTrue (DxuiToolbarWindow::GetResizeCursor (HTTOP)    == IDC_SIZENS, L"top end");
+        Assert::IsTrue (DxuiToolbarWindow::GetResizeCursor (HTBOTTOM) == IDC_SIZENS, L"bottom end");
+        Assert::IsTrue (DxuiToolbarWindow::GetResizeCursor (HTCLIENT) == nullptr,    L"the toolbar has its own");
+    }
 };

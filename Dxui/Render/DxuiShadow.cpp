@@ -33,12 +33,35 @@ void DxuiShadow::Paint (
     float          radiusPx,
     float          scale)
 {
+    Paint (painter, xPx, yPx, widthPx, heightPx, radiusPx, scale, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiShadow::Paint (in a color)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiShadow::Paint (
+    IDxuiPainter & painter,
+    float          xPx,
+    float          yPx,
+    float          widthPx,
+    float          heightPx,
+    float          radiusPx,
+    float          scale,
+    uint32_t       rgb)
+{
     constexpr float  kOpacity = 0.32f;
     constexpr int    kLayers  = 12;
     float            blur     = kBlurDip    * scale;
     float            offsetY  = kOffsetYDip * scale;
     float            layerA   = 1.0f - powf (1.0f - kOpacity, 1.0f / (float) kLayers);
-    uint32_t         argb     = ((uint32_t) (layerA * 255.0f + 0.5f)) << 24;
+    uint32_t         argb     = (((uint32_t) (layerA * 255.0f + 0.5f)) << 24) | (rgb & 0x00FFFFFFu);
     int              k        = 0;
 
 

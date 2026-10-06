@@ -3185,7 +3185,12 @@ LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 
 
 
-    if (!m_params.borderless)
+    if (m_params.frameless)
+    {
+        // The proposed window rect, left as it is, is the client rect.
+        result = 0;
+    }
+    else if (!m_params.borderless)
     {
         // A framed window wants nothing but the default frame math.
         result = DefaultProc (WM_NCCALCSIZE, wp, lp);

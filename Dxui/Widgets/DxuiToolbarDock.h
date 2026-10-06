@@ -95,6 +95,18 @@ struct DxuiToolbarDock
     //  far in from the window's edge. A bar standing on end measures down.
     static POINT           GrabForDocking (POINT grabPx, bool vertical, int marginPx);
 
+    //  The edge the far end of a floating bar, the end away from its grab
+    //  handle, is being dragged up to: the right edge of `area` for a bar
+    //  lying down, the bottom for one standing up. It is when that end, at
+    //  `toolbar` now and at `previous` a moment before, has moved toward the
+    //  edge and come within `bandPx` of it from inside, with the bar across
+    //  from that edge. A long bar held by its handle reaches an edge with
+    //  that end long before the pointer could.
+    static bool            TryGetFarEndEdge (const RECT & toolbar, const RECT & previous, bool vertical, const RECT & area, int bandPx, Edge & outEdge);
+
+    //  A docked place on `edge`, `offsetPx` from the start of that edge.
+    static DxuiToolbarDock  MakeDocked (Edge edge, int offsetPx, int dpi);
+
 private:
     static DxuiToolbarDock  ReadFloating (const std::wstring & text);
 };

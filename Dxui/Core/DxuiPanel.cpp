@@ -261,6 +261,12 @@ std::unique_ptr<IDxuiControl> DxuiPanel::DetachChild (IDxuiControl * child)
             detached = std::move (it->owned);
             m_children.erase (it);
             detached->SetParent (nullptr);
+
+            if (m_raised == child)
+            {
+                m_raised = nullptr;
+            }
+
             MarkDirty();
             break;
         }
@@ -468,7 +474,7 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 
     for (auto & slot : m_children)
     {
-        if (slot.raw->IsVisible() && std::find (m_topLayer.begin(), m_topLayer.end(), slot.raw) == m_topLayer.end())
+        if (slot.raw->IsVisible() && slot.raw != m_raised && std::find (m_topLayer.begin(), m_topLayer.end(), slot.raw) == m_topLayer.end())
         {
             PaintChild (slot.raw, painter, text, theme);
 
@@ -518,6 +524,11 @@ void DxuiPanel::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text,
         {
             PaintChild (child, painter, text, theme);
         }
+    }
+
+    if (m_raised != nullptr && m_raised->IsVisible())
+    {
+        PaintChild (m_raised, painter, text, theme);
     }
 }
 

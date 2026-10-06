@@ -198,6 +198,10 @@ public:
     virtual uint32_t  Border              () const = 0;
     virtual uint32_t  Divider             () const = 0;
 
+    //  The color of the shadow under a surface lifted off its place, such as
+    //  a toolbar carried by its handle; the shadow brings its own alpha.
+    virtual uint32_t  LiftShadow          () const { return 0xFF000000u; }
+
     //  The thin frame around the picture under the pointer in a strip of
     //  pictures, drawn over the picture's edge, and the line just outside it.
     //  The frame is near white, so it reads against the pictures whatever the

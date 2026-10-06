@@ -70,19 +70,40 @@ public:
     RECT  GetScreenRect () const;
 
     //  Lets the ends of the window, along the toolbar's length, be dragged
-    //  to resize it; its long sides stay put. The hit test alone starts the
-    //  system's size loop, so the window keeps no sizing frame, which would
-    //  have sides of its own.
+    //  to resize it; its long sides stay put. The window sizes itself from
+    //  its own presses and moves, holding the mouse, so a size drag is
+    //  ordinary client input; the toolbar sits between the two ends, which
+    //  belong to the window alone.
     void  SetLengthResizable (bool resizable);
+    bool  IsLengthResizable  () const { return m_lengthResizable; }
+
+    //  Where the toolbar goes in this window's client area, `clientPx`.
+    RECT  GetToolbarBounds (const RECT & clientPx) const;
+
+    //  Whether a drag of the grab handle or of an end is under way.
+    bool  IsMoving () const { return m_isMoving; }
+    bool  IsSizing () const { return m_sizingEnd != HTNOWHERE; }
 
     //  How far in from each end of the window a press resizes it.
-    static constexpr int  kResizeEndDp = 4;
+    static constexpr int  kResizeEndDp = 8;
 
     //  The hit-test code for a point in the window's client pixels: the end
     //  it is on, within `endPx` of it, for a window that resizes along a
     //  toolbar lying down or standing up, plain client area anywhere else in
     //  the window, and HTNOWHERE outside it.
     static LRESULT  ClassifyLengthResize (POINT clientPx, SIZE clientSizePx, bool vertical, int endPx);
+
+    //  The toolbar's rectangle in a client area whose ends, `endPx` long,
+    //  are kept for resizing; the whole area for 0.
+    static RECT     GetToolbarRect       (const RECT & clientPx, bool vertical, int endPx);
+
+    //  The window `startPx` with the end `end` (HTLEFT, HTRIGHT, HTTOP or
+    //  HTBOTTOM) moved `deltaPx` along the length, never shorter than
+    //  `minLengthPx`; the far end stays where it was.
+    static RECT     GetResizedRect       (const RECT & startPx, LRESULT end, int deltaPx, int minLengthPx);
+
+    //  The cursor over an end, or none.
+    static LPCWSTR  GetResizeCursor      (LRESULT end);
 
 protected:
     void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
@@ -92,15 +113,25 @@ protected:
     void     OnDpiChanged      (UINT newDpi) override;
 
 private:
-    void     OnMoveLoopTick ();
-    void     Report         (DxuiCaptionDragTracker::Event ev);
-    SIZE     GetScreenSize  () const;
-    LRESULT  HitTestLength  (POINT screenPx) const;
+    void     OnMoveLoopTick   ();
+    void     Report           (DxuiCaptionDragTracker::Event ev);
+    SIZE     GetScreenSize    () const;
+    LRESULT  HitTestEnd       (POINT clientPx) const;
+    int      GetEndPx         () const;
+    bool     OnSizingMouse    (const DxuiMouseEvent & ev);
+    POINT    ClientToScreenPx (POINT clientPx) const;
 
     //  Whether the system's move loop running now is a move by the grab
-    //  handle; a loop the window's ends started is a resize, and reports no
-    //  drag.
-    bool                      m_isMoving     = false;
+    //  handle.
+    bool                      m_isMoving        = false;
+    bool                      m_lengthResizable = false;
+
+    //  A size drag of an end: which end, and where the press and the window
+    //  were when it began, in screen pixels.
+    LRESULT                   m_sizingEnd       = HTNOWHERE;
+    POINT                     m_sizeFromPx      = {};
+    RECT                      m_sizeFromRect    = {};
+
     DxuiToolbar             * m_toolbar      = nullptr;
     MouseFn                   m_onMouse;
     PointFn                   m_onDrag;

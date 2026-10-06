@@ -363,3 +363,57 @@ POINT DxuiToolbarDock::GrabForDocking (POINT grabPx, bool vertical, int marginPx
 
     return POINT { along + marginPx, along };
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarDock::TryGetFarEndEdge
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarDock::TryGetFarEndEdge (const RECT & toolbar, const RECT & previous, bool vertical, const RECT & area, int bandPx, Edge & outEdge)
+{
+    int   gap     = vertical ? area.bottom - toolbar.bottom  : area.right - toolbar.right;
+    int   gapWas  = vertical ? area.bottom - previous.bottom : area.right - previous.right;
+    bool  across  = vertical ? toolbar.right > area.left && toolbar.left < area.right
+                             : toolbar.bottom > area.top && toolbar.top < area.bottom;
+
+
+
+    if (!across || gap < 0 || gap > bandPx || gap >= gapWas)
+    {
+        return false;
+    }
+
+    outEdge = vertical ? Edge::Bottom : Edge::Right;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarDock::MakeDocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarDock DxuiToolbarDock::MakeDocked (Edge edge, int offsetPx, int dpi)
+{
+    DxuiToolbarDock  dock;
+
+
+
+    dock.edge      = edge;
+    dock.offsetDip = (std::max) (0, MulDiv (offsetPx, USER_DEFAULT_SCREEN_DPI, (std::max) (dpi, 1)));
+
+    return dock;
+}
+
+
+
+

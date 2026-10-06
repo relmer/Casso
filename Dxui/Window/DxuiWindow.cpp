@@ -44,6 +44,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.ownerHwnd             = params.ownerHwnd;
     hostParams.borderless            = true;
     hostParams.resizable             = params.resizable;
+    hostParams.frameless             = params.frameless;
     hostParams.roundedCorners        = true;
     hostParams.darkMode              = true;
     hostParams.backdrop              = DxuiHwndSourceBackdrop::None;
@@ -1504,7 +1505,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             Invalidate();
         }
 
-        if (OnMouse (ev))
+        if (RunMouseFilters (ev) || OnMouse (ev))
         {
             // Repaint immediately when a control consumes the event so drags
             // (slider thumbs, scrubbing) and hover states track the cursor every
@@ -1517,6 +1518,62 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddMouseFilter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::AddMouseFilter (const void * key, MouseFilterFn fn)
+{
+    RemoveMouseFilter (key);
+    m_mouseFilters.emplace_back (key, std::move (fn));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemoveMouseFilter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::RemoveMouseFilter (const void * key)
+{
+    std::erase_if (m_mouseFilters, [key] (const auto & filter) { return filter.first == key; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunMouseFilters
+//
+//  True once a filter keeps the event; the rest do not see it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::RunMouseFilters (const DxuiMouseEvent & ev)
+{
+    for (const auto & filter : m_mouseFilters)
+    {
+        if (filter.second && filter.second (ev))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

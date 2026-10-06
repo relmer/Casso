@@ -9264,11 +9264,6 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (m_barHost.RouteDrag (ev))
-    {
-        return true;
-    }
-
     if (!over && !m_commandBar->IsMenuOpen())
     {
         m_commandBar->OnToolbarMouseLeave();
@@ -9312,10 +9307,9 @@ void DebuggerWindow::ConfigureCommandBarHost()
 {
     m_barHost.Attach (this, m_commandBar, m_dockSite, m_hInstance);
 
-    m_barHost.SetOnLayout        ([this] { LayoutWidgets(); });
-    m_barHost.SetOnFloatMouse    ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
-    m_barHost.SetOnMoveLoopFrame ([this] { RunModalLoopTick(); });
-    m_barHost.SetOnDragStart     ([this] { GetRoutedTooltip().HideImmediate(); });
+    m_barHost.SetOnLayout     ([this] { LayoutWidgets(); });
+    m_barHost.SetOnFloatMouse ([this] (const DxuiMouseEvent & ev) { return RouteFloatingBarMouse (ev); });
+    m_barHost.SetOnDragStart  ([this] { GetRoutedTooltip().HideImmediate(); });
 
     m_barHost.SetOnSave ([this] (const std::wstring & text)
     {

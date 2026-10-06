@@ -44,4 +44,14 @@ public:
                         float          heightPx,
                         float          radiusPx,
                         float          scale);
+
+    //  The same shadow in `rgb`'s color; its alpha is the shadow's own.
+    static void  Paint (IDxuiPainter & painter,
+                        float          xPx,
+                        float          yPx,
+                        float          widthPx,
+                        float          heightPx,
+                        float          radiusPx,
+                        float          scale,
+                        uint32_t       rgb);
 };

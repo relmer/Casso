@@ -611,10 +611,11 @@ keeps Alt+Space and Alt+Enter, so they do not open the window menu.
 Keys and the mouse button let go of while the machine is behind live are
 released in the machine when it goes live again; a key still held stays down.
 Drag its grab handle to move it along its edge or, pulled well away, to float
-it in a window of its own, icons alone. Dragged back over any edge of the
-window, a floating bar snaps into that edge, which makes room for it, and
-slides along it with the pointer until the button is let go. Its place is
-kept between sessions.
+it in a window of its own, icons alone. While it is carried the bar lifts off
+its place, raised over a shadow. Dragged back over any edge of the window, a
+floating bar snaps into that edge, which makes room for it, and slides along it
+with the pointer until the button is let go; a long bar also snaps into the
+edge its far end is dragged up to. Its place is kept between sessions.
 **Detach** closes the debugger and leaves the machine running, resuming it
 first if it is stopped.
 The console has a toolbar of its own with **Dialect**, which sets the words
@@ -633,7 +634,7 @@ has moved on by a whole point. Resting the pointer on a picture shows it full
 size beside the timeline. Clicking one moves the machine to that point in
 history, stopping the machine first if it is running; clicking the live end
 goes live. The timeline docks, floats and keeps its place like the command
-bar.
+bar. Floating, it keeps its length, and dragging either end resizes it.
 
 ### The status bar
 

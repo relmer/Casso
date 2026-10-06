@@ -57,6 +57,12 @@ public:
         SIZE              initialSizeDip           = { 1024, 768 };
         SIZE              minSizeDip               = { 0, 0 };
         bool              resizable                = true;
+
+        // No frame on any side, so the client area is the whole window, as a
+        // floating toolbar's is. A window that does not resize otherwise gets
+        // the system's fixed frame along its sides and bottom once it is
+        // sized after it was made.
+        bool              frameless                = false;
         bool              insetContentBelowCaption = false;
         DxuiCaptionStyle  captionStyle             = DxuiCaptionStyle::Standard;
         bool              composited               = false;   // composited-transparent window (enables SetComposedOpacity)
@@ -197,6 +203,18 @@ public:
     //  The same keep-alive, run from a move loop another window owns, as an
     //  owned window being dragged keeps its owner's frames going.
     void     RunModalLoopTick   ()                          { OnModalLoopTick(); }
+
+    //
+    //  A handler that sees every mouse event ahead of the window's own
+    //  routing and keeps it when it returns true, for a helper such as a
+    //  toolbar host whose drag must not lose a move or a release to whatever
+    //  the pointer crosses. One handler per key; adding a key again replaces
+    //  its handler. A modal overlay still comes first.
+    //
+    using MouseFilterFn = std::function<bool (const DxuiMouseEvent & ev)>;
+
+    void     AddMouseFilter     (const void * key, MouseFilterFn fn);
+    void     RemoveMouseFilter  (const void * key);
 
     //
     //  Control to focus when the dialog is first shown (e.g. a picker's
@@ -418,6 +436,7 @@ private:
                                       float              wheelDelta,
                                       bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
+    bool               RunMouseFilters (const DxuiMouseEvent & ev);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
     void               ResizeToMaxSize   (bool growOnly);
 
@@ -458,4 +477,5 @@ private:
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
+    std::vector<std::pair<const void *, MouseFilterFn>>  m_mouseFilters;
 };

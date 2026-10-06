@@ -2169,7 +2169,7 @@ void DxuiToolbar::PaintGrip (IDxuiPainter & painter, const IDxuiTheme & theme)
     float     cx     = 0.0f;
     float     cy     = 0.0f;
     float     run    = 0.0f;
-    uint32_t  ink    = theme.ForegroundDisabled();
+    uint32_t  ink    = m_lifted ? theme.Foreground() : theme.ForegroundDisabled();
 
 
 
@@ -2209,6 +2209,94 @@ void DxuiToolbar::PaintGrip (IDxuiPainter & painter, const IDxuiTheme & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::SetLifted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::SetLifted (bool lifted, int64_t nowMs, bool isAnimated)
+{
+    if (lifted == m_lifted)
+    {
+        return;
+    }
+
+    m_lifted    = lifted;
+    m_liftSlide = lifted ? DxuiSlide::Start (1.0f, nowMs, isAnimated) : DxuiSlide();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetLiftLevel
+//
+//  0 on its place, 1 fully lifted, and the rise in between.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiToolbar::GetLiftLevel (int64_t nowMs) const
+{
+    return m_lifted ? 1.0f - m_liftSlide.GetOffset (nowMs) : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiToolbar::GetCursorForPoint (POINT clientPx) const
+{
+    return IsOnGrip (clientPx.x, clientPx.y) ? IDC_SIZEALL : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::PaintLift
+//
+//  The raised surface: a shadow under a card a little larger than the
+//  strip, in the theme's raised surface color, with an accent edge. The
+//  card grows and the shadow deepens with `level`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PaintLift (IDxuiPainter & painter, const IDxuiTheme & theme, float level)
+{
+    constexpr float  kRadiusDip = 4.0f;
+
+
+
+    float  grow   = m_scaler.ToPxf (kLiftGrowDip) * level;
+    float  left   = (float) m_barRect.left - grow;
+    float  top    = (float) m_barRect.top  - grow;
+    float  width  = (float) (m_barRect.right  - m_barRect.left) + grow * 2.0f;
+    float  height = (float) (m_barRect.bottom - m_barRect.top)  + grow * 2.0f;
+    float  line   = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
+
+
+
+    DxuiShadow::Paint (painter, left, top, width, height, m_scaler.ToPxf (kRadiusDip), m_scaler.ToPxf (1.0f) * level, theme.LiftShadow());
+
+    painter.FillRect    (left, top, width, height, theme.BackgroundElevated());
+    painter.OutlineRect (left, top, width, height, line, theme.Accent());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::Paint
 //
 //  A bottom hairline separates the strip from whatever is below it, or, for
@@ -2227,6 +2315,7 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     float     bw    = (float) (m_barRect.right - m_barRect.left);
     float     bhAll = (float) (m_barRect.bottom - m_barRect.top);
     uint32_t  strip = m_stripColorsSet ? m_stripOverride : theme.Background();
+    float     lift  = GetLiftLevel ((int64_t) GetTickCount64());
 
 
 
@@ -2239,7 +2328,11 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     painter.FillRect (bl, btTop, bw, bhAll, strip);
 
-    if (m_endEdges && m_vertical)
+    if (lift > 0.0f)
+    {
+        PaintLift (painter, theme, lift);
+    }
+    else if (m_endEdges && m_vertical)
     {
         painter.FillRect (bl, btTop,                bw, 1.0f, theme.ContentEdge());
         painter.FillRect (bl, btTop + bhAll - 1.0f, bw, 1.0f, theme.ContentEdge());

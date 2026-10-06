@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Window/DxuiToolbarHost.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -14,10 +15,42 @@
 
 void DxuiToolbarHost::Attach (DxuiWindow * owner, DxuiToolbar * toolbar, DxuiDockSite * dockSite, HINSTANCE hInstance)
 {
+    if (m_owner != nullptr)
+    {
+        m_owner->RemoveMouseFilter (this);
+    }
+
     m_owner     = owner;
     m_toolbar   = toolbar;
     m_dockSite  = dockSite;
     m_hInstance = hInstance;
+
+    //  A drag of the handle takes the owner's mouse input ahead of anything
+    //  the owner routes itself, so whatever the pointer crosses -- a menu
+    //  bar, a status bar, another toolbar -- the drag sees every move and
+    //  the release that ends it.
+    if (m_owner != nullptr)
+    {
+        m_owner->AddMouseFilter (this, [this] (const DxuiMouseEvent & ev) { return RouteDrag (ev); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::~DxuiToolbarHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarHost::~DxuiToolbarHost()
+{
+    if (m_owner != nullptr)
+    {
+        m_owner->RemoveMouseFilter (this);
+    }
 }
 
 
@@ -302,6 +335,8 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
         m_grab     = POINT { along + m_scaler.ToPx (kMarginDp), along };
         m_dragging = true;
 
+        UpdateLift();
+
         if (m_onDragStart)
         {
             m_onDragStart();
@@ -335,6 +370,7 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
 
     case DxuiMouseEventKind::Up:
         m_dragging = false;
+        UpdateLift();
         Save();
         break;
 
@@ -477,6 +513,7 @@ void DxuiToolbarHost::Float()
     params.initialSizeDip   = { MulDiv (rect.right - rect.left, USER_DEFAULT_SCREEN_DPI, dpi), MulDiv (rect.bottom - rect.top, USER_DEFAULT_SCREEN_DPI, dpi) };
     params.minSizeDip       = m_fillsEdge ? SIZE { GetBandDipOfBar(), GetBandDipOfBar() } : SIZE {};
     params.resizable        = false;
+    params.frameless        = true;
     params.captionStyle     = DxuiCaptionStyle::None;
     params.createNoActivate = true;
     params.toolWindow       = true;
@@ -513,7 +550,7 @@ void DxuiToolbarHost::Float()
     window->SetOnCaptionDrag       ([this] (POINT screen)              { OnFloatDrag (screen); });
     window->SetOnCaptionDragEnd    ([this] (POINT screen)              { OnFloatDragEnd (screen); });
     window->SetOnCaptionDragCancel ([this]                             { FinishSnap(); });
-    window->SetOnMoveLoopFrame     ([this]                             { if (m_onMoveFrame) { m_onMoveFrame(); } });
+    window->SetOnMoveLoopFrame     ([this]                             { RunMoveLoopFrame(); });
     window->SetScreenRect          (rect);
 
     if (IsWindowVisible (GetOwnerHwnd()))
@@ -645,6 +682,8 @@ void DxuiToolbarHost::Sync()
         ResumeSnapDrag();
     }
 
+    UpdateLift();
+
     if (m_float == nullptr)
     {
         return;
@@ -668,6 +707,57 @@ void DxuiToolbarHost::Sync()
 
     m_float->PollCaptionDrag();
     m_float->Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::UpdateLift
+//
+//  The toolbar is lifted while it is carried, docked by its handle or
+//  floating in its window's move loop, and painted above everything else in
+//  the window it is in; put down, it settles back among the rest. While it
+//  rises, the window it is in draws every frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::UpdateLift()
+{
+    bool          lifted   = m_dragging || (m_float != nullptr && m_float->IsMoving());
+    int64_t       now      = (int64_t) GetTickCount64();
+    DxuiWindow  * window   = (m_float != nullptr) ? m_float.get() : m_owner;
+    bool          changed  = false;
+    bool          animated = false;
+
+
+
+    if (m_toolbar == nullptr)
+    {
+        return;
+    }
+
+    changed = lifted != m_toolbar->IsLifted();
+
+    if (changed)
+    {
+        animated = m_animations.has_value() ? *m_animations : DxuiSystemSettings::Instance().AreAnimationsEnabled();
+        m_toolbar->SetLifted (lifted, now, animated);
+    }
+
+    //  A toolbar carried from one window to the other is raised again in
+    //  the window it is now in.
+    if (window != nullptr && (lifted || changed))
+    {
+        window->SetRaisedChild (lifted ? m_toolbar : nullptr);
+    }
+
+    if (window != nullptr && (changed || m_toolbar->IsLiftSettling (now)))
+    {
+        window->Invalidate();
+    }
 }
 
 
@@ -721,8 +811,9 @@ void DxuiToolbarHost::FitFloatWindow()
     }
 
     //  Measuring planned the toolbar for any length, so it is laid out
-    //  again for the window it is in.
-    m_toolbar->Layout (client, m_scaler);
+    //  again for the window it is in, between the ends a resizable window
+    //  keeps for itself.
+    m_toolbar->Layout (m_float->GetToolbarBounds (client), m_scaler);
 }
 
 
@@ -807,6 +898,8 @@ void DxuiToolbarHost::OnFloatDragEnd (POINT screenPx)
 
     ScreenToClient (GetOwnerHwnd(), &client);
 
+    m_hasLastFloat = false;
+
     if (m_snapping)
     {
         FinishSnap();
@@ -843,16 +936,44 @@ void DxuiToolbarHost::OnFloatDragEnd (POINT screenPx)
 
 void DxuiToolbarHost::FinishSnap()
 {
+    m_hasLastFloat = false;
+
     if (!m_snapping)
     {
         return;
     }
 
     m_snapping   = false;
-    m_snapDragOn = true;
+    m_snapDragOn = m_snapResumes;
     m_dock       = m_snapDock;
 
     Save();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::RunMoveLoopFrame
+//
+//  The OS owns the thread while the floating window is dragged, so the
+//  owner's frames run from here, as every owner's do: its own tick unless
+//  it set another.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::RunMoveLoopFrame()
+{
+    if (m_onMoveFrame)
+    {
+        m_onMoveFrame();
+    }
+    else if (m_owner != nullptr)
+    {
+        m_owner->RunModalLoopTick();
+    }
 }
 
 
@@ -898,10 +1019,17 @@ void DxuiToolbarHost::OnFloatDrag (POINT screenPx)
 
     if (DxuiToolbarDock::IsInDockBand (client, m_area, reach))
     {
-        m_grab     = DxuiToolbarDock::GrabForDocking (POINT { screenPx.x - rect.left, screenPx.y - rect.top }, m_dock.floatVertical, m_scaler.ToPx (kMarginDp));
-        m_snapDock = DxuiToolbarDock::PickForDrop (client, m_grab, m_area, (int) m_scaler.GetDpi());
-        m_snapping = true;
+        m_grab        = DxuiToolbarDock::GrabForDocking (POINT { screenPx.x - rect.left, screenPx.y - rect.top }, m_dock.floatVertical, m_scaler.ToPx (kMarginDp));
+        m_snapDock    = DxuiToolbarDock::PickForDrop (client, m_grab, m_area, (int) m_scaler.GetDpi());
+        m_snapResumes = true;
+        m_snapping    = true;
 
+        ReleaseCapture();
+        return;
+    }
+
+    if (TrySnapFarEnd (rect))
+    {
         ReleaseCapture();
         return;
     }
@@ -919,3 +1047,61 @@ void DxuiToolbarHost::OnFloatDrag (POINT screenPx)
     m_float->SetScreenRect (GetFloatingRect (m_dock.floatPx, GetFloatLengthPx (m_dock, m_fillsEdge, (int) m_scaler.GetDpi())));
     m_float->Invalidate();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::TrySnapFarEnd
+//
+//  A floating toolbar whose far end, the end away from its grab handle, is
+//  dragged up to the edge across from it snaps into that edge, as one held
+//  near an edge by its handle does. A long toolbar such as a strip of
+//  pictures reaches the right edge, or standing up the bottom, with that
+//  end while the pointer is still far away at the handle, so the band
+//  there must answer to the toolbar, not only to the pointer. The pointer
+//  is not in that band, so the drag ends with the snap rather than going on
+//  along the band, which would pull it straight out again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::TrySnapFarEnd (const RECT & screenRect)
+{
+    POINT                  origin   = {};
+    RECT                   rect     = screenRect;
+    RECT                   previous = {};
+    int                    reach    = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
+    int                    offset   = 0;
+    bool                   isNear   = false;
+    DxuiToolbarDock::Edge  edge     = DxuiToolbarDock::Edge::Right;
+
+
+
+    ScreenToClient (GetOwnerHwnd(), &origin);
+    OffsetRect     (&rect, origin.x, origin.y);
+
+    previous       = m_hasLastFloat ? m_lastFloat : rect;
+    m_lastFloat    = rect;
+    m_hasLastFloat = true;
+
+    isNear = DxuiToolbarDock::TryGetFarEndEdge (rect, previous, m_dock.floatVertical, m_area, reach, edge);
+
+    if (!isNear)
+    {
+        return false;
+    }
+
+    offset        = (edge == DxuiToolbarDock::Edge::Right) ? rect.top - m_area.top : rect.left - m_area.left - m_scaler.ToPx (kMarginDp);
+    m_snapDock    = DxuiToolbarDock::MakeDocked (edge, offset, (int) m_scaler.GetDpi());
+    m_snapResumes = false;
+    m_snapping    = true;
+
+    return true;
+}
+
+
+
+
+
