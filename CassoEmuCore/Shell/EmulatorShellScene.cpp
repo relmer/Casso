@@ -168,7 +168,7 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 
     // The cassette recorder sits beside the stack only on a machine with
     // cassette jacks to plug it into.
-    if (IsTapeRecorderShown())
+    if (MachineHasCassettePort())
     {
         recorderMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_CASSETTE_RECORDER_MESH);
         haveTape     = !recorderMesh.empty();
@@ -230,6 +230,8 @@ HRESULT EmulatorShell::InitializeDeskScene()
 
     hr = LoadDeskSceneModelsForMachine();
     CHRA (hr);
+
+    m_deskScene.SetRecorderShown (IsTapeRecorderShown());
 
     // A powered monitor's lamp is lit for as long as the machine exists;
     // drive activity arrives per frame from the drive state sync.

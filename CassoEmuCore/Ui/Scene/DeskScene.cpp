@@ -225,6 +225,29 @@ void DeskScene::BuildDerivedGeometry()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::SetRecorderShown
+//
+//  Attaching or detaching the recorder. Its model stays loaded, so this is
+//  instant; the layout that places it is the caller's to redo.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderShown (bool shown)
+{
+    if (shown != m_recorderShown)
+    {
+        m_recorderShown = shown;
+        m_recorderKeyVerts.clear();
+        TouchGeometry();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::Metrics
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,9 +276,9 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.drivePadSideMm    = kShadowMarginSideMm;
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
 
-    metrics.hasRecorder = m_hasRecorder;
+    metrics.hasRecorder = HasRecorder();
 
-    if (m_hasRecorder)
+    if (HasRecorder())
     {
         m_recorder.BoundsMin (metrics.recorderMin);
         m_recorder.BoundsMax (metrics.recorderMax);
@@ -1071,7 +1094,7 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
         accumulate (m_drive, comp.driveWorld[drive]);
     }
 
-    if (comp.hasRecorder != 0 && m_hasRecorder)
+    if (comp.hasRecorder != 0 && HasRecorder())
     {
         accumulate (m_recorder, comp.recorderWorld);
     }
@@ -1248,7 +1271,7 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
                                         m_geometryRev, mvp, false, viewport, true);
         }
 
-        if (comp.hasRecorder != 0 && m_hasRecorder && SUCCEEDED (hr))
+        if (comp.hasRecorder != 0 && HasRecorder() && SUCCEEDED (hr))
         {
             SceneCamera::Mul44 (comp.recorderWorld, m_lightVp[k], mvp);
 
@@ -1550,7 +1573,7 @@ HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_
 
 
 
-    BAIL_OUT_IF (comp.hasRecorder == 0 || !m_hasRecorder, S_OK);
+    BAIL_OUT_IF (comp.hasRecorder == 0 || !HasRecorder(), S_OK);
 
     SceneCamera::Mul44 (comp.recorderWorld, comp.viewProj, mvp);
 
@@ -2655,7 +2678,7 @@ HRESULT DeskScene::RenderEnvironment (const DeskSceneComposition & comp)
 
     m_envReady = false;
 
-    BAIL_OUT_IF (comp.glassOnly != 0 || comp.hasRecorder == 0 || !m_hasRecorder, S_OK);
+    BAIL_OUT_IF (comp.glassOnly != 0 || comp.hasRecorder == 0 || !HasRecorder(), S_OK);
     BAIL_OUT_IF (m_recorder.ChromeVerts().empty(), S_OK);
 
     // The middle of the handle, in the world.

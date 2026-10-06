@@ -111,7 +111,12 @@ public:
 
     const DeskSceneModel &  DriveModel    () const { return m_drive; }
     const DeskSceneModel &  RecorderModel () const { return m_recorder; }
-    bool                    HasRecorder   () const { return m_hasRecorder; }
+    // Whether the recorder is on the desk: its model loaded, and shown.
+    // Loaded follows the machine's cassette port; shown follows whether it
+    // is attached, and flips without reloading anything.
+    bool                    HasRecorder      () const { return m_hasRecorder && m_recorderShown; }
+    bool                    IsRecorderLoaded () const { return m_hasRecorder; }
+    void                    SetRecorderShown (bool shown);
 
     // THE MOUNTED IMAGE'S NAME, as a surface in the scene rather than as
     // chrome laid over it.
@@ -645,13 +650,14 @@ private:
                                      std::vector<Dxui3DRenderer::Vertex> & out);
 
     Dxui3DRenderer          m_renderer;
-    ID3D11DeviceContext   * m_context      = nullptr;   // non-owning
+    ID3D11DeviceContext   * m_context       = nullptr;   // non-owning
     DeskSceneModel          m_monitor;
     DeskSceneModel          m_drive;
     DeskSceneModel          m_recorder;
-    bool                    m_hasRecorder  = false;
+    bool                    m_hasRecorder   = false;
+    bool                    m_recorderShown = true;
     DeskSceneComposition    m_comp;
-    bool                    m_modelsLoaded = false;
+    bool                    m_modelsLoaded  = false;
 
     std::vector<Dxui3DRenderer::Vertex>   m_glassVerts;         // the tube: dark, untextured
     std::vector<Dxui3DRenderer::Vertex>   m_pictureVerts;       // band-exact curved grid, textured

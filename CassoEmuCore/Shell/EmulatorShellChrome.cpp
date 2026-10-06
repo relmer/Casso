@@ -1135,9 +1135,11 @@ void EmulatorShell::ReflowChromeForMachineChange()
     // swaps both models. Reloading rebuilds every cached mesh, so the
     // scene's own state is pushed again right after. Gaining or losing
     // cassette jacks adds or removes the recorder, which is a reload too.
+    // Attaching or detaching the recorder is NOT: its model stays loaded
+    // while the machine has the jacks, and is only shown or hidden.
     if (m_deskSceneReady &&
         (MachineHasCaseSwitches() != m_deskSceneMachineIsC ||
-         IsTapeRecorderShown() != m_deskScene.HasRecorder()))
+         MachineHasCassettePort() != m_deskScene.IsRecorderLoaded()))
     {
         HRESULT  hrModels = LoadDeskSceneModelsForMachine();
 
@@ -1147,6 +1149,12 @@ void EmulatorShell::ReflowChromeForMachineChange()
         }
 
         IGNORE_RETURN_VALUE (hrModels, S_OK);
+    }
+
+    if (m_deskSceneReady)
+    {
+        m_deskScene.SetRecorderShown (IsTapeRecorderShown());
+        InvalidateSceneComposition();
     }
 
     // Resize the window by the total bottom-band delta -- the drive band
