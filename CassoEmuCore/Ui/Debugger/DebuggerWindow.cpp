@@ -7565,10 +7565,21 @@ void DebuggerWindow::UpdateChanges()
 
 void DebuggerWindow::ApplyDiagnostics()
 {
-    std::set<std::string>  open;
-    bool                   changed = false;
+    std::set<std::string>        open;
+    bool                         changed = false;
+    DebuggerTextColors::Set      colors  = GetTextColors();
+    MemoryMapBar::SourceColors   map     = {};
 
 
+
+    //  The memory map in the theme's colors, which fall back to its own.
+    map[(size_t) MemorySource::Main]    = colors.mapMain;
+    map[(size_t) MemorySource::Aux]     = colors.mapAux;
+    map[(size_t) MemorySource::LcBank1] = colors.mapLcBank1;
+    map[(size_t) MemorySource::LcBank2] = colors.mapLcBank2;
+    map[(size_t) MemorySource::Rom]     = colors.mapRom;
+    map[(size_t) MemorySource::SlotRom] = colors.mapSlotRom;
+    map[(size_t) MemorySource::Io]      = colors.mapIo;
 
     for (const DiagnosticsSnapshot & diagnostics : m_snapshot->diagnostics)
     {
@@ -7580,6 +7591,7 @@ void DebuggerWindow::ApplyDiagnostics()
         }
 
         open.insert (diagnostics.id);
+        pane->GetMap()->SetSourceColors (map);
 
         if (pane->Apply (diagnostics))
         {
@@ -9127,22 +9139,19 @@ uint32_t DebuggerWindow::GetTargetRowArgb() const
 //  DebuggerWindow::GetTextColors
 //
 //  Every text color the panes draw, made readable against the theme's
-//  content background.
+//  content background, with every color of the theme's own: its ROM, I/O and
+//  memory map colors among them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerTextColors::Set DebuggerWindow::GetTextColors() const
 {
-    uint32_t  background = (m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000;
-    uint32_t  foreground = (m_theme != nullptr) ? m_theme->Foreground()        : 0xFFFFFFFF;
-    uint32_t  muted      = (m_theme != nullptr) ? m_theme->ForegroundMuted()   : 0xFFC0C0C0;
-    uint32_t  result     = (m_theme != nullptr) ? m_theme->resultText          : 0u;
-    uint32_t  accent     = (m_theme != nullptr) ? m_theme->Accent()            : 0xFF3C8CE6;
-    uint32_t  changed    = (m_theme != nullptr) ? m_theme->changedText         : 0u;
+    if (m_theme != nullptr)
+    {
+        return DebuggerTextColors::MakeFor (*m_theme);
+    }
 
-
-
-    return DebuggerTextColors::Make (background, foreground, muted, result, accent, changed);
+    return DebuggerTextColors::Make (0xFF000000, 0xFFFFFFFF, 0xFFC0C0C0, 0u);
 }
 
 

@@ -39,6 +39,32 @@ public:
     static constexpr uint8_t  kMarkRom     = 2;
     static constexpr uint8_t  kMarkChanged = 3;
 
+    //  The regions a window outlines: one for each run with a label of its
+    //  own, every slot's ROM apart from the next. Main RAM is in none.
+    static constexpr uint16_t  kRegionRom          = 1;
+    static constexpr uint16_t  kRegionIo           = 2;
+    static constexpr uint16_t  kRegionLcBank1      = 3;
+    static constexpr uint16_t  kRegionLcBank2      = 4;
+    static constexpr uint16_t  kRegionAux          = 5;
+    static constexpr uint16_t  kRegionExpansionRom = 6;
+    static constexpr uint16_t  kRegionSlotRom      = 8;     // plus the slot, 1 to 7
+
+    //  The outline colors: ROM's and I/O's are their bytes' own, and the
+    //  language card's and aux RAM's the memory map's. Until the window has
+    //  the theme's, the dark themes' defaults.
+    struct RegionColors
+    {
+        uint32_t  rom     = 0xFF7FB2E5;
+        uint32_t  io      = 0xFF909090;
+        uint32_t  lcBank1 = 0xFF5BB36A;
+        uint32_t  lcBank2 = 0xFF2E8B57;
+        uint32_t  aux     = 0xFFD98A4A;
+    };
+
+    static uint16_t      GetRegionKey   (MemoryRegion region, Word address);
+    static std::wstring  GetRegionLabel (uint16_t key);
+
+    void  SetRegionColors (const RegionColors & colors) { m_regionColors = colors; }
     //  An edit's bytes, which the window writes at the address directly.
     using PatchFn = std::function<void (Word address, std::span<const Byte> bytes)>;
 
@@ -58,6 +84,8 @@ public:
     void      ReadMarks     (uint64_t offset, std::span<uint8_t> out) const override;
     bool      WriteBytes    (uint64_t offset, std::span<const uint8_t> bytes) const override;
     bool      TryGetByteTip (uint64_t offset, std::wstring & tip) const override;
+    void      ReadRegions   (uint64_t offset, std::span<uint16_t> out) const override;
+    bool      TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const override;
 
     //  Where the view's rows start relative to a 16-byte boundary. Offset 0 is
     //  address `phase`, so Go to can put any address at a row's start.
@@ -101,4 +129,5 @@ private:
     mutable std::vector<Edit>                 m_history;
     mutable std::vector<Edit>                 m_redo;
     PatchFn                                   m_onPatch;
+    RegionColors                              m_regionColors;
 };

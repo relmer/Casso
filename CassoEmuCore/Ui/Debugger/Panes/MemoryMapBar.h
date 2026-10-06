@@ -43,6 +43,13 @@ public:
     static uint32_t               GetSourceColor (MemorySource source);
     static const wchar_t *        GetSourceName  (MemorySource source);
 
+    //  The theme's colors in place of the mid-tones, one per source in
+    //  MemorySource order; a zero keeps that source's mid-tone.
+    using SourceColors = std::array<uint32_t, (size_t) MemorySource::Count>;
+
+    void                          SetSourceColors (const SourceColors & colors) { m_colors = colors; }
+    uint32_t                      GetColorOf      (MemorySource source) const;
+
     //  Where a page's strip segment starts, in pixels from the bar's left.
     float                         GetPageX       (int page) const;
 
@@ -62,4 +69,5 @@ private:
     DiagnosticsMemoryMap  m_map;
     DxuiDpiScaler         m_scaler;
     float                 m_fontDip = 12.0f;     // the key's font, as last painted
+    SourceColors          m_colors  = {};
 };

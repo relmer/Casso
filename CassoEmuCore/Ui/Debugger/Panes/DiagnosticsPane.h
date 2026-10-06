@@ -39,6 +39,8 @@ public:
     const std::string            &  GetId       () const { return m_id; }
     const std::wstring           &  GetTitle    () const { return m_title; }
     DxuiListView                  * GetList     () const { return m_list; }
+    DiskHeadView                  * GetHead     () const { return m_head; }
+    MemoryMapBar                  * GetMap      () const { return m_map; }
     DebuggerPaneFrame             * GetFrame    () const { return m_frame.get(); }
 
     //  Every control of the pane, graphics first, in the order they stack.

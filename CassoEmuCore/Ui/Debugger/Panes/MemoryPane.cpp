@@ -55,6 +55,7 @@ void MemoryPane::Configure (HWND hwnd)
     m_view->SetShowValues   (true);
     m_view->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
     m_view->SetEditable     (true);
+    m_view->SetShowRegions  (true);
 
     m_view->SetMarkColor ([this] (uint8_t mark, uint32_t & outArgb)
     {
@@ -75,6 +76,38 @@ void MemoryPane::Configure (HWND hwnd)
     });
 
     m_view->SetOnWriteRefused ([this] (uint64_t offset) { NoteRefusal (offset); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SetTextColors
+//
+//  ROM, slot ROM and I/O are outlined in their bytes' colors, the language
+//  card's banks and aux RAM in the memory map's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetTextColors (const DebuggerTextColors::Set & colors)
+{
+    MemoryEditModel::RegionColors  regions;
+
+
+
+    m_changedArgb = colors.changed;
+    m_romArgb     = colors.rom;
+    m_ioArgb      = colors.io;
+
+    regions.rom     = colors.rom;
+    regions.io      = colors.io;
+    regions.lcBank1 = colors.mapLcBank1;
+    regions.lcBank2 = colors.mapLcBank2;
+    regions.aux     = colors.mapAux;
+
+    m_model.SetRegionColors (regions);
 }
 
 

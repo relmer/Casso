@@ -56,7 +56,21 @@ public:
         uint32_t              pcRow          = 0;
         uint32_t              targetRow      = 0;
         uint32_t              navigatedRow   = 0;
+
+        //  The memory map's sources, which a memory window's language card
+        //  and aux RAM boxes share.
+        uint32_t              mapMain        = 0;
+        uint32_t              mapAux         = 0;
+        uint32_t              mapLcBank1     = 0;
+        uint32_t              mapLcBank2     = 0;
+        uint32_t              mapRom         = 0;
+        uint32_t              mapSlotRom     = 0;
+        uint32_t              mapIo          = 0;
     };
+
+    //  Make with every one of a theme's own colors, its memory map's among
+    //  them, each falling back where the theme gives none.
+    static Set       MakeFor     (const DxuiTheme & theme);
 
     //  `resultText`, `changedText`, `romText` or `ioText` of zero means the
     //  theme gives no color of its own for it.

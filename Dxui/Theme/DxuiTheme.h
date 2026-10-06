@@ -94,6 +94,17 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  romText                  = 0;
     uint32_t  ioText                   = 0;
 
+    //  A memory map's sources: main and aux RAM, the language card's two
+    //  banks, ROM, slot ROM and I/O. A zero value falls back to a mid-tone
+    //  that reads on a light and a dark background alike.
+    uint32_t  mapMainRam               = 0;
+    uint32_t  mapAuxRam                = 0;
+    uint32_t  mapLcBank1               = 0;
+    uint32_t  mapLcBank2               = 0;
+    uint32_t  mapRom                   = 0;
+    uint32_t  mapSlotRom               = 0;
+    uint32_t  mapIo                    = 0;
+
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
     uint32_t  Background          () const override { return panelBg;            }

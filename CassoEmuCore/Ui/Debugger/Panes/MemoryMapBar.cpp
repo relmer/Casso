@@ -59,6 +59,30 @@ uint32_t MemoryMapBar::GetSourceColor (MemorySource source)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryMapBar::GetColorOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t MemoryMapBar::GetColorOf (MemorySource source) const
+{
+    size_t  index = (size_t) source;
+
+
+
+    if (index < m_colors.size() && m_colors[index] != 0)
+    {
+        return m_colors[index];
+    }
+
+    return GetSourceColor (source);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryMapBar::GetSourceName
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,7 +276,7 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, const IDxuiTheme & theme,
     {
         MemorySource  source = isWrite ? m_map.pages[(size_t) first].write : m_map.pages[(size_t) first].read;
         int           end    = first + 1;
-        uint32_t      color  = (source == MemorySource::None) ? theme.Divider() : GetSourceColor (source);
+        uint32_t      color  = (source == MemorySource::None) ? theme.Divider() : GetColorOf (source);
 
         while (end < (int) DiagnosticsMemoryMap::kPageCount &&
                (isWrite ? m_map.pages[(size_t) end].write : m_map.pages[(size_t) end].read) == source)
@@ -295,7 +319,7 @@ void MemoryMapBar::PaintKey (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         float  x   = left + (float) at.x;
         float  top = y + key * (float) at.y;
 
-        painter.FillRect (x, top + (key - swatch) / 2, swatch, swatch, GetSourceColor (source));
+        painter.FillRect (x, top + (key - swatch) / 2, swatch, swatch, GetColorOf (source));
 
         hr = text.DrawString (GetSourceName (source), x + indent, top, width - (float) at.x - indent, key,
                               theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,

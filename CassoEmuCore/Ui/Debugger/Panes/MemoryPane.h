@@ -49,8 +49,9 @@ public:
     void  Configure (HWND hwnd);
 
     //  The inks for a byte that changed since the previous snapshot, a ROM
-    //  byte and an I/O byte, from the theme's text colors.
-    void  SetTextColors (const DebuggerTextColors::Set & colors) { m_changedArgb = colors.changed; m_romArgb = colors.rom; m_ioArgb = colors.io; }
+    //  byte and an I/O byte, and the outlines' colors, from the theme's text
+    //  colors.
+    void  SetTextColors (const DebuggerTextColors::Set & colors);
 
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }

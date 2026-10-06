@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerTextColors.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
 
 
 
@@ -75,6 +76,43 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     //  to the same ratio as the changed red.
     set.rom = GetReadable (romText != 0 ? romText : (dark ? 0xFF7FB2E5 : 0xFF1F5FA8), dark ? background : GetRowShade (background));
     set.io  = GetReadable (ioText  != 0 ? ioText  : (dark ? 0xFF909090 : 0xFF6A6A6A), dark ? background : GetRowShade (background));
+
+    //  The memory map's mid-tones, which a theme can replace through MakeFor.
+    set.mapMain    = MemoryMapBar::GetSourceColor (MemorySource::Main);
+    set.mapAux     = MemoryMapBar::GetSourceColor (MemorySource::Aux);
+    set.mapLcBank1 = MemoryMapBar::GetSourceColor (MemorySource::LcBank1);
+    set.mapLcBank2 = MemoryMapBar::GetSourceColor (MemorySource::LcBank2);
+    set.mapRom     = MemoryMapBar::GetSourceColor (MemorySource::Rom);
+    set.mapSlotRom = MemoryMapBar::GetSourceColor (MemorySource::SlotRom);
+    set.mapIo      = MemoryMapBar::GetSourceColor (MemorySource::Io);
+
+    return set;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerTextColors::MakeFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerTextColors::Set DebuggerTextColors::MakeFor (const DxuiTheme & theme)
+{
+    Set  set = Make (theme.ContentBackground(), theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent(),
+                     theme.changedText, theme.romText, theme.ioText);
+
+
+
+    set.mapMain    = (theme.mapMainRam != 0) ? theme.mapMainRam : set.mapMain;
+    set.mapAux     = (theme.mapAuxRam  != 0) ? theme.mapAuxRam  : set.mapAux;
+    set.mapLcBank1 = (theme.mapLcBank1 != 0) ? theme.mapLcBank1 : set.mapLcBank1;
+    set.mapLcBank2 = (theme.mapLcBank2 != 0) ? theme.mapLcBank2 : set.mapLcBank2;
+    set.mapRom     = (theme.mapRom     != 0) ? theme.mapRom     : set.mapRom;
+    set.mapSlotRom = (theme.mapSlotRom != 0) ? theme.mapSlotRom : set.mapSlotRom;
+    set.mapIo      = (theme.mapIo      != 0) ? theme.mapIo      : set.mapIo;
 
     return set;
 }
