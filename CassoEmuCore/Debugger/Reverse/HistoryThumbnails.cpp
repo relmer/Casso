@@ -133,8 +133,6 @@ void HistoryThumbnails::SetCellLayout (
     capacity      = (std::max) (kMinThumbCount, (size_t) m_count * 2);
     m_useStandIns = m_useStandIns || m_bases.GetCount() > 0;
 
-    m_isCatchingUp.store (m_useStandIns, std::memory_order_release);
-
     m_thumbs.SetCapacity (capacity);
     m_bases.SetCapacity  (capacity);
     m_shown.assign ((size_t) m_count, ShownPicture {});
@@ -377,14 +375,17 @@ void HistoryThumbnails::OnTrailingLabelClicked()
 //  HistoryThumbnails::Service
 //
 //  Lays the points out again, and while the strip shows and nothing is being
-//  drawn, unpacks the keyframe the next wanted picture comes from and hands
-//  it to the worker: a full-size picture for the pointer at once, a
-//  thumbnail at most kRendersPerSecond times a second. Unpacking is the only
-//  part on this thread. Unpacking first collects the keyframes in flight,
-//  which can drop the oldest; a point dropped that way is forgotten, the
-//  points are laid out again over what history holds now, and the next
-//  wanted picture is tried in the same turn, so the first cell moves to the
-//  new oldest keyframe without waiting a turn for every drop.
+//  drawn, copies the keyframe the next wanted picture comes from out of the
+//  store, still packed, and hands it to the worker to unpack and draw: a
+//  full-size picture for the pointer at once, a thumbnail once IsRenderDue.
+//  Copying is the only part on this thread, and it never waits for a
+//  keyframe being packed; one still in flight is asked for again next turn.
+//  Copying first collects the keyframes in flight, which can drop the
+//  oldest; a point dropped that way is forgotten, the points are laid out
+//  again over what history holds now, and the next wanted picture is tried
+//  in the same turn, so the first cell moves to the new oldest keyframe
+//  without waiting a turn for every drop. The worker's unpacker is read
+//  here only while nothing is in flight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,19 +395,16 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 
 
 
-    HRESULT        hr        = S_OK;
-    uint64_t       position  = 0;
-    size_t         index     = 0;
-    bool           isFound   = false;
-    bool           isPicked  = false;
-    bool           isIdle    = false;
-    bool           isPreview = false;
-    bool           isDue     = false;
-    bool           isHeld    = false;
-    int            attempt   = 0;
-    LARGE_INTEGER  start     = {};
-    LARGE_INTEGER  end       = {};
-    LARGE_INTEGER  freq      = {};
+    HRESULT       hr        = S_OK;
+    uint64_t      position  = 0;
+    size_t        index     = 0;
+    KeyframeCopy  copy      = KeyframeCopy::Gone;
+    bool          isPicked  = false;
+    bool          isIdle    = false;
+    bool          isPreview = false;
+    bool          isDue     = false;
+    bool          isHeld    = false;
+    int           attempt   = 0;
 
 
 
@@ -415,42 +413,41 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     isIdle = IsVisible() && !m_isInFlight.load (std::memory_order_acquire);
     BAIL_OUT_IF (!isIdle, S_OK);
 
-    QueryPerformanceFrequency (&freq);
+    m_pendingPick.reset();
 
-    for (attempt = 0; attempt < kAttempts && !isFound; attempt++)
+    for (attempt = 0; attempt < kAttempts && copy != KeyframeCopy::Copied; attempt++)
     {
         isPicked = TryPickWanted (position, isPreview);
 
         if (!isPicked)
         {
-            m_isCatchingUp.store (false, std::memory_order_release);
             break;
         }
 
         //  Only the thumbnails keep the pace; a full-size picture for the
         //  pointer goes now.
-        isDue = isPreview || IsRenderDue();
+        isDue = isPreview || !m_hasSubmitted || IsRenderDue (GetNowMs(), m_lastSubmitMs, GetLastRenderMs());
 
         if (!isDue)
         {
             break;
         }
 
-        QueryPerformanceCounter (&start);
-
-        hr = keyframes.RestoreAtPosition (position, m_job.state, isFound);
+        hr = keyframes.CopyPacked (position, m_unpacker, m_job.packed, copy);
         CHR (hr);
 
-        QueryPerformanceCounter (&end);
-
-        if (!isFound)
+        if (copy == KeyframeCopy::Pending)
+        {
+            m_pendingPick = position;
+        }
+        else if (copy == KeyframeCopy::Gone)
         {
             ForgetPoint (position);
             LayOutCells (keyframes);
         }
     }
 
-    BAIL_OUT_IF (!isFound, S_OK);
+    BAIL_OUT_IF (copy != KeyframeCopy::Copied, S_OK);
 
     //  The snapshot the picture is of, so a cell showing it gives its time.
     isHeld = TryFindAtOrBefore (keyframes, position, index);
@@ -477,7 +474,6 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 
     m_job.position  = position;
     m_job.isPreview = isPreview;
-    m_job.unpackMs  = (double) (end.QuadPart - start.QuadPart) * 1000.0 / (double) freq.QuadPart;
 
     m_isInFlight.store (true, std::memory_order_release);
     m_lastSubmitMs = GetNowMs();
@@ -842,12 +838,14 @@ void HistoryThumbnails::RunJob (void * context)
 //
 //  HistoryThumbnails::Draw
 //
-//  Worker thread. A snapshot that cannot be drawn still files a picture, an
-//  empty one, so it is not asked for again and again; the strip shows its
-//  cell empty. The thumbnail is scaled from the base copy, as every later
-//  cell size will be; one drawn for a cell size since replaced is dropped,
-//  and the base copy kept. A full-size picture drawn only for a thumbnail
-//  is kept in room to spare, never in place of one the pointer wanted.
+//  Worker thread. The keyframe is unpacked here, then drawn. A snapshot that
+//  cannot be unpacked or drawn still files a picture, an empty one, so it is
+//  not asked for again and again; the strip shows its cell empty. The
+//  thumbnail is scaled from the base copy, as every later cell size will be;
+//  one drawn for a cell size since replaced is dropped, and the base copy
+//  kept. A full-size picture drawn only for a thumbnail is kept in room to
+//  spare, never in place of one the pointer wanted. What the whole took
+//  paces the next thumbnail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -857,16 +855,16 @@ void HistoryThumbnails::Draw (Job & job)
     std::shared_ptr<DxuiIconImage>  full  = std::make_shared<DxuiIconImage>();
     std::shared_ptr<DxuiIconImage>  thumb = std::make_shared<DxuiIconImage>();
     Image                           base;
-    LARGE_INTEGER                   start = {};
-    LARGE_INTEGER                   end   = {};
-    LARGE_INTEGER                   freq  = {};
+    double                          start = GetNowMs();
 
 
 
-    QueryPerformanceFrequency (&freq);
-    QueryPerformanceCounter   (&start);
+    hr = m_unpacker.Unpack (job.packed, job.state);
 
-    hr = m_renderer.Render (job.state, full->bgraPremul, full->width, full->height);
+    if (SUCCEEDED (hr))
+    {
+        hr = m_renderer.Render (job.state, full->bgraPremul, full->width, full->height);
+    }
 
     if (FAILED (hr))
     {
@@ -878,8 +876,6 @@ void HistoryThumbnails::Draw (Job & job)
     base = MakeBase (full);
 
     Shrink (*base, (base->width > 0) ? job.thumbPx.cx : 0, (base->height > 0) ? job.thumbPx.cy : 0, *thumb);
-
-    QueryPerformanceCounter (&end);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
@@ -908,7 +904,7 @@ void HistoryThumbnails::Draw (Job & job)
         }
     }
 
-    m_lastRenderMs.store (job.unpackMs + (double) (end.QuadPart - start.QuadPart) * 1000.0 / (double) freq.QuadPart, std::memory_order_relaxed);
+    m_lastRenderMs.store (GetNowMs() - start, std::memory_order_relaxed);
     m_renderCount.fetch_add (1, std::memory_order_relaxed);
     m_isInFlight.store (false, std::memory_order_release);
 
@@ -964,13 +960,13 @@ bool HistoryThumbnails::TryPickWanted (
     isLiveShown = HasPicture (live);
     hasLivePast = m_shown.size() == m_cells.size() && m_shown.back().image != nullptr;
 
-    if (!isLiveShown && !hasLivePast)
+    if (!isLiveShown && !hasLivePast && m_pendingPick != live)
     {
         outPosition = live;
         return true;
     }
 
-    if (!HasPicture (m_cells.front().position))
+    if (IsWanted (m_cells.front().position))
     {
         outPosition = m_cells.front().position;
         return true;
@@ -978,14 +974,14 @@ bool HistoryThumbnails::TryPickWanted (
 
     for (i = m_cells.size() - 1; i-- > 0; )
     {
-        if (!HasPicture (m_cells[i].position))
+        if (IsWanted (m_cells[i].position))
         {
             outPosition = m_cells[i].position;
             return true;
         }
     }
 
-    if (!isLiveShown)
+    if (!isLiveShown && m_pendingPick != live)
     {
         outPosition = live;
         return true;
@@ -1016,7 +1012,7 @@ bool HistoryThumbnails::TryPickFull (uint64_t & outPosition)
 
 
 
-    if (m_wantedPreview.has_value() && !m_previews.Contains (*m_wantedPreview))
+    if (m_wantedPreview.has_value() && !m_previews.Contains (*m_wantedPreview) && m_pendingPick != m_wantedPreview)
     {
         outPosition = *m_wantedPreview;
         return true;
@@ -1031,7 +1027,7 @@ bool HistoryThumbnails::TryPickFull (uint64_t & outPosition)
     {
         for (int index : { m_hoveredCell + distance, m_hoveredCell - distance })
         {
-            if (index < 0 || index >= count || m_previews.Contains (m_cells[(size_t) index].position))
+            if (index < 0 || index >= count || m_previews.Contains (m_cells[(size_t) index].position) || m_pendingPick == m_cells[(size_t) index].position)
             {
                 continue;
             }
@@ -1078,25 +1074,21 @@ void HistoryThumbnails::ForgetPoint (uint64_t position)
 //
 //  HistoryThumbnails::IsRenderDue
 //
-//  At most kRendersPerSecond while history scrolls. After a new layout over
-//  pictures already drawn, until every point has its own, at the faster
-//  kCatchUpRendersPerSecond, still one in flight at a time, so a resize
-//  settles in a fraction of a second rather than several.
+//  The pace follows the cost: a picture that took lastWorkMs is followed no
+//  sooner than kWorkShare times that after it went, so the worker draws at
+//  most one part in kWorkShare of the time. A fast computer is held only by
+//  the one picture a turn Service hands over; a slow one, or a Debug build,
+//  draws as fast as that share allows rather than at a rate chosen for
+//  either.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HistoryThumbnails::IsRenderDue()
+bool HistoryThumbnails::IsRenderDue (
+    double  nowMs,
+    double  lastSubmitMs,
+    double  lastWorkMs)
 {
-    constexpr uint64_t  kMsPerSecond = 1000;
-
-
-
-    uint64_t  now  = GetNowMs();
-    uint64_t  rate = m_isCatchingUp.load (std::memory_order_acquire) ? kCatchUpRendersPerSecond : kRendersPerSecond;
-
-
-
-    return !m_hasSubmitted || now - m_lastSubmitMs >= kMsPerSecond / rate;
+    return nowMs - lastSubmitMs >= lastWorkMs * kWorkShare;
 }
 
 
@@ -1107,11 +1099,30 @@ bool HistoryThumbnails::IsRenderDue()
 //
 //  HistoryThumbnails::GetNowMs
 //
+//  Milliseconds, finer than a tick: a picture takes well under one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t HistoryThumbnails::GetNowMs() const
+double HistoryThumbnails::GetNowMs() const
 {
-    return m_clock ? m_clock() : GetTickCount64();
+    constexpr double  kMsPerSecond = 1000.0;
+
+
+
+    LARGE_INTEGER  now  = {};
+    LARGE_INTEGER  freq = {};
+
+
+
+    if (m_clock)
+    {
+        return m_clock();
+    }
+
+    QueryPerformanceFrequency (&freq);
+    QueryPerformanceCounter   (&now);
+
+    return (double) now.QuadPart * kMsPerSecond / (double) freq.QuadPart;
 }
 
 
@@ -1130,6 +1141,24 @@ uint64_t HistoryThumbnails::GetNowMs() const
 bool HistoryThumbnails::HasPicture (uint64_t position) const
 {
     return m_thumbs.Contains (position) || m_bases.Contains (position);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::IsWanted
+//
+//  Under the lock: a point with no picture yet, unless its keyframe is still
+//  being packed this turn, when the next one wanted goes instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::IsWanted (uint64_t position) const
+{
+    return !HasPicture (position) && m_pendingPick != position;
 }
 
 

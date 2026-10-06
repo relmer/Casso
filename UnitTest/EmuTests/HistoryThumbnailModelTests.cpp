@@ -18,6 +18,7 @@ static constexpr int       s_kFakeHeight      = 4;
 static constexpr SIZE      s_kThumbCell       = { 4, 2 };
 static constexpr size_t    s_kNoiseStateBytes = 4096;
 static constexpr uint32_t  s_kThumbOpaque     = 0xFF000000u;
+static constexpr uint64_t  s_kThumbTurnMs     = 125;
 
 
 
@@ -45,13 +46,21 @@ public:
 
 
         calls++;
+
+        if (clock != nullptr)
+        {
+            *clock += costMs;
+        }
+
         outWidth  = s_kFakeWidth;
         outHeight = s_kFakeHeight;
         outBgra.assign ((size_t) s_kFakeWidth * s_kFakeHeight, kOpaque | state[0]);
         return S_OK;
     }
 
-    int  calls = 0;
+    int         calls  = 0;
+    uint64_t  * clock  = nullptr;   // moved on by costMs for every picture, when given
+    uint64_t    costMs = 0;
 };
 
 
@@ -266,7 +275,7 @@ public:
         store.Configure (settings);
 
         thumbnails.SetWorkQueue   (&queue);
-        thumbnails.SetClock       ([&now] { return now; });
+        thumbnails.SetClock       ([&now] { return (double) now; });
         thumbnails.SetCellLayout  (kCount, s_kThumbCell);
         thumbnails.SetVisible     (true);
         thumbnails.SetHoveredCell (kHovered);
@@ -299,7 +308,7 @@ public:
 
             CheckShownTime (thumbnails, kHovered, cycle, checked, stale);
 
-            now += 1000 / HistoryThumbnails::kRendersPerSecond / kSlower;
+            now += s_kThumbTurnMs / kSlower;
         }
 
         Assert::IsTrue (checked > 0, L"the hovered cell showed pictures");
@@ -511,6 +520,7 @@ public:
     }
 
 
+
     TEST_METHOD (NothingIsDrawnWhileTheStripIsHidden)
     {
         FakeHistoryFrameRenderer           renderer;
@@ -536,20 +546,29 @@ public:
     }
 
 
+    //  One picture in flight at a time, unpacked and drawn on the worker,
+    //  and the next thumbnail paced by what the last one cost: kWorkShare
+    //  times its cost after it went, so the worker is never busy more than
+    //  that share of the time.
     TEST_METHOD (DrawingIsBoundedAndOnTheWorker)
     {
+        constexpr uint64_t  kCostMs = 10;
+
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
         HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now     = 0;
-        uint64_t                  spacing = 1000 / HistoryThumbnails::kRendersPerSecond;
+        uint64_t                  spacing = kCostMs * HistoryThumbnails::kWorkShare;
         HRESULT                   hr      = S_OK;
 
 
 
         Prepare (thumbnails, queue, store, now);
         thumbnails.SetVisible (true);
+
+        renderer.clock  = &now;
+        renderer.costMs = kCostMs;
 
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service");
@@ -566,11 +585,15 @@ public:
         Assert::IsNotNull (thumbnails.GetCellImage (2).get(), L"the live end is drawn first");
         Assert::IsNull    (thumbnails.GetCellImage (1).get(), L"the points wait their turn");
 
+        Assert::AreEqual<double> ((double) kCostMs, thumbnails.GetLastRenderMs(), L"what the picture cost");
+
+        now += spacing - kCostMs - 1;
+
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service too soon");
         Assert::AreEqual<size_t> (0, queue.GetPendingCount(), L"too soon after the last: nothing more");
 
-        now += spacing;
+        now++;
 
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service once due");
@@ -581,6 +604,73 @@ public:
         Assert::IsNull    (thumbnails.GetCellImage (1).get(), L"ahead of the grid points");
         Assert::AreEqual ((int) s_kThumbCell.cx, thumbnails.GetCellImage (0)->width,  L"a thumbnail is the cell's width");
         Assert::AreEqual ((int) s_kThumbCell.cy, thumbnails.GetCellImage (0)->height, L"and the cell's height");
+    }
+
+
+    //  The machine's thread only copies a keyframe out, still packed; it
+    //  never waits for one still being packed, and never unpacks. The live
+    //  end, just taken and in flight, is passed over for a point that is
+    //  ready, and drawn once its packing is done.
+    TEST_METHOD (AKeyframeStillBeingPackedIsNotWaitedFor)
+    {
+        constexpr size_t  kKeyframes = 9;
+        constexpr int     kCount     = 3;
+        constexpr int     kLiveCell  = kCount - 1;
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           thumbQueue;
+        InlineWorkQueue           storeQueue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        KeyframeSettings          settings;
+        std::vector<Byte>         state (s_kThumbStateBytes);
+        uint64_t                  now   = 0;
+        size_t                    i     = 0;
+        HRESULT                   hr    = S_OK;
+
+
+
+        settings.intervalCycles = s_kThumbInterval;
+        store.Configure    (settings);
+        store.SetWorkQueue (&storeQueue);
+
+        for (i = 0; i < kKeyframes; i++)
+        {
+            state[0] = static_cast<Byte> (i + 1);
+
+            hr = store.Add (i * s_kThumbStride, i * s_kThumbInterval, state);
+            AssertSucceeded (hr, L"Add");
+
+            if (i + 1 < kKeyframes)
+            {
+                Assert::IsTrue (storeQueue.TryRunNext(), L"packed");
+            }
+        }
+
+        thumbnails.SetWorkQueue  (&thumbQueue);
+        thumbnails.SetClock      ([&now] { return (double) now; });
+        thumbnails.SetCellLayout (kCount, s_kThumbCell);
+        thumbnails.SetVisible    (true);
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service with the newest keyframe in flight");
+
+        Assert::AreEqual<size_t> (1, storeQueue.GetPendingCount(), L"the keyframe being packed was not waited for");
+        Assert::AreEqual<size_t> (1, thumbQueue.GetPendingCount(), L"a point that is ready went instead");
+        Assert::AreEqual (0, renderer.calls, L"nothing unpacked or drawn on the machine's thread");
+
+        Assert::IsTrue (thumbQueue.TryRunNext(), L"drawn");
+        Assert::IsNotNull (thumbnails.GetCellImage (0).get(),        L"the first cell");
+        Assert::IsNull    (thumbnails.GetCellImage (kLiveCell).get(), L"not the live end, still being packed");
+
+        Assert::IsTrue (storeQueue.TryRunNext(), L"its packing finishes");
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service once it is packed");
+        Assert::IsTrue (thumbQueue.TryRunNext(), L"drawn");
+
+        Assert::IsNotNull (thumbnails.GetCellImage (kLiveCell).get(), L"now the live end");
+        Assert::AreEqual<uint32_t> (s_kThumbOpaque | static_cast<Byte> (kKeyframes), thumbnails.GetCellImage (kLiveCell)->bgraPremul[0], L"from the newest keyframe");
     }
 
 
@@ -648,7 +738,7 @@ public:
     }
 
 
-    //  The keyframes in flight are collected when one is unpacked, and
+    //  The keyframes packed are collected when one is copied out, and
     //  collecting them can drop the oldest groups, which moves every index.
     //  The picture must still come from the keyframe at its point.
     TEST_METHOD (APictureComesFromItsPointWhenCollectingDropsTheOldest)
@@ -678,6 +768,7 @@ public:
         for (round = 0; round < kRounds; round++)
         {
             AddInFlight (store, position, seed);
+            FinishPacking (storeQueue);
 
             hr = thumbnails.Service (store);
             AssertSucceeded (hr, L"Service");
@@ -690,7 +781,7 @@ public:
             Assert::IsNotNull (image.get(), L"the live end is drawn");
             Assert::AreEqual<uint32_t> (s_kThumbOpaque | GetTag (cells[kLiveCell].position), image->bgraPremul[0], L"from the keyframe at the live end");
 
-            now += 1000 / HistoryThumbnails::kRendersPerSecond;
+            now += s_kThumbTurnMs;
         }
 
         Assert::IsTrue (store.GetInfo (0).position > 0, L"and the oldest keyframes were dropped along the way");
@@ -732,7 +823,7 @@ public:
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service with the point dropped");
 
-        now += 1000 / HistoryThumbnails::kRendersPerSecond;
+        now += s_kThumbTurnMs;
 
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service once due");
@@ -786,12 +877,13 @@ public:
         for (round = 0; round < kRounds; round++)
         {
             AddInFlight (store, position, seed);
+            FinishPacking (storeQueue);
 
             hr = thumbnails.Service (store);
             AssertSucceeded (hr, L"Service");
 
             thumbQueue.TryRunNext();
-            now += 1000 / HistoryThumbnails::kRendersPerSecond;
+            now += s_kThumbTurnMs;
 
             thumbnails.GetCells (cells);
             Assert::AreEqual<size_t> (kCount, cells.size(), L"every cell has a point");
@@ -877,6 +969,7 @@ public:
         for (round = 0; round < kRounds; round++)
         {
             AddInFlight (store, position, seed);
+            FinishPacking (storeQueue);
 
             hr = thumbnails.Service (store);
             AssertSucceeded (hr, L"Service");
@@ -887,7 +980,7 @@ public:
             }
 
             thumbQueue.TryRunNext();
-            now += 1000 / HistoryThumbnails::kRendersPerSecond;
+            now += s_kThumbTurnMs;
 
             isDrawn = isDrawn || thumbnails.GetCellImage (kLiveCell) != nullptr;
         }
@@ -969,7 +1062,9 @@ public:
 
     //  New points after a resize are drawn faster than the bound that holds
     //  while history scrolls, so the strip settles quickly.
-    TEST_METHOD (NewPointsAfterAResizeAreDrawnFasterThanTheBound)
+    //  With pictures that cost next to nothing, nothing holds the next back
+    //  but the one picture a turn: no clock time need pass between them.
+    TEST_METHOD (NewPointsAfterAResizeAreDrawnOneATurn)
     {
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
@@ -990,11 +1085,9 @@ public:
         AssertSucceeded (hr, L"Service lays out five points and hands one over");
         Assert::IsTrue (queue.TryRunNext(), L"the first new point is drawn");
 
-        now += 1000 / HistoryThumbnails::kCatchUpRendersPerSecond;
-
         hr = thumbnails.Service (store);
-        AssertSucceeded (hr, L"Service at the catch-up rate");
-        Assert::AreEqual<size_t> (1, queue.GetPendingCount(), L"the next new point follows at the faster rate");
+        AssertSucceeded (hr, L"Service on the next turn");
+        Assert::AreEqual<size_t> (1, queue.GetPendingCount(), L"the next new point follows at once");
     }
 
     TEST_METHOD (TheMarkedCellFollowsThePlayhead)
@@ -1113,7 +1206,7 @@ private:
             AssertSucceeded (hr, L"Service");
 
             queue.TryRunNext();
-            now += 1000 / HistoryThumbnails::kRendersPerSecond;
+            now += s_kThumbTurnMs;
         }
 
         Assert::IsNotNull (thumbnails.GetCellImage (0).get(), L"the oldest point is drawn");
@@ -1150,7 +1243,7 @@ private:
         Fill (store, 9);
 
         thumbnails.SetWorkQueue  (&queue);
-        thumbnails.SetClock      ([&now] { return now; });
+        thumbnails.SetClock      ([&now] { return (double) now; });
         thumbnails.SetCellLayout (3, s_kThumbCell);
     }
 
@@ -1174,7 +1267,7 @@ private:
         store.SetWorkQueue (&storeQueue);
 
         thumbnails.SetWorkQueue  (&thumbQueue);
-        thumbnails.SetClock      ([&now] { return now; });
+        thumbnails.SetClock      ([&now] { return (double) now; });
         thumbnails.SetCellLayout (3, s_kThumbCell);
     }
 
@@ -1209,6 +1302,17 @@ private:
             AssertSucceeded (hr, L"Add");
 
             position += s_kThumbStride;
+        }
+    }
+
+
+    //  The pool packs the keyframes in flight, as it does well within a
+    //  frame; collecting them, which can drop the oldest groups, is left to
+    //  the next copy out of the store.
+    static void FinishPacking (InlineWorkQueue & storeQueue)
+    {
+        while (storeQueue.TryRunNext())
+        {
         }
     }
 

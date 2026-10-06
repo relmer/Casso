@@ -842,6 +842,8 @@
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
     <ClCompile Include="EmuTests\HistoryTimelineTests.cpp" />
+    <ClCompile Include="EmuTests\HistoryThumbnailCostTests.cpp" />
+    <ClCompile Include="EmuTests\KeyframeUnpackerTests.cpp" />
     <ClCompile Include="EmuTests\HistoryScratchPictureTests.cpp" />
     <ClCompile Include="EmuTests\DiskFlushHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />

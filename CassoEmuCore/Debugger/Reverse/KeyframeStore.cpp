@@ -1216,6 +1216,82 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CopyPacked
+//
+//  Copies the keyframe taken at position out of the store still packed, for
+//  unpacker to unpack on another thread: the difference, and its group's
+//  whole snapshot unless unpacker holds it already. Only the packed bytes
+//  are copied, a few kilobytes, so the thread that runs the machine never
+//  unpacks. Keyframes in flight are collected when they are done but never
+//  waited for: a keyframe still being packed is Pending, to be asked for
+//  again later, and one no longer held is Gone. Collecting can drop the
+//  oldest groups, so the index is found after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::CopyPacked (
+    uint64_t                  position,
+    const KeyframeUnpacker  & unpacker,
+    PackedKeyframe          & outPacked,
+    KeyframeCopy            & outCopy)
+{
+    HRESULT        hr        = S_OK;
+    size_t         index     = 0;
+    size_t         collected = 0;
+    bool           isHeld    = false;
+    const Entry  * entry     = nullptr;
+    const Entry  * whole     = nullptr;
+    const Byte   * bytes     = nullptr;
+
+
+
+    outCopy = KeyframeCopy::Gone;
+
+    hr = Collect();
+    CHR (hr);
+
+    isHeld = TryFindByPosition (position, index) && GetEntry (index).info.position == position;
+    BAIL_OUT_IF (!isHeld, S_OK);
+
+    collected = m_count - m_pendingCount;
+    outCopy   = (index < collected) ? KeyframeCopy::Copied : KeyframeCopy::Pending;
+    BAIL_OUT_IF (outCopy == KeyframeCopy::Pending, S_OK);
+
+    entry = &GetEntry (index);
+    whole = &GetEntry (FindGroupStart (index));
+
+    CBRA (entry->info.stateBytes == whole->info.stateBytes);
+
+    outPacked.wholePosition = whole->info.position;
+    outPacked.wholeChecksum = whole->info.checksum;
+    outPacked.stateBytes    = entry->info.stateBytes;
+    outPacked.isWhole       = entry->info.isWhole;
+
+    outPacked.whole.clear();
+    outPacked.difference.clear();
+
+    if (!unpacker.HoldsWhole (whole->info.position, whole->info.checksum))
+    {
+        bytes = m_arena.get() + whole->offset;
+        outPacked.whole.assign (bytes, bytes + whole->info.storedBytes);
+    }
+
+    if (!entry->info.isWhole)
+    {
+        bytes = m_arena.get() + entry->offset;
+        outPacked.difference.assign (bytes, bytes + entry->info.storedBytes);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryFindAtOrBefore
 //
 //  The newest keyframe taken at or before cycle; false when every keyframe

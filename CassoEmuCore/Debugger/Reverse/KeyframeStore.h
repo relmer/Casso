@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/IWorkQueue.h"
+#include "Debugger/Reverse/KeyframeUnpacker.h"
 #include "Debugger/Reverse/SnapshotCompressor.h"
 
 class MachineHost;
@@ -65,6 +66,26 @@ struct KeyframeInfo
     bool      isWhole      = false;  // false: XOR difference from its group's whole snapshot
     bool      isBoundary   = false;  // the state does not follow from the one before: a replay loads it
     bool      hasGapBefore = false;  // recording paused between gapStart and this keyframe
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KeyframeCopy
+//
+//  What KeyframeStore::CopyPacked found at a position: the keyframe copied,
+//  one still being packed, or none held any more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class KeyframeCopy
+{
+    Copied,
+    Pending,
+    Gone,
 };
 
 
@@ -144,6 +165,7 @@ public:
 
     HRESULT   Restore           (size_t index, std::vector<Byte> & outState);
     HRESULT   RestoreAtPosition (uint64_t position, std::vector<Byte> & outState, bool & outIsFound);
+    HRESULT   CopyPacked        (uint64_t position, const KeyframeUnpacker & unpacker, PackedKeyframe & outPacked, KeyframeCopy & outCopy);
     bool      TryFindAtOrBefore (uint64_t cycle, size_t & outIndex) const;
     bool      TryFindByPosition (uint64_t position, size_t & outIndex) const;
     bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state);
@@ -164,6 +186,7 @@ public:
     uint64_t                  GetNextDueCycle () const { return m_nextDueCycle; }
 
     static uint64_t  ComputeChecksum (const Byte * data, size_t size);
+    static void      XorBytes        (const Byte * a, const Byte * b, Byte * out, size_t count);
 
 private:
     //  Each table slot is charged this much of the budget, which sets how
@@ -225,7 +248,6 @@ private:
 
     static uint64_t  ReadWallClock ();
     static void      RunJob        (void * context);
-    static void      XorBytes      (const Byte * a, const Byte * b, Byte * out, size_t count);
 
     KeyframeSettings               m_settings;
     std::vector<Entry>             m_entries;              // the table, used as a ring; sized once by Reserve
