@@ -799,6 +799,7 @@
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewEditingTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHexViewRegionTests.cpp" />
     <ClCompile Include="Dxui\DxuiStandardCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiSystemColorsTests.cpp" />
     <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />

@@ -1185,12 +1185,28 @@ uint64_t DxuiHexView::GetRowCount() const
 
 int DxuiHexView::GetRowCap() const
 {
+    int  height = GetHeightDip();
+    int  rows   = 0;
+
+
+
     if (m_cellHeightDip <= 0)
     {
         return 0;
     }
 
-    return (std::max) (GetHeightDip() / m_cellHeightDip, 0);
+    if (!AreRegionsDrawn())
+    {
+        return (std::max) (height / m_cellHeightDip, 0);
+    }
+
+    //  With the outlines' lanes, the rows whose values end inside the bounds.
+    while (GetRowTop (m_topRow + (uint64_t) rows) + m_cellHeightDip <= height)
+    {
+        rows++;
+    }
+
+    return rows;
 }
 
 
@@ -1206,10 +1222,16 @@ int DxuiHexView::GetRowCap() const
 uint64_t DxuiHexView::GetMaxTopRow() const
 {
     uint64_t  rows = GetRowCount();
-    uint64_t  cap  = (uint64_t) GetRowCap();
+    uint64_t  cap  = 0;
 
 
 
+    if (AreRegionsDrawn() && m_cellHeightDip > 0)
+    {
+        return GetMaxTopRowWithLanes();
+    }
+
+    cap = (uint64_t) GetRowCap();
     return (rows > cap) ? (rows - cap) : 0;
 }
 
@@ -1425,6 +1447,23 @@ int DxuiHexView::GetColumnStartCell (Column column) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHexView::GetCellLeft
+//
+//  Where a character cell's left edge falls, scrolled sideways with the rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetCellLeft (int cellX) const
+{
+    return m_boundsDip.left + m_scaler.ToPx (m_padDip) + (cellX * m_cellWidthDip) - m_leftPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexView::GetCellRect
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1432,9 +1471,8 @@ int DxuiHexView::GetColumnStartCell (Column column) const
 RECT DxuiHexView::GetCellRect (int cellX, uint64_t row, int cellCount) const
 {
     RECT      rect  = {};
-    int64_t   rowUp = (int64_t) (row - m_topRow);
-    LONG      top   = m_boundsDip.top + (LONG) (rowUp * m_cellHeightDip);
-    LONG      left  = m_boundsDip.left + m_scaler.ToPx (m_padDip) + (LONG) (cellX * m_cellWidthDip) - m_leftPx;
+    LONG      top   = m_boundsDip.top + (LONG) GetRowTop (row);
+    LONG      left  = (LONG) GetCellLeft (cellX);
 
 
 
@@ -1582,15 +1620,14 @@ DxuiHexView::HitResult DxuiHexView::HitTestPoint (POINT clientDip) const
         return result;
     }
 
-    rowUp = (int) ((clientDip.y - m_boundsDip.top) / cellH);
+    row   = GetRowAtY ((int) clientDip.y);
+    rowUp = (int) (row - m_topRow);
     cellX = (int) ((clientDip.x - m_boundsDip.left - m_scaler.ToPx (m_padDip) + m_leftPx) / cellW);
 
     if (rowUp >= GetRowCap())
     {
         return result;
     }
-
-    row = m_topRow + (uint64_t) rowUp;
 
     if (row >= GetRowCount())
     {
@@ -2712,6 +2749,13 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     EnsureCellSize (text, theme);
 
+    //  The regions can change under the view, so their lanes are found again
+    //  for every frame.
+    if (AreRegionsDrawn())
+    {
+        RefreshLanes();
+    }
+
     cap = GetRowCap();
 
     if ((m_source == nullptr) || (cap <= 0))
@@ -2727,6 +2771,13 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     hr = text.PushClipRect (x, y, width, height);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (AreRegionsDrawn())
+    {
+        painter.PushClip (x, y, width, height);
+        PaintRegions     (painter, text, theme);
+        painter.PopClip  ();
+    }
 
     for (int row = 0; row < cap; row++)
     {
@@ -3206,4 +3257,725 @@ std::wstring DxuiHexView::GetHexFor (uint64_t offset, uint64_t count) const
     }
 
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetShowRegions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetShowRegions (bool show)
+{
+    m_showRegions = show;
+    m_lanesTopRow = UINT64_MAX;
+
+    ClampTopRow();
+    SyncScrollbar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetUnitRegion
+//
+//  The region of a value, read at its first byte. A row before the first or
+//  past the last, and a value past a short last row's end, is in none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint16_t DxuiHexView::GetUnitRegion (int64_t row, int unit) const
+{
+    uint16_t  region = 0;
+    uint64_t  bytes  = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+    uint64_t  offset = 0;
+
+
+
+    if (m_source == nullptr || row < 0 || unit < 0 || unit >= GetUnitsPerRow())
+    {
+        return 0;
+    }
+
+    offset = ((uint64_t) row * (uint64_t) m_bytesPerRow) + ((uint64_t) unit * (uint64_t) m_grouping);
+
+    if (offset >= bytes)
+    {
+        return 0;
+    }
+
+    m_source->ReadRegions (offset, std::span<uint16_t> (&region, 1));
+    return region;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::IsRegionStart
+//
+//  A value in a region whose value before it, at the end of the row above
+//  for a row's first, is in another or in none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::IsRegionStart (int64_t row, int unit) const
+{
+    uint16_t  region = GetUnitRegion (row, unit);
+    uint16_t  before = (unit > 0) ? GetUnitRegion (row, unit - 1) : GetUnitRegion (row - 1, GetUnitsPerRow() - 1);
+
+
+
+    return region != 0 && region != before;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetUnitLeft
+//
+//  Halfway into the space before a value, so an edge between two values
+//  touches neither; the row's first value takes the middle of the gutter
+//  before the hex column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiHexView::GetUnitLeft (int unit) const
+{
+    int    each  = GetValueCells() + 1;
+    int    cellX = GetColumnStartCell (Column::Hex) + (unit * each);
+    float  space = (unit == 0) ? (float) (kGutterCells * m_cellWidthDip) / 2.0f : (float) m_cellWidthDip / 2.0f;
+
+
+
+    return (float) GetCellLeft (cellX) - space;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetUnitRight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiHexView::GetUnitRight (int unit) const
+{
+    int    each  = GetValueCells() + 1;
+    int    cellX = GetColumnStartCell (Column::Hex) + (unit * each) + GetValueCells();
+    float  space = (unit == GetUnitsPerRow() - 1) ? (float) (kGutterCells * m_cellWidthDip) / 2.0f : (float) m_cellWidthDip / 2.0f;
+
+
+
+    return (float) GetCellLeft (cellX) + space;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetLabelLane
+//
+//  A label's height at its scale, with a pixel of air above and below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetLabelLane() const
+{
+    constexpr int  kAirDip = 2;
+    int            label   = (int) (((float) m_cellHeightDip * kLabelScale) + 0.5f) + m_scaler.ToPx (kAirDip);
+
+
+
+    return (std::max) (label, m_scaler.ToPx (kEdgeLaneDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetLabelWidth
+//
+//  The fixed-width face makes a label's width its length in cells at the
+//  label's scale, so it is known without a renderer; the padding each side is
+//  where the edge stops short of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetLabelWidth (uint16_t region) const
+{
+    uint32_t      argb  = 0;
+    std::wstring  label;
+
+
+
+    if (m_source == nullptr || !m_source->TryGetRegionStyle (region, argb, label) || label.empty())
+    {
+        return 0;
+    }
+
+    return (int) (((float) label.size() * (float) m_cellWidthDip * kLabelScale) + 0.5f) + (2 * m_scaler.ToPx (kLabelPadDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::TryGetLabelSegment
+//
+//  The top edge of a region that starts partway along a row is two segments:
+//  along the first row from its start to the row's end, and along the second
+//  row from the row's start to below where the region began. The label takes
+//  the first that holds it, or the longer when neither does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::TryGetLabelSegment (uint64_t row, int unit, LabelSegment & out) const
+{
+    int           units  = GetUnitsPerRow();
+    uint16_t      region = GetUnitRegion ((int64_t) row, unit);
+    LabelSegment  first  = { row, unit, unit };
+    LabelSegment  second = { row + 1, 0, -1 };
+    float         need   = 0.0f;
+    float         width1 = 0.0f;
+    float         width2 = 0.0f;
+
+
+
+    if (!AreRegionsDrawn() || !IsRegionStart ((int64_t) row, unit))
+    {
+        return false;
+    }
+
+    while (first.last + 1 < units && GetUnitRegion ((int64_t) row, first.last + 1) == region)
+    {
+        first.last++;
+    }
+
+    //  The second segment runs under the values before the start, as far as
+    //  the region reaches along the next row.
+    if (unit > 0 && first.last == units - 1)
+    {
+        while (second.last + 1 < unit && GetUnitRegion ((int64_t) row + 1, second.last + 1) == region)
+        {
+            second.last++;
+        }
+    }
+
+    need   = (float) GetLabelWidth (region);
+    width1 = GetUnitRight (first.last) - GetUnitLeft (first.first);
+    width2 = (second.last >= 0) ? GetUnitRight (second.last) - GetUnitLeft (0) : 0.0f;
+
+    if (width1 >= need || second.last < 0)
+    {
+        out = first;
+    }
+    else if (width2 >= need || width2 > width1)
+    {
+        out = second;
+    }
+    else
+    {
+        out = first;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetLaneAbove
+//
+//  Space opens between two rows only where an outline's edge runs between
+//  them: a lane a label fits in where a label sits on the edge, a thin one
+//  for an edge alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetLaneAbove (uint64_t row) const
+{
+    int           units    = GetUnitsPerRow();
+    bool          hasEdge  = false;
+    bool          hasLabel = false;
+    LabelSegment  segment;
+
+
+
+    if (!AreRegionsDrawn() || m_cellHeightDip <= 0)
+    {
+        return 0;
+    }
+
+    for (int unit = 0; unit < units && !hasLabel; unit++)
+    {
+        uint16_t  above = GetUnitRegion ((int64_t) row - 1, unit);
+        uint16_t  below = GetUnitRegion ((int64_t) row, unit);
+
+        hasEdge = hasEdge || above != below;
+
+        if (below != 0 && TryGetLabelSegment (row, unit, segment) && segment.row == row)
+        {
+            hasLabel = true;
+        }
+
+        if (row > 0 && above != 0 && TryGetLabelSegment (row - 1, unit, segment) && segment.row == row)
+        {
+            hasLabel = true;
+        }
+    }
+
+    if (hasLabel)
+    {
+        return GetLabelLane();
+    }
+
+    return hasEdge ? m_scaler.ToPx (kEdgeLaneDip) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::RefreshLanes
+//
+//  Each row's top from the top row down, as many rows as the bounds could
+//  hold without lanes and two more. Painting refreshes them every frame, since
+//  the source's regions can change under the view; anything else refreshes
+//  them only when the top row or the row's makeup has moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::RefreshLanes() const
+{
+    int  height = GetHeightDip();
+    int  rows   = (m_cellHeightDip > 0) ? (height / m_cellHeightDip) + 2 : 0;
+    int  y      = 0;
+
+
+
+    m_laneTops.clear();
+    m_lanesTopRow = m_topRow;
+    m_lanesUnits  = GetUnitsPerRow();
+    m_lanesCellH  = m_cellHeightDip;
+    m_lanesHeight = height;
+
+    for (int index = 0; index < rows; index++)
+    {
+        y += GetLaneAbove (m_topRow + (uint64_t) index);
+        m_laneTops.push_back (y);
+        y += m_cellHeightDip;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetRowTop
+//
+//  Rows past the ones the lanes were found for are placed a row height apart,
+//  which is only ever off the bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetRowTop (uint64_t row) const
+{
+    int64_t  rowUp = (int64_t) row - (int64_t) m_topRow;
+    int64_t  last  = 0;
+
+
+
+    if (!AreRegionsDrawn())
+    {
+        return (int) (rowUp * m_cellHeightDip);
+    }
+
+    if (m_lanesTopRow != m_topRow || m_lanesUnits != GetUnitsPerRow() || m_lanesCellH != m_cellHeightDip || m_lanesHeight != GetHeightDip())
+    {
+        RefreshLanes();
+    }
+
+    if (m_laneTops.empty())
+    {
+        return (int) (rowUp * m_cellHeightDip);
+    }
+
+    if (rowUp < 0)
+    {
+        return m_laneTops.front() - (int) (-rowUp * m_cellHeightDip);
+    }
+
+    if (rowUp < (int64_t) m_laneTops.size())
+    {
+        return m_laneTops[(size_t) rowUp];
+    }
+
+    last = (int64_t) m_laneTops.size() - 1;
+    return m_laneTops.back() + (int) ((rowUp - last) * m_cellHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetRowAtY
+//
+//  A lane belongs to the row below it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetRowAtY (int clientY) const
+{
+    int       y   = clientY - m_boundsDip.top;
+    uint64_t  row = m_topRow;
+
+
+
+    if (m_cellHeightDip <= 0 || y < 0)
+    {
+        return m_topRow;
+    }
+
+    if (!AreRegionsDrawn())
+    {
+        return m_topRow + (uint64_t) (y / m_cellHeightDip);
+    }
+
+    while (y >= GetRowTop (row) + m_cellHeightDip)
+    {
+        row++;
+    }
+
+    return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetEdgeY
+//
+//  The line along the top of a row runs down the middle of the lane above it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiHexView::GetEdgeY (int64_t row) const
+{
+    uint64_t  at = (uint64_t) (std::max) (row, (int64_t) 0);
+
+
+
+    if (row < 0)
+    {
+        return (float) (m_boundsDip.top + GetRowTop (0) - m_cellHeightDip);
+    }
+
+    return (float) m_boundsDip.top + (float) GetRowTop (at) - (float) GetLaneAbove (at) / 2.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetMaxTopRowWithLanes
+//
+//  Counted up from the last row: the rows that fit with the lanes above each
+//  and the one below the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetMaxTopRowWithLanes() const
+{
+    uint64_t  row    = GetRowCount();
+    int       height = GetHeightDip();
+    int       used   = GetLaneAbove (row);
+    int       needed = 0;
+
+
+
+    while (row > 0)
+    {
+        needed = m_cellHeightDip + GetLaneAbove (row - 1);
+
+        if (used + needed > height)
+        {
+            break;
+        }
+
+        used += needed;
+        row--;
+    }
+
+    return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::PaintRegions
+//
+//  Each run of values in one region, from the row above the top to the row
+//  below the last shown, so a region running off either end has its edge
+//  there drawn outside the bounds rather than across them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::PaintRegions (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    int       units     = GetUnitsPerRow();
+    int64_t   firstRow  = (int64_t) m_topRow - 1;
+    int64_t   lastRow   = (int64_t) m_topRow + GetRowCap() + 1;
+    int64_t   runRow    = 0;
+    int       runUnit   = 0;
+    uint16_t  runRegion = 0;
+    int64_t   prevRow   = 0;
+    int       prevUnit  = 0;
+
+
+
+    lastRow = (std::min) (lastRow, (int64_t) GetRowCount() - 1);
+
+    for (int64_t row = firstRow; row <= lastRow; row++)
+    {
+        for (int unit = 0; unit < units; unit++)
+        {
+            uint16_t  region = GetUnitRegion (row, unit);
+
+            if (region != runRegion)
+            {
+                if (runRegion != 0)
+                {
+                    PaintRegionRun (painter, text, theme, runRow, runUnit, prevRow, prevUnit, runRegion);
+                }
+
+                runRegion = region;
+                runRow    = row;
+                runUnit   = unit;
+            }
+
+            prevRow  = row;
+            prevUnit = unit;
+        }
+    }
+
+    if (runRegion != 0)
+    {
+        PaintRegionRun (painter, text, theme, runRow, runUnit, prevRow, prevUnit, runRegion);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::PaintRegionRun
+//
+//  One run's outline, around the values it covers: a box when it sits in one
+//  row, two when it covers the end of one row and the start of the next
+//  without the two meeting, and otherwise one outline stepping in where the
+//  run starts and ends partway along a row. The label goes on the top edge
+//  segment TryGetLabelSegment chooses, over a patch of the background that
+//  breaks the line there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::PaintRegionRun (
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text,
+    const IDxuiTheme   & theme,
+    int64_t              firstRow,
+    int                  firstUnit,
+    int64_t              lastRow,
+    int                  lastUnit,
+    uint16_t             region)
+{
+    int                      units  = GetUnitsPerRow();
+    uint32_t                 argb   = 0;
+    uint32_t                 stroke = 0;
+    std::wstring             label;
+    std::vector<DxuiPointF>  points;
+    LabelSegment             segment;
+    DxuiFontHandle           font   = theme.MonospaceFont();
+    float                    left   = 0.0f;
+    float                    right  = 0.0f;
+    float                    edgeY  = 0.0f;
+    float                    width  = 0.0f;
+    float                    height = 0.0f;
+    HRESULT                  hr     = S_OK;
+
+
+
+    if (m_source == nullptr || !m_source->TryGetRegionStyle (region, argb, label))
+    {
+        return;
+    }
+
+    stroke = DxuiColor::Mix (theme.ContentBackground(), argb, kOutlineMix);
+
+    if (firstRow == lastRow)
+    {
+        points = { { GetUnitLeft (firstUnit), GetEdgeY (firstRow) }, { GetUnitRight (lastUnit), GetEdgeY (firstRow) },
+                   { GetUnitRight (lastUnit), GetEdgeY (lastRow + 1) }, { GetUnitLeft (firstUnit), GetEdgeY (lastRow + 1) } };
+        DrawRoundedOutline (painter, points, stroke);
+    }
+    else if (lastRow == firstRow + 1 && lastUnit < firstUnit)
+    {
+        points = { { GetUnitLeft (firstUnit), GetEdgeY (firstRow) }, { GetUnitRight (units - 1), GetEdgeY (firstRow) },
+                   { GetUnitRight (units - 1), GetEdgeY (lastRow) },  { GetUnitLeft (firstUnit), GetEdgeY (lastRow) } };
+        DrawRoundedOutline (painter, points, stroke);
+
+        points = { { GetUnitLeft (0), GetEdgeY (lastRow) },          { GetUnitRight (lastUnit), GetEdgeY (lastRow) },
+                   { GetUnitRight (lastUnit), GetEdgeY (lastRow + 1) }, { GetUnitLeft (0), GetEdgeY (lastRow + 1) } };
+        DrawRoundedOutline (painter, points, stroke);
+    }
+    else
+    {
+        points.push_back ({ GetUnitLeft (firstUnit),  GetEdgeY (firstRow) });
+        points.push_back ({ GetUnitRight (units - 1), GetEdgeY (firstRow) });
+
+        if (lastUnit == units - 1)
+        {
+            points.push_back ({ GetUnitRight (units - 1), GetEdgeY (lastRow + 1) });
+        }
+        else
+        {
+            points.push_back ({ GetUnitRight (units - 1), GetEdgeY (lastRow) });
+            points.push_back ({ GetUnitRight (lastUnit),  GetEdgeY (lastRow) });
+            points.push_back ({ GetUnitRight (lastUnit),  GetEdgeY (lastRow + 1) });
+        }
+
+        points.push_back ({ GetUnitLeft (0), GetEdgeY (lastRow + 1) });
+
+        if (firstUnit > 0)
+        {
+            points.push_back ({ GetUnitLeft (0),         GetEdgeY (firstRow + 1) });
+            points.push_back ({ GetUnitLeft (firstUnit), GetEdgeY (firstRow + 1) });
+        }
+
+        DrawRoundedOutline (painter, points, stroke);
+    }
+
+    //  A run that began above the rows looked at has its label off the top.
+    if (label.empty() || firstRow < 0 || !TryGetLabelSegment ((uint64_t) firstRow, firstUnit, segment))
+    {
+        return;
+    }
+
+    width  = (float) GetLabelWidth (region);
+    height = (float) GetLabelLane();
+    left   = GetUnitLeft (segment.first);
+    right  = GetUnitRight (segment.last);
+    edgeY  = GetEdgeY ((int64_t) segment.row);
+
+    font.sizeDip = m_scaler.ToPxf (font.sizeDip * m_zoom) * kLabelScale;
+
+    FillCell (text, RECT { (LONG) ((left + right - width) / 2.0f), (LONG) (edgeY - height / 2.0f),
+                           (LONG) ((left + right + width) / 2.0f), (LONG) (edgeY + height / 2.0f) }, theme.ContentBackground());
+
+    hr = text.DrawString (label.c_str(), (left + right - width) / 2.0f, edgeY - height / 2.0f, width, height, argb,
+                          font.sizeDip, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::DrawRoundedOutline
+//
+//  A closed outline whose corners are rounded: each side stops a corner's
+//  radius short of its ends, and a short curve through the corner joins it to
+//  the next. The radius shrinks to half the shorter side at a corner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::DrawRoundedOutline (IDxuiPainter & painter, const std::vector<DxuiPointF> & points, uint32_t argb) const
+{
+    constexpr int            kArcSteps = 4;
+    size_t                   count     = points.size();
+    float                    radius    = m_scaler.ToPxf ((float) kCornerDip);
+    float                    thickness = m_scaler.ToPxf (1.0f);
+    std::vector<DxuiPointF>  enters (count);
+    std::vector<DxuiPointF>  leaves (count);
+
+
+
+    if (count < 3)
+    {
+        return;
+    }
+
+    for (size_t index = 0; index < count; index++)
+    {
+        const DxuiPointF  & corner = points[index];
+        const DxuiPointF  & prev   = points[(index + count - 1) % count];
+        const DxuiPointF  & next   = points[(index + 1) % count];
+        float               toPrev = std::hypot (prev.x - corner.x, prev.y - corner.y);
+        float               toNext = std::hypot (next.x - corner.x, next.y - corner.y);
+        float               r      = (std::min) ({ radius, toPrev / 2.0f, toNext / 2.0f });
+
+        enters[index] = { corner.x + (toPrev > 0.0f ? (prev.x - corner.x) * r / toPrev : 0.0f), corner.y + (toPrev > 0.0f ? (prev.y - corner.y) * r / toPrev : 0.0f) };
+        leaves[index] = { corner.x + (toNext > 0.0f ? (next.x - corner.x) * r / toNext : 0.0f), corner.y + (toNext > 0.0f ? (next.y - corner.y) * r / toNext : 0.0f) };
+    }
+
+    for (size_t index = 0; index < count; index++)
+    {
+        const DxuiPointF  & corner = points[index];
+        DxuiPointF          from   = enters[index];
+
+        //  The curve through the corner, then the side on to the next one.
+        for (int step = 1; step <= kArcSteps; step++)
+        {
+            float       t  = (float) step / (float) kArcSteps;
+            float       u  = 1.0f - t;
+            DxuiPointF  to = { (u * u * enters[index].x) + (2.0f * u * t * corner.x) + (t * t * leaves[index].x),
+                               (u * u * enters[index].y) + (2.0f * u * t * corner.y) + (t * t * leaves[index].y) };
+
+            painter.DrawLine (from.x, from.y, to.x, to.y, thickness, argb);
+            from = to;
+        }
+
+        painter.DrawLine (leaves[index].x, leaves[index].y, enters[(index + 1) % count].x, enters[(index + 1) % count].y, thickness, argb);
+    }
 }

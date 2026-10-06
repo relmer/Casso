@@ -63,6 +63,26 @@ public:
         (void) tip;
         return false;
     }
+
+    //  One region per byte at `offset`, zero for a byte in none. A run of
+    //  bytes with the same nonzero region is one region, which the view
+    //  outlines while its outlines are on. A source with no regions leaves
+    //  the default.
+    virtual void  ReadRegions (uint64_t offset, std::span<uint16_t> out) const
+    {
+        (void) offset;
+        std::fill (out.begin(), out.end(), uint16_t (0));
+    }
+
+    //  A region's outline color and the label drawn on its top edge. False
+    //  for a region the source does not outline.
+    virtual bool  TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const
+    {
+        (void) region;
+        (void) outArgb;
+        (void) outLabel;
+        return false;
+    }
 };
 
 
@@ -213,6 +233,50 @@ public:
     void  SetMarkColor     (MarkColorFn fn)   { m_markColor = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
+    //  Outlines around the source's regions, off unless the host turns them
+    //  on. Each region gets a rounded box that follows its values, stepping
+    //  where it starts or ends partway along a row, with its label centered on
+    //  the box's top edge. Rows move apart only where an edge runs between
+    //  them, so no line or label crosses a value; in line mode, and with the
+    //  values hidden, there are none.
+    void  SetShowRegions    (bool show);
+    bool  IsShowingRegions  () const { return m_showRegions; }
+    bool  AreRegionsDrawn   () const { return m_showRegions && m_showValues && !IsLineMode() && m_source != nullptr; }
+
+    //  The space above a row that the outlines need, in the bounds' units:
+    //  none, an edge's lane, or a lane a label fits in.
+    int   GetLaneAbove      (uint64_t row) const;
+
+    //  Where a row's values begin, measured down from the bounds' top, and the
+    //  row a point's height falls in, lanes counted with the row below them.
+    int       GetRowTop     (uint64_t row) const;
+    uint64_t  GetRowAtY     (int clientY) const;
+
+    //  A region's top edge segment that carries its label: the row whose top
+    //  it runs along and its first and last value. The first row's segment
+    //  when the label fits it, otherwise the second row's when that one does,
+    //  otherwise the longer.
+    struct LabelSegment
+    {
+        uint64_t  row   = 0;
+        int       first = 0;
+        int       last  = 0;
+    };
+
+    //  Edge lanes and the space each side of a label, in DIPs.
+    static constexpr int    kEdgeLaneDip    = 6;
+    static constexpr int    kLabelPadDip    = 4;
+    static constexpr int    kCornerDip      = 4;
+
+    //  The label's size against the values', and how far the outline's color
+    //  is taken from the background toward the region's.
+    static constexpr float  kLabelScale     = 0.8f;
+    static constexpr float  kOutlineMix     = 0.6f;
+
+    //  The segment the label of the region that starts at a row's value goes
+    //  on. False when no region starts there.
+    bool  TryGetLabelSegment (uint64_t row, int unit, LabelSegment & out) const;
+
     //  The window a copy names as the clipboard's owner.
     void  SetOwnerWindow (HWND hwnd) { m_hwnd = hwnd; }
 
@@ -309,6 +373,7 @@ private:
     int   GetByteCellInRow (int indexInRow) const;
     int   GetColumnStartCell (Column column) const;
     RECT  GetCellRect (int cellX, uint64_t row, int cellCount) const;
+    int   GetCellLeft (int cellX) const;
     bool  IsRowVisible (uint64_t row) const;
     void  ClampTopRow ();
 
@@ -387,6 +452,23 @@ private:
     void      PaintLineRow       (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row);
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
+    //  The region outlines. A unit is one value of the hex column; a region is
+    //  read at each value's first byte. Rows past either end are in no region.
+    int       GetUnitsPerRow        () const { return (std::max) (m_bytesPerRow / (std::max) (m_grouping, 1), 1); }
+    uint16_t  GetUnitRegion         (int64_t row, int unit) const;
+    bool      IsRegionStart         (int64_t row, int unit) const;
+    float     GetUnitLeft           (int unit) const;
+    float     GetUnitRight          (int unit) const;
+    float     GetEdgeY              (int64_t row) const;
+    int       GetLabelLane          () const;
+    int       GetLabelWidth         (uint16_t region) const;
+    void      RefreshLanes          () const;
+    uint64_t  GetMaxTopRowWithLanes () const;
+    void      PaintRegions          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void      PaintRegionRun        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme,
+                                     int64_t firstRow, int firstUnit, int64_t lastRow, int lastUnit, uint16_t region);
+    void      DrawRoundedOutline    (IDxuiPainter & painter, const std::vector<DxuiPointF> & points, uint32_t argb) const;
+
     void  SyncScrollbar ();
     void  ScrollToBarPos ();
     static void  FillCell (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
@@ -450,4 +532,15 @@ private:
     std::wstring            m_pending;
     uint64_t                m_editStart = 0;
     WriteRefusedFn          m_onWriteRefused;
+
+    //  Whether the source's regions are outlined.
+    bool                    m_showRegions = false;
+
+    //  Each row's top, down from the bounds' top, from the top row on, as the
+    //  last refresh of the outlines' lanes found them.
+    mutable std::vector<int>  m_laneTops;
+    mutable uint64_t          m_lanesTopRow = UINT64_MAX;
+    mutable int               m_lanesUnits  = 0;
+    mutable int               m_lanesCellH  = 0;
+    mutable int               m_lanesHeight = 0;
 };
