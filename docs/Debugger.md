@@ -431,11 +431,9 @@ source view.
   menu sets it for that document.
 - A Merlin or ca65 listing shown as source keeps its address and byte
   columns, colored as an address and bytes, ahead of its colored source.
-- While the machine is stopped, the instructions each line in the PC's files
-  produced are listed on rows below it, in syntax colors faded halfway toward
-  the background. A line of
-  data, such as `.byte` or `HEX`, has none.
-- The operand and result column shows a result after `Result: `, in cyan.
+- The operand and result column shows a result after `Result: `, in the
+  theme's result color: cyan, amber in Retro terminal, and maroon on a light
+  theme such as System light.
 
 ## The call stack
 
@@ -596,7 +594,7 @@ find next and find previous), **View** (every pane, the device panels, and
 **Reset window layout**), **Debug** (run, break,
 detach, the steps, run to cursor, run one frame, show beam on screen, show next statement, step by source
 line and trace, then reset, power cycle and restart under debugger) and **Tools**
-(**Keyboard scheme**). The command bar below it holds the run and step buttons as icons,
+(**Keyboard scheme**), and **Help** (**Colors**, below). The command bar below it holds the run and step buttons as icons,
 each tip giving the command and its key in the scheme in force, and Trace.
 A command with two keys shows both in its tip and menu row, for example
 "Alt+F11 or Ctrl+R, F11".
@@ -717,6 +715,18 @@ a narrow pane moves into the bar's **...** menu. Type over the hex or the
 text to edit memory, in RAM or in ROM; Ctrl+Z undoes the last edit in that
 window.
 
+Each region of memory a window shows that is not main RAM has a box drawn
+around its bytes: ROM, each slot's ROM (labeled with its slot, such as Slot 6
+ROM), a card's expansion ROM, I/O, the Language Card's two banks and aux RAM,
+as the machine's memory map stood when the window was read. The box follows
+the values: where a region starts or ends partway along a row, its outline
+steps around the bytes rather than taking in the whole row. Its label sits on
+the box's top edge, centered and breaking the line; where that edge is too
+short for it, as when a region starts near a row's end, the label moves down
+to the edge along the next row. Rows move apart only where an edge runs
+between them, so no line or label covers a byte. ROM and I/O boxes are drawn
+in their bytes' colors, and the Language Card's and aux RAM's in the memory
+map's.
 ### Device panels
 
 **Window > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
@@ -726,3 +736,39 @@ state, with the disk head position, the memory map, or level meters where the
 device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same
 from the command box.
+
+### Colors
+
+**Help > Colors** opens a legend of every color in the window that means
+something, grouped by pane, each as a swatch beside its meaning. It stays open
+while the window is used, and its swatches follow the theme in force. Hovering over
+any of these colors in the window shows the same meaning as a tip; where the
+element already has a tip, such as a symbol or the flags, the meaning is added
+to it. The colors of syntax (mnemonics, directives, labels, numbers, strings
+and addresses) mean what the text says and are not listed.
+
+- **Disassembly**: the PC's yellow arrow and row, the next instruction to run,
+  whose arrow can be dragged to set the next statement; a green row, the line
+  brought into view by Go to, the call stack or a branch arrow; a row in the
+  accent color, where the branch at the PC goes; the branch arrow in the PC's
+  yellow when the flags as they stand take the branch, and gray when they do
+  not, with a tip that gives the flag the branch tests and how it stands; a
+  red dot for a breakpoint, a red ring for a disabled one, and a gray dot
+  where a click sets one; bytes in the changed color, changed since the last
+  stop; the operand in the comment green, what the instruction reads; and
+  `Result: `, what it leaves behind, in the result color.
+- **Registers, watch and stack**: values in the changed color, changed since
+  the last stop; a dimmed automatic watch, touched by the previous
+  instruction; a dimmed watch, disabled.
+- **Call stack**: a dimmed frame, unverified, which may no longer be a live
+  call; the dimmed last return, a call that has returned and left the stack.
+- **Memory**: bytes in the changed color; ROM bytes and I/O bytes in their
+  colors, with the boxes around them; and the boxes around the Language Card's
+  banks and aux RAM.
+- **Memory map**: main RAM, aux RAM, each Language Card bank, ROM, slot ROM and
+  I/O, each in a color of the theme's, with a key below the map.
+- **Disk head**: the head muted while the motor is off, flashing as it steps,
+  and settling to the accent on its track; a lamp lit while its phase magnet
+  or the motor is on.
+- **Status bar**: the history meter, green while the buffer is empty, blending
+  to blue as it fills.
