@@ -690,11 +690,16 @@ four memory windows, and one panel for each device the machine has.
 
 The heat map is a tab beside **Memory 1** in the default layout, and **View >
 Heat map** brings it forward. It shows the whole 64 KB address space as a
-grid, one cell an address, filling the pane: each row holds as many
-addresses as fit across it at the current zoom, rounded down to a power of
-two from 16 to 1,024, so every row starts at a round address and its label
-down the left (such as $0400) reads as the first address in it. What is left
-of the width stays empty at the right. Each address is drawn in the color of
+grid, one cell an address, filling the pane: each row holds a power of two
+of addresses from 16 to 1,024, so every row starts at a round address and its
+label down the left (such as $0400) reads as the first address in it. The
+row holds the count whose cells come nearest the zoom's size, and the cells
+are then widened or narrowed so the row spans the pane's whole width, every
+column within a pixel of the others; a cell is between three quarters and one
+and a half times the zoom's width (wider at the smallest zoom, which cannot
+narrow a one-pixel cell, and in rows of 1,024), and always the zoom's height. Only when
+even 16 cells at the zoom's size are wider than the pane does the map scroll
+across instead. Each address is drawn in the color of
 what touched it: code (the bytes of every instruction run) in the
 disassembly's instruction color, reads in green and writes in red. An address
 nothing touched is a dark gray (a light gray on a light theme), and every cell
@@ -721,9 +726,10 @@ scrolls it across when the rows are wider than the pane; scrollbars show along
 each side the map overflows, and dragging the map pans it. Ctrl with the wheel
 over the map zooms it in and out, as do **Zoom in** and **Zoom out** on the
 bar; elsewhere in the debugger Ctrl with the wheel still sizes the text.
-Zooming changes how many addresses fit in a row, so the row under the mouse
-stays at the mouse's height, and when the rows are wider than the pane the
-address under the mouse stays under it too. **Reset zoom** goes back to the
+Zooming changes the cells' height at every step and, about every third step,
+how many addresses a row holds; the row under the mouse stays at the mouse's
+height, and when the row length does not change, or the rows are wider than
+the pane, the address under the mouse stays under it too. **Reset zoom** goes back to the
 starting size, three pixels a cell at 100% scaling, with $0000 at the top
 left.
 
