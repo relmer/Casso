@@ -23,14 +23,17 @@ class DxuiPopupHost;
 //  against a side, the toolbar stands the entry on end and the cells run top
 //  to bottom. An IDxuiImageStripSource supplies the pictures.
 //
-//  The pointer over a cell frames it, shows the source's labels for it above
-//  and below the pictures of a strip lying down, and shows the cell's
-//  full-size picture in a popup beside the strip, past the labels and
-//  centered on the pointer as it moves: the picture's own pixels, scaled for
-//  the window's DPI, in a popup that takes neither focus nor the pointer. A
-//  click goes to the source with the cell's index. The labels at the strip's
-//  two ends are buttons, with the toolbar's hover and pressed chrome, a tip
-//  each and a click of their own.
+//  Every pixel along the pictures is a point of its own, an offset in cells
+//  from the leading edge. The pointer over a cell frames it, shows the
+//  source's labels for the point under it above and below the pictures of
+//  a strip lying down, and shows the cell's full-size picture in a popup
+//  beside the strip, past the labels and centered on the pointer as it
+//  moves: the picture's own pixels, scaled for the window's DPI, in a popup
+//  that takes neither focus nor the pointer. A click goes to the source with
+//  the cell and the point under the pointer. The source's playhead line is
+//  dragged pixel by pixel, with the resize cursor over its grip and through
+//  the drag. The labels at the strip's two ends are buttons, with the
+//  toolbar's hover and pressed chrome, a tip each and a click of their own.
 //
 //  The host calls Sync once a frame, so a preview the source had not drawn
 //  yet appears when it has, and keeps its popup host current as the toolbar
@@ -76,6 +79,12 @@ public:
     //  Whether a point along the strip is close enough to the line to grab it.
     static bool  IsOnPlayhead  (int along, float lineAlong, float gripPx);
 
+    //  The offset in cells from the leading edge of a point, every pixel along
+    //  the pictures its own, the first the leading end and the last the
+    //  trailing end; and where along the strip an offset lies, in pixels.
+    float  GetOffsetAt     (int x, int y) const;
+    float  GetLineAlong    (float offset) const;
+
     int   GetCellCount     () const { return m_count; }
     int   GetHoveredCell   () const { return m_hovered; }
     bool  IsPreviewShown   () const { return m_preview != nullptr; }
@@ -112,6 +121,7 @@ public:
     bool             OnLButtonDown (int x, int y) override;
     void             OnMouseLeave  () override;
     void             OnLButtonUp   (int x, int y) override;
+    LPCWSTR          GetCursorAt   (int x, int y) const override;
 
 private:
     static constexpr float  kDefaultAspect  = 560.0f / 384.0f;
@@ -147,8 +157,9 @@ private:
     void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
     void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
     void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
-    float GetLineAlong     (float offset) const;
-    float GetOffsetAt      (int x, int y) const;
+    void  GetLastCellSpan  (float & outStart, float & outLastPixel) const;
+    int   GetCellAtOffset  (float offset) const;
+    bool  IsOverPlayhead   (int x, int y, float & outLine) const;
 
     //  A strip standing up: its end labels above and below the pictures,
     //  and its playhead line's labels beside the line, across the strip.

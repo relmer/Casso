@@ -254,6 +254,12 @@ void EmulatorShell::RunReverseCommand (
     PublishFramebuffer();
 
 Error:
+    //  Landed or not, the seek is no longer on its way.
+    if (command == ReverseCommand::SeekCycle)
+    {
+        m_seekCycleLanded.store (argument, memory_order_release);
+    }
+
     if (FAILED (hr))
     {
         DEBUGMSG (L"Reverse execution command %d failed: 0x%08X\n", static_cast<int> (command), hr);
@@ -909,17 +915,21 @@ void EmulatorShell::UpdateReplayCaption()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SeekHistory
+//  SeekHistoryCycle
 //
-//  UI thread: the debugger's timeline asks for a point in history for a
-//  machine it has seen stopped. The CPU thread drops it when no history is
-//  kept.
+//  UI thread: the timeline was clicked, or its playhead dragged, at a cycle,
+//  for a machine it has seen stopped. The CPU thread drops it when no
+//  history is kept. The cycle and when it was asked for are kept, so the
+//  timeline can tell whether the seek has landed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SeekHistory (uint64_t position)
+void EmulatorShell::SeekHistoryCycle (uint64_t cycle)
 {
-    PostReverseCommand (ReverseCommand::Seek, position);
+    m_seekCyclePosted.store   (cycle,            memory_order_release);
+    m_seekCyclePostedAt.store (GetTickCount64(), memory_order_release);
+
+    PostReverseCommand (ReverseCommand::SeekCycle, cycle);
 }
 
 
@@ -928,15 +938,28 @@ void EmulatorShell::SeekHistory (uint64_t position)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SeekHistoryCycle
+//  IsHistorySeekBusy
 //
-//  UI thread: the timeline's playhead was dragged to a cycle.
+//  UI thread: whether the CPU thread has yet to run the last seek to a cycle
+//  the timeline asked for. A seek the queue never ran, as one dropped with
+//  the machine it was for, stops counting after kPatienceMs, so a drag of
+//  the timeline is never held up for good.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SeekHistoryCycle (uint64_t cycle)
+bool EmulatorShell::IsHistorySeekBusy() const
 {
-    PostReverseCommand (ReverseCommand::SeekCycle, cycle);
+    constexpr uint64_t  kPatienceMs = 500;
+
+
+
+    uint64_t  posted   = m_seekCyclePosted.load   (memory_order_acquire);
+    uint64_t  postedAt = m_seekCyclePostedAt.load (memory_order_acquire);
+    uint64_t  landed   = m_seekCycleLanded.load   (memory_order_acquire);
+
+
+
+    return posted != landed && GetTickCount64() - postedAt < kPatienceMs;
 }
 
 

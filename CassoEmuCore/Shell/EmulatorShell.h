@@ -636,8 +636,8 @@ private:
     void         SetDebuggerTimelineDock   (const std::string & text) override;
 
     HistoryThumbnails *  GetHistoryThumbnails () override { return &m_historyThumbnails; }
-    void                 SeekHistory          (uint64_t position) override;
     void                 SeekHistoryCycle     (uint64_t cycle) override;
+    bool                 IsHistorySeekBusy    () const override;
     std::string  GetDebuggerFocusedPane () override;
     void         SetDebuggerFocusedPane (const std::string & text) override;
     int          GetDebuggerTextZoomPercent () override;
@@ -2378,6 +2378,9 @@ private:
     atomic<bool>                  m_isReplayingHistory{false};      // set by the CPU thread while a reverse command runs
     atomic<uint64_t>              m_replayStartedAt{0};             // the tick count the running reverse command began at
     ReplayControl                 m_replayControl;                  // the running command's progress, and the UI thread's request to stop it
+    atomic<uint64_t>              m_seekCyclePosted{UINT64_MAX};    // the cycle the timeline last asked a seek to
+    atomic<uint64_t>              m_seekCyclePostedAt{0};           // the tick count it asked at
+    atomic<uint64_t>              m_seekCycleLanded{UINT64_MAX};    // the cycle the last seek to a cycle the CPU thread ran asked for
 
     // Double framebuffer (CPU renders, UI presents, protected by m_framebufferMutex)
     mutex                         m_framebufferMutex;

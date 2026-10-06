@@ -94,6 +94,11 @@ public:
     //  drag the entry took from its press ends here even when the pointer
     //  moved and disarmed it.
     virtual void             OnLButtonUp   (int x, int y)                                                               { (void) x; (void) y; }
+
+    //  The cursor for a point, or null to leave it to the toolbar. Asked
+    //  wherever the point is, so a drag the entry holds keeps its cursor
+    //  when the pointer leaves the entry.
+    virtual LPCWSTR          GetCursorAt   (int x, int y) const                                                         { (void) x; (void) y; return nullptr; }
 };
 
 

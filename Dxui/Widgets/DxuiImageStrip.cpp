@@ -342,6 +342,8 @@ void DxuiImageStrip::Paint (
     std::wstring                  trail;
     std::wstring                  cellTop;
     std::wstring                  cellBottom;
+    std::wstring                  dragTop;
+    std::wstring                  dragBottom;
 
 
 
@@ -388,13 +390,13 @@ void DxuiImageStrip::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    //  The hovered cell's labels are asked for after its picture, so they
-    //  give the time of the snapshot it was just drawn with.
+    //  The hovered cell is framed, and its labels are the source's for the
+    //  point under the pointer, centered on it.
     if (m_hovered >= 0 && m_hovered < m_count)
     {
         hoverCell = GetCellRect (m_rc, m_hovered, m_count, m_cellPx, m_vertical);
-        hoverX    = (float) (hoverCell.left + hoverCell.right) / 2.0f;
-        isLabeled = !m_vertical && m_source != nullptr && m_source->TryGetCellLabels (m_hovered, cellTop, cellBottom);
+        hoverX    = (float) m_pointer.x;
+        isLabeled = !m_vertical && m_source != nullptr && m_source->TryGetLabelsAt (m_hovered, GetOffsetAt (m_pointer.x, m_pointer.y), cellTop, cellBottom);
 
         PaintHoverFrame (text, theme, hoverCell);
     }
@@ -405,10 +407,21 @@ void DxuiImageStrip::Paint (
     PaintSideLabel (painter, text, theme, lead,  m_lead,  false);
     PaintSideLabel (painter, text, theme, trail, m_trail, true);
 
+    //  A line being dragged stands under the pointer, labeled for the point
+    //  there where the source has labels for it.
+    if (isOn && m_isDragging)
+    {
+        line = m_dragOffset;
+
+        if (m_source->TryGetLabelsAt (GetCellAtOffset (line), line, dragTop, dragBottom))
+        {
+            top.swap    (dragTop);
+            bottom.swap (dragBottom);
+        }
+    }
+
     if (isOn)
     {
-        line = m_isDragging ? m_dragOffset : line;
-
         if (isLabeled)
         {
             HideOverlap (text, top,    GetLineAlong (line), cellTop,    hoverX);
@@ -558,7 +571,8 @@ void DxuiImageStrip::PaintPartChrome (
 //
 //  DxuiImageStrip::OnClick
 //
-//  An end label acts only for a press and release both on it.
+//  An end label acts only for a press and release both on it. A click on
+//  the pictures goes to the source with the point under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -600,7 +614,7 @@ bool DxuiImageStrip::OnClick (
         return false;
     }
 
-    m_source->OnCellClicked (index);
+    m_source->OnStripClicked (index, GetOffsetAt (x, y));
     return true;
 }
 
@@ -693,12 +707,9 @@ bool DxuiImageStrip::OnLButtonDown (
     int  x,
     int  y)
 {
-    float         line   = 0.0f;
-    std::wstring  top;
-    std::wstring  bottom;
-    bool          isOn   = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
-    Part          part   = HitTestPart (x, y);
-    Part          button = IsPartClickable (part) ? part : Part::None;
+    float  line   = 0.0f;
+    Part   part   = HitTestPart (x, y);
+    Part   button = IsPartClickable (part) ? part : Part::None;
 
 
 
@@ -714,7 +725,7 @@ bool DxuiImageStrip::OnLButtonDown (
 
     //  A press within reach of the playhead line takes hold of it, and the
     //  preview gives way to the drag.
-    if (isOn && IsOnPlayhead (m_vertical ? y : x, GetLineAlong (line), m_scaler.ToPxf (kPlayheadGripDip)))
+    if (IsOverPlayhead (x, y, line))
     {
         m_isDragging = true;
         m_dragOffset = line;
@@ -1183,17 +1194,28 @@ bool DxuiImageStrip::IsOnPlayhead (
 //
 //  DxuiImageStrip::GetLineAlong
 //
-//  Where an offset in cells lies along the strip, in pixels.
+//  Where an offset in cells lies along the strip, in pixels: the inverse of
+//  GetOffsetAt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float DxuiImageStrip::GetLineAlong (float offset) const
 {
-    float  start = (float) (m_vertical ? m_rc.top : m_rc.left);
+    float  start     = (float) (m_vertical ? m_rc.top : m_rc.left);
+    float  lastStart = 0.0f;
+    float  lastPixel = 0.0f;
+    float  lastCell  = (float) (m_count - 1);
 
 
 
-    return start + offset * (float) m_cellPx;
+    GetLastCellSpan (lastStart, lastPixel);
+
+    if (m_count <= 0 || offset <= lastCell || lastPixel <= lastStart)
+    {
+        return start + offset * (float) m_cellPx;
+    }
+
+    return start + lastStart + (offset - lastCell) * (lastPixel - lastStart);
 }
 
 
@@ -1204,7 +1226,12 @@ float DxuiImageStrip::GetLineAlong (float offset) const
 //
 //  DxuiImageStrip::GetOffsetAt
 //
-//  The offset in cells of a point along the strip, within the strip.
+//  The offset in cells of a point along the strip, every pixel along the
+//  pictures its own: a cell's length of pixels to each cell, except that
+//  the last cell, which takes whatever length is left over, runs from its
+//  first pixel to the last pixel of the strip, so the first pixel is the
+//  leading end, 0, and the last the trailing end, the cell count. A point
+//  before or past the pictures is at the end it is past.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1212,17 +1239,113 @@ float DxuiImageStrip::GetOffsetAt (
     int  x,
     int  y) const
 {
-    float  start = (float) (m_vertical ? m_rc.top : m_rc.left);
-    float  along = (float) (m_vertical ? y : x);
+    float  start     = (float) (m_vertical ? m_rc.top : m_rc.left);
+    float  along     = (float) (m_vertical ? y : x) - start;
+    float  lastStart = 0.0f;
+    float  lastPixel = 0.0f;
 
 
 
-    if (m_cellPx <= 0)
+    if (m_cellPx <= 0 || m_count <= 0)
     {
         return 0.0f;
     }
 
-    return std::clamp ((along - start) / (float) m_cellPx, 0.0f, (float) m_count);
+    GetLastCellSpan (lastStart, lastPixel);
+
+    along = std::clamp (along, 0.0f, std::max (0.0f, lastPixel));
+
+    if (along < lastStart)
+    {
+        return along / (float) m_cellPx;
+    }
+
+    if (lastPixel <= lastStart)
+    {
+        return (float) m_count;
+    }
+
+    return (float) (m_count - 1) + (along - lastStart) / (lastPixel - lastStart);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetLastCellSpan
+//
+//  Along the pictures, from their leading edge: where the last cell starts,
+//  and the last pixel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::GetLastCellSpan (
+    float  & outStart,
+    float  & outLastPixel) const
+{
+    int  length = m_vertical ? m_rc.bottom - m_rc.top : m_rc.right - m_rc.left;
+
+
+
+    outStart     = (float) ((std::max) (m_count - 1, 0) * m_cellPx);
+    outLastPixel = (float) (length - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetCellAtOffset
+//
+//  The cell an offset along the strip lies in, the trailing end being in
+//  the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetCellAtOffset (float offset) const
+{
+    return std::clamp ((int) offset, 0, (std::max) (m_count - 1, 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::IsOverPlayhead
+//
+//  Whether a point on the strip, not on an end label, is within the grip of
+//  the source's playhead line, and where the line stands, in cells.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::IsOverPlayhead (
+    int      x,
+    int      y,
+    float  & outLine) const
+{
+    POINT         pt   = { x, y };
+    std::wstring  top;
+    std::wstring  bottom;
+    bool          isOn = false;
+
+
+
+    outLine = 0.0f;
+
+    if (m_source == nullptr || !PtInRect (&m_outer, pt) || HitTestPart (x, y) != Part::None)
+    {
+        return false;
+    }
+
+    isOn = m_source->TryGetPlayhead (outLine, top, bottom);
+
+    return isOn && IsOnPlayhead (m_vertical ? y : x, GetLineAlong (outLine), m_scaler.ToPxf (kPlayheadGripDip));
 }
 
 
@@ -1463,6 +1586,37 @@ void DxuiImageStrip::OnLButtonUp (
     {
         m_source->OnPlayheadDragged (m_dragOffset, true);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::GetCursorAt
+//
+//  Over the playhead line's grip, and wherever the pointer is while the
+//  line is dragged, the cursor that resizes along the strip: left and right
+//  lying down, up and down standing up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiImageStrip::GetCursorAt (
+    int  x,
+    int  y) const
+{
+    LPCWSTR  along = m_vertical ? IDC_SIZENS : IDC_SIZEWE;
+    float    line  = 0.0f;
+
+
+
+    if (m_isDragging)
+    {
+        return along;
+    }
+
+    return IsOverPlayhead (x, y, line) ? along : nullptr;
 }
 
 

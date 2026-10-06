@@ -5,6 +5,7 @@
 #include "Core/IWorkQueue.h"
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/Reverse/HistoryImageCache.h"
+#include "Debugger/Reverse/HistoryWallTimes.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 
 class IHistoryFrameRenderer;
@@ -77,8 +78,15 @@ struct HistoryThumbnailCell
 //  no picture yet shows the last picture it showed, so the live end does not
 //  blink out each time it moves on. After a resize moves the points, a cell
 //  with none shows the nearest point's picture until its own is drawn. Whatever
-//  picture a cell shows, its labels and its preview are of that picture's
-//  snapshot, so the time shown always matches the screen shown.
+//  picture a cell shows, its preview and its own labels are of that
+//  picture's snapshot, so the time a cell gives always matches the screen
+//  it shows.
+//
+//  Along the strip, every point is a cycle: the cells' points by their
+//  cycles, a straight line between one and the next, the leading end the
+//  oldest history and the trailing end where history ends. The labels under
+//  the pointer give that cycle and the host's clock there, and a click
+//  seeks to it, as a drag of the playhead line does.
 //
 //  Where the machine stands, live or replaying history, is told to it by
 //  the machine thread every turn, so the strip can mark that cell.
@@ -126,6 +134,8 @@ public:
     int                GetMarkedCell   () override;
     void               SetHoveredCell  (int index) override;
     bool               TryGetCellLabels (int index, std::wstring & outTop, std::wstring & outBottom) override;
+    bool               TryGetLabelsAt  (int index, float offset, std::wstring & outTop, std::wstring & outBottom) override;
+    void               OnStripClicked  (int index, float offset) override;
     bool               TryGetPlayhead  (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override;
     void               OnPlayheadDragged (float offset, bool isFinal) override;
     std::wstring       GetLeadingLabel () override;
@@ -172,11 +182,9 @@ public:
 
     //  Where the playhead line stands along the strip, in cells from the
     //  leading edge, for the machine at cycle with history ending at endCycle,
-    //  or -1 with no cells; the cycle at such an offset; and a cycle moved to
-    //  the nearest whole second of emulated time, within first and last.
+    //  or -1 with no cells; and the cycle at such an offset.
     static float       GetPlayheadOffset (const std::vector<HistoryThumbnailCell> & cells, uint64_t cycle, uint64_t endCycle);
     static uint64_t    GetCycleAtOffset  (const std::vector<HistoryThumbnailCell> & cells, float offset, uint64_t endCycle);
-    static uint64_t    SnapToSecond      (uint64_t cycle, uint64_t cyclesPerSecond, uint64_t first, uint64_t last);
 
     //  A picture shrunk to `width` by `height`, each pixel the average of
     //  the ones it covers.
@@ -220,6 +228,7 @@ private:
     bool               IsWanted      (uint64_t position) const;
     Image              ScaleBase     (uint64_t position);
     ShownPicture       ResolveShown  (size_t index);
+    bool               TryGetPointAt (float offset, HistoryThumbnailCell & outPoint);
     void               PrunePoints   ();
     void               ForgetPoint   (uint64_t position);
     double             GetNowMs      () const;
@@ -244,6 +253,7 @@ private:
     std::atomic<uint64_t>             m_beginCycle   = 0;
     std::atomic<uint64_t>             m_beginWall    = 0;
     LabelFn                           m_labeler;
+    HistoryWallTimes                  m_wallTimes;           // the host's clock at any cycle, for the labels under the pointer
     ScrubFn                           m_onScrub;
 
     //  Shared between the threads, under the lock.

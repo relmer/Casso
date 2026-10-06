@@ -18,7 +18,8 @@
 //  picture not ready yet is null: the strip draws an empty cell, and asks
 //  again on the next paint. A cell's preview and labels are of the same
 //  snapshot as the picture the cell last answered with, so the three always
-//  agree. All on the UI thread.
+//  agree; the labels and a click for a point along the strip are that
+//  point's own, by its offset in cells. All on the UI thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +45,15 @@ public:
     //  A label above and below a cell under the pointer, such as when its
     //  picture was taken. False for none.
     virtual bool    TryGetCellLabels (int index, std::wstring & outTop, std::wstring & outBottom) { (void) index; (void) outTop; (void) outBottom; return false; }
+
+    //  The labels for the point under the pointer, at an offset in cells
+    //  from the leading edge within cell `index`, such as the time there; by
+    //  default, the cell's own.
+    virtual bool    TryGetLabelsAt  (int index, float offset, std::wstring & outTop, std::wstring & outBottom) { (void) offset; return TryGetCellLabels (index, outTop, outBottom); }
+
+    //  A click at an offset in cells from the leading edge, within cell
+    //  `index`; by default, a click on the cell.
+    virtual void    OnStripClicked  (int index, float offset)  { (void) offset; OnCellClicked (index); }
 
     //  A line across the strip where the source stands between its cells:
     //  its offset in cells from the leading edge, and a label for each end of

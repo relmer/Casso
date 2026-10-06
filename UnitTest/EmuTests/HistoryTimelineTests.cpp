@@ -2,12 +2,14 @@
 
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineClick.h"
+#include "Debugger/Reverse/HistoryTimelineScrub.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-static constexpr uint64_t  s_kTimelinePast = 400;
-static constexpr uint64_t  s_kTimelineLive = 900;
+static constexpr uint64_t  s_kTimelinePast  = 400;
+static constexpr uint64_t  s_kTimelineLive  = 900;
+static constexpr uint64_t  s_kTimelineCycle = 4321;
 
 
 
@@ -29,13 +31,13 @@ public:
 
     TEST_METHOD (AClickOnThePastSeeksThereAndRunsOn)
     {
-        HistoryTimelineClickPlan  plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelinePast, false), true, false);
+        HistoryTimelineClickPlan  plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelinePast, s_kTimelineCycle, false), true, false);
 
 
 
         Assert::IsFalse (plan.pauseFirst, L"already stopped");
         Assert::IsTrue  (plan.seek, L"seeks");
-        Assert::AreEqual<uint64_t> (s_kTimelinePast, plan.position, L"to the cell's keyframe");
+        Assert::AreEqual<uint64_t> (s_kTimelineCycle, plan.cycle, L"to the exact cycle clicked, not a keyframe's position");
         Assert::IsFalse (plan.goLive, L"not live");
         Assert::IsTrue  (plan.run, L"and runs on from there");
 
@@ -129,15 +131,101 @@ public:
     }
 
 
-    //  A drag moves in whole seconds of emulated time, never out of history.
-    TEST_METHOD (ADragSnapsToWholeSecondsWithinHistory)
+    //  A drag goes wherever the pointer goes, cycle for cycle, but the
+    //  pointer moves many times a frame: the moves only remember where it
+    //  is, and each frame seeks once, to the latest, and not to where it
+    //  has already sought.
+    TEST_METHOD (ADragSeeksAtMostOncePerFrameToTheLatestPointer)
     {
-        constexpr uint64_t  kSecond = 1000;
+        HistoryTimelineScrub      scrub;
+        HistoryTimelineScrubStep  step;
 
-        Assert::AreEqual<uint64_t> (5000, HistoryThumbnails::SnapToSecond (5400, kSecond, 1500, 9000), L"down to the nearer second");
-        Assert::AreEqual<uint64_t> (6000, HistoryThumbnails::SnapToSecond (5600, kSecond, 1500, 9000), L"up to the nearer second");
-        Assert::AreEqual<uint64_t> (1500, HistoryThumbnails::SnapToSecond (1200, kSecond, 1500, 9000), L"no earlier than history begins");
-        Assert::AreEqual<uint64_t> (9000, HistoryThumbnails::SnapToSecond (9400, kSecond, 1500, 9000), L"no later than it ends");
+
+
+        for (uint64_t cycle : { 1001ull, 1002ull, 1003ull, 1017ull })
+        {
+            step = scrub.OnDragged (cycle, false, true, false);
+            Assert::IsFalse (step.seek || step.pauseFirst || step.run, L"a move between frames seeks nothing");
+        }
+
+        step = scrub.OnFrame (true, false);
+        Assert::IsTrue (step.seek, L"the frame seeks");
+        Assert::AreEqual<uint64_t> (1017, step.cycle, L"to the latest pointer, not a whole second");
+
+        step = scrub.OnFrame (true, false);
+        Assert::IsFalse (step.seek, L"once: the pointer has not moved since");
+
+        scrub.OnDragged (1018, false, true, false);
+
+        step = scrub.OnFrame (true, true);
+        Assert::IsFalse (step.seek, L"not while the last seek is still on its way");
+
+        step = scrub.OnFrame (true, false);
+        Assert::IsTrue (step.seek && step.cycle == 1018, L"and once it has landed, to where the pointer is now");
+        Assert::IsTrue (scrub.IsScrubbing(), L"still dragging");
+    }
+
+
+    //  Letting go seeks there at once, however busy the last seek is, so the
+    //  machine always lands exactly where the line was let go.
+    TEST_METHOD (LettingGoLandsExactlyWhereTheLineWasLetGo)
+    {
+        HistoryTimelineScrub      scrub;
+        HistoryTimelineScrubStep  step;
+
+
+
+        scrub.OnDragged (2000, false, true, false);
+        scrub.OnFrame   (true, false);
+        scrub.OnDragged (2345, false, true, false);
+
+        step = scrub.OnDragged (2346, true, true, true);
+
+        Assert::IsTrue  (step.seek, L"the release seeks at once");
+        Assert::AreEqual<uint64_t> (2346, step.cycle, L"to the cycle under the pointer when it was let go");
+        Assert::IsFalse (step.run, L"a machine stopped before the drag stays stopped");
+        Assert::IsFalse (scrub.IsScrubbing(), L"the drag is over");
+
+        step = scrub.OnFrame (true, false);
+        Assert::IsFalse (step.seek || step.run, L"nothing more to do");
+
+        scrub.OnDragged (2500, false, true, false);
+        scrub.OnFrame   (true, false);
+
+        step = scrub.OnDragged (2500, true, true, false);
+        Assert::IsFalse (step.seek, L"let go where it last sought: already there");
+        Assert::IsFalse (scrub.IsScrubbing(), L"and the drag is over");
+    }
+
+
+    //  A drag of a running machine stops it first, seeks only once it has
+    //  stopped, and when the line is let go, runs on from there.
+    TEST_METHOD (ADragOfARunningMachineStopsItAndRunsOnAfter)
+    {
+        HistoryTimelineScrub      scrub;
+        HistoryTimelineScrubStep  step;
+
+
+
+        step = scrub.OnDragged (3000, false, false, false);
+        Assert::IsTrue  (step.pauseFirst, L"stops the machine first");
+        Assert::IsFalse (step.seek, L"and seeks nothing yet");
+
+        step = scrub.OnDragged (3100, false, false, false);
+        Assert::IsFalse (step.pauseFirst, L"asked once");
+
+        step = scrub.OnFrame (false, false);
+        Assert::IsFalse (step.seek, L"not before it has stopped");
+
+        step = scrub.OnDragged (3200, true, false, false);
+        Assert::IsFalse (step.seek || step.run, L"let go before it has stopped: nothing yet");
+        Assert::IsTrue  (scrub.IsScrubbing(), L"the drag waits for the stop");
+
+        step = scrub.OnFrame (true, false);
+        Assert::IsTrue  (step.seek, L"stopped: seeks");
+        Assert::AreEqual<uint64_t> (3200, step.cycle, L"to where it was let go");
+        Assert::IsTrue  (step.run, L"and runs on, as it was running");
+        Assert::IsFalse (scrub.IsScrubbing(), L"the drag is over");
     }
 
 private:

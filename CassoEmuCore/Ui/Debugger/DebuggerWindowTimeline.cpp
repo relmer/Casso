@@ -2,7 +2,6 @@
 
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerWindow.h"
-#include "Debugger/Reverse/HistoryStatus.h"
 #include "Debugger/Reverse/HistoryTimelineClick.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -230,11 +229,13 @@ void DebuggerWindow::SyncTimeline()
 //
 //  DebuggerWindow::OnTimelineScrub
 //
-//  The playhead line dragged to a cycle, in whole seconds of emulated time.
-//  A drag of a running machine stops it first; each second the line crosses
-//  is sought once the machine is stopped, and when the line is let go, a
-//  machine that was running runs on from there, replaying the recorded
-//  future, and one that was stopped stays stopped.
+//  The playhead line dragged to the cycle under the pointer. The plan comes
+//  from HistoryTimelineScrub: a drag of a running machine stops it first;
+//  while the line moves, each frame seeks once, to where it is then, and
+//  not while the last seek is still on its way; when the line is let go,
+//  the machine lands exactly there at once, and one that was running runs on
+//  from there, replaying the recorded future, while one that was stopped
+//  stays stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,22 +252,7 @@ void DebuggerWindow::OnTimelineScrub (
         return;
     }
 
-    if (!m_isScrubbing)
-    {
-        m_isScrubbing           = true;
-        m_isScrubEnded          = false;
-        m_wasRunningBeforeScrub = !paused;
-
-        if (!paused)
-        {
-            m_host->PauseDebugger();
-        }
-    }
-
-    m_pendingScrub = HistoryThumbnails::SnapToSecond (cycle, (uint64_t) HistoryStatus::kCyclesPerSecond, 0, UINT64_MAX);
-    m_isScrubEnded = m_isScrubEnded || isFinal;
-
-    SyncTimelineScrub();
+    ApplyTimelineScrub (m_timelineScrub.OnDragged (cycle, isFinal, paused, m_host->IsHistorySeekBusy()));
 }
 
 
@@ -277,8 +263,7 @@ void DebuggerWindow::OnTimelineScrub (
 //
 //  DebuggerWindow::SyncTimelineScrub
 //
-//  Once the machine is stopped: the second the line was last dragged to,
-//  when it moved, and once let go, the run that was going on before.
+//  Once a frame: the seek the line's drag is due, if any.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,28 +273,37 @@ void DebuggerWindow::SyncTimelineScrub()
 
 
 
-    if (!m_isScrubbing || !paused || m_host == nullptr)
+    if (m_host == nullptr || !m_timelineScrub.IsScrubbing())
     {
         return;
     }
 
-    if (m_pendingScrub.has_value() && *m_pendingScrub != m_lastScrubCycle)
+    ApplyTimelineScrub (m_timelineScrub.OnFrame (paused, m_host->IsHistorySeekBusy()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyTimelineScrub
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyTimelineScrub (const HistoryTimelineScrubStep & step)
+{
+    if (step.pauseFirst)
     {
-        m_lastScrubCycle = *m_pendingScrub;
-        m_host->SeekHistoryCycle (m_lastScrubCycle);
+        m_host->PauseDebugger();
     }
 
-    m_pendingScrub.reset();
-
-    if (!m_isScrubEnded)
+    if (step.seek)
     {
-        return;
+        m_host->SeekHistoryCycle (step.cycle);
     }
 
-    m_isScrubbing    = false;
-    m_lastScrubCycle = UINT64_MAX;
-
-    if (m_wasRunningBeforeScrub)
+    if (step.run)
     {
         RunCommandBarEntry (DebuggerCommands::kRun);
     }
@@ -325,7 +319,7 @@ void DebuggerWindow::SyncTimelineScrub()
 //
 //  The plan comes from HistoryTimelineClick: a click while the machine runs
 //  stops it first and acts once it has; then the machine moves to the
-//  cell's point and runs on from there. The seek, the go live and the run
+//  cycle clicked and runs on from there. The seek, the go live and the run
 //  all cross to the CPU thread through one queue, so they land in order.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,7 +347,7 @@ void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
 
     if (plan.seek)
     {
-        m_host->SeekHistory (plan.position);
+        m_host->SeekHistoryCycle (plan.cycle);
     }
 
     if (plan.goLive)

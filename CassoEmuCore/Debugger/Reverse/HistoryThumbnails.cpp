@@ -500,7 +500,8 @@ Error:
 //
 //  HistoryThumbnails::LayOutCells
 //
-//  The points over the keyframes held, published only when they changed.
+//  The points over the keyframes held, published only when they changed,
+//  and the clock times of the keyframes, for the time under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -510,6 +511,8 @@ void HistoryThumbnails::LayOutCells (const KeyframeStore & keyframes)
     int                                count = 0;
 
 
+
+    m_wallTimes.Sync (keyframes);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
@@ -562,6 +565,8 @@ void HistoryThumbnails::Clear()
 
         m_useStandIns = false;
     }
+
+    m_wallTimes.Clear();
 
     m_step = 0;
 
@@ -1579,34 +1584,6 @@ uint64_t HistoryThumbnails::GetCycleAtOffset (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HistoryThumbnails::SnapToSecond
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t HistoryThumbnails::SnapToSecond (
-    uint64_t  cycle,
-    uint64_t  cyclesPerSecond,
-    uint64_t  first,
-    uint64_t  last)
-{
-    uint64_t  snapped = cycle;
-
-
-
-    if (cyclesPerSecond > 0)
-    {
-        snapped = (cycle + cyclesPerSecond / 2) / cyclesPerSecond * cyclesPerSecond;
-    }
-
-    return std::clamp (snapped, first, std::max (first, last));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HistoryThumbnails::GetModeText
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1687,6 +1664,117 @@ bool HistoryThumbnails::TryGetCellLabels (
     m_labeler (cell.cycle, cell.wallTime, outTop, outBottom);
 
     return !outTop.empty() || !outBottom.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::TryGetLabelsAt
+//
+//  The labeler's lines for the point under the pointer: its own cycle, on
+//  the scale the cells and the playhead line use, and the host's clock at
+//  that cycle, so they read as the playhead's will once the machine stands
+//  there. The picture under the pointer is still the cell's snapshot; only
+//  the time is the pointer's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::TryGetLabelsAt (
+    int             index,
+    float           offset,
+    std::wstring  & outTop,
+    std::wstring  & outBottom)
+{
+    HistoryThumbnailCell  point;
+    bool                  isPoint = false;
+
+
+
+    UNREFERENCED_PARAMETER (index);
+
+    isPoint = TryGetPointAt (offset, point);
+
+    outTop.clear();
+    outBottom.clear();
+
+    if (!isPoint || !m_labeler)
+    {
+        return false;
+    }
+
+    m_labeler (point.cycle, m_wallTimes.GetWallTimeAt (point.cycle), outTop, outBottom);
+
+    return !outTop.empty() || !outBottom.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::OnStripClicked
+//
+//  A seek to the cycle under the pointer; the trailing end, where history
+//  ends, is the live end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::OnStripClicked (
+    int    index,
+    float  offset)
+{
+    HistoryThumbnailCell  point;
+    bool                  isPoint = false;
+
+
+
+    UNREFERENCED_PARAMETER (index);
+
+    isPoint = TryGetPointAt (offset, point);
+
+    if (isPoint && m_onSeek)
+    {
+        m_onSeek (point);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::TryGetPointAt
+//
+//  The cycle at an offset along the strip, and whether it is where history
+//  ends. False with no cells.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::TryGetPointAt (
+    float                   offset,
+    HistoryThumbnailCell  & outPoint)
+{
+    std::lock_guard<std::mutex>  held (m_lock);
+    uint64_t                     end  = m_endCycle.load (std::memory_order_acquire);
+
+
+
+    outPoint = HistoryThumbnailCell();
+
+    if (m_cells.empty())
+    {
+        return false;
+    }
+
+    outPoint.cycle  = GetCycleAtOffset (m_cells, offset, end);
+    outPoint.isLive = outPoint.cycle >= std::max (end, m_cells.back().cycle);
+
+    return true;
 }
 
 

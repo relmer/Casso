@@ -3,6 +3,7 @@
 #include "HResultAssert.h"
 #include "InlineWorkQueue.h"
 #include "Debugger/Reverse/HistoryImageCache.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/IHistoryFrameRenderer.h"
 #include "Debugger/Reverse/KeyframeStore.h"
@@ -238,6 +239,126 @@ public:
         Assert::AreEqual (std::wstring (L"bottom"), bottom, L"and bottom line");
 
         Assert::IsFalse (thumbnails.TryGetCellLabels (3, top, bottom), L"no cell, no labels");
+    }
+
+
+    //  A click anywhere along the strip seeks to the cycle under the
+    //  pointer, on the scale the cells and the playhead line use: each
+    //  cell's point by its cycle, a straight line between one point and the
+    //  next, the leading end the oldest history and the trailing end where
+    //  history ends, which is live.
+    TEST_METHOD (AClickSeeksToTheCycleUnderThePointer)
+    {
+        FakeHistoryFrameRenderer           renderer;
+        InlineWorkQueue                    queue;
+        HistoryThumbnails                  thumbnails (renderer);
+        KeyframeStore                      store;
+        std::vector<HistoryThumbnailCell>  asked;
+        uint64_t                           now = 0;
+        HRESULT                            hr  = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+
+        thumbnails.SetOnSeek ([&asked] (const HistoryThumbnailCell & cell) { asked.push_back (cell); });
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out 0, 4000 and 8000 cycles");
+
+        thumbnails.SetPlayhead     (3 * s_kThumbStride, true);
+        thumbnails.SetPlayheadTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+
+        thumbnails.OnStripClicked (0, 0.0f);
+        thumbnails.OnStripClicked (0, 0.25f);
+        thumbnails.OnStripClicked (1, 1.5f);
+        thumbnails.OnStripClicked (2, 2.5f);
+        thumbnails.OnStripClicked (2, 3.0f);
+
+        Assert::AreEqual<size_t>   (5,    asked.size(),    L"every click seeks");
+        Assert::AreEqual<uint64_t> (0,    asked[0].cycle,  L"the leading end is the oldest history");
+        Assert::AreEqual<uint64_t> (1000, asked[1].cycle,  L"a quarter of the way to the second point");
+        Assert::AreEqual<uint64_t> (6000, asked[2].cycle,  L"halfway between the second and third");
+        Assert::AreEqual<uint64_t> (8500, asked[3].cycle,  L"halfway from the newest keyframe to where history ends");
+        Assert::AreEqual<uint64_t> (9000, asked[4].cycle,  L"the trailing end is where history ends");
+        Assert::IsFalse (asked[3].isLive, L"inside history is not live");
+        Assert::IsTrue  (asked[4].isLive, L"the trailing end is live");
+    }
+
+
+    //  The labels for a point along the strip give its own cycle and the
+    //  host's clock there, counted on from the newest keyframe at or before
+    //  it, as the playhead line's are once the machine stands there. An hour
+    //  the machine spent stopped between two cells shows at the keyframe
+    //  after it, not at the next cell.
+    TEST_METHOD (TheLabelsUnderThePointerGiveItsExactTime)
+    {
+        constexpr uint64_t  kHourTicks = 36000000000ull;
+        constexpr size_t    kAfterStop = 5;
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        KeyframeSettings          settings;
+        std::vector<Byte>         state (s_kThumbStateBytes);
+        uint64_t                  now     = 0;
+        uint64_t                  cycle   = 0;
+        uint64_t                  wall    = 0;
+        std::wstring              top;
+        std::wstring              bottom;
+        bool                      isShown = false;
+        HRESULT                   hr      = S_OK;
+        size_t                    i       = 0;
+
+
+
+        settings.intervalCycles = s_kThumbInterval;
+        store.Configure    (settings);
+        store.SetWallClock ([] () -> uint64_t { return s_wall; });
+
+        for (i = 0; i < 9; i++)
+        {
+            s_wall   = kBaseWall + i * kWallPerKeyframe + ((i >= kAfterStop) ? kHourTicks : 0);
+            state[0] = static_cast<Byte> (i + 1);
+
+            hr = store.Add (i * s_kThumbStride, i * s_kThumbInterval, state);
+            AssertSucceeded (hr, L"Add");
+        }
+
+        thumbnails.SetWorkQueue  (&queue);
+        thumbnails.SetClock      ([&now] { return (double) now; });
+        thumbnails.SetCellLayout (3, s_kThumbCell);
+
+        thumbnails.SetLabeler ([&] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        {
+            cycle     = c;
+            wall      = w;
+            outTop    = L"top";
+            outBottom = L"bottom";
+        });
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out 0, 4000 and 8000 cycles");
+
+        thumbnails.SetPlayhead     (3 * s_kThumbStride, true);
+        thumbnails.SetPlayheadTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+
+        isShown = thumbnails.TryGetLabelsAt (1, 1.25f, top, bottom);
+
+        Assert::IsTrue (isShown, L"a point has labels");
+        Assert::AreEqual<uint64_t> (5000, cycle, L"its own cycle, a quarter of the way past the second cell");
+        Assert::AreEqual<uint64_t> (store.GetInfo (kAfterStop).wallTime, wall, L"the clock at the keyframe there, after the hour stopped");
+
+        thumbnails.TryGetLabelsAt (1, 1.3f, top, bottom);
+
+        Assert::AreEqual<uint64_t> (5200, cycle, L"a pixel on is a cycle of its own");
+        Assert::AreEqual<uint64_t> (HistoryStatus::GetWallTimeAt (store.GetInfo (kAfterStop).wallTime, 5000, 5200), wall, L"counted on from that keyframe");
+
+        thumbnails.TryGetLabelsAt (0, 0.5f, top, bottom);
+
+        Assert::AreEqual<uint64_t> (2000, cycle, L"halfway along the first cell");
+        Assert::AreEqual<uint64_t> (store.GetInfo (2).wallTime, wall, L"the clock at the keyframe there");
     }
 
 
@@ -1146,6 +1267,12 @@ public:
     }
 
 private:
+
+    static constexpr uint64_t  kBaseWall        = 0x01DC000000000000ull;
+    static constexpr uint64_t  kWallPerKeyframe = 9775;      // 1000 cycles of 100 ns ticks, near enough
+
+    static inline uint64_t  s_wall = 0;
+
 
     //  Paints a cell as the strip does, picture first, and checks that the
     //  time its labels give and its preview belong to the snapshot whose

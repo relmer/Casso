@@ -55,24 +55,55 @@ public:
         return !cellTop.empty();
     }
 
-    int               cells          = -1;
-    SIZE              size           = {};
-    int               layouts        = 0;
-    std::vector<int>  clicked;
-    std::wstring      leading;
-    std::wstring      leadingTip;
-    int               leadingClicks  = 0;
-    std::wstring      trailing;
-    std::wstring      trailingTip;
-    bool              isLive         = false;
-    int               trailingClicks = 0;
-    bool              hasPlayhead    = false;
-    float             playhead       = 0.0f;
-    std::wstring      playheadTop;
-    std::wstring      playheadBottom;
-    int               marked         = -1;
-    std::wstring      cellTop;
-    std::wstring      cellBottom;
+    //  With isLabeledByOffset, each point's labels give its offset.
+    bool  TryGetLabelsAt (int index, float offset, std::wstring & outTop, std::wstring & outBottom) override
+    {
+        if (!isLabeledByOffset)
+        {
+            return IDxuiImageStripSource::TryGetLabelsAt (index, offset, outTop, outBottom);
+        }
+
+        outTop    = GetTopLabel (offset);
+        outBottom = std::format (L"below {:.4f}", offset);
+        return true;
+    }
+
+    void  OnStripClicked (int index, float offset) override
+    {
+        offsets.push_back (offset);
+        IDxuiImageStripSource::OnStripClicked (index, offset);
+    }
+
+    void  OnPlayheadDragged (float offset, bool isFinal) override
+    {
+        drags.push_back (offset);
+        finals.push_back (isFinal);
+    }
+
+    static std::wstring  GetTopLabel (float offset) { return std::format (L"above {:.4f}", offset); }
+
+    int                 cells             = -1;
+    SIZE                size              = {};
+    int                 layouts           = 0;
+    std::vector<int>    clicked;
+    std::wstring        leading;
+    std::wstring        leadingTip;
+    int                 leadingClicks     = 0;
+    std::wstring        trailing;
+    std::wstring        trailingTip;
+    bool                isLive            = false;
+    int                 trailingClicks    = 0;
+    bool                hasPlayhead       = false;
+    float               playhead          = 0.0f;
+    std::wstring        playheadTop;
+    std::wstring        playheadBottom;
+    int                 marked            = -1;
+    std::wstring        cellTop;
+    std::wstring        cellBottom;
+    bool                isLabeledByOffset = false;
+    std::vector<float>  offsets;                     // where each click on the pictures landed, in cells
+    std::vector<float>  drags;                       // where the playhead line was dragged to, in cells
+    std::vector<bool>   finals;
 };
 
 
@@ -640,8 +671,8 @@ public:
     }
 
 
-    //  Over a cell, its time shows above it and its "(Power + x)" below, in
-    //  the room kept for the playhead's labels, centered on the cell and
+    //  Over a cell, the source's labels there show above it and below it, in
+    //  the room kept for the playhead's labels, centered on the pointer and
     //  kept within the strip at either end. Off the strip they are gone.
     TEST_METHOD (TheHoveredCellsTimeShowsAboveAndBelowIt)
     {
@@ -700,7 +731,7 @@ public:
 
             if (index == count / 2)
             {
-                Assert::AreEqual ((float) (cell.left + cell.right) / 2.0f, top->x + top->width / 2.0f, 0.5f, L"centered on the cell");
+                Assert::AreEqual ((float) (cell.left + cell.right) / 2.0f, top->x + top->width / 2.0f, 0.5f, L"centered on the pointer, here mid-cell");
             }
         }
 
@@ -817,6 +848,271 @@ public:
             Assert::IsTrue (top->y + top->height <= line->y,                L"the top label clears the line above the pictures");
             Assert::IsTrue (bottom->y >= line->y + line->height,            L"the bottom label clears it below");
         }
+    }
+
+
+    //  Every pixel along the pictures is a point of its own: the first is
+    //  the leading end, the last the trailing end, each one further on than
+    //  the one before, and the line drawn at a pixel's offset stands on that
+    //  pixel. Standing up, the same runs top to bottom.
+    TEST_METHOD (EveryPixelAlongThePicturesIsAnOffsetOfItsOwn)
+    {
+        DxuiImageStrip        strip;
+        RecordingStripSource  source;
+        MockDxuiTextRenderer  text;
+        DxuiDpiScaler         scaler;
+        RECT                  pictures = {};
+        float                 offset   = 0.0f;
+        float                 previous = -1.0f;
+        int                   y        = 0;
+        int                   x        = 0;
+
+
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, 600, 82 }, true, scaler);
+
+        pictures = strip.GetPicturesRect();
+        y        = (pictures.top + pictures.bottom) / 2;
+
+        Assert::IsTrue (strip.GetCellCount() > 2, L"cells to cross");
+
+        for (x = pictures.left; x < pictures.right; x++)
+        {
+            offset = strip.GetOffsetAt (x, y);
+
+            Assert::IsTrue (offset > previous, L"each pixel further on than the one before");
+            Assert::AreEqual ((float) x, strip.GetLineAlong (offset), 0.01f, L"the line at a pixel's offset stands on the pixel");
+
+            previous = offset;
+        }
+
+        Assert::AreEqual (0.0f,                         strip.GetOffsetAt (pictures.left, y),      L"the first pixel is the leading end");
+        Assert::AreEqual ((float) strip.GetCellCount(), strip.GetOffsetAt (pictures.right - 1, y), L"the last pixel is the trailing end");
+        Assert::AreEqual (0.0f,                         strip.GetOffsetAt (pictures.left - 9, y),  L"before the pictures: the leading end");
+        Assert::AreEqual ((float) strip.GetCellCount(), strip.GetOffsetAt (pictures.right + 9, y), L"past them: the trailing end");
+
+        strip.Layout (RECT { 0, 0, 40, 400 }, true, scaler);
+
+        pictures = strip.GetPicturesRect();
+
+        Assert::AreEqual (0.0f,                         strip.GetOffsetAt (20, pictures.top),        L"standing up, the top pixel is the leading end");
+        Assert::AreEqual ((float) strip.GetCellCount(), strip.GetOffsetAt (20, pictures.bottom - 1), L"and the bottom pixel the trailing end");
+    }
+
+
+    //  A click anywhere on the pictures gives the source the exact point
+    //  under the pointer, not only the cell it is in.
+    TEST_METHOD (AClickGivesTheSourceThePointUnderThePointer)
+    {
+        DxuiImageStrip        strip;
+        RecordingStripSource  source;
+        DxuiDpiScaler         scaler;
+        RECT                  pictures = {};
+        RECT                  cell     = {};
+        int                   y        = 0;
+        int                   x        = 0;
+
+
+
+        strip.SetSource (&source);
+        strip.SetAspect (s_kStripAspect);
+        strip.Layout    (RECT { 0, 0, 479, 32 }, false, scaler);
+
+        pictures = strip.GetPicturesRect();
+        cell     = DxuiImageStrip::GetCellRect (pictures, 2, strip.GetCellCount(), source.size.cx, false);
+        x        = cell.left + 7;
+        y        = (pictures.top + pictures.bottom) / 2;
+
+        strip.OnLButtonDown (x, y);
+        strip.OnClick       (x, y);
+
+        strip.OnLButtonDown (pictures.right - 1, y);
+        strip.OnClick       (pictures.right - 1, y);
+
+        Assert::AreEqual<size_t> (2, source.offsets.size(), L"both clicks give the point");
+        Assert::AreEqual (strip.GetOffsetAt (x, y), source.offsets[0], L"the point under the pointer");
+        Assert::IsTrue   (source.offsets[0] > 2.0f && source.offsets[0] < 3.0f, L"partway along the third cell");
+        Assert::AreEqual ((float) strip.GetCellCount(), source.offsets[1], L"the last pixel is the trailing end");
+        Assert::AreEqual (2, source.clicked[0], L"and the cell it is in");
+    }
+
+
+    //  The line dragged follows the pointer pixel by pixel, the source hears
+    //  each pixel's point, the line's labels give the point under the
+    //  pointer, and letting go gives the point where it was let go.
+    TEST_METHOD (ADraggedPlayheadFollowsThePointerPixelByPixel)
+    {
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        RECT                           pictures = {};
+        const RecordedTextCall       * line     = nullptr;
+        int                            x        = 0;
+        int                            y        = 0;
+        int                            step     = 0;
+
+
+
+        source.hasPlayhead       = true;
+        source.playhead          = 2.0f;
+        source.playheadTop       = L"where the machine stands";
+        source.isLabeledByOffset = true;
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, 600, 82 }, true, scaler);
+
+        pictures = strip.GetPicturesRect();
+        x        = (int) std::lround (strip.GetLineAlong (source.playhead));
+        y        = (pictures.top + pictures.bottom) / 2;
+
+        Assert::IsTrue (strip.OnLButtonDown (x, y), L"the press takes the line");
+        Assert::IsTrue (strip.IsDraggingPlayhead(), L"and drags it");
+
+        for (step = 1; step <= 5; step++)
+        {
+            strip.OnMouseMove (x + step, y);
+
+            Assert::AreEqual<size_t> ((size_t) step, source.drags.size(), L"every pixel moved is heard");
+            Assert::AreEqual (strip.GetOffsetAt (x + step, y), source.drags.back(), L"at the point under the pointer");
+            Assert::IsFalse  (source.finals.back(), L"while it is held");
+        }
+
+        text.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+
+        Assert::AreEqual<size_t> (1, text.IconCalls().size(), L"the line is drawn");
+        line = &text.IconCalls()[0];
+
+        Assert::AreEqual ((float) (x + 5), line->x + line->width / 2.0f, 0.01f, L"under the pointer");
+        Assert::IsNotNull (FindText (text, RecordingStripSource::GetTopLabel (strip.GetOffsetAt (x + 5, y))), L"labeled with the point under the pointer");
+        Assert::IsNull    (FindText (text, source.playheadTop), L"not where the machine stood");
+
+        strip.OnLButtonUp (x + 7, y);
+
+        Assert::IsTrue   (source.finals.back(), L"letting go is final");
+        Assert::AreEqual (strip.GetOffsetAt (x + 7, y), source.drags.back(), L"at the point where it was let go");
+    }
+
+
+    //  Over the pictures, the labels give the point under the pointer,
+    //  centered on it, and change as it moves within a cell.
+    TEST_METHOD (HoverLabelsGiveThePointUnderThePointer)
+    {
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        RECT                           pictures = {};
+        RECT                           cell     = {};
+        const RecordedTextCall       * top      = nullptr;
+        int                            y        = 0;
+
+
+
+        source.isLabeledByOffset = true;
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, 600, 82 }, true, scaler);
+
+        pictures = strip.GetPicturesRect();
+        cell     = DxuiImageStrip::GetCellRect (pictures, 2, strip.GetCellCount(), source.size.cx, false);
+        y        = (pictures.top + pictures.bottom) / 2;
+
+        for (int x : { (int) cell.left + 4, (int) cell.right - 4 })
+        {
+            strip.OnMouseMove (x, y);
+            text.Reset();
+            strip.Paint (painter, text, theme, false, false, true);
+
+            top = FindText (text, RecordingStripSource::GetTopLabel (strip.GetOffsetAt (x, y)));
+
+            Assert::AreEqual (2, strip.GetHoveredCell(), L"over the same cell");
+            Assert::IsNotNull (top, L"the label gives the point under the pointer");
+            Assert::AreEqual ((float) x, top->x + top->width / 2.0f, 0.5f, L"centered on the pointer");
+        }
+    }
+
+
+    //  The pointer over the playhead line's grip shows the left and right
+    //  resize cursor, up and down standing up, and keeps it while the line
+    //  is dragged wherever the pointer goes; elsewhere the strip leaves the
+    //  cursor alone. The toolbar holding the strip shows it too.
+    TEST_METHOD (ThePlayheadLineShowsTheResizeCursor)
+    {
+        DxuiToolbar                      bar;
+        DxuiImageStrip                   strip;
+        RecordingStripSource             source;
+        MockDxuiTextRenderer             text;
+        DxuiDpiScaler                    scaler;
+        std::vector<DxuiToolbar::Entry>  entries (1);
+        auto                             command  = std::make_shared<DxuiCommand>();
+        RECT                             pictures = {};
+        int                              x        = 0;
+        int                              y        = 0;
+
+
+
+        source.hasPlayhead = true;
+        source.playhead    = 2.0f;
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.Layout          (RECT { 0, 0, 600, 42 }, true, scaler);
+
+        pictures = strip.GetPicturesRect();
+        x        = (int) std::lround (strip.GetLineAlong (source.playhead));
+        y        = (pictures.top + pictures.bottom) / 2;
+
+        Assert::IsTrue (strip.GetCursorAt (x,      y) == IDC_SIZEWE, L"on the line");
+        Assert::IsTrue (strip.GetCursorAt (x + 8,  y) == IDC_SIZEWE, L"within its grip");
+        Assert::IsTrue (strip.GetCursorAt (x + 40, y) == nullptr,    L"away from it");
+
+        strip.OnLButtonDown (x, y);
+
+        Assert::IsTrue (strip.GetCursorAt (x + 200, y + 200) == IDC_SIZEWE, L"kept while dragged, wherever the pointer is");
+
+        strip.OnLButtonUp (x + 200, y);
+
+        Assert::IsTrue (strip.GetCursorAt (x + 200, y + 200) == nullptr, L"until it is let go");
+
+        source.hasPlayhead = false;
+        Assert::IsTrue (strip.GetCursorAt (x, y) == nullptr, L"no line, no grip");
+        source.hasPlayhead = true;
+
+        strip.Layout (RECT { 0, 0, 40, 400 }, true, scaler);
+        Assert::IsTrue (strip.GetCursorAt (20, (int) std::lround (strip.GetLineAlong (source.playhead))) == IDC_SIZENS, L"standing up, up and down");
+
+        command->id    = 1;
+        command->label = L"History timeline";
+
+        entries[0].command = command;
+        entries[0].custom  = &strip;
+
+        bar.SetTextRenderer (&text);
+        bar.SetEntries      (std::move (entries));
+        bar.Layout          (RECT { 0, 0, 600, 42 }, scaler);
+
+        pictures = strip.GetPicturesRect();
+        x        = (int) std::lround (strip.GetLineAlong (source.playhead));
+        y        = (pictures.top + pictures.bottom) / 2;
+
+        Assert::IsTrue (bar.GetCursorForPoint (POINT { x, y }) == IDC_SIZEWE, L"the toolbar shows the strip's cursor");
     }
 
 private:

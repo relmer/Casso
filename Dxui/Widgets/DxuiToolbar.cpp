@@ -2249,11 +2249,38 @@ float DxuiToolbar::GetLiftLevel (int64_t nowMs) const
 //
 //  DxuiToolbar::GetCursorForPoint
 //
+//  The move cursor over the grab handle; elsewhere, whatever cursor a
+//  custom entry shows there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR DxuiToolbar::GetCursorForPoint (POINT clientPx) const
 {
-    return IsOnGrip (clientPx.x, clientPx.y) ? IDC_SIZEALL : nullptr;
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (IsOnGrip (clientPx.x, clientPx.y))
+    {
+        return IDC_SIZEALL;
+    }
+
+    for (const Slot & slot : m_slots)
+    {
+        if (slot.hidden || slot.entry.custom == nullptr)
+        {
+            continue;
+        }
+
+        cursor = slot.entry.custom->GetCursorAt (clientPx.x, clientPx.y);
+
+        if (cursor != nullptr)
+        {
+            break;
+        }
+    }
+
+    return cursor;
 }
 
 

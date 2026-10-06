@@ -13,7 +13,8 @@
 //  HistoryTimelineClickPlan
 //
 //  What a click on the history timeline does, in order: stop the machine
-//  first and act once it has; or seek, or go live, and then run on.
+//  first and act once it has; or seek to a cycle, or go live, and then run
+//  on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +22,7 @@ struct HistoryTimelineClickPlan
 {
     bool      pauseFirst = false;
     bool      seek       = false;
-    uint64_t  position   = 0;
+    uint64_t  cycle      = 0;
     bool      goLive     = false;
     bool      run        = false;
 };
