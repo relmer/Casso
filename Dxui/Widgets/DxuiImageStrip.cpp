@@ -308,12 +308,11 @@ void DxuiImageStrip::Layout (
 //  A cell not drawn yet is the content background. The cell the source
 //  marks gives up a band along the far edge, below a strip lying down and
 //  right of one standing up, to a bar in the accent color, so the bar does
-//  not depend on whether pictures draw over shapes or under them. The cell
-//  under the pointer is framed in the theme's hover frame color instead, a
-//  thin line rather than an accent one, so it cannot be mistaken for the
-//  playhead line beside it, and its labels take the place of the line's
-//  where the two would overlap. An end label under the pointer or pressed
-//  has the toolbar's button chrome behind it.
+//  not depend on whether pictures draw over shapes or under them. The point
+//  under the pointer has a thin gray line, the playhead line's lighter form,
+//  so it cannot be mistaken for the playhead line, and its labels give way
+//  to the playhead line's where the two would overlap. An end label under
+//  the pointer or pressed has the toolbar's button chrome behind it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,7 +325,6 @@ void DxuiImageStrip::Paint (
     bool                labeled)
 {
     RECT                          cell      = {};
-    RECT                          hoverCell = {};
     IDxuiImageStripSource::Image  image;
     HRESULT                       hr        = S_OK;
     int                           mark      = (m_source != nullptr) ? m_source->GetMarkedCell() : -1;
@@ -390,15 +388,14 @@ void DxuiImageStrip::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    //  The hovered cell is framed, and its labels are the source's for the
-    //  point under the pointer, centered on it.
+    //  The point under the pointer has a thin gray line, and its labels are
+    //  the source's for that point, centered on it.
     if (m_hovered >= 0 && m_hovered < m_count)
     {
-        hoverCell = GetCellRect (m_rc, m_hovered, m_count, m_cellPx, m_vertical);
         hoverX    = (float) m_pointer.x;
         isLabeled = !m_vertical && m_source != nullptr && m_source->TryGetLabelsAt (m_hovered, GetOffsetAt (m_pointer.x, m_pointer.y), cellTop, cellBottom);
 
-        PaintHoverFrame (text, theme, hoverCell);
+        PaintHoverLine (text, theme);
     }
 
     PaintPartChrome (painter, theme, m_lead,  Part::Leading);
@@ -424,8 +421,8 @@ void DxuiImageStrip::Paint (
     {
         if (isLabeled)
         {
-            HideOverlap (text, top,    GetLineAlong (line), cellTop,    hoverX);
-            HideOverlap (text, bottom, GetLineAlong (line), cellBottom, hoverX);
+            HideOverlap (text, cellTop,    hoverX, top,    GetLineAlong (line));
+            HideOverlap (text, cellBottom, hoverX, bottom, GetLineAlong (line));
         }
 
         PaintPlayhead (painter, text, theme, line, top, bottom);
@@ -1043,76 +1040,35 @@ RECT DxuiImageStrip::GetPreviewAnchor() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiImageStrip::PaintHoverFrame
+//  DxuiImageStrip::PaintHoverLine
 //
-//  A thin ring in the theme's hover frame color over the edge of the cell's
-//  picture, inside a line of the theme's frame edge color where it has one.
-//  Drawn as pictures are, since pictures draw over shapes.
+//  The playhead line's lighter form at the pointer: thinner, in the theme's
+//  hover line gray rather than the accent, and reaching past the pictures as
+//  the playhead line does. Drawn as pictures are, since pictures draw over
+//  shapes, and before the playhead line, which stays on top where they meet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiImageStrip::PaintHoverFrame (
+void DxuiImageStrip::PaintHoverLine (
     IDxuiTextRenderer & text,
-    const IDxuiTheme  & theme,
-    const RECT        & cell)
+    const IDxuiTheme  & theme)
 {
-    float     frame = std::max (1.0f, (float) std::lround (m_scaler.ToPxf (kHoverFrameDip)));
-    float     line  = std::max (1.0f, (float) std::lround (m_scaler.ToPxf (kHoverEdgeDip)));
-    uint32_t  edge  = theme.PictureHoverFrameEdge();
-    RECT      inner = cell;
+    HRESULT   hr    = S_OK;
+    float     thick = std::max (1.0f, (float) std::lround (m_scaler.ToPxf (kHoverLineDip)));
+    float     room  = (float) (m_rc.top - m_outer.top);
+    float     reach = std::min (room, m_scaler.ToPxf (kLineReachDip));
+    uint32_t  ink   = theme.PlayheadHoverLine();
 
 
 
-    if (edge != 0)
+    if (m_vertical)
     {
-        PaintRing (text, cell, line, edge);
-        InflateRect (&inner, -(int) line, -(int) line);
-    }
-
-    PaintRing (text, inner, frame, theme.PictureHoverFrame());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::PaintRing
-//
-//  Four sides `thick` pixels wide just inside rc, each one pixel stretched.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::PaintRing (
-    IDxuiTextRenderer & text,
-    const RECT        & rc,
-    float               thick,
-    uint32_t            argb)
-{
-    HRESULT  hr     = S_OK;
-    float    left   = (float) rc.left;
-    float    top    = (float) rc.top;
-    float    width  = (float) (rc.right - rc.left);
-    float    height = (float) (rc.bottom - rc.top);
-
-
-
-    if (width < thick * 2.0f || height < thick * 2.0f)
-    {
+        hr = text.DrawIconBitmap (&ink, 1, 1, (float) m_outer.left, (float) m_pointer.y, (float) (m_outer.right - m_outer.left), thick);
+        IGNORE_RETURN_VALUE (hr, S_OK);
         return;
     }
 
-    hr = text.DrawIconBitmap (&argb, 1, 1, left,                 top,                  width, thick);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = text.DrawIconBitmap (&argb, 1, 1, left,                 top + height - thick, width, thick);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = text.DrawIconBitmap (&argb, 1, 1, left,                 top + thick,          thick, height - thick * 2.0f);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = text.DrawIconBitmap (&argb, 1, 1, left + width - thick, top + thick,          thick, height - thick * 2.0f);
+    hr = text.DrawIconBitmap (&ink, 1, 1, (float) m_pointer.x, (float) m_rc.top - reach, thick, (float) (m_rc.bottom - m_rc.top) + reach * 2.0f);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

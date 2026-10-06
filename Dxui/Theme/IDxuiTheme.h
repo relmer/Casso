@@ -216,6 +216,19 @@ public:
         return (DxuiColor::ComputeRelativeLuminance (Background()) > kLightLuminance) ? kDarkEdge : 0u;
     }
 
+    //  The line at the point under the pointer in a strip of pictures with a
+    //  playhead: a gray, light on a dark background and darker on a light one,
+    //  so it reads as the playhead line's lighter form and not as a second
+    //  playhead in the accent.
+    virtual uint32_t  PlayheadHoverLine     () const
+    {
+        constexpr float     kLightLuminance = 0.5f;
+        constexpr uint32_t  kOnDark         = 0xFFA0A0A0u;
+        constexpr uint32_t  kOnLight        = 0xFF707070u;
+
+        return (DxuiColor::ComputeRelativeLuminance (Background()) > kLightLuminance) ? kOnLight : kOnDark;
+    }
+
     // Button palette. Default-styled buttons read these directly rather
     // than remapping from Background/Hover/Pressed because button
     // surfaces are typically tinted distinctly from generic panels.

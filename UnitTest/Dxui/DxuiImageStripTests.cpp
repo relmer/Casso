@@ -565,23 +565,27 @@ public:
     }
 
 
-    //  The cell under the pointer is framed by a thin line in the theme's
-    //  hover frame color, over the picture's edge; the marked cell keeps its
-    //  accent underline, and the hovered one has none.
-    TEST_METHOD (TheHoveredCellIsFramedAndTheMarkedCellUnderlined)
+    //  The point under the pointer has a line of its own: the playhead
+    //  line's lighter form, thinner and in the theme's hover line gray rather
+    //  than the accent, reaching past the pictures as the playhead line does.
+    //  No cell is framed; the marked cell keeps its accent underline, and the
+    //  hovered one has none.
+    TEST_METHOD (TheHoveredPointHasAThinGrayLineAndTheMarkedCellIsUnderlined)
     {
         constexpr float       kBarPx   = 4.0f;
-        constexpr float       kThinPx  = 2.0f;
+        constexpr float       kThinPx  = 1.5f;
         DxuiImageStrip        strip;
         RecordingStripSource  source;
         MockDxuiTextRenderer  text;
         MockDxuiPainter       painter;
         MockDxuiTheme         theme;
         DxuiDpiScaler         scaler;
+        RECT                  pictures = {};
         RECT                  hovered  = {};
         RECT                  marked   = {};
+        RECT                  line     = {};
         RECT                  frame    = {};
-        int                   cellPx   = 0;
+        int                   x        = 0;
         int                   pieces   = 0;
         bool                  isUnder  = false;
         bool                  isHovBar = false;
@@ -590,16 +594,19 @@ public:
 
         source.marked = 4;
 
-        strip.SetSource (&source);
-        strip.SetAspect (s_kStripAspect);
-        strip.Layout    (RECT { 0, 0, 479, 32 }, false, scaler);
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, 600, 82 }, true, scaler);
 
-        cellPx  = source.size.cx;
-        hovered = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 2, strip.GetCellCount(), cellPx, false);
-        marked  = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 4, strip.GetCellCount(), cellPx, false);
+        pictures = strip.GetPicturesRect();
+        hovered  = DxuiImageStrip::GetCellRect (pictures, 2, strip.GetCellCount(), source.size.cx, false);
+        marked   = DxuiImageStrip::GetCellRect (pictures, 4, strip.GetCellCount(), source.size.cx, false);
+        x        = hovered.left + 5;
 
-        strip.OnMouseMove (hovered.left + 1, 5);
-        strip.Paint       (painter, text, theme, false, false, false);
+        strip.OnMouseMove (x, (pictures.top + pictures.bottom) / 2);
+        strip.Paint       (painter, text, theme, false, false, true);
 
         Assert::AreEqual (2, strip.GetHoveredCell(), L"the pointer is over the third cell");
 
@@ -617,57 +624,88 @@ public:
         Assert::IsTrue  (isUnder,  L"the marked cell keeps its accent underline");
         Assert::IsFalse (isHovBar, L"the hovered cell has no accent bar");
 
-        pieces = GetIconBounds (text, theme.PictureHoverFrame(), kThinPx, frame);
+        Assert::AreNotEqual (theme.Accent(), theme.PlayheadHoverLine(), L"the hover line is not the playhead's accent");
 
-        Assert::IsTrue   (pieces >= 4,                  L"a frame of four thin sides in the hover frame color");
-        Assert::AreEqual (hovered.left,   frame.left,   L"along the cell's left edge");
-        Assert::AreEqual (hovered.right,  frame.right,  L"its right edge");
-        Assert::AreEqual (hovered.top,    frame.top,    L"its top");
-        Assert::AreEqual (hovered.bottom, frame.bottom, L"and its bottom");
-        Assert::AreEqual (0u, theme.PictureHoverFrameEdge(), L"no outer line on a dark background");
+        pieces = GetIconBounds (text, theme.PlayheadHoverLine(), kThinPx, line);
+
+        Assert::AreEqual (1, pieces, L"one thin line in the hover line color");
+        Assert::IsTrue   (line.left <= x && line.right >= x && line.right - line.left <= 2, L"on the pointer, a pixel or so wide");
+        Assert::IsTrue   (line.top < pictures.top,       L"reaching above the pictures");
+        Assert::IsTrue   (line.bottom > pictures.bottom, L"and below them");
+
+        pieces = GetIconBounds (text, theme.PictureHoverFrame(), 2.0f, frame);
+
+        Assert::AreEqual (0, pieces, L"no frame around the hovered cell");
     }
 
 
-    //  On a light background the near-white frame gets a dark line outside
-    //  it, so its edge does not run into the panel.
-    TEST_METHOD (OnALightThemeTheHoverFrameHasADarkOuterLine)
+    //  On a light background the hover line is a darker gray, so it reads
+    //  against the panel as the light one does against a dark panel.
+    TEST_METHOD (OnALightThemeTheHoverLineIsADarkerGray)
     {
-        constexpr float       kThinPx  = 2.0f;
-        DxuiImageStrip        strip;
-        RecordingStripSource  source;
-        MockDxuiTextRenderer  text;
-        MockDxuiPainter       painter;
-        LightMockTheme        theme;
-        DxuiDpiScaler         scaler;
-        RECT                  hovered  = {};
-        RECT                  edge     = {};
-        RECT                  frame    = {};
-        int                   pieces   = 0;
+        MockDxuiTheme   dark;
+        LightMockTheme  light;
 
 
 
-        strip.SetSource (&source);
-        strip.SetAspect (s_kStripAspect);
-        strip.Layout    (RECT { 0, 0, 479, 32 }, false, scaler);
+        Assert::IsTrue (DxuiColor::ComputeRelativeLuminance (light.PlayheadHoverLine()) < DxuiColor::ComputeRelativeLuminance (dark.PlayheadHoverLine()), L"darker on a light background");
+        Assert::IsTrue (DxuiColor::ComputeContrastRatio (light.PlayheadHoverLine(), light.Background()) >= 3.0f, L"and it reads there");
+        Assert::IsTrue (DxuiColor::ComputeContrastRatio (dark.PlayheadHoverLine(),  dark.Background())  >= 3.0f, L"as the light gray does on a dark one");
+    }
 
-        hovered = DxuiImageStrip::GetCellRect (strip.GetPicturesRect(), 2, strip.GetCellCount(), source.size.cx, false);
 
-        strip.OnMouseMove (hovered.left + 1, 5);
-        strip.Paint       (painter, text, theme, false, false, false);
+    //  Near the playhead line, the hover line's labels give way to the
+    //  playhead's, which keep their place; away from it, both show.
+    TEST_METHOD (HoverLabelsGiveWayToThePlayheads)
+    {
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+        RECT                           pictures  = {};
+        RECT                           hoverLine = {};
+        int                            y         = 0;
+        int                            nearX     = 0;
+        int                            farX      = 0;
 
-        Assert::AreNotEqual (0u, theme.PictureHoverFrameEdge(), L"a light background has an outer line");
 
-        pieces = GetIconBounds (text, theme.PictureHoverFrameEdge(), kThinPx, edge);
 
-        Assert::IsTrue   (pieces >= 4,                 L"the outer line goes all the way round");
-        Assert::AreEqual (hovered.left,   edge.left,   L"at the cell's edges");
-        Assert::AreEqual (hovered.bottom, edge.bottom, L"at the cell's edges");
+        source.hasPlayhead    = true;
+        source.playhead       = 3.0f;
+        source.playheadTop    = L"10:42:17 PM";
+        source.playheadBottom = L"(Power + 1:02:03)";
+        source.cellTop        = L"10:42:18 PM";
+        source.cellBottom     = L"(Power + 1:02:04)";
 
-        pieces = GetIconBounds (text, theme.PictureHoverFrame(), kThinPx, frame);
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (20.0f);
+        strip.Layout          (RECT { 0, 0, 600, 82 }, true, scaler);
 
-        Assert::IsTrue (pieces >= 4,                L"the frame is still drawn");
-        Assert::IsTrue (frame.left > edge.left,     L"inside the outer line");
-        Assert::IsTrue (frame.bottom < edge.bottom, L"inside the outer line");
+        pictures = strip.GetPicturesRect();
+        y        = (pictures.top + pictures.bottom) / 2;
+        nearX    = (int) std::lround (strip.GetLineAlong (source.playhead)) + 12;
+        farX     = pictures.right - 4;
+
+        strip.OnMouseMove (nearX, y);
+        text.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+
+        Assert::IsNotNull (FindText (text, source.playheadTop),    L"the playhead's time keeps its place");
+        Assert::IsNotNull (FindText (text, source.playheadBottom), L"and its time since power-on");
+        Assert::IsNull    (FindText (text, source.cellTop),        L"the hover's time gives way");
+        Assert::IsNull    (FindText (text, source.cellBottom),     L"and its time since power-on");
+        Assert::AreEqual  (1, GetIconBounds (text, theme.PlayheadHoverLine(), 1.5f, hoverLine), L"the hover line is still drawn");
+
+        strip.OnMouseMove (farX, y);
+        text.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+
+        Assert::IsNotNull (FindText (text, source.playheadTop), L"away from the playhead, its labels");
+        Assert::IsNotNull (FindText (text, source.cellTop),     L"and the hover's both show");
     }
 
 

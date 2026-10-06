@@ -24,9 +24,10 @@ class DxuiPopupHost;
 //  to bottom. An IDxuiImageStripSource supplies the pictures.
 //
 //  Every pixel along the pictures is a point of its own, an offset in cells
-//  from the leading edge. The pointer over a cell frames it, shows the
-//  source's labels for the point under it above and below the pictures of
-//  a strip lying down, and shows the cell's full-size picture in a popup
+//  from the leading edge. The pointer over a cell has a thin gray line at the
+//  point under it, the playhead line's lighter form, shows the source's
+//  labels for that point above and below the pictures of a strip lying down,
+//  where they do not overlap the playhead line's own, and shows the cell's full-size picture in a popup
 //  beside the strip, past the labels and centered on the pointer as it
 //  moves: the picture's own pixels, scaled for the window's DPI, in a popup
 //  that takes neither focus nor the pointer. A click goes to the source with
@@ -133,8 +134,7 @@ private:
     static constexpr float  kLabelPadDip    = 3.0f;
     static constexpr float  kSidePadDip     = 6.0f;
     static constexpr float  kLiveDotDip     = 6.0f;
-    static constexpr float  kHoverFrameDip  = 1.5f;
-    static constexpr float  kHoverEdgeDip   = 1.0f;
+    static constexpr float  kHoverLineDip   = 1.0f;   // the line at the pointer, thinner than the playhead's
 
     //  The end labels, each a button.
     enum class Part { None, Leading, Trailing };
@@ -145,8 +145,7 @@ private:
     void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
     void  ShowPreview      ();
     void  FollowPointer    ();
-    void  PaintHoverFrame  (IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & cell);
-    void  PaintRing        (IDxuiTextRenderer & text, const RECT & rc, float thick, uint32_t argb);
+    void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
     void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
     void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
