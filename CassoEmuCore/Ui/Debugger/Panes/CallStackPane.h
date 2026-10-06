@@ -44,6 +44,7 @@ public:
         bool          isBreak   = false;
         bool          isDim     = false;
         bool          isNote    = false;
+        bool          isReturn  = false;
         Word          address   = 0;
     };
 
@@ -56,7 +57,8 @@ public:
     void  Apply     (const CallStackData & data);
     void  SetColors (const DebuggerTextColors::Set & colors) { m_colors = colors; }
 
-    //  A row's cells, colored as the disassembly is unless dimmed or a break.
+    //  A row's cells, colored as the disassembly is unless dimmed or a break,
+    //  a dimmed row's tip saying why it is dimmed.
     static std::vector<DxuiListView::Cell>  GetCells (const Row & row, const DebuggerTextColors::Set & colors);
 
     static std::vector<Row>  GetRows           (const CallStackData & data);

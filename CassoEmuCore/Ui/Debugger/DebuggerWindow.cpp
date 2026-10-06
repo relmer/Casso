@@ -2656,6 +2656,12 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
         SetWindowMenus();
     }
 
+    //  The legend, while it is open, takes the theme's colors too.
+    if (m_colorLegend != nullptr && m_colorLegend->IsShown())
+    {
+        m_colorLegend->SetColors (m_theme, GetColorPalette());
+    }
+
     Invalidate();
 }
 
@@ -6456,6 +6462,7 @@ void DebuggerWindow::ApplyCodeView (int view)
         uint32_t                                 fill    = 0;
         const DebuggerViewSnapshot::CodeLine   * line    = nullptr;
         bool                                     hasText = false;
+        std::wstring                             rowTip;
 
         //  A source line: its number when shown, then its text in the syntax
         //  colors, from the first column shown after the marker.
@@ -6497,10 +6504,12 @@ void DebuggerWindow::ApplyCodeView (int view)
         if (line->hasBreakpoint)
         {
             cells[0].icon = GetBreakpointIcon (line->isEnabled);
+            cells[0].tip  = ColorLegend::GetText (line->isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
         }
         else if (view == m_gutterHoverView && (int) rows.size() == m_gutterHoverRow && DisassemblyOptions::CanTakeBreakpoint (*line))
         {
             cells[0].icon = GetHoverBreakpointIcon();
+            cells[0].tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
         }
 
         //  While the PC's arrow is dragged, it and the PC's row color show on
@@ -6511,15 +6520,19 @@ void DebuggerWindow::ApplyCodeView (int view)
         {
             cells[1].text = s_kpszTriangleRight;
             cells[1].argb = GetPcMarkerArgb();
+            cells[1].tip  = ColorLegend::GetText (ColorLegend::Meaning::PcMarker);
             fill          = GetPcRowArgb();
+            rowTip        = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
         }
         else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line->address)
         {
-            fill = GetNavigatedRowArgb();
+            fill   = GetNavigatedRowArgb();
+            rowTip = ColorLegend::GetText (ColorLegend::Meaning::NavigatedRow);
         }
         else if (target.has_value() && *target == line->address)
         {
-            fill = GetTargetRowArgb();
+            fill   = GetTargetRowArgb();
+            rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
         }
 
         cells[2].text = std::format (L"{:04X}", line->address);
@@ -6542,6 +6555,17 @@ void DebuggerWindow::ApplyCodeView (int view)
         }
 
         cells[5].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[5].text, textColors);
+
+        //  What each color on the row means, for the tip over its cell: the
+        //  row's fill on every cell, then a changed byte's color and the
+        //  operand's and result's colors where they show.
+        cells[2].tip = rowTip;
+        cells[4].tip = rowTip;
+        cells[5].tip = rowTip;
+        cells[3].tip = ColorLegend::JoinLines ({ cells[3].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
+        cells[6].tip = ColorLegend::JoinLines ({ line->annotation.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Annotation),
+                                                 line->effect.empty()     ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Result),
+                                                 rowTip });
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -6848,6 +6872,8 @@ void DebuggerWindow::ApplySnapshot()
         {
             value.argb = GetChangedArgb();
             flags.argb = GetChangedArgb();
+            value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
+            flags.tip  = value.tip;
         }
 
         rows.push_back ({ { Widen (reg.name) }, value, flags });
@@ -6897,10 +6923,12 @@ void DebuggerWindow::ApplySnapshot()
             DxuiListView::Cell                          value = { Widen (line.value) };
 
             name.dim = line.isPrevious;
+            name.tip = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
 
             if (m_stopChanges.IsChanged ("A:" + line.key))
             {
                 value.argb = GetChangedArgb();
+                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
             }
 
             rows.push_back ({ name, value });
@@ -6919,11 +6947,15 @@ void DebuggerWindow::ApplySnapshot()
         //  A disabled watch is dimmed, as a disabled breakpoint is.
         name.dim  = !watch.enabled;
         value.dim = !watch.enabled;
+        name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
 
         if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
         {
             value.argb = GetChangedArgb();
         }
+
+        value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
+                                              value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
 
         rows.push_back ({ name, value });
         m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
@@ -6954,6 +6986,7 @@ void DebuggerWindow::ApplySnapshot()
         if (m_stopChanges.IsChanged (std::format ("S:{:04X}", it->address)))
         {
             value.argb = GetChangedArgb();
+            value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
         }
 
         rows.push_back ({ { std::format (L"${:04X}", it->address) }, value });
@@ -8215,6 +8248,8 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     int64_t              now    = (int64_t) GetTickCount64();
     std::optional<Byte>  p;
     std::wstring         text;
+    std::wstring         colorTip;
+    RECT                 spot   = {};
     const wchar_t      * barTip = nullptr;
     DxuiTooltip        & tip    = GetRoutedTooltip();
 
@@ -8318,17 +8353,36 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         p = GetRegisterByte ("P");
     }
 
+    //  A tip of its own over a colored cell says what the color means as well.
     if (p.has_value())
     {
         OffsetRect (&cell, bounds.left, bounds.top);
+        (void) TryGetCellTip (clientPx, spot, colorTip);
         tip.SetMonospace (true);
-        tip.RequestShow  (cell, FlagsDialog::Describe (*p), now);
+        tip.RequestShow  (cell, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
+        return;
+    }
+
+    if (TryGetBranchTip (clientPx, cell, text))
+    {
+        tip.SetMonospace (false);
+        tip.RequestShow  (cell, text, now);
         return;
     }
 
     if (TryGetSymbolTip (clientPx, cell, text))
     {
+        (void) TryGetCellTip (clientPx, spot, colorTip);
         tip.SetMonospace (true);
+        tip.RequestShow  (cell, ColorLegend::JoinLines ({ text, colorTip }), now);
+        return;
+    }
+
+    //  Over anything else drawn in a color that means something, what it
+    //  means.
+    if (TryGetCellTip (clientPx, cell, text) || TryGetGraphicTip (clientPx, cell, text))
+    {
+        tip.SetMonospace (false);
         tip.RequestShow  (cell, text, now);
         return;
     }
@@ -8513,6 +8567,201 @@ bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstrin
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetCellTip
+//
+//  The tip a list's rows gave the cell under the point, which says what its
+//  color means.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    const std::vector<DxuiListView::Cell>  * cells  = nullptr;
+    DxuiListView                           * list   = nullptr;
+    RECT                                     bounds = {};
+    int                                      row    = -1;
+    int                                      column = -1;
+
+
+
+    for (DxuiListView * each : GetLists())
+    {
+        if (each != nullptr && IsRoutable (each) && each->IsVisible() && DxuiDockSite::Contains (each->GetBounds(), clientPx))
+        {
+            list = each;
+        }
+    }
+
+    if (list == nullptr)
+    {
+        return false;
+    }
+
+    bounds = list->GetBounds();
+    row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
+    column = GetColumnAt (list, clientPx.x - bounds.left);
+
+    if (row < 0 || row >= list->GetRowCount() || column < 0)
+    {
+        return false;
+    }
+
+    cells = &list->GetCellsOfRow (row);
+
+    if ((size_t) column >= cells->size() || (*cells)[(size_t) column].tip.empty())
+    {
+        return false;
+    }
+
+    //  A cell with only an icon, such as a breakpoint's dot, has no text to
+    //  anchor on, so the tip goes by the pointer.
+    if (!list->GetCellTextRectPx (row, (size_t) column, anchor))
+    {
+        anchor = RECT { clientPx.x - bounds.left, clientPx.y - bounds.top, clientPx.x - bounds.left + 1, clientPx.y - bounds.top + 1 };
+    }
+
+    OffsetRect (&anchor, bounds.left, bounds.top);
+    text = (*cells)[(size_t) column].tip;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetBranchTip
+//
+//  Over the PC's branch arrow, in any view: whether the branch is taken, and
+//  why, from the instruction at the PC and the flags as they stand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    BranchArrow::Input  input;
+    Word                goesTo      = 0;
+    bool                isTaken     = true;
+    std::string         instruction;
+
+
+
+    if (m_snapshot == nullptr)
+    {
+        return false;
+    }
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
+        {
+            instruction = line.isCurrent ? line.instruction : instruction;
+        }
+    }
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + (int) m_sourceDocs.size(); view++)
+    {
+        input = BranchArrow::Input();
+
+        if (!GetBranchArrow (view, input, goesTo, isTaken) ||
+            !BranchArrow::HitTest (input, (float) clientPx.x, (float) clientPx.y))
+        {
+            continue;
+        }
+
+        anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+        text   = ColorLegend::GetBranchTip (instruction, isTaken, GetRegisterByte ("P"));
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetGraphicTip
+//
+//  Over a device panel's disk head, what its colors mean; over the status
+//  bar's history section, what its meter's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        DiskHeadView  * head = pane->GetHead();
+
+        if (head == nullptr || !IsRoutable (head))
+        {
+            continue;
+        }
+
+        text = head->GetColorTipAt (clientPx);
+
+        if (!text.empty())
+        {
+            anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+            return true;
+        }
+    }
+
+    if (m_routingPane.empty() && m_statusBar != nullptr && m_statusBar->IsVisible() &&
+        m_statusBar->FindFieldAt (clientPx) == (int) kStatusHistory &&
+        DebuggerStatusText::GetHistoryFill (m_snapshot != nullptr ? m_snapshot->history : HistoryStatus()) >= 0.0f)
+    {
+        anchor = m_statusBar->GetFieldRect (kStatusHistory);
+        text   = ColorLegend::GetHistoryMeterTip();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetColorPalette
+//
+//  Every color the legend shows, as the panes draw them in the theme in
+//  force.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ColorLegend::Palette DebuggerWindow::GetColorPalette() const
+{
+    ColorLegend::Palette  palette;
+
+
+
+    palette.text       = GetTextColors();
+    palette.background = (m_theme != nullptr) ? m_theme->ContentBackground()  : 0xFF000000;
+    palette.muted      = (m_theme != nullptr) ? m_theme->ForegroundMuted()    : 0xFF808080;
+    palette.disabled   = (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080;
+    palette.accent     = (m_theme != nullptr) ? m_theme->Accent()             : 0xFF3C8CE6;
+    palette.flash      = (m_theme != nullptr) ? DiskHeadView::GetFlashColor (*m_theme) : 0xFFFFFFFF;
+    palette.pcMarker   = GetPcMarkerArgb();
+    palette.breakpoint = GetBreakpointArgb();
+    palette.meterEmpty = DebuggerStatusText::kEmptyArgb;
+    palette.meterFull  = DebuggerStatusText::kFullArgb;
+
+    return palette;
 }
 
 

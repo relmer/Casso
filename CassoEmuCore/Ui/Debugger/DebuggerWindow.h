@@ -9,6 +9,8 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ByteChanges.h"
+#include "Ui/Debugger/ColorLegend.h"
+#include "Ui/Debugger/ColorLegendDialog.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
@@ -481,6 +483,14 @@ protected:
     bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
     void             FitHistoryField     (IDxuiTextRenderer & text);
 
+    //  Protected so a test can read the tip that says what a color means where
+    //  the pointer rests: over a list's cell, the PC's branch arrow, the disk
+    //  head or the history meter. And the colors the legend shows.
+    bool                  TryGetCellTip    (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    ColorLegend::Palette  GetColorPalette  () const;
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     //  m_theme is the one in force, m_emulatorTheme the emulator's, which a
@@ -653,6 +663,7 @@ private:
     void     ResetPaneLayout      ();
     void     OpenSourceFile       ();
     void     OpenReverseOptions   ();
+    void     OpenColorLegend      ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
     void     ConfigureCodeBars    ();
@@ -919,6 +930,7 @@ private:
     DxuiToolbar                                                                    * m_commandBar         = nullptr;
     DxuiMenuBar                                                                    * m_menuBar            = nullptr;
     std::vector<DxuiMenuBarItem>                                                     m_menuBarItems;
+    std::unique_ptr<ColorLegendDialog>                                               m_colorLegend;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleBarSlot;
     DxuiToolbar                                                                    * m_consoleBar         = nullptr;
     std::shared_ptr<DxuiCommand>                                                     m_dialectCommand;

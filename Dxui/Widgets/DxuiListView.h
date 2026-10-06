@@ -85,6 +85,10 @@ public:
         //  Honored where the cell is drawn in one color.
         const wchar_t   * face       = nullptr;
         DxuiFontWeight    weight     = DxuiFontWeight::Normal;
+
+        //  A tip for the host to show over the cell, such as what its color
+        //  means. The list keeps it with the cell and never draws it.
+        std::wstring      tip;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates

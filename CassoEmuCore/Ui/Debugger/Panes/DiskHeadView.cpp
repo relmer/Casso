@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/DiskHeadView.h"
+#include "Ui/Debugger/ColorLegend.h"
 
 
 
@@ -83,19 +84,40 @@ void DiskHeadView::Tick (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskHeadView::GetFlashColor
+//
+//  White on a dark ruler and the text color on a light one, so the flash
+//  stands out from the accent either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskHeadView::GetFlashColor (const IDxuiTheme & theme)
+{
+    constexpr float     kDarkRuler = 0.4f;
+    constexpr uint32_t  kWhite     = 0xFFFFFFFFu;
+
+
+
+    return DxuiColor::ComputeRelativeLuminance (theme.ControlBackground()) < kDarkRuler ? kWhite : theme.Foreground();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskHeadView::GetHeadColor
 //
-//  The flash is white on a dark ruler and the text color on a light one, so
-//  it stands out from the accent either way.
+//  Muted while the motor rests, the flash on the move and as the head
+//  arrives, then settling to the accent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint32_t DiskHeadView::GetHeadColor (const IDxuiTheme & theme) const
 {
-    constexpr float     kDarkRuler = 0.4f;
-    constexpr uint32_t  kWhite     = 0xFFFFFFFFu;
-    uint32_t            flash      = DxuiColor::ComputeRelativeLuminance (theme.ControlBackground()) < kDarkRuler ? kWhite : theme.Foreground();
-    float               settled    = 0.0f;
+    uint32_t  flash   = GetFlashColor (theme);
+    float     settled = 0.0f;
 
 
 
@@ -111,6 +133,49 @@ uint32_t DiskHeadView::GetHeadColor (const IDxuiTheme & theme) const
 
     settled = std::clamp ((float) (m_nowMs - m_arriveMs) / (float) kSettleMs, 0.0f, 1.0f);
     return DxuiColor::Mix (flash, theme.Accent(), settled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::GetColorTipAt
+//
+//  Over the ruler, what the head's color says of it: resting with the motor
+//  off, stepping, or settled on its track. Below it, what a lit lamp means.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskHeadView::GetColorTipAt (POINT clientPx) const
+{
+    ColorLegend::Meaning  meaning = ColorLegend::Meaning::HeadSettled;
+    bool                  inside  = clientPx.x >= m_boundsDip.left && clientPx.x < m_boundsDip.right &&
+                                    clientPx.y >= m_boundsDip.top  && clientPx.y < m_boundsDip.bottom;
+
+
+
+    if (!m_visible || !inside)
+    {
+        return {};
+    }
+
+    if (clientPx.y >= m_boundsDip.top + m_scaler.ToPx (kRulerDip))
+    {
+        return ColorLegend::GetText (ColorLegend::Meaning::LampLit);
+    }
+
+    if (!m_head.motorOn)
+    {
+        meaning = ColorLegend::Meaning::HeadMotorOff;
+    }
+    else if (m_shown != (double) m_head.quarterTrack)
+    {
+        meaning = ColorLegend::Meaning::HeadMoving;
+    }
+
+    return ColorLegend::GetText (meaning);
 }
 
 

@@ -186,9 +186,9 @@ std::wstring DebuggerWindow::GetViewMenuGroup (const std::wstring & pane)
 //
 //  DebuggerWindow::SetWindowMenus
 //
-//  File, Edit, View, Debug, Window and Tools. View lists every debug window,
-//  Window the machine's device panels and the layout reset, and Tools the
-//  key schemes. Rebuilt whenever what they list changes, since the rows
+//  File, Edit, View, Debug, Window, Tools and Help. View lists every debug
+//  window, Window the machine's device panels and the layout reset, Tools the
+//  key schemes, and Help the colors' legend. Rebuilt whenever what they list changes, since the rows
 //  carry the state they were built with; a menu that is open keeps its rows
 //  until it closes.
 //
@@ -201,6 +201,7 @@ void DebuggerWindow::SetWindowMenus()
     std::vector<DxuiPopupMenuItem>               view;
     std::vector<DxuiPopupMenuItem>               debug;
     std::vector<DxuiPopupMenuItem>               tools;
+    std::vector<DxuiPopupMenuItem>               help;
     std::vector<DxuiPopupMenuItem>               schemes;
     std::vector<DxuiPopupMenuItem>               themes;
     std::shared_ptr<DxuiCommand>                 row;
@@ -398,6 +399,9 @@ void DebuggerWindow::SetWindowMenus()
     tools.push_back (DxuiPopupMenuItem::ForSeparator());
     add (tools, MakeMenuCommand (L"Options...", false, [this] { OpenReverseOptions(); }));
 
+    //  Help: what the window's colors mean.
+    add (help, MakeMenuCommand (L"Colors", false, [this] { OpenColorLegend(); }));
+
     m_menuBarItems =
     {
         { L"&File",   0, std::move (file)   },
@@ -405,6 +409,7 @@ void DebuggerWindow::SetWindowMenus()
         { L"&View",   0, std::move (view)   },
         { L"&Debug",  0, std::move (debug)  },
         { L"&Tools",  0, std::move (tools)  },
+        { L"&Help",   0, std::move (help)   },
     };
 
     if (m_menuBar != nullptr && !m_menuBar->IsOpen())
@@ -442,6 +447,34 @@ void DebuggerWindow::OpenReverseOptions()
     {
         m_host->SetReverseOptions (*chosen);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenColorLegend
+//
+//  Help > Colors: the legend, in the colors of the theme in force, beside the
+//  window. It stays open while the debugger is used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenColorLegend()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_colorLegend == nullptr)
+    {
+        m_colorLegend = std::make_unique<ColorLegendDialog>();
+    }
+
+    hr = m_colorLegend->Open (GetHwnd(), m_theme, GetColorPalette());
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

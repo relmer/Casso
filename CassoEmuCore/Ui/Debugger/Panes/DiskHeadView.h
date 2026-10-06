@@ -49,6 +49,13 @@ public:
     float                        GetHeadX     () const;
     float                        GetHeadWidth () const;
 
+    //  What the colors under a point mean, for the tip there; empty off the
+    //  view.
+    std::wstring                 GetColorTipAt (POINT clientPx) const;
+
+    //  The marker's color on the move and as it arrives.
+    static uint32_t              GetFlashColor (const IDxuiTheme & theme);
+
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     void                Tick              (int64_t nowMs) override;

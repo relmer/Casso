@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Ui/Debugger/ColorLegend.h"
 
 #include "Debugger/CallStack.h"
 
@@ -132,6 +133,13 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
         return cells;
     }
 
+    //  A dimmed frame is unverified, or the last return, which has left the
+    //  stack; the tip over it says which.
+    for (DxuiListView::Cell & cell : cells)
+    {
+        cell.tip = !row.isDim ? L"" : ColorLegend::GetText (row.isReturn ? ColorLegend::Meaning::LastReturn : ColorLegend::Meaning::UnverifiedFrame);
+    }
+
     if (row.isDim || row.isBreak || colors.syntax.address == 0)
     {
         return cells;
@@ -235,9 +243,10 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
 
     if (data.lastReturn.has_value())
     {
-        row         = frameRow (*data.lastReturn);
-        row.foundBy = widen (data.lastReturn->note);
-        row.isDim   = true;
+        row          = frameRow (*data.lastReturn);
+        row.foundBy  = widen (data.lastReturn->note);
+        row.isDim    = true;
+        row.isReturn = true;
         rows.push_back (row);
     }
 

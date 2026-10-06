@@ -170,8 +170,8 @@ namespace DebuggerMenuBarTests
     //
     //  DebuggerWindowMenuBarTests
     //
-    //  The window's menu bar: File, Edit, View, Debug, Window and Tools, with
-    //  what the command bar's drop-downs used to hold.
+    //  The window's menu bar: File, Edit, View, Debug, Window, Tools and Help,
+    //  with what the command bar's drop-downs used to hold.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +179,7 @@ namespace DebuggerMenuBarTests
     {
     public:
 
-        TEST_METHOD (MenuBarHoldsFileEditViewDebugWindowAndTools)
+        TEST_METHOD (MenuBarHoldsFileEditViewDebugToolsAndHelp)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
             MenuBarHost    host;
@@ -195,12 +195,14 @@ namespace DebuggerMenuBarTests
                 titles.push_back (item.label);
             }
 
-            Assert::AreEqual (5, (int) titles.size());
+            Assert::AreEqual (6, (int) titles.size());
             Assert::AreEqual (std::wstring (L"&File"),   titles[0]);
             Assert::AreEqual (std::wstring (L"&Edit"),   titles[1]);
             Assert::AreEqual (std::wstring (L"&View"),   titles[2]);
             Assert::AreEqual (std::wstring (L"&Debug"),  titles[3]);
             Assert::AreEqual (std::wstring (L"&Tools"),  titles[4]);
+            Assert::AreEqual (std::wstring (L"&Help"),   titles[5]);
+            Assert::IsNotNull (MenuRows::GetRow (window.GetMenuBarItems(), L"&Help", L"Colors"), L"no Colors in Help");
         }
 
 
