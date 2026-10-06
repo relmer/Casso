@@ -474,6 +474,9 @@
     <ClCompile Include="UpdateTests\ReleaseNotesFormatterTests.cpp" />
     <ClCompile Include="UpdateTests\ReleaseVersionTests.cpp" />
     <ClCompile Include="UpdateTests\UpdateScheduleTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateServiceTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateDialogModelTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesLayoutTests.cpp" />
     <ClCompile Include="UpdateTests\ZipArchiveTests.cpp" />
     <ClCompile Include="UpdateTests\ZipUpdateInstallerTests.cpp" />
     <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
@@ -620,6 +623,10 @@
     <ClInclude Include="UpdateTests\FakeSignatureVerifier.h" />
     <ClInclude Include="UpdateTests\MockUpdateFileSystem.h" />
     <ClInclude Include="UpdateTests\TestZipBuilder.h" />
+    <ClInclude Include="UpdateTests\FakePackageDeployer.h" />
+    <ClInclude Include="UpdateTests\FakeUpdateHost.h" />
+    <ClInclude Include="UpdateTests\MockHttpClient.h" />
+    <ClInclude Include="UpdateTests\RecordingResultPoster.h" />
     <ClInclude Include="Casso\FakeHostClipboard.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
     <ClInclude Include="EmuTests\GuestSession.h" />

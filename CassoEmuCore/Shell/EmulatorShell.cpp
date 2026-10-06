@@ -201,6 +201,10 @@ EmulatorShell::~EmulatorShell()
     SetNotifyFunction (nullptr);
     s_pNotifyShell = nullptr;
 
+    // The update workers next: a download in flight is canceled, and every
+    // worker is joined before anything it posts to or reads from goes.
+    StopUpdateService();
+
     //  THE CONTROLLER STACK GOES BY HAND, HERE, for the same reason. Its
     //  members are declared after the window, so member-order destruction
     //  leaves the HWND alive and dispatching messages after the service is

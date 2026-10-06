@@ -201,6 +201,11 @@
     <ClCompile Include="Update\ReleaseVersion.cpp" />
     <ClCompile Include="Update\Sha256Digest.cpp" />
     <ClCompile Include="Update\UpdateSchedule.cpp" />
+    <ClCompile Include="Update\UpdateService.cpp" />
+    <ClCompile Include="Update\UpdateDialogModel.cpp" />
+    <ClCompile Include="Update\UpdateRuntime.cpp" />
+    <ClCompile Include="Update\Win32UpdateHost.cpp" />
+    <ClCompile Include="Update\WindowUpdateResultPoster.cpp" />
     <ClCompile Include="Update\Win32InstallEnvironment.cpp" />
     <ClCompile Include="Update\Win32UpdateFileSystem.cpp" />
     <ClCompile Include="Update\ZipArchive.cpp" />
@@ -381,6 +386,7 @@
     <ClCompile Include="Print\PrinterWorker.cpp" />
     <ClCompile Include="Print\PrintJobStore.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
+    <ClCompile Include="Ui\Chrome\UpdateIndicatorButton.cpp" />
     <ClCompile Include="Ui\CreateDiskBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerDialog.cpp" />
@@ -423,6 +429,10 @@
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
     <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\SalvageDialogContent.cpp" />
+    <ClCompile Include="Ui\Dialogs\ReleaseNotesLayout.cpp" />
+    <ClCompile Include="Ui\Dialogs\ReleaseNotesView.cpp" />
+    <ClCompile Include="Ui\Dialogs\UpdateDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\UpdateDialogContent.cpp" />
     <ClCompile Include="Ui\Dialogs\CreateDiskDialog.cpp" />
     <ClCompile Include="Ui\FileBrowseModel.cpp" />
     <ClCompile Include="Ui\Dialogs\DownloadBodyPanel.cpp" />
@@ -467,6 +477,7 @@
     <ClCompile Include="Shell\EmulatorShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
     <ClCompile Include="Shell\EmulatorShellDialogs.cpp" />
+    <ClCompile Include="Shell\EmulatorShellUpdate.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrinter.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebug.cpp" />
     <ClCompile Include="RichEditSquiggle.cpp" />
@@ -515,6 +526,14 @@
     <ClInclude Include="Update\Sha256Digest.h" />
     <ClInclude Include="Update\UpdateFailure.h" />
     <ClInclude Include="Update\UpdateSchedule.h" />
+    <ClInclude Include="Update\UpdateService.h" />
+    <ClInclude Include="Update\UpdateDialogModel.h" />
+    <ClInclude Include="Update\UpdateRuntime.h" />
+    <ClInclude Include="Update\Win32UpdateHost.h" />
+    <ClInclude Include="Update\WindowUpdateResultPoster.h" />
+    <ClInclude Include="Update\UpdateResult.h" />
+    <ClInclude Include="Update\IUpdateHost.h" />
+    <ClInclude Include="Update\IUpdateResultPoster.h" />
     <ClInclude Include="Update\Win32InstallEnvironment.h" />
     <ClInclude Include="Update\Win32UpdateFileSystem.h" />
     <ClInclude Include="Update\ZipArchive.h" />
@@ -743,6 +762,10 @@
     <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
     <ClInclude Include="Ui\Dialogs\MessageDialog.h" />
     <ClInclude Include="Ui\Dialogs\SalvageDialogContent.h" />
+    <ClInclude Include="Ui\Dialogs\ReleaseNotesLayout.h" />
+    <ClInclude Include="Ui\Dialogs\ReleaseNotesView.h" />
+    <ClInclude Include="Ui\Dialogs\UpdateDialog.h" />
+    <ClInclude Include="Ui\Dialogs\UpdateDialogContent.h" />
     <ClInclude Include="Ui\Dialogs\CreateDiskDialog.h" />
     <ClInclude Include="Ui\FileBrowseModel.h" />
     <ClInclude Include="Ui\Dialogs\DownloadBodyPanel.h" />
@@ -750,6 +773,7 @@
     <ClInclude Include="Ui\Dialogs\DownloadDialog.h" />
     <ClInclude Include="Ui\Dialogs\StartupDownloadDialog.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
+    <ClInclude Include="Ui\Chrome\UpdateIndicatorButton.h" />
     <ClInclude Include="Ui\CreateDiskBodyPanel.h" />
     <ClInclude Include="Ui\PickerBodyPanel.h" />
     <ClInclude Include="Ui\PickerDialog.h" />

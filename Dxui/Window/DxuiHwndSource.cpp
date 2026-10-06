@@ -3767,6 +3767,46 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetCaptionAccessory
+//
+//  Hands the control to the caption and lays the caption out again at once,
+//  so the control has its column before the next paint rather than after
+//  the next resize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetCaptionAccessory (IDxuiControl * accessory)
+{
+    RECT  clientPx  = {};
+    RECT  clientDip = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_caption)
+    {
+        return;
+    }
+
+    m_caption->SetAccessory (accessory);
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &clientPx))
+    {
+        clientDip        = clientPx;
+        clientDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+        clientDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+        LayoutCaption (clientDip);
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetCaptionHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////

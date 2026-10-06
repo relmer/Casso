@@ -395,6 +395,11 @@ public:
     // next layout pass picks up the height change.
     void          SetCaptionVisible (bool visible) { m_captionVisible = visible; }
 
+    // A consumer control shown in the host caption, left of the system
+    // buttons (see DxuiCaptionBar::SetAccessory). Non-owning; pass null to
+    // remove it before the control is destroyed. No-op without a host caption.
+    void          SetCaptionAccessory (IDxuiControl * accessory);
+
     // Turns the resize borders off and on at runtime. A window that has gone
     // borderless-fullscreen fills the monitor and has nothing to resize TO:
     // its edges are screen edges, and the classifier would still hand back

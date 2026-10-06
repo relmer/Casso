@@ -313,6 +313,14 @@ HRESULT SettingsSheet::OpenModeless (
         m_emuShell->SetCrtMonitorEnabled (enabled);
     });
 
+    // The daily update check: live and persisted on the click, like the CRT
+    // opt-in above, so Cancel has nothing to revert.
+    m_themePage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
+    m_themePage->SetOnAutoUpdateToggled ([this] (bool enabled)
+    {
+        m_emuShell->SetAutoUpdateCheck (enabled);
+    });
+
     // Scene antialiasing rides the same live-and-persist channel: the cost is
     // what the user is judging, so they need to see it change while they drag.
     m_themePage->SetAntiAliasingSamples (prefs.sceneAntiAliasing);

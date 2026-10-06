@@ -66,6 +66,11 @@ public:
     void  SetAppIcon       (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     void  SetMaximized     (bool maximized);
 
+    // A consumer's control shown in a caption-button column to the left of
+    // the system buttons (non-owning; null removes it). Laid out in DIPs like
+    // the system buttons; hidden, it takes no room from the title.
+    void  SetAccessory     (IDxuiControl * accessory);
+
     // Natural caption-strip height in physical pixels for the given DPI;
     // the host reserves this band at the top and lays content out below.
     int   GetPreferredHeightPx  (const DxuiDpiScaler & scaler) const;
@@ -97,4 +102,5 @@ private:
     std::unique_ptr<DxuiSystemButton>  m_minBtn;
     std::unique_ptr<DxuiSystemButton>  m_maxBtn;
     std::unique_ptr<DxuiSystemButton>  m_closeBtn;
+    IDxuiControl                     * m_accessory     = nullptr;
 };

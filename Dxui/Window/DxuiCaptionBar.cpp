@@ -166,6 +166,42 @@ void DxuiCaptionBar::SetMaximized (bool maximized)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetAccessory
+//
+//  Adopts the consumer's control into the caption so it paints over the
+//  gradient and takes part in hit classification. The previous one, if any,
+//  is released first; the caption never owns either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCaptionBar::SetAccessory (IDxuiControl * accessory)
+{
+    HRESULT  hrRemove = S_OK;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_accessory != nullptr)
+    {
+        hrRemove = RemoveAdopted (*m_accessory);
+        IGNORE_RETURN_VALUE (hrRemove, S_OK);
+    }
+
+    m_accessory = accessory;
+
+    if (m_accessory != nullptr)
+    {
+        Adopt (*m_accessory);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetPreferredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,6 +298,12 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         m_minBtn->Layout (rc, scaler);
         right -= kButtonWidthDip;
     }
+
+    if (m_accessory != nullptr)
+    {
+        rc = { right - kButtonWidthDip, top, right, bottom };
+        m_accessory->Layout (rc, scaler);
+    }
 }
 
 
@@ -335,6 +377,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
 
     buttonCount   = (m_buttons == Buttons::MinMaxClose) ? 3 : (m_buttons == Buttons::CloseOnly ? 1 : 0);
+    buttonCount  += (m_accessory != nullptr && m_accessory->IsVisible()) ? 1 : 0;
     buttonStripPx = (float) buttonCount * m_scaler.ToPxf ((float) kButtonWidthDip);
 
     textLeftPx   = xPx + textOffsetPx;

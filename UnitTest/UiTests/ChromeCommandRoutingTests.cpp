@@ -65,6 +65,7 @@ public:
         IDM_VIEW_DISK2_DEBUG,
 
         IDM_HELP_KEYMAP,
+        IDM_HELP_CHECK_UPDATES,
         IDM_HELP_ABOUT,
     };
 
@@ -144,6 +145,7 @@ public:
         { L"IDM_VIEW_CONTROLLER_SETTINGS",  IDM_VIEW_CONTROLLER_SETTINGS  },
         { L"IDM_DEBUG_SAVE_TRACE",          IDM_DEBUG_SAVE_TRACE          },
         { L"IDM_HELP_KEYMAP",              IDM_HELP_KEYMAP               },
+        { L"IDM_HELP_CHECK_UPDATES",       IDM_HELP_CHECK_UPDATES        },
         { L"IDM_HELP_ABOUT",                IDM_HELP_ABOUT                },
     };
 
@@ -229,6 +231,12 @@ public:
     {
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE1) == WindowCommandRoute::Disk);
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE2) == WindowCommandRoute::Disk);
+    }
+
+
+    TEST_METHOD (Check_For_Updates_Routes_To_The_Help_Handler)
+    {
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_HELP_CHECK_UPDATES) == WindowCommandRoute::Help);
     }
 
 

@@ -50,6 +50,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
     { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
     { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },
+    { IDM_HELP_CHECK_UPDATES,       MainMenuId::Help,    L"&Check for updates...",  nullptr          },
     { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
     { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
     { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },

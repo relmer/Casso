@@ -293,6 +293,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
+    // The update indicator sits in the caption, above every band, so a move
+    // over it is its own and nothing below sees it.
+    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     // The compass sees every move: armed, it owns the gesture; idle, the
     // call is what keeps its hover highlight honest. Ahead of the drags
     // below because a press the compass took must never feed the orbit's
@@ -582,6 +589,11 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
 
     m_uiShell.OnMouseLeave();
+
+    if (m_updateIndicator.SetHovered (false))
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
 
     // Drop drive marquee-hover state so re-entering the window re-triggers
     // the basename scroll.
@@ -1161,6 +1173,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (m_paddleCaptured, S_OK);
 
+    // The caption's update indicator, ahead of the capture and every band:
+    // nothing else lives in the caption strip's client area.
+    if (OfferMouseToUpdateIndicator (DxuiMouseEventKind::Down, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     SetCapture (m_hwnd);
 
     // A mouse press drops the keyboard chrome-focus ring: clicking anywhere
@@ -1428,6 +1447,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (!m_paddleCaptured)
     {
         ReleaseCapture();
+    }
+
+    //  The update indicator's own press ends here, and its click is this
+    //  release landing on it.
+    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
+    {
+        return DxuiMessageResult::Handled;
     }
 
     //  The release is what makes a button fire, so the bar has to see both

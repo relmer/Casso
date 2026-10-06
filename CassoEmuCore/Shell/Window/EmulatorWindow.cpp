@@ -1414,6 +1414,12 @@ int EmulatorShell::RunMessageLoop()
         {
             WaitForFrameOrMessage();
         }
+        else if (!m_updateCheckStarted)
+        {
+            // After the first frame is on screen, so the update check never
+            // stands between a launch and a picture.
+            StartAutomaticUpdateCheck();
+        }
     }
 
     m_cpuManager.Stop();
@@ -2538,6 +2544,20 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         if (carried != nullptr)
         {
             HandleMountCompletion (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A piece of update work finished on the update service's thread.
+    if (msg == WM_APP_UPDATE_RESULT)
+    {
+        UpdateResult *  carried = reinterpret_cast<UpdateResult *> (lParam);
+
+        if (carried != nullptr)
+        {
+            HandleUpdateResult (*carried);
             delete carried;
         }
 

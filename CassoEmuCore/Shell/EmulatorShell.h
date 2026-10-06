@@ -46,6 +46,8 @@
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Ui/Chrome/MainMenu.h"
+#include "Ui/Chrome/UpdateIndicatorButton.h"
+#include "Update/UpdateRuntime.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/Disk2DebugPanel.h"
@@ -71,6 +73,7 @@ class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
+class UpdateDialog;
 struct MonitorSpec;
 
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
@@ -222,6 +225,15 @@ public:
     // and read by UpdateWindowTitle. Set before the window exists, so it does
     // not refresh the caption itself.
     void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
+
+    // A launch by a finished zip update (--updated, --cleanup-old <pid>).
+    // Set before Initialize; the old files are removed once the first frame
+    // is up and the old process has exited.
+    void SetUpdateLaunch      (bool wasUpdated, DWORD cleanupOldPid) { m_wasLaunchedByUpdate = wasUpdated; m_cleanupOldPid = cleanupOldPid; }
+
+    // Settings > Theme: whether the once-a-day update check runs. Saved
+    // immediately, like the other live toggles on that page.
+    void SetAutoUpdateCheck   (bool enabled);
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void    DumpTrace        (const wstring & reason);
     HRESULT WriteTrace       (const wstring & reason, std::wstring & path);
@@ -1377,6 +1389,36 @@ private:
     // back into the mount path. Takes the mount's own HRESULT and hands
     // it to DiskMru, which drops anything that did not actually mount.
     void    RecordRecentDisk     (const std::wstring & path, HRESULT mountResult);
+
+    // Update notification and self-update (EmulatorShellUpdate.cpp). The
+    // service does the slow work on its own threads and posts each result
+    // back as WM_APP_UPDATE_RESULT; everything here runs on the UI thread.
+    UpdateService *        GetUpdateService            ();
+    void                   StartAutomaticUpdateCheck   ();
+    void                   CheckForUpdatesNow          ();
+    void                   HandleUpdateResult          (UpdateResult & result);
+    void                   HandleUpdateCheckResult     (UpdateResult & result);
+    void                   HandleUpdateApplyResult     (UpdateResult & result);
+    void                   ShowUpdateIndicator         (bool isShown);
+    void                   OpenUpdateDialog            ();
+    void                   ReportUpdateCheckFailure    (UpdateFailure failure);
+    void                   ReportUpToDate              ();
+    void                   SkipOfferedRelease          ();
+    void                   StopUpdateService           ();
+    bool                   OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx, int yPx);
+    void                   OpenUrl                     (const std::wstring & url);
+    static ReleaseVersion  GetRunningVersion           ();
+
+    std::unique_ptr<UpdateRuntime>  m_updateRuntime;
+    UpdateIndicatorButton           m_updateIndicator;
+    UpdateDialog                  * m_updateDialog          = nullptr;
+    ReleaseInfo                     m_updateRelease;
+    InstallType                     m_updateInstallType     = InstallType::Unknown;
+    bool                            m_hasUpdateRelease      = false;
+    bool                            m_updateCheckStarted    = false;
+    bool                            m_isManualCheckPending  = false;
+    bool                            m_wasLaunchedByUpdate   = false;
+    DWORD                           m_cleanupOldPid         = 0;
 
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend
