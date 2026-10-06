@@ -27,7 +27,9 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     uint32_t muted,
     uint32_t resultText,
     uint32_t accent,
-    uint32_t changedText)
+    uint32_t changedText,
+    uint32_t romText,
+    uint32_t ioText)
 {
     Set                    set;
     bool                   dark    = IsDark (background);
@@ -67,6 +69,12 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     //  the page, or on a light page's darkest row shade: a row fill lifts it
     //  where it sits on one, by GetChangedOn.
     set.changed = GetReadable (changedText != 0 ? changedText : (dark ? 0xFFFF6B68 : 0xFFD00000), dark ? background : GetRowShade (background));
+
+    //  A memory window's ROM and I/O bytes take the theme's own colors, or,
+    //  for a theme with none, a blue and a gray for the page's darkness, held
+    //  to the same ratio as the changed red.
+    set.rom = GetReadable (romText != 0 ? romText : (dark ? 0xFF7FB2E5 : 0xFF1F5FA8), dark ? background : GetRowShade (background));
+    set.io  = GetReadable (ioText  != 0 ? ioText  : (dark ? 0xFF909090 : 0xFF6A6A6A), dark ? background : GetRowShade (background));
 
     return set;
 }

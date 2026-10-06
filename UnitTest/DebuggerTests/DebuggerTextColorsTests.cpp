@@ -52,8 +52,10 @@ public:
         {
             const DxuiTheme &        theme  = DebuggerThemes::Choose (choice.name, emulator, light, dark, own);
             uint32_t                 bg     = theme.ContentBackground();
-            DebuggerTextColors::Set  colors = DebuggerTextColors::Make (bg, theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent(), theme.changedText);
+            DebuggerTextColors::Set  colors = DebuggerTextColors::Make (bg, theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent(), theme.changedText, theme.romText, theme.ioText);
 
+            CheckRatio (choice.name, L"ROM",        colors.rom,              bg, failures);
+            CheckRatio (choice.name, L"I/O",        colors.io,               bg, failures);
             CheckRatio (choice.name, L"mnemonic",   colors.syntax.mnemonic,  bg, failures);
             CheckRatio (choice.name, L"directive",  colors.syntax.directive, bg, failures);
             CheckRatio (choice.name, L"symbol",     colors.syntax.symbol,    bg, failures);
@@ -70,6 +72,31 @@ public:
 
         Logger::WriteMessage (failures.c_str());
         Assert::IsTrue (failures.empty(), failures.c_str());
+    }
+
+
+
+    //  A memory window's ROM and I/O colors are each theme's own: the
+    //  Skeuomorphic theme's light blue ROM reads as it is, so it is unmoved,
+    //  and a theme without them gets colors for its darkness.
+    TEST_METHOD (RomAndIoColorsComeFromTheTheme)
+    {
+        CassoTheme               skeuo  = CassoTheme::MakeSkeuomorphic();
+        DxuiLightTheme           light;
+        DebuggerTextColors::Set  colors;
+
+
+
+        Assert::AreEqual (0xFF7FB2E5u, skeuo.romText, L"the Skeuomorphic theme's ROM blue");
+        Assert::AreNotEqual (0u, skeuo.ioText, L"and an I/O color of its own");
+
+        colors = DebuggerTextColors::Make (skeuo.ContentBackground(), skeuo.Foreground(), skeuo.ForegroundMuted(), skeuo.resultText, skeuo.Accent(), skeuo.changedText, skeuo.romText, skeuo.ioText);
+        Assert::AreEqual (skeuo.romText, colors.rom, L"unmoved, since it reads on the page");
+
+        colors = DebuggerTextColors::Make (light.ContentBackground(), light.Foreground(), light.ForegroundMuted(), light.resultText, light.Accent(), light.changedText, light.romText, light.ioText);
+        Assert::AreNotEqual (0u, colors.rom, L"a theme without one still gets a ROM color");
+        Assert::AreNotEqual (0u, colors.io,  L"and an I/O color");
+        Assert::AreNotEqual (colors.rom, colors.io, L"the two differ");
     }
 
 

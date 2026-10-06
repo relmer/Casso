@@ -41,6 +41,10 @@ public:
         SourceSyntax::Colors  syntax;
         uint32_t              annotation     = 0;
         uint32_t              changed        = 0;
+
+        //  A memory window's ROM bytes and I/O bytes.
+        uint32_t              rom            = 0;
+        uint32_t              io             = 0;
         uint32_t              result         = 0;
         uint32_t              muted          = 0;
 
@@ -54,14 +58,16 @@ public:
         uint32_t              navigatedRow   = 0;
     };
 
-    //  `resultText` or `changedText` of zero means the theme gives no color
-    //  of its own for it.
+    //  `resultText`, `changedText`, `romText` or `ioText` of zero means the
+    //  theme gives no color of its own for it.
     static Set       Make        (uint32_t background,
                                   uint32_t foreground,
                                   uint32_t muted,
                                   uint32_t resultText,
                                   uint32_t accent      = 0xFF3C8CE6,
-                                  uint32_t changedText = 0);
+                                  uint32_t changedText = 0,
+                                  uint32_t romText     = 0,
+                                  uint32_t ioText      = 0);
 
     //  The changed color on a row filled with `fill`, moved until it reads
     //  there; a zero `fill` is the page, where it is `set.changed` itself.

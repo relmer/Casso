@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 
@@ -47,8 +48,9 @@ public:
 
     void  Configure (HWND hwnd);
 
-    //  The ink for a byte that changed since the previous snapshot.
-    void  SetChangedColor (uint32_t argb) { m_changedArgb = argb; }
+    //  The inks for a byte that changed since the previous snapshot, a ROM
+    //  byte and an I/O byte, from the theme's text colors.
+    void  SetTextColors (const DebuggerTextColors::Set & colors) { m_changedArgb = colors.changed; m_romArgb = colors.rom; m_ioArgb = colors.io; }
 
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }
@@ -110,4 +112,6 @@ private:
     int                    m_columns     = kDefaultColumns;
     std::optional<Word>    m_requested;
     uint32_t               m_changedArgb = 0xFFFF6B68;
+    uint32_t               m_romArgb     = 0xFF7FB2E5;
+    uint32_t               m_ioArgb      = 0xFF909090;
 };

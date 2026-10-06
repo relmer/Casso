@@ -6,11 +6,6 @@
 
 
 
-//  I/O and ROM bytes are colored, so a window shows at a glance which bytes an
-//  edit cannot reach and which it patches rather than writes.
-static constexpr uint32_t  s_kIoArgb  = 0xFF808080;
-static constexpr uint32_t  s_kRomArgb = 0xFF7FB2E5;
-
 //  Rows kept above the ones on screen when a new read is asked for, so a short
 //  scroll back does not ask again.
 static constexpr int       s_kLeadRows = 8;
@@ -69,11 +64,11 @@ void MemoryPane::Configure (HWND hwnd)
         }
         else if (mark == MemoryEditModel::kMarkIo)
         {
-            outArgb = s_kIoArgb;
+            outArgb = m_ioArgb;
         }
         else if (mark == MemoryEditModel::kMarkRom)
         {
-            outArgb = s_kRomArgb;
+            outArgb = m_romArgb;
         }
 
         return mark != MemoryEditModel::kMarkNone;

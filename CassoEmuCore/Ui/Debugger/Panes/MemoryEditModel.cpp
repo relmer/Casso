@@ -200,13 +200,29 @@ bool MemoryEditModel::WriteBytes (uint64_t offset, std::span<const uint8_t> byte
 //  MemoryEditModel::TryGetByteTip
 //
 //  The byte's address, which the view's own offset column gives only for the
-//  first byte of each row.
+//  first byte of each row, then what its color means, as its mark says:
+//  changed, I/O or ROM. Plain RAM has no color and no word.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
 {
+    uint8_t  mark = kMarkNone;
+
+
+
+    ReadMarks (offset, std::span<uint8_t> (&mark, 1));
+
     tip = std::format (L"${:04X}", GetAddressOf (offset));
+
+    switch (mark)
+    {
+    case kMarkChanged: tip += L"  changed"; break;
+    case kMarkIo:      tip += L"  I/O";     break;
+    case kMarkRom:     tip += L"  ROM";     break;
+    default:                                break;
+    }
+
     return true;
 }
 

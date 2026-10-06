@@ -87,6 +87,46 @@ namespace DebuggerTests
         }
 
 
+        //  The address tip says what a byte's color means: changed, I/O or
+        //  ROM, in the order the colors take; plain RAM, or a byte outside
+        //  the read, gives the address alone.
+        TEST_METHOD (TheAddressTipSaysWhatTheBytesColorMeans)
+        {
+            MemoryEditModel                   model;
+            std::vector<std::optional<Byte>>  bytes   = { 0x00, 0x00, 0x00, 0x00 };
+            std::vector<MemoryRegion>         regions = { MemoryRegion::Io, MemoryRegion::Rom, MemoryRegion::SlotRom, MemoryRegion::MainRam };
+            std::wstring                      tip;
+
+
+
+            Show (model, 5);
+            Show (model, 0xAA);
+
+            Assert::IsTrue   (model.TryGetByteTip (0x0305, tip));
+            Assert::AreEqual (std::wstring (L"$0305  changed"), tip);
+
+            Assert::IsTrue   (model.TryGetByteTip (0x0304, tip));
+            Assert::AreEqual (std::wstring (L"$0304"), tip, L"plain RAM");
+
+            model.SetContents (0xC030, bytes, regions);
+
+            Assert::IsTrue   (model.TryGetByteTip (0xC030, tip));
+            Assert::AreEqual (std::wstring (L"$C030  I/O"), tip);
+
+            Assert::IsTrue   (model.TryGetByteTip (0xC031, tip));
+            Assert::AreEqual (std::wstring (L"$C031  ROM"), tip);
+
+            Assert::IsTrue   (model.TryGetByteTip (0xC032, tip));
+            Assert::AreEqual (std::wstring (L"$C032  ROM"), tip, L"a slot's ROM is colored as ROM");
+
+            Assert::IsTrue   (model.TryGetByteTip (0xC033, tip));
+            Assert::AreEqual (std::wstring (L"$C033"), tip);
+
+            Assert::IsTrue   (model.TryGetByteTip (0x0400, tip));
+            Assert::AreEqual (std::wstring (L"$0400"), tip, L"outside the read");
+        }
+
+
         TEST_METHOD (ADisassemblyRowMarksTheBytesThatChanged)
         {
             ByteChanges                       changes;

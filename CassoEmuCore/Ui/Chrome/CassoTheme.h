@@ -100,6 +100,8 @@ struct CassoTheme : public DxuiTheme
         theme.errorText           = 0xFFFF6B6B;
         theme.resultText          = 0xFF4EC9E0;
         theme.changedText         = 0xFFFF4545;
+        theme.romText             = 0xFF7FB2E5;
+        theme.ioText              = 0xFF808080;
         return theme;
     }
 
@@ -149,6 +151,8 @@ struct CassoTheme : public DxuiTheme
         theme.errorText                 = 0xFFFF6B6B;
         theme.resultText                = 0xFF4EC9E0;
         theme.changedText               = 0xFFFF6B68;
+        theme.romText                   = 0xFF7FB2E5;
+        theme.ioText                    = 0xFF909090;
         return theme;
     }
 
@@ -198,6 +202,8 @@ struct CassoTheme : public DxuiTheme
         theme.errorText                 = 0xFFFF6B6B;
         theme.resultText                = 0xFFFFC857;
         theme.changedText               = 0xFFFF6B68;
+        theme.romText                   = 0xFF7FD8E5;
+        theme.ioText                    = 0xFF6DA875;
         return theme;
     }
 

@@ -1329,7 +1329,7 @@ void DebuggerWindow::ApplyMemoryWindows()
         if (window.id >= 1 && window.id <= DebuggerViewState::kMaxMemoryWindows)
         {
             open[(size_t) (window.id - 1)] = true;
-            m_memoryPanes[(size_t) (window.id - 1)]->SetChangedColor (GetChangedArgb());
+            m_memoryPanes[(size_t) (window.id - 1)]->SetTextColors   (GetTextColors());
             m_memoryPanes[(size_t) (window.id - 1)]->SetPaused       (m_snapshot->isPaused);
 
             //  Bytes are edited while the machine is stopped, as Visual

@@ -89,6 +89,11 @@ struct DxuiTheme : public IDxuiTheme
     //  red for the surface's darkness.
     uint32_t  changedText              = 0;
 
+    //  A memory view's ROM bytes and I/O bytes. A zero value falls back to a
+    //  blue, and a gray, for the surface's darkness.
+    uint32_t  romText                  = 0;
+    uint32_t  ioText                   = 0;
+
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
     uint32_t  Background          () const override { return panelBg;            }
