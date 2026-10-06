@@ -201,8 +201,8 @@ private:
 
     //  The group the toolbar is laid out with: its own until it joins its
     //  window's.
-    std::unique_ptr<DxuiToolbarDockGroup>  m_ownGroup = std::make_unique<DxuiToolbarDockGroup>();
-    DxuiToolbarDockGroup                * m_group    = m_ownGroup.get();
+    std::unique_ptr<DxuiToolbarDockGroup>    m_ownGroup = std::make_unique<DxuiToolbarDockGroup>();
+    DxuiToolbarDockGroup                   * m_group    = m_ownGroup.get();
 
     ClosedFn                              m_onLayout;
     SaveFn                                m_onSave;
