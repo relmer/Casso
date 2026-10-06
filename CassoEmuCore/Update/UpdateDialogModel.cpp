@@ -321,6 +321,35 @@ std::wstring UpdateDialogModel::MakeUpdateFailedText (UpdateFailure failure)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdateDialogModel::StripVersionBrackets
+//
+//  "[1.30.0] - 2026-10-03: Title" reads "1.30.0 - 2026-10-03: Title". The
+//  brackets are markdown link syntax in the CHANGELOG, not part of the text.
+//  A heading that does not open with a bracketed span is returned as is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string UpdateDialogModel::StripVersionBrackets (const std::string & heading)
+{
+    size_t       close   = heading.find (']');
+    std::string  result  = heading;
+
+
+
+    if (heading.starts_with ('[') && close != std::string::npos)
+    {
+        result = heading.substr (1, close - 1) + heading.substr (close + 1);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateDialogModel::FormatNotes
 //
 //  The README highlights first, each under its title, then every CHANGELOG
@@ -356,7 +385,7 @@ void UpdateDialogModel::FormatNotes (const ReleaseNotes & notes, std::vector<For
                 outLines.push_back (blank);
             }
 
-            title.text           = section.heading;
+            title.text           = (sections == &notes.changes) ? StripVersionBrackets (section.heading) : section.heading;
             heading.headingLevel = (sections == &notes.highlights) ? kHighlightLevel : kChangesLevel;
             heading.runs         = { title };
             outLines.push_back (heading);

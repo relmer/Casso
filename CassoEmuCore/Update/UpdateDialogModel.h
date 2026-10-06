@@ -75,6 +75,7 @@ public:
     static std::wstring     MakeCheckFailedText  (UpdateFailure failure);
     static std::wstring     MakeUpdateFailedText (UpdateFailure failure);
     static void             FormatNotes          (const ReleaseNotes & notes, std::vector<FormattedLine> & outLines);
+    static std::string      StripVersionBrackets (const std::string & heading);
 
 private:
     static std::wstring     FormatMegabytes      (std::uint64_t bytes);

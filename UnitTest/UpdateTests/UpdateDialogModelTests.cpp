@@ -116,6 +116,16 @@ public:
 
 
 
+    TEST_METHOD (StripVersionBrackets_KeepsTheRestAndTheColon)
+    {
+        Assert::AreEqual (std::string ("1.30.0 - 2026-10-03: The one with flux"),
+                          UpdateDialogModel::StripVersionBrackets ("[1.30.0] - 2026-10-03: The one with flux"));
+        Assert::AreEqual (std::string ("No brackets"), UpdateDialogModel::StripVersionBrackets ("No brackets"));
+        Assert::AreEqual (std::string ("[open"),       UpdateDialogModel::StripVersionBrackets ("[open"));
+    }
+
+
+
     TEST_METHOD (FormatNotes_HighlightsThenChangesUnderHeadings)
     {
         ReleaseNotes                notes;
@@ -136,8 +146,8 @@ public:
         Assert::IsTrue   (lines[1].kind == FormattedLineKind::Paragraph);
         Assert::IsTrue   (lines[2].kind == FormattedLineKind::Blank);
         Assert::AreEqual (3, lines[3].headingLevel);
-        Assert::AreEqual (std::string ("[1.31.0] - 2026-10-20"), lines[3].runs[0].text);
+        Assert::AreEqual (std::string ("1.31.0 - 2026-10-20"), lines[3].runs[0].text, L"the link brackets are dropped");
         Assert::IsTrue   (lines[4].kind == FormattedLineKind::Bullet);
-        Assert::AreEqual (std::string ("[1.30.1] - 2026-10-10"), lines[6].runs[0].text);
+        Assert::AreEqual (std::string ("1.30.1 - 2026-10-10"), lines[6].runs[0].text);
     }
 };

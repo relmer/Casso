@@ -101,4 +101,5 @@ private:
                                      std::string_view  & outUrl,
                                      size_t            & outEnd);
     static void  AppendContinuation (FormattedLine & line, std::string_view text);
+    static bool  TryParseHtmlTag    (std::string_view text, size_t start, size_t & outEnd);
 };

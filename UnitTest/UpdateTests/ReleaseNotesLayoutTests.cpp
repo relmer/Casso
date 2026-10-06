@@ -137,6 +137,33 @@ public:
 
 
 
+    //  A bold word is wider than the same word in the regular face, and the
+    //  flow places what follows from the bold width the callback reports.
+    TEST_METHOD (Flow_BoldWordsAreMeasuredBold)
+    {
+        NotesLayoutMetrics           metrics;
+        std::vector<PlacedNotesRun>  runs;
+        FormattedRun                 bold;
+        FormattedRun                 tail;
+        auto                         measure = [] (const std::wstring & text, const NotesRunStyle & style)
+        {
+            return (float) text.size() * (style.bold ? kCharPx * 2.0f : kCharPx);
+        };
+
+
+
+        bold.text = "flux";
+        bold.bold = true;
+        tail.text = " support";
+
+        ReleaseNotesLayout::Flow ({ MakeParagraph ({ bold, tail }) }, 500.0f, metrics, measure, runs);
+
+        Assert::AreEqual (80.0f,  runs[0].width, L"measured in the bold face");
+        Assert::AreEqual (90.0f,  runs[1].x,     L"the next word starts after the bold width and a space");
+    }
+
+
+
     TEST_METHOD (FindLinkAt_OnlyLinkWords)
     {
         NotesLayoutMetrics           metrics;

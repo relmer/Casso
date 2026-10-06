@@ -122,4 +122,34 @@ public:
         Assert::IsTrue   (lines[0].kind == FormattedLineKind::Paragraph);
         Assert::AreEqual (std::string ("##### Deep heading > quoted | a | b |"), lines[0].runs[0].text);
     }
+
+
+
+    TEST_METHOD (Inline_HtmlTagsAndCommentsDropped_TextBetweenKept)
+    {
+        std::vector<FormattedRun>  runs;
+
+
+
+        ReleaseNotesFormatter::FormatInline ("read it. <a id=\"v1-29\"></a><!-- note -->Then <b>this</b>", runs);
+
+        Assert::AreEqual ((size_t) 1, runs.size());
+        Assert::AreEqual (std::string ("read it. Then this"), runs[0].text);
+    }
+
+
+
+    TEST_METHOD (Inline_LessThanThatIsNotATagStays)
+    {
+        std::vector<FormattedRun>  runs;
+
+
+
+        ReleaseNotesFormatter::FormatInline ("a < b, <3, `<a>` and <!-- open", runs);
+
+        Assert::AreEqual (std::string ("a < b, <3, "), runs[0].text);
+        Assert::IsTrue   (runs[1].code);
+        Assert::AreEqual (std::string ("<a>"), runs[1].text, L"a tag inside code is code");
+        Assert::AreEqual (std::string (" and <!-- open"), runs[2].text, L"an unclosed comment is text");
+    }
 };

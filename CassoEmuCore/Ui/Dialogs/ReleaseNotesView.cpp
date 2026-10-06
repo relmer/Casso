@@ -88,7 +88,6 @@ void ReleaseNotesView::Reflow (IDxuiTextRenderer & text, const IDxuiTheme & them
 
     NotesLayoutMetrics  metrics;
     DxuiFontHandle      body      = theme.BodyFont();
-    DxuiFontHandle      bold      = theme.BodyBoldFont();
     DxuiFontHandle      mono      = theme.MonospaceFont();
     float               bodyPx    = m_scaler.ToPxf (body.sizeDip);
 
@@ -105,10 +104,11 @@ void ReleaseNotesView::Reflow (IDxuiTextRenderer & text, const IDxuiTheme & them
 
     auto  measure = [&] (const std::wstring & word, const NotesRunStyle & style) -> float
     {
-        const wchar_t  * face   = style.code ? mono.face : (style.bold ? bold.face : body.face);
+        const wchar_t  * face   = style.code ? mono.face : body.face;
+        DxuiFontWeight   weight = style.bold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal;
         float            width  = 0.0f;
         float            height = 0.0f;
-        HRESULT          hr     = text.MeasureString (word.c_str(), style.sizePx, face, width, height);
+        HRESULT          hr     = text.MeasureStringWeighted (word.c_str(), style.sizePx, face, weight, width, height);
 
         if (FAILED (hr))
         {

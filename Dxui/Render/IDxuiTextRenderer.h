@@ -202,6 +202,22 @@ public:
                                     float          & outWidthDip,
                                     float          & outHeightDip)              = 0;
 
+    // Measurement in a given weight, for text drawn bold: a bold word is
+    // wider than the same word measured in the regular face. The default
+    // forwards to the regular measure so renderers without weights keep
+    // their existing behavior.
+    virtual HRESULT  MeasureStringWeighted (const wchar_t  * text,
+                                            float            fontSizeDip,
+                                            const wchar_t  * fontFamily,
+                                            DxuiFontWeight   weight,
+                                            float          & outWidthDip,
+                                            float          & outHeightDip)
+    {
+        UNREFERENCED_PARAMETER (weight);
+
+        return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+    }
+
     // Word-wrapped measurement inside maxWidthDip: outWidthDip is the widest
     // wrapped line, outHeightDip the stacked line height -- the box a
     // wrapping DrawString of the same text needs. The default forwards to

@@ -20,4 +20,11 @@ level 1 to 3. The heading text after `]` is shown as the highlight title.
 
 Markdown subset rendered: `#`-`####` headings, `-`/`*` bullets with nesting by
 indent, blank-line paragraphs, `**bold**`, `` `code` ``, `[text](url)` links.
-Anything else is shown as plain text, never dropped.
+Anything else is shown as plain text, never dropped, with one exception:
+inline HTML tags and comments (`<a id="v1-29"></a>`, `<!-- ... -->`) are
+dropped, since they draw nothing in a rendered README. Text between two tags
+is kept. A `<` that does not open a tag or comment (`a < b`) stays as text,
+and so does anything inside a code span.
+
+A CHANGELOG section's heading is shown without the link brackets around its
+version: `## [1.30.0] - 2026-10-03: Title` reads `1.30.0 - 2026-10-03: Title`.

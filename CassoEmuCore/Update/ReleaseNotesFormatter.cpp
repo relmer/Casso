@@ -202,7 +202,9 @@ void ReleaseNotesFormatter::AppendContinuation (FormattedLine & line, std::strin
 //  ReleaseNotesFormatter::FormatInline
 //
 //  **bold**, `code` and [text](url). A marker without its partner is plain
-//  text, so an unmatched ** or ` shows as typed.
+//  text, so an unmatched ** or ` shows as typed. Inline HTML tags and
+//  comments draw nothing in a rendered README, so they are dropped here too;
+//  any text between two tags stays.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,6 +245,12 @@ void ReleaseNotesFormatter::FormatInline (std::string_view text, std::vector<For
             continue;
         }
 
+        if (text[i] == '<' && TryParseHtmlTag (text, i, end))
+        {
+            i = end;
+            continue;
+        }
+
         if (text[i] == '[' && TryParseLink (text, i, label, url, end))
         {
             AppendRun (outRuns, plain, bold, false, "");
@@ -257,6 +265,63 @@ void ReleaseNotesFormatter::FormatInline (std::string_view text, std::vector<For
     }
 
     AppendRun (outRuns, plain, bold, false, "");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesFormatter::TryParseHtmlTag
+//
+//  An HTML comment "<!-- ... -->", or a tag: '<', an optional '/', a letter,
+//  then anything but '<' up to the closing '>'. `outEnd` is just past the
+//  end. A '<' that starts neither ("a < b", "<3") is ordinary text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesFormatter::TryParseHtmlTag (std::string_view text, size_t start, size_t & outEnd)
+{
+    static constexpr std::string_view  kCommentOpen  = "<!--";
+    static constexpr std::string_view  kCommentClose = "-->";
+    std::string_view  rest     = text.substr (start);
+    size_t            nameAt   = 1;
+    size_t            close    = std::string_view::npos;
+    bool              isTag    = false;
+
+
+
+    if (rest.starts_with (kCommentOpen))
+    {
+        close = rest.find (kCommentClose, kCommentOpen.size());
+        isTag = close != std::string_view::npos;
+
+        if (isTag)
+        {
+            outEnd = start + close + kCommentClose.size();
+        }
+
+        return isTag;
+    }
+
+    if (rest.size() > nameAt && rest[nameAt] == '/')
+    {
+        nameAt++;
+    }
+
+    if (rest.size() > nameAt && std::isalpha ((unsigned char) rest[nameAt]))
+    {
+        close = rest.find_first_of ("<>", nameAt);
+        isTag = close != std::string_view::npos && rest[close] == '>';
+    }
+
+    if (isTag)
+    {
+        outEnd = start + close + 1;
+    }
+
+    return isTag;
 }
 
 
