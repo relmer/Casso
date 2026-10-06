@@ -781,8 +781,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_globalPrefs.showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_globalPrefs.showSceneView;
-            case IDM_STORAGE_DRIVE2:          return ShouldShowExternalDrive();
-            case IDM_STORAGE_RECORDER:        return IsTapeRecorderShown();
 
             default:                          return false;
         }
@@ -838,11 +836,25 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            // The //c's second drive is an external unit on its disk port.
+            // The action the click takes: attach what is not there, detach
+            // what is. The //c's second drive is an external unit on its
+            // disk port, and says so.
             case IDM_STORAGE_DRIVE2:
             {
-                return (m_machine.GetConfig().systemRom.romBankSize != 0) ? std::wstring (L"&External drive connected")
-                                                                          : std::wstring();
+                bool  isC = m_machine.GetConfig().systemRom.romBankSize != 0;
+
+                if (ShouldShowExternalDrive())
+                {
+                    return isC ? std::wstring (L"Detach &external drive") : std::wstring (L"Detach &drive 2");
+                }
+
+                return isC ? std::wstring (L"Attach &external drive") : std::wstring (L"Attach &drive 2");
+            }
+
+            case IDM_STORAGE_RECORDER:
+            {
+                return IsTapeRecorderShown() ? std::wstring (L"Detach ca&ssette recorder")
+                                             : std::wstring (L"Attach ca&ssette recorder");
             }
 
             case IDM_DISK_WP1:

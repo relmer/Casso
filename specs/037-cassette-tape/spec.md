@@ -67,7 +67,7 @@ spec.
 
 ### Session 2026-10-06 (connecting storage devices)
 
-- Q: How are storage devices connected and disconnected? → A: The second drive (the //c's external drive) and the cassette recorder connect and disconnect live from the Storage menu, which lists them first with check marks, and from a right-click on the device itself -- in the drive band, on the fullscreen strip and in the desk scene. Neither needs a reset, so neither is on the Hardware tab any more. Drive 1 is always connected.
+- Q: How are storage devices connected and disconnected? → A: The second drive (the //c's external drive) and the cassette recorder connect and disconnect live from the Storage menu, where "Attach" or "Detach" heads each device's items, and from a right-click on the device itself; drive 1's menu offers "Attach" for a detached drive 2 or recorder, since neither is on screen to click -- in the drive band, on the fullscreen strip and in the desk scene. Neither needs a reset, so neither is on the Hardware tab any more. Drive 1 is always connected.
 - Q: Why does the recorder need a switch? → A: Tapes will be used far less than disks. The recorder is connected by default so people see that tapes work, and disconnecting it takes it off the desk, the strip and the drive band, ejecting its tape first.
 - Q: Is the switch on the command bar? → A: No. Connecting a device is a rare action, and the command bar is short of room on HD screens.
 - Q: Does Storage keep "New blank tape"? → A: No; the insert-tape dialog makes a blank tape.

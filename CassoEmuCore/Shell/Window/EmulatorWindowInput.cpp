@@ -1977,7 +1977,9 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
             return sceneHit.driveIndex;
         }
 
-        if (sceneHit.target == SceneHitResult::Target::Recorder ||
+        // The recorder answers to its own test, which knows whether it is on
+        // the strip or the desk; the drives' test does not look for it.
+        if (RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
             PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
         {
             return IsTapeRecorderShown() ? kStorageMenuRecorder : -1;

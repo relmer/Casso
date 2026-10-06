@@ -211,6 +211,23 @@ HRESULT EmulatorShell::InitializeDeskScene()
     hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
     CHRA (hr);
 
+    // Whether the recorder is attached decides whether its model loads, and
+    // the scene is built before the rest of the saved preferences are read --
+    // so that one setting is read here, ahead of them.
+    {
+        JsonValue          doc;
+        const JsonValue  * uiPrefs = nullptr;
+        HRESULT            hrOpt   = S_OK;
+
+        LoadMachineUiPrefs (doc, uiPrefs);
+
+        if (uiPrefs != nullptr)
+        {
+            hrOpt = uiPrefs->GetBool ("tapeRecorderConnected", m_tapeRecorderConnected);
+            IGNORE_RETURN_VALUE (hrOpt, S_OK);
+        }
+    }
+
     hr = LoadDeskSceneModelsForMachine();
     CHRA (hr);
 

@@ -209,7 +209,27 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     }
     else if (device == 0)
     {
+        // Drive 1 is always there, so its menu is where a detached drive 2 or
+        // recorder is attached again: neither is on screen to be clicked.
+        bool  drive2Away   = IsSecondDriveOffered() && !ShouldShowExternalDrive();
+        bool  recorderAway = MachineHasCassettePort() && !IsTapeRecorderShown();
+
         ids = { IDM_DISK_INSERT1, IDM_DISK_EJECT1, IDM_DISK_WP1, IDM_DISK_SALVAGE1 };
+
+        if (drive2Away || recorderAway)
+        {
+            ids.push_back (0);
+        }
+
+        if (drive2Away)
+        {
+            ids.push_back (IDM_STORAGE_DRIVE2);
+        }
+
+        if (recorderAway)
+        {
+            ids.push_back (IDM_STORAGE_RECORDER);
+        }
     }
     else
     {
