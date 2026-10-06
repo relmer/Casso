@@ -1598,6 +1598,7 @@ void EmulatorShell::WaitForFrameOrMessage()
         m_sceneCompass.WantsTick()     ||
         m_compassHintOpacity != (m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
         m_mainMenu.WantsTick()         ||
+        (m_host != nullptr && m_host->GetContextMenu().WantsTick()) ||
         m_toolbar.WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;

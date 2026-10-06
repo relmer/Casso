@@ -1073,6 +1073,16 @@ bool EmulatorShell::TryPresentUiFrame()
             m_d3dRenderer.MarkRedrawNeeded();
         }
 
+        // The devices' right-click menu unfolds as it opens, and nothing but
+        // a tick moves that along: unticked, it stays on its first frame, a
+        // sliver a pixel or two tall.
+        if (m_host != nullptr && m_host->GetContextMenu().WantsTick())
+        {
+            m_host->GetContextMenu().Tick (nowMs);
+
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
         // A HELD COMPASS ARROW REPEATS, and a held arrow produces no messages
         // to wake this loop -- the pointer is not moving, which is the very
         // condition the repeat exists for. So it votes for a present the
