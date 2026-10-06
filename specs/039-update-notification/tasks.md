@@ -63,7 +63,7 @@ order only.
 ## Phase 7: Polish
 
 - [X] T029 Replace "Warn that the release is unsigned" with a failing step and add the core publisher constant to the subject comparison in `.github/workflows/ci.yml`
-- [ ] T030 Full suite Debug + Release, `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis`, `scripts/CheckStyle.ps1 -Mode Tree`
+- [X] T030 Full suite Debug + Release, `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis`, `scripts/CheckStyle.ps1 -Mode Tree`
 - [ ] T031 On-screen validation per `quickstart.md`: old-versioned unsigned build and signed build, screenshots of indicator and dialog
 - [ ] T032 CHANGELOG and README entries, drafted for owner approval after testing
 

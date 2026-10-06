@@ -32,7 +32,6 @@ HRESULT ReleaseNotesExtractor::ExtractChanges (
     size_t                         end           = 0;
     bool                           isInRange     = false;
     bool                           foundNewer    = false;
-    NotesSection                   section;
 
 
 
@@ -57,10 +56,9 @@ HRESULT ReleaseNotesExtractor::ExtractChanges (
 
         if (isInRange)
         {
-            section.version = version;
-            section.heading = std::string (TrimSpaces (lines[i].substr (kHeadingPrefix)));
-            section.body    = JoinBody (lines, i + 1, end);
-            outSections.push_back (std::move (section));
+            outSections.push_back (NotesSection { version,
+                                                  std::string (TrimSpaces (lines[i].substr (kHeadingPrefix))),
+                                                  JoinBody (lines, i + 1, end) });
         }
 
         i = end - 1;
@@ -112,7 +110,6 @@ HRESULT ReleaseNotesExtractor::ExtractHighlights (
     bool                           isInRange    = false;
     bool                           needsNewer   = newer.CompareMinorLine (running) > 0;
     bool                           foundNewer   = false;
-    NotesSection                   section;
 
 
 
@@ -137,10 +134,7 @@ HRESULT ReleaseNotesExtractor::ExtractHighlights (
 
         if (isInRange)
         {
-            section.version = version;
-            section.heading = title;
-            section.body    = JoinBody (lines, i + 1, end);
-            outSections.push_back (std::move (section));
+            outSections.push_back (NotesSection { version, title, JoinBody (lines, i + 1, end) });
         }
 
         i = end - 1;
