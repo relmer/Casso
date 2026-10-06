@@ -5155,7 +5155,9 @@ std::wstring DxuiListView::GetTextSelectionText() const
 //
 //  DxuiListView::GetSelectionText
 //
-//  The selected rows in list order, whatever order they were selected in.
+//  The selected rows in list order, whatever order they were selected in. A
+//  spanning cell ends its row's text, as it ends the row when drawn: the
+//  cells it covers add no tabs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5181,6 +5183,11 @@ std::wstring DxuiListView::GetSelectionText() const
             for (size_t col = 0; col < m_rows[(size_t) row].size(); col++)
             {
                 text += (col > 0 ? L"\t" : L"") + m_rows[(size_t) row][col].text;
+
+                if (m_rows[(size_t) row][col].spansRow)
+                {
+                    break;
+                }
             }
 
             text += L"\r\n";
