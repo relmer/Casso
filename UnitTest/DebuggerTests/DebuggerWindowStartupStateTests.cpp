@@ -450,11 +450,11 @@ namespace DebuggerStartupStateTests
 
         TEST_METHOD (ASavedPaneThatIsGoneFallsBackToTheConsole)
         {
-            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            CassoTheme      theme         = CassoTheme::MakeSkeuomorphic();
             StartupHost     closedHost;
             StartupHost     unknownHost;
-            StartupWindow   closedWindow  (theme, closedHost);
-            StartupWindow   unknownWindow (theme, unknownHost);
+            auto            closedWindow  = std::make_unique<StartupWindow> (theme, closedHost);    // heap: two windows overflow the frame (C6262)
+            auto            unknownWindow = std::make_unique<StartupWindow> (theme, unknownHost);
 
 
 
@@ -463,11 +463,11 @@ namespace DebuggerStartupStateTests
             unknownHost.layout      = MakeLayoutWithTraceInFront();
             unknownHost.focusedPane = "nosuchpane";
 
-            OpenWindow (closedWindow);
-            OpenWindow (unknownWindow);
+            OpenWindow (*closedWindow);
+            OpenWindow (*unknownWindow);
 
-            AssertConsoleHasTheFocus (closedWindow);
-            AssertConsoleHasTheFocus (unknownWindow);
+            AssertConsoleHasTheFocus (*closedWindow);
+            AssertConsoleHasTheFocus (*unknownWindow);
         }
 
 

@@ -85,6 +85,139 @@ void HeatMapView::SetOptions (const HeatMapOptions & options)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::GetColumnsFor
+//
+//  Powers of two keep every row starting at a round address, so a row's label
+//  reads as the addresses it holds. Even kMinColumns that do not fit are
+//  kept, and the map scrolls across instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HeatMapView::GetColumnsFor (long widthPx, long pitchPx)
+{
+    int  columns = kMinColumns;
+
+
+
+    while (columns * 2 <= kMaxColumns && (long) columns * 2 * pitchPx <= widthPx)
+    {
+        columns *= 2;
+    }
+
+    return columns;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PlaceMap
+//
+//  The addresses a row holds at the zoom in force, and the map's area: right
+//  of the row labels and below the bar, as wide and tall as the rows or the
+//  room, less a scrollbar along each side the rows overflow. Taking a
+//  scrollbar's room can change the row, so the fit is found again until it
+//  settles, which takes at most a pass for each side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PlaceMap()
+{
+    constexpr int  kPasses  = 3;
+    long           pitch    = GetPitch();
+    long           bar      = m_scaler.ToPx (kScrollbarDip);
+    long           left     = m_boundsDip.left + m_gutterPx;
+    long           top      = m_boundsDip.top  + m_scaler.ToPx (kBarDip);
+    long           right    = std::max (left, m_boundsDip.right  - m_scaler.ToPx (kInsetDip));
+    long           bottom   = std::max (top,  m_boundsDip.bottom - m_scaler.ToPx (kInsetDip));
+    long           width    = 0;
+    long           height   = 0;
+    long           contentW = 0;
+    long           contentH = 0;
+    bool           hasHorz  = false;
+    bool           hasVert  = false;
+    bool           needHorz = false;
+    bool           needVert = false;
+
+
+
+    for (int pass = 0; pass <= kPasses; pass++)
+    {
+        width     = std::max (0L, right  - left - (hasVert ? bar : 0));
+        height    = std::max (0L, bottom - top  - (hasHorz ? bar : 0));
+        m_columns = GetColumnsFor (width, pitch);
+        contentW  = (long) m_columns * pitch;
+        contentH  = (long) GetRows() * pitch;
+        needHorz  = contentW > width;
+        needVert  = contentH > height;
+
+        if (needHorz == hasHorz && needVert == hasVert)
+        {
+            break;
+        }
+
+        hasHorz = needHorz;
+        hasVert = needVert;
+    }
+
+    m_hasHorzBar = hasHorz;
+    m_hasVertBar = hasVert;
+    m_map        = { left, top, left + std::min (width, contentW), top + std::min (height, contentH) };
+
+    ClampScroll();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::ApplyCellPx
+//
+//  A new cell size, with the address under the point kept under it, the
+//  same fraction of the way across its cell: the rows may hold a different
+//  number of addresses afterward, so the address is found again by its
+//  index rather than by its row and column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ApplyCellPx (int cellPx, POINT point)
+{
+    long    pitch  = GetPitch();
+    long    atX    = point.x - m_map.left + m_scroll.x;
+    long    atY    = point.y - m_map.top  + m_scroll.y;
+    double  fracX  = (double) (atX % pitch) / (double) pitch;
+    double  fracY  = (double) (atY % pitch) / (double) pitch;
+    long    index  = std::clamp ((atY / pitch) * m_columns + std::min (atX / pitch, (long) m_columns - 1), 0L, (long) kAddressCount - 1);
+    long    column = 0;
+    long    row    = 0;
+
+
+
+    m_cellPx = std::clamp (cellPx, 1, kMaxCellPx);
+
+    PlaceMap();
+
+    pitch  = GetPitch();
+    column = index % m_columns;
+    row    = index / m_columns;
+
+    m_scroll.x = (long) std::lround (((double) column + fracX) * (double) pitch) - (point.x - m_map.left);
+    m_scroll.y = (long) std::lround (((double) row    + fracY) * (double) pitch) - (point.y - m_map.top);
+
+    ClampScroll();
+    BuildFrame();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::ZoomAt
 //
 //  Each notch up makes a cell kZoomPerNotch times larger, and each down that
@@ -95,26 +228,19 @@ void HeatMapView::SetOptions (const HeatMapOptions & options)
 
 void HeatMapView::ZoomAt (POINT point, float notches)
 {
-    RECT    map       = GetMapRect();
-    double  pitch     = (double) GetPitch();
-    int     cell      = m_cellPx;
-    double  contentX  = 0.0;
-    double  contentY  = 0.0;
+    int  cell = 0;
 
 
 
-    if (notches == 0.0f || map.right <= map.left || map.bottom <= map.top)
+    if (notches == 0.0f || m_map.right <= m_map.left || m_map.bottom <= m_map.top || m_cellPx <= 0)
     {
         return;
     }
 
-    if (point.x < map.left || point.x >= map.right || point.y < map.top || point.y >= map.bottom)
+    if (point.x < m_map.left || point.x >= m_map.right || point.y < m_map.top || point.y >= m_map.bottom)
     {
-        point = { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+        point = { (m_map.left + m_map.right) / 2, (m_map.top + m_map.bottom) / 2 };
     }
-
-    contentX = (double) (point.x - map.left + m_scroll.x) / pitch;
-    contentY = (double) (point.y - map.top  + m_scroll.y) / pitch;
 
     cell = (int) std::lround ((double) m_cellPx * std::pow ((double) kZoomPerNotch, (double) notches));
 
@@ -123,14 +249,39 @@ void HeatMapView::ZoomAt (POINT point, float notches)
         cell += (notches > 0.0f) ? 1 : -1;
     }
 
-    m_cellPx = std::clamp (cell, 1, kMaxCellPx);
-    pitch    = (double) GetPitch();
+    ApplyCellPx (cell, point);
+}
 
-    m_scroll.x = (long) std::lround (contentX * pitch - (double) (point.x - map.left));
-    m_scroll.y = (long) std::lround (contentY * pitch - (double) (point.y - map.top));
 
-    ClampScroll();
-    BuildFrame();
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::ZoomIn
+//
+//  A notch about the middle of the map, as the bar's button does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ZoomIn()
+{
+    ZoomAt ({ (m_map.left + m_map.right) / 2, (m_map.top + m_map.bottom) / 2 }, 1.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::ZoomOut
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ZoomOut()
+{
+    ZoomAt ({ (m_map.left + m_map.right) / 2, (m_map.top + m_map.bottom) / 2 }, -1.0f);
 }
 
 
@@ -169,7 +320,7 @@ void HeatMapView::ResetZoom()
     m_cellPx = std::max (1, m_scaler.ToPx (kDefaultCellDip));
     m_scroll = {};
 
-    ClampScroll();
+    PlaceMap();
     BuildFrame();
 }
 
@@ -182,19 +333,117 @@ void HeatMapView::ResetZoom()
 //  HeatMapView::ClampScroll
 //
 //  The map scrolls no further than its far edge reaching the area's; a map
-//  smaller than its area does not scroll at all.
+//  that fits its area does not scroll that way at all. The scrollbars follow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::ClampScroll()
 {
-    RECT  map     = GetMapRect();
-    long  content = (long) kSide * GetPitch();
+    long  pitch    = GetPitch();
+    long  contentW = (long) m_columns * pitch;
+    long  contentH = (long) GetRows() * pitch;
 
 
 
-    m_scroll.x = std::clamp (m_scroll.x, 0L, std::max (0L, content - (map.right  - map.left)));
-    m_scroll.y = std::clamp (m_scroll.y, 0L, std::max (0L, content - (map.bottom - map.top)));
+    m_scroll.x = std::clamp (m_scroll.x, 0L, std::max (0L, contentW - (m_map.right  - m_map.left)));
+    m_scroll.y = std::clamp (m_scroll.y, 0L, std::max (0L, contentH - (m_map.bottom - m_map.top)));
+
+    SyncScrollbars();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetHorizontalBarRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapView::GetHorizontalBarRect() const
+{
+    if (!m_hasHorzBar)
+    {
+        return {};
+    }
+
+    return { m_map.left, m_map.bottom, m_map.right, m_map.bottom + m_scaler.ToPx (kScrollbarDip) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetVerticalBarRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapView::GetVerticalBarRect() const
+{
+    if (!m_hasVertBar)
+    {
+        return {};
+    }
+
+    return { m_map.right, m_map.top, m_map.right + m_scaler.ToPx (kScrollbarDip), m_map.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::SyncScrollbars
+//
+//  Each bar in pixels: the rows' length, the part in view and the scroll.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SyncScrollbars()
+{
+    int             bar   = m_scaler.ToPx (kScrollbarDip);
+    int             pitch = GetPitch();
+    DxuiScrollInfo  info;
+
+
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+
+    m_vertBar.Configure (DxuiScrollbar::Orientation::Vertical, bar, bar, pitch);
+    m_vertBar.SetTrack  (GetVerticalBarRect());
+
+    info.nMax  = GetRows() * pitch;
+    info.nPage = (UINT) std::max (0L, m_map.bottom - m_map.top);
+    info.nPos  = (int) m_scroll.y;
+    m_vertBar.SetScrollInfo (info);
+
+    m_horzBar.Configure (DxuiScrollbar::Orientation::Horizontal, bar, bar, pitch);
+    m_horzBar.SetTrack  (GetHorizontalBarRect());
+
+    info.nMax  = m_columns * pitch;
+    info.nPage = (UINT) std::max (0L, m_map.right - m_map.left);
+    info.nPos  = (int) m_scroll.x;
+    m_horzBar.SetScrollInfo (info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::TickScrollbars
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::TickScrollbars (int64_t nowMs)
+{
+    return ((int) m_vertBar.Tick (nowMs) | (int) m_horzBar.Tick (nowMs)) != 0;
 }
 
 
@@ -262,28 +511,6 @@ std::wstring HeatMapView::GetModeLabel (Mode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::GetActionLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring HeatMapView::GetActionLabel (Action action) const
-{
-    switch (action)
-    {
-    case Action::Fading:      return L"Fading";
-    case Action::Cumulative:  return L"Cumulative";
-    case Action::Fade:        return std::format (L"Fade {} s", m_options.fadeSeconds);
-    case Action::ResetCounts: return L"Reset counts";
-    default:                  return L"Reset zoom";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HeatMapView::GetShownLevel
 //
 //  How hot an address is as the mode shows it.
@@ -292,7 +519,7 @@ std::wstring HeatMapView::GetActionLabel (Action action) const
 
 Byte HeatMapView::GetShownLevel (Word address) const
 {
-    constexpr size_t  kCount  = (size_t) kSide * kSide;
+    constexpr size_t  kCount  = (size_t) kAddressCount;
     Byte              execute = (m_execute.size() == kCount) ? m_execute[address] : (Byte) 0;
     Byte              read    = (m_read.size()    == kCount) ? m_read[address]    : (Byte) 0;
     Byte              write   = (m_write.size()   == kCount) ? m_write[address]   : (Byte) 0;
@@ -321,7 +548,7 @@ Byte HeatMapView::GetShownLevel (Word address) const
 
 void HeatMapView::BuildCells()
 {
-    constexpr size_t  kCount     = (size_t) kSide * kSide;
+    constexpr size_t  kCount     = (size_t) kAddressCount;
     bool              hasExecute = m_execute.size() == kCount;
     bool              hasRead    = m_read.size()    == kCount;
     bool              hasWrite   = m_write.size()   == kCount;
@@ -365,17 +592,17 @@ uint32_t HeatMapView::GetCellColor (Word address) const
 //
 //  HeatMapView::BuildFrame
 //
-//  The map's area a pixel at a time, as scrolled: each cell its color, the
-//  street after it and anything past the map the page.
+//  The map's area a pixel at a time, as scrolled: each cell its color and
+//  the street after it the page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::BuildFrame()
 {
-    RECT              map        = GetMapRect();
-    long              width      = map.right  - map.left;
-    long              height     = map.bottom - map.top;
+    long              width      = m_map.right  - m_map.left;
+    long              height     = m_map.bottom - m_map.top;
     long              pitch      = GetPitch();
+    long              rowCount   = GetRows();
     uint32_t          background = m_palette.background | 0xFF000000u;
     std::vector<int>  columns;
     std::vector<int>  rows;
@@ -407,7 +634,7 @@ void HeatMapView::BuildFrame()
 
 
 
-        columns[(size_t) x] = (at / pitch < kSide && at % pitch < m_cellPx) ? (int) (at / pitch) : -1;
+        columns[(size_t) x] = (at / pitch < m_columns && at % pitch < m_cellPx) ? (int) (at / pitch) : -1;
     }
 
     for (long y = 0; y < height; y++)
@@ -416,7 +643,7 @@ void HeatMapView::BuildFrame()
 
 
 
-        rows[(size_t) y] = (at / pitch < kSide && at % pitch < m_cellPx) ? (int) (at / pitch) : -1;
+        rows[(size_t) y] = (at / pitch < rowCount && at % pitch < m_cellPx) ? (int) (at / pitch) : -1;
     }
 
     m_frame.assign ((size_t) (width * height), background);
@@ -441,7 +668,7 @@ void HeatMapView::BuildFrame()
 
             if (column >= 0)
             {
-                line[x] = GetCellColor ((Word) ((row << 8) | column));
+                line[x] = GetCellColor ((Word) (row * m_columns + column));
             }
         }
     }
@@ -453,24 +680,19 @@ void HeatMapView::BuildFrame()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::GetMapRect
-//
-//  Below the two rows and right of the page numbers, filling the rest of the
-//  pane but a margin.
+//  HeatMapView::GetCellRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT HeatMapView::GetMapRect() const
+RECT HeatMapView::GetCellRect (Word address) const
 {
-    RECT  map = m_boundsDip;
+    long  pitch = GetPitch();
+    long  left  = m_map.left + (long) (address % m_columns) * pitch - m_scroll.x;
+    long  top   = m_map.top  + (long) (address / m_columns) * pitch - m_scroll.y;
 
 
 
-    map.left  += m_scaler.ToPx (kGutterDip);
-    map.top   += m_scaler.ToPx (kBarDip) * kBarRows;
-    map.right  = std::max (map.left, map.right  - m_scaler.ToPx (kInsetDip));
-    map.bottom = std::max (map.top,  map.bottom - m_scaler.ToPx (kInsetDip));
-    return map;
+    return { left, top, left + m_cellPx, top + m_cellPx };
 }
 
 
@@ -485,27 +707,26 @@ RECT HeatMapView::GetMapRect() const
 
 std::optional<Word> HeatMapView::GetAddressAt (POINT point) const
 {
-    RECT  map    = GetMapRect();
     long  pitch  = GetPitch();
     long  column = 0;
     long  row    = 0;
 
 
 
-    if (m_cellPx <= 0 || point.x < map.left || point.x >= map.right || point.y < map.top || point.y >= map.bottom)
+    if (m_cellPx <= 0 || point.x < m_map.left || point.x >= m_map.right || point.y < m_map.top || point.y >= m_map.bottom)
     {
         return std::nullopt;
     }
 
-    column = (point.x - map.left + m_scroll.x) / pitch;
-    row    = (point.y - map.top  + m_scroll.y) / pitch;
+    column = (point.x - m_map.left + m_scroll.x) / pitch;
+    row    = (point.y - m_map.top  + m_scroll.y) / pitch;
 
-    if (column >= kSide || row >= kSide)
+    if (column >= m_columns || row >= GetRows())
     {
         return std::nullopt;
     }
 
-    return (Word) ((row << 8) | column);
+    return (Word) (row * m_columns + column);
 }
 
 
@@ -525,11 +746,12 @@ std::optional<Word> HeatMapView::GetAddressAt (POINT point) const
 std::optional<Word> HeatMapView::GetPickAt (POINT point) const
 {
     std::optional<Word>  under   = GetAddressAt (point);
-    RECT                 map     = GetMapRect();
     long                 pitch   = GetPitch();
     long                 reach   = m_scaler.ToPx (kSnapDip);
-    long                 atX     = point.x - map.left + m_scroll.x;
-    long                 atY     = point.y - map.top  + m_scroll.y;
+    long                 atX     = point.x - m_map.left + m_scroll.x;
+    long                 atY     = point.y - m_map.top  + m_scroll.y;
+    long                 lastRow = (long) GetRows() - 1;
+    long                 lastCol = (long) m_columns - 1;
     Word                 best    = 0;
     Byte                 hottest = 0;
     double               nearest = 0.0;
@@ -543,11 +765,11 @@ std::optional<Word> HeatMapView::GetPickAt (POINT point) const
 
     best = *under;
 
-    for (long row = std::max (0L, atY - reach) / pitch; row <= std::min ((long) kSide - 1, (atY + reach) / pitch); row++)
+    for (long row = std::max (0L, atY - reach) / pitch; row <= std::min (lastRow, (atY + reach) / pitch); row++)
     {
-        for (long column = std::max (0L, atX - reach) / pitch; column <= std::min ((long) kSide - 1, (atX + reach) / pitch); column++)
+        for (long column = std::max (0L, atX - reach) / pitch; column <= std::min (lastCol, (atX + reach) / pitch); column++)
         {
-            Word    address  = (Word) ((row << 8) | column);
+            Word    address  = (Word) (row * m_columns + column);
             Byte    level    = GetShownLevel (address);
             double  dx       = (double) (column * pitch) + (double) m_cellPx / 2.0 - (double) atX;
             double  dy       = (double) (row    * pitch) + (double) m_cellPx / 2.0 - (double) atY;
@@ -582,7 +804,7 @@ std::optional<Word> HeatMapView::GetPickAt (POINT point) const
 std::optional<HeatMapView::Mode> HeatMapView::GetModeAt (POINT point) const
 {
     long  tab   = m_scaler.ToPx (kTabDip);
-    long  left  = m_boundsDip.left + m_scaler.ToPx (kGutterDip);
+    long  left  = m_boundsDip.left + m_gutterPx;
     long  index = 0;
 
 
@@ -608,28 +830,15 @@ std::optional<HeatMapView::Mode> HeatMapView::GetModeAt (POINT point) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::GetButtons
+//  HeatMapView::IsPressed
 //
-//  The second row: Fading and Cumulative, then the fade time while fading or
-//  Reset counts while cumulative, then Reset zoom at the right where it fits.
+//  A press on the map, or a scrollbar's thumb being dragged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<HeatMapView::Button> HeatMapView::GetButtons() const
+bool HeatMapView::IsPressed() const
 {
-    float                wide  = m_scaler.ToPxf ((float) kWideTabDip);
-    float                x     = (float) m_boundsDip.left + m_scaler.ToPxf ((float) kGutterDip);
-    float                right = (float) m_boundsDip.right - m_scaler.ToPxf ((float) kInsetDip);
-    std::vector<Button>  buttons;
-
-
-
-    buttons.push_back ({ Action::Fading,     x,        wide });
-    buttons.push_back ({ Action::Cumulative, x + wide, wide });
-    buttons.push_back ({ m_options.cumulative ? Action::ResetCounts : Action::Fade, x + wide * 2, wide });
-    buttons.push_back ({ Action::ResetZoom,  std::max (x + wide * 3, right - wide), wide });
-
-    return buttons;
+    return m_press.has_value() || m_vertBar.IsDragging() || m_horzBar.IsDragging();
 }
 
 
@@ -638,30 +847,21 @@ std::vector<HeatMapView::Button> HeatMapView::GetButtons() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::GetActionAt
+//  HeatMapView::IsOverMap
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<HeatMapView::Action> HeatMapView::GetActionAt (POINT point) const
+bool HeatMapView::IsOverMap (POINT point) const
 {
-    long  bar = m_scaler.ToPx (kBarDip);
-
-
-
-    if (point.y < m_boundsDip.top + bar || point.y >= m_boundsDip.top + bar * kBarRows)
+    for (const RECT & area : { m_map, GetVerticalBarRect(), GetHorizontalBarRect() })
     {
-        return std::nullopt;
-    }
-
-    for (const Button & button : GetButtons())
-    {
-        if ((float) point.x >= button.left && (float) point.x < button.left + button.width)
+        if (point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom)
         {
-            return button.action;
+            return true;
         }
     }
 
-    return std::nullopt;
+    return false;
 }
 
 
@@ -670,73 +870,154 @@ std::optional<HeatMapView::Action> HeatMapView::GetActionAt (POINT point) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::RunAction
+//  HeatMapView::FormatAmount
+//
+//  The value a level stands for, from the logarithmic scale the levels are
+//  made on: within a few percent, so shown to two figures. While fading, a
+//  rate a second, with level 255 meaning the top or more; while cumulative,
+//  a count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapView::RunAction (Action action)
+std::wstring HeatMapView::FormatAmount (Byte level) const
 {
-    switch (action)
-    {
-    case Action::Fading:      m_options.cumulative  = false;                                                  break;
-    case Action::Cumulative:  m_options.cumulative  = true;                                                   break;
-    case Action::Fade:        m_options.fadeSeconds = HeatMapOptions::GetNextFadeSeconds (m_options.fadeSeconds); break;
-
-    case Action::ResetCounts:
-        if (m_onResetCounts)
-        {
-            m_onResetCounts();
-        }
-
-        return;
-
-    default:
-        ResetZoom();
-        return;
-    }
-
-    if (m_onOptionsChanged)
-    {
-        m_onOptionsChanged();
-    }
-}
+    constexpr double  kTopLevel = 255.0;
+    constexpr double  kOneTenth = 10.0;
+    constexpr double  kFigures  = 2.0;
+    double            value     = std::expm1 ((double) level / kTopLevel * std::log1p (m_top));
+    double            scale     = 1.0;
+    uint64_t          rounded   = 0;
+    std::wstring      digits;
+    std::wstring      grouped;
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HeatMapView::GetReadout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring HeatMapView::GetReadout() const
-{
-    constexpr size_t           kCount = (size_t) kSide * kSide;
-    std::vector<std::wstring>  kinds;
-    std::wstring               text;
-
-
-
-    if (!m_hover.has_value())
+    if (m_top <= 0.0 || level == 0)
     {
         return {};
     }
 
-    text = std::format (L"${:04X}", *m_hover);
-
-    if (m_execute.size() == kCount && m_execute[*m_hover] != 0) { kinds.push_back (L"executed"); }
-    if (m_read.size()    == kCount && m_read[*m_hover]    != 0) { kinds.push_back (L"read");     }
-    if (m_write.size()   == kCount && m_write[*m_hover]   != 0) { kinds.push_back (L"written");  }
-
-    for (size_t i = 0; i < kinds.size(); i++)
+    if (!m_options.cumulative && value < 1.0 / kOneTenth)
     {
-        text += (i == 0) ? L"  " : L", ";
-        text += kinds[i];
+        return L"under 0.1/s";
+    }
+
+    if (!m_options.cumulative && value < kOneTenth)
+    {
+        return std::format (L"{:.1f}/s", value);
+    }
+
+    scale   = std::pow (kOneTenth, std::max (0.0, std::floor (std::log10 (std::max (value, 1.0))) + 1.0 - kFigures));
+    rounded = (uint64_t) std::max (1.0, std::round (value / scale) * scale);
+    digits  = std::to_wstring (rounded);
+
+    for (size_t i = 0; i < digits.size(); i++)
+    {
+        if (i > 0 && (digits.size() - i) % 3 == 0)
+        {
+            grouped += L',';
+        }
+
+        grouped += digits[i];
+    }
+
+    if (m_options.cumulative)
+    {
+        return (rounded == 1) ? std::wstring (L"once") : grouped + L" times";
+    }
+
+    return grouped + ((level == (Byte) kTopLevel) ? L"+/s" : L"/s");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetTipText
+//
+//  "$C65E  executed 120/s, read 3.5/s" while fading; "$C65E  executed 1,200
+//  times, read once" while cumulative; "$C65E  untouched" when nothing did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::GetTipText (Word address) const
+{
+    constexpr size_t  kCount = (size_t) kAddressCount;
+    std::wstring      text   = std::format (L"${:04X}", address);
+    std::wstring      amount;
+    int               shown  = 0;
+    const std::pair<const wchar_t *, const std::vector<Byte> *>  kinds[] =
+    {
+        { L"executed", &m_execute },
+        { L"read",     &m_read    },
+        { L"written",  &m_write   },
+    };
+
+
+
+    for (const auto & [name, levels] : kinds)
+    {
+        Byte  level = (levels->size() == kCount) ? (*levels)[address] : (Byte) 0;
+
+
+
+        if (level == 0)
+        {
+            continue;
+        }
+
+        amount  = FormatAmount (level);
+        text   += (shown == 0) ? L"  " : L", ";
+        text   += name;
+        text   += amount.empty() ? std::wstring() : L" " + amount;
+        shown++;
+    }
+
+    if (shown == 0)
+    {
+        text += L"  untouched";
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::TryGetTipAt
+//
+//  The tip is anchored on the cell the pick framed, so it sits clear of the
+//  frame and follows the pick from cell to cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) const
+{
+    std::optional<Word>  pick;
+
+
+
+    if (!m_visible || IsPressed())
+    {
+        return false;
+    }
+
+    pick = GetPickAt (point);
+
+    if (!pick.has_value())
+    {
+        return false;
+    }
+
+    anchor = GetCellRect (*pick);
+    InflateRect (&anchor, kStreetPx, kStreetPx);
+    text   = GetTipText (*pick);
+    return true;
 }
 
 
@@ -761,7 +1042,56 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
         m_cellPx = std::max (1, m_scaler.ToPx (kDefaultCellDip));
     }
 
-    ClampScroll();
+    if (m_gutterPx <= 0)
+    {
+        m_gutterPx = m_scaler.ToPx (kGutterDip);
+    }
+
+    PlaceMap();
+    BuildFrame();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::MeasureGutter
+//
+//  As wide as the widest row label in the face it is drawn in, so a text
+//  zoom widens it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    constexpr int   kPadDip = 8;
+    DxuiFontHandle  font    = theme.MonospaceFont();
+    float           width   = 0.0f;
+    float           height  = 0.0f;
+    int             gutter  = 0;
+    HRESULT         hr      = S_OK;
+
+
+
+    hr = text.MeasureString (L"$FFFF", m_scaler.ToPxf (font.sizeDip), font.face, width, height);
+
+    if (FAILED (hr) || width <= 0.0f)
+    {
+        return;
+    }
+
+    gutter = (int) std::ceil (width) + m_scaler.ToPx (kPadDip);
+
+    if (gutter == m_gutterPx)
+    {
+        return;
+    }
+
+    m_gutterPx = gutter;
+
+    PlaceMap();
     BuildFrame();
 }
 
@@ -777,9 +1107,8 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 
 void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT     map    = GetMapRect();
-    long     width  = map.right  - map.left;
-    long     height = map.bottom - map.top;
+    long     width  = 0;
+    long     height = 0;
     HRESULT  hr     = S_OK;
 
 
@@ -789,22 +1118,36 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         return;
     }
 
+    MeasureGutter (text, theme);
+
     if (m_isFrameStale)
     {
         BuildFrame();
     }
 
-    PaintBar     (painter, text, theme);
-    PaintActions (painter, text, theme);
-    PaintPages   (text, theme);
+    width  = m_map.right  - m_map.left;
+    height = m_map.bottom - m_map.top;
+
+    PaintBar       (painter, text, theme);
+    PaintRowLabels (text, theme);
 
     if (width > 0 && height > 0 && m_frame.size() == (size_t) (width * height))
     {
-        hr = text.DrawFramebuffer (m_frame.data(), (int) width, (int) height, (float) map.left, (float) map.top, (float) width, (float) height);
+        hr = text.DrawFramebuffer (m_frame.data(), (int) width, (int) height, (float) m_map.left, (float) m_map.top, (float) width, (float) height);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     PaintHover (text, theme);
+
+    if (m_hasVertBar)
+    {
+        m_vertBar.Paint (painter, theme.ForegroundMuted());
+    }
+
+    if (m_hasHorzBar)
+    {
+        m_horzBar.Paint (painter, theme.ForegroundMuted());
+    }
 }
 
 
@@ -816,7 +1159,7 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //  HeatMapView::PaintBar
 //
 //  The modes as tabs, the chosen one underlined in the accent; then a swatch
-//  for each color the mode shows, and the readout at the right.
+//  for each color the mode shows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -832,9 +1175,8 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float           key         = m_scaler.ToPxf ((float) kKeyDip);
     float           underline   = std::max (1.0f, m_scaler.ToPxf (2.0f));
     float           top         = (float) m_boundsDip.top;
-    float           x           = (float) m_boundsDip.left + m_scaler.ToPxf ((float) kGutterDip);
+    float           x           = (float) (m_boundsDip.left + m_gutterPx);
     float           right       = (float) m_boundsDip.right - m_scaler.ToPxf ((float) kInsetDip);
-    std::wstring    readout     = GetReadout();
     HRESULT         hr          = S_OK;
     KeyList         keys;
 
@@ -880,13 +1222,6 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
         x += key;
     }
-
-    if (!readout.empty() && right > x)
-    {
-        hr = text.DrawString (readout.c_str(), x, top, right - x, bar, theme.Foreground(),
-                              size, theme.MonospaceFont().face, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
 }
 
 
@@ -895,101 +1230,54 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::PaintActions
+//  HeatMapView::PaintRowLabels
 //
-//  Fading and Cumulative as tabs, the chosen one underlined as a mode is; the
-//  rest in the accent, as links are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HeatMapView::PaintActions (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
-{
-    DxuiFontHandle  font      = theme.BodyFont();
-    float           size      = m_scaler.ToPxf (font.sizeDip);
-    float           bar       = m_scaler.ToPxf ((float) kBarDip);
-    float           underline = std::max (1.0f, m_scaler.ToPxf (2.0f));
-    float           top       = (float) m_boundsDip.top + bar;
-    float           right     = (float) m_boundsDip.right - m_scaler.ToPxf ((float) kInsetDip);
-    HRESULT         hr        = S_OK;
-
-
-
-    for (const Button & button : GetButtons())
-    {
-        bool      isTab    = button.action == Action::Fading || button.action == Action::Cumulative;
-        bool      isChosen = isTab && ((button.action == Action::Cumulative) == m_options.cumulative);
-        uint32_t  color    = isTab ? (isChosen ? theme.Foreground() : theme.ForegroundMuted()) : theme.Accent();
-
-
-
-        if (button.left + button.width > right)
-        {
-            continue;
-        }
-
-        hr = text.DrawString (GetActionLabel (button.action).c_str(), button.left, top, button.width, bar, color,
-                              size, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        if (isChosen)
-        {
-            painter.FillRect (button.left + button.width / 4, top + bar - underline, button.width / 2, underline, theme.Accent());
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HeatMapView::PaintPages
-//
-//  Page numbers beside their rows, every page while the rows are tall enough
-//  to tell the labels apart and every second, fourth and so on below that.
+//  Each row's first address beside it, every row while the rows are tall
+//  enough to tell the labels apart and every second, fourth and so on below
+//  that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapView::PaintPages (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     constexpr float  kLineHeight = 1.4f;
-    RECT             map         = GetMapRect();
+    constexpr int    kPadDip     = 4;
     DxuiFontHandle   font        = theme.MonospaceFont();
     float            size        = m_scaler.ToPxf (font.sizeDip);
     long             pitch       = GetPitch();
-    float            gutter      = m_scaler.ToPxf ((float) (kGutterDip - 4));
+    long             rows        = GetRows();
+    float            gutter      = (float) (m_gutterPx - m_scaler.ToPx (kPadDip));
     long             step        = 1;
-    long             page        = 0;
+    long             row         = 0;
     float            y           = 0.0f;
     std::wstring     label;
     HRESULT          hr          = S_OK;
 
 
 
-    if (pitch <= 0)
+    if (pitch <= 0 || gutter <= 0.0f)
     {
         return;
     }
 
-    while (step < kSide && (float) (step * pitch) < size * kLineHeight)
+    while (step < rows && (float) (step * pitch) < size * kLineHeight)
     {
         step *= 2;
     }
 
-    //  The first labeled page at or below the area's top.
-    page = ((m_scroll.y / pitch + step - 1) / step) * step;
+    //  The first labeled row at or below the area's top.
+    row = ((m_scroll.y / pitch + step - 1) / step) * step;
 
-    for (; page < kSide; page += step)
+    for (; row < rows; row += step)
     {
-        y = (float) (map.top + page * pitch - m_scroll.y);
+        y = (float) (m_map.top + row * pitch - m_scroll.y);
 
-        if (y + size > (float) map.bottom)
+        if (y + size > (float) m_map.bottom)
         {
             break;
         }
 
-        label = std::format (L"${:02X}", page);
+        label = std::format (L"${:04X}", row * m_columns);
 
         hr = text.DrawString (label.c_str(), (float) m_boundsDip.left, y, gutter, size * kLineHeight,
                               theme.ForegroundMuted(), size, font.face, DxuiTextHAlign::Right, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
@@ -1005,15 +1293,14 @@ void HeatMapView::PaintPages (IDxuiTextRenderer & text, const IDxuiTheme & theme
 //
 //  HeatMapView::PaintHover
 //
-//  A frame around the cell the readout reports, drawn in the streets around
-//  it, so a snap to a busier cell shows where it went.
+//  A frame around the cell the mouse picks, drawn in the streets around it,
+//  so a snap to a busier cell shows where it went.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    RECT      map   = GetMapRect();
-    long      pitch = GetPitch();
+    RECT      cell  = {};
     float     left  = 0.0f;
     float     top   = 0.0f;
     float     side  = (float) (m_cellPx + 2 * kStreetPx);
@@ -1028,10 +1315,11 @@ void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme
         return;
     }
 
-    left = (float) (map.left + (long) (*m_hover & 0xFF) * pitch - m_scroll.x - kStreetPx);
-    top  = (float) (map.top  + (long) (*m_hover >> 8)   * pitch - m_scroll.y - kStreetPx);
+    cell = GetCellRect (*m_hover);
+    left = (float) (cell.left - kStreetPx);
+    top  = (float) (cell.top  - kStreetPx);
 
-    if (left + side <= (float) map.left || left >= (float) map.right || top + side <= (float) map.top || top >= (float) map.bottom)
+    if (left + side <= (float) m_map.left || left >= (float) m_map.right || top + side <= (float) m_map.top || top >= (float) m_map.bottom)
     {
         return;
     }
@@ -1054,15 +1342,16 @@ void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme
 //
 //  HeatMapView::OnPress
 //
-//  A press on a mode or an action carries it out; one on the map starts what
-//  is a click or a drag, which the release and the moves decide.
+//  A press on a mode shows it; one on a scrollbar moves it, its thumb by a
+//  drag; one on the map starts what is a click or a drag, which the release
+//  and the moves decide.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::OnPress (const DxuiMouseEvent & ev)
 {
-    std::optional<Mode>    mode   = GetModeAt   (ev.positionDip);
-    std::optional<Action>  action = GetActionAt (ev.positionDip);
+    std::optional<Mode>  mode = GetModeAt (ev.positionDip);
+    POINT                at   = ev.positionDip;
 
 
 
@@ -1078,18 +1367,26 @@ bool HeatMapView::OnPress (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (action.has_value())
+    if (m_hasVertBar && m_vertBar.HitTest (at.x, at.y))
     {
-        RunAction (*action);
+        m_vertBar.OnMouseDown (at.x, at.y);
+        ScrollBy (0, m_vertBar.GetScrollPos() - (int) m_scroll.y);
         return true;
     }
 
-    if (!GetAddressAt (ev.positionDip).has_value())
+    if (m_hasHorzBar && m_horzBar.HitTest (at.x, at.y))
+    {
+        m_horzBar.OnMouseDown (at.x, at.y);
+        ScrollBy (m_horzBar.GetScrollPos() - (int) m_scroll.x, 0);
+        return true;
+    }
+
+    if (!GetAddressAt (at).has_value())
     {
         return false;
     }
 
-    m_press       = ev.positionDip;
+    m_press       = at;
     m_pressScroll = m_scroll;
     m_isDragging  = false;
     return true;
@@ -1112,6 +1409,13 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
     std::optional<Word>  picked;
 
 
+
+    if (m_vertBar.IsDragging() || m_horzBar.IsDragging())
+    {
+        m_vertBar.OnMouseUp();
+        m_horzBar.OnMouseUp();
+        return true;
+    }
 
     if (!m_press.has_value())
     {
@@ -1143,26 +1447,45 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
 //
 //  HeatMapView::OnDragOrHover
 //
-//  With the button down, once the mouse has gone kDragDip the map follows
-//  it; otherwise the readout follows the mouse.
+//  A scrollbar's thumb follows the mouse while it is dragged. With the button
+//  down on the map, once the mouse has gone kDragDip the map follows it;
+//  otherwise the pick follows the mouse, and a scrollbar under it widens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
 {
-    long  dx = 0;
-    long  dy = 0;
+    POINT  at = ev.positionDip;
+    long   dx = 0;
+    long   dy = 0;
 
 
+
+    if (m_vertBar.IsDragging())
+    {
+        m_vertBar.OnMouseMove (at.x, at.y);
+        ScrollBy (0, m_vertBar.GetScrollPos() - (int) m_scroll.y);
+        return true;
+    }
+
+    if (m_horzBar.IsDragging())
+    {
+        m_horzBar.OnMouseMove (at.x, at.y);
+        ScrollBy (m_horzBar.GetScrollPos() - (int) m_scroll.x, 0);
+        return true;
+    }
 
     if (!m_press.has_value())
     {
-        m_hover = GetPickAt (ev.positionDip);
+        (void) m_vertBar.SetHover (m_hasVertBar && m_vertBar.HitTest (at.x, at.y), at);
+        (void) m_horzBar.SetHover (m_hasHorzBar && m_horzBar.HitTest (at.x, at.y), at);
+
+        m_hover = GetPickAt (at);
         return false;
     }
 
-    dx = ev.positionDip.x - m_press->x;
-    dy = ev.positionDip.y - m_press->y;
+    dx = at.x - m_press->x;
+    dy = at.y - m_press->y;
 
     if (!m_isDragging && std::max (std::abs (dx), std::abs (dy)) >= m_scaler.ToPx (kDragDip))
     {
@@ -1188,26 +1511,69 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::OnMouse
+//  HeatMapView::OnWheel
 //
-//  The wheel over the map zooms about the mouse; with Shift it scrolls up and
-//  down, and a sideways wheel scrolls across.
+//  Over the map or its scrollbars: Ctrl with the wheel zooms about the mouse;
+//  Shift with it, or a sideways wheel, scrolls across when the rows are wider
+//  than the area; the wheel alone scrolls up and down, a few rows a notch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
+{
+    long  pitch = GetPitch();
+    long  rows  = std::max (1L, (long) std::lround ((double) m_scaler.ToPx (kWheelStepDip) / (double) pitch));
+    int   step  = (int) std::lround (ev.wheelDelta * (float) (rows * pitch));
+
+
+
+    if (!IsOverMap (ev.positionDip) || ev.wheelDelta == 0.0f)
+    {
+        return false;
+    }
+
+    if (ev.ctrl && !ev.wheelHorizontal)
+    {
+        ZoomAt (ev.positionDip, ev.wheelDelta);
+    }
+    else if (ev.wheelHorizontal || ev.shift)
+    {
+        if (!m_hasHorzBar)
+        {
+            return false;
+        }
+
+        ScrollBy (ev.wheelHorizontal ? step : -step, 0);
+    }
+    else
+    {
+        ScrollBy (0, -step);
+    }
+
+    m_hover = GetPickAt (ev.positionDip);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
 {
-    constexpr int  kCellsPerNotch = 8;
-    long           notch          = (long) std::lround (ev.wheelDelta * (float) (kCellsPerNotch * GetPitch()));
-
-
-
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Leave:
-        if (!m_press.has_value())
+        if (!IsPressed())
         {
             m_hover.reset();
+            (void) m_vertBar.SetHover (false);
+            (void) m_horzBar.SetHover (false);
         }
 
         return false;
@@ -1222,35 +1588,9 @@ bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
         return ev.button == DxuiMouseButton::Left && OnRelease (ev);
 
     case DxuiMouseEventKind::Wheel:
-        break;
+        return OnWheel (ev);
 
     default:
         return false;
     }
-
-    if (!GetAddressAt (ev.positionDip).has_value() || ev.wheelDelta == 0.0f)
-    {
-        return false;
-    }
-
-    if (ev.wheelHorizontal)
-    {
-        ScrollBy ((int) notch, 0);
-    }
-    else if (ev.shift)
-    {
-        ScrollBy (0, (int) -notch);
-    }
-    else
-    {
-        ZoomAt (ev.positionDip, ev.wheelDelta);
-    }
-
-    m_hover = GetPickAt (ev.positionDip);
-    return true;
 }
-
-
-
-
-

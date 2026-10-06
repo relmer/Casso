@@ -75,15 +75,6 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (TheFadeStepsThroughItsChoicesAndAround)
-        {
-            Assert::AreEqual (20, HeatMapOptions::GetNextFadeSeconds (10));
-            Assert::AreEqual (2,  HeatMapOptions::GetNextFadeSeconds (60), L"after the longest, the shortest");
-            Assert::AreEqual (10, HeatMapOptions::GetNextFadeSeconds (7),  L"a time between choices goes to the next one up");
-        }
-
-
-
         TEST_METHOD (TheViewMessageCarriesTheOptionsText)
         {
             std::string  text;

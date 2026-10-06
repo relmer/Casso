@@ -48,6 +48,7 @@ namespace HeatMapPaneWindowTests
 
         std::string  GetDebuggerHeatMapOptions()                           override { return heatMapOptions; }
         void         SetDebuggerHeatMapOptions (const std::string & text)  override { heatMapOptions = text; optionsSent.push_back (text); }
+        void         ResetDebuggerHeatMap      ()                          override { resets++; }
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
 
@@ -67,6 +68,7 @@ namespace HeatMapPaneWindowTests
         std::vector<std::string>                           optionsSent;
         std::string                                        heatMapOptions;
         std::string                                        layout;
+        int                                                resets         = 0;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -103,6 +105,13 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::SyncHeatMapRecording;
         using DebuggerWindow::IsHeatMapRecording;
         using DebuggerWindow::GetHeatMapView;
+        using DebuggerWindow::GetHeatMapBar;
+        using DebuggerWindow::GetHeatMapFadeCommands;
+        using DebuggerWindow::GetHeatMapBarLabel;
+        using DebuggerWindow::IsHeatMapBarEnabled;
+        using DebuggerWindow::IsHeatMapBarChecked;
+        using DebuggerWindow::GetTooltip;
+        using DebuggerWindow::GetTextZoom;
         using DebuggerWindow::OnMouse;
     };
 
@@ -158,6 +167,30 @@ namespace HeatMapPaneWindowTests
             ev.button      = DxuiMouseButton::Left;
             ev.positionDip = point;
             return ev;
+        }
+
+        //  A click on an entry of the heat map's bar, as the mouse makes it.
+        static void ClickBarEntry (HeatMapWindow & window, int id)
+        {
+            RECT   entry = {};
+            POINT  at    = {};
+
+
+
+            Assert::IsTrue (window.GetHeatMapBar()->TryGetEntryRect (id, entry), L"the entry is on the bar");
+
+            at = { (entry.left + entry.right) / 2, (entry.top + entry.bottom) / 2 };
+
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Move, at));
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Down, at));
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Up,   at));
+        }
+
+        static void BuildShown (HeatMapWindow & window)
+        {
+            Build (window);
+            window.ShowPane (DebuggerLayout::kHeatMap);
+            Relayout (window);
         }
 
 
@@ -288,8 +321,6 @@ namespace HeatMapPaneWindowTests
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
             HeatMapHost     host;
             HeatMapWindow   window (theme, host);
-            RECT            bounds = {};
-            int             top    = 0;
 
 
 
@@ -303,10 +334,8 @@ namespace HeatMapPaneWindowTests
 
             window.ShowPane (DebuggerLayout::kHeatMap);
             Relayout (window);
-            bounds = window.GetHeatMapView()->GetBounds();
-            top    = bounds.top + HeatMapView::kBarDip + HeatMapView::kBarDip / 2;
 
-            Assert::IsTrue   (window.OnMouse (MakePress (DxuiMouseEventKind::Down, { bounds.left + HeatMapView::kGutterDip + 5, top })));
+            ClickBarEntry (window, HeatMapBarCommands::kFading);
             Assert::AreEqual (std::string ("fade=30 view=code"), host.heatMapOptions, L"Fading, kept");
         }
 
@@ -339,9 +368,9 @@ namespace HeatMapPaneWindowTests
             HeatMapHost     host;
             HeatMapWindow   window (theme, host);
             HeatMapView   * view   = nullptr;
-            RECT            map    = {};
+            RECT            cell   = {};
             POINT           at     = {};
-            int             pitch  = 0;
+            Word            target = 0;
 
 
 
@@ -349,10 +378,11 @@ namespace HeatMapPaneWindowTests
             window.ShowPane (DebuggerLayout::kHeatMap);
             Relayout (window);
 
-            view  = window.GetHeatMapView();
-            map   = view->GetMapRect();
-            pitch = view->GetCellPx() + HeatMapView::kStreetPx;
-            at    = { map.left + 0x10 * pitch + 1, map.top + 0x05 * pitch + 1 };
+            //  On a memory row's start, which is where the window reports it is.
+            view   = window.GetHeatMapView();
+            target = (Word) (view->GetColumns() * 2 + 0x10);
+            cell   = view->GetCellRect (target);
+            at     = { cell.left + 1, cell.top + 1 };
 
             host.memoryMoves.clear();
             window.OnMouse (MakePress (DxuiMouseEventKind::Down, at));
@@ -361,8 +391,167 @@ namespace HeatMapPaneWindowTests
 
             Assert::IsFalse  (host.memoryMoves.empty(), L"a memory window was moved");
             Assert::AreEqual (1, host.memoryMoves.back().first);
-            Assert::AreEqual ((Word) 0x0510, host.memoryMoves.back().second.value_or (0));
+            Assert::AreEqual (target, host.memoryMoves.back().second.value_or (0));
             Assert::IsFalse  (view->IsVisible(), L"Memory 1 came forward over the heat map it shares a group with");
+        }
+
+
+
+        TEST_METHOD (TheFadeIsADropDownOfItsTimesAndAChoiceIsKept)
+        {
+            CassoTheme                       theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost                      host;
+            HeatMapWindow                    window (theme, host);
+            HeatMapBarCommands               commands ({});
+            std::vector<DxuiToolbar::Entry>  entries  = commands.BuildEntries();
+            std::vector<std::wstring>        labels;
+            std::wstring                     checked;
+
+
+
+            BuildShown (window);
+
+            Assert::IsTrue (std::ranges::any_of (entries, [] (const DxuiToolbar::Entry & entry)
+            {
+                return entry.command->id == HeatMapBarCommands::kFade && entry.kind == DxuiToolbar::Kind::DropDown;
+            }), L"the fade time is a drop-down, not a link that cycles");
+
+            for (const std::shared_ptr<DxuiCommand> & row : window.GetHeatMapFadeCommands())
+            {
+                labels.push_back (row->label);
+
+                if (row->IsChecked())
+                {
+                    checked = row->label;
+                }
+            }
+
+            Assert::IsTrue   ((std::vector<std::wstring> { L"2 s", L"5 s", L"10 s", L"20 s", L"30 s", L"60 s" }) == labels, L"the six times, in order");
+            Assert::AreEqual (std::wstring (L"10 s"), checked, L"the time in force is checked");
+            Assert::AreEqual (std::wstring (L"Fade: 10 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kFade));
+
+            window.GetHeatMapFadeCommands()[4]->dispatch();
+
+            Assert::AreEqual (30, window.GetHeatMapView()->GetOptions().fadeSeconds);
+            Assert::AreEqual (std::string ("fade=30 view=all"), host.heatMapOptions, L"kept");
+            Assert::AreEqual (std::wstring (L"Fade: 30 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kFade));
+            Assert::IsTrue   (window.GetHeatMapFadeCommands()[4]->IsChecked(), L"the rows are built again with the new check");
+        }
+
+
+
+        TEST_METHOD (FadingCumulativeAndResetCountsAreOnTheBar)
+        {
+            CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost    host;
+            HeatMapWindow  window (theme, host);
+
+
+
+            BuildShown (window);
+
+            Assert::IsTrue  (window.IsHeatMapBarChecked (HeatMapBarCommands::kFading));
+            Assert::IsFalse (window.IsHeatMapBarEnabled (HeatMapBarCommands::kResetCounts), L"nothing to reset while fading");
+
+            ClickBarEntry (window, HeatMapBarCommands::kCumulative);
+            Assert::IsTrue  (window.GetHeatMapView()->GetOptions().cumulative);
+            Assert::IsTrue  (window.IsHeatMapBarChecked (HeatMapBarCommands::kCumulative));
+            Assert::IsFalse (window.IsHeatMapBarEnabled (HeatMapBarCommands::kFade), L"the fade counts for nothing while cumulative");
+            Assert::IsTrue  (window.IsHeatMapBarEnabled (HeatMapBarCommands::kResetCounts));
+
+            ClickBarEntry (window, HeatMapBarCommands::kResetCounts);
+            Assert::AreEqual (1, host.resets);
+        }
+
+
+
+        TEST_METHOD (TheZoomButtonsZoomTheMap)
+        {
+            CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost    host;
+            HeatMapWindow  window (theme, host);
+            HeatMapView  * view   = nullptr;
+
+
+
+            BuildShown (window);
+            view = window.GetHeatMapView();
+
+            ClickBarEntry (window, HeatMapBarCommands::kZoomIn);
+            Assert::IsTrue   (view->GetCellPx() > 3, L"Zoom in");
+
+            ClickBarEntry (window, HeatMapBarCommands::kZoomOut);
+            ClickBarEntry (window, HeatMapBarCommands::kZoomOut);
+            Assert::IsTrue   (view->GetCellPx() < 3, L"Zoom out");
+
+            ClickBarEntry (window, HeatMapBarCommands::kResetZoom);
+            Assert::AreEqual (3, view->GetCellPx(), L"Reset zoom");
+        }
+
+
+
+        TEST_METHOD (CtrlWheelOverTheMapZoomsTheMapAndElsewhereTheText)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost     host;
+            HeatMapWindow   window (theme, host);
+            HeatMapView   * view   = nullptr;
+            DxuiMouseEvent  wheel;
+            float           zoom   = 0.0f;
+            RECT            cell   = {};
+            RECT            bounds = {};
+            Word            target = 0;
+
+
+
+            BuildShown (window);
+            view   = window.GetHeatMapView();
+            target = (Word) (view->GetColumns() * 2 + 3);
+            cell   = view->GetCellRect (target);
+            zoom   = window.GetTextZoom();
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = 1.0f;
+            wheel.positionDip = { cell.left + 1, cell.top + 1 };
+
+            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::IsTrue   (view->GetCellPx() > 3, L"the map zoomed");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
+            Assert::IsTrue   (view->GetCellRect (target).top <= wheel.positionDip.y && wheel.positionDip.y <= view->GetCellRect (target).bottom, L"about the pointer");
+
+            bounds            = view->GetBounds();
+            wheel.positionDip = { bounds.left + 2, bounds.top + 2 };
+            (void) window.OnMouse (wheel);
+            Assert::IsTrue   (window.GetTextZoom() > zoom, L"off the map, Ctrl+wheel still sizes the text");
+        }
+
+
+
+        TEST_METHOD (OverTheMapTheTipShowsAtOnce)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost     host;
+            HeatMapWindow   window (theme, host);
+            HeatMapView   * view   = nullptr;
+            RECT            cell   = {};
+            DxuiMouseEvent  move;
+            Word            target = 0;
+
+
+
+            BuildShown (window);
+            view   = window.GetHeatMapView();
+            target = (Word) (view->GetColumns() * 2 + 3);
+            cell   = view->GetCellRect (target);
+
+            move.kind        = DxuiMouseEventKind::Move;
+            move.positionDip = { cell.left + 1, cell.top + 1 };
+            (void) window.OnMouse (move);
+
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell");
+            Assert::AreEqual (std::format (L"${:04X}  untouched", target), window.GetTooltip().GetText());
+            Assert::IsTrue   (view->GetHover().has_value(), L"and the cell is framed");
         }
     };
 }

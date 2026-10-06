@@ -12,23 +12,28 @@
 //
 //  HeatMapView
 //
-//  The 64 KB address space as a grid, one cell an address and one row a
-//  page, each address drawn in the color of what touched it, brighter the
-//  more it was touched. Code is drawn in one color and data in two, reads and
-//  writes, so the program's code stands apart from what it works on. Every
-//  cell is drawn apart from its neighbors by a street of the page between
-//  them, and an untouched one is a gray, not the page.
+//  The 64 KB address space as a grid, one cell an address, each address drawn
+//  in the color of what touched it, brighter the more it was touched. Code is
+//  drawn in one color and data in two, reads and writes, so the program's
+//  code stands apart from what it works on. Every cell is drawn apart from
+//  its neighbors by a street of the page between them, and an untouched one
+//  is a gray, not the page.
 //
-//  Over the map two rows. The first holds the views: All shows everything,
-//  with code ahead of data where an address is both; Code shows executes
-//  alone; Data shows reads and writes alone. Beside them the colors' key, and
-//  the address under the mouse and what touched it. The second holds Fading
-//  and Cumulative, how long the heat takes to fade or a Reset counts for the
-//  totals, and Reset zoom. Down the left, page numbers.
+//  The rows fill the pane: each row is the most addresses, a power of two
+//  from kMinColumns to kMaxColumns, whose cells fit across it at the zoom in
+//  force, so a row always starts at a round address and its label down the
+//  left reads as one. A row narrower than the pane leaves the rest of it
+//  empty at the right, beside the scrollbar.
 //
-//  The wheel zooms about the mouse and a drag pans; a click on a cell shows
-//  its address in a memory window. While cells are small the readout takes
-//  the busiest cell near the mouse, so a lone hot byte is easy to land on.
+//  Over the map a row of views: All shows everything, with code ahead of data
+//  where an address is both; Code shows executes alone; Data shows reads and
+//  writes alone. Beside them the colors' key.
+//
+//  The wheel scrolls up and down, Shift with it across, and Ctrl with it
+//  zooms about the mouse; a drag pans, and the scrollbars show and move the
+//  part in view. A click on a cell shows its address in a memory window.
+//  While cells are small the cell the mouse picks is the busiest one near it,
+//  so a lone hot byte is easy to land on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,34 +53,28 @@ public:
         bool operator== (const Palette & other) const = default;
     };
 
-    //  What a press on the second row does.
-    enum class Action
-    {
-        Fading,
-        Cumulative,
-        Fade,
-        ResetCounts,
-        ResetZoom,
-    };
-
-    static constexpr int    kSide           = 256;     // pages, and bytes a page
-    static constexpr int    kBarDip         = 22;      // each of the two rows over the map
-    static constexpr int    kBarRows        = 2;
+    static constexpr int    kAddressCount   = 0x10000;
+    static constexpr int    kMinColumns     = 16;
+    static constexpr int    kMaxColumns     = 1024;
+    static constexpr int    kBarDip         = 22;      // the row of views over the map
     static constexpr int    kTabDip         = 52;
-    static constexpr int    kWideTabDip     = 88;
-    static constexpr int    kGutterDip      = 34;
-    static constexpr int    kInsetDip       = 8;       // right of the map and the readout, and below the map
+    static constexpr int    kGutterDip      = 44;      // the row labels' column, until a paint measures them
+    static constexpr int    kInsetDip       = 8;       // right of the map and below it
+    static constexpr int    kScrollbarDip   = 10;
     static constexpr int    kModeCount      = 3;
 
     //  A cell's side, without the street of one pixel after it: three at 96
-    //  dpi to start, from one to kMaxCellPx as the wheel zooms.
+    //  dpi to start, from one to kMaxCellPx as the zoom goes.
     static constexpr int    kStreetPx       = 1;
     static constexpr int    kDefaultCellDip = 3;
     static constexpr int    kMaxCellPx      = 64;
     static constexpr float  kZoomPerNotch   = 1.25f;
 
-    //  Below this side a cell is hard to land on, and the readout takes the
-    //  busiest cell within kSnapDip of the mouse instead.
+    //  How far one notch of the wheel scrolls, rounded to whole rows.
+    static constexpr int    kWheelStepDip   = 48;
+
+    //  Below this side a cell is hard to land on, and the pick is the busiest
+    //  cell within kSnapDip of the mouse instead.
     static constexpr int    kComfortCellDip = 8;
     static constexpr int    kSnapDip        = 4;
 
@@ -86,7 +85,11 @@ public:
     //  address is drawn, so one touch is still visible.
     static constexpr float  kFaintest       = 0.3f;
 
+    //  The levels, 0 for cold and 1 to 255 rising with the logarithm of the
+    //  rate or the count, and the value level 255 stands for: accesses a
+    //  second while fading, the busiest address's count while cumulative.
     void   SetLevels  (const std::vector<Byte> & execute, const std::vector<Byte> & read, const std::vector<Byte> & write);
+    void   SetTop     (double top) { m_top = top; }
     void   SetPalette (const Palette & palette);
     void   SetMode    (Mode mode);
     Mode   GetMode    () const { return m_options.view; }
@@ -94,45 +97,68 @@ public:
     void                    SetOptions (const HeatMapOptions & options);
     const HeatMapOptions &  GetOptions () const { return m_options; }
 
-    //  The options changed by a press on the pane; Reset counts pressed; a
-    //  cell clicked.
+    //  The options changed by a press on the pane; a cell clicked.
     void   SetOnOptionsChanged (std::function<void()> fn)     { m_onOptionsChanged = std::move (fn); }
-    void   SetOnResetCounts    (std::function<void()> fn)     { m_onResetCounts    = std::move (fn); }
     void   SetOnPickAddress    (std::function<void(Word)> fn) { m_onPickAddress    = std::move (fn); }
 
-    //  The zoom, as a cell's side in pixels, and how far the map is scrolled
-    //  in pixels from its top left.
+    //  The zoom, as a cell's side in pixels; the addresses in a row and the
+    //  rows; and how far the map is scrolled in pixels from its top left.
     int    GetCellPx  () const { return m_cellPx; }
+    int    GetColumns () const { return m_columns; }
+    int    GetRows    () const { return kAddressCount / m_columns; }
     POINT  GetScroll  () const { return m_scroll; }
     void   ZoomAt     (POINT point, float notches);
+    void   ZoomIn     ();
+    void   ZoomOut    ();
     void   ScrollBy   (int dx, int dy);
     void   ResetZoom  ();
+
+    //  The addresses a row holds for a width at a pitch: the largest power of
+    //  two from kMinColumns to kMaxColumns whose cells fit, or kMinColumns.
+    static int  GetColumnsFor (long widthPx, long pitchPx);
+
+    //  Whether the map is wider or taller than its area, so it scrolls that
+    //  way and shows a scrollbar for it.
+    bool   HasHorizontalScroll () const { return m_hasHorzBar; }
+    bool   HasVerticalScroll   () const { return m_hasVertBar; }
+
+    //  Where each scrollbar is drawn; empty when it is not.
+    RECT   GetHorizontalBarRect () const;
+    RECT   GetVerticalBarRect   () const;
 
     //  The map as drawn, a pixel each, the size of the map's area; and the
     //  color one address is drawn in.
     const std::vector<uint32_t> &  GetPixels    () const { return m_frame; }
     uint32_t                       GetCellColor (Word address) const;
 
-    static uint32_t      GetColor       (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette);
-    static std::wstring  GetModeLabel   (Mode mode);
-    std::wstring         GetActionLabel (Action action) const;
+    static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette);
+    static std::wstring  GetModeLabel (Mode mode);
 
-    //  The map's area within the pane.
-    RECT                 GetMapRect () const;
+    //  The map's area within the pane: the part of the rows in view, without
+    //  the scrollbars; and an address's cell within the pane, as scrolled.
+    RECT                 GetMapRect  () const { return m_map; }
+    RECT                 GetCellRect (Word address) const;
 
     //  The address under a point in the map, a street counting as the cell
-    //  before it; the address the readout takes for a point, which may be a
-    //  busier one near it; the mode and the action under a point in the bar.
-    std::optional<Word>    GetAddressAt (POINT point) const;
-    std::optional<Word>    GetPickAt    (POINT point) const;
-    std::optional<Mode>    GetModeAt    (POINT point) const;
-    std::optional<Action>  GetActionAt  (POINT point) const;
-    std::optional<Word>    GetHover     () const { return m_hover; }
-    bool                   IsPressed    () const { return m_press.has_value(); }
+    //  before it; the address the mouse picks there, which may be a busier one
+    //  near it; the mode under a point in the bar.
+    std::optional<Word>  GetAddressAt (POINT point) const;
+    std::optional<Word>  GetPickAt    (POINT point) const;
+    std::optional<Mode>  GetModeAt    (POINT point) const;
+    std::optional<Word>  GetHover     () const { return m_hover; }
+    bool                 IsPressed    () const;
 
-    //  "$C65E  executed, read": the address the mouse picks and what touched
-    //  it, or the address alone when nothing did.
-    std::wstring         GetReadout () const;
+    //  Whether a point is over the map or its scrollbars.
+    bool                 IsOverMap    (POINT point) const;
+
+    //  The tip for a point on the map: the cell it picks, framed, and its
+    //  address and what touched it, "$C65E  executed 120/s, read 3/s"; false
+    //  off the map and while a button is down.
+    bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text) const;
+    std::wstring         GetTipText   (Word address) const;
+
+    //  The widening of a scrollbar under the mouse, carried out over frames.
+    bool                 TickScrollbars (int64_t nowMs);
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -144,27 +170,23 @@ private:
     //  The swatches the bar shows: each kind's label and color.
     using KeyList = std::vector<std::pair<std::wstring, uint32_t>>;
 
-    struct Button
-    {
-        Action  action = Action::Fading;
-        float   left   = 0.0f;
-        float   width  = 0.0f;
-    };
-
-    std::vector<Button>  GetButtons    () const;
-    Byte                 GetShownLevel (Word address) const;
-    int                  GetPitch      () const { return m_cellPx + kStreetPx; }
-    void                 ClampScroll   ();
-    void                 BuildCells    ();
-    void                 BuildFrame    ();
-    void                 RunAction     (Action action);
-    bool                 OnPress       (const DxuiMouseEvent & ev);
-    bool                 OnRelease     (const DxuiMouseEvent & ev);
-    bool                 OnDragOrHover (const DxuiMouseEvent & ev);
-    void                 PaintBar      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintActions  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintPages    (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintHover    (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    Byte                 GetShownLevel  (Word address) const;
+    int                  GetPitch       () const { return m_cellPx + kStreetPx; }
+    std::wstring         FormatAmount   (Byte level) const;
+    void                 ApplyCellPx    (int cellPx, POINT point);
+    void                 PlaceMap       ();
+    void                 ClampScroll    ();
+    void                 SyncScrollbars ();
+    void                 BuildCells     ();
+    void                 BuildFrame     ();
+    bool                 OnPress        (const DxuiMouseEvent & ev);
+    bool                 OnRelease      (const DxuiMouseEvent & ev);
+    bool                 OnDragOrHover  (const DxuiMouseEvent & ev);
+    bool                 OnWheel        (const DxuiMouseEvent & ev);
+    void                 MeasureGutter  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void                 PaintBar       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                 PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                 PaintHover     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     std::vector<Byte>          m_execute;
     std::vector<Byte>          m_read;
@@ -174,14 +196,21 @@ private:
     Palette                    m_palette;
     HeatMapOptions             m_options;
     DxuiDpiScaler              m_scaler;
+    DxuiScrollbar              m_horzBar;
+    DxuiScrollbar              m_vertBar;
     std::optional<Word>        m_hover;
+    double                     m_top          = 0.0;
     int                        m_cellPx       = 0;
+    int                        m_columns      = kMaxColumns / 4;
+    int                        m_gutterPx     = 0;
+    RECT                       m_map          = {};
+    bool                       m_hasHorzBar   = false;
+    bool                       m_hasVertBar   = false;
     POINT                      m_scroll       = {};
     std::optional<POINT>       m_press;
     POINT                      m_pressScroll  = {};
     bool                       m_isDragging   = false;
     bool                       m_isFrameStale = false;
     std::function<void()>      m_onOptionsChanged;
-    std::function<void()>      m_onResetCounts;
     std::function<void(Word)>  m_onPickAddress;
 };

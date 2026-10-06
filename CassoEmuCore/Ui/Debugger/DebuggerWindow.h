@@ -4,6 +4,7 @@
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
+#include "Ui/Debugger/HeatMapBarCommands.h"
 #include "Seams/IHostDialogs.h"
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -415,14 +416,28 @@ protected:
     bool                       IsPaneShown      (const std::wstring & pane) const;
 
     //  The heat map pane: its view, whether the host was last told to record
-    //  for it, and the two steps that keep the view and the recording current.
+    //  for it, and the two steps that keep the view and the recording current;
+    //  its bar, what each entry on it does and the fade times it offers.
     HeatMapView              * GetHeatMapView       () const { return m_heatMapView; }
+    DxuiToolbar              * GetHeatMapBar        () const { return m_heatMapBar; }
     bool                       IsHeatMapRecording   () const { return m_isHeatMapRecording; }
     void                       SyncHeatMapRecording ();
     void                       ApplyHeatMap         ();
     bool                       RouteHeatMapMouse    (const DxuiMouseEvent & ev);
+    bool                       RouteHeatMapBarMouse (const DxuiMouseEvent & ev);
     void                       ConfigureHeatMap     ();
+    void                       SetHeatMapBarMenus   ();
+    void                       PlaceHeatMapBar      ();
     void                       ShowHeatMapAddress   (Word address);
+    void                       SetHeatMapOptions    (const HeatMapOptions & options);
+    void                       RunHeatMapBarEntry   (int id);
+    bool                       IsHeatMapBarEnabled  (int id) const;
+    bool                       IsHeatMapBarChecked  (int id) const;
+    std::wstring               GetHeatMapBarLabel   (int id) const;
+    bool                       TryGetHeatMapTip     (POINT clientPx, RECT & anchor, std::wstring & text) const;
+
+    //  The fade drop-down's rows, as last built, so a test can choose one.
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapFadeCommands () const { return m_heatMapFadeCommands; }
 
     //  Protected so a test can read the breakpoints pane's columns (FR-117)
     //  and the breakpoint each row shows once sorted.
@@ -1000,6 +1015,10 @@ private:
     HeatMapView                                                                    * m_heatMapView        = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapFrame;
     bool                                                                             m_isHeatMapRecording = false;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapBarSlot;
+    DxuiToolbar                                                                    * m_heatMapBar         = nullptr;
+    std::unique_ptr<HeatMapBarCommands>                                              m_heatMapCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapFadeCommands;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;

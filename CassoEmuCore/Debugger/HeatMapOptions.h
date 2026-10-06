@@ -24,7 +24,7 @@ public:
         Data,
     };
 
-    //  The fade times the pane steps through, in seconds of machine time.
+    //  The fade times the pane offers, in seconds of machine time.
     static constexpr std::array<int, 6>  kFadeChoices        = { 2, 5, 10, 20, 30, 60 };
     static constexpr int                 kDefaultFadeSeconds = 10;
     static constexpr int                 kMinFadeSeconds     = 1;
@@ -38,5 +38,4 @@ public:
 
     std::string            ToText              () const;
     static HeatMapOptions  FromText            (const std::string & text);
-    static int             GetNextFadeSeconds  (int seconds);
 };

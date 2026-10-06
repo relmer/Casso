@@ -254,11 +254,15 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
 
     if (m_heatMapOptions.cumulative)
     {
+        snapshot.heatMap.top = (double) map->GetMostTotal();
+
         map->GetTotalLevels (HeatKind::Execute, snapshot.heatMap.execute);
         map->GetTotalLevels (HeatKind::Read,    snapshot.heatMap.read);
         map->GetTotalLevels (HeatKind::Write,   snapshot.heatMap.write);
         return;
     }
+
+    snapshot.heatMap.top = AccessHeatMap::kHottestPerSecond;
 
     map->GetLevels (HeatKind::Execute, snapshot.heatMap.execute);
     map->GetLevels (HeatKind::Read,    snapshot.heatMap.read);

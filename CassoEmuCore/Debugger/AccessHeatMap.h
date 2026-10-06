@@ -82,6 +82,10 @@ public:
     double    GetRate  (HeatKind kind, Word address) const;
     uint64_t  GetTotal (HeatKind kind, Word address) const;
 
+    //  The busiest address's total, of any kind: what the totals' level 255
+    //  stands for.
+    uint64_t  GetMostTotal () const { return m_mostTotal; }
+
     //  One level per address for one kind, from the heat or from the totals;
     //  the totals' top level is the busiest address of any kind.
     void   GetLevels      (HeatKind kind, std::vector<Byte> & levels) const;

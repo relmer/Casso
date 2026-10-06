@@ -87,6 +87,8 @@ static constexpr LPCWSTR s_kpszMdl2Page        = L"\xE8A5";   // U+E8A5 Segoe MD
 static constexpr LPCWSTR s_kpszMdl2ViewAll     = L"\xE80A";   // U+E80A Segoe MDL2 ViewAll (a grid)
 static constexpr LPCWSTR s_kpszMdl2Export      = L"\xEDE1";   // U+EDE1 Segoe MDL2 Export (arrow out of a bar)
 static constexpr LPCWSTR s_kpszMdl2Import      = L"\xE8B5";   // U+E8B5 Segoe MDL2 Import (arrow into a bar)
+static constexpr LPCWSTR s_kpszMdl2ZoomIn      = L"\xE8A3";   // U+E8A3 Segoe MDL2 ZoomIn (magnifier with a plus)
+static constexpr LPCWSTR s_kpszMdl2ZoomOut     = L"\xE71F";   // U+E71F Segoe MDL2 ZoomOut (magnifier with a minus)
 
 // Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and
 // registered by AssetBootstrap::RegisterSymbolFont). These need no family at

@@ -92,24 +92,3 @@ HeatMapOptions HeatMapOptions::FromText (const std::string & text)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HeatMapOptions::GetNextFadeSeconds
-//
-//  The next longer choice, around to the shortest after the longest; a time
-//  between choices goes to the next one above it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int HeatMapOptions::GetNextFadeSeconds (int seconds)
-{
-    for (int choice : kFadeChoices)
-    {
-        if (choice > seconds)
-        {
-            return choice;
-        }
-    }
-
-    return kFadeChoices[0];
-}

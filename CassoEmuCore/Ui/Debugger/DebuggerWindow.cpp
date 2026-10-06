@@ -210,6 +210,7 @@ void DebuggerWindow::OnCreate()
     m_memoryBar         = CreateChild<DxuiToolbar>   ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_breakpointBar     = CreateChild<DxuiToolbar>   ();
+    m_heatMapBar        = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
 
     //  All four windows exist from the start; the ones not open are hidden.
@@ -4209,6 +4210,7 @@ void DebuggerWindow::LayoutWidgets()
     UpdateCodeLines();
     PlaceMemoryBar();
     PlaceBreakpointBar();
+    PlaceHeatMapBar();
     PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
@@ -4895,9 +4897,11 @@ void DebuggerWindow::ConfigureDockSite()
     m_traceFrame->AddPart (m_traceHint, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); });
     m_traceFrame->AddPart (m_traceList);
 
-    //  The heat map is closed until the View menu opens it, and records only
-    //  while it shows.
-    m_heatMapFrame = std::make_unique<DebuggerPaneFrame> (L"Heat map");
+    //  The heat map is its bar over its map, the bar a place PlaceHeatMapBar
+    //  fills. It records only while it shows.
+    m_heatMapBarSlot = std::make_unique<DebuggerPaneFrame> (L"Heat map commands");
+    m_heatMapFrame   = std::make_unique<DebuggerPaneFrame> (L"Heat map");
+    m_heatMapFrame->AddPart (m_heatMapBarSlot.get(), barHeight);
     m_heatMapFrame->AddPart (m_heatMapView);
     m_heatMapView->SetVisible (false);
 
@@ -6324,7 +6328,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -6369,6 +6373,11 @@ void DebuggerWindow::RenderFrame()
 
     m_tracePane->FollowScroll();
 
+    if (m_heatMapView->TickScrollbars (now))
+    {
+        Invalidate();
+    }
+
     SyncFloats();
     m_barHost.Sync();
     SyncCommandBarFloatTip();
@@ -6376,6 +6385,7 @@ void DebuggerWindow::RenderFrame()
     CarryTornOffPane();
     PlaceMemoryBar();
     PlaceBreakpointBar();
+    PlaceHeatMapBar();
     PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
@@ -6680,13 +6690,15 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 //
 //  The options the user last left, sent on to the machine at once, since it
 //  starts from the defaults; then each change is saved and sent as it is
-//  made, and a cell clicked is shown in memory.
+//  made, and a cell clicked is shown in memory. The pane's bar is built here
+//  too, in the breakpoints pane's style.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ConfigureHeatMap()
 {
-    HeatMapOptions  options = HeatMapOptions::FromText ((m_host != nullptr) ? m_host->GetDebuggerHeatMapOptions() : std::string());
+    HeatMapOptions                options = HeatMapOptions::FromText ((m_host != nullptr) ? m_host->GetDebuggerHeatMapOptions() : std::string());
+    HeatMapBarCommands::Handlers  handlers;
 
 
 
@@ -6702,13 +6714,22 @@ void DebuggerWindow::ConfigureHeatMap()
         Invalidate();
     });
 
-    m_heatMapView->SetOnResetCounts ([this]
-    {
-        if (m_host != nullptr)
-        {
-            m_host->ResetDebuggerHeatMap();
-        }
-    });
+    handlers.dispatch  = [this] (int id) { RunHeatMapBarEntry (id); };
+    handlers.isEnabled = [this] (int id) { return IsHeatMapBarEnabled (id); };
+    handlers.isChecked = [this] (int id) { return IsHeatMapBarChecked (id); };
+    handlers.getLabel  = [this] (int id) { return GetHeatMapBarLabel (id); };
+
+    m_heatMapCommands = std::make_unique<HeatMapBarCommands> (std::move (handlers));
+
+    m_heatMapBar->SetTextRenderer (GetTextRenderer());
+    m_heatMapBar->SetPopupHost    (GetPopupHost());
+    m_heatMapBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+    m_heatMapBar->SetCompact      (true);
+    m_heatMapBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
+    m_heatMapBar->SetEntries      (m_heatMapCommands->BuildEntries());
+    m_heatMapBar->SetVisible      (false);
+
+    SetHeatMapBarMenus();
 
     m_heatMapView->SetOnPickAddress ([this] (Word address) { ShowHeatMapAddress (address); });
 
@@ -6799,9 +6820,9 @@ void DebuggerWindow::SyncHeatMapRecording()
 //
 //  DebuggerWindow::RouteHeatMapMouse
 //
-//  The heat map takes a press on its modes and actions, a click or a drag on
-//  its map and the wheel over it, and follows the mouse over its map for its
-//  readout; a move anywhere else clears the readout. A drag begun on the map
+//  The heat map takes a press on its modes and scrollbars, a click or a drag
+//  on its map and the wheel over it, and follows the mouse over its map for
+//  the cell it frames; a move anywhere else clears the frame. A drag begun on the map
 //  keeps the mouse until the button comes up, wherever it goes. Only what it
 //  acts on is used up.
 //
@@ -6866,6 +6887,7 @@ void DebuggerWindow::ApplyHeatMap()
     palette.write      = colors.changed;
 
     m_heatMapView->SetPalette (palette);
+    m_heatMapView->SetTop     (m_snapshot->heatMap.top);
     m_heatMapView->SetLevels  (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
 }
 
@@ -8309,7 +8331,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -8377,6 +8399,13 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
+    //  And the heat map's.
+    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kHeatMap) &&
+        m_heatMapBar != nullptr && m_heatMapBar->IsVisible())
+    {
+        barTip = m_heatMapBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
     //  And the registers, stack and watch panes'.
     for (const PaneUndoBar & each : m_undoBars)
     {
@@ -8430,6 +8459,15 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     //  Over a memory window's byte, its address, at once and following the
     //  pointer from byte to byte.
     if (TryGetMemoryTip (clientPx, cell, text))
+    {
+        tip.SetMonospace   (true);
+        tip.RequestShowNow (cell, text, now);
+        return;
+    }
+
+    //  Over the heat map, the cell the mouse picks and what touched it, the
+    //  same way.
+    if (TryGetHeatMapTip (clientPx, cell, text))
     {
         tip.SetMonospace   (true);
         tip.RequestShowNow (cell, text, now);
@@ -9936,6 +9974,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
+    //  Ctrl+wheel over the heat map's map zooms the map rather than the text.
+    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && IsRoutable (m_heatMapView) && m_heatMapView->IsVisible() &&
+        m_heatMapView->IsOverMap (ev.positionDip) && RouteHeatMapMouse (ev))
+    {
+        return true;
+    }
+
     //  Ctrl+wheel sizes the panes' text as Ctrl+Plus and Ctrl+Minus do, over
     //  any pane, before a view that would take the wheel for itself.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
@@ -9977,6 +10022,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  Then the breakpoints pane's toolbar.
     if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) && RouteBreakpointBarMouse (ev))
+    {
+        return true;
+    }
+
+    //  Then the heat map's.
+    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kHeatMap) && RouteHeatMapBarMouse (ev))
     {
         return true;
     }
@@ -10280,7 +10331,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
-    if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapView };                }
+    if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapBarSlot.get(), m_heatMapView, m_heatMapBar }; }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
