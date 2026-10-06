@@ -308,6 +308,10 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     //  `title` is here on the same terms -- see CommandLineOptions.
     "no-image-watch",
     "title",
+
+    //  Also undocumented: what a relaunch after a self-update passes.
+    "updated",
+    "cleanup-old",
 };
 
 
@@ -4310,6 +4314,14 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.titlePrefix = argv[++i];
         }
+        else if (arg == "--updated")
+        {
+            parsed.wasUpdated = true;
+        }
+        else if (arg == "--cleanup-old" && hasValue)
+        {
+            ApplyCleanupPid (argv[++i], parsed);
+        }
         else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
         {
             RefuseEmulatorArgument (raw, arg, parsed);
@@ -4368,7 +4380,7 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
     }
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
-          || canonical == "--seed")
+          || canonical == "--seed"    || canonical == "--cleanup-old")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }
@@ -4603,5 +4615,41 @@ void CommandLineParser::ApplySeed (const std::string                   & text,
     {
         parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
         parsed.refusalMessage = "Error: invalid seed " + text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyCleanupPid
+//
+//  Records the --cleanup-old process id: a decimal number that fits 32 bits
+//  and is not zero, since zero is no process. Anything else refuses the
+//  command line rather than leaving old files to a guess.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplyCleanupPid (const std::string                   & text,
+                                         CommandLineOptions::EmulatorOptions & parsed)
+{
+    std::uint32_t           value   = 0;
+    const char            * first   = text.data();
+    const char            * last    = text.data() + text.size();
+    std::from_chars_result  result  = std::from_chars (first, last, value);
+    bool                    isValid = result.ec == std::errc() && result.ptr == last && value != 0;
+
+
+
+    if (isValid)
+    {
+        parsed.cleanupOldPid = value;
+    }
+    else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+    {
+        parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+        parsed.refusalMessage = "Error: invalid process id " + text;
     }
 }

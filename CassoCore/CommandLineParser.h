@@ -555,6 +555,11 @@ private:
     static void  ApplySeed               (const std::string & text,
                                           CommandLineOptions::EmulatorOptions & parsed);
 
+    //  Records a --cleanup-old process id, or refuses the command line over a
+    //  bad one.
+    static void  ApplyCleanupPid         (const std::string & text,
+                                          CommandLineOptions::EmulatorOptions & parsed);
+
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);
     static HRESULT  ParseDecimal    (const char * text, uint32_t & value);
