@@ -301,6 +301,7 @@ void DebuggerWindow::OnCreate()
 
     ConfigureWidgets();
     ConfigureDockSite();
+    ConfigureHeatMap();
 
     //  The text size the user last left, once every pane it sizes exists.
     if (m_host != nullptr)
@@ -4790,6 +4791,7 @@ std::wstring DebuggerWindow::ReadSavedLayout()
     std::wstring            savedText;
     std::wstring            layoutText;
     std::set<std::wstring>  legacy;
+    bool                    hasHeatMapOptions = false;
 
 
 
@@ -4804,6 +4806,17 @@ std::wstring DebuggerWindow::ReadSavedLayout()
     layoutText = DebuggerLayout::TakeClosedPanes (savedText, legacy);
 
     DebuggerLayout::ReadClosedPanes (SourcePathList::Utf8ToWide (m_host->GetDebuggerClosedPanes()), m_closedPanes);
+
+    //  The heat map opens by default only in the default layout. A layout
+    //  saved before it did so had it closed, and no build that opened it by
+    //  default has yet saved its options.
+    hasHeatMapOptions = !m_host->GetDebuggerHeatMapOptions().empty();
+
+    if (!layoutText.empty() && !hasHeatMapOptions)
+    {
+        m_closedPanes.insert (DebuggerLayout::kHeatMap);
+        m_host->SetDebuggerClosedPanes (SourcePathList::WideToUtf8 (DebuggerLayout::ClosedPanesToText (m_closedPanes)));
+    }
 
     m_barHost.SetDock      (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
     m_timelineHost.SetDock (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerTimelineDock())));
@@ -5041,11 +5054,6 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
     {
         return m_diagOpen.contains (diagnosticsId);
-    }
-
-    if (pane == DebuggerLayout::kHeatMap)
-    {
-        return m_isHeatMapOpen;
     }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
@@ -5416,7 +5424,7 @@ bool DebuggerWindow::IsFixedPane (const std::wstring & pane) const
         }
     }
 
-    return GetSourceSlotOf (pane) < 0 && !DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId) && pane != DebuggerLayout::kHeatMap;
+    return GetSourceSlotOf (pane) < 0 && !DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId);
 }
 
 
@@ -5528,11 +5536,6 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
         {
             RunAction (DebuggerActions::GetPanel (diagnosticsId, true, GetMode()));
         }
-
-        if (pane == DebuggerLayout::kHeatMap)
-        {
-            m_isHeatMapOpen = true;
-        }
     }
 
     m_syncFloats = true;
@@ -5619,16 +5622,6 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
     if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
     {
         RunAction (DebuggerActions::GetPanel (diagnosticsId, false, GetMode()));
-        return;
-    }
-
-    if (pane == DebuggerLayout::kHeatMap)
-    {
-        m_isHeatMapOpen = false;
-        m_syncFloats    = true;
-        m_dockSite->Relayout();
-        SetWindowMenus();
-        Invalidate();
         return;
     }
 
@@ -6683,6 +6676,99 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ConfigureHeatMap
+//
+//  The options the user last left, sent on to the machine at once, since it
+//  starts from the defaults; then each change is saved and sent as it is
+//  made, and a cell clicked is shown in memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ConfigureHeatMap()
+{
+    HeatMapOptions  options = HeatMapOptions::FromText ((m_host != nullptr) ? m_host->GetDebuggerHeatMapOptions() : std::string());
+
+
+
+    m_heatMapView->SetOptions (options);
+
+    m_heatMapView->SetOnOptionsChanged ([this]
+    {
+        if (m_host != nullptr)
+        {
+            m_host->SetDebuggerHeatMapOptions (m_heatMapView->GetOptions().ToText());
+        }
+
+        Invalidate();
+    });
+
+    m_heatMapView->SetOnResetCounts ([this]
+    {
+        if (m_host != nullptr)
+        {
+            m_host->ResetDebuggerHeatMap();
+        }
+    });
+
+    m_heatMapView->SetOnPickAddress ([this] (Word address) { ShowHeatMapAddress (address); });
+
+    if (m_host != nullptr)
+    {
+        m_host->SetDebuggerHeatMapOptions (options.ToText());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowHeatMapAddress
+//
+//  A cell clicked on the heat map: the memory window last used goes to its
+//  address if it is in view, or else the first that is. With none in view
+//  the window last used goes there and its tab comes forward, which puts the
+//  heat map behind it when they share a group, as they do by default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowHeatMapAddress (Word address)
+{
+    MemoryPane  * pane = GetActiveMemoryPane();
+
+
+
+    if (!pane->GetView()->IsVisible())
+    {
+        for (MemoryPane * open : GetOpenMemoryPanes())
+        {
+            if (open->GetView()->IsVisible())
+            {
+                pane = open;
+                break;
+            }
+        }
+    }
+
+    pane->GoTo (address);
+
+    if (!pane->GetView()->IsVisible())
+    {
+        m_dockSite->ActivatePane (DebuggerLayout::GetMemoryPaneId (pane->GetId()));
+        m_dockSite->Relayout();
+        SyncHeatMapRecording();
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::SyncHeatMapRecording
 //
 //  The machine records for the heat map only while its pane is open and on
@@ -6692,7 +6778,7 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 
 void DebuggerWindow::SyncHeatMapRecording()
 {
-    bool  isWanted = m_isHeatMapOpen && m_heatMapView->IsVisible();
+    bool  isWanted = IsPaneShown (DebuggerLayout::kHeatMap) && m_heatMapView->IsVisible();
 
 
 
@@ -6713,9 +6799,11 @@ void DebuggerWindow::SyncHeatMapRecording()
 //
 //  DebuggerWindow::RouteHeatMapMouse
 //
-//  The heat map takes a press on its modes, and follows the mouse over its
-//  map for its readout; a move anywhere else clears the readout. Only a press
-//  it acts on is used up.
+//  The heat map takes a press on its modes and actions, a click or a drag on
+//  its map and the wheel over it, and follows the mouse over its map for its
+//  readout; a move anywhere else clears the readout. A drag begun on the map
+//  keeps the mouse until the button comes up, wherever it goes. Only what it
+//  acts on is used up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6727,6 +6815,11 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
     bool            isUsed = false;
 
 
+
+    if (m_heatMapView->IsPressed())
+    {
+        isOver = true;
+    }
 
     if (!isOver)
     {
@@ -6754,7 +6847,8 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 //  DebuggerWindow::ApplyHeatMap
 //
 //  Code in the disassembly's instruction color, reads in the annotation
-//  green and writes in the changed red, over the page the panes are drawn on.
+//  green and writes in the changed red, from the theme's cold gray, over the
+//  page the panes are drawn on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6766,6 +6860,7 @@ void DebuggerWindow::ApplyHeatMap()
 
 
     palette.background = (m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000;
+    palette.cold       = colors.heatCold;
     palette.execute    = colors.syntax.mnemonic;
     palette.read       = colors.annotation;
     palette.write      = colors.changed;

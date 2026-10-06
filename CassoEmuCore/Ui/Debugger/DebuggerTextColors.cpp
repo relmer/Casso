@@ -45,6 +45,8 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     set.targetRow    = DxuiColor::Mix (page, accent | 0xFF000000u, dark ? s_kDarkTargetRowMix : s_kLightTargetRowMix);
     set.navigatedRow = dark ? DxuiColor::Mix (page, 0xFF3C8C3C, s_kDarkPcRowMix)   : DxuiColor::Mix (page, 0xFF5CB85C, s_kLightTargetRowMix);
 
+    set.heatCold     = dark ? DxuiColor::Mix (page, 0xFFFFFFFF, s_kDarkHeatColdMix) : DxuiColor::Mix (page, 0xFF000000, s_kLightHeatColdMix);
+
     against = { page, set.pcRow, set.targetRow, set.navigatedRow };
 
     if (!dark)

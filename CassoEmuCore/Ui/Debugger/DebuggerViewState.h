@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
+#include "Debugger/HeatMapOptions.h"
 #include "Debugger/Reply.h"
 #include "Debugger/Reverse/HistoryStatus.h"
 #include "Ui/Debugger/BreakpointHistory.h"
@@ -411,6 +412,11 @@ public:
     void                 SetHeatMapShown (bool shown) { m_isHeatMapShown = shown; }
     bool                 IsHeatMapShown  () const     { return m_isHeatMapShown; }
 
+    //  Whether the levels come from the fading heat or the totals, and how
+    //  long the heat takes to fade.
+    void                    SetHeatMapOptions (const HeatMapOptions & options) { m_heatMapOptions = options; }
+    const HeatMapOptions &  GetHeatMapOptions () const                         { return m_heatMapOptions; }
+
     //  Device panels by provider id. A panel stays open until closed or until
     //  its device leaves the machine; only open panels cost the devices
     //  anything, since a closed one is never asked for its rows.
@@ -696,6 +702,7 @@ private:
     Word                                         m_memoryAddress  = 0x0000;
     std::optional<uint64_t>                      m_traceTop;
     bool                                         m_isHeatMapShown = false;
+    HeatMapOptions                               m_heatMapOptions;
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
     std::wstring  m_showPane;
     uint32_t      m_showPaneSerial   = 0;

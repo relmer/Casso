@@ -200,7 +200,8 @@ DxuiPaneLayout DebuggerLayout::Restore (const std::wstring & text)
         return MakeDefault();
     }
 
-    //  A memory window the text lacks joins the first, and the trace and a
+    //  A memory window or the heat map the text lacks joins the first memory
+    //  window, and the trace and a
     //  device panel the console, as they open by default; the call stack
     //  joins the stack, and anything else lacks a better place than the
     //  right edge.
@@ -312,7 +313,7 @@ std::wstring DebuggerLayout::TakeClosedPanes (const std::wstring & text, std::se
 
 std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, const std::wstring & pane)
 {
-    if (pane.starts_with (L"memory"))
+    if (pane.starts_with (L"memory") || pane == kHeatMap)
     {
         return GetMemoryPaneId (1);
     }
@@ -339,7 +340,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kStack;
     }
 
-    if ((pane == kTrace || pane == kHeatMap) && layout.Contains (kConsole))
+    if (pane == kTrace && layout.Contains (kConsole))
     {
         return kConsole;
     }
@@ -360,7 +361,8 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
 //
 //  On the left the disassembly over the console, which carries the trace
 //  and the device panels as tabs; on the right the registers beside the
-//  stack, then watches, call stack, breakpoints and memory, top to bottom.
+//  stack, then watches, call stack, breakpoints and memory, top to bottom,
+//  with the heat map a tab beside the memory windows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,13 +392,16 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
         layout.Add (GetMemoryPaneId (window), memory1);
     }
 
+    //  The heat map is a tab beside the memory windows, since a cell clicked
+    //  on it is shown in one.
+    layout.Add (kHeatMap, memory1);
+
     for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         layout.Add (GetCodePaneId (view), kCode);
     }
 
     layout.Add (kTrace,   kConsole);
-    layout.Add (kHeatMap, kConsole);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

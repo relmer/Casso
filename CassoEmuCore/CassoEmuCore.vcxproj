@@ -245,6 +245,7 @@
     <ClCompile Include="Debugger\RomSymbols.cpp" /><ClCompile Include="Debugger\SymbolDescriptions.cpp" />
     <ClCompile Include="Debugger\Handlers\SymbolHandlers.cpp" />
     <ClCompile Include="Debugger\AccessHeatMap.cpp" />
+    <ClCompile Include="Debugger\HeatMapOptions.cpp" />
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
     <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
@@ -709,6 +710,7 @@
     <ClInclude Include="Debugger\RomSymbols.h" /><ClInclude Include="Debugger\SymbolDescriptions.h" />
     <ClInclude Include="Debugger\Handlers\SymbolHandlers.h" />
     <ClInclude Include="Debugger\AccessHeatMap.h" />
+    <ClInclude Include="Debugger\HeatMapOptions.h" />
     <ClInclude Include="Debugger\BinaryImageReader.h" />
     <ClInclude Include="Debugger\DebugHandlerSet.h" />
     <ClInclude Include="Debugger\MonitorFormatter.h" />

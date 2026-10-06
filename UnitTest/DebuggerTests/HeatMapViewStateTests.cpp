@@ -75,6 +75,42 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (CumulativeOptionsCarryTheTotalsAndTheFadeReachesTheMachine)
+        {
+            ControllerRig           rig;
+            DebuggerViewSnapshot    snapshot;
+            HeatMapOptions          options;
+            AccessHeatMap           thirty;
+            const AccessHeatMap   * map    = nullptr;
+            Byte                    fading = 0;
+
+
+
+            rig.view.SetHeatMapShown (true);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            //  LDA #$41 at $0300, run once: two bytes executed, once each.
+            rig.machine.StepOne();
+            Assert::AreEqual ((Word) 0x0302, rig.controller.GetSession().GetTarget().GetRegisters().pc);
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            fading   = snapshot.heatMap.execute[0x0300];
+
+            options.cumulative  = true;
+            options.fadeSeconds = 30;
+            rig.view.SetHeatMapOptions (options);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            map      = rig.controller.GetSession().GetTarget().FoldHeatMap();
+            thirty.SetFadeSeconds (30.0);
+
+            Assert::IsTrue   (fading > 0 && fading < 255, L"fading, one access is faint");
+            Assert::AreEqual ((Byte) 255, snapshot.heatMap.execute[0x0300], L"cumulative, the busiest address is the top");
+            Assert::IsNotNull (map);
+            Assert::AreEqual (thirty.GetFadePerFrame(), map->GetFadePerFrame(), L"the fade time reached the machine's map");
+        }
+
+
+
         TEST_METHOD (TheViewMessageReadsOnAndOff)
         {
             bool  shown = false;

@@ -76,6 +76,11 @@ public:
     //  records its accesses.
     virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
 
+    //  The heat map pane's options, in HeatMapOptions' text, and its Reset,
+    //  which zeroes what the map has counted.
+    virtual void     SetDebugHeatMapOptions   (const std::string & text)                        { (void) text; }
+    virtual void     ResetDebugHeatMap        ()                                                { }
+
     //  Draws the picture again if what is marked on it has changed while
     //  the machine is stopped, when no frame runs to draw it.
     virtual void     RedrawDebugFrame         ()                                                { }
@@ -134,6 +139,9 @@ public:
 
     //  "on" or "off" after "heatmap": whether the heat map pane is shown.
     static bool  TryGetHeatMapShown (const std::string & where, bool & shown);
+
+    //  "options <text>" after "heatmap": the options' text.
+    static bool  TryGetHeatMapOptions (const std::string & where, std::string & text);
 
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);

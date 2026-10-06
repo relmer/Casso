@@ -266,6 +266,10 @@ struct GlobalUserPrefs
     // The debugger's disassembly viewing options turned on, as keys separated
     // by spaces; empty gives the defaults.
     std::string  debuggerDisassemblyOptions;
+    // The debugger's heat map options, in HeatMapOptions' text; empty gives
+    // the defaults, and marks a layout saved before the heat map opened by
+    // default.
+    std::string  debuggerHeatMapOptions;
 
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one

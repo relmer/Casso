@@ -232,7 +232,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 //
 //  The map records only while its pane is shown, so the build that first
 //  sees the pane hidden turns it off; the one that sees it shown turns it on
-//  and carries what it has counted.
+//  and carries what it has counted, as fading heat or as totals.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,11 +243,20 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
 
 
 
-    target.SetHeatMapOn (m_isHeatMapShown);
+    target.SetHeatMapOn   (m_isHeatMapShown);
+    target.SetHeatMapFade ((double) m_heatMapOptions.fadeSeconds);
     map = target.FoldHeatMap();
 
     if (map == nullptr)
     {
+        return;
+    }
+
+    if (m_heatMapOptions.cumulative)
+    {
+        map->GetTotalLevels (HeatKind::Execute, snapshot.heatMap.execute);
+        map->GetTotalLevels (HeatKind::Read,    snapshot.heatMap.read);
+        map->GetTotalLevels (HeatKind::Write,   snapshot.heatMap.write);
         return;
     }
 

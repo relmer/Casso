@@ -454,6 +454,31 @@ bool CpuCommandDispatcher::TryGetHeatMapShown (const std::string & where, bool &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetHeatMapOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetHeatMapOptions (const std::string & where, std::string & text)
+{
+    static constexpr std::string_view  kPrefix = "options ";
+
+
+
+    if (!where.starts_with (kPrefix))
+    {
+        return false;
+    }
+
+    text = where.substr (kPrefix.size());
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchDebugView
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
@@ -461,7 +486,8 @@ bool CpuCommandDispatcher::TryGetHeatMapShown (const std::string & where, bool &
 //  is passed on as no address. "lines <hex>" is how many lines the code pane
 //  has room for. "trace <decimal>" and "trace end" place the trace pane.
 //  "goto <window> <text>" is a memory window's Go to, as typed. "heatmap on"
-//  and "heatmap off" say whether the heat map pane is shown. "beam" asks for
+//  and "heatmap off" say whether the heat map pane is shown, "heatmap options
+//  <text>" sets its options and "heatmap reset" zeroes its counts. "beam" asks for
 //  the stopped picture to be drawn again with the beam mark turned on or off.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
@@ -480,6 +506,7 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
     int                      index      = 0;
     bool                     isCode     = false;
     bool                     isShown    = false;
+    std::string              options;
 
 
 
@@ -488,6 +515,14 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         if (TryGetHeatMapShown (where, isShown))
         {
             target.SetDebugHeatMapShown (isShown);
+        }
+        else if (TryGetHeatMapOptions (where, options))
+        {
+            target.SetDebugHeatMapOptions (options);
+        }
+        else if (where == "reset")
+        {
+            target.ResetDebugHeatMap();
         }
 
         return;

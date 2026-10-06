@@ -506,6 +506,63 @@ void EmulatorShell::SetDebuggerDisassemblyOptions (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDebuggerHeatMapOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string EmulatorShell::GetDebuggerHeatMapOptions()
+{
+    return m_globalPrefs.debuggerHeatMapOptions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerHeatMapOptions
+//
+//  UI thread. The CPU thread is told every time, since the window sends its
+//  options as it opens, when the machine has only the defaults; the setting
+//  is saved only when it changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebuggerHeatMapOptions (const std::string & text)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap options " + text);
+
+    if (m_globalPrefs.debuggerHeatMapOptions == text)
+    {
+        return;
+    }
+
+    m_globalPrefs.debuggerHeatMapOptions = text;
+    SaveGlobalPrefsDeferred();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetDebuggerHeatMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ResetDebuggerHeatMap()
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDebuggerOpenViews
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1295,6 +1352,44 @@ void EmulatorShell::SetDebugTraceView (std::optional<uint64_t> first)
 void EmulatorShell::SetDebugHeatMapShown (bool shown)
 {
     m_debugViewState.SetHeatMapShown (shown);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugHeatMapOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebugHeatMapOptions (const std::string & text)
+{
+    m_debugViewState.SetHeatMapOptions (HeatMapOptions::FromText (text));
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetDebugHeatMap
+//
+//  CPU thread. The map is zeroed in place, so it goes on recording.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ResetDebugHeatMap()
+{
+    if (m_debugger != nullptr)
+    {
+        m_debugger->GetSession().GetTarget().ResetHeatMap();
+    }
+
     m_isDebugViewDirty = true;
 }
 

@@ -70,9 +70,11 @@ public:
 
     TraceController   & GetTrace          () { return m_trace; }
 
-    void                    SetHeatMapOn (bool on) override;
-    void                    ClearHeatMap () override;
-    const AccessHeatMap   * FoldHeatMap  () override;
+    void                    SetHeatMapOn   (bool on) override;
+    void                    ClearHeatMap   () override;
+    void                    ResetHeatMap   () override                { m_heat.Reset(); }
+    void                    SetHeatMapFade (double seconds) override  { m_heat.SetFadeSeconds (seconds); }
+    const AccessHeatMap   * FoldHeatMap    () override;
 
     std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override;
     bool                                       TryGetMockingboardBase  (Word & base) const override;

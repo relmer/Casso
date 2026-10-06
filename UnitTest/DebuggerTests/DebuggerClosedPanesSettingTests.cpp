@@ -150,7 +150,7 @@ namespace DebuggerClosedPanesSettingTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
             Assert::IsFalse  (window.IsPaneShown (DebuggerLayout::kWatches), L"the pane the old line listed stays closed");
-            Assert::AreEqual (SourcePathList::WideToUtf8 (DebuggerLayout::kWatches), host.closedPanes);
+            Assert::AreEqual (std::string ("heatmap watches"), host.closedPanes, L"with the heat map, closed in any layout saved before it opened by default");
             Assert::IsFalse  (host.layout.starts_with ("closed"), L"the line is gone from the layout");
         }
 

@@ -59,12 +59,12 @@ namespace DebuggerLayoutTests
             for (const wchar_t * pane : { DebuggerLayout::kCode, DebuggerLayout::kSource, DebuggerLayout::kConsole,
                                           DebuggerLayout::kRegisters, DebuggerLayout::kBreakpoints,
                                           DebuggerLayout::kWatches, DebuggerLayout::kStack, DebuggerLayout::kCallStack,
-                                          DebuggerLayout::kTrace })
+                                          DebuggerLayout::kTrace, DebuggerLayout::kHeatMap })
             {
                 Assert::IsTrue (layout.IsDocked (pane), pane);
             }
 
-            Assert::AreEqual ((size_t) 4, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size());
+            Assert::AreEqual ((size_t) 5, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size(), L"the four memory windows and the heat map");
             Assert::IsTrue   (IsInGroup (layout, DebuggerLayout::kConsole, DebuggerLayout::kTrace), L"the trace is a tab of the console");
         }
 
@@ -178,8 +178,8 @@ namespace DebuggerLayoutTests
                 Assert::IsTrue (restored.IsDocked (pane), pane.c_str());
             }
 
-            Assert::AreEqual ((size_t) 5, restored.GetGroup (DebuggerLayout::kRegisters).size(),
-                              L"registers and the four memory windows");
+            Assert::AreEqual ((size_t) 6, restored.GetGroup (DebuggerLayout::kRegisters).size(),
+                              L"registers, the four memory windows and the heat map");
         }
 
 

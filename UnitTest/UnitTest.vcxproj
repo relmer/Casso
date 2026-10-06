@@ -190,6 +190,7 @@
     <ClCompile Include="DebuggerTests\HeatMapViewTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapPaneWindowTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapViewStateTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatMapOptionsTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryMapTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />

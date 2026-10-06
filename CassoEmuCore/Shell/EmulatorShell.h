@@ -586,7 +586,9 @@ private:
     void    RunDebugActions    ();
 
     // Whether the heat map pane is shown, and so recording.
-    void    SetDebugHeatMapShown (bool shown) override;
+    void    SetDebugHeatMapShown   (bool shown) override;
+    void    SetDebugHeatMapOptions (const std::string & text) override;
+    void    ResetDebugHeatMap      () override;
 
     // Draws a stopped machine's picture again when the beam mark changed.
     void    RedrawDebugFrame     () override;
@@ -644,6 +646,9 @@ private:
     void         SetDebuggerTextZoomPercent (int percent) override;
     std::string  GetDebuggerDisassemblyOptions () override;
     void         SetDebuggerDisassemblyOptions (const std::string & text) override;
+    std::string  GetDebuggerHeatMapOptions () override;
+    void         SetDebuggerHeatMapOptions (const std::string & text) override;
+    void         ResetDebuggerHeatMap      () override;
     std::string  GetDebuggerOpenViews () override;
     void         SetDebuggerOpenViews (const std::string & text) override;
     std::string  GetDebuggerPlacementKey () const;

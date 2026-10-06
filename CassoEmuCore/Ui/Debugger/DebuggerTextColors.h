@@ -36,6 +36,11 @@ public:
     static constexpr float  s_kDarkTargetRowMix    = 0.16f;
     static constexpr float  s_kLightTargetRowMix   = 0.20f;
 
+    //  How far the heat map's untouched address is mixed from the page toward
+    //  white on a dark page, or toward black on a light one.
+    static constexpr float  s_kDarkHeatColdMix     = 0.14f;
+    static constexpr float  s_kLightHeatColdMix    = 0.10f;
+
     struct Set
     {
         SourceSyntax::Colors  syntax;
@@ -66,6 +71,11 @@ public:
         uint32_t              mapRom         = 0;
         uint32_t              mapSlotRom     = 0;
         uint32_t              mapIo          = 0;
+
+        //  The heat map's untouched address: a dark gray on a dark page and a
+        //  light gray on a light one, so every cell stands apart from the
+        //  page between them.
+        uint32_t              heatCold       = 0;
     };
 
     //  Make with every one of a theme's own colors, its memory map's among

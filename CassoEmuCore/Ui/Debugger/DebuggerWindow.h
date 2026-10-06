@@ -186,6 +186,13 @@ public:
     virtual std::string  GetDebuggerDisassemblyOptions ()                  { return {}; }
     virtual void         SetDebuggerDisassemblyOptions (const std::string &) {}
 
+    //  The heat map's options, in HeatMapOptions' text, kept the same way and
+    //  passed on to the machine; and its Reset, which zeroes what the machine
+    //  counted. A host with no machine, as a test's is, keeps nothing.
+    virtual std::string  GetDebuggerHeatMapOptions ()                      { return {}; }
+    virtual void         SetDebuggerHeatMapOptions (const std::string &)   {}
+    virtual void         ResetDebuggerHeatMap      ()                      {}
+
     //  Which optional views were open, in DebuggerViewState's text for them,
     //  kept the same way.
     virtual std::string  GetDebuggerOpenViews ()                           = 0;
@@ -414,6 +421,8 @@ protected:
     void                       SyncHeatMapRecording ();
     void                       ApplyHeatMap         ();
     bool                       RouteHeatMapMouse    (const DxuiMouseEvent & ev);
+    void                       ConfigureHeatMap     ();
+    void                       ShowHeatMapAddress   (Word address);
 
     //  Protected so a test can read the breakpoints pane's columns (FR-117)
     //  and the breakpoint each row shows once sorted.
@@ -990,7 +999,6 @@ private:
     std::unique_ptr<DebuggerPaneFrame>                                               m_traceFrame;
     HeatMapView                                                                    * m_heatMapView        = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapFrame;
-    bool                                                                             m_isHeatMapOpen      = false;
     bool                                                                             m_isHeatMapRecording = false;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
