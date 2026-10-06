@@ -149,5 +149,31 @@ public:
         Assert::IsFalse (t.IsVisible(),
             L"A resting pointer must not keep renewing the tooltip deadline.");
     }
-};
 
+    //  An instant tip shows on the request itself, with no dwell, and follows
+    //  the pointer from one anchor to the next at once; the tooltip's dwell
+    //  for an ordinary request is unchanged.
+    TEST_METHOD (RequestShowNow_ShowsAtOnceAndLeavesTheDwellAlone)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShowNow (MakeRect (0, 0, 10, 10), L"$0400", 0);
+        Assert::IsTrue   (t.IsVisible(), L"no dwell, and no Tick needed");
+        Assert::AreEqual (std::wstring (L"$0400"), t.GetText());
+
+        t.RequestShowNow (MakeRect (10, 0, 20, 10), L"$0401", 1);
+        Assert::AreEqual (std::wstring (L"$0401"), t.GetText(), L"the next byte's tip, at once");
+        Assert::AreEqual (10L, t.GetAnchor().left);
+
+        t.HideImmediate();
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"ordinary", 100);
+        Assert::IsFalse (t.IsVisible(), L"an ordinary request still waits");
+
+        t.Tick (599);
+        Assert::IsFalse (t.IsVisible());
+
+        t.Tick (600);
+        Assert::IsTrue  (t.IsVisible());
+    }
+};

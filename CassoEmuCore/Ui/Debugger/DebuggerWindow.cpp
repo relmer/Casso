@@ -2469,8 +2469,11 @@ bool DebuggerWindow::RouteMemoryMouse (const DxuiMouseEvent & ev)
         {
             (void) view->OnMouse (ev);
 
+            //  A press starts a selection or an edit, which the address tip
+            //  would sit over; the next move brings it back.
             if (ev.kind == DxuiMouseEventKind::Down)
             {
+                GetRoutedTooltip().HideImmediate();
                 SetFocusedControl (view);
                 m_activePane = pane;
             }
@@ -8282,6 +8285,15 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         return;
     }
 
+    //  Over a memory window's byte, its address, at once and following the
+    //  pointer from byte to byte.
+    if (TryGetMemoryTip (clientPx, cell, text))
+    {
+        tip.SetMonospace   (true);
+        tip.RequestShowNow (cell, text, now);
+        return;
+    }
+
     if (m_snapshot != nullptr && IsRoutable (m_registerList) && m_registerList->IsVisible() && DxuiDockSite::Contains (bounds, clientPx))
     {
         row = m_registerList->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
@@ -8362,6 +8374,35 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetMemoryTip
+//
+//  Over a byte of an open memory window, in either column, the tip the view
+//  gives for it: its address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetMemoryTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    for (MemoryPane * pane : GetOpenMemoryPanes())
+    {
+        DxuiHexView  * view = pane->GetView();
+
+        if (IsRoutable (view) && view->IsVisible() && DxuiDockSite::Contains (view->GetBounds(), clientPx) &&
+            view->TryGetByteTipAt (clientPx, anchor, text))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -11558,6 +11599,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Char)
     {
         m_openingFocus.OnUserInput();
+    }
+
+    //  Typing into a memory window is an edit, which the address tip would
+    //  sit over; the next move of the pointer brings it back.
+    if (ev.kind == DxuiKeyEventKind::Down && GetFocusedMemoryPane() != nullptr)
+    {
+        GetRoutedTooltip().HideImmediate();
     }
 
     //  The menu bar takes the keys while one of its menus is open, and Alt

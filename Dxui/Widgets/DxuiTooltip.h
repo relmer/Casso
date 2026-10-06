@@ -70,6 +70,12 @@ public:
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
 
+    // Shows at once, with no open dwell and no fade, for a tip that follows
+    // the pointer from cell to cell, such as a hex view's address under the
+    // pointer. Only this request skips the dwell; the next RequestShow waits
+    // as it always does.
+    void  RequestShowNow  (const RECT & anchor, const std::wstring & text, int64_t nowMs);
+
     // Shows immediately (no open dwell) and auto-hides after durationMs.
     // For transient notices where no pointer-leave will arrive to dismiss
     // it -- e.g. entering paddle mode captures the mouse, so the hover that
@@ -157,6 +163,7 @@ private:
     bool              m_visible       = false;
     bool              m_pending       = false;
     bool              m_fadingOut     = false;
+    bool              m_isInstant     = false;
     DxuiHwndSource  * m_popupHost     = nullptr;
     DxuiPopupHost   * m_activePopup   = nullptr;
 };

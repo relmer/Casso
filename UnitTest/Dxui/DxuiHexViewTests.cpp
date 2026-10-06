@@ -77,6 +77,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TipHexSource
+//
+//  Bytes whose tip is their address, counted from a base, as a debugger's
+//  memory window gives it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class TipHexSource : public CountingHexSource
+{
+public:
+    TipHexSource (uint64_t count, uint64_t base) : CountingHexSource (count), m_base (base) {}
+
+    bool  TryGetByteTip (uint64_t offset, std::wstring & tip) const override
+    {
+        tip = std::format (L"${:04X}", m_base + offset);
+        return true;
+    }
+
+private:
+    uint64_t  m_base = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexViewTests
 //
 //  Which byte a point selects, where each byte is drawn in either column, what
@@ -1067,5 +1095,51 @@ public:
 
         Assert::AreEqual (3, changes,
             L"Start, extend and loss are each reported, and clearing nothing is not a change");
+    }
+
+
+    //  A source that gives a byte a tip has it shown at once over that byte,
+    //  in either column, anchored on the byte; none while a selection is
+    //  dragged or a value is half typed, and none from a source without tips.
+    TEST_METHOD (ByteTip_ComesFromTheSourceForTheByteUnderThePointer)
+    {
+        TipHexSource       source (256, 0x0400);
+        CountingHexSource  plain  (256);
+        DxuiHexView        view;
+        RECT               hex    = {};
+        RECT               text   = {};
+        RECT               cell   = {};
+        std::wstring       tip;
+
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        hex  = view.GetByteRect (0x12, DxuiHexView::Column::Hex);
+        text = view.GetByteRect (0x12, DxuiHexView::Column::Text);
+
+        Assert::IsTrue   (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"over the hex column");
+        Assert::AreEqual (std::wstring (L"$0412"), tip);
+        Assert::IsTrue   (EqualRect (&cell, &hex) != FALSE, L"anchored on the byte");
+
+        Assert::IsTrue   (view.TryGetByteTipAt (POINT { text.left + 1, text.top + 1 }, cell, tip), L"over the text column");
+        Assert::AreEqual (std::wstring (L"$0412"), tip);
+        Assert::IsTrue   (EqualRect (&cell, &text) != FALSE);
+
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { 1, hex.top + 1 }, cell, tip), L"the offset column is no byte");
+
+        (void) view.OnMouse (MakeMouse (DxuiMouseEventKind::Down, hex.left + 1, hex.top + 1));
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"not while a selection is dragged");
+        (void) view.OnMouse (MakeMouse (DxuiMouseEventKind::Up, hex.left + 1, hex.top + 1));
+        Assert::IsTrue   (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"and back once it ends");
+
+        view.SetEditable (true);
+        view.SelectByte  (0x12, DxuiHexView::Column::Hex);
+        (void) view.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Char, L'4' });
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"not while a value is half typed");
+
+        view.SetSource (&plain);
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"a source gives none unless it chooses to");
     }
 };

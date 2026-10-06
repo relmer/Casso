@@ -1674,6 +1674,42 @@ DxuiHexView::HitResult DxuiHexView::HitTestPoint (POINT clientDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHexView::TryGetByteTipAt
+//
+//  Anchored on the byte the point landed on, in the column it landed in, so
+//  the tip moves from byte to byte with the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::TryGetByteTipAt (POINT clientDip, RECT & outCellDip, std::wstring & outTip) const
+{
+    HitResult  hit;
+
+
+
+    if (m_source == nullptr || IsDragging() || !m_pending.empty() || IsOverScrollbar (clientDip))
+    {
+        return false;
+    }
+
+    hit = HitTestPoint (clientDip);
+
+    if (!hit.hit || !m_source->TryGetByteTip (hit.offset, outTip))
+    {
+        return false;
+    }
+
+    outCellDip = GetByteRect (hit.offset, hit.column);
+
+    return outCellDip.right > outCellDip.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexView::SelectByte
 //
 ////////////////////////////////////////////////////////////////////////////////

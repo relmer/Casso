@@ -53,6 +53,16 @@ public:
         (void) bytes;
         return false;
     }
+
+    //  A tip the view shows at once over the byte at `offset`, such as its
+    //  address, following the pointer from byte to byte. A source without
+    //  one returns false.
+    virtual bool  TryGetByteTip (uint64_t offset, std::wstring & tip) const
+    {
+        (void) offset;
+        (void) tip;
+        return false;
+    }
 };
 
 
@@ -176,6 +186,11 @@ public:
     RECT       GetByteRect      (uint64_t offset, Column column) const;
     RECT       GetRowOffsetRect (uint64_t row) const;
     HitResult  HitTestPoint     (POINT clientDip) const;
+
+    //  The source's tip for the byte under a point, and the byte's rect to
+    //  anchor it on. None while a selection is dragged or a value is half
+    //  typed, so the tip never sits over an edit in progress.
+    bool       TryGetByteTipAt  (POINT clientDip, RECT & outCellDip, std::wstring & outTip) const;
 
     //  Selection. `SelectByte` starts a new run, `ExtendSelectionTo` moves the
     //  moving end of it, and the anchor stays where the run began.

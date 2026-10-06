@@ -86,6 +86,8 @@ int DxuiTooltip::GetSystemVisibleMs()
 
 void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
+    m_isInstant = false;
+
     if (m_visible)
     {
         bool  changed = (text != m_text) ||
@@ -126,6 +128,43 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RequestShowNow
+//
+//  Shown on the request itself. A repeat for the same anchor and text keeps
+//  the tip and its deadline, as RequestShow's does; a new one swaps in at
+//  once and starts its own lifetime.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
+{
+    bool  isSame = m_visible && !m_fadingOut && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+
+
+
+    if (isSame)
+    {
+        return;
+    }
+
+    m_anchor    = anchor;
+    m_text      = text;
+    m_pending   = false;
+    m_visible   = true;
+    m_fadingOut = false;
+    m_isInstant = true;
+    m_hideAtMs  = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+
+    ReleaseActivePopup();
+    ShowPopup();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShowTimed
 //
 //  Shows the tooltip immediately and schedules an auto-hide durationMs
@@ -139,11 +178,12 @@ void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int
 
 
 
-    m_anchor   = anchor;
-    m_text     = text;
-    m_pending  = false;
-    m_visible  = true;
-    m_hideAtMs = nowMs + (int64_t) durationMs;
+    m_anchor    = anchor;
+    m_text      = text;
+    m_pending   = false;
+    m_visible   = true;
+    m_isInstant = false;
+    m_hideAtMs  = nowMs + (int64_t) durationMs;
 
     if (m_popupHost != nullptr && (changed || m_activePopup == nullptr))
     {
@@ -407,8 +447,9 @@ void DxuiTooltip::ShowPopup()
         showParams.backgroundArgb   = m_bgArgb;
 
         // A tip fades in rather than appearing. Same switch the menus read,
-        // so turning menu animation off turns this off with it.
-        showParams.revealMs         = DxuiSystemSettings::Instance().AreMenuAnimationsEnabled()
+        // so turning menu animation off turns this off with it. An instant
+        // tip appears whole, since it moves from cell to cell with the pointer.
+        showParams.revealMs         = (DxuiSystemSettings::Instance().AreMenuAnimationsEnabled() && !m_isInstant)
                                           ? kFadeMs : 0;
         showParams.revealFade       = true;
         showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };

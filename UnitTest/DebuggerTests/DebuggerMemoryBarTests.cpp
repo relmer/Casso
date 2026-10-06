@@ -93,6 +93,8 @@ namespace DebuggerTests
         using DebuggerWindow::SubmitMemoryBox;
         using DebuggerWindow::GetMemoryBox;
         using DebuggerWindow::FocusControl;
+        using DebuggerWindow::GetTooltip;
+        using DebuggerWindow::OnMouse;
         using DebuggerWindow::GetMemoryBar;
         using DebuggerWindow::GetMemoryHistory;
         using DebuggerWindow::RunMemoryBarEntry;
@@ -192,6 +194,15 @@ namespace DebuggerTests
         }
 
 
+        static DxuiMouseEvent MakeMove (int x, int y)
+        {
+            DxuiMouseEvent  ev;
+
+            ev.kind        = DxuiMouseEventKind::Move;
+            ev.positionDip = POINT { x, y };
+            return ev;
+        }
+
         TEST_METHOD (TheBarHoldsVisualStudiosEntriesAndNoPokeOrCloseButton)
         {
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
@@ -271,8 +282,51 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)
+        //  Over a byte the memory window shows its address at once, in either
+        //  column, and a press that starts a selection takes the tip away.
+        TEST_METHOD (TheAddressUnderThePointerShowsAtOnce)
         {
+            constexpr int    kCellWidthDip  = 8;
+            constexpr int    kCellHeightDip = 16;
+            CassoTheme       theme          = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost    host;
+            MemoryBarWindow  window (theme, host);
+            DxuiHexView    * view           = nullptr;
+            RECT             hex            = {};
+            RECT             text           = {};
+            DxuiMouseEvent   press;
+
+
+
+            window.Build();
+            view = window.GetFirstHexView();
+            Assert::IsNotNull (view);
+
+            //  No device measures the face here, so the cell is given.
+            view->SetCellSizeDip (kCellWidthDip, kCellHeightDip);
+            window.Relayout();
+
+            hex  = view->GetByteRect (view->GetTopRow() * (uint64_t) view->GetBytesPerRow() + 3, DxuiHexView::Column::Hex);
+            text = view->GetByteRect (view->GetTopRow() * (uint64_t) view->GetBytesPerRow() + 3, DxuiHexView::Column::Text);
+
+            (void) window.OnMouse (MakeMove (hex.left + 1, hex.top + 1));
+            Assert::IsTrue   (hex.right > hex.left, L"the byte is on screen");
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell");
+            Assert::IsTrue   (window.GetTooltip().GetText().starts_with (L"$"), window.GetTooltip().GetText().c_str());
+            Assert::AreEqual ((size_t) 5, window.GetTooltip().GetText().size(), L"a four-digit address");
+
+            (void) window.OnMouse (MakeMove (text.left + 1, text.top + 1));
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"the text column too");
+
+            press.kind        = DxuiMouseEventKind::Down;
+            press.button      = DxuiMouseButton::Left;
+            press.positionDip = POINT { hex.left + 1, hex.top + 1 };
+            (void) window.OnMouse (press);
+            Assert::IsFalse  (window.GetTooltip().IsVisible(), L"a press hides it");
+        }
+
+
+        TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)        {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
             MemoryBarHost    host;
             MemoryBarWindow  window (theme, host);

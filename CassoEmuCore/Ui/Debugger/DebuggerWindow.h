@@ -768,6 +768,7 @@ private:
     void     CommitRegister   (const std::string & name, Byte typed);
     void     UpdateTooltip    (POINT clientPx);
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool     TryGetMemoryTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     std::optional<Byte>  GetRegisterByte (const std::string & name) const;
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the
