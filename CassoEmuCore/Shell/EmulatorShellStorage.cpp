@@ -180,8 +180,8 @@ Error:
 //
 //  EmulatorShell::ShowStorageContextMenu
 //
-//  A device's own menu, from a right-click on it: what the Storage menu does
-//  for that device, ending with the switch that disconnects it. Drive 1 has
+//  A device's own menu, from a right-click on it: the switch that connects
+//  it, then what the Storage menu does for that device. Drive 1 has
 //  no such switch; the machine's first drive is always there.
 //
 //  The rows are the Storage menu's own commands, so they read, enable and
@@ -204,8 +204,8 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 
     if (device == kStorageMenuRecorder)
     {
-        ids = { IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND, IDM_TAPE_FASTFORWARD,
-                IDM_TAPE_EJECT, 0, IDM_STORAGE_RECORDER };
+        ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
+                IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT };
     }
     else if (device == 0)
     {
@@ -213,7 +213,7 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     }
     else
     {
-        ids = { IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2, 0, IDM_STORAGE_DRIVE2 };
+        ids = { IDM_STORAGE_DRIVE2, 0, IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2 };
     }
 
     for (int id : ids)
