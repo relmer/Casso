@@ -485,7 +485,9 @@ RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx, int lengthPx)
 //  A window for the floating toolbar, with no title, at its saved place,
 //  and the toolbar moved into it, showing icons alone. A toolbar that fills
 //  its edge keeps its length, and its window resizes along it, never
-//  shorter than the band is thick.
+//  shorter than the band is thick. The window is made where it goes, so it
+//  has that monitor's scale from the start and no scale change resizes it
+//  under a drag that has just torn the toolbar off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -508,15 +510,17 @@ void DxuiToolbarHost::Float()
 
     rect = GetFloatingRect (m_dock.floatPx, GetFloatLengthPx (m_dock, m_fillsEdge, dpi));
 
-    params.hInstance        = m_hInstance;
-    params.ownerHwnd        = GetOwnerHwnd();
-    params.initialSizeDip   = { MulDiv (rect.right - rect.left, USER_DEFAULT_SCREEN_DPI, dpi), MulDiv (rect.bottom - rect.top, USER_DEFAULT_SCREEN_DPI, dpi) };
-    params.minSizeDip       = m_fillsEdge ? SIZE { GetBandDipOfBar(), GetBandDipOfBar() } : SIZE {};
-    params.resizable        = false;
-    params.frameless        = true;
-    params.captionStyle     = DxuiCaptionStyle::None;
-    params.createNoActivate = true;
-    params.toolWindow       = true;
+    params.hInstance              = m_hInstance;
+    params.ownerHwnd              = GetOwnerHwnd();
+    params.initialSizeDip         = { MulDiv (rect.right - rect.left, USER_DEFAULT_SCREEN_DPI, dpi), MulDiv (rect.bottom - rect.top, USER_DEFAULT_SCREEN_DPI, dpi) };
+    params.minSizeDip             = m_fillsEdge ? SIZE { GetBandDipOfBar(), GetBandDipOfBar() } : SIZE {};
+    params.resizable              = false;
+    params.frameless              = true;
+    params.captionStyle           = DxuiCaptionStyle::None;
+    params.createNoActivate       = true;
+    params.toolWindow             = true;
+    params.useInitialWindowRectPx = true;
+    params.initialWindowRectPx    = rect;
 
     hr = window->Create (params);
 

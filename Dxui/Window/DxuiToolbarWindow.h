@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "Window/DxuiCaptionDragTracker.h"
+#include "Window/DxuiToolbarMoveTracker.h"
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiToolbar.h"
 
@@ -81,7 +81,7 @@ public:
     RECT  GetToolbarBounds (const RECT & clientPx) const;
 
     //  Whether a drag of the grab handle or of an end is under way.
-    bool  IsMoving () const { return m_isMoving; }
+    bool  IsMoving () const { return m_move.IsMoving(); }
     bool  IsSizing () const { return m_sizingEnd != HTNOWHERE; }
 
     //  How far in from each end of the window a press resizes it.
@@ -114,16 +114,15 @@ protected:
 
 private:
     void     OnMoveLoopTick   ();
-    void     Report           (DxuiCaptionDragTracker::Event ev);
+    void     Report           (DxuiToolbarMoveTracker::Event ev);
     SIZE     GetScreenSize    () const;
     LRESULT  HitTestEnd       (POINT clientPx) const;
     int      GetEndPx         () const;
     bool     OnSizingMouse    (const DxuiMouseEvent & ev);
     POINT    ClientToScreenPx (POINT clientPx) const;
 
-    //  Whether the system's move loop running now is a move by the grab
-    //  handle.
-    bool                      m_isMoving        = false;
+    //  A move by the grab handle, through the system's move loop.
+    DxuiToolbarMoveTracker    m_move;
     bool                      m_lengthResizable = false;
 
     //  A size drag of an end: which end, and where the press and the window
@@ -138,5 +137,4 @@ private:
     PointFn                   m_onDragEnd;
     ClosedFn                  m_onDragCancel;
     ClosedFn                  m_onMoveFrame;
-    DxuiCaptionDragTracker    m_drag;
 };

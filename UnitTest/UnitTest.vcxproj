@@ -741,6 +741,7 @@
     <ClCompile Include="Dxui\DxuiToolbarVerticalTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarFillTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarLiftTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarMoveTrackerTests.cpp" />
     <ClCompile Include="Dxui\DxuiImageStripStandingTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarEndEdgesTests.cpp" />
     <ClCompile Include="Dxui\CommandBarDockDragTests.cpp" />

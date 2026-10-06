@@ -212,7 +212,7 @@ POINT DxuiToolbarWindow::ClientToScreenPx (POINT clientPx) const
 
 void DxuiToolbarWindow::BeginMove()
 {
-    m_isMoving = true;
+    m_move.Begin();
 
     ReleaseCapture();
     PostMessage (GetHwnd(), WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
@@ -266,10 +266,7 @@ void DxuiToolbarWindow::OnMoveLoopTick()
 
 
 
-    if (m_isMoving)
-    {
-        Report (m_drag.OnTick (buttonDown, GetScreenSize()));
-    }
+    Report (m_move.OnTick (buttonDown, GetScreenSize()));
 
     if (m_onMoveFrame)
     {
@@ -291,9 +288,7 @@ void DxuiToolbarWindow::OnMoveLoopTick()
 
 void DxuiToolbarWindow::OnWindowPlaced()
 {
-    m_isMoving = false;
-
-    Report (m_drag.OnLoopEnd (GetScreenSize()));
+    Report (m_move.OnPlaced (GetScreenSize()));
 }
 
 
@@ -313,7 +308,7 @@ void DxuiToolbarWindow::OnDpiChanged (UINT newDpi)
 {
     UNREFERENCED_PARAMETER (newDpi);
 
-    m_drag.Rebase (GetScreenSize());
+    m_move.Rebase (GetScreenSize());
 }
 
 
@@ -332,10 +327,7 @@ void DxuiToolbarWindow::PollCaptionDrag()
 
 
 
-    //  A move asked for after the button came up never starts its loop.
-    m_isMoving = m_isMoving && buttonDown;
-
-    Report (m_drag.OnPoll (buttonDown, GetScreenSize()));
+    Report (m_move.OnPoll (buttonDown, GetScreenSize()));
 }
 
 
@@ -348,7 +340,7 @@ void DxuiToolbarWindow::PollCaptionDrag()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbarWindow::Report (DxuiCaptionDragTracker::Event ev)
+void DxuiToolbarWindow::Report (DxuiToolbarMoveTracker::Event ev)
 {
     POINT  cursor = {};
 
@@ -414,12 +406,19 @@ SIZE DxuiToolbarWindow::GetScreenSize() const
 //
 //  DxuiToolbarWindow::SetScreenRect
 //
+//  A place set here is the program's, so a drag by the grab handle goes on
+//  through it at the window's new size.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarWindow::SetScreenRect (const RECT & rectPx)
 {
+    m_move.BeginPlace();
+
     SetWindowPos (GetHwnd(), nullptr, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
+
+    m_move.EndPlace (GetScreenSize());
 }
 
 

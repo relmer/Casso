@@ -195,6 +195,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Window/DxuiMessageBox.h"
 #include "Window/DxuiCaptionDragTracker.h"
 #include "Window/DxuiDockedWindow.h"
+#include "Window/DxuiToolbarMoveTracker.h"
 #include "Window/DxuiToolbarWindow.h"
 #include "Widgets/DxuiToolbarDock.h"
 #include "Window/DxuiToolbarHost.h"

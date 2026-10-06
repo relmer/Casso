@@ -1,0 +1,137 @@
+#include "Pch.h"
+
+#include "Window/DxuiToolbarMoveTracker.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarMoveTracker::Begin
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarMoveTracker::Begin()
+{
+    m_isMoving = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarMoveTracker::OnTick
+//
+//  A loop the window's ends started is a resize, which is no drag to
+//  report.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarMoveTracker::Event DxuiToolbarMoveTracker::OnTick (bool buttonDown, SIZE windowSize)
+{
+    if (!m_isMoving)
+    {
+        return Event::None;
+    }
+
+    return m_drag.OnTick (buttonDown, windowSize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarMoveTracker::OnPlaced
+//
+//  A move or size the program is making is not the end of the drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarMoveTracker::Event DxuiToolbarMoveTracker::OnPlaced (SIZE windowSize)
+{
+    if (m_isPlacing)
+    {
+        return Event::None;
+    }
+
+    m_isMoving = false;
+
+    return m_drag.OnLoopEnd (windowSize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarMoveTracker::OnPoll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarMoveTracker::Event DxuiToolbarMoveTracker::OnPoll (bool buttonDown, SIZE windowSize)
+{
+    m_isMoving = m_isMoving && buttonDown;
+
+    return m_drag.OnPoll (buttonDown, windowSize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarMoveTracker::BeginPlace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarMoveTracker::BeginPlace()
+{
+    m_isPlacing = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarMoveTracker::EndPlace
+//
+//  A drag under way goes on at the size the program gave the window, so the
+//  next tick at that size is a move and not a resize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarMoveTracker::EndPlace (SIZE windowSize)
+{
+    m_isPlacing = false;
+
+    m_drag.Rebase (windowSize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarMoveTracker::Rebase
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarMoveTracker::Rebase (SIZE windowSize)
+{
+    m_drag.Rebase (windowSize);
+}
+
+
+
+
+

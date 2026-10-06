@@ -58,6 +58,13 @@ public:
         SIZE              minSizeDip               = { 0, 0 };
         bool              resizable                = true;
 
+        // Where the window opens, in screen pixels and frame and all, in
+        // place of initialSizeDip and placement, for a window its owner
+        // places: it is made on the monitor it belongs on, at that monitor's
+        // scale, rather than made on the primary monitor and moved across.
+        bool              useInitialWindowRectPx   = false;
+        RECT              initialWindowRectPx      = {};
+
         // No frame on any side, so the client area is the whole window, as a
         // floating toolbar's is. A window that does not resize otherwise gets
         // the system's fixed frame along its sides and bottom once it is

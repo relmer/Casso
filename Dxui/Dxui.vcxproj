@@ -215,6 +215,7 @@
     <ClCompile Include="Widgets\DxuiDockSite.cpp" />
     <ClCompile Include="Window\DxuiCaptionDragTracker.cpp" />
     <ClCompile Include="Window\DxuiDockedWindow.cpp" />
+    <ClCompile Include="Window\DxuiToolbarMoveTracker.cpp" />
     <ClCompile Include="Window\DxuiToolbarWindow.cpp" />
     <ClCompile Include="Window\DxuiToolbarHost.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarDock.cpp" />
@@ -329,6 +330,7 @@
     <ClInclude Include="Widgets\DxuiDockSite.h" />
     <ClInclude Include="Window\DxuiCaptionDragTracker.h" />
     <ClInclude Include="Window\DxuiDockedWindow.h" />
+    <ClInclude Include="Window\DxuiToolbarMoveTracker.h" />
     <ClInclude Include="Window\DxuiToolbarWindow.h" />
     <ClInclude Include="Window\DxuiToolbarHost.h" />
     <ClInclude Include="Widgets\DxuiToolbarDock.h" />
