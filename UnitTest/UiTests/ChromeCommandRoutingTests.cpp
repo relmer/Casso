@@ -138,6 +138,8 @@ public:
         { L"IDM_DRIVE_EXTERNAL_DISCONNECT", IDM_DRIVE_EXTERNAL_DISCONNECT },
         { L"IDM_MOUSE_CONNECT",             IDM_MOUSE_CONNECT             },
         { L"IDM_MOUSE_DISCONNECT",          IDM_MOUSE_DISCONNECT          },
+        { L"IDM_STORAGE_DRIVE2",            IDM_STORAGE_DRIVE2            },
+        { L"IDM_STORAGE_RECORDER",          IDM_STORAGE_RECORDER          },
 
         { L"IDM_PRINTER_DISCARD",           IDM_PRINTER_DISCARD           },
         { L"IDM_PRINTER_COPY",              IDM_PRINTER_COPY              },

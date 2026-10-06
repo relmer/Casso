@@ -129,7 +129,7 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
     // THE RECORDER JOINS THE ROW, to the right of the drives, and the row
     // centers as one unit with it. Measured at this DPI like the drives.
-    showTape = MachineHasCassettePort();
+    showTape = IsTapeRecorderShown();
 
     if (showTape)
     {
@@ -1137,7 +1137,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
     // cassette jacks adds or removes the recorder, which is a reload too.
     if (m_deskSceneReady &&
         (MachineHasCaseSwitches() != m_deskSceneMachineIsC ||
-         MachineHasCassettePort() != m_deskScene.HasRecorder()))
+         IsTapeRecorderShown() != m_deskScene.HasRecorder()))
     {
         HRESULT  hrModels = LoadDeskSceneModelsForMachine();
 

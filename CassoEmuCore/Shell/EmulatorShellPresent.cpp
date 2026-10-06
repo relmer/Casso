@@ -907,7 +907,7 @@ bool EmulatorShell::TryPresentUiFrame()
                     driveRow         = m_stripRectPx;
                     driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
 
-                    if (m_deskScene.HasRecorder() && MachineHasCassettePort())
+                    if (m_deskScene.HasRecorder() && IsTapeRecorderShown())
                     {
                         driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp);
                     }

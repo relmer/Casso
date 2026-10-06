@@ -422,6 +422,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
@@ -1568,6 +1569,10 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_TAPE_STOP:        m_shell.HandleTapeClick (TapeDeckRegion::Stop);         break;
         case IDM_TAPE_REWIND:      m_shell.HandleTapeClick (TapeDeckRegion::Rewind);       break;
         case IDM_TAPE_FASTFORWARD: m_shell.HandleTapeClick (TapeDeckRegion::FastForward);  break;
+
+        // Each flips its device, connected to disconnected or back.
+        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.ShouldShowExternalDrive()); break;
+        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeRecorderConnected);  break;
     }
 }
 

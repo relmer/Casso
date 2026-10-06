@@ -193,6 +193,7 @@
     <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
     <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
+    <ClCompile Include="Shell\EmulatorShellStorage.cpp" />
     <ClCompile Include="Shell\EmulatorShellTape.cpp" />
     <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
     <ClCompile Include="Shell\TapeManager.cpp" />

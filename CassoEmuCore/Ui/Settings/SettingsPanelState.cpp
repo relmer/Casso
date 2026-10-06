@@ -1089,7 +1089,58 @@ Error:
 
 void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
 {
+    std::vector<SettingsMachinePort>  ports;
+    std::vector<HardwareEntry>        hardware;
+    JsonValue                         augmented;
+    HRESULT                           hr        = S_OK;
+
+
+
     m_mergedJson = CloneJson (mergedJson);
+
+    // THE SECOND DRIVE IS TAKEN FROM DISK TOO. No page edits it -- it is
+    // connected from the Storage menu and the drives' right-click menus,
+    // which save it the moment it changes -- so the copy read when the sheet
+    // opened is the stale one, and BuildJson writes it out on OK.
+    hr = ExtractMachinePorts (mergedJson, ports);
+
+    if (SUCCEEDED (hr))
+    {
+        m_current.machinePorts  = ports;
+        m_original.machinePorts = ports;
+    }
+
+    augmented = CloneJson (mergedJson);
+    AddDefinedDevices (m_machineName, augmented);
+    hr = ExtractHardware (augmented, hardware);
+
+    for (size_t i = 0; SUCCEEDED (hr) && i < hardware.size() && i < m_current.hardware.size(); i++)
+    {
+        if (hardware[i].type == m_current.hardware[i].type && hardware[i].slot == m_current.hardware[i].slot)
+        {
+            m_current.hardware[i].ports  = hardware[i].ports;
+            m_original.hardware[i].ports = hardware[i].ports;
+        }
+    }
+
+    // The recorder likewise: connected from the Storage menu, never a page.
+    {
+        SettingsUiPrefs  fresh;
+
+        hr = ExtractUiPrefs (mergedJson, fresh);
+
+        if (SUCCEEDED (hr))
+        {
+            m_current.prefs.tapeRecorderConnected  = fresh.tapeRecorderConnected;
+            m_original.prefs.tapeRecorderConnected = fresh.tapeRecorderConnected;
+        }
+    }
+
+    if (HasSecondDriveStore())
+    {
+        m_current.prefs.externalDriveConnected  = SecondDriveAttached();
+        m_original.prefs.externalDriveConnected = m_current.prefs.externalDriveConnected;
+    }
 }
 
 
@@ -1234,6 +1285,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.tapeAutoStop       = TryGetBoolOpt   (*uiObj, "tapeAutoStop",        true);
     outPrefs.tapeIdleStop       = TryGetBoolOpt   (*uiObj, "tapeIdleStop",        true);
     outPrefs.tapeEightBit       = TryGetBoolOpt   (*uiObj, "tapeEightBit",        false);
+    outPrefs.tapeRecorderConnected = TryGetBoolOpt (*uiObj, "tapeRecorderConnected", true);
     outPrefs.tapeVolume         = (float) GetNumberOpt (*uiObj, "tapeVolume",   SettingsUiPrefs::kDefaultTapeVolume);
 
     outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);
@@ -2072,6 +2124,7 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("tapeAutoStop",       JsonValue (prefs.tapeAutoStop));
     uiObj.emplace_back ("tapeIdleStop",       JsonValue (prefs.tapeIdleStop));
     uiObj.emplace_back ("tapeEightBit",       JsonValue (prefs.tapeEightBit));
+    uiObj.emplace_back ("tapeRecorderConnected", JsonValue (prefs.tapeRecorderConnected));
     // The legacy boolean is written ONLY when the machine has no disk port to
     // hold the answer. Where a port exists it is authoritative, and writing
     // both would put two answers to one question back on disk -- exactly what
@@ -2198,6 +2251,7 @@ bool SettingsPanelState::ArePrefsEqual (
         && a.tapeAutoStop           == b.tapeAutoStop
         && a.tapeIdleStop           == b.tapeIdleStop
         && a.tapeEightBit           == b.tapeEightBit
+        && a.tapeRecorderConnected  == b.tapeRecorderConnected
         && a.externalDriveConnected == b.externalDriveConnected
         && a.mouseConnected         == b.mouseConnected
         && a.driveMotorVolume       == b.driveMotorVolume

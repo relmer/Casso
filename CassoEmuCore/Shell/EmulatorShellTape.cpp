@@ -92,7 +92,7 @@ TapeDeckView EmulatorShell::GetTapeView() const
 void EmulatorShell::SyncTapeChrome()
 {
     RECT           drive   = m_driveChrome[0].GetOuterRect();
-    bool           isShown = MachineHasCassettePort() && !DeskSceneActive() && !IsRectEmpty (&drive) &&
+    bool           isShown = IsTapeRecorderShown() && !DeskSceneActive() && !IsRectEmpty (&drive) &&
                              m_tapeAnchorDpi != 0;
     DxuiDpiScaler  scaler;
     TapeDeckView   view    = GetTapeView();
@@ -155,7 +155,7 @@ void EmulatorShell::RegisterTapeDropTarget()
 
 
 
-    BAIL_OUT_IF (!MachineHasCassettePort(), S_OK);
+    BAIL_OUT_IF (!IsTapeRecorderShown(), S_OK);
 
     if (DeskSceneActive())
     {

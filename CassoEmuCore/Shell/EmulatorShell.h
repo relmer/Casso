@@ -546,6 +546,20 @@ private:
     // to hide m_driveChrome[1] and skip its hit rect when disconnected.
     bool    ShouldShowExternalDrive       () const;
 
+    // Connecting and disconnecting storage devices, from the Storage menu and
+    // the devices' right-click menus. Both are live, and saved with the
+    // machine as Settings saves them.
+    void    SetSecondDriveConnected   (bool connected);
+    void    SetTapeRecorderConnected  (bool connected);
+    void    SaveStorageDevices        ();
+    bool    IsSecondDriveOffered      () const;
+
+    // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
+    // menu, at a client point.
+    static constexpr int  kStorageMenuRecorder = 2;
+    void    ShowStorageContextMenu    (int device, int x, int y);
+    int     StorageDeviceAt           (int x, int y) const;
+
     SIZE    GetClientSizeForCenterPx      (int centerWidthPx, int centerHeightPx);
     SIZE    GetClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp);
 
@@ -1097,8 +1111,10 @@ private:
     // come from the composition's projected drive bounds.
     void    SyncSceneDriveChrome ();
 
-    // The cassette recorder's flat widget and what its controls do.
+    // The cassette recorder's flat widget and what its controls do. Shown
+    // when the machine has a cassette port AND the recorder is connected.
     bool          MachineHasCassettePort () const;
+    bool          IsTapeRecorderShown    () const { return MachineHasCassettePort() && m_tapeRecorderConnected; }
     TapeDeckView  GetTapeView            () const;
     void          SyncTapeChrome         ();
     void          HandleTapeClick        (TapeDeckRegion region);
@@ -2105,6 +2121,12 @@ private:
     // ShouldShowExternalDrive(). No effect on machines whose second drive is
     // fixed hardware (they have no banked ROM, so the gate is always open).
     bool                     m_externalDriveConnected = false;
+
+    // Whether the cassette recorder is connected, where the machine has a
+    // cassette port. Per machine, saved in $cassoUiPrefs.tapeRecorderConnected,
+    // and connected by default so new users find it. Disconnecting hides it
+    // everywhere and ejects its tape.
+    bool                     m_tapeRecorderConnected  = true;
 
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
     // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);

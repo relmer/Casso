@@ -337,6 +337,20 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     m_shell.m_mouseConnected = mouseConn;
 
+                    // The cassette recorder: the switched-to machine's own
+                    // answer, connected unless it was disconnected.
+                    {
+                        bool  recorder = true;
+
+                        if (extPrefs != nullptr)
+                        {
+                            HRESULT  hrR = extPrefs->GetBool ("tapeRecorderConnected", recorder);
+                            IGNORE_RETURN_VALUE (hrR, S_OK);
+                        }
+
+                        m_shell.m_tapeRecorderConnected = recorder;
+                    }
+
                     // The block the switched-to machine's input mapping is
                     // restored from. HELD, not applied: the config loader
                     // below can still refuse the switch, and the mapping

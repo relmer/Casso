@@ -97,6 +97,12 @@
 #define IDM_TAPE_SEEK               40085
 #define IDM_TAPE_FASTFORWARD        40086
 
+// Connect or disconnect a storage device -- the second drive and the
+// cassette recorder -- from the Storage menu or a device's right-click menu.
+// Live: neither needs a reset, and each is saved with the machine.
+#define IDM_STORAGE_DRIVE2          40087
+#define IDM_STORAGE_RECORDER        40088
+
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).
 #define IDM_PRINTER_DISCARD         40061

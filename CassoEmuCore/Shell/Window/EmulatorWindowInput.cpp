@@ -1891,6 +1891,15 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         m_sceneOrbiting = false;
         ReleaseCapture();
 
+        // A motionless right-click on a drive or the recorder opens its
+        // menu; a drag that began there still turned the scene.
+        if (still && StorageDeviceAt (x, y) >= 0)
+        {
+            ShowStorageContextMenu (StorageDeviceAt (x, y), x, y);
+            m_sceneOrbitTapMs = 0;
+            return DxuiMessageResult::Handled;
+        }
+
         // Two motionless right-clicks in double-click time reset the orbit
         // -- the pose home button, without stealing a key.
         if (still)
@@ -1916,8 +1925,81 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
     }
+    else if (!m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    {
+        // The drive band and the fullscreen strip have no orbit to share the
+        // button with: a right-click there is the device's menu.
+        int  x      = (int) (short) LOWORD (lParam);
+        int  y      = (int) (short) HIWORD (lParam);
+        int  device = StorageDeviceAt (x, y);
+
+        if (device >= 0)
+        {
+            ShowStorageContextMenu (device, x, y);
+            result = DxuiMessageResult::Handled;
+        }
+    }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StorageDeviceAt
+//
+//  Which storage device is under a client point, as the left-click chain
+//  finds it: in the desk scene (or on the fullscreen strip) its drives, the
+//  recorder and the recorder's labels; otherwise the flat drive widgets and
+//  the flat tape deck. 0 or 1 for a drive, kStorageMenuRecorder for the
+//  recorder, -1 for neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::StorageDeviceAt (int x, int y) const
+{
+    POINT  pt = { x, y };
+
+
+
+    if (DeskSceneActive())
+    {
+        bool            inStrip  = m_d3dRenderer.IsFullscreen() &&
+                                   m_stripRectPx.bottom > m_stripRectPx.top &&
+                                   PtInRect (&m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
+
+        if (sceneHit.target == SceneHitResult::Target::Drive)
+        {
+            return sceneHit.driveIndex;
+        }
+
+        if (sceneHit.target == SceneHitResult::Target::Recorder ||
+            PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
+        {
+            return IsTapeRecorderShown() ? kStorageMenuRecorder : -1;
+        }
+
+        return -1;
+    }
+
+    for (const DriveWidget & drive : m_driveChrome)
+    {
+        if (drive.IsVisible() && drive.HitTest (x, y) != DriveWidgetRegion::None)
+        {
+            return drive.GetDrive();
+        }
+    }
+
+    if (IsTapeRecorderShown() && m_tapeChrome.HitTest (x, y) != TapeDeckRegion::None)
+    {
+        return kStorageMenuRecorder;
+    }
+
+    return -1;
 }
 
 

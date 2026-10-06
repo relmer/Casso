@@ -64,6 +64,13 @@ spec.
 - Q: Does the fullscreen strip carry the recorder? → A: Yes, beside the drives with its labels, keys and clicks as on the desk. Names under the devices narrow to half the space to a neighbor's name so they never overlap, on the strip and on a small desk, and long names scroll under the pointer on both.
 - Q: Should a tape show in the 3D recorder? → A: Yes, a compact cassette (shell, cream label with a stripe and writing lines, white toothed hubs, brown tape on the spools) whenever one is in; none when empty.
 - Q: Should the chrome handle reflect the scene? → A: Yes, from a cube map of the scene captured around the handle whenever the plate redraws, set in a room (desk, walls, ceiling, a fixture over each room light) that agrees with the scene's lighting.
+
+### Session 2026-10-06 (connecting storage devices)
+
+- Q: How are storage devices connected and disconnected? → A: The second drive (the //c's external drive) and the cassette recorder connect and disconnect live from the Storage menu, which lists them first with check marks, and from a right-click on the device itself -- in the drive band, on the fullscreen strip and in the desk scene. Neither needs a reset, so neither is on the Hardware tab any more. Drive 1 is always connected.
+- Q: Why does the recorder need a switch? → A: Tapes will be used far less than disks. The recorder is connected by default so people see that tapes work, and disconnecting it takes it off the desk, the strip and the drive band, ejecting its tape first.
+- Q: Is the switch on the command bar? → A: No. Connecting a device is a rare action, and the command bar is short of room on HD screens.
+- Q: Does Storage keep "New blank tape"? → A: No; the insert-tape dialog makes a blank tape.
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Load a program from a tape recording (Priority: P1)
@@ -271,6 +278,11 @@ on the //c.
   with the recorder.
 - **FR-018**: A name too long for its place MUST scroll only while the pointer
   is over it (flat widgets) or over its drive or name (desk scene).
+- **FR-019**: The second drive and the cassette recorder MUST connect and
+  disconnect live, with no reset, from the Storage menu and from the device's
+  own right-click menu. Each machine MUST remember its choice. The recorder
+  MUST be connected by default; disconnecting it MUST eject its tape and hide
+  it everywhere it is drawn.
 
 ### Explicitly rejected
 

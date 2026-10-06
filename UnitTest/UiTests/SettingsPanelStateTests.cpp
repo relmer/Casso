@@ -983,6 +983,40 @@ public:
     }
 
 
+    // The Storage menu saves the second drive and the recorder while a sheet
+    // may be open. The sheet's OK re-reads the document first, and that has to
+    // carry those two, or OK writes the copy read at open and undoes them.
+    TEST_METHOD (Refresh_TakesTheSecondDriveAndRecorderFromDisk)
+    {
+        SettingsPanelState  st;
+        SettingsPanelState  menu;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        JsonValue           saved;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsPanelState  reloaded;
+
+
+
+        st.LoadFromMachine ("X", v, v);
+        Assert::IsTrue (st.SecondDriveAttached());
+        Assert::IsTrue (st.GetPrefs().tapeRecorderConnected, L"the recorder is connected by default");
+
+        menu.LoadFromMachine ("X", v, v);
+        menu.SetSecondDriveAttached (false);
+        menu.SetTapeRecorderConnected (false);
+        saved = menu.BuildCurrentJson();
+
+        st.RefreshMergedJson (saved);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        reloaded.LoadFromMachine ("X", outJson, outJson);
+        Assert::IsFalse (reloaded.SecondDriveAttached(),               L"the menu's detach survives the sheet's OK");
+        Assert::IsFalse (reloaded.GetPrefs().tapeRecorderConnected,     L"and so does its disconnected recorder");
+        Assert::IsFalse (sink.lastExternalDriveConnected,               L"and OK does not put the drive back live");
+    }
+
+
     // The //c answers from its back-panel disk port, not from a card. Its
     // second drive is an external unit on a cable, so the two stores must not
     // be confused for one another.

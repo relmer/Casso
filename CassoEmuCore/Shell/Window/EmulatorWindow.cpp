@@ -781,6 +781,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_globalPrefs.showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_globalPrefs.showSceneView;
+            case IDM_STORAGE_DRIVE2:          return ShouldShowExternalDrive();
+            case IDM_STORAGE_RECORDER:        return IsTapeRecorderShown();
 
             default:                          return false;
         }
@@ -817,13 +819,17 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
             case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
-            case IDM_TAPE_INSERT:      return MachineHasCassettePort();
-            case IDM_TAPE_NEW:         return MachineHasCassettePort();
-            case IDM_TAPE_PLAY:        return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        GetTapeView());
-            case IDM_TAPE_STOP:        return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,        GetTapeView());
-            case IDM_TAPE_REWIND:      return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      GetTapeView());
-            case IDM_TAPE_FASTFORWARD: return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, GetTapeView());
-            case IDM_TAPE_EJECT:       return MachineHasCassettePort() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       GetTapeView());
+            case IDM_STORAGE_DRIVE2:   return IsSecondDriveOffered();
+            case IDM_STORAGE_RECORDER: return MachineHasCassettePort();
+            case IDM_DISK_INSERT2:     return ShouldShowExternalDrive();
+            case IDM_DISK_EJECT2:      return ShouldShowExternalDrive();
+            case IDM_TAPE_INSERT:      return IsTapeRecorderShown();
+            case IDM_TAPE_NEW:         return IsTapeRecorderShown();
+            case IDM_TAPE_PLAY:        return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        GetTapeView());
+            case IDM_TAPE_STOP:        return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,        GetTapeView());
+            case IDM_TAPE_REWIND:      return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      GetTapeView());
+            case IDM_TAPE_FASTFORWARD: return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, GetTapeView());
+            case IDM_TAPE_EJECT:       return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       GetTapeView());
             default:           return true;
         }
     });
@@ -832,6 +838,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
+            // The //c's second drive is an external unit on its disk port.
+            case IDM_STORAGE_DRIVE2:
+            {
+                return (m_machine.GetConfig().systemRom.romBankSize != 0) ? std::wstring (L"&External drive connected")
+                                                                          : std::wstring();
+            }
+
             case IDM_DISK_WP1:
             case IDM_DISK_WP2:
             {
@@ -1073,7 +1086,7 @@ int EmulatorShell::GetDriveRowWidthPx()
     outer = drive.GetOuterRect();
     width = count * (outer.right - outer.left) + (count + 1) * gap;
 
-    if (MachineHasCassettePort())
+    if (IsTapeRecorderShown())
     {
         tape.Layout (RECT {}, scaler);
         outer  = tape.GetOuterRect();

@@ -82,6 +82,7 @@ struct SettingsUiPrefs
     bool               tapeAutoStop          = true;        // the deck stops at the end of the tape
     bool               tapeIdleStop          = true;        // playback stops once the computer stops reading
     bool               tapeEightBit          = false;       // new blank tapes are 8-bit WAVs rather than 16-bit
+    bool               tapeRecorderConnected = true;        // the cassette recorder is plugged in (Storage menu)
     bool               writeProtect[2]       = { false, false };
     // //c only: whether the optional external 5.25" drive is plugged into
     // the disk port. Reveals/hides the second drive-mount widget. Defaults
@@ -273,6 +274,11 @@ public:
     // not write. Carried from the snapshot taken when the sheet opened, those
     // changes are reverted on OK.
     void    RefreshMergedJson (const JsonValue & mergedJson);
+
+    // The machine document as it would be saved now, for a caller that
+    // changes a setting without a sheet -- the Storage menu's second drive.
+    void       SetTapeRecorderConnected (bool connected) { m_current.prefs.tapeRecorderConnected = connected; }
+    JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
 
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed

@@ -168,7 +168,7 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 
     // The cassette recorder sits beside the stack only on a machine with
     // cassette jacks to plug it into.
-    if (MachineHasCassettePort())
+    if (IsTapeRecorderShown())
     {
         recorderMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_CASSETTE_RECORDER_MESH);
         haveTape     = !recorderMesh.empty();
@@ -1369,7 +1369,7 @@ void EmulatorShell::SyncSceneDriveLabels()
     // THE RECORDER'S LABELS ARE THE DRIVES' LABELS: the same bake, the same
     // halo, the same quads, the same scroll under the pointer -- its tape name,
     // the counter under it, and the name of the key under the pointer.
-    if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && MachineHasCassettePort())
+    if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && IsTapeRecorderShown())
     {
         TapeDeckView  view = GetTapeView();
 
@@ -1791,7 +1791,7 @@ void EmulatorShell::SyncSceneTapeLabel()
     const DeskSceneComposition &  comp      = onStrip ? m_stripComp : m_deskScene.Composition();
     bool                          visible   = DeskSceneActive() && (!fs || onStrip) &&
                                               comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
-                                              MachineHasCassettePort();
+                                              IsTapeRecorderShown();
     TapeDeckView                  view      = GetTapeView();
     float                         anchor[3] = {};
     float                         screen[2] = {};
