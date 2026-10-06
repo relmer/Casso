@@ -113,6 +113,10 @@ void CallStackPane::Apply (const CallStackData & data)
 //  colored: its kind, its target and its symbol. A dimmed row and a break
 //  are left plain, so the dimming still reads as dimming.
 //
+//  A note is one muted cell spanning the row, which the columns are not
+//  fitted to: a sentence that long would otherwise set the width of the
+//  routine column and push the one after it off to the right.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const DebuggerTextColors::Set & colors)
@@ -120,6 +124,13 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
     std::vector<DxuiListView::Cell>  cells = { { row.site, row.isDim }, { row.routine, row.isDim }, { row.foundBy, row.isDim } };
 
 
+
+    if (row.isNote)
+    {
+        cells.assign (1, DxuiListView::Cell { row.routine, true });
+        cells[0].spansRow = true;
+        return cells;
+    }
 
     if (row.isDim || row.isBreak || colors.syntax.address == 0)
     {
@@ -158,9 +169,10 @@ bool CallStackPane::IsSameText (const std::vector<Row> & a, const std::vector<Ro
 //
 //  CallStackPane::GetRows
 //
-//  A break is a separator row: dashes in the first column and what broke the
-//  chain in the second. An unverified frame is dimmed, as is the note on the
-//  last return, which is about a frame no longer on the stack.
+//  A break is a separator row: the instruction's address in the first column
+//  and what broke the chain in the second. Where recording began is a note
+//  across the row instead. An unverified frame is dimmed, as is the note on
+//  the last return, which is about a frame no longer on the stack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,6 +217,14 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
             row.routine = widen (CallStack::DescribeBreak (*each.chainBreak));
             row.isBreak = true;
             row.address = each.chainBreak->pc;
+
+            if (each.chainBreak->kind == CallBreakKind::TrackingBegan)
+            {
+                row.site.clear();
+                row.routine = GetUnrecordedNote (each.chainBreak->pc);
+                row.isNote  = true;
+            }
+
             rows.push_back (row);
         }
         else if (each.frame.has_value())
@@ -222,6 +242,24 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetUnrecordedNote
+//
+//  The pane's own sentence for where recording began, shorter than the
+//  CALLS reply's and in sentence case, since it stands alone on its row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CallStackPane::GetUnrecordedNote (Word pc)
+{
+    return std::format (L"Earlier calls weren't recorded (debugger opened at ${:04X})", pc);
 }
 
 

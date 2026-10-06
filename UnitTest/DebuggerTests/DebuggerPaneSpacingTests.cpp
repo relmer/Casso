@@ -219,6 +219,82 @@ namespace DebuggerTests
         }
 
 
+        //  Where recording began is a note across the whole row: the columns
+        //  fit the frames alone, as though the note were not there.
+        TEST_METHOD (CallStackNoteLeavesTheColumnsToTheFrames)
+        {
+            DxuiListView          list;
+            DxuiButton            button;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            CallStackPane         pane (&list, &button, [] (const DebuggerActionBuilder &) {}, [] (Word) {});
+            CallStackData         noted = MakeFrames ("SHORT");
+            CallStackRow          began;
+            int                   plain = 0;
+
+
+
+            began.chainBreak = CallStackBreak { CallBreakKind::TrackingBegan, 0x0803, 0 };
+            noted.rows.push_back (began);
+
+            pane.Configure();
+            list.SetPreciseAutoFit (true);
+            list.SetRefitOnSetRows (true);
+            list.Layout            (RECT { 0, 0, 2000, 300 }, GetScaler96());
+
+            pane.Apply (MakeFrames ("SHORT"));
+            list.Paint (painter, text, theme);
+            plain = list.GetTotalMeasuredWidthPx();
+
+            pane.Apply (noted);
+            list.Paint (painter, text, theme);
+
+            Assert::AreEqual (2, list.GetRowCount(), L"the note is still a row");
+            Assert::AreEqual (plain, list.GetTotalMeasuredWidthPx(), L"the note widens no column");
+        }
+
+
+        //  The note is one dimmed cell spanning the row, in a sentence of its
+        //  own; every other break stays a separator in the columns.
+        TEST_METHOD (CallStackNoteIsOneDimmedSpanningCell)
+        {
+            CallStackData                     data;
+            CallStackRow                      txs;
+            CallStackRow                      began;
+            std::vector<CallStackPane::Row>   rows;
+            std::vector<DxuiListView::Cell>   cells;
+            DebuggerTextColors::Set           colors;
+
+
+
+            txs.chainBreak   = CallStackBreak { CallBreakKind::Txs,           0x0910, 0x9A };
+            began.chainBreak = CallStackBreak { CallBreakKind::TrackingBegan, 0x0803, 0 };
+            data.rows.push_back (txs);
+            data.rows.push_back (began);
+
+            rows = CallStackPane::GetRows (data);
+
+            Assert::AreEqual ((size_t) 2, rows.size());
+            Assert::IsFalse  (rows[0].isNote, L"a TXS is a separator in the columns");
+            Assert::IsTrue   (rows[1].isNote, L"where recording began is a note");
+            Assert::AreEqual (std::wstring (L"Earlier calls weren't recorded (debugger opened at $0803)"), rows[1].routine);
+            Assert::AreEqual ((Word) 0x0803, rows[1].address, L"activating it still shows where the debugger opened");
+
+            cells = CallStackPane::GetCells (rows[1], colors);
+
+            Assert::AreEqual ((size_t) 1, cells.size(), L"one cell for the whole row");
+            Assert::AreEqual (rows[1].routine, cells[0].text);
+            Assert::IsTrue   (cells[0].spansRow, L"across every column");
+            Assert::IsTrue   (cells[0].dim,      L"in the muted color");
+
+            cells = CallStackPane::GetCells (rows[0], colors);
+
+            Assert::AreEqual ((size_t) 3, cells.size(), L"a separator keeps its three cells");
+            Assert::IsFalse  (cells[1].spansRow);
+        }
+
+
         //  A switch reads ON at full strength and off dimmed; any other value
         //  is shown as published.
         TEST_METHOD (ASwitchShowsOnUppercaseAndOffDimmed)

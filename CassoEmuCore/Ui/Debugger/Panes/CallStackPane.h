@@ -34,7 +34,8 @@ public:
     using ShowFn = std::function<void (Word address)>;
 
     //  One row as the list shows it. address is where activating it moves
-    //  the disassembly.
+    //  the disassembly. A note is a sentence across the whole row, its text
+    //  in routine, rather than values in the columns.
     struct Row
     {
         std::wstring  site;
@@ -42,6 +43,7 @@ public:
         std::wstring  foundBy;
         bool          isBreak   = false;
         bool          isDim     = false;
+        bool          isNote    = false;
         Word          address   = 0;
     };
 
@@ -57,10 +59,11 @@ public:
     //  A row's cells, colored as the disassembly is unless dimmed or a break.
     static std::vector<DxuiListView::Cell>  GetCells (const Row & row, const DebuggerTextColors::Set & colors);
 
-    static std::vector<Row>  GetRows      (const CallStackData & data);
-    static std::string       GetNextModeLine (CallStackMechanism current);
-    static std::string       GetNextMechanism (CallStackMechanism current);
-    static std::wstring      GetModeLabel (CallStackMechanism mechanism);
+    static std::vector<Row>  GetRows           (const CallStackData & data);
+    static std::wstring      GetUnrecordedNote (Word pc);
+    static std::string       GetNextModeLine   (CallStackMechanism current);
+    static std::string       GetNextMechanism  (CallStackMechanism current);
+    static std::wstring      GetModeLabel      (CallStackMechanism mechanism);
 
 private:
     static bool  IsSameText (const std::vector<Row> & a, const std::vector<Row> & b);
