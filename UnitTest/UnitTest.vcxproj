@@ -505,6 +505,7 @@
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="EmuTests\CreateDiskChoicesTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
+    <ClCompile Include="UiTests\DriveBandTapeLayoutTests.cpp" />
     <ClCompile Include="UiTests\HardwarePageTests.cpp" />
     <ClCompile Include="UiTests\JoyportSwitchViewTests.cpp" />
     <ClCompile Include="UiTests\InputDeviceGlyphsTests.cpp" />

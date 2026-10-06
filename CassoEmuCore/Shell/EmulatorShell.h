@@ -1711,6 +1711,18 @@ protected:
     // needs to see it.
     DxuiViewport             * m_viewport        = nullptr;
 
+    // The flat drive band's row, for the band layout tests: lay the row out
+    // in a client of the given size with no band below it, and read back
+    // where the drives and the recorder landed.
+    void  LayoutDriveRowForTest   (int clientW, int clientH, UINT dpi, int visibleCount)
+    {
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, 0, clientW, clientH, dpi, 1.0f, visibleCount);
+    }
+
+    RECT  GetDriveRectForTest     (size_t drive) const { return m_driveChrome[drive].GetOuterRect(); }
+    RECT  GetTapeAnchorForTest    () const             { return m_tapeAnchor; }
+    void  SetRecorderAttachedForTest (bool attached)   { m_tapeRecorderConnected = attached; }
+
 private:
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
