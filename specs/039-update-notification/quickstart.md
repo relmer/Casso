@@ -18,8 +18,8 @@ scripts/RunTests.ps1 -Build
 
 ## Unsigned local build
 
-The same build is unsigned, so the dialog must show the developer-build text
-and **Update to <version>** disabled.
+The same build is unsigned, so the dialog must show a pull-and-rebuild nudge
+bottom-right where **Update to <version>** would be, and no update button.
 
 ## Signed build
 

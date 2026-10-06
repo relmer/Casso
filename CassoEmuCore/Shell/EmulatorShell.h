@@ -1409,6 +1409,7 @@ private:
     void                   OpenUrl                     (const std::wstring & url);
     static ReleaseVersion  GetRunningVersion           ();
     static size_t          GetRandomIndex              (size_t count);
+    std::wstring           MakeUpdateHeader            (const std::string & runningReleaseDate);
 
     std::unique_ptr<UpdateRuntime>  m_updateRuntime;
     UpdateIndicatorButton           m_updateIndicator;

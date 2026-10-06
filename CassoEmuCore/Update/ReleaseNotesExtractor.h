@@ -42,6 +42,7 @@ struct ReleaseNotes
 {
     std::vector<NotesSection>  highlights;
     std::vector<NotesSection>  changes;
+    std::string                runningReleaseDate;   // "YYYY-MM-DD", empty when the CHANGELOG has none
 };
 
 
@@ -70,6 +71,10 @@ public:
                                                        std::vector<NotesSection>  & outSections);
     static bool              TryParseChangelogHeading (std::string_view   line,
                                                        ReleaseVersion   & outVersion);
+    static bool              TryGetReleaseDate        (const std::string     & changelog,
+                                                       const ReleaseVersion  & version,
+                                                       std::string           & outDate);
+    static bool              IsDateText               (std::string_view text);
     static bool              TryParseHighlightHeading (std::string_view   line,
                                                        ReleaseVersion   & outVersion,
                                                        std::string      & outTitle);

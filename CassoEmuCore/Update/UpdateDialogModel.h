@@ -23,8 +23,7 @@
 //                 for it
 //    ReleasePage  Open release page: no download for this copy, or a
 //                 folder Casso cannot write to
-//    Developer    Update to <version>, disabled, with the pull-and-rebuild
-//                 text and a release page link
+//    Developer    no primary: a pull-and-rebuild nudge in its place
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +55,6 @@ public:
     static constexpr LPCWSTR  kpszOpenPage       = L"Open release page";
     static constexpr LPCWSTR  kpszCancel         = L"Cancel";
     static constexpr LPCWSTR  kpszPageLink       = L"View this release on GitHub";
-    static constexpr LPCWSTR  kpszDeveloperText  = L"This is a developer build. Pull and rebuild to update.";
     static constexpr LPCWSTR  kpszNotesLoading   = L"Loading the release notes...";
     static constexpr LPCWSTR  kpszNotesMissing   = L"The release notes could not be loaded. They are on the release page.";
     static constexpr LPCWSTR  kpszInstalling     = L"Installing the update...";
@@ -74,9 +72,25 @@ public:
                                                   const std::string     & publishedDate,
                                                   const ReleaseVersion  & running,
                                                   std::wstring_view       judgement);
+    static std::wstring     MakeAgeHeader        (const ReleaseVersion  & newer,
+                                                  const std::string     & publishedDate,
+                                                  const ReleaseVersion  & running,
+                                                  std::wstring_view       ageRemark);
+    static std::wstring     MakeFinalHeader      (const ReleaseVersion  & newer,
+                                                  const std::string     & publishedDate,
+                                                  const ReleaseVersion  & running,
+                                                  std::optional<int>      ageDays,
+                                                  const RandomIndexFn   & randomIndex);
     static std::wstring     MakeUpdateLabel      (const ReleaseVersion & newer);
     static JudgementList    GetJudgements        ();
     static std::wstring     PickJudgement        (const RandomIndexFn & randomIndex);
+    static JudgementList    GetOpeners           ();
+    static std::wstring     PickOpener           (const RandomIndexFn & randomIndex);
+    static JudgementList    GetDeveloperNudges   ();
+    static std::wstring     PickDeveloperNudge   (const RandomIndexFn & randomIndex);
+    static size_t           GetAgeRemarkCount    ();
+    static std::wstring     MakeAgeRemark        (size_t index, int days, const ReleaseVersion & running);
+    static bool             TryGetDaysSince      (std::string_view date, std::int64_t nowUtc, int & outDays);
     static std::wstring     MakeUpToDateText     (const ReleaseVersion & running);
     static std::wstring     MakeProgressText     (std::uint64_t bytesDone, std::uint64_t bytesTotal);
     static std::wstring     DescribeFailure      (UpdateFailure failure);

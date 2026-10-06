@@ -598,6 +598,7 @@ HRESULT UpdateService::FetchNotes (const NotesJob & job, ReleaseNotes & outNotes
     HRESULT      hrReadme   = S_OK;
     std::string  changelog;
     std::string  readme;
+    bool         isDated    = false;
 
 
 
@@ -606,6 +607,11 @@ HRESULT UpdateService::FetchNotes (const NotesJob & job, ReleaseNotes & outNotes
 
     hr = ReleaseNotesExtractor::ExtractChanges (changelog, job.running, job.release.version, outNotes.changes);
     CHR (hr);
+
+    // The new tag's CHANGELOG holds the running version's section too, which
+    // dates the running build for the dialog's remark on its age.
+    isDated = ReleaseNotesExtractor::TryGetReleaseDate (changelog, job.running, outNotes.runningReleaseDate);
+    IGNORE_RETURN_VALUE (isDated, false);
 
     hrReadme = FetchText (kpszRawHost, MakeNotesPath (job.release.tag, L"README.md"), readme);
 

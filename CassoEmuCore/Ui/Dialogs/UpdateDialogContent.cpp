@@ -20,12 +20,22 @@
 
 UpdateDialogContent::UpdateDialogContent()
 {
+    constexpr float  kOpenerFontDip = 18.0f;
+
+
+
+    Adopt (m_opener);
     Adopt (m_header);
     Adopt (m_scroll);
     Adopt (m_status);
     Adopt (m_pageLink);
 
     m_scroll.Adopt (m_notes);
+
+    m_opener.SetTextRole    (DxuiTextRole::Heading);
+    m_opener.SetFontWeight  (DxuiFontWeight::Bold);
+    m_opener.SetFontSizeDip (kOpenerFontDip);
+    m_opener.SetTextAlign   (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_header.SetTextRole   (DxuiTextRole::Heading);
     m_header.SetFontWeight (DxuiFontWeight::Bold);
@@ -51,6 +61,21 @@ UpdateDialogContent::UpdateDialogContent()
             m_onOpenUrl (TextEncoding::Utf8ToWide (url));
         }
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::SetOpener
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::SetOpener (const std::wstring & opener)
+{
+    m_opener.SetText (opener);
 }
 
 
@@ -228,12 +253,14 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     constexpr int  kLineDip       = 20;
     constexpr int  kGapDip        = 8;
     constexpr int  kStatusLines   = 2;
-    constexpr int  kHeaderLines   = 2;
+    constexpr int  kHeaderLines   = 3;
+    constexpr int  kOpenerDip     = 30;
     constexpr int  kLinkHeightDip = 22;
 
 
 
     int   line   = scaler.ToPx (kLineDip);
+    int   opener = scaler.ToPx (kOpenerDip);
     int   gap    = scaler.ToPx (kGapDip);
     int   link   = scaler.ToPx (kLinkHeightDip);
     int   y      = boundsPx.top;
@@ -245,7 +272,10 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_scaler    = scaler;
     m_isLaidOut = true;
 
-    // Two lines: the versions sentence wraps on a dialog of ordinary width.
+    m_opener.Layout (RECT { boundsPx.left, y, boundsPx.right, y + opener }, scaler);
+    y += opener;
+
+    // Room for the versions sentence wrapped once, plus an age remark below it.
     m_header.Layout (RECT { boundsPx.left, y, boundsPx.right, y + line * kHeaderLines }, scaler);
     y += line * kHeaderLines + gap;
 

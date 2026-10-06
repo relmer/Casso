@@ -50,6 +50,39 @@ size_t EmulatorShell::GetRandomIndex (size_t count)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::MakeUpdateHeader
+//
+//  The dialog's header with its one closing remark. The running build's
+//  date, when the notes gave one, adds the age remarks to the pick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::MakeUpdateHeader (const std::string & runningReleaseDate)
+{
+    std::optional<int>  ageDays;
+    int                 days    = 0;
+    bool                isKnown = UpdateDialogModel::TryGetDaysSince (runningReleaseDate, UpdateRuntime::GetUtcNow(), days);
+
+
+
+    if (isKnown)
+    {
+        ageDays = days;
+    }
+
+    return UpdateDialogModel::MakeFinalHeader (m_updateRelease.version,
+                                               m_updateRelease.publishedDate,
+                                               GetRunningVersion(),
+                                               ageDays,
+                                               &EmulatorShell::GetRandomIndex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::GetUpdateService
 //
 //  Built on first use, once there is a window to post results to.
@@ -219,6 +252,8 @@ void EmulatorShell::HandleUpdateResult (UpdateResult & result)
                 {
                     m_updateDialog->ShowNotesMissing();
                 }
+
+                m_updateDialog->SetHeader (MakeUpdateHeader (result.notes.runningReleaseDate));
             }
 
             break;
@@ -485,11 +520,10 @@ void EmulatorShell::OpenUpdateDialog()
     };
 
     dlg.Configure (buttons,
-                   UpdateDialogModel::MakeHeader (m_updateRelease.version,
-                                                  m_updateRelease.publishedDate,
-                                                  running,
-                                                  UpdateDialogModel::PickJudgement (&EmulatorShell::GetRandomIndex)),
+                   UpdateDialogModel::PickOpener (&EmulatorShell::GetRandomIndex),
+                   UpdateDialogModel::MakeAgeHeader (m_updateRelease.version, m_updateRelease.publishedDate, running, L""),
                    UpdateDialogModel::MakeUpdateLabel (m_updateRelease.version),
+                   UpdateDialogModel::PickDeveloperNudge (&EmulatorShell::GetRandomIndex),
                    pageUrl,
                    std::move (callbacks));
 

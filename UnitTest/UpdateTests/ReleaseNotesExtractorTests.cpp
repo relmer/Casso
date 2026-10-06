@@ -207,4 +207,33 @@ public:
         Assert::IsTrue  (version == ReleaseVersion { 1, 30, 0 });
         Assert::AreEqual (std::string ("T"), title);
     }
+
+
+
+    TEST_METHOD (ReleaseDate_FromTheVersionsOwnHeading)
+    {
+        std::string  date;
+
+
+
+        Assert::IsTrue   (ReleaseNotesExtractor::TryGetReleaseDate (s_kChangelog, { 1, 30, 0 }, date));
+        Assert::AreEqual (std::string ("2026-10-03"), date);
+        Assert::IsTrue   (ReleaseNotesExtractor::TryGetReleaseDate (s_kChangelog, { 1, 29, 0 }, date));
+        Assert::AreEqual (std::string ("2026-09-20"), date, L"an older section in the newer tag's CHANGELOG");
+    }
+
+
+
+    TEST_METHOD (ReleaseDate_NotFoundOrMalformed)
+    {
+        std::string  date = "stale";
+
+
+
+        Assert::IsFalse (ReleaseNotesExtractor::TryGetReleaseDate (s_kChangelog, { 1, 28, 0 }, date));
+        Assert::IsTrue  (date.empty(), L"no date is left behind from before");
+        Assert::IsFalse (ReleaseNotesExtractor::TryGetReleaseDate ("## [1.29.0] - Sept 20, 2026\n", { 1, 29, 0 }, date));
+        Assert::IsFalse (ReleaseNotesExtractor::TryGetReleaseDate ("## [1.29.0] - 2026-9-20\n",     { 1, 29, 0 }, date));
+        Assert::IsFalse (ReleaseNotesExtractor::TryGetReleaseDate ("## [1.29.0]\n",                 { 1, 29, 0 }, date));
+    }
 };

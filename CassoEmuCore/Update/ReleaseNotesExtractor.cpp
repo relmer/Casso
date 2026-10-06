@@ -197,6 +197,96 @@ bool ReleaseNotesExtractor::TryParseChangelogHeading (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReleaseNotesExtractor::TryGetReleaseDate
+//
+//  The date in a version's CHANGELOG heading, "## [1.29.0] - 2026-09-20...",
+//  as "2026-09-20". False when the version has no heading, or its heading
+//  has no date of the form YYYY-MM-DD after " - ".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesExtractor::TryGetReleaseDate (
+    const std::string     & changelog,
+    const ReleaseVersion  & version,
+    std::string           & outDate)
+{
+    static constexpr std::string_view  kSeparator  = "] - ";
+    static constexpr size_t        kDateLength    = 10;
+    std::vector<std::string_view>  lines;
+    ReleaseVersion                 headingVersion;
+    std::string_view               date;
+    size_t                         at             = 0;
+    bool                           isFound        = false;
+
+
+
+    outDate.clear();
+    SplitLines (changelog, lines);
+
+    for (std::string_view line : lines)
+    {
+        if (!TryParseChangelogHeading (line, headingVersion) || headingVersion != version)
+        {
+            continue;
+        }
+
+        at = line.find (kSeparator);
+
+        if (at != std::string_view::npos && line.size() >= at + kSeparator.size() + kDateLength)
+        {
+            date    = line.substr (at + kSeparator.size(), kDateLength);
+            isFound = IsDateText (date);
+        }
+
+        break;
+    }
+
+    if (isFound)
+    {
+        outDate = std::string (date);
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesExtractor::IsDateText
+//
+//  "YYYY-MM-DD": digits with dashes in the fifth and eighth places. Whether
+//  the day exists is the caller's question.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesExtractor::IsDateText (std::string_view text)
+{
+    static constexpr size_t  kDateLength = 10;
+    static constexpr size_t  kFirstDash  = 4;
+    static constexpr size_t  kSecondDash = 7;
+    bool                     isDate      = text.size() == kDateLength;
+    size_t                   i           = 0;
+
+
+
+    for (i = 0; isDate && i < text.size(); i++)
+    {
+        isDate = (i == kFirstDash || i == kSecondDash) ? text[i] == '-'
+                                                       : std::isdigit ((unsigned char) text[i]) != 0;
+    }
+
+    return isDate;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReleaseNotesExtractor::TryParseHighlightHeading
 //
 //  "### [2026-10-03 <middle dot> 1.30] WOZ 2.1 flux support" gives 1.30.0

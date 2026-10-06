@@ -166,6 +166,152 @@ public:
 
 
 
+    TEST_METHOD (DaysSince_CountsCalendarDays)
+    {
+        constexpr std::int64_t  kOct3Noon = 1759492800;   // 2025-10-03 12:00 UTC
+        constexpr std::int64_t  kDay      = 86400;
+        int                     days      = -1;
+
+
+
+        Assert::IsTrue   (UpdateDialogModel::TryGetDaysSince ("2025-10-03", kOct3Noon, days));
+        Assert::AreEqual (0, days, L"the same day");
+        Assert::IsTrue   (UpdateDialogModel::TryGetDaysSince ("2025-10-02", kOct3Noon, days));
+        Assert::AreEqual (1, days);
+        Assert::IsTrue   (UpdateDialogModel::TryGetDaysSince ("2025-08-17", kOct3Noon, days));
+        Assert::AreEqual (47, days);
+        Assert::IsTrue   (UpdateDialogModel::TryGetDaysSince ("2025-10-03", kOct3Noon + kDay / 2 - 1, days));
+        Assert::AreEqual (0, days, L"still the same UTC day just before midnight");
+    }
+
+
+
+    TEST_METHOD (DaysSince_FutureOrBadDate_HasNoAge)
+    {
+        constexpr std::int64_t  kOct3Noon = 1759492800;
+        int                     days      = -1;
+
+
+
+        Assert::IsFalse (UpdateDialogModel::TryGetDaysSince ("2025-10-04", kOct3Noon, days), L"a date in the future");
+        Assert::IsFalse (UpdateDialogModel::TryGetDaysSince ("2025-02-30", kOct3Noon, days), L"no such day");
+        Assert::IsFalse (UpdateDialogModel::TryGetDaysSince ("2025-13-01", kOct3Noon, days));
+        Assert::IsFalse (UpdateDialogModel::TryGetDaysSince ("",           kOct3Noon, days));
+        Assert::IsFalse (UpdateDialogModel::TryGetDaysSince ("10/03/2025", kOct3Noon, days));
+    }
+
+
+
+    //  Every age remark, at one day and at many, is complete text: the count
+    //  is filled in with the right noun, no placeholder survives, and the
+    //  header puts it on its own line after a plain sentence.
+    TEST_METHOD (AgeRemarks_EveryEntryIsWellFormed)
+    {
+        size_t        count  = UpdateDialogModel::GetAgeRemarkCount();
+        std::wstring  remark;
+        std::wstring  header;
+        size_t        i      = 0;
+
+
+
+        Assert::IsTrue (count >= 5);
+
+        for (i = 0; i < count; i++)
+        {
+            for (int days : { 1, 47 })
+            {
+                remark = UpdateDialogModel::MakeAgeRemark (i, days, { 1, 29, 0 });
+
+                Assert::IsTrue (remark.find (L'{') == std::wstring::npos && remark.find (L'}') == std::wstring::npos, remark.c_str());
+                Assert::IsTrue (remark.find (days == 1 ? L"1 day" : L"47 days") != std::wstring::npos, remark.c_str());
+                Assert::IsTrue (remark.find (L"1 days") == std::wstring::npos);
+                Assert::IsTrue (remark.find (std::wstring (L" ") + s_kchEmDash) == std::wstring::npos && remark.find (std::wstring (1, s_kchEmDash) + L" ") == std::wstring::npos,
+                                L"em dashes abut");
+                Assert::IsTrue (iswupper (remark.front()) || iswdigit (remark.front()), remark.c_str());
+                Assert::IsTrue (std::wstring_view (L".?!").find (remark.back()) != std::wstring_view::npos, remark.c_str());
+
+                header = UpdateDialogModel::MakeAgeHeader ({ 1, 30, 0 }, "2025-10-03", { 1, 29, 0 }, remark);
+                Assert::IsTrue (header.ends_with (L"still using 1.29.0.\n" + remark), header.c_str());
+            }
+        }
+    }
+
+
+
+    TEST_METHOD (FinalHeader_PoolsDependOnTheKnownAge)
+    {
+        size_t        shortCount = UpdateDialogModel::GetJudgements().size();
+        size_t        seen       = 0;
+        std::wstring  header;
+
+
+
+        header = UpdateDialogModel::MakeFinalHeader ({ 1, 30, 0 }, "", { 1, 29, 0 }, 47, [] (size_t) { return (size_t) 0; });
+        Assert::IsTrue (header.ends_with (std::wstring (L"1.29.0") + s_kchEmDash + L"how gauche."), L"a short remark ends the sentence");
+
+        header = UpdateDialogModel::MakeFinalHeader ({ 1, 30, 0 }, "", { 1, 29, 0 }, 47,
+                                                     [&seen, shortCount] (size_t count) { seen = count; return shortCount; });
+        Assert::AreEqual (shortCount + UpdateDialogModel::GetAgeRemarkCount(), seen, L"both pools when the age is known");
+        Assert::IsTrue   (header.find (L"1.29.0.\n") != std::wstring::npos && header.find (L"47 days") != std::wstring::npos);
+
+        header = UpdateDialogModel::MakeFinalHeader ({ 1, 30, 0 }, "", { 1, 29, 0 }, std::nullopt,
+                                                     [&seen] (size_t count) { seen = count; return count + 5; });
+        Assert::AreEqual (shortCount, seen, L"only the short pool without an age");
+        Assert::IsTrue   (header.find (L'\n') == std::wstring::npos);
+    }
+
+
+
+    TEST_METHOD (Openers_IncludeTheOwnersLinesAndAreWellFormed)
+    {
+        UpdateDialogModel::JudgementList  list  = UpdateDialogModel::GetOpeners();
+        std::set<std::wstring>            texts;
+
+
+
+        Assert::IsTrue (list.size() >= 6);
+
+        for (LPCWSTR opener : list)
+        {
+            std::wstring_view  text = opener;
+
+            Assert::IsTrue (iswupper (text.front()), opener);
+            Assert::IsTrue (std::wstring_view (L".!").find (text.back()) != std::wstring_view::npos, opener);
+            Assert::IsTrue (text.find (L"  ") == std::wstring_view::npos && text.find (L'\n') == std::wstring_view::npos, opener);
+            texts.insert (opener);
+        }
+
+        Assert::IsTrue (texts.contains (L"Ooh ooh, new toys, new toys!!"));
+        Assert::IsTrue (texts.contains (L"ZOMG! Fresh Casso available!!"));
+        Assert::IsTrue (texts.contains (L"I love it when a plan comes together."));
+        Assert::AreEqual (std::wstring (list[2]), UpdateDialogModel::PickOpener ([] (size_t) { return (size_t) 2; }));
+    }
+
+
+
+    TEST_METHOD (DeveloperNudges_EveryEntryIsASentence)
+    {
+        UpdateDialogModel::JudgementList  list = UpdateDialogModel::GetDeveloperNudges();
+
+
+
+        Assert::IsTrue (list.size() >= 4);
+
+        for (LPCWSTR nudge : list)
+        {
+            std::wstring_view  text = nudge;
+
+            Assert::IsTrue (iswupper (text.front()), nudge);
+            Assert::IsTrue (text.back() == L'.', nudge);
+            Assert::IsTrue (text.find (L"  ") == std::wstring_view::npos, nudge);
+            Assert::IsTrue (text.find (L"rebuild") != std::wstring_view::npos, nudge);
+        }
+
+        Assert::AreEqual (std::wstring (list[1]), UpdateDialogModel::PickDeveloperNudge ([] (size_t) { return (size_t) 1; }));
+    }
+
+
+
     TEST_METHOD (StripVersionBrackets_KeepsTheRestAndTheColon)
     {
         Assert::AreEqual (std::string ("1.30.0 - 2026-10-03: The one with flux"),

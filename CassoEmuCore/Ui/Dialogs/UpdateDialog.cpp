@@ -50,21 +50,23 @@ UpdateDialog::~UpdateDialog()
 
 void UpdateDialog::Configure (
     UpdateButtonSet         buttons,
+    const std::wstring    & opener,
     const std::wstring    & header,
     const std::wstring    & updateLabel,
+    const std::wstring    & developerNudge,
     const std::wstring    & pageUrl,
     Callbacks               callbacks)
 {
     m_buttons     = buttons;
     m_pageUrl     = pageUrl;
     m_updateLabel = updateLabel;
+    m_nudge       = developerNudge;
     m_callbacks   = std::move (callbacks);
 
+    m_pendingContent->SetOpener       (opener);
     m_pendingContent->SetHeader       (header);
     m_pendingContent->SetPageUrl      (pageUrl);
     m_pendingContent->SetNotesMessage (UpdateDialogModel::kpszNotesLoading);
-    m_pendingContent->SetStatus       (buttons == UpdateButtonSet::Developer ? UpdateDialogModel::kpszDeveloperText : L"",
-                                       false);
     m_pendingContent->SetOnOpenUrl    ([this] (const std::wstring & url)
     {
         if (m_callbacks.onOpenUrl)
@@ -83,7 +85,7 @@ void UpdateDialog::Configure (
 //  UpdateDialog::OnCreate
 //
 //  Skip this version goes bottom-left, the primary bottom-right. A developer
-//  build still gets the primary, disabled, beside the text saying why.
+//  build gets no primary; its pull-and-rebuild nudge takes that place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,8 +99,18 @@ void UpdateDialog::OnCreate()
     SetDialogContentOwned (std::move (m_pendingContent));
 
     m_skipBtn    = AddDialogButton (UpdateDialogModel::kpszSkip, kIdSkip, DxuiButtonRow::Anchor::Left);
-    m_primaryBtn = AddDialogButton (m_updateLabel, kIdPrimary);
-    m_primaryBtn->SetOnClick ([this] () { OnPrimaryClick(); });
+    if (m_buttons == UpdateButtonSet::Developer)
+    {
+        m_nudgeLabel = CreateChild<DxuiLabel>();
+        m_nudgeLabel->SetText      (m_nudge);
+        m_nudgeLabel->SetTextRole  (DxuiTextRole::Muted);
+        m_nudgeLabel->SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+    }
+    else
+    {
+        m_primaryBtn = AddDialogButton (m_updateLabel, kIdPrimary);
+        m_primaryBtn->SetOnClick ([this] () { OnPrimaryClick(); });
+    }
 
     ApplyButtonLabels();
     SetDialogTickIntervalMs (kTickMs);
@@ -141,6 +153,17 @@ void UpdateDialog::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     m_hasLayout    = true;
 
     DxuiDialogWindow::Layout (boundsPx, scaler);
+
+    // A developer build's nudge takes the primary button's place: the
+    // bottom-right of the button row.
+    if (m_nudgeLabel != nullptr)
+    {
+        int  pad  = scaler.ToPx (DxuiButtonRow::kEdgePadDip);
+        int  rowH = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
+
+        m_nudgeLabel->Layout (RECT { boundsPx.left + (boundsPx.right - boundsPx.left) / 2, boundsPx.bottom - rowH,
+                                     boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
+    }
 }
 
 
@@ -315,6 +338,25 @@ void UpdateDialog::ShowNotes (const ReleaseNotes & notes)
     UpdateDialogModel::FormatNotes (notes, lines);
 
     m_content->SetNotesLines (std::move (lines));
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialog::SetHeader
+//
+//  The header gains its closing remark once the notes have dated the
+//  running build, so it is replaced after the dialog is up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialog::SetHeader (const std::wstring & header)
+{
+    m_content->SetHeader (header);
     Invalidate();
 }
 

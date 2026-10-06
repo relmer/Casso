@@ -74,7 +74,7 @@ failed download and a failed install, and confirm the old version still runs.
 
 1. **Given** a copy unpacked from the release zip, **When** the user chooses **Update to <version>**, **Then** Casso downloads the matching zip for its architecture, verifies it, replaces its own files, and restarts on the new version.
 2. **Given** a copy installed from the MSIX package, whether by hand from the release page or by winget, **When** the user chooses **Update to <version>**, **Then** Casso downloads the new MSIX bundle from the release, installs it as an in-place upgrade of the installed package, and restarts on the new version with its settings intact.
-3. **Given** a copy running from a source checkout, **When** a newer release exists, **Then** the dialog shows the release notes and tells the user to pull and rebuild, and shows **Update to <version>** disabled.
+3. **Given** a copy running from a source checkout, **When** a newer release exists, **Then** the dialog shows the release notes and, in place of **Update to <version>**, tells the user to pull and rebuild.
 4. **Given** an emulated disk has unsaved writes, **When** the user chooses **Update to <version>**, **Then** Casso flushes them or asks first, exactly as it does on a normal exit, before it restarts.
 5. **Given** the download fails, is incomplete, or does not verify, **When** the update runs, **Then** no file of the installed copy is changed, and the dialog reports the failure and offers a link to the release page.
 6. **Given** the install step fails partway, **When** the update runs, **Then** the previous version is restored and still launches.
@@ -136,7 +136,7 @@ confirm startup makes no network request.
 - **FR-009**: **Skip this version** MUST suppress the indicator for that version only, and MUST persist across restarts.
 - **FR-010**: Casso MUST detect how this copy is running: as an installed MSIX package (by hand or by winget, which installs the same package), as an unpacked release zip, or as a developer build.
 - **FR-011**: **Update to <version>** MUST apply the update by the method for that install type, and MUST restart Casso on the new version when it is done: for MSIX, an in-place upgrade of the installed package from the release's MSIX bundle; for a zip copy, replacing its files from the release zip for its architecture.
-- **FR-011a**: A developer build MUST show **Update to <version>** disabled, so it cannot update in place, and MUST tell the user to pull and rebuild instead.
+- **FR-011a**: A developer build MUST NOT offer **Update to <version>**. In its place, the dialog MUST tell the user to pull and rebuild.
 - **FR-011b**: A copy MUST count as an official release only when its executable has a valid signature from Casso's publisher. Any other copy, unsigned or signed by anyone else, MUST count as a developer build, wherever it runs from.
 - **FR-011c**: The release build MUST fail rather than publish an unsigned release, so that every official release has the signature that FR-011b checks.
 - **FR-012**: A zip update MUST verify the downloaded package before it changes any installed file, and MUST restore the previous version if the replacement fails.

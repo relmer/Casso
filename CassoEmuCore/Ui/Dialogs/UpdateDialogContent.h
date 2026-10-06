@@ -33,6 +33,7 @@ public:
     UpdateDialogContent             (const UpdateDialogContent &) = delete;
     UpdateDialogContent & operator= (const UpdateDialogContent &) = delete;
 
+    void  SetOpener        (const std::wstring & opener);
     void  SetHeader        (const std::wstring & header);
     void  SetNotesLines    (std::vector<FormattedLine> lines);
     void  SetNotesMessage  (const std::wstring & message);
@@ -47,6 +48,7 @@ public:
 private:
     void  LayoutNotes      ();
 
+    DxuiLabel         m_opener;
     DxuiLabel         m_header;
     DxuiScrollPanel   m_scroll;
     ReleaseNotesView  m_notes;

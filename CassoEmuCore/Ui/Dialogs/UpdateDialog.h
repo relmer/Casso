@@ -21,8 +21,9 @@ class UpdateDialogContent;
 //  bottom-left and closes with kIdSkip. The primary button, bottom-right,
 //  keeps the dialog open: Update to <version> starts the update and turns
 //  into Cancel while the download runs; Open release page opens the page and
-//  closes. A developer build shows Update to <version> disabled. Closing the
-//  window any other way returns IDCANCEL.
+//  closes. A developer build has no primary button: a nudge to pull and
+//  rebuild sits in its place. Closing the window any other way returns
+//  IDCANCEL.
 //
 //  The owner feeds progress and results in through the Show calls; the
 //  dialog itself starts nothing.
@@ -47,13 +48,16 @@ public:
     ~UpdateDialog() override;
 
     void  Configure          (UpdateButtonSet         buttons,
+                              const std::wstring    & opener,
                               const std::wstring    & header,
                               const std::wstring    & updateLabel,
+                              const std::wstring    & developerNudge,
                               const std::wstring    & pageUrl,
                               Callbacks               callbacks);
 
     void  ShowNotes          (const ReleaseNotes & notes);
     void  ShowNotesMissing   ();
+    void  SetHeader          (const std::wstring & header);
     void  ShowProgress       (std::uint64_t bytesDone, std::uint64_t bytesTotal);
     void  ShowInstalling     ();
     void  ShowRestarting     ();
@@ -82,6 +86,8 @@ private:
     UpdateButtonSet                       m_buttons      = UpdateButtonSet::ReleasePage;
     std::wstring                          m_pageUrl;
     std::wstring                          m_updateLabel;
+    std::wstring                          m_nudge;
+    DxuiLabel                           * m_nudgeLabel   = nullptr;
     Callbacks                             m_callbacks;
     RECT                                  m_lastBoundsPx = {};
     DxuiDpiScaler                         m_lastScaler;

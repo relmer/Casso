@@ -226,6 +226,325 @@ std::wstring UpdateDialogModel::PickJudgement (const RandomIndexFn & randomIndex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  s_kAgeRemarks
+//
+//  Full-sentence remarks on how long the running build has gone without an
+//  update. {0} is the age ("1 day", "47 days"), {1} the running version, {2}
+//  an em dash. Same voice as the short remarks: the old version is the joke.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr LPCWSTR  s_kAgeRemarks[] =
+{
+    L"Wait, this can't be right{2}you haven't updated Casso in {0}? Srsly?",
+    L"{1} shipped {0} ago. It's practically retro-computing itself.",
+    L"That's {0} without an update. Even the Disk II has moved on.",
+    L"{0} on {1}. The phosphors are starting to burn in.",
+    L"Your copy is {0} old. In emulator years, that's a collector's item.",
+    L"{1} came out {0} ago{2}the Apple II waited longer for less, but still.",
+    L"It has been {0} since {1}. The floppies have stopped asking where you've been.",
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  s_kOpeners
+//
+//  The excited line above the update dialog's header, one per dialog. The
+//  first three are the owner's own words, kept verbatim.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr LPCWSTR  s_kOpeners[] =
+{
+    L"Ooh ooh, new toys, new toys!!",
+    L"ZOMG! Fresh Casso available!!",
+    L"I love it when a plan comes together.",
+    L"Hot off the assembler!",
+    L"New bits, fresh from the oven!",
+    L"Stop the presses: there's a new Casso!",
+    L"Somebody's been busy!",
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::GetOpeners
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UpdateDialogModel::JudgementList UpdateDialogModel::GetOpeners()
+{
+    return JudgementList (s_kOpeners);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::PickOpener
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::PickOpener (const RandomIndexFn & randomIndex)
+{
+    JudgementList  list  = GetOpeners();
+    size_t         index = randomIndex ? randomIndex (list.size()) : 0;
+
+
+
+    return list[std::min (index, list.size() - 1)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  s_kDeveloperNudges
+//
+//  What a developer build shows where Update to <version> would be: a copy
+//  built from source updates by pulling and rebuilding, never in place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr LPCWSTR  s_kDeveloperNudges[] =
+{
+    L"Psst... you should probably pull and rebuild.",
+    L"Psst... a git pull and a rebuild would fix this right up.",
+    L"Built from source? Then pull and rebuild, you know the drill.",
+    L"There are fresh commits upstream. Pull and rebuild.",
+    L"Developer build spotted. Pull, rebuild, carry on.",
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::GetDeveloperNudges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UpdateDialogModel::JudgementList UpdateDialogModel::GetDeveloperNudges()
+{
+    return JudgementList (s_kDeveloperNudges);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::PickDeveloperNudge
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::PickDeveloperNudge (const RandomIndexFn & randomIndex)
+{
+    JudgementList  list  = GetDeveloperNudges();
+    size_t         index = randomIndex ? randomIndex (list.size()) : 0;
+
+
+
+    return list[std::min (index, list.size() - 1)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::GetAgeRemarkCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t UpdateDialogModel::GetAgeRemarkCount()
+{
+    return std::size (s_kAgeRemarks);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::MakeAgeRemark
+//
+//  One age remark with the age filled in, singular for a single day. An
+//  index past the end is clamped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::MakeAgeRemark (size_t index, int days, const ReleaseVersion & running)
+{
+    std::string   runningText = running.ToString();
+    std::wstring  version (runningText.begin(), runningText.end());
+    std::wstring  age         = (days == 1) ? std::wstring (L"1 day") : std::format (L"{} days", days);
+    wchar_t       dash        = s_kchEmDash;
+    LPCWSTR       pattern     = s_kAgeRemarks[std::min (index, std::size (s_kAgeRemarks) - 1)];
+
+
+
+    return std::vformat (pattern, std::make_wformat_args (age, version, dash));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::TryGetDaysSince
+//
+//  Whole days from a "YYYY-MM-DD" date to `nowUtc` (Unix seconds), counted
+//  in UTC calendar days. False for text that is not a real date, and for a
+//  date after today, which has no age to remark on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UpdateDialogModel::TryGetDaysSince (std::string_view date, std::int64_t nowUtc, int & outDays)
+{
+    constexpr std::int64_t  kSecondsPerDay = 86400;
+    constexpr size_t        kMonthAt       = 5;
+    constexpr size_t        kDayAt         = 8;
+    constexpr size_t        kYearDigits    = 4;
+    constexpr size_t        kPartDigits    = 2;
+
+
+
+    int                            year    = 0;
+    unsigned                       month   = 0;
+    unsigned                       day     = 0;
+    std::chrono::year_month_day    ymd;
+    std::int64_t                   then    = 0;
+    std::int64_t                   today   = 0;
+    bool                           isKnown = ReleaseNotesExtractor::IsDateText (date);
+
+
+
+    outDays = 0;
+
+    if (isKnown)
+    {
+        std::from_chars (date.data(),            date.data() + kYearDigits,           year);
+        std::from_chars (date.data() + kMonthAt, date.data() + kMonthAt + kPartDigits, month);
+        std::from_chars (date.data() + kDayAt,   date.data() + kDayAt + kPartDigits,   day);
+
+        ymd     = std::chrono::year_month_day { std::chrono::year (year), std::chrono::month (month), std::chrono::day (day) };
+        isKnown = ymd.ok();
+    }
+
+    if (isKnown)
+    {
+        then    = std::chrono::sys_days (ymd).time_since_epoch().count();
+        today   = (nowUtc >= 0 ? nowUtc : nowUtc - kSecondsPerDay + 1) / kSecondsPerDay;
+        isKnown = today >= then;
+        outDays = isKnown ? (int) (today - then) : 0;
+    }
+
+    return isKnown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::MakeAgeHeader
+//
+//  The header that ends plainly, "...Sadly, you're still using 1.29.0.",
+//  with an age remark as its own sentence on the next line. An empty
+//  remark leaves just the first line, which is what the dialog shows until
+//  the notes (and with them the running build's date) arrive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::MakeAgeHeader (
+    const ReleaseVersion  & newer,
+    const std::string     & publishedDate,
+    const ReleaseVersion  & running,
+    std::wstring_view       ageRemark)
+{
+    std::wstring  header = MakeHeader (newer, publishedDate, running, L"");
+
+
+
+    // MakeHeader ends with a dash and an empty remark; a plain sentence ends
+    // with the version instead.
+    header.resize (header.size() - 2);
+    header += L".";
+
+    if (!ageRemark.empty())
+    {
+        header += L"\n";
+        header += ageRemark;
+    }
+
+    return header;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::MakeFinalHeader
+//
+//  One remark per dialog. With the running build's age known, the pick
+//  ranges over the short judgements and the age remarks together; without
+//  it, over the short judgements only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::MakeFinalHeader (
+    const ReleaseVersion  & newer,
+    const std::string     & publishedDate,
+    const ReleaseVersion  & running,
+    std::optional<int>      ageDays,
+    const RandomIndexFn   & randomIndex)
+{
+    size_t        shortCount = GetJudgements().size();
+    size_t        ageCount   = ageDays.has_value() ? GetAgeRemarkCount() : 0;
+    size_t        total      = shortCount + ageCount;
+    size_t        index      = randomIndex ? std::min (randomIndex (total), total - 1) : 0;
+    std::wstring  header;
+
+
+
+    if (index < shortCount)
+    {
+        header = MakeHeader (newer, publishedDate, running, GetJudgements()[index]);
+    }
+    else
+    {
+        header = MakeAgeHeader (newer, publishedDate, running, MakeAgeRemark (index - shortCount, *ageDays, running));
+    }
+
+    return header;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateDialogModel::MakeUpToDateText
 //
 ////////////////////////////////////////////////////////////////////////////////
