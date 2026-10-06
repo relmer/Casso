@@ -688,19 +688,43 @@ four memory windows, and one panel for each device the machine has.
 
 ### The heat map
 
-**View > Heat map** opens a pane that shows the whole 64 KB address space as
-a square: one row a page, $00 at the top and $FF at the bottom, and one
-dot an address. Each address is drawn in the color of what touched it over the
-last few frames, brighter the more it was touched, and fades back to the
-background within about a second after the program stops touching it:
-code (the bytes of every instruction run) in the disassembly's instruction
-color, reads in green and writes in red. **All**, **Code** and **Data** above
-the map choose what it shows: everything, with code ahead of data where an
-address is both; executes alone; or reads and writes alone. Hovering over the
-map shows the address under the mouse and what touched it.
+The heat map is a tab beside **Memory 1** in the default layout, and **View >
+Heat map** brings it forward. It shows the whole 64 KB address space as a
+grid: one row a page, $00 at the top and $FF at the bottom, and one cell an
+address. Each address is drawn in the color of what touched it: code (the
+bytes of every instruction run) in the disassembly's instruction color, reads
+in green and writes in red. An address nothing touched is a dark gray (a light
+gray on a light theme), and every cell is set apart from its neighbors by a
+one-pixel gap of the page. **All**, **Code** and **Data** above the map choose
+what it shows: everything, with code ahead of data where an address is both;
+executes alone; or reads and writes alone.
+
+**Fading**, the default, shows how recently and how often each address was
+touched. An address the program keeps busy is bright, and its brightness
+follows how many times a second it is touched, on a logarithmic scale, so a
+byte read a few times a second and a tight loop's thousands both show. Once the
+program leaves an address it dims, and a single access is gone after the fade
+time, 10 seconds of machine time unless **Fade 10 s** is clicked to step it
+through 2, 5, 10, 20, 30 and 60 seconds; a busy address takes a few times
+longer to dim away. **Cumulative** keeps everything: nothing fades, and each
+address's brightness is its total count on a logarithmic scale against the
+busiest address, so a few hot loops do not wash out the rest. **Reset counts**
+starts the totals over. The choice and the fade time are kept between
+sessions.
+
+The mouse wheel over the map zooms in and out about the mouse, Shift with the
+wheel scrolls up and down, and dragging the map pans it. **Reset zoom** goes
+back to the starting size, three pixels a cell at 100% scaling, with $0000 at
+the top left. The address the mouse is over and what touched it show at the
+top right, with a frame around its cell; while cells are small, a mouse over
+an untouched cell picks the busiest cell within a few pixels instead, so a
+lone hot byte is easy to land on. Clicking a cell shows its address in a
+memory window: the one last used if it is in view, otherwise the first one
+that is, otherwise Memory 1, whose tab comes forward.
 
 The machine records for the heat map only while its pane is open and in
-front. Closed, or behind another tab, it records nothing and costs nothing.
+front. Closed, or behind another tab, it records nothing and costs nothing,
+and the cumulative totals count only what it recorded.
 
 ### Memory windows
 
