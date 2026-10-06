@@ -516,6 +516,13 @@ void DebuggerWindow::ConfigureCommandBar()
 
     ConfigureCommandBarHost();
     ConfigureTimeline();
+
+    //  The two toolbars lay out together, in bands they can share. The
+    //  timeline joins first: places saved before they could share a band
+    //  had the timeline against the edge and the command bar inside it.
+    m_timelineHost.JoinGroup (m_toolbarDocks);
+    m_barHost.JoinGroup      (m_toolbarDocks);
+
     SetWindowMenus();
 }
 
@@ -4176,15 +4183,13 @@ void DebuggerWindow::LayoutWidgets()
     //  The status bar along the bottom edge; everything else ends above it.
     bottom = PlaceStatusBar (width, height);
 
-    //  The history timeline takes its band first, across the top under the
-    //  menu bar by default, and the command bar and the panes share the rest.
-    area = RECT { 0, rowY, width, bottom };
-    PlaceTimeline (area);
-
+    //  The history timeline and the command bar take their bands, across the
+    //  top under the menu bar by default, the timeline against the menu bar,
+    //  and the panes have the rest, sharing the command bar's band for their
+    //  auto-hidden tabs when it is the innermost and the timeline is not in it.
+    area = m_toolbarDocks.Layout (RECT { 0, rowY, width, bottom }, RECT { 0, 0, width, height }, m_scaler);
     top  = area.top;
     barY = area.bottom - pad;
-
-    m_barHost.Layout (area, RECT { 0, 0, width, height }, m_scaler);
 
     m_dockSite->Layout (RECT { area.left + pad, top, area.right - pad, barY }, m_scaler);
 

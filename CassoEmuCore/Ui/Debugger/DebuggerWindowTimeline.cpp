@@ -21,7 +21,8 @@
 //  live time is, and a grab handle; it docks and floats through a Dxui
 //  toolbar host of its own, as the command bar does, and keeps its place in
 //  the debugger's preferences. Docked, the strip runs the whole length of
-//  its edge; floating, it keeps the length it was given. The pictures come from the host, which draws
+//  its band, less what the command bar takes when it shares the band;
+//  floating, it keeps the length it was given. The pictures come from the host, which draws
 //  them from its recorded history. The band is taller than a button by room
 //  above and below the pictures, so a replay's playhead line can show the
 //  host's time above it and the time since power-on below it.
@@ -116,49 +117,6 @@ void DebuggerWindow::ConfigureTimeline()
         m_timelineStrip.SetPopupHost (popups);
         m_timelineBar->SetPopupHost  (popups);
     });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::PlaceTimeline
-//
-//  Docked, the timeline runs the length of its edge of `area`, however it
-//  was carried there, and takes its band out of it; floating, the area is
-//  left whole.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PlaceTimeline (RECT & area)
-{
-    const DxuiToolbarDock  & dock     = m_timelineHost.GetDock();
-    bool                     floating = m_timelineHost.IsFloating();
-    int                      band     = m_scaler.ToPx ((m_timelineBar != nullptr) ? m_timelineBar->GetBandDp() : DxuiToolbar::GetBandDip());
-
-
-
-    if (m_timelineBar == nullptr)
-    {
-        return;
-    }
-
-    m_timelineHost.Layout (area, RECT { 0, 0, m_widthDip, m_heightDip }, m_scaler);
-
-    if (floating)
-    {
-        return;
-    }
-
-    switch (dock.edge)
-    {
-    case DxuiToolbarDock::Edge::Bottom: area.bottom -= band; break;
-    case DxuiToolbarDock::Edge::Left:   area.left   += band; break;
-    case DxuiToolbarDock::Edge::Right:  area.right  -= band; break;
-    default:                            area.top    += band; break;
-    }
 }
 
 

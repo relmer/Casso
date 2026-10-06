@@ -636,7 +636,6 @@ private:
     //  The history timeline: a toolbar of history thumbnails docked and
     //  floated as the command bar is, and the click that seeks there.
     void     ConfigureTimeline     ();
-    void     PlaceTimeline         (RECT & area);
     bool     RouteTimelineMouse    (const DxuiMouseEvent & ev);
     void     SyncTimeline          ();
     void     OnTimelineSeek        (const HistoryThumbnailCell & cell);
@@ -1065,6 +1064,11 @@ private:
     //  menu opened that comes forward once the next snapshot shows it.
     std::set<std::wstring>                                                           m_closedPanes;
     std::wstring                                                                     m_pendingShowPane;
+
+    //  The command bar and the history timeline, laid out together in bands
+    //  along the window's edges. Declared ahead of their hosts, which leave
+    //  it as they go.
+    DxuiToolbarDockGroup                                                             m_toolbarDocks;
 
     //  The command bar's place, docked or floating, and the drags that move
     //  it. Events from its floating window route under kBarFloatKey, which
