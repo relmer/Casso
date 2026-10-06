@@ -198,4 +198,6 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Window/DxuiToolbarMoveTracker.h"
 #include "Window/DxuiToolbarWindow.h"
 #include "Widgets/DxuiToolbarDock.h"
+#include "Widgets/DxuiToolbarBands.h"
+#include "Window/DxuiToolbarDockGroup.h"
 #include "Window/DxuiToolbarHost.h"

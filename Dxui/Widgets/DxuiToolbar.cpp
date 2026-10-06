@@ -2297,6 +2297,45 @@ void DxuiToolbar::PaintLift (IDxuiPainter & painter, const IDxuiTheme & theme, f
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::PaintDropSlot
+//
+//  The band the carried toolbar is in: an accent tint across the band's
+//  whole stretch, over any toolbar sharing it, with an accent outline, so a
+//  band of its own reads as a whole row and a shared band as the row it is
+//  joining.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PaintDropSlot (IDxuiPainter & painter, const IDxuiTheme & theme)
+{
+    constexpr uint32_t  kTintAlpha = 0x30u << 24;
+
+
+
+    float     left   = (float) m_dropSlot.left;
+    float     top    = (float) m_dropSlot.top;
+    float     width  = (float) (m_dropSlot.right  - m_dropSlot.left);
+    float     height = (float) (m_dropSlot.bottom - m_dropSlot.top);
+    float     line   = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
+    uint32_t  tint   = (theme.Accent() & 0x00FFFFFFu) | kTintAlpha;
+
+
+
+    if (width <= 0.0f || height <= 0.0f)
+    {
+        return;
+    }
+
+    painter.FillRect    (left, top, width, height, tint);
+    painter.OutlineRect (left, top, width, height, line, theme.Accent());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::Paint
 //
 //  A bottom hairline separates the strip from whatever is below it, or, for
@@ -2324,6 +2363,11 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     if (bw <= 0.0f)
     {
         return;
+    }
+
+    if (lift > 0.0f)
+    {
+        PaintDropSlot (painter, theme);
     }
 
     painter.FillRect (bl, btTop, bw, bhAll, strip);

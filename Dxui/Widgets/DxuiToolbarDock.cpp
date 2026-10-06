@@ -44,6 +44,11 @@ std::wstring DxuiToolbarDock::ToText() const
         }
     }
 
+    if (HasBand())
+    {
+        return std::format (L"{} {} band {}", word, offsetDip, band);
+    }
+
     return word + L" " + std::to_wstring (offsetDip);
 }
 
@@ -89,13 +94,61 @@ DxuiToolbarDock DxuiToolbarDock::FromText (const std::wstring & text)
 
     offset = wcstol (text.c_str() + space + 1, &end, 10);
 
-    if (end == text.c_str() + space + 1 || *end != L'\0' || offset < 0)
+    if (end == text.c_str() + space + 1 || offset < 0)
+    {
+        return DxuiToolbarDock {};
+    }
+
+    //  Places saved before bands existed end at the offset.
+    if (*end != L'\0' && !TryReadBand (end, dock.band))
     {
         return DxuiToolbarDock {};
     }
 
     dock.offsetDip = (int) offset;
     return dock;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarDock::TryReadBand
+//
+//  " band 1" after the offset, and nothing after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarDock::TryReadBand (const wchar_t * text, int & outBand)
+{
+    constexpr std::wstring_view  kBand = L" band ";
+
+
+
+    std::wstring_view    rest  = text;
+    const wchar_t      * start = nullptr;
+    wchar_t            * end   = nullptr;
+    long                 band  = 0;
+
+
+
+    if (!rest.starts_with (kBand))
+    {
+        return false;
+    }
+
+    start = text + kBand.size();
+    band  = wcstol (start, &end, 10);
+
+    if (end == start || *end != L'\0' || band < 0 || !iswdigit (*start))
+    {
+        return false;
+    }
+
+    outBand = (int) band;
+    return true;
 }
 
 
@@ -185,29 +238,46 @@ DxuiToolbarDock DxuiToolbarDock::PickForDrop (POINT pointer, POINT grab, const R
     int              toLeft   = pointer.x - area.left;
     int              toRight  = area.right - pointer.x;
     int              nearest  = (std::min) ((std::min) (toTop, toBottom), (std::min) (toLeft, toRight));
-    int              offsetPx = 0;
+    Edge             edge     = Edge::Right;
 
 
 
     if (nearest == toTop)
     {
-        dock.edge = Edge::Top;
+        edge = Edge::Top;
     }
     else if (nearest == toBottom)
     {
-        dock.edge = Edge::Bottom;
+        edge = Edge::Bottom;
     }
     else if (nearest == toLeft)
     {
-        dock.edge = Edge::Left;
-    }
-    else
-    {
-        dock.edge = Edge::Right;
+        edge = Edge::Left;
     }
 
+    return PickForDropOn (edge, pointer, grab, area, dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarDock::PickForDropOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarDock DxuiToolbarDock::PickForDropOn (Edge edge, POINT pointer, POINT grab, const RECT & area, int dpi)
+{
+    DxuiToolbarDock  dock;
+    int              offsetPx = 0;
+
+
+
+    dock.edge      = edge;
     offsetPx       = dock.IsVertical() ? pointer.y - area.top - grab.y : pointer.x - area.left - grab.x;
-    dock.offsetDip = (std::max) (0, MulDiv (offsetPx, 96, (std::max) (dpi, 1)));
+    dock.offsetDip = (std::max) (0, MulDiv (offsetPx, USER_DEFAULT_SCREEN_DPI, (std::max) (dpi, 1)));
 
     return dock;
 }

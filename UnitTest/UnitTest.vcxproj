@@ -751,6 +751,8 @@
     <ClCompile Include="Dxui\DxuiToolbarLabelsTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteEdgeShareTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarHostTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarBandsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarDockGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiImageStripTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />

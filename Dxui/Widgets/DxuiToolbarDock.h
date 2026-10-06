@@ -10,10 +10,13 @@
 //
 //  DxuiToolbarDock
 //
-//  Where a dockable toolbar sits: against one edge of its window, at
-//  an offset along it from that edge's start (its left end across the top or
-//  bottom, its top end down a side). The offset is in DIPs, so a saved place
-//  holds across a DPI change.
+//  Where a dockable toolbar sits: against one edge of its window, in one of
+//  the bands along that edge (band 0 against the edge itself, band 1 inside
+//  it, and so on), at an offset along it from that edge's start (its left
+//  end across the top or bottom, its top end down a side). The offset is in
+//  DIPs, so a saved place holds across a DPI change. A place with no band,
+//  as every place saved before bands existed, is given one when it is laid
+//  out: a band of its own inside any the edge already has.
 //
 //  A drop picks the edge nearest the pointer, and the offset that keeps the
 //  bar where the pointer grabbed it. Or the bar floats in a window of its
@@ -31,26 +34,31 @@ struct DxuiToolbarDock
         Right,
     };
 
+    static constexpr int  kNoBand = -1;
+
     Edge   edge           = Edge::Top;
     int    offsetDip      = 0;
+    int    band           = kNoBand;
     bool   floating       = false;
     POINT  floatPx        = {};
     bool   floatVertical  = false;
     int    floatLengthDip = 0;      // a floating bar's length when it keeps one; 0 for its natural length
 
     bool  IsVertical () const { return !floating && (edge == Edge::Left || edge == Edge::Right); }
+    bool  HasBand    () const { return band >= 0; }
 
     bool  operator== (const DxuiToolbarDock & other) const
     {
         return floating == other.floating &&
                (floating ? floatPx.x == other.floatPx.x && floatPx.y == other.floatPx.y && floatVertical == other.floatVertical &&
                            floatLengthDip == other.floatLengthDip
-                         : edge == other.edge && offsetDip == other.offsetDip);
+                         : edge == other.edge && offsetDip == other.offsetDip && band == other.band);
     }
 
-    //  "top 0", "left 120": the edge, a space, then the offset. Floating,
-    //  "float 300 -40": the window's screen position, then " vertical"
-    //  when it stands on end, then " length 640" when it keeps a length.
+    //  "top 0", "left 120": the edge, a space, then the offset, then
+    //  " band 1" when the place has a band. Floating, "float 300 -40": the
+    //  window's screen position, then " vertical" when it stands on end,
+    //  then " length 640" when it keeps a length.
     std::wstring           ToText    () const;
 
     //  Text that does not read back gives the default place, across the top
@@ -63,6 +71,10 @@ struct DxuiToolbarDock
     //  began, so the bar does not jump under it. The offset runs from the
     //  area's start and is never negative; the layout clamps its far end.
     static DxuiToolbarDock  PickForDrop (POINT pointer, POINT grab, const RECT & area, int dpi);
+
+    //  The same drop's place on a given edge: the offset alone follows the
+    //  pointer, and the band is left for the caller to give.
+    static DxuiToolbarDock  PickForDropOn (Edge edge, POINT pointer, POINT grab, const RECT & area, int dpi);
 
     //  The offset clamped so a bar of `barLength` fits an edge of
     //  `edgeLength`, both in pixels.
@@ -109,4 +121,5 @@ struct DxuiToolbarDock
 
 private:
     static DxuiToolbarDock  ReadFloating (const std::wstring & text);
+    static bool             TryReadBand  (const wchar_t * text, int & outBand);
 };

@@ -219,6 +219,8 @@
     <ClCompile Include="Window\DxuiToolbarWindow.cpp" />
     <ClCompile Include="Window\DxuiToolbarHost.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarDock.cpp" />
+    <ClCompile Include="Widgets\DxuiToolbarBands.cpp" />
+    <ClCompile Include="Window\DxuiToolbarDockGroup.cpp" />
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
     <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
@@ -334,6 +336,8 @@
     <ClInclude Include="Window\DxuiToolbarWindow.h" />
     <ClInclude Include="Window\DxuiToolbarHost.h" />
     <ClInclude Include="Widgets\DxuiToolbarDock.h" />
+    <ClInclude Include="Widgets\DxuiToolbarBands.h" />
+    <ClInclude Include="Window\DxuiToolbarDockGroup.h" />
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
     <ClInclude Include="Widgets\DxuiFramebufferView.h" />
     <ClInclude Include="Widgets\DxuiHexView.h" />

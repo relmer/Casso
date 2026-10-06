@@ -4,6 +4,7 @@
 #include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiToolbarDock.h"
+#include "Window/DxuiToolbarDockGroup.h"
 #include "Window/DxuiToolbarWindow.h"
 
 
@@ -32,10 +33,18 @@
 //  toolbar is goes back to the owner as DxuiToolbarDock text through the
 //  save callback, for it to keep.
 //
+//  A window with more than one dockable toolbar puts their hosts in one
+//  DxuiToolbarDockGroup, which lays them out in bands together: a toolbar
+//  dragged over another's band joins it, and one dragged to the boundary
+//  between two bands, or to either side of them all, makes a band of its
+//  own there. While it is carried, its band is highlighted.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiToolbarHost
 {
+    friend class DxuiToolbarDockGroup;
+
 public:
     using  ClosedFn = std::function<void ()>;
     using  MouseFn  = std::function<bool (const DxuiMouseEvent & ev)>;
@@ -50,13 +59,18 @@ public:
     static constexpr int  kPullDp      = 32;
     static constexpr int  kMarginDp    = 8;
 
-    DxuiToolbarHost  () = default;
+    DxuiToolbarHost  ();
     ~DxuiToolbarHost ();
 
     DxuiToolbarHost             (const DxuiToolbarHost &) = delete;
     DxuiToolbarHost & operator= (const DxuiToolbarHost &) = delete;
 
     void  Attach (DxuiWindow * owner, DxuiToolbar * toolbar, DxuiDockSite * dockSite, HINSTANCE hInstance);
+
+    //  Lays this host's toolbar out with the other toolbars of `group`,
+    //  which outlives it, in place of a group of its own.
+    void                    JoinGroup (DxuiToolbarDockGroup & group);
+    DxuiToolbarDockGroup &  GetGroup  () const { return *m_group; }
 
     //  Run when the docked toolbar has moved and the owner must lay out
     //  again, when its place should be saved, for mouse input over the
@@ -93,9 +107,9 @@ public:
     DxuiToolbarWindow  *  GetFloatWindow () const { return m_float.get(); }
     bool                  IsDragging     () const { return m_dragging; }
 
-    //  Docked, places the toolbar against its edge of `area`, in client
-    //  pixels, and gives the dock site that stretch of the edge; floating,
-    //  gives the dock site its edges back.
+    //  Lays out the host's group against `area`, in client pixels: docked,
+    //  the toolbar takes its place in its band and gives the dock site its
+    //  stretch of the edge; floating, gives the dock site its edges back.
     void  Layout (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler);
 
     //  A press on the grab handle and the drag that follows; true while the
@@ -132,6 +146,11 @@ public:
     static int  GetFloatLengthPx    (const DxuiToolbarDock & dock, bool fillsEdge, int dpi);
 
 private:
+    bool  BeginLayout      (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler);
+    void  PlaceDocked      (const RECT & bar, const RECT & band);
+    void  MoveAcrossBands  (POINT clientPx, DxuiToolbarDock & dock);
+    bool  TryPickDrop      (POINT clientPx, POINT grab, DxuiToolbarDock & outDock, bool & outNewBand);
+    void  TakeDrop         (const DxuiToolbarDock & dock, bool isNewBand);
     void  TearOff          (POINT clientPx);
     void  Float            ();
     void  DockBack         ();
@@ -171,6 +190,7 @@ private:
     //  The floating toolbar's rectangle at the last tick of the drag, in the
     //  owner's client pixels, shows which way its far end is going.
     DxuiToolbarDock                       m_snapDock;
+    bool                                  m_snapNewBand  = false;
     bool                                  m_snapping     = false;
     bool                                  m_snapResumes  = false;
     bool                                  m_snapDragOn   = false;
@@ -178,6 +198,11 @@ private:
     bool                                  m_hasLastFloat = false;
 
     std::unique_ptr<DxuiToolbarWindow>    m_float;
+
+    //  The group the toolbar is laid out with: its own until it joins its
+    //  window's.
+    std::unique_ptr<DxuiToolbarDockGroup>  m_ownGroup = std::make_unique<DxuiToolbarDockGroup>();
+    DxuiToolbarDockGroup                * m_group    = m_ownGroup.get();
 
     ClosedFn                              m_onLayout;
     SaveFn                                m_onSave;

@@ -244,6 +244,11 @@ public:
     //  How far past the strip on every side the lifted surface reaches.
     static constexpr float  kLiftGrowDip    = 2.0f;
 
+    //  The band a carried toolbar would be put down in, tinted in the
+    //  accent and outlined under it while it is lifted; empty for none.
+    void   SetDropSlot     (const RECT & slot)           { m_dropSlot = slot; }
+    RECT   GetDropSlot     () const                      { return m_dropSlot; }
+
     //  The move cursor over the grab handle.
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
@@ -437,6 +442,7 @@ private:
     void          LayoutVertical       (const RECT & bounds);
     void          PaintGrip            (IDxuiPainter & painter, const IDxuiTheme & theme);
     void          PaintLift            (IDxuiPainter & painter, const IDxuiTheme & theme, float level);
+    void          PaintDropSlot        (IDxuiPainter & painter, const IDxuiTheme & theme);
     void          OpenFlyout           (bool byKeyboard);
     void          CloseFlyout          ();
     void          OpenDropDown         (int commandId);
@@ -492,6 +498,7 @@ private:
     RECT                     m_gripRect       = {};
     bool                     m_lifted         = false;
     DxuiSlide                m_liftSlide;
+    RECT                     m_dropSlot       = {};
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;

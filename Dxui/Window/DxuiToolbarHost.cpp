@@ -41,6 +41,21 @@ void DxuiToolbarHost::Attach (DxuiWindow * owner, DxuiToolbar * toolbar, DxuiDoc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbarHost::DxuiToolbarHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarHost::DxuiToolbarHost()
+{
+    m_ownGroup->Add (this);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbarHost::~DxuiToolbarHost
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +66,26 @@ DxuiToolbarHost::~DxuiToolbarHost()
     {
         m_owner->RemoveMouseFilter (this);
     }
+
+    m_group->Remove (this);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::JoinGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::JoinGroup (DxuiToolbarDockGroup & group)
+{
+    m_group->Remove (this);
+
+    m_group = &group;
+    m_group->Add (this);
 }
 
 
@@ -234,30 +269,35 @@ POINT DxuiToolbarHost::GetTearOffTopLeft (POINT screenPx, bool vertical, int gri
 //
 //  DxuiToolbarHost::Layout
 //
-//  Docked, the band is the dock site's edge strip too, so auto-hidden panes'
-//  tabs on that edge run beside the toolbar rather than in a strip of their
-//  own, and the panes beside it draw its long sides. A toolbar that fills
-//  its edge takes all of it, however it was carried or where it was put.
-//  Floating, the toolbar is in its own window and the dock site has every
-//  edge.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarHost::Layout (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler)
 {
-    int   band   = scaler.ToPx (GetBandDipOfBar());
-    int   margin = scaler.ToPx (kMarginDp);
-    int   length = 0;
-    RECT  bar    = {};
+    (void) m_group->Layout (area, hostClient, scaler);
+}
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::BeginLayout
+//
+//  The group's layout starting: the toolbar readied to be measured, and
+//  true when it is docked and so takes a place in a band. Floating, the
+//  toolbar is in its own window and the dock site has every edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::BeginLayout (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler)
+{
     m_scaler = scaler;
     m_area   = area;
 
     if (m_toolbar == nullptr)
     {
-        return;
+        return false;
     }
 
     m_toolbar->SetEndEdges (m_float == nullptr);
@@ -269,25 +309,34 @@ void DxuiToolbarHost::Layout (const RECT & area, const RECT & hostClient, const 
             m_dockSite->ClearEdgeShare();
         }
 
-        return;
+        return false;
     }
 
     m_toolbar->SetTextRenderer   ((m_owner != nullptr) ? m_owner->GetTextRenderer() : nullptr);
     m_toolbar->SetHostClientRect (hostClient);
     m_toolbar->SetVertical       (m_dock.IsVertical());
 
-    length = m_fillsEdge ? INT_MAX : m_toolbar->GetNaturalLengthPx (scaler);
-    bar    = GetDockedRect (m_dock, area, length, band, margin, (int) scaler.GetDpi());
+    return true;
+}
 
-    if (m_dockSite != nullptr)
-    {
-        m_dockSite->SetEdgeShare (EdgeToDockSide (m_dock.edge),
-                                  GetEdgeShareThickness (m_dock.edge, band, margin),
-                                  m_dock.IsVertical() ? bar.top    : bar.left,
-                                  m_dock.IsVertical() ? bar.bottom : bar.right);
-    }
 
-    m_toolbar->Layout (bar, scaler);
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::PlaceDocked
+//
+//  The docked toolbar at its place in its band. While it is carried, its
+//  band is highlighted, so it is plain which band a drop puts it in and
+//  whether that band is one of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::PlaceDocked (const RECT & bar, const RECT & band)
+{
+    m_toolbar->Layout      (bar, m_scaler);
+    m_toolbar->SetDropSlot (m_dragging ? band : RECT {});
 }
 
 
@@ -299,9 +348,10 @@ void DxuiToolbarHost::Layout (const RECT & area, const RECT & hostClient, const 
 //  DxuiToolbarHost::RouteDrag
 //
 //  A press on the grab handle carries the docked toolbar: it slides along
-//  the band it is in, however near another edge the pointer comes, and only
-//  a pull well away from that band tears it off to float under the pointer.
-//  The release saves its place.
+//  the band it is in, moves into another band of its edge or into a new one
+//  between two, however near another edge the pointer comes, and only a
+//  pull well away from the edge's bands tears it off to float under the
+//  pointer. The release saves its place, and its neighbors'.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -310,6 +360,7 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
     POINT            at    = ev.positionDip;
     RECT             bar   = {};
     int              along = 0;
+    int              reach = 0;
     DxuiToolbarDock  dock;
 
 
@@ -335,6 +386,7 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
         m_grab     = POINT { along + m_scaler.ToPx (kMarginDp), along };
         m_dragging = true;
 
+        m_toolbar->SetDropSlot (m_group->GetBandRect (m_dock.edge, m_dock.band));
         UpdateLift();
 
         if (m_onDragStart)
@@ -348,30 +400,24 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        if (DxuiToolbarDock::IsPulledOut (at, m_dock.edge, m_area, m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp), m_scaler.ToPx (kPullDp)))
+        reach = m_group->GetDepthPx (m_dock.edge) + m_scaler.ToPx (kDockReachDp);
+
+        if (DxuiToolbarDock::IsPulledOut (at, m_dock.edge, m_area, reach, m_scaler.ToPx (kPullDp)))
         {
             TearOff (at);
             break;
         }
 
-        dock = DxuiToolbarDock::SlideAlong (at, m_grab, m_dock, m_area, (int) m_scaler.GetDpi());
+        dock = DxuiToolbarDock::SlideAlong (at, m_grab, m_dock, m_group->GetEdgeArea (m_dock.edge), (int) m_scaler.GetDpi());
 
-        if (!(dock == m_dock))
-        {
-            m_dock = dock;
-
-            if (m_onLayout)
-            {
-                m_onLayout();
-            }
-        }
-
+        MoveAcrossBands (at, dock);
         break;
 
     case DxuiMouseEventKind::Up:
         m_dragging = false;
+        m_toolbar->SetDropSlot (RECT {});
         UpdateLift();
-        Save();
+        m_group->Commit (this);
         break;
 
     default:
@@ -379,6 +425,120 @@ bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::MoveAcrossBands
+//
+//  The docked toolbar under a drag, at `dock` along its band: over another
+//  band of its edge it joins that band, and near a boundary between two, or
+//  either side of them all, it makes a band of its own there. Alone in its
+//  band, it stays there over the boundaries either side of it, so a band of
+//  its own does not jump under the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::MoveAcrossBands (POINT clientPx, DxuiToolbarDock & dock)
+{
+    int                       across = DxuiToolbarBands::GetAcrossPx (clientPx, m_dock.edge, m_area);
+    int                       split  = m_scaler.ToPx (DxuiToolbarDockGroup::kSplitDp);
+    DxuiToolbarBands::Target  target;
+    bool                      moved  = false;
+
+
+
+    target = DxuiToolbarBands::PickTarget (across, m_group->GetBandThicknesses (m_dock.edge), m_dock.band, m_group->IsAloneInBand (this), split);
+
+    dock.band = target.band;
+    moved     = target.isNewBand || !(dock == m_dock);
+
+    if (!moved)
+    {
+        return;
+    }
+
+    if (target.isNewBand)
+    {
+        m_group->InsertBand (m_dock.edge, target.band, this);
+    }
+
+    m_dock = dock;
+
+    if (m_onLayout)
+    {
+        m_onLayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::TryPickDrop
+//
+//  Where a floating toolbar dropped at `clientPx` docks, with `grab` where
+//  the pointer holds it: on the edge whose bands the pointer is in or near,
+//  in the band under it or a new band at the boundary it is near. False
+//  away from every edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::TryPickDrop (POINT clientPx, POINT grab, DxuiToolbarDock & outDock, bool & outNewBand)
+{
+    int                       reach  = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
+    int                       split  = m_scaler.ToPx (DxuiToolbarDockGroup::kSplitDp);
+    DxuiToolbarDock::Edge     edge   = DxuiToolbarDock::Edge::Top;
+    DxuiToolbarBands::Target  target;
+    bool                      isNear = false;
+
+
+
+    isNear = DxuiToolbarBands::TryPickEdge (clientPx, m_area, m_group->GetPlacement().depthPx, reach, edge);
+
+    if (!isNear)
+    {
+        return false;
+    }
+
+    target = DxuiToolbarBands::PickTarget (DxuiToolbarBands::GetAcrossPx (clientPx, edge, m_area), m_group->GetBandThicknesses (edge), DxuiToolbarDock::kNoBand, false, split);
+
+    outDock      = DxuiToolbarDock::PickForDropOn (edge, clientPx, grab, m_group->GetEdgeArea (edge), (int) m_scaler.GetDpi());
+    outDock.band = target.band;
+    outNewBand   = target.isNewBand;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::TakeDrop
+//
+//  The toolbar takes a docked place, a new band moving the bands from it on
+//  one further in, and every place is saved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::TakeDrop (const DxuiToolbarDock & dock, bool isNewBand)
+{
+    if (isNewBand)
+    {
+        m_group->InsertBand (dock.edge, dock.band, this);
+    }
+
+    m_dock = dock;
+
+    m_group->SaveAll();
 }
 
 
@@ -893,10 +1053,12 @@ void DxuiToolbarHost::Hide()
 
 void DxuiToolbarHost::OnFloatDragEnd (POINT screenPx)
 {
-    POINT  client = screenPx;
-    RECT   rect   = (m_float != nullptr) ? m_float->GetScreenRect() : RECT {};
-    int    reach  = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
-    POINT  grab   = POINT { screenPx.x - rect.left, screenPx.y - rect.top };
+    POINT            client    = screenPx;
+    RECT             rect      = (m_float != nullptr) ? m_float->GetScreenRect() : RECT {};
+    POINT            grab      = POINT { screenPx.x - rect.left, screenPx.y - rect.top };
+    DxuiToolbarDock  dock;
+    bool             isNewBand = false;
+    bool             isDocked  = false;
 
 
 
@@ -910,17 +1072,18 @@ void DxuiToolbarHost::OnFloatDragEnd (POINT screenPx)
         return;
     }
 
-    if (IsWindowVisible (GetOwnerHwnd()) && DxuiToolbarDock::IsInDockBand (client, m_area, reach))
+    //  Across the top or bottom the toolbar starts a margin in from the
+    //  window's edge, so the grab point counts it.
+    isDocked = IsWindowVisible (GetOwnerHwnd()) && TryPickDrop (client, POINT { grab.x + m_scaler.ToPx (kMarginDp), grab.x }, dock, isNewBand);
+
+    if (isDocked)
     {
-        //  Across the top or bottom the toolbar starts a margin in from the
-        //  window's edge, so the grab point counts it.
-        m_dock = DxuiToolbarDock::PickForDrop (client, POINT { grab.x + m_scaler.ToPx (kMarginDp), grab.x }, m_area, (int) m_scaler.GetDpi());
+        TakeDrop (dock, isNewBand);
+        return;
     }
-    else
-    {
-        m_dock.floating = true;
-        m_dock.floatPx  = POINT { rect.left, rect.top };
-    }
+
+    m_dock.floating = true;
+    m_dock.floatPx  = POINT { rect.left, rect.top };
 
     Save();
 }
@@ -949,9 +1112,8 @@ void DxuiToolbarHost::FinishSnap()
 
     m_snapping   = false;
     m_snapDragOn = m_snapResumes;
-    m_dock       = m_snapDock;
 
-    Save();
+    TakeDrop (m_snapDock, m_snapNewBand);
 }
 
 
@@ -1004,6 +1166,8 @@ void DxuiToolbarHost::OnFloatDrag (POINT screenPx)
     RECT   rect     = {};
     int    reach    = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
     bool   vertical = false;
+    bool   isNear   = false;
+    POINT  grab     = {};
 
 
 
@@ -1019,12 +1183,13 @@ void DxuiToolbarHost::OnFloatDrag (POINT screenPx)
         return;
     }
 
-    rect = m_float->GetScreenRect();
+    rect   = m_float->GetScreenRect();
+    grab   = DxuiToolbarDock::GrabForDocking (POINT { screenPx.x - rect.left, screenPx.y - rect.top }, m_dock.floatVertical, m_scaler.ToPx (kMarginDp));
+    isNear = TryPickDrop (client, grab, m_snapDock, m_snapNewBand);
 
-    if (DxuiToolbarDock::IsInDockBand (client, m_area, reach))
+    if (isNear)
     {
-        m_grab        = DxuiToolbarDock::GrabForDocking (POINT { screenPx.x - rect.left, screenPx.y - rect.top }, m_dock.floatVertical, m_scaler.ToPx (kMarginDp));
-        m_snapDock    = DxuiToolbarDock::PickForDrop (client, m_grab, m_area, (int) m_scaler.GetDpi());
+        m_grab        = grab;
         m_snapResumes = true;
         m_snapping    = true;
 
@@ -1076,6 +1241,7 @@ bool DxuiToolbarHost::TrySnapFarEnd (const RECT & screenRect)
     POINT                  origin   = {};
     RECT                   rect     = screenRect;
     RECT                   previous = {};
+    RECT                   inner    = {};
     int                    reach    = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
     int                    offset   = 0;
     bool                   isNear   = false;
@@ -1090,17 +1256,25 @@ bool DxuiToolbarHost::TrySnapFarEnd (const RECT & screenRect)
     m_lastFloat    = rect;
     m_hasLastFloat = true;
 
-    isNear = DxuiToolbarDock::TryGetFarEndEdge (rect, previous, m_dock.floatVertical, m_area, reach, edge);
+    //  The far end meets the inner side of the bands already along that
+    //  edge, and the toolbar takes a new band there.
+    inner         = m_area;
+    inner.right  -= m_group->GetDepthPx (DxuiToolbarDock::Edge::Right);
+    inner.bottom -= m_group->GetDepthPx (DxuiToolbarDock::Edge::Bottom);
+
+    isNear = DxuiToolbarDock::TryGetFarEndEdge (rect, previous, m_dock.floatVertical, inner, reach, edge);
 
     if (!isNear)
     {
         return false;
     }
 
-    offset        = (edge == DxuiToolbarDock::Edge::Right) ? rect.top - m_area.top : rect.left - m_area.left - m_scaler.ToPx (kMarginDp);
-    m_snapDock    = DxuiToolbarDock::MakeDocked (edge, offset, (int) m_scaler.GetDpi());
-    m_snapResumes = false;
-    m_snapping    = true;
+    offset          = (edge == DxuiToolbarDock::Edge::Right) ? rect.top - m_group->GetEdgeArea (edge).top : rect.left - m_area.left - m_scaler.ToPx (kMarginDp);
+    m_snapDock      = DxuiToolbarDock::MakeDocked (edge, offset, (int) m_scaler.GetDpi());
+    m_snapDock.band = (int) m_group->GetBandThicknesses (edge).size();
+    m_snapNewBand   = true;
+    m_snapResumes   = false;
+    m_snapping      = true;
 
     return true;
 }
