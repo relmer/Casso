@@ -339,8 +339,12 @@ public:
 
         Assert::AreEqual (std::wstring (L"Go to the start of history"), thumbnails.GetLeadingTip(), L"the start time's tip");
 
+        Assert::AreEqual (std::wstring (L"Running live"), thumbnails.GetTrailingTip(), L"Live's tip while live");
+        Assert::IsFalse  (thumbnails.IsTrailingLabelClickable(), L"Live is no button while live");
+
         thumbnails.SetPlayhead (400, true);
         Assert::AreEqual (std::wstring (L"Return to live"), thumbnails.GetTrailingTip(), L"Live's tip while replaying");
+        Assert::IsTrue   (thumbnails.IsTrailingLabelClickable(), L"Live is a button while replaying");
     }
 
 

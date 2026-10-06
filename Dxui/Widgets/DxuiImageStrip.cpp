@@ -491,11 +491,36 @@ DxuiImageStrip::Part DxuiImageStrip::HitTestPart (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiImageStrip::IsPartClickable
+//
+//  Whether an end label acts as a button now. The trailing one is a button
+//  only while its source says so, as Live is only while replaying; the
+//  leading one always is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::IsPartClickable (Part part) const
+{
+    if (part == Part::None || m_source == nullptr)
+    {
+        return false;
+    }
+
+    return part == Part::Leading || m_source->IsTrailingLabelClickable();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiImageStrip::PaintPartChrome
 //
 //  An end label under the pointer, or pressed while the pointer is still
 //  over it, takes the chrome the toolbar draws behind a button: a rounded
-//  fill in the theme's hover or pressed color inside its border color.
+//  fill in the theme's hover or pressed color inside its border color. A
+//  label that is not a button now takes none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -516,7 +541,7 @@ void DxuiImageStrip::PaintPartChrome (
 
 
 
-    if (!isHovered || width <= 0.0f || height <= 0.0f)
+    if (!isHovered || !IsPartClickable (part) || width <= 0.0f || height <= 0.0f)
     {
         return;
     }
@@ -658,7 +683,9 @@ void DxuiImageStrip::SetHovered (int index)
 //
 //  A press on a cell or an end label arms the entry for the click that
 //  follows; the toolbar arms a labeled custom entry only through a part that
-//  takes the press. A pressed end label shows pressed until the release.
+//  takes the press. A pressed end label shows pressed until the release. A
+//  press on an end label that is not a button now is taken and goes no
+//  further.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -671,12 +698,13 @@ bool DxuiImageStrip::OnLButtonDown (
     std::wstring  bottom;
     bool          isOn   = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
     Part          part   = HitTestPart (x, y);
+    Part          button = IsPartClickable (part) ? part : Part::None;
 
 
 
     m_isClickEaten = false;
-    m_pressPart    = part;
-    m_armedPart    = part;
+    m_pressPart    = button;
+    m_armedPart    = button;
 
     if (part != Part::None)
     {

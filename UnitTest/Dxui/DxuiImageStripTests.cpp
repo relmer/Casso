@@ -29,14 +29,15 @@ public:
     Image  GetPreviewImage (int index) override              { (void) index; return nullptr; }
     void   OnCellClicked   (int index) override              { clicked.push_back (index); }
 
-    int           GetMarkedCell() override           { return marked; }
-    std::wstring  GetLeadingLabel() override         { return leading; }
-    std::wstring  GetLeadingTip() override           { return leadingTip; }
-    void          OnLeadingLabelClicked() override   { leadingClicks++; }
-    std::wstring  GetTrailingLabel() override        { return trailing; }
-    bool          IsTrailingLabelAccented() override { return isLive; }
-    std::wstring  GetTrailingTip() override          { return trailingTip; }
-    void          OnTrailingLabelClicked() override  { trailingClicks++; }
+    int           GetMarkedCell() override            { return marked; }
+    std::wstring  GetLeadingLabel() override          { return leading; }
+    std::wstring  GetLeadingTip() override            { return leadingTip; }
+    void          OnLeadingLabelClicked() override    { leadingClicks++; }
+    std::wstring  GetTrailingLabel() override         { return trailing; }
+    bool          IsTrailingLabelAccented() override  { return isLive; }
+    bool          IsTrailingLabelClickable() override { return !isLive; }
+    std::wstring  GetTrailingTip() override           { return trailingTip; }
+    void          OnTrailingLabelClicked() override   { trailingClicks++; }
 
     bool  TryGetPlayhead (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override
     {
@@ -454,6 +455,82 @@ public:
         Assert::IsFalse (HasButtonChrome (painter, theme.ButtonHover()), L"leaving the strip takes the hover away");
         Assert::AreEqual (1, source.leadingClicks,  L"the leading label was clicked once");
         Assert::AreEqual (1, source.trailingClicks, L"and the trailing one once");
+    }
+
+
+    //  While the source is live, Live is a label, not a button: no hover or
+    //  pressed chrome and no click, but it keeps its tip. The leading label
+    //  is a button all the same.
+    TEST_METHOD (LiveIsNoButtonWhileLive)
+    {
+        DxuiImageStrip         strip;
+        RecordingStripSource   source;
+        MockDxuiTextRenderer   text;
+        MockDxuiPainter        painter;
+        MockDxuiTheme          theme;
+        DxuiDpiScaler          scaler;
+        RECT                   pictures = {};
+        RECT                   anchor   = {};
+        RecordedTextCall       trail;
+        RecordedTextCall       lead;
+        const wchar_t        * tip      = nullptr;
+        int                    onTrail  = 0;
+        int                    onLead   = 0;
+        int                    y        = 0;
+
+
+
+        source.leading     = L"10:00 PM";
+        source.trailing    = L"Live";
+        source.trailingTip = L"Running live";
+        source.isLive      = true;
+
+        strip.SetSource       (&source);
+        strip.SetAspect       (s_kStripAspect);
+        strip.SetTextRenderer (&text);
+        strip.SetLabelRoomDp  (16.0f);
+        strip.Layout          (RECT { 0, 0, 600, 74 }, true, scaler);
+        strip.Paint           (painter, text, theme, false, false, true);
+
+        pictures = strip.GetPicturesRect();
+        y        = (pictures.top + pictures.bottom) / 2;
+        Assert::IsNotNull (FindText (text, source.trailing), L"the trailing label is drawn");
+        Assert::IsNotNull (FindText (text, source.leading),  L"the leading label is drawn");
+
+        trail   = *FindText (text, source.trailing);
+        lead    = *FindText (text, source.leading);
+        onTrail = (int) trail.x + 1;
+        onLead  = (int) lead.x + 1;
+
+        strip.OnMouseMove (onTrail, y);
+        painter.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+        Assert::IsFalse (HasButtonChrome (painter, theme.ButtonHover()), L"no hover chrome over Live while live");
+
+        strip.OnLButtonDown (onTrail, y);
+        painter.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+        Assert::IsFalse (HasButtonChrome (painter, theme.ButtonPressed()), L"no pressed chrome on Live while live");
+
+        strip.OnLButtonUp (onTrail, y);
+        strip.OnClick     (onTrail, y);
+        Assert::AreEqual (0, source.trailingClicks, L"a click on Live while live goes nowhere");
+        Assert::IsTrue   (source.clicked.empty(),   L"and is no click on a cell");
+
+        tip = strip.GetTooltipAt (onTrail, y, anchor);
+        Assert::IsNotNull (tip, L"Live keeps its tip while live");
+        Assert::AreEqual  (source.trailingTip, std::wstring (tip), L"the source's");
+
+        strip.OnMouseMove (onLead, y);
+        painter.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+        Assert::IsTrue (HasButtonChrome (painter, theme.ButtonHover(), &lead), L"the start time is a button all the same");
+
+        source.isLive = false;
+        strip.OnMouseMove (onTrail, y);
+        painter.Reset();
+        strip.Paint (painter, text, theme, false, false, true);
+        Assert::IsTrue (HasButtonChrome (painter, theme.ButtonHover(), &trail), L"replaying, Live is a button again");
     }
 
 

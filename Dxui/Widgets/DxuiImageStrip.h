@@ -131,6 +131,7 @@ private:
 
     void  SetHovered       (int index);
     Part  HitTestPart      (int x, int y) const;
+    bool  IsPartClickable  (Part part) const;
     void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
     void  ShowPreview      ();
     void  FollowPointer    ();

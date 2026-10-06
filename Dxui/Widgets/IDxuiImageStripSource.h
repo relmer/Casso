@@ -60,9 +60,12 @@ public:
     virtual void          OnLeadingLabelClicked () {}
 
     //  Text for the strip's trailing end, such as where live time is, or
-    //  empty; whether it shows in the accent color, its tip, and a click on it.
-    virtual std::wstring  GetTrailingLabel        () { return std::wstring(); }
-    virtual bool          IsTrailingLabelAccented () { return false; }
-    virtual std::wstring  GetTrailingTip          () { return std::wstring(); }
-    virtual void          OnTrailingLabelClicked  () {}
+    //  empty; whether it shows in the accent color, whether it is a button
+    //  now (a label that is not shows no hover or pressed chrome and takes
+    //  no click, but keeps its tip), its tip, and a click on it.
+    virtual std::wstring  GetTrailingLabel         () { return std::wstring(); }
+    virtual bool          IsTrailingLabelAccented  () { return false; }
+    virtual bool          IsTrailingLabelClickable () { return true; }
+    virtual std::wstring  GetTrailingTip           () { return std::wstring(); }
+    virtual void          OnTrailingLabelClicked   () {}
 };

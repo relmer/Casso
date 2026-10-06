@@ -126,12 +126,13 @@ public:
     bool               TryGetPlayhead  (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override;
     void               OnPlayheadDragged (float offset, bool isFinal) override;
     std::wstring       GetLeadingLabel () override;
-    std::wstring       GetLeadingTip           () override;
-    void               OnLeadingLabelClicked   () override { OnCellClicked (0); }
-    std::wstring       GetTrailingLabel        () override { return GetModeText (false); }
-    bool               IsTrailingLabelAccented () override { return !IsBehindLive(); }
-    std::wstring       GetTrailingTip          () override;
-    void               OnTrailingLabelClicked  () override;
+    std::wstring       GetLeadingTip            () override;
+    void               OnLeadingLabelClicked    () override { OnCellClicked (0); }
+    std::wstring       GetTrailingLabel         () override { return GetModeText (false); }
+    bool               IsTrailingLabelAccented  () override { return !IsBehindLive(); }
+    bool               IsTrailingLabelClickable () override { return IsBehindLive(); }
+    std::wstring       GetTrailingTip           () override;
+    void               OnTrailingLabelClicked   () override;
     bool               IsBehindLive    () const      { return m_isBehindLive.load (std::memory_order_acquire); }
 
     //  Machine thread.
