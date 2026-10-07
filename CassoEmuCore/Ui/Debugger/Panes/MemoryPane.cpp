@@ -57,6 +57,9 @@ void MemoryPane::Configure (HWND hwnd)
     m_view->SetEditable     (true);
     m_view->SetShowRegions  (true);
 
+    //  The CPU's 64K wraps, so rows started partway along it keep four digits.
+    m_view->SetAddressSpace (m_model.GetByteCount());
+
     m_view->SetMarkColor ([this] (uint8_t mark, uint32_t & outArgb)
     {
         if (mark == MemoryEditModel::kMarkChanged)

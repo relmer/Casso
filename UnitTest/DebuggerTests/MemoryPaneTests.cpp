@@ -102,5 +102,37 @@ namespace DebuggerTests
             Assert::IsTrue   (pane.Undo(), L"the edit is still there to undo");
             Assert::AreEqual (std::string ("PATCH 0300 11"), sent.back());
         }
+
+
+        //  Go to an address partway along a row starts the rows there, and the
+        //  addresses stay the 64K's four digits rather than running past
+        //  $FFFF into eight, with the usual gap and the outlines' own gutter
+        //  between them and the values.
+        TEST_METHOD (GoToPartwayAlongARowKeepsFourDigitAddresses)
+        {
+            constexpr int   kCellW = 8;
+            constexpr int   kCellH = 16;
+            DxuiHexView     view;
+            DxuiDpiScaler   scaler;
+            MemoryPane      pane (1, &view, [] (int, Word) {}, [] (const DebuggerActionBuilder &) {}, [] (const std::string &) {});
+            RECT            offset = {};
+            RECT            value  = {};
+
+
+
+            scaler.SetDpi (96);
+            pane.Configure (nullptr);
+            view.SetCellSizeDip (kCellW, kCellH);
+            view.Layout (RECT { 0, 0, 800, 320 }, scaler);
+
+            pane.GoTo (0xBFD1);
+
+            offset = view.GetRowOffsetRect (view.GetTopRow());
+            value  = view.GetByteRect (view.GetTopRow() * (uint64_t) view.GetBytesPerRow(), DxuiHexView::Column::Hex);
+
+            Assert::AreEqual ((LONG) (4 * kCellW), offset.right - offset.left, L"$BFD1 labels in four digits");
+            Assert::AreEqual ((LONG) ((DxuiHexView::kGutterCells + 1) * kCellW), value.left - offset.right,
+                              L"the gap and the outlines' gutter between the address and the values");
+        }
     };
 }

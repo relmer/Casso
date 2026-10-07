@@ -282,6 +282,39 @@ public:
     }
 
 
+    //  An outline's edge gets a gutter of its own: the offsets keep the usual
+    //  gap to the box, rather than the box's edge taking the middle of it.
+    TEST_METHOD (OutlinesWidenTheGuttersRatherThanTakeThem)
+    {
+        RegionHexSource  source (256, { { 32, 64, 1 } });
+        DxuiHexView      plain;
+        DxuiHexView      boxed;
+        RECT             plainHex  = {};
+        RECT             boxedHex  = {};
+        RECT             boxedText = {};
+        RECT             plainText = {};
+
+
+
+        plain.SetSource      (&source);
+        boxed.SetSource      (&source);
+        boxed.SetShowRegions (true);
+        LayOut (plain);
+        LayOut (boxed);
+
+        plainHex  = plain.GetByteRect (0, DxuiHexView::Column::Hex);
+        boxedHex  = boxed.GetByteRect (0, DxuiHexView::Column::Hex);
+        plainText = plain.GetByteRect (0, DxuiHexView::Column::Text);
+        boxedText = boxed.GetByteRect (0, DxuiHexView::Column::Text);
+
+        Assert::AreEqual ((LONG) (DxuiHexView::kGutterCells * kCellW),       plainHex.left - plain.GetRowOffsetRect (0).right);
+        Assert::AreEqual ((LONG) ((DxuiHexView::kGutterCells + 1) * kCellW), boxedHex.left - boxed.GetRowOffsetRect (0).right,
+                          L"a box's edge took the middle of the gap");
+        Assert::AreEqual ((LONG) kCellW, (boxedText.left - boxedHex.left) - (plainText.left - plainHex.left),
+                          L"and the text column's gutter grows too");
+    }
+
+
     TEST_METHOD (TheLanesLeaveRoomForFewerRows)
     {
         RegionHexSource  plain (4096, {});

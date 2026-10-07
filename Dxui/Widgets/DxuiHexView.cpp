@@ -54,6 +54,23 @@ void DxuiHexView::SetOriginAddress (uint64_t address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHexView::SetAddressSpace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetAddressSpace (uint64_t bytes)
+{
+    m_addressSpace = bytes;
+
+    RecomputeRowWidth();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexView::SetBytesPerRow
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -758,7 +775,7 @@ void DxuiHexView::RecomputeRowWidth()
     {
         width  = (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (m_padDip) - m_scaler.ToPx (s_kScrollbarWidthDip);
         cells  = (m_cellWidthDip > 0) ? (width / m_cellWidthDip) : 0;
-        fixed  = GetOffsetDigits() + kGutterCells + (m_showValues ? (kGutterCells - 1) : 0);
+        fixed  = GetOffsetDigits() + GetGutterCells() + (m_showValues ? (GetGutterCells() - 1) : 0);
         each   = m_grouping + (m_showValues ? (GetValueCells() + 1) : 0);
         values = (std::max) ((cells - fixed) / each, 1);
     }
@@ -1330,7 +1347,8 @@ void DxuiHexView::EnsureByteVisible (uint64_t offset)
 //
 //  Four hex digits while the last address fits in sixteen bits, eight after
 //  that. A 64 KB file and a machine's memory both label in the four digits
-//  their own listings use.
+//  their own listings use. In an address space that wraps, the last address
+//  is the space's own, wherever the rows start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1346,7 +1364,46 @@ int DxuiHexView::GetOffsetDigits() const
         return GetLineDigits();
     }
 
+    if (m_addressSpace > 0)
+    {
+        last = m_addressSpace - 1;
+    }
+
     return (last > 0xFFFF) ? 8 : 4;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetRowAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetRowAddress (uint64_t row) const
+{
+    uint64_t  address = m_originAddress + (row * (uint64_t) m_bytesPerRow);
+
+
+
+    return (m_addressSpace > 0) ? (address % m_addressSpace) : address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetGutterCells
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetGutterCells() const
+{
+    return AreRegionsDrawn() ? (kGutterCells + 1) : kGutterCells;
 }
 
 
@@ -1424,7 +1481,7 @@ int DxuiHexView::GetByteCellInRow (int indexInRow) const
 
 int DxuiHexView::GetColumnStartCell (Column column) const
 {
-    int  hexStart = GetOffsetDigits() + kGutterCells;
+    int  hexStart = GetOffsetDigits() + GetGutterCells();
 
 
 
@@ -1435,7 +1492,7 @@ int DxuiHexView::GetColumnStartCell (Column column) const
 
     if (column == Column::Text)
     {
-        return m_showValues ? (hexStart + GetHexCells() + kGutterCells) : hexStart;
+        return m_showValues ? (hexStart + GetHexCells() + GetGutterCells()) : hexStart;
     }
 
     return 0;
@@ -2905,7 +2962,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
     DxuiFontHandle  font     = theme.MonospaceFont();
     RECT            gutter   = {};
     int             digits   = GetOffsetDigits();
-    uint64_t        address  = m_originAddress + (row * (uint64_t) m_bytesPerRow);
+    uint64_t        address  = GetRowAddress (row);
     std::wstring    label;
 
 
@@ -3274,6 +3331,7 @@ void DxuiHexView::SetShowRegions (bool show)
     m_showRegions = show;
     m_lanesTopRow = UINT64_MAX;
 
+    RecomputeRowWidth();
     ClampTopRow();
     SyncScrollbar();
 }

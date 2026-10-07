@@ -730,6 +730,40 @@ public:
     }
 
 
+    //  A machine's 64K wraps: rows started partway along it keep its four
+    //  digits, and the row that runs past $FFFF is labeled from $0000 again.
+    TEST_METHOD (AddressSpace_WrapsTheLabelsAndKeepsItsDigits)
+    {
+        CountingHexSource     source (0x10000);
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        RECT                  rect    = {};
+        bool                  wrapped = false;
+
+
+        view.SetSource        (&source);
+        view.SetOriginAddress (0xFFF8);
+        view.SetAddressSpace  (0x10000);
+        LayOut (view);
+
+        rect = view.GetRowOffsetRect (0);
+
+        Assert::AreEqual ((LONG) (4 * kCellW), rect.right - rect.left,
+            L"64K from $FFF8 wraps, so the column stays four digits");
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            wrapped = wrapped || call.text == L"0008";
+        }
+
+        Assert::IsTrue (wrapped, L"the second row, past $FFFF, is $0008");
+    }
+
+
     TEST_METHOD (Source_ChangingItDropsTheOldSelection)
     {
         CountingHexSource  first  (256);

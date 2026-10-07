@@ -154,6 +154,13 @@ public:
     void      SetOriginAddress (uint64_t address);
     uint64_t  GetOriginAddress () const { return m_originAddress; }
 
+    //  Addresses that wrap at `bytes`, as a machine's do: each row's address
+    //  is taken modulo it and given in the digits its last address needs, so
+    //  rows started partway along a 64K space keep four digits. Zero, the
+    //  default, for addresses that run on past the end.
+    void      SetAddressSpace  (uint64_t bytes);
+    uint64_t  GetAddressSpace  () const { return m_addressSpace; }
+
     //  Bytes across a row, and how many of them sit together between spaces.
     //  A grouping that does not divide the row evenly is refused.
     void  SetBytesPerRow (int count);
@@ -369,6 +376,15 @@ private:
     int   GetHexCells     () const;
     int   GetGroupCount   () const;
 
+    //  The cells between the offsets and the values, and between the values
+    //  and the text: one more each while regions are outlined, so a box's
+    //  edge sits in a gutter of its own rather than in the middle of the
+    //  usual gap.
+    int   GetGutterCells  () const;
+
+    //  The address a row starts at, wrapped by the address space.
+    uint64_t  GetRowAddress (uint64_t row) const;
+
     //  First character cell of a byte's two hex digits, within the hex column.
     int   GetByteCellInRow (int indexInRow) const;
     int   GetColumnStartCell (Column column) const;
@@ -486,6 +502,7 @@ private:
 
     const IDxuiHexSource  * m_source        = nullptr;
     uint64_t                m_originAddress = 0;
+    uint64_t                m_addressSpace  = 0;
     int                     m_bytesPerRow   = kDefaultBytesPerRow;
     int                     m_grouping      = kDefaultGrouping;
     int                     m_columns       = s_kFixedRowWidth;
