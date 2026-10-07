@@ -210,6 +210,7 @@ struct SymbolInfo
     Word           address    = 0;
     SymbolTableId  table      = SymbolTableId::Main;
     bool           isConstant = false;   // an equate: a value, not an address
+    Word           size       = 0;       // the bytes it spans, where its file said
 };
 
 struct SymbolData

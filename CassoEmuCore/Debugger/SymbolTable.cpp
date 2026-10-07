@@ -55,16 +55,18 @@ SymbolTable::SymbolTable()
 //
 //  SymbolTable::Add
 //
-//  A name already in the table takes the new address and kind.
+//  A name already in the table takes the new address, kind and size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolTable::Add (SymbolTableId table, const std::string & name, Word address, bool isConstant)
+void SymbolTable::Add (SymbolTableId table, const std::string & name, Word address, bool isConstant, Word size)
 {
     std::vector<Entry> & entries = m_tables[(int) table];
     std::string          upper   = ToUpper (name);
 
 
+
+    NoteChange();
 
     for (Entry & entry : entries)
     {
@@ -72,11 +74,71 @@ void SymbolTable::Add (SymbolTableId table, const std::string & name, Word addre
         {
             entry.address    = address;
             entry.isConstant = isConstant;
+            entry.size       = size;
             return;
         }
     }
 
-    entries.push_back ({ name, upper, address, isConstant });
+    entries.push_back ({ name, upper, address, isConstant, size });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolTable::TakeRevision
+//
+//  One counter for every table, so two tables' states never share a number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t SymbolTable::TakeRevision()
+{
+    static std::atomic<uint64_t>  next = 0;
+
+
+
+    return ++next;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolTable::TryGetSize
+//
+//  Across the enabled tables in their order, as a name resolves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolTable::TryGetSize (const std::string & name, Word & size) const
+{
+    std::string  upper = ToUpper (name);
+
+
+
+    for (int i = 0; i < kTableCount; ++i)
+    {
+        if (!m_enabled[i])
+        {
+            continue;
+        }
+
+        for (const Entry & entry : m_tables[i])
+        {
+            if (entry.upper == upper)
+            {
+                size = entry.size;
+                return entry.size > 0;
+            }
+        }
+    }
+
+    return false;
 }
 
 
@@ -96,6 +158,8 @@ bool SymbolTable::TryRemove (SymbolTableId table, const std::string & name)
 
 
 
+    NoteChange();
+
     return removed > 0;
 }
 
@@ -113,6 +177,8 @@ void SymbolTable::Clear (SymbolTableId table)
 {
     m_tables[(int) table].clear();
     m_origins[(int) table].clear();
+
+    NoteChange();
 }
 
 
@@ -136,6 +202,7 @@ void SymbolTable::AddOrigin (SymbolTableId table, const std::string & fileName)
     if (std::ranges::find (origins, fileName) == origins.end())
     {
         origins.push_back (fileName);
+        NoteChange();
     }
 }
 
@@ -152,6 +219,8 @@ void SymbolTable::AddOrigin (SymbolTableId table, const std::string & fileName)
 void SymbolTable::SetEnabled (SymbolTableId table, bool enabled)
 {
     m_enabled[(int) table] = enabled;
+
+    NoteChange();
 }
 
 
@@ -200,7 +269,7 @@ void SymbolTable::GetAll (SymbolTableId table, std::vector<SymbolInfo> & symbols
 {
     for (const Entry & entry : m_tables[(int) table])
     {
-        symbols.push_back ({ entry.name, entry.address, table, entry.isConstant });
+        symbols.push_back ({ entry.name, entry.address, table, entry.isConstant, entry.size });
     }
 
     std::stable_sort (symbols.begin(), symbols.end(), [] (const SymbolInfo & a, const SymbolInfo & b) { return a.address < b.address; });
@@ -418,7 +487,7 @@ HRESULT SymbolTable::LoadFrom (SymbolTableId table, const std::string & content,
 
     for (const SymbolFileEntry & symbol : symbols)
     {
-        Add (table, symbol.name, symbol.isConstant ? symbol.address : (Word) (symbol.address + offset), symbol.isConstant);
+        Add (table, symbol.name, symbol.isConstant ? symbol.address : (Word) (symbol.address + offset), symbol.isConstant, symbol.size);
     }
 
     loaded = symbols.size();

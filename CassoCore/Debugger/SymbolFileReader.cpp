@@ -316,7 +316,7 @@ bool SymbolFileReader::TryParseViceAddress (const std::string & text, uint32_t &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant)
+void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant, Word size)
 {
     for (const SymbolFileEntry & existing : symbols)
     {
@@ -326,7 +326,7 @@ void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const 
         }
     }
 
-    symbols.push_back ({ name, address, isConstant });
+    symbols.push_back ({ name, address, isConstant, size });
 }
 
 
@@ -403,7 +403,7 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
     {
         if (symbol.type != "imp" && (symbol.scope < 0 || topLevel.contains (symbol.scope)))
         {
-            AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.type == kEquate || symbol.segment < 0);
+            AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.type == kEquate || symbol.segment < 0, (Word) symbol.size);
         }
     }
 }

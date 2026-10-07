@@ -76,6 +76,7 @@ struct DebugSymbol
     int          segment = -1;
     int          scope   = -1;
     std::string  type;                  // "lab" for an address, "equ" for a value
+    uint32_t     size    = 0;           // the bytes a label spans, where the file gives it
 };
 
 struct DebugScope
