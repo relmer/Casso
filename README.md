@@ -105,17 +105,16 @@ The second drive and the recorder attach and detach from the Storage menu, or by
 right-clicking them, so the recorder can be put away when you are not using
 tapes.
 
-<table align="center" width="100%">
-<tr>
-  <td valign="top" width="48%" align="center"><img src="Assets/tape-1-31-desk.png" alt="The Apple //e desk scene: a Monitor II over two Disk II drives, with the Panasonic RQ-309DS cassette recorder beside them, a cassette in its well and Little Brick Out.wav and the counter 0:00 / 2:20 under it" width="100%" /><br /><sub>The recorder beside the drives</sub></td>
-  <td valign="top" width="52%" align="center"><img src="Assets/tape-1-31-cassette.png" alt="A close view of the RQ-309DS from above: a cassette in the well under the smoked lid, with Little Brick Out handwritten in blue on its label, white hubs in the spool holes, the speaker grille behind, and the embossed Panasonic badge, condenser mic bars and key legends in front" width="100%" /><br /><sub>The tape's name, written on its label</sub></td>
-</tr>
-</table>
-
 In the flat themes the tape deck is one more slot in the drive band, beside the
 drives, so it takes no extra room.
 
-<p align="center"><img src="Assets/tape-1-31-darkmodern.png" alt="Casso in the Dark Modern theme at the DOS 3.3 prompt: the menu and toolbar above the picture, and the drive band below it with Drive 1, Drive 2 and the tape deck side by side, the deck showing Little Brick Out.wav, its Record, Rewind, Fast-forward, Play, Stop and Eject buttons and the counter at 0:00" width="100%" /><br /><sub>The tape deck in the Dark Modern drive band</sub></p>
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="39%" align="center"><img src="Assets/tape-1-31-desk.png" alt="The Apple //e desk scene: a Monitor II over two Disk II drives, with the Panasonic RQ-309DS cassette recorder beside them, a cassette in its well and Little Brick Out.wav and the counter 0:00 / 2:20 under it" width="100%" /><br /><sub>The recorder beside the drives</sub></td>
+  <td valign="top" width="29%" align="center"><img src="Assets/tape-1-31-cassette.png" alt="A close view of the RQ-309DS from above: a cassette in the well under the smoked lid, with Little Brick Out handwritten in blue on its label, white hubs in the spool holes, the speaker grille behind, and the embossed Panasonic badge, condenser mic bars and key legends in front" width="100%" /><br /><sub>The tape's name, written on its label</sub></td>
+  <td valign="top" width="32%" align="center"><img src="Assets/tape-1-31-darkmodern.png" alt="Casso in the Dark Modern theme at the DOS 3.3 prompt: the menu and toolbar above the picture, and the drive band below it with Drive 1, Drive 2 and the tape deck side by side, the deck showing Little Brick Out.wav, its Record, Rewind, Fast-forward, Play, Stop and Eject buttons and the counter at 0:00" width="100%" /><br /><sub>The tape deck in the Dark Modern drive band</sub></td>
+</tr>
+</table>
 
 <a id="v1-30"></a>
 ### [2026-10-03 · 1.30] WOZ 2.1 flux support—great Scott!
