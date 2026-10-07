@@ -72,6 +72,7 @@ public:
     static constexpr int64_t  kSweepPeriodMs    = 8000;
     static constexpr int64_t  kSweepMs          = 2000;   // the period is start to start, so 6 s of rest
     static constexpr int      kGlintCount       = 4;
+    static constexpr float    kBandFraction     = 0.30f;  // shimmer band width, of the text's width
     static constexpr float    kTwinkleSpan      = 0.18f;  // fraction of the sweep a glint is lit for
 
     static std::vector<std::wstring>  GetLines             (const std::string & version);
@@ -80,5 +81,6 @@ public:
     static IndicatorFit               Fit                  (int captionWidthDip, int reservedDip, std::wstring_view text);
     static std::optional<float>       GetSweepProgress     (int64_t elapsedMs);
     static int64_t                    GetMsUntilSweep      (int64_t elapsedMs);
+    static float                      GetBandWeight        (float offsetPx, float halfWidthPx);
     static std::vector<IndicatorGlint>  GetGlints          (float progress, float leftPx, float widthPx, float topPx, float bottomPx);
 };

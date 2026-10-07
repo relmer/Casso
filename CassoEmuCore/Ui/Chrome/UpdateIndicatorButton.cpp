@@ -197,10 +197,13 @@ Error:
 //
 //  UpdateIndicatorButton::PaintShimmer
 //
-//
-//  A bright band sweeping left to right across the arrow and text, leaning
-//  45 degrees like light off glass: the text is drawn again in white,
-//  clipped to the band one thin horizontal slice at a time, each slice
+//  A soft bright band sweeping left to right across the arrow and text,
+//  leaning 45 degrees like light off glass. Dxui's text renderer has no
+//  gradient brush, so the gradient is built from opacity: the band is cut
+//  into thin columns, and in each the text is drawn again in white at the
+//  opacity GetBandWeight gives that column's distance from the band's center,
+//  over the accent text beneath -- accent at the edges, white at the center,
+//  a smooth blend between. The lean comes from horizontal slices, each
 //  shifted right by its height above the baseline. Small four-point glints
 //  on the text's top and bottom edges twinkle in turn as the band passes
 //  them, kept inside the caption's height and the text's width.
@@ -216,8 +219,9 @@ void UpdateIndicatorButton::PaintShimmer (
     float                 fontPx,
     float                 progress) const
 {
-    constexpr int       kSlices       = 8;
-    constexpr float     kBandFraction = 0.22f;
+    constexpr int       kSlices       = 6;
+    constexpr int       kColumns      = 14;
+    constexpr float     kBandFraction = UpdateIndicatorModel::kBandFraction;
     constexpr uint32_t  kHighlight    = 0xFFFFFFFF;
     constexpr float     kGlintDip     = 2.5f;
     constexpr float     kEdgeOffsetEm = 0.62f;     // glint centers just off the glyph tops and bottoms
@@ -232,6 +236,10 @@ void UpdateIndicatorButton::PaintShimmer (
     float                        travel    = w + bandW + h;
     float                        left      = x - bandW - h + travel * progress;
     float                        sliceLeft = 0.0f;
+    float                        columnW   = 0.0f;
+    float                        offset    = 0.0f;
+    float                        weight    = 0.0f;
+    int                          column    = 0;
     float                        glyphW    = m_scaler.ToPxf ((float) UpdateIndicatorModel::kGlyphColumnDip);
     float                        rMax      = m_scaler.ToPxf (kGlintDip);
     float                        mid       = y + h * 0.5f;
@@ -246,23 +254,37 @@ void UpdateIndicatorButton::PaintShimmer (
 
 
 
+    columnW = bandW / (float) kColumns;
+
     for (i = 0; i < kSlices; i++)
     {
         sliceLeft = left + (float) (kSlices - 1 - i) * sliceH;
 
-        hr = text.PushClipRect (sliceLeft, y + sliceH * (float) i, bandW, sliceH);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        for (column = 0; column < kColumns; column++)
+        {
+            offset = ((float) column + 0.5f) * columnW - bandW * 0.5f;
+            weight = UpdateIndicatorModel::GetBandWeight (offset, bandW * 0.5f);
+            color  = ((uint32_t) (kAlphaMax * weight) << 24) | (kHighlight & 0x00FFFFFF);
 
-        hr = text.DrawString (s_kpszMdl2Download, x, y, glyphW, h, kHighlight, m_scaler.ToPxf (UpdateIndicatorModel::kGlyphFontDip),
-                              kMdl2Family, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+            if (weight <= 0.0f)
+            {
+                continue;
+            }
 
-        hr = text.DrawString (m_text.c_str(), x + glyphW, y, w, h, kHighlight, fontPx,
-                              kTextFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+            hr = text.PushClipRect (sliceLeft + columnW * (float) column, y + sliceH * (float) i, columnW, sliceH);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.PopClipRect();
-        IGNORE_RETURN_VALUE (hr, S_OK);
+            hr = text.DrawString (s_kpszMdl2Download, x, y, glyphW, h, color, m_scaler.ToPxf (UpdateIndicatorModel::kGlyphFontDip),
+                                  kMdl2Family, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            hr = text.DrawString (m_text.c_str(), x + glyphW, y, w, h, color, fontPx,
+                                  kTextFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            hr = text.PopClipRect();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 
     glints = UpdateIndicatorModel::GetGlints (progress, x + glyphW, w - glyphW, top, bottom);

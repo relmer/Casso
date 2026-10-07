@@ -232,3 +232,32 @@ std::vector<IndicatorGlint> UpdateIndicatorModel::GetGlints (float progress, flo
 
     return glints;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::GetBandWeight
+//
+//  How white the shimmer makes the text at `offsetPx` from the band's
+//  center: 1 at the center, 0 at the edges (`halfWidthPx` away) and beyond,
+//  falling off by smoothstep between, so the blend has no visible edge --
+//  its slope is zero where it meets the plain accent text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float UpdateIndicatorModel::GetBandWeight (float offsetPx, float halfWidthPx)
+{
+    float  t = 0.0f;
+
+
+
+    if (halfWidthPx > 0.0f)
+    {
+        t = std::clamp (1.0f - std::abs (offsetPx) / halfWidthPx, 0.0f, 1.0f);
+    }
+
+    return t * t * (3.0f - 2.0f * t);
+}

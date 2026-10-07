@@ -195,6 +195,37 @@ public:
 
 
 
+    TEST_METHOD (BandWeight_SmoothFromEdgeToCenter)
+    {
+        float  previous = -1.0f;
+        float  weight   = 0.0f;
+        int    step     = 0;
+
+
+
+        Assert::AreEqual (1.0f, UpdateIndicatorModel::GetBandWeight (0.0f,   10.0f), L"white at the center");
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetBandWeight (10.0f,  10.0f), L"accent at the edge");
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetBandWeight (-25.0f, 10.0f), L"and beyond it");
+        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetBandWeight (5.0f,   10.0f), 0.0001f, L"half way between");
+        Assert::AreEqual (UpdateIndicatorModel::GetBandWeight (-3.0f, 10.0f), UpdateIndicatorModel::GetBandWeight (3.0f, 10.0f),
+                          L"symmetric");
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetBandWeight (0.0f, 0.0f), L"no band, no shimmer");
+
+        //  Rising from the edge to the center with no jump: monotonic, and no
+        //  step between neighboring samples larger than a smooth curve allows.
+        for (step = 100; step >= 0; step--)
+        {
+            weight = UpdateIndicatorModel::GetBandWeight ((float) step * 0.1f, 10.0f);
+
+            Assert::IsTrue (weight >= previous, L"monotonic toward the center");
+            Assert::IsTrue (previous < 0.0f || weight - previous < 0.02f, L"continuous");
+            previous = weight;
+        }
+
+        Assert::IsTrue (UpdateIndicatorModel::GetBandWeight (9.9f, 10.0f) < 0.001f, L"soft at the edge, no hard cutover");
+    }
+
+
     TEST_METHOD (Shimmer_FramesOnlyDuringASweepAndNeverWithAnimationsOff)
     {
         UpdateIndicatorButton  indicator;
