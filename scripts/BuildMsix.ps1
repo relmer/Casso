@@ -30,6 +30,13 @@
     staging folder. A release passes both, so a missing one fails rather than
     shipping half a bundle.
 
+.PARAMETER TestPublisher
+    Builds an unsigned test bundle: the manifest's Publisher becomes
+    CN=<this value> plus the OID Windows 11 requires of an unsigned package,
+    so it installs with Add-AppxPackage -AllowUnsigned. Its package family
+    differs from the real one, so it never updates a real install. Default:
+    empty, the real publisher.
+
 .PARAMETER IntermediateDirectory
     Where the layouts and per-architecture .msix files are built. Default: a
     fresh folder under the system temp directory.
@@ -42,7 +49,8 @@ param(
     [string]  $OutputDirectory       = "",
     [string]  $Version               = "",
     [string[]]$Platforms             = @(),
-    [string]  $IntermediateDirectory = ""
+    [string]  $IntermediateDirectory = "",
+    [string]  $TestPublisher         = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -81,6 +89,10 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$')
 {
     throw "Version must be three parts, e.g. 1.25.0. Got: $Version"
 }
+
+# An unsigned package must carry this OID in its Publisher.
+$unsignedOid        = 'OID.2.25.311729368913984317654407730594956997722=1'
+$testPublisherValue = if ($TestPublisher) { "CN=$TestPublisher, $unsignedOid" } else { '' }
 
 # MSIX versions are four parts; the fourth is always zero here.
 $packageVersion = "$Version.0"
@@ -128,6 +140,7 @@ $makepri  = Find-SdkTool 'makepri.exe'
 Write-Host "makeappx: $makeappx"
 Write-Host "makepri:  $makepri"
 Write-Host "version:  $packageVersion"
+if ($testPublisherValue) { Write-Host "publisher (unsigned test): $testPublisherValue" }
 Write-Host ""
 
 #-----------------------------------------------------------------------------
@@ -217,6 +230,11 @@ foreach ($platform in $Platforms)
 
     # UTF-8, no BOM.
     $manifest = $template.Replace('{VERSION}', $packageVersion).Replace('{ARCHITECTURE}', $architecture)
+
+    if (-not [string]::IsNullOrEmpty($TestPublisher))
+    {
+        $manifest = [regex]::Replace($manifest, '(<Identity\b[^>]*?\sPublisher=)"[^"]*"', "`$1`"$testPublisherValue`"")
+    }
     [IO.File]::WriteAllText((Join-Path $layout 'AppxManifest.xml'), $manifest, (New-Object Text.UTF8Encoding $false))
 
     # Without resources.pri the scale-qualified logos are invisible and the
