@@ -42,6 +42,8 @@ public:
     void  SetOnOpenUrl     (OpenUrlFn fn) { m_onOpenUrl = std::move (fn); }
 
     bool  SyncNotesHeight  ();
+    void  SetNotesImage    (const std::string & src, std::shared_ptr<const NotesImage> image);
+    std::vector<std::string>  GetImageSources () const { return m_notes.GetImageSources(); }
 
     void  Layout           (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 
@@ -60,4 +62,5 @@ private:
     RECT              m_notesViewportPx = {};
     int               m_placedHeightPx  = 0;
     bool              m_isLaidOut       = false;
+    bool              m_hasStatus       = false;
 };

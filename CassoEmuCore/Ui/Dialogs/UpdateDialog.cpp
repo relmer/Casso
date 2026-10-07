@@ -158,10 +158,12 @@ void UpdateDialog::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     // bottom-right of the button row.
     if (m_nudgeLabel != nullptr)
     {
-        int  pad  = scaler.ToPx (DxuiButtonRow::kEdgePadDip);
-        int  rowH = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
+        int  pad   = scaler.ToPx (DxuiButtonRow::kEdgePadDip);
+        int  rowH  = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
+        int  skipW = scaler.ToPx (DxuiButtonRow::GetWidthForLabel (UpdateDialogModel::kpszSkip) + DxuiButtonRow::kGapDip);
 
-        m_nudgeLabel->Layout (RECT { boundsPx.left + (boundsPx.right - boundsPx.left) / 2, boundsPx.bottom - rowH,
+        // Everything right of Skip, so the nudge stays on one line.
+        m_nudgeLabel->Layout (RECT { boundsPx.left + pad + skipW, boundsPx.bottom - rowH,
                                      boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
     }
 }
@@ -465,4 +467,38 @@ void UpdateDialog::ShowCanceled()
 {
     m_content->SetStatus (L"The update was canceled. Nothing was changed.", false);
     SetBusy (false, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialog::ShowImage
+//
+//  A release-notes image arrived (or, null, could not be shown). The next
+//  paint flows the notes around it, and the tick resizes the scroll area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialog::ShowImage (const std::string & src, std::shared_ptr<const NotesImage> image)
+{
+    m_content->SetNotesImage (src, std::move (image));
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialog::GetImageSources
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> UpdateDialog::GetImageSources() const
+{
+    return (m_content != nullptr) ? m_content->GetImageSources() : std::vector<std::string>();
 }

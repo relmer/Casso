@@ -173,6 +173,106 @@ float ReleaseNotesLayout::Flow (
     const MeasureFn                   & measure,
     std::vector<PlacedNotesRun>       & outRuns)
 {
+    std::vector<PlacedNotesImage>  images;
+
+
+
+    return Flow (lines, widthPx, metrics, measure, nullptr, outRuns, images);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesLayout::PlaceImage
+//
+//  An image fills the body width, or its percent of it, but never grows past
+//  its own size at the current DPI; the aspect is kept. Until it loads, and
+//  if it fails, a box of the placeholder height holds the alt text. The
+//  caption sits centered beneath in the smaller, muted caption style.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReleaseNotesLayout::PlaceImage (
+    const FormattedImage              & image,
+    const NotesImageState             & state,
+    float                               widthPx,
+    const NotesLayoutMetrics          & metrics,
+    const MeasureFn                   & measure,
+    float                             & y,
+    std::vector<PlacedNotesRun>       & outRuns,
+    std::vector<PlacedNotesImage>     & outImages)
+{
+    PlacedNotesImage  placed;
+    PlacedNotesRun    caption;
+    float             target  = (image.widthPercent > 0) ? widthPx * (float) image.widthPercent / 100.0f : widthPx;
+    float             native  = 0.0f;
+
+
+
+    if (y > 0.0f)
+    {
+        y += metrics.imageGapPx;
+    }
+
+    placed.src      = image.src;
+    placed.alt      = TextEncoding::Utf8ToWide (image.alt);
+    placed.isLoaded = state.isLoaded && state.widthPx > 0 && state.heightPx > 0;
+    placed.isFailed = !placed.isLoaded && state.isFailed;
+    placed.width    = target;
+    placed.height   = metrics.placeholderPx;
+
+    if (placed.isLoaded)
+    {
+        native        = (float) state.widthPx * metrics.imageScale;
+        placed.width  = std::min (target, native);
+        placed.height = placed.width * (float) state.heightPx / (float) state.widthPx;
+    }
+
+    placed.x = (widthPx - placed.width) / 2.0f;
+    placed.y = y;
+    y       += placed.height;
+    outImages.push_back (std::move (placed));
+
+    if (!image.caption.empty())
+    {
+        caption.text         = TextEncoding::Utf8ToWide (image.caption);
+        caption.style.sizePx = metrics.captionSizePx;
+        caption.style.muted  = true;
+        caption.width        = std::min (measure (caption.text, caption.style), widthPx);
+        caption.height       = metrics.lineHeightPx * metrics.captionSizePx / metrics.bodySizePx;
+        caption.x            = (widthPx - caption.width) / 2.0f;
+        caption.y            = y;
+        y                   += caption.height;
+        outRuns.push_back (std::move (caption));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesLayout::Flow
+//
+//  As above, with images: each Image line is placed by PlaceImage, using
+//  what imageState reports for its source (a null function reports every
+//  image as not loaded yet).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float ReleaseNotesLayout::Flow (
+    const std::vector<FormattedLine>  & lines,
+    float                               widthPx,
+    const NotesLayoutMetrics          & metrics,
+    const MeasureFn                   & measure,
+    const ImageStateFn                & imageState,
+    std::vector<PlacedNotesRun>       & outRuns,
+    std::vector<PlacedNotesImage>     & outImages)
+{
     Cursor          cursor;
     NotesRunStyle   bulletStyle;
     PlacedNotesRun  bullet;
@@ -182,6 +282,7 @@ float ReleaseNotesLayout::Flow (
 
 
     outRuns.clear();
+    outImages.clear();
 
     bulletStyle.sizePx = metrics.bodySizePx;
 
@@ -190,6 +291,12 @@ float ReleaseNotesLayout::Flow (
         if (line.kind == FormattedLineKind::Blank)
         {
             y += metrics.blankGapPx;
+            continue;
+        }
+
+        if (line.kind == FormattedLineKind::Image)
+        {
+            PlaceImage (line.image, imageState ? imageState (line.image.src) : NotesImageState {}, widthPx, metrics, measure, y, outRuns, outImages);
             continue;
         }
 

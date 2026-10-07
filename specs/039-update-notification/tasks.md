@@ -60,6 +60,14 @@ order only.
 - [X] T027 [US4] Manual result reporting: up to date, failure with cause, or dialog directly, in the shell
 - [X] T028 [US4] Settings checkbox "Check for updates automatically" bound to `autoUpdateCheck` in a Settings page and `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`
 
+## Phase 6b: Release-notes images and dialog polish
+
+- [X] T033 [US2] Image blocks in `ReleaseNotesFormatter`: markdown images, badge links, `<img>` with percent width, `<sub>` captions paired within a table cell, structure-only HTML lines dropped; tests in `UnitTest/UpdateTests/ReleaseNotesImageTests.cpp`
+- [X] T034 [US2] `UpdateService::TryResolveImageUrl` (relative against the tag's raw files, https as-is, everything else refused) and `StartFetchImages` (8 MB cap, WIC decode to premultiplied BGRA, session cache, cancel on close); tests over mock HTTP
+- [X] T035 [US2] Image layout in `ReleaseNotesLayout` (fit, never upscale past DPI size, percent width, placeholder with alt text, centered caption) and drawing in `ReleaseNotesView`; layout tests
+- [X] T036 [US2] Shell wiring: fetch images after the notes, post each as `UpdateResultKind::Image`, reflow on arrival, cancel on dialog close
+- [X] T037 [US2] Opener pool additions, and status rows that collapse when no status shows
+
 ## Phase 7: Polish
 
 - [X] T029 Replace "Warn that the release is unsigned" with a failing step and add the core publisher constant to the subject comparison in `.github/workflows/ci.yml`

@@ -23,6 +23,7 @@ struct NotesRunStyle
     bool   bold   = false;
     bool   code   = false;
     bool   isLink = false;
+    bool   muted  = false;
 
     bool operator== (const NotesRunStyle &) const = default;
 };
@@ -76,6 +77,55 @@ struct NotesLayoutMetrics
     float                              bulletGapPx   = 12.0f;
     float                              blankGapPx    = 8.0f;
     float                              headingGapPx  = 6.0f;
+    float                              captionSizePx = 11.0f;
+    float                              imageGapPx    = 8.0f;
+    float                              placeholderPx = 80.0f;
+    float                              imageScale    = 1.0f;   // image pixels to layout pixels (DPI / 96)
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotesImageState
+//
+//  What the layout knows of one image: nothing yet (a placeholder), its
+//  decoded size, or that it could not be shown (its alt text stays).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct NotesImageState
+{
+    bool  isLoaded = false;
+    bool  isFailed = false;
+    int   widthPx  = 0;
+    int   heightPx = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlacedNotesImage
+//
+//  An image, or its placeholder box, at its position in the body.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct PlacedNotesImage
+{
+    std::string   src;
+    std::wstring  alt;
+    float         x        = 0.0f;
+    float         y        = 0.0f;
+    float         width    = 0.0f;
+    float         height   = 0.0f;
+    bool          isLoaded = false;
+    bool          isFailed = false;
 };
 
 
@@ -97,13 +147,29 @@ struct NotesLayoutMetrics
 class ReleaseNotesLayout
 {
 public:
-    using MeasureFn = std::function<float (const std::wstring & text, const NotesRunStyle & style)>;
+    using MeasureFn    = std::function<float (const std::wstring & text, const NotesRunStyle & style)>;
+    using ImageStateFn = std::function<NotesImageState (const std::string & src)>;
 
     static float  Flow       (const std::vector<FormattedLine>  & lines,
                               float                               widthPx,
                               const NotesLayoutMetrics          & metrics,
                               const MeasureFn                   & measure,
                               std::vector<PlacedNotesRun>       & outRuns);
+    static float  Flow       (const std::vector<FormattedLine>  & lines,
+                              float                               widthPx,
+                              const NotesLayoutMetrics          & metrics,
+                              const MeasureFn                   & measure,
+                              const ImageStateFn                & imageState,
+                              std::vector<PlacedNotesRun>       & outRuns,
+                              std::vector<PlacedNotesImage>     & outImages);
+    static void   PlaceImage (const FormattedImage              & image,
+                              const NotesImageState             & state,
+                              float                               widthPx,
+                              const NotesLayoutMetrics          & metrics,
+                              const MeasureFn                   & measure,
+                              float                             & y,
+                              std::vector<PlacedNotesRun>       & outRuns,
+                              std::vector<PlacedNotesImage>     & outImages);
 
     static const PlacedNotesRun *  FindLinkAt (const std::vector<PlacedNotesRun> & runs, float x, float y);
 

@@ -2,6 +2,7 @@
 
 #include "Update/UpdateService.h"
 #include "Update/ZipUpdateInstaller.h"
+#include "Devices/Printer/PngCodec.h"
 
 
 
@@ -278,7 +279,7 @@ void UpdateService::CancelApply()
 
 void UpdateService::Wait()
 {
-    for (std::thread * worker : { &m_checkThread, &m_notesThread, &m_applyThread, &m_cleanupThread })
+    for (std::thread * worker : { &m_checkThread, &m_notesThread, &m_applyThread, &m_cleanupThread, &m_imagesThread })
     {
         if (worker->joinable())
         {
@@ -301,8 +302,9 @@ void UpdateService::Wait()
 
 void UpdateService::Stop()
 {
-    m_stopping = true;
-    m_cancel   = true;
+    m_stopping     = true;
+    m_cancel       = true;
+    m_imagesCancel = true;
 
     Wait();
 }
@@ -995,4 +997,282 @@ void UpdateService::RunCleanup (DWORD oldProcessId)
 
 Error:
     m_isCleanupBusy = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::CancelImages
+//
+//  Stops fetching release-notes images; the dialog that wanted them closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateService::CancelImages()
+{
+    m_imagesCancel = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::StartFetchImages
+//
+//  Starts fetching the images the notes show, one result posted per image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UpdateService::StartFetchImages (const std::string & tag, const std::vector<std::string> & sources)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    ReapIfIdle (m_imagesThread, m_isImagesBusy);
+
+    BAIL_OUT_IF (m_stopping,     E_ABORT);
+    BAIL_OUT_IF (m_isImagesBusy, E_PENDING);
+
+    m_imagesCancel = false;
+    m_isImagesBusy = true;
+    m_imagesThread = std::thread ([this, tag, sources]
+    {
+        RunFetchImages (tag, sources);
+    });
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::TryResolveImageUrl
+//
+//  An https URL is fetched as written. A relative path resolves against the
+//  release tag's raw files, the way GitHub renders the README. Anything else
+//  -- plain http, data:, another scheme, a protocol-relative "//host" -- is
+//  not fetched, and the dialog shows the alt text in its place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UpdateService::TryResolveImageUrl (const std::string & src, const std::string & tag, std::wstring & outUrl)
+{
+    std::string_view  path       = src;
+    bool              isResolved = false;
+
+
+
+    outUrl.clear();
+
+    if (src.starts_with ("https://"))
+    {
+        outUrl.assign (src.begin(), src.end());
+        isResolved = true;
+    }
+    else if (!src.empty() && src.find (':') == std::string::npos && !src.starts_with ("//") && !tag.empty())
+    {
+        while (path.starts_with ("./"))
+        {
+            path.remove_prefix (2);
+        }
+
+        while (path.starts_with ('/'))
+        {
+            path.remove_prefix (1);
+        }
+
+        outUrl  = L"https://";
+        outUrl += kpszRawHost;
+        outUrl += kpszRepoRawPath;
+        outUrl.append (tag.begin(), tag.end());
+        outUrl += L"/";
+        outUrl.append (path.begin(), path.end());
+        isResolved = !path.empty();
+    }
+
+    return isResolved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::DecodeImage
+//
+//  Any format WIC reads (PNG, JPEG, GIF's first frame), as premultiplied
+//  BGRA. The calling thread must have initialized COM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UpdateService::DecodeImage (std::span<const Byte> bytes, NotesImage & outImage)
+{
+    HRESULT            hr     = S_OK;
+    RgbaImage          rgba;
+    std::vector<Byte>  copy (bytes.begin(), bytes.end());
+    size_t             i      = 0;
+    size_t             count  = 0;
+    const Byte       * px     = nullptr;
+
+
+
+    hr = PngCodec::DecodeRgba (copy, rgba);
+    CHR (hr);
+
+    count = (size_t) rgba.width * (size_t) rgba.height;
+    outImage.width  = rgba.width;
+    outImage.height = rgba.height;
+    outImage.bgraPremul.resize (count);
+
+    for (i = 0; i < count; i++)
+    {
+        px = &rgba.rgba[i * 4];
+        outImage.bgraPremul[i] = ((uint32_t) px[3] << 24)                          |
+                                 ((uint32_t) (px[0] * px[3] / 255) << 16)          |
+                                 ((uint32_t) (px[1] * px[3] / 255) << 8)           |
+                                  (uint32_t) (px[2] * px[3] / 255);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::FetchImage
+//
+//  One image by URL, answered from the session cache when it was fetched
+//  before. A file over kMaxImageBytes is refused undecoded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UpdateService::FetchImage (const std::wstring & url, std::shared_ptr<const NotesImage> & outImage, UpdateResult & result)
+{
+    HRESULT                      hr       = S_OK;
+    HttpRequest                  request;
+    HttpResponse                 response;
+    std::shared_ptr<NotesImage>  decoded  = std::make_shared<NotesImage>();
+    bool                         isSplit  = false;
+    bool                         isCached = false;
+    bool                         isFound  = false;
+    bool                         isSmall  = false;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_notesMutex);
+        auto                         it   = m_imageCache.find (url);
+
+        isCached = it != m_imageCache.end();
+        outImage = isCached ? it->second : nullptr;
+    }
+
+    BAIL_OUT_IF (isCached, S_OK);
+
+    isSplit = TrySplitUrl (url, request.host, request.path);
+    CBRF (isSplit, result.failure = UpdateFailure::BadData);
+
+    request.displayName     = "a release-notes image";
+    request.cancelRequested = &m_imagesCancel;
+
+    hr = m_deps.http->Get (request, response, result.detail);
+    CHRF (hr, result.failure = UpdateFailure::Network);
+
+    isFound = response.statusCode == kStatusOk;
+    CBRF (isFound, result.failure = UpdateFailure::Network);
+
+    isSmall = response.body.size() <= kMaxImageBytes;
+    CBRF (isSmall, result.failure = UpdateFailure::BadData);
+
+    hr = DecodeImage (response.body, *decoded);
+    CHRF (hr, result.failure = UpdateFailure::BadData);
+
+    outImage = decoded;
+
+    {
+        std::lock_guard<std::mutex>  lock (m_notesMutex);
+
+        m_imageCache[url] = outImage;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::RunFetchImages
+//
+//  The images worker. Each source gets a result, decoded or failed, so the
+//  dialog can replace every placeholder with the image or its alt text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateService::RunFetchImages (std::string tag, std::vector<std::string> sources)
+{
+    HRESULT       hrCom      = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+    HRESULT       hrFetch    = S_OK;
+    std::wstring  url;
+    bool          isFetching = false;
+
+
+
+    for (const std::string & src : sources)
+    {
+        std::unique_ptr<UpdateResult>  result = std::make_unique<UpdateResult>();
+
+        if (m_imagesCancel || m_stopping)
+        {
+            break;
+        }
+
+        result->kind     = UpdateResultKind::Image;
+        result->imageSrc = src;
+        isFetching       = TryResolveImageUrl (src, tag, url);
+
+        if (!isFetching)
+        {
+            result->failure = UpdateFailure::BadData;
+        }
+        else
+        {
+            hrFetch = FetchImage (url, result->image, *result);
+
+            if (FAILED (hrFetch) && result->failure == UpdateFailure::None)
+            {
+                result->failure = UpdateFailure::Network;
+            }
+        }
+
+        if (!m_imagesCancel)
+        {
+            Post (std::move (result));
+        }
+    }
+
+    if (SUCCEEDED (hrCom))
+    {
+        CoUninitialize();
+    }
+
+    m_isImagesBusy = false;
 }

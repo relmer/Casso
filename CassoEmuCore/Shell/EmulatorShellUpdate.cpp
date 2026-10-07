@@ -235,6 +235,11 @@ Error:
 
 void EmulatorShell::HandleUpdateResult (UpdateResult & result)
 {
+    UpdateService  * service  = GetUpdateService();
+    HRESULT          hrImages = S_OK;
+
+
+
     switch (result.kind)
     {
         case UpdateResultKind::Check:
@@ -247,6 +252,10 @@ void EmulatorShell::HandleUpdateResult (UpdateResult & result)
                 if (result.failure == UpdateFailure::None)
                 {
                     m_updateDialog->ShowNotes (result.notes);
+
+                    // The images come after the text, each on its own result.
+                    hrImages = (service != nullptr) ? service->StartFetchImages (m_updateRelease.tag, m_updateDialog->GetImageSources()) : E_POINTER;
+                    IGNORE_RETURN_VALUE (hrImages, S_OK);
                 }
                 else
                 {
@@ -254,6 +263,14 @@ void EmulatorShell::HandleUpdateResult (UpdateResult & result)
                 }
 
                 m_updateDialog->SetHeader (MakeUpdateHeader (result.notes.runningReleaseDate));
+            }
+
+            break;
+
+        case UpdateResultKind::Image:
+            if (m_updateDialog != nullptr)
+            {
+                m_updateDialog->ShowImage (result.imageSrc, result.failure == UpdateFailure::None ? result.image : nullptr);
             }
 
             break;
@@ -549,6 +566,8 @@ void EmulatorShell::OpenUpdateDialog()
     result = dlg.ShowModalDialog (dlg.GetDefaultCommandId());
 
     m_updateDialog = nullptr;
+
+    service->CancelImages();
 
     if (dlg.IsBusy())
     {

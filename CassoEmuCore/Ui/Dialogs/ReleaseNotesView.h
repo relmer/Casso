@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Ui/Dialogs/ReleaseNotesLayout.h"
+#include "Update/UpdateResult.h"
 
 
 
@@ -28,6 +29,8 @@ public:
 
     void     SetLines             (std::vector<FormattedLine> lines);
     void     SetOnOpenLink        (OpenLinkFn fn) { m_onOpenLink = std::move (fn); }
+    void     SetImage             (const std::string & src, std::shared_ptr<const NotesImage> image);
+    std::vector<std::string>  GetImageSources () const;
 
     int      GetMeasuredHeightPx  () const { return m_measuredHeightPx; }
     int      GetEstimatedHeightPx (const DxuiDpiScaler & scaler) const;
@@ -39,9 +42,13 @@ public:
 
 private:
     void     Reflow               (IDxuiTextRenderer & text, const IDxuiTheme & theme, float widthPx);
+    void     PaintImages          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & bounds);
 
     std::vector<FormattedLine>   m_lines;
     std::vector<PlacedNotesRun>  m_runs;
+    std::vector<PlacedNotesImage>  m_placedImages;
+    std::map<std::string, std::shared_ptr<const NotesImage>>  m_images;
+    std::set<std::string>        m_failedImages;
     DxuiDpiScaler                m_scaler;
     OpenLinkFn                   m_onOpenLink;
     float                        m_flowWidthPx      = -1.0f;

@@ -70,6 +70,7 @@ public:
     static constexpr DWORD    kStatusForbidden   = 403;
     static constexpr DWORD    kStatusTooMany     = 429;
     static constexpr DWORD    kCleanupWaitMs     = 30000;
+    static constexpr size_t   kMaxImageBytes     = 8 * 1024 * 1024;
 
     explicit UpdateService (const UpdateServiceDeps & deps);
     ~UpdateService();
@@ -84,8 +85,10 @@ public:
     HRESULT  StartApply      (const ReleaseInfo & release, InstallType installType, ReleaseArch arch);
     HRESULT  StartDeploy     (const std::wstring & bundlePath);
     HRESULT  StartCleanup    (DWORD oldProcessId);
+    HRESULT  StartFetchImages (const std::string & tag, const std::vector<std::string> & sources);
 
     void     CancelApply     ();
+    void     CancelImages    ();
     void     Wait            ();
     void     Stop            ();
 
@@ -96,6 +99,8 @@ public:
     static std::wstring   MakeNotesPath    (const std::string & tag, LPCWSTR fileName);
     static bool           TrySplitUrl      (const std::wstring & url, std::wstring & outHost, std::wstring & outPath);
     static std::wstring   MakeRelaunchArgs (DWORD oldProcessId);
+    static bool           TryResolveImageUrl (const std::string & src, const std::string & tag, std::wstring & outUrl);
+    static HRESULT        DecodeImage      (std::span<const Byte> bytes, NotesImage & outImage);
 
 private:
     struct NotesJob
@@ -116,6 +121,8 @@ private:
     void     RunApply        (ApplyJob job);
     void     RunDeploy       (std::wstring bundlePath);
     void     RunCleanup      (DWORD oldProcessId);
+    void     RunFetchImages  (std::string tag, std::vector<std::string> sources);
+    HRESULT  FetchImage      (const std::wstring & url, std::shared_ptr<const NotesImage> & outImage, UpdateResult & result);
 
     HRESULT  FetchText       (LPCWSTR host, const std::wstring & path, std::string & outText);
     HRESULT  FetchNotes      (const NotesJob & job, ReleaseNotes & outNotes);
@@ -134,14 +141,18 @@ private:
     std::atomic<bool>                        m_isNotesBusy   = false;
     std::atomic<bool>                        m_isApplyBusy   = false;
     std::atomic<bool>                        m_isCleanupBusy = false;
+    std::atomic<bool>                        m_isImagesBusy  = false;
+    std::atomic<bool>                        m_imagesCancel  = false;
     std::atomic<bool>                        m_cancel        = false;
     std::atomic<bool>                        m_stopping      = false;
     std::atomic<std::uint64_t>               m_bytesDone     = 0;
     std::atomic<std::uint64_t>               m_bytesTotal    = 0;
     std::mutex                               m_notesMutex;
     std::map<std::string, ReleaseNotes>      m_notesCache;
+    std::map<std::wstring, std::shared_ptr<const NotesImage>>  m_imageCache;
     std::thread                              m_checkThread;
     std::thread                              m_notesThread;
     std::thread                              m_applyThread;
     std::thread                              m_cleanupThread;
+    std::thread                              m_imagesThread;
 };

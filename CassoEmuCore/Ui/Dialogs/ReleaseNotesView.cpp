@@ -75,14 +75,17 @@ void ReleaseNotesView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
 
 void ReleaseNotesView::Reflow (IDxuiTextRenderer & text, const IDxuiTheme & theme, float widthPx)
 {
-    constexpr float  kEstGlyphEm    = 0.55f;
-    constexpr float  kIndentDip     = 18.0f;
-    constexpr float  kBulletGapDip  = 12.0f;
-    constexpr float  kBlankGapDip   = 8.0f;
-    constexpr float  kHeadingGapDip = 6.0f;
-    constexpr float  kH1Scale       = 1.4f;
-    constexpr float  kH2Scale       = 1.25f;
-    constexpr float  kH3Scale       = 1.1f;
+    constexpr float  kEstGlyphEm     = 0.55f;
+    constexpr float  kIndentDip      = 18.0f;
+    constexpr float  kBulletGapDip   = 12.0f;
+    constexpr float  kBlankGapDip    = 8.0f;
+    constexpr float  kHeadingGapDip  = 6.0f;
+    constexpr float  kH1Scale        = 1.4f;
+    constexpr float  kH2Scale        = 1.25f;
+    constexpr float  kH3Scale        = 1.1f;
+    constexpr float  kCaptionDip     = 11.0f;
+    constexpr float  kImageGapDip    = 8.0f;
+    constexpr float  kPlaceholderDip = 80.0f;
 
 
 
@@ -118,7 +121,24 @@ void ReleaseNotesView::Reflow (IDxuiTextRenderer & text, const IDxuiTheme & them
         return width;
     };
 
-    m_measuredHeightPx = (int) std::ceil (ReleaseNotesLayout::Flow (m_lines, widthPx, metrics, measure, m_runs));
+    metrics.captionSizePx = m_scaler.ToPxf (kCaptionDip);
+    metrics.imageGapPx    = m_scaler.ToPxf (kImageGapDip);
+    metrics.placeholderPx = m_scaler.ToPxf (kPlaceholderDip);
+    metrics.imageScale    = (float) m_scaler.GetDpi() / (float) USER_DEFAULT_SCREEN_DPI;
+
+    auto  imageState = [this] (const std::string & src) -> NotesImageState
+    {
+        NotesImageState  state;
+        auto             it    = m_images.find (src);
+
+        state.isFailed = m_failedImages.contains (src);
+        state.isLoaded = it != m_images.end() && it->second != nullptr;
+        state.widthPx  = state.isLoaded ? it->second->width  : 0;
+        state.heightPx = state.isLoaded ? it->second->height : 0;
+        return state;
+    };
+
+    m_measuredHeightPx = (int) std::ceil (ReleaseNotesLayout::Flow (m_lines, widthPx, metrics, measure, imageState, m_runs, m_placedImages));
     m_flowWidthPx      = widthPx;
     m_flowDpi          = m_scaler.GetDpi();
 }
@@ -152,16 +172,16 @@ void ReleaseNotesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
 
 
-    (void) painter;
-
     if (width != m_flowWidthPx || m_scaler.GetDpi() != m_flowDpi)
     {
         Reflow (text, theme, width);
     }
 
+    PaintImages (painter, text, theme, bounds);
+
     for (const PlacedNotesRun & run : m_runs)
     {
-        color = run.style.isLink ? theme.Accent() : (run.style.bold ? theme.HeadingForeground() : theme.Foreground());
+        color = run.style.isLink ? theme.Accent() : (run.style.muted ? theme.ForegroundMuted() : (run.style.bold ? theme.HeadingForeground() : theme.Foreground()));
 
         hr = text.DrawString (run.text.c_str(),
                               (float) bounds.left + run.x,
@@ -241,4 +261,116 @@ LPCWSTR ReleaseNotesView::GetCursorForPoint (POINT clientPx) const
     return ReleaseNotesLayout::FindLinkAt (m_runs,
                                            (float) (clientPx.x - bounds.left),
                                            (float) (clientPx.y - bounds.top)) != nullptr ? IDC_HAND : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesView::SetImage
+//
+//  A fetched image arrived, or (null) could not be had. Either changes the
+//  layout, so the next paint flows again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReleaseNotesView::SetImage (const std::string & src, std::shared_ptr<const NotesImage> image)
+{
+    if (image != nullptr)
+    {
+        m_images[src] = std::move (image);
+        m_failedImages.erase (src);
+    }
+    else
+    {
+        m_failedImages.insert (src);
+    }
+
+    m_flowWidthPx = -1.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesView::GetImageSources
+//
+//  Every image source in the notes, in order, without repeats.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> ReleaseNotesView::GetImageSources() const
+{
+    std::vector<std::string>  sources;
+
+
+
+    for (const FormattedLine & line : m_lines)
+    {
+        if (line.kind == FormattedLineKind::Image &&
+            std::find (sources.begin(), sources.end(), line.image.src) == sources.end())
+        {
+            sources.push_back (line.image.src);
+        }
+    }
+
+    return sources;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesView::PaintImages
+//
+//  A loaded image is drawn scaled into its box. A placeholder is an outlined
+//  box with the alt text inside, muted, which is also what a failed image
+//  keeps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReleaseNotesView::PaintImages (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & bounds)
+{
+    constexpr float  kInsetDip   = 6.0f;
+    constexpr float  kOutlineDip = 1.0f;
+
+
+
+    HRESULT         hr    = S_OK;
+    DxuiFontHandle  body  = theme.BodyFont();
+    float           inset = m_scaler.ToPxf (kInsetDip);
+    float           x     = 0.0f;
+    float           y     = 0.0f;
+
+
+
+    for (const PlacedNotesImage & placed : m_placedImages)
+    {
+        auto  it = m_images.find (placed.src);
+
+        x = (float) bounds.left + placed.x;
+        y = (float) bounds.top  + placed.y;
+
+        if (placed.isLoaded && it != m_images.end() && it->second != nullptr)
+        {
+            hr = text.DrawIconBitmap (it->second->bgraPremul.data(), it->second->width, it->second->height,
+                                      x, y, placed.width, placed.height);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            continue;
+        }
+
+        painter.OutlineRect (x, y, placed.width, placed.height, m_scaler.ToPxf (kOutlineDip), theme.Border());
+
+        hr = text.DrawString (placed.alt.c_str(), x + inset, y + inset,
+                              std::max (placed.width - inset * 2.0f, 0.0f), std::max (placed.height - inset * 2.0f, 0.0f),
+                              theme.ForegroundMuted(), m_scaler.ToPxf (body.sizeDip), body.face,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }

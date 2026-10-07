@@ -254,7 +254,7 @@ static constexpr LPCWSTR  s_kAgeRemarks[] =
 //  s_kOpeners
 //
 //  The excited line above the update dialog's header, one per dialog. The
-//  first three are the owner's own words, kept verbatim.
+//  first six are the owner's own words, kept verbatim.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,6 +263,9 @@ static constexpr LPCWSTR  s_kOpeners[] =
     L"Ooh ooh, new toys, new toys!!",
     L"ZOMG! Fresh Casso available!!",
     L"I love it when a plan comes together.",
+    L"I love the smell of fresh Casso in the morning!",
+    L"This just in...",
+    L"Huzzah!",
     L"Hot off the assembler!",
     L"New bits, fresh from the oven!",
     L"Stop the presses: there's a new Casso!",

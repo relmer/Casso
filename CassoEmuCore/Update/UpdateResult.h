@@ -24,6 +24,7 @@
 //                   flushes disks and settings, then starts the deploy
 //    Applied        an update finished: the zip copy was replaced and the
 //                   new Casso was launched, or the MSIX deploy returned
+//    Image          one release-notes image was fetched and decoded, or not
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +34,28 @@ enum class UpdateResultKind
     Notes,
     ReadyToDeploy,
     Applied,
+    Image,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotesImage
+//
+//  A decoded release-notes image, premultiplied BGRA as the text renderer's
+//  bitmap draw takes it. Shared, since the session cache and the dialog both
+//  hold it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct NotesImage
+{
+    int                    width  = 0;
+    int                    height = 0;
+    std::vector<uint32_t>  bgraPremul;
 };
 
 
@@ -65,4 +88,7 @@ struct UpdateResult
 
     ReleaseNotes        notes;
     std::wstring        bundlePath;
+
+    std::string                         imageSrc;
+    std::shared_ptr<const NotesImage>   image;
 };

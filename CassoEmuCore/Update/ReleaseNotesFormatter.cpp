@@ -21,13 +21,15 @@ void ReleaseNotesFormatter::Format (
     const std::string           & markdown,
     std::vector<FormattedLine>  & outLines)
 {
-    std::string_view  rest    = markdown;
-    std::string_view  line;
-    std::string_view  trimmed;
-    size_t            lf      = 0;
-    size_t            first   = 0;
-    bool              isOpen  = false;
-    FormattedLine     parsed;
+    std::string_view             rest      = markdown;
+    std::string_view             line;
+    std::string_view             trimmed;
+    size_t                       lf        = 0;
+    size_t                       first     = 0;
+    bool                         isOpen    = false;
+    FormattedLine                parsed;
+    std::vector<FormattedImage>  images;
+    std::string                  imageRest;
 
 
 
@@ -58,6 +60,29 @@ void ReleaseNotesFormatter::Format (
             continue;
         }
 
+        if (TryExtractImages (trimmed, images, imageRest))
+        {
+            for (FormattedImage & image : images)
+            {
+                parsed       = {};
+                parsed.kind  = FormattedLineKind::Image;
+                parsed.image = std::move (image);
+                outLines.push_back (std::move (parsed));
+            }
+
+            parsed      = {};
+            parsed.kind = FormattedLineKind::Paragraph;
+            FormatInline (imageRest, parsed.runs);
+            isOpen      = HasVisibleText (parsed.runs);
+
+            if (isOpen)
+            {
+                outLines.push_back (std::move (parsed));
+            }
+
+            continue;
+        }
+
         if (TryParseHeading (line, parsed))
         {
             outLines.push_back (std::move (parsed));
@@ -78,11 +103,17 @@ void ReleaseNotesFormatter::Format (
             continue;
         }
 
+        // A line of nothing but HTML structure (<table>, <tr>, </td>) draws
+        // nothing, and does not join the text around it either.
         parsed      = {};
         parsed.kind = FormattedLineKind::Paragraph;
         FormatInline (trimmed, parsed.runs);
-        outLines.push_back (std::move (parsed));
-        isOpen = true;
+        isOpen      = HasVisibleText (parsed.runs);
+
+        if (isOpen)
+        {
+            outLines.push_back (std::move (parsed));
+        }
     }
 
     while (!outLines.empty() && outLines.back().kind == FormattedLineKind::Blank)
@@ -408,4 +439,251 @@ void ReleaseNotesFormatter::AppendRun (
     {
         runs.push_back (FormattedRun { std::string (text), bold, code, std::string (linkUrl) });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesFormatter::HasVisibleText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesFormatter::HasVisibleText (const std::vector<FormattedRun> & runs)
+{
+    bool  isVisible = false;
+
+
+
+    for (const FormattedRun & run : runs)
+    {
+        isVisible = isVisible || run.text.find_first_not_of (" \t") != std::string::npos;
+    }
+
+    return isVisible;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesFormatter::TryGetAttribute
+//
+//  One attribute of an HTML tag, quoted with " or ' or bare. The name must
+//  follow whitespace, so `alt` does not match inside `data-alt`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesFormatter::TryGetAttribute (std::string_view tag, std::string_view name, std::string & outValue)
+{
+    size_t  at      = 0;
+    size_t  start   = 0;
+    size_t  end     = 0;
+    char    quote   = 0;
+    bool    isFound = false;
+
+
+
+    outValue.clear();
+
+    while (!isFound && (at = tag.find (name, at)) != std::string_view::npos)
+    {
+        start   = at + name.size();
+        isFound = at > 0 && std::isspace ((unsigned char) tag[at - 1]) && start < tag.size() && tag[start] == '=';
+        at      = start;
+    }
+
+    if (isFound)
+    {
+        start++;
+        quote = (start < tag.size() && (tag[start] == '"' || tag[start] == '\'')) ? tag[start] : 0;
+        start = quote != 0 ? start + 1 : start;
+        end   = quote != 0 ? tag.find (quote, start) : tag.find_first_of (" \t/>", start);
+        end   = (end == std::string_view::npos) ? tag.size() : end;
+
+        outValue = std::string (tag.substr (start, end - start));
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesFormatter::TryParseImgTag
+//
+//  "<img src=... alt=... width=...>" at `start`. A tag without a src is not
+//  an image. Only a percent width is kept; a pixel width says nothing about
+//  how wide the dialog's column is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesFormatter::TryParseImgTag (std::string_view text, size_t start, FormattedImage & outImage, size_t & outEnd)
+{
+    std::string_view  rest    = text.substr (start);
+    std::string_view  tag;
+    std::string       width;
+    size_t            close   = 0;
+    bool              isImage = false;
+    int               percent = 0;
+
+
+
+    outImage = {};
+
+    if (rest.size() > 4 && _strnicmp (rest.data(), "<img", 4) == 0 && std::isspace ((unsigned char) rest[4]))
+    {
+        close = rest.find ('>');
+    }
+    else
+    {
+        close = std::string_view::npos;
+    }
+
+    if (close != std::string_view::npos)
+    {
+        tag     = rest.substr (0, close + 1);
+        isImage = TryGetAttribute (tag, "src", outImage.src) && !outImage.src.empty();
+    }
+
+    if (isImage)
+    {
+        TryGetAttribute (tag, "alt", outImage.alt);
+
+        if (TryGetAttribute (tag, "width", width) && width.ends_with ('%'))
+        {
+            std::from_chars (width.data(), width.data() + width.size() - 1, percent);
+            outImage.widthPercent = std::clamp (percent, 0, 100);
+        }
+
+        outEnd = start + close + 1;
+    }
+
+    return isImage;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesFormatter::TryParseMdImage
+//
+//  "![alt](src)" or "![alt](src "title")" at `start`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesFormatter::TryParseMdImage (std::string_view text, size_t start, FormattedImage & outImage, size_t & outEnd)
+{
+    std::string_view  label;
+    std::string_view  url;
+    size_t            end     = 0;
+    size_t            space   = 0;
+    bool              isImage = false;
+
+
+
+    outImage = {};
+
+    if (text.substr (start).starts_with ("![") && TryParseLink (text, start + 1, label, url, end))
+    {
+        space          = url.find (' ');
+        outImage.src   = std::string (url.substr (0, space));
+        outImage.alt   = std::string (label);
+        outEnd         = end;
+        isImage        = !outImage.src.empty();
+    }
+
+    return isImage;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesFormatter::TryExtractImages
+//
+//  Pulls every image out of one line, in order, and returns the line
+//  without them. Both markdown and <img> forms count, and an image wrapped
+//  in a link (a badge) counts as the image alone. A <sub> after an image and
+//  before the next image or the end of the table cell is that image's
+//  caption, and leaves the line with it. False when the line has no image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReleaseNotesFormatter::TryExtractImages (
+    std::string_view               line,
+    std::vector<FormattedImage>  & outImages,
+    std::string                  & outRest)
+{
+    static constexpr std::string_view  kSubOpen  = "<sub>";
+    static constexpr std::string_view  kSubClose = "</sub>";
+    static constexpr std::string_view  kCellEnd  = "</td>";
+    FormattedImage             image;
+    std::vector<FormattedRun>  captionRuns;
+    size_t                     i          = 0;
+    size_t                     end        = 0;
+    size_t                     close      = 0;
+    bool                       canCaption = false;
+
+
+
+    outImages.clear();
+    outRest.clear();
+
+    while (i < line.size())
+    {
+        if (line[i] == '[' && TryParseMdImage (line, i + 1, image, end) &&
+            line.substr (end).starts_with ("](") && (close = line.find (')', end)) != std::string_view::npos)
+        {
+            outImages.push_back (std::move (image));
+            canCaption = true;
+            i          = close + 1;
+            continue;
+        }
+
+        if ((line[i] == '!' && TryParseMdImage (line, i, image, end)) ||
+            (line[i] == '<' && TryParseImgTag  (line, i, image, end)))
+        {
+            outImages.push_back (std::move (image));
+            canCaption = true;
+            i          = end;
+            continue;
+        }
+
+        if (canCaption && line.substr (i).starts_with (kSubOpen) &&
+            (close = line.find (kSubClose, i)) != std::string_view::npos)
+        {
+            FormatInline (line.substr (i + kSubOpen.size(), close - i - kSubOpen.size()), captionRuns);
+
+            for (const FormattedRun & run : captionRuns)
+            {
+                outImages.back().caption += run.text;
+            }
+
+            canCaption = false;
+            i          = close + kSubClose.size();
+            continue;
+        }
+
+        if (line.substr (i).starts_with (kCellEnd))
+        {
+            canCaption = false;
+        }
+
+        outRest += line[i];
+        i++;
+    }
+
+    return !outImages.empty();
 }

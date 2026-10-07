@@ -153,8 +153,35 @@ void UpdateDialogContent::SetNotesMessage (const std::wstring & message)
 
 void UpdateDialogContent::SetStatus (const std::wstring & status, bool isError)
 {
+    bool  wasShown = m_hasStatus;
+
+
+
     m_status.SetText     (status);
     m_status.SetTextRole (isError ? DxuiTextRole::Error : DxuiTextRole::Body);
+    m_hasStatus = !status.empty();
+
+    // The status rows are reserved only while there is a status, so the
+    // notes reclaim them otherwise; a change either way moves the layout.
+    if (m_isLaidOut && wasShown != m_hasStatus)
+    {
+        Layout (GetBounds(), m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::SetNotesImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::SetNotesImage (const std::string & src, std::shared_ptr<const NotesImage> image)
+{
+    m_notes.SetImage (src, std::move (image));
 }
 
 
@@ -259,12 +286,13 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
 
 
-    int   line   = scaler.ToPx (kLineDip);
-    int   opener = scaler.ToPx (kOpenerDip);
-    int   gap    = scaler.ToPx (kGapDip);
-    int   link   = scaler.ToPx (kLinkHeightDip);
-    int   y      = boundsPx.top;
-    int   bottom = boundsPx.bottom;
+    int  line    = scaler.ToPx (kLineDip);
+    int  opener  = scaler.ToPx (kOpenerDip);
+    int  gap     = scaler.ToPx (kGapDip);
+    int  link    = scaler.ToPx (kLinkHeightDip);
+    int  y       = boundsPx.top;
+    int  bottom  = boundsPx.bottom;
+    int  statusH = 0;
 
 
 
@@ -283,8 +311,10 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_pageLink.SetDpi (scaler.GetDpi());
     bottom -= link;
 
-    m_status.Layout (RECT { boundsPx.left, bottom - line * kStatusLines, boundsPx.right, bottom }, scaler);
-    bottom -= line * kStatusLines + gap;
+    statusH = m_hasStatus ? line * kStatusLines : 0;
+    m_status.Layout (RECT { boundsPx.left, bottom - statusH, boundsPx.right, bottom }, scaler);
+    m_status.SetVisible (m_hasStatus);
+    bottom -= statusH + gap;
 
     m_notesViewportPx = RECT { boundsPx.left, y, boundsPx.right, std::max (bottom, y) };
 
