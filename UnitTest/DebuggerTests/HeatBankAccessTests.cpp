@@ -182,14 +182,14 @@ namespace DebuggerTests
             hover.writer.pc          = 0x6A12;
             hover.writer.cycle       = 1234567;
             hover.writer.instruction = "STA ($06),Y";
-            view.SetHoverAccess (hover);
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
 
             Assert::AreEqual (std::wstring (L"Aux RAM $2000  untouched\nLast written by $6A12 STA ($06),Y at cycle 1,234,567\nNot read since counting started"),
                               view.GetTipText (0x2000));
             Assert::AreEqual (std::wstring (L"Aux RAM $2001  untouched"), view.GetTipText (0x2001), L"another cell's are not this one's");
 
             hover.writer.label = "DRAWROW";
-            view.SetHoverAccess (hover);
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
             Assert::IsTrue   (view.GetTipText (0x2000).find (L"by $6A12 DRAWROW: STA") != std::wstring::npos, L"a symbol at the PC is given");
 
             view.SetShownBank (Bank::Main, true);

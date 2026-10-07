@@ -116,10 +116,11 @@ public:
     //  A second toggle on the same line clears the breakpoint by its id.
     TEST_METHOD (ASecondToggleClearsTheBreakpoint)
     {
-        ControllerRig         rig;
-        DebuggerViewSnapshot  none;
-        DebuggerViewSnapshot  set;
-        DebuggerViewSnapshot  cleared;
+        std::unique_ptr<ControllerRig>   held    = std::make_unique<ControllerRig>();
+        ControllerRig                  & rig     = *held;
+        DebuggerViewSnapshot             none;
+        DebuggerViewSnapshot             set;
+        DebuggerViewSnapshot             cleared;
 
 
 

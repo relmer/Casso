@@ -6956,7 +6956,7 @@ void DebuggerWindow::ApplyHeatMap()
     palette.read       = colors.annotation;
     palette.write      = colors.changed;
 
-    isNewHover = m_snapshot->heatMap.hover.has_value();
+    isNewHover = m_snapshot->heatMap.hover != nullptr;
 
     m_heatMapView->SetPalette     (palette);
     m_heatMapView->SetTop         (m_snapshot->heatMap.top);

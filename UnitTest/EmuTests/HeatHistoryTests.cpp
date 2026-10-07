@@ -596,7 +596,7 @@ public:
         request.isRewind = true;
         request.isWrite  = true;
         request.bank     = HeatMapOptions::Bank::Main;
-        request.address  = *written;
+        request.address  = written.value_or (0);
 
         plan = HeatAccessJump::Plan (request, HeatAccessState::Found, access, rig.controller.IsRecording(), rig.controller.GetOldestPosition());
         Assert::AreEqual ((int) HeatAccessPlan::Kind::Seek, (int) plan.kind);
@@ -604,7 +604,7 @@ public:
         rig.Seek (plan.position);
 
         Assert::AreEqual<uint64_t> (access.GetPosition() + 1, rig.machine.GetPosition(), L"just after the writer");
-        Assert::AreEqual ((int) HeatAccessState::Found, (int) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, *written, there), L"the write is there");
+        Assert::AreEqual ((int) HeatAccessState::Found, (int) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, request.address, there), L"the write is there");
         Assert::IsTrue (there == access, L"and it is the last");
 
         hr = rig.controller.StepBack (result);
@@ -612,7 +612,7 @@ public:
         rig.target.NoteHistoryMoved (false);
 
         Assert::AreEqual (access.GetPc(), rig.target.GetRegisters().pc, L"a step back is the writer");
-        (void) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, *written, there);
+        (void) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, request.address, there);
         Assert::IsFalse (there == access, L"before it ran, the write has not happened");
     }
 

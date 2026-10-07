@@ -1499,7 +1499,7 @@ std::wstring HeatMapView::GetTipText (Word address) const
         text += L"  untouched";
     }
 
-    if (m_hoverAccess.has_value() && m_hoverAccess->address == address && m_hoverAccess->bank == m_shownBank)
+    if (m_hoverAccess != nullptr && m_hoverAccess->address == address && m_hoverAccess->bank == m_shownBank)
     {
         text += L"\n" + HeatAccessJump::Describe (true,  m_hoverAccess->writer);
         text += L"\n" + HeatAccessJump::Describe (false, m_hoverAccess->reader);

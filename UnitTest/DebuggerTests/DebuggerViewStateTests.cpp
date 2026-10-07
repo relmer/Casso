@@ -426,11 +426,12 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (TheWheelScrollsTheCodePaneThroughMemory)
         {
-            MachineRig            rig;
-            DebuggerViewSnapshot  first;
-            DebuggerViewSnapshot  down;
-            DebuggerViewSnapshot  up;
-            size_t                lastHeld = 0;
+            std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
+            MachineRig                  & rig      = *held;
+            DebuggerViewSnapshot          first;
+            DebuggerViewSnapshot          down;
+            DebuggerViewSnapshot          up;
+            size_t                        lastHeld = 0;
 
 
 
@@ -1197,11 +1198,12 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (AScrolledFollowingViewFollowsAgainOnceThePcMoves)
         {
-            MachineRig            rig;
-            DebuggerViewSnapshot  scrolled;
-            DebuggerViewSnapshot  stepped;
-            DebuggerViewSnapshot  left;
-            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
+            MachineRig                  & rig      = *held;
+            DebuggerViewSnapshot          scrolled;
+            DebuggerViewSnapshot          stepped;
+            DebuggerViewSnapshot          left;
+            Cpu6502Registers              r        = rig.controller.GetSession().GetTarget().GetRegisters();
 
 
 

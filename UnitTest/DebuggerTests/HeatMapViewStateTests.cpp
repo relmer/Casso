@@ -165,12 +165,12 @@ namespace DebuggerTests
             rig.machine.StepOne();
 
             snapshot = rig.view.Build (rig.controller.GetSession());
-            Assert::IsFalse (snapshot.heatMap.hover.has_value(), L"no cell, nothing looked up");
+            Assert::IsNull (snapshot.heatMap.hover.get(), L"no cell, nothing looked up");
 
             rig.view.SetHeatMapHover (Word (0x0400));
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsTrue   (snapshot.heatMap.hover.has_value());
+            Assert::IsNotNull (snapshot.heatMap.hover.get());
             Assert::AreEqual ((Word) 0x0400, snapshot.heatMap.hover->address);
             Assert::IsTrue   (snapshot.heatMap.hover->writer.has, L"STA $0400 wrote it");
             Assert::AreEqual ((Word) 0x0302, snapshot.heatMap.hover->writer.pc);

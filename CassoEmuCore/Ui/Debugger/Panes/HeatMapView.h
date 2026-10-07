@@ -178,7 +178,7 @@ public:
     //  for a cell.
     void   SetShownBank        (Bank bank, bool hasAux) { m_shownBank = bank; m_hasAux = hasAux; }
     Bank   GetShownBank        () const                 { return m_shownBank; }
-    void   SetHoverAccess      (const std::optional<HeatAccessHover> & hover) { m_hoverAccess = hover; }
+    void   SetHoverAccess      (std::shared_ptr<const HeatAccessHover> hover) { m_hoverAccess = std::move (hover); }
 
     //  The zoom, as a cell's height in pixels and the width a row's cells are
     //  stretched from; the addresses in a row and the rows; and how far the
@@ -337,7 +337,7 @@ private:
 
     std::function<void(Word, PickAction)>     m_onPickAccess;
     std::function<void(std::optional<Word>)>  m_onHoverChanged;
-    std::optional<HeatAccessHover>            m_hoverAccess;
+    std::shared_ptr<const HeatAccessHover>    m_hoverAccess;
     Bank                                      m_shownBank = Bank::Cpu;
     bool                                      m_hasAux    = false;
 };

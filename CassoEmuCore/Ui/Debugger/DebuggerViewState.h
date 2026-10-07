@@ -249,15 +249,15 @@ struct DebuggerViewSnapshot
     //  a cell, its last writer and reader in that bank.
     struct HeatMapState
     {
-        std::vector<Byte>                   execute;
-        std::vector<Byte>                   read;
-        std::vector<Byte>                   write;
-        double                              top          = 0.0;
-        bool                                isRebuilding = false;
-        HeatMapOptions::Bank                bank         = HeatMapOptions::Bank::Cpu;
-        std::vector<HeatMapOptions::Bank>   banks;
-        bool                                hasAux       = false;
-        std::optional<HeatAccessHover>      hover;
+        std::vector<Byte>                       execute;
+        std::vector<Byte>                       read;
+        std::vector<Byte>                       write;
+        double                                  top          = 0.0;
+        bool                                    isRebuilding = false;
+        HeatMapOptions::Bank                    bank         = HeatMapOptions::Bank::Cpu;
+        std::vector<HeatMapOptions::Bank>       banks;
+        bool                                    hasAux       = false;
+        std::shared_ptr<const HeatAccessHover>  hover;
     };
 
     HeatMapState                          heatMap;

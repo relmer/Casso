@@ -302,9 +302,10 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
 
     if (m_heatMapHover.has_value() && HeatMapOptions::IsShown (state.bank, *m_heatMapHover))
     {
-        state.hover = HeatAccessHover { *m_heatMapHover, state.bank,
-                                        GetHeatAccess (session, space, true,  *m_heatMapHover),
-                                        GetHeatAccess (session, space, false, *m_heatMapHover) };
+        state.hover = std::make_shared<const HeatAccessHover> (HeatAccessHover { *m_heatMapHover,
+                                                                                 state.bank,
+                                                                                 GetHeatAccess (session, space, true,  *m_heatMapHover),
+                                                                                 GetHeatAccess (session, space, false, *m_heatMapHover) });
     }
 }
 
