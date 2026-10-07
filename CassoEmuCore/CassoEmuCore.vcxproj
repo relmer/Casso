@@ -426,6 +426,7 @@
     <ClCompile Include="Ui\Settings\ColorPickerOverlay.cpp" />
     <ClCompile Include="Ui\Settings\ProfileDialogOverlay.cpp" />
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
+    <ClCompile Include="Ui\Settings\GeneralPage.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
     <ClCompile Include="Ui\Settings\DiskPage.cpp" />
     <ClCompile Include="Ui\Settings\SettingsApplyAdapter.cpp" />
@@ -843,6 +844,7 @@
     <ClInclude Include="Ui\Settings\ColorPickerOverlay.h" />
     <ClInclude Include="Ui\Settings\ProfileDialogOverlay.h" />
     <ClInclude Include="Ui\Settings\DisplayPage.h" />
+    <ClInclude Include="Ui\Settings\GeneralPage.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
     <ClInclude Include="Ui\Settings\DiskPage.h" />
     <ClInclude Include="Ui\Settings\SettingsApplyAdapter.h" />

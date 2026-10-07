@@ -109,7 +109,7 @@ CassoEmuCore/
 ├── Ui/Dialogs/
 │   └── UpdateDialog.h/.cpp        # details dialog (custom body)
 ├── Ui/Chrome/EmulatorCommands.cpp # IDM_HELP_CHECK_UPDATES
-├── Ui/Settings/<page>.cpp         # "Check for updates automatically"
+├── Ui/Settings/GeneralPage.cpp    # "Check for updates automatically"
 ├── Shell/Layout/ChromeBandLayout.* # indicator slot left of the caption buttons
 └── Config/GlobalUserPrefs.*       # update state fields
 

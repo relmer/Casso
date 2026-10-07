@@ -71,14 +71,6 @@ public:
     void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
     void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
 
-    // Whether the once-a-day update check runs. Saved live through the
-    // callback, like the CRT opt-in; shown on every theme.
-    using AutoUpdateFn = std::function<void (bool enabled)>;
-    void  SetOnAutoUpdateToggled (AutoUpdateFn fn) { m_onAutoUpdateToggled = std::move (fn); }
-    void  SetAutoUpdateChecked   (bool checked)   { m_autoUpdateCheckbox.SetChecked (checked); }
-
-    const DxuiCheckbox &  GetAutoUpdateCheckbox () const { return m_autoUpdateCheckbox; }
-
     // Scene antialiasing, in SAMPLES (1 / 2 / 4) at this boundary -- the
     // slider's three stops are an interior detail.
     using AntiAliasingFn = std::function<void (int samples)>;
@@ -235,7 +227,6 @@ private:
     HasDiskSourceFn      m_hasDiskSource;
     ApplyThemeNowFn      m_onApplyThemeNow;
     CrtMonitorFn         m_onCrtMonitorToggled;
-    AutoUpdateFn         m_onAutoUpdateToggled;
 
     DxuiLabel      m_themeLabel;
     DxuiComboBox   m_themeDropdown;
@@ -243,7 +234,6 @@ private:
     DxuiCheckbox   m_crtMonitorCheckbox;
     DxuiLabel      m_aaLabel;
     DxuiSlider     m_aaSlider;
-    DxuiCheckbox   m_autoUpdateCheckbox;
     AntiAliasingFn m_onAntiAliasingChanged;
     RECT           m_previewRect          = {};
     DxuiDpiScaler  m_scaler;

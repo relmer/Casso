@@ -34,7 +34,7 @@ against a real install folder without a backup.
 - Offline: the startup check shows nothing; **Check for updates** reports the
   failure.
 - Read-only folder: **Update now** is replaced by **Open release page**.
-- Settings off: no request at startup (confirm with a proxy or the log).
+- Settings > General off: no request at startup (confirm with a proxy or the log).
 
 ## Update when closed (zip, local feed)
 

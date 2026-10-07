@@ -82,6 +82,7 @@ SettingsSheet::~SettingsSheet()
 
 void SettingsSheet::OnBuildPages()
 {
+    m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
     m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
@@ -315,8 +316,8 @@ HRESULT SettingsSheet::OpenModeless (
 
     // The daily update check: live and persisted on the click, like the CRT
     // opt-in above, so Cancel has nothing to revert.
-    m_themePage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
-    m_themePage->SetOnAutoUpdateToggled ([this] (bool enabled)
+    m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
+    m_generalPage->SetOnAutoUpdateToggled ([this] (bool enabled)
     {
         m_emuShell->SetAutoUpdateCheck (enabled);
     });

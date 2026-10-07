@@ -13,6 +13,7 @@
 #include "SettingsCompositor.h"
 #include "Ui/Scene/DeskScene.h"
 #include "ColorPickerOverlay.h"
+#include "GeneralPage.h"
 #include "HardwarePage.h"
 #include "DiskPage.h"
 #include "ThemePage.h"
@@ -246,6 +247,7 @@ private:
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine
     // selector + CPU speed + hardware spec + device tree, GH #84).
+    GeneralPage      * m_generalPage     = nullptr;
     HardwarePage     * m_hardwarePage    = nullptr;
     DiskPage         * m_diskPage        = nullptr;
     ThemePage        * m_themePage       = nullptr;

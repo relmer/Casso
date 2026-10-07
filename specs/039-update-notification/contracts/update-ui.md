@@ -107,7 +107,10 @@
 
 ## Settings
 
-- Checkbox "Check for updates automatically", default on.
+- On the General page, the first Settings tab: checkbox "Check for updates
+  automatically", default on. It saves when clicked, so Cancel does not revert it.
+- Settings tabs are sized to their labels, so the eight tabs fit the sheet's
+  720 DIP design width.
 
 ## Command line
 

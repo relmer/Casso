@@ -437,17 +437,6 @@ ThemePage::ThemePage(std::wstring title)
     {
         if (m_onAntiAliasingChanged) { m_onAntiAliasingChanged (SamplesForStop (v)); }
     });
-
-    // The daily update check. Not a theme setting, but the page already holds
-    // the app's live on/off switches, and this is one more.
-    Adopt (m_autoUpdateCheckbox);
-
-    m_autoUpdateCheckbox.SetLabel (L"Check for updates automatically");
-    m_autoUpdateCheckbox.SetSingleLineLabel (true);
-    m_autoUpdateCheckbox.SetOnChange ([this] (bool checked)
-    {
-        if (m_onAutoUpdateToggled) { m_onAutoUpdateToggled (checked); }
-    });
 }
 
 
@@ -645,9 +634,9 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   rowGap     = scaler.ToPx (8);
     int   previewGap = scaler.ToPx (24);
     // Theme, then edge smoothing, with the CRT opt-in between them only on a
-    // skeuomorphic theme, then the update check -- so the stack above the
-    // preview is three rows or four depending on whether the CRT row is shown.
-    int   rowsAbove  = m_crtRowShown ? 4 : 3;
+    // skeuomorphic theme -- so the stack above the preview is two rows or
+    // three depending on whether the CRT row is shown.
+    int   rowsAbove  = m_crtRowShown ? 3 : 2;
     int   aaRowIndex = m_crtRowShown ? 2 : 1;
     int   previewTop = y + rowsAbove * rowHeight + (rowsAbove - 1) * rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
@@ -728,15 +717,6 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_aaSlider.SetDpi (dpi);
     }
 
-    // The update check, last above the preview, as wide as the CRT row.
-    {
-        int  updateTop = y + (rowHeight + rowGap) * (aaRowIndex + 1);
-
-        m_autoUpdateCheckbox.Layout (MakeRect (x, updateTop, labelWidth + dropWidth + applyGap + applyWidth, rowHeight),
-                                     scaler);
-        m_autoUpdateCheckbox.SetDpi (dpi);
-    }
-
     m_lastLayoutRect     = rect;
     m_previewRect.left   = x;
     m_previewRect.top    = previewTop;
@@ -808,7 +788,6 @@ void ThemePage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 
     m_aaLabel.Paint             (painter, text, theme);
     m_aaSlider.Paint            (painter, text, theme);
-    m_autoUpdateCheckbox.Paint  (painter, text, theme);
 
     // Live preview tracks the dropdown's effective hovered/highlighted
     // item while open (so mouse hover and arrow-key nav both update
