@@ -47,6 +47,7 @@ public:
 
 
         calls++;
+        drawn.insert (state[0]);
 
         if (clock != nullptr)
         {
@@ -59,9 +60,10 @@ public:
         return S_OK;
     }
 
-    int         calls  = 0;
-    uint64_t  * clock  = nullptr;   // moved on by costMs for every picture, when given
-    uint64_t    costMs = 0;
+    int              calls  = 0;
+    std::set<Byte>   drawn;              // the first byte of every snapshot drawn
+    uint64_t       * clock  = nullptr;   // moved on by costMs for every picture, when given
+    uint64_t         costMs = 0;
 };
 
 
@@ -283,6 +285,98 @@ public:
         Assert::AreEqual<uint64_t> (9000, asked[4].cycle,  L"the trailing end is where history ends");
         Assert::IsFalse (asked[3].isLive, L"inside history is not live");
         Assert::IsTrue  (asked[4].isLive, L"the trailing end is live");
+    }
+
+
+    //  A playhead line let go stays where it was dropped, labeled for that
+    //  point, until the seek there lands: not where the machine stood
+    //  before, nor where a seek made while it moved lands late. A seek that
+    //  ran before the drop, to the same cycle, does not count as its landing.
+    //  Once landed, the line follows the machine again.
+    TEST_METHOD (ADroppedPlayheadStaysWhereItWasDroppedUntilTheSeekLands)
+    {
+        constexpr float     kDropped   = 1.5f;      // halfway between 4000 and 8000 cycles
+        constexpr uint64_t  kDropCycle = 6000;
+        constexpr uint64_t  kLanded    = 6003;      // the first instruction at or after it
+        constexpr uint64_t  kRanOn     = 7000;
+        constexpr float     kTolerance = 0.001f;
+
+        FakeHistoryFrameRenderer  renderer;
+        InlineWorkQueue           queue;
+        HistoryThumbnails         thumbnails (renderer);
+        KeyframeStore             store;
+        std::vector<uint64_t>     scrubs;
+        uint64_t                  now     = 0;
+        uint64_t                  labeled = 0;
+        float                     offset  = 0.0f;
+        std::wstring              top;
+        std::wstring              bottom;
+        bool                      isOn    = false;
+        HRESULT                   hr      = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+
+        thumbnails.SetOnScrub ([&scrubs] (uint64_t cycle, bool isFinal) { (void) isFinal; scrubs.push_back (cycle); });
+        thumbnails.SetLabeler ([&labeled] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        {
+            (void) w;
+            labeled   = c;
+            outTop    = L"top";
+            outBottom = L"bottom";
+        });
+
+        hr = thumbnails.Service (store);
+        AssertSucceeded (hr, L"Service lays out 0, 4000 and 8000 cycles");
+
+        thumbnails.SetPlayhead     (3 * s_kThumbStride, true);
+        thumbnails.SetPlayheadTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+
+        //  An earlier drop at the same point, landed, and the machine ran on.
+        thumbnails.OnPlayheadDragged (kDropped, true);
+        thumbnails.SetPlayheadTime   (kLanded, 0, 9 * s_kThumbInterval);
+        thumbnails.NoteSeekLanded    (kDropCycle);
+        thumbnails.SetPlayheadTime   (kRanOn, 0, 9 * s_kThumbInterval);
+
+        isOn = thumbnails.TryGetPlayhead (offset, top, bottom);
+        Assert::IsTrue (isOn, L"the line shows replaying");
+        Assert::AreEqual (1.75f, offset, kTolerance, L"the line follows the machine once the earlier seek landed");
+
+        //  Dragged away and dropped at the same point again.
+        thumbnails.OnPlayheadDragged (0.5f,     false);
+        thumbnails.OnPlayheadDragged (kDropped, true);
+        Assert::AreEqual<uint64_t> (kDropCycle, scrubs.back(), L"the drop seeks to the point under it");
+
+        thumbnails.TryGetPlayhead (offset, top, bottom);
+        Assert::AreEqual (kDropped, offset, kTolerance, L"the dropped line stays where it was dropped, not where the machine stands");
+        Assert::AreEqual<uint64_t> (kDropCycle, labeled, L"labeled for the point it was dropped at");
+
+        //  The seek made while the line moved lands late.
+        thumbnails.SetPlayheadTime (2 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+        thumbnails.NoteSeekLanded  (2 * s_kThumbInterval);
+
+        thumbnails.TryGetPlayhead (offset, top, bottom);
+        Assert::AreEqual (kDropped, offset, kTolerance, L"a seek elsewhere landing late does not move the line");
+        Assert::AreEqual<uint64_t> (kDropCycle, labeled, L"nor its labels");
+
+        //  The drop's own seek lands.
+        thumbnails.SetPlayheadTime (kLanded, 0, 9 * s_kThumbInterval);
+        thumbnails.NoteSeekLanded  (kDropCycle);
+
+        thumbnails.TryGetPlayhead (offset, top, bottom);
+        Assert::AreEqual<uint64_t> (kLanded, labeled, L"once landed, the labels are where the machine stands");
+
+        thumbnails.SetPlayheadTime (kRanOn, 0, 9 * s_kThumbInterval);
+        thumbnails.TryGetPlayhead  (offset, top, bottom);
+        Assert::AreEqual (1.75f, offset, kTolerance, L"and the line follows the machine as it runs on");
+
+        //  A seek that never lands lets the line go after a while.
+        thumbnails.OnPlayheadDragged (kDropped, true);
+        now += (uint64_t) HistoryThumbnails::kSeekPatienceMs;
+
+        thumbnails.TryGetPlayhead (offset, top, bottom);
+        Assert::AreEqual (1.75f, offset, kTolerance, L"a seek that never lands stops holding the line");
     }
 
 
@@ -1181,6 +1275,83 @@ public:
     }
 
 
+    //  Resizing the window wider and narrower changes the cell count over a
+    //  history that begins at power-on. Every cell keeps a point of its own:
+    //  no grid point reaches back onto the oldest keyframe the first cell
+    //  shows, so the oldest picture never fills several cells. A cell shows
+    //  a stand-in only until its own picture is drawn, and from then on that
+    //  picture and its time.
+    TEST_METHOD (EveryCellShowsItsOwnPointThroughAResizeSequence)
+    {
+        constexpr size_t  kKeyframes = 40;
+        constexpr int     kRounds    = 64;
+
+        static constexpr int  kCounts[] = { 10, 13, 11, 16, 9, 14, 12, 17 };
+
+        FakeHistoryFrameRenderer           renderer;
+        InlineWorkQueue                    queue;
+        HistoryThumbnails                  thumbnails (renderer);
+        KeyframeStore                      store;
+        std::vector<HistoryThumbnailCell>  cells;
+        uint64_t                           now     = 0;
+        uint64_t                           labeled = 0;
+        HRESULT                            hr      = S_OK;
+        int                                round   = 0;
+        size_t                             i       = 0;
+        size_t                             checked = 0;
+
+
+
+        Fill (store, kKeyframes);
+
+        thumbnails.SetWorkQueue (&queue);
+        thumbnails.SetClock     ([&now] { return (double) now; });
+        thumbnails.SetVisible   (true);
+
+        thumbnails.SetLabeler ([&labeled] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        {
+            (void) w;
+            labeled   = c;
+            outTop    = L"top";
+            outBottom = L"bottom";
+        });
+
+        for (int count : kCounts)
+        {
+            thumbnails.SetCellLayout (count, s_kThumbCell);
+
+            for (round = 0; round < kRounds; round++)
+            {
+                hr = thumbnails.Service (store);
+                AssertSucceeded (hr, L"Service");
+
+                queue.TryRunNext();
+                now += s_kThumbTurnMs;
+
+                thumbnails.GetCells (cells);
+                Assert::AreEqual<size_t> ((size_t) count, cells.size(), L"a point for every cell");
+
+                for (i = 1; i < cells.size(); i++)
+                {
+                    Assert::IsTrue (cells[i].position > cells[i - 1].position, L"every cell has a point of its own, later than the one before");
+                }
+
+                for (i = 0; i < cells.size(); i++)
+                {
+                    checked += CheckOwnPicture (thumbnails, renderer, cells, i, labeled) ? 1 : 0;
+                }
+            }
+
+            for (i = 0; i < cells.size(); i++)
+            {
+                Assert::IsTrue (CheckOwnPicture (thumbnails, renderer, cells, i, labeled), L"once settled every cell shows its own picture");
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"cells were checked against their own pictures");
+    }
+
+
     //  New points after a resize are drawn faster than the bound that holds
     //  while history scrolls, so the strip settles quickly.
     //  With pictures that cost next to nothing, nothing holds the next back
@@ -1314,6 +1485,35 @@ private:
 
         ioStale += (cells[(size_t) index].cycle != shown) ? 1 : 0;
         ioChecked++;
+    }
+
+
+    //  Whether cell `index` shows its own point's picture, which it must once
+    //  that picture is drawn; and then its labels give its point's time.
+    static bool CheckOwnPicture (HistoryThumbnails & thumbnails, const FakeHistoryFrameRenderer & renderer, const std::vector<HistoryThumbnailCell> & cells, size_t index, const uint64_t & labeledCycle)
+    {
+        constexpr uint32_t  kTagMask = 0xFFu;
+
+        HistoryThumbnails::Image  image   = thumbnails.GetCellImage ((int) index);
+        Byte                      own     = GetTag (cells[index].position);
+        bool                      isDrawn = renderer.drawn.contains (own);
+        std::wstring              top;
+        std::wstring              bottom;
+
+
+
+        if (!isDrawn)
+        {
+            return false;
+        }
+
+        Assert::IsNotNull (image.get(), L"a cell whose picture is drawn shows a picture");
+        Assert::AreEqual<uint32_t> (own, image->bgraPremul[0] & kTagMask, L"a cell whose own picture is drawn shows it, not a stand-in");
+
+        thumbnails.TryGetCellLabels ((int) index, top, bottom);
+        Assert::AreEqual<uint64_t> (cells[index].cycle, labeledCycle, L"and its labels give its own point's time");
+
+        return true;
     }
 
 

@@ -204,9 +204,10 @@ void EmulatorShell::RunReverseCommand (
     ReverseCommand  command,
     uint64_t        argument)
 {
-    HRESULT        hr      = S_OK;
-    EmuCpu       * cpu     = m_machine.GetCpu();
-    AppleSpeaker * speaker = m_machine.GetRefs().speaker;
+    HRESULT        hr          = S_OK;
+    EmuCpu       * cpu         = m_machine.GetCpu();
+    AppleSpeaker * speaker     = m_machine.GetRefs().speaker;
+    bool           isPublished = false;
     ReverseResult  result;
     StopEvent      stop;
 
@@ -265,10 +266,17 @@ void EmulatorShell::RunReverseCommand (
     PublishFramebuffer();
 
 Error:
-    //  Landed or not, the seek is no longer on its way.
+    //  Landed or not, the seek is no longer on its way. The timeline hears
+    //  where the machine stands before it hears of the landing, so a line
+    //  held where it was dropped moves straight to where the seek landed.
     if (command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle)
     {
         m_seekCycleLanded.store (argument, memory_order_release);
+
+        isPublished = TryPublishHistoryPlayhead();
+        IGNORE_RETURN_VALUE (isPublished, false);
+
+        m_historyThumbnails.NoteSeekLanded (argument);
     }
 
     if (FAILED (hr))
@@ -994,7 +1002,36 @@ bool EmulatorShell::IsHistorySeekBusy() const
 
 void EmulatorShell::ServiceHistoryThumbnails()
 {
-    HRESULT                 hr        = S_OK;
+    HRESULT  hr = S_OK;
+
+
+
+    if (!TryPublishHistoryPlayhead())
+    {
+        return;
+    }
+
+    UpdateReplayCaption();
+
+    hr = m_historyThumbnails.Service (m_reverseHost->GetController().GetKeyframes());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPublishHistoryPlayhead
+//
+//  CPU thread: tells the timeline where the machine stands, whether that is
+//  behind live, and where history begins. False while no history is kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryPublishHistoryPlayhead()
+{
     EmuCpu                * cpu       = m_machine.GetCpu();
     uint64_t                cycle     = 0;
     bool                    isBehind  = false;
@@ -1004,7 +1041,7 @@ void EmulatorShell::ServiceHistoryThumbnails()
 
     if (m_reverseHost == nullptr || !m_reverseHost->IsRecording() || cpu == nullptr)
     {
-        return;
+        return false;
     }
 
     cycle     = cpu->GetTotalCycles();
@@ -1019,10 +1056,7 @@ void EmulatorShell::ServiceHistoryThumbnails()
         m_historyThumbnails.SetBegin (keyframes->GetInfo (0).cycle, keyframes->GetInfo (0).wallTime);
     }
 
-    UpdateReplayCaption();
-
-    hr = m_historyThumbnails.Service (m_reverseHost->GetController().GetKeyframes());
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    return true;
 }
 
 

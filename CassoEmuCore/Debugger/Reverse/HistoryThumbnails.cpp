@@ -587,7 +587,8 @@ void HistoryThumbnails::Clear()
 //  step apart and ending at the last multiple of the step before it, each
 //  the keyframe at or before it; a point older than history shows the
 //  oldest keyframe. Because the grid is fixed to absolute positions, a point
-//  keeps its keyframe until that keyframe is dropped.
+//  keeps its keyframe until that keyframe is dropped. A step whose grid
+//  reaches back past the second keyframe is chosen afresh.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -617,7 +618,17 @@ void HistoryThumbnails::PlanCells (
     oldest = keyframes.GetInfo (0).position;
     newest = keyframes.GetInfo (held - 1).position;
     ioStep = ChooseStep (newest - oldest, count, ioStep);
-    top    = (newest > 0) ? (newest - 1) / ioStep * ioStep : 0;
+    top    = GetGridTop (newest, ioStep);
+
+    //  A step kept from a narrower strip or a longer history can reach back
+    //  past the oldest keyframe, which would put the first grid points on
+    //  the oldest keyframe beside the first cell; the step is chosen afresh
+    //  instead, so every cell has a point of its own.
+    if (!DoesGridFit (keyframes, count, ioStep, top))
+    {
+        ioStep = ChooseStep (newest - oldest, count, 0);
+        top    = GetGridTop (newest, ioStep);
+    }
 
     outCells.resize ((size_t) count);
 
@@ -678,6 +689,67 @@ uint64_t HistoryThumbnails::ChooseStep (
     }
 
     return step;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetGridTop
+//
+//  The last multiple of the step before the live end, where the grid's
+//  newest point lies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t HistoryThumbnails::GetGridTop (
+    uint64_t  newest,
+    uint64_t  step)
+{
+    return (newest > 0) ? (newest - 1) / step * step : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::DoesGridFit
+//
+//  Whether the oldest grid point, the second cell's, lies at or past the
+//  second keyframe held, so it is not the oldest keyframe the first cell
+//  already shows. With fewer than three cells there are no grid points, and
+//  with one keyframe every cell shows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::DoesGridFit (
+    const KeyframeStore  & keyframes,
+    int                    count,
+    uint64_t               step,
+    uint64_t               top)
+{
+    constexpr int     kOffGrid  = 2;    // the first cell and the live end are not on the grid
+    constexpr size_t  kSecond   = 1;
+
+
+
+    size_t    held = keyframes.GetCount();
+    uint64_t  back = 0;
+
+
+
+    if (count <= kOffGrid || held <= kSecond)
+    {
+        return true;
+    }
+
+    back = (uint64_t) (count - kOffGrid - 1) * step;
+
+    return back <= top && top - back >= keyframes.GetInfo (kSecond).position;
 }
 
 
@@ -1314,10 +1386,34 @@ void HistoryThumbnails::SetBegin (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryThumbnails::NoteSeekLanded
+//
+//  Machine thread, after SetPlayheadTime has given where the seek landed, so
+//  the UI thread, seeing the landing, reads that cycle and not the one
+//  before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::NoteSeekLanded (uint64_t cycle)
+{
+    m_landedCycle.store (cycle, std::memory_order_release);
+    m_landings.fetch_add (1, std::memory_order_acq_rel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryThumbnails::TryGetPlayhead
 //
 //  Behind live, the line stands where the machine does among the points,
 //  labeled by the labeler. Live, there is none and the live end is marked.
+//  A line dragged and let go stands where it was dropped, labeled for that
+//  point, until the seek there lands, so it never springs back to where
+//  the machine stood before; the hold is checked first, so a landing seen
+//  comes with the cycle it landed on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1326,7 +1422,9 @@ bool HistoryThumbnails::TryGetPlayhead (
     std::wstring  & outTop,
     std::wstring  & outBottom)
 {
-    uint64_t  cycle = m_cycle.load (std::memory_order_acquire);
+    bool      isHeld = IsHoldingDrop();
+    uint64_t  cycle  = isHeld ? m_heldCycle : m_cycle.load (std::memory_order_acquire);
+    uint64_t  wall   = isHeld ? m_wallTimes.GetWallTimeAt (cycle) : m_wallTime.load (std::memory_order_acquire);
 
 
 
@@ -1351,7 +1449,7 @@ bool HistoryThumbnails::TryGetPlayhead (
 
     if (m_labeler)
     {
-        m_labeler (cycle, m_wallTime.load (std::memory_order_acquire), outTop, outBottom);
+        m_labeler (cycle, wall, outTop, outBottom);
     }
 
     return true;
@@ -1363,7 +1461,48 @@ bool HistoryThumbnails::TryGetPlayhead (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryThumbnails::IsHoldingDrop
+//
+//  UI thread: whether the playhead line still stands where it was dragged.
+//  The hold ends once a seek to that cycle has run since the line last
+//  moved; a seek elsewhere landing late, as one made while the line was
+//  still moving, does not end it. A seek that never runs, as one dropped
+//  with the machine it was for, ends it after kSeekPatienceMs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryThumbnails::IsHoldingDrop()
+{
+    uint64_t  landings  = 0;
+    bool      hasLanded = false;
+    bool      isOverdue = false;
+
+
+
+    if (!m_isHeld)
+    {
+        return false;
+    }
+
+    landings  = m_landings.load (std::memory_order_acquire);
+    hasLanded = landings != m_heldLandings && m_landedCycle.load (std::memory_order_acquire) == m_heldCycle;
+    isOverdue = GetNowMs() - m_heldAtMs >= kSeekPatienceMs;
+
+    m_isHeld = !hasLanded && !isOverdue;
+
+    return m_isHeld;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryThumbnails::OnPlayheadDragged
+//
+//  The line is held where it was dragged, from this move on, until a seek
+//  there lands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1380,6 +1519,11 @@ void HistoryThumbnails::OnPlayheadDragged (
 
         cycle = GetCycleAtOffset (m_cells, offset, m_endCycle.load (std::memory_order_acquire));
     }
+
+    m_isHeld       = true;
+    m_heldCycle    = cycle;
+    m_heldLandings = m_landings.load (std::memory_order_acquire);
+    m_heldAtMs     = GetNowMs();
 
     if (m_onScrub)
     {

@@ -86,7 +86,9 @@ struct HistoryThumbnailCell
 //  cycles, a straight line between one and the next, the leading end the
 //  oldest history and the trailing end where history ends. The labels under
 //  the pointer give that cycle and the host's clock there, and a click
-//  seeks to it, as a drag of the playhead line does.
+//  seeks to it, as a drag of the playhead line does. A line let go stays
+//  where it was dropped, labeled for that point, until the seek there has
+//  landed, so it never springs back to where the machine stood.
 //
 //  Where the machine stands, live or replaying history, is told to it by
 //  the machine thread every turn, so the strip can mark that cell.
@@ -106,6 +108,7 @@ public:
     static constexpr size_t  kMinThumbCount           = 64;
     static constexpr int     kBaseMaxWidth            = 192;
     static constexpr size_t  kPrefetchReach           = 2;
+    static constexpr double  kSeekPatienceMs          = 1000.0;
 
                        HistoryThumbnails  (IHistoryFrameRenderer & renderer);
                        ~HistoryThumbnails () override;
@@ -155,6 +158,10 @@ public:
     //  history ends in cycles, and where and when it begins.
     void               SetPlayheadTime (uint64_t cycle, uint64_t wallTime, uint64_t endCycle);
     void               SetBegin        (uint64_t cycle, uint64_t wallTime);
+
+    //  A seek to `cycle` the timeline asked for has run, and SetPlayheadTime
+    //  already gives where it landed.
+    void               NoteSeekLanded  (uint64_t cycle);
     HRESULT            Service      (KeyframeStore & keyframes);
     void               Clear        ();
     void               WaitForWork  ();
@@ -173,6 +180,8 @@ public:
 
     static void        PlanCells     (const KeyframeStore & keyframes, int count, uint64_t & ioStep, std::vector<HistoryThumbnailCell> & outCells);
     static uint64_t    ChooseStep    (uint64_t span, int count, uint64_t step);
+    static uint64_t    GetGridTop    (uint64_t newest, uint64_t step);
+    static bool        DoesGridFit   (const KeyframeStore & keyframes, int count, uint64_t step, uint64_t top);
     static bool        TryFindAtOrBefore (const KeyframeStore & keyframes, uint64_t position, size_t & outIndex);
 
     //  The cell that marks where the machine stands, and what the timeline
@@ -229,6 +238,7 @@ private:
     Image              ScaleBase     (uint64_t position);
     ShownPicture       ResolveShown  (size_t index);
     bool               TryGetPointAt (float offset, HistoryThumbnailCell & outPoint);
+    bool               IsHoldingDrop ();
     void               PrunePoints   ();
     void               ForgetPoint   (uint64_t position);
     double             GetNowMs      () const;
@@ -255,6 +265,15 @@ private:
     LabelFn                           m_labeler;
     HistoryWallTimes                  m_wallTimes;           // the host's clock at any cycle, for the labels under the pointer
     ScrubFn                           m_onScrub;
+    std::atomic<uint64_t>             m_landedCycle  = 0;     // the cycle the last seek that ran asked for
+    std::atomic<uint64_t>             m_landings     = 0;     // how many seeks have run
+
+    //  UI thread's own: where the playhead line was dragged, drawn there
+    //  until the seek there lands.
+    bool                              m_isHeld       = false;
+    uint64_t                          m_heldCycle    = 0;
+    uint64_t                          m_heldLandings = 0;
+    double                            m_heldAtMs     = 0.0;
 
     //  Shared between the threads, under the lock.
     mutable std::mutex                m_lock;

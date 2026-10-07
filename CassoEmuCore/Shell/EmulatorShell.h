@@ -2355,6 +2355,7 @@ private:
     ScratchHeatReplayer           m_heatFinder;
 
     void            ServiceHistoryThumbnails();
+    bool            TryPublishHistoryPlayhead();
     void            SyncHeatHistory         (bool isAttached);
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
