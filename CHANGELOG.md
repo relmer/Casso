@@ -8,14 +8,38 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-10-06: The one with cassette tape support
+
 ### Added
 
 - `disk create` appends the default file extension for `--type` if one is not
   specified
+- GH #160: Cassette tape support for the Apple ][, ][+ and //e. Programs load
+  through the machine's own ROM with `LOAD` and save with `SAVE`, from WAV,
+  AIFF, MP3 and FLAC recordings. Tested against the 25 most-downloaded Apple II
+  cassette titles on the Internet Archive.
+- GH #160: A Panasonic RQ-309DS cassette recorder on the desk, with working
+  Record, Rewind, Fast-forward, Play, Stop and Eject keys, a volume wheel, a
+  counter, and the tape's title handwritten on the cassette label. A tape deck
+  also appears in the flat themes and on the fullscreen drive strip.
+- GH #160: Fast tape loading, on by default: loading from tape runs at full
+  speed, with short slices of the tape's audio played at normal pitch.
+- GH #160: Recording onto a blank tape, created from the insert-tape dialog,
+  as a 16-bit or 8-bit WAV (Settings > Storage).
+- GH #160: The `--tape` command-line option inserts a recording at startup.
+- GH #160: Attach and detach the second drive and the cassette recorder from
+  the Storage menu, or by right-clicking a drive or the recorder. The choice is
+  saved per machine.
+- A "Hold Ctrl to pan" hint appears under the scene compass on hover. With
+  Ctrl held, the compass arrows pan the scene, and Ctrl+click on its center is
+  the same as Ctrl+0.
 
 ### Changed
 
 - The usage text lists `--title`, which adds a label to the window title.
+- GH #160: The Disk menu is now the Storage menu.
+- GH #160: The second drive (the external drive on the //c) is attached from
+  the Storage menu instead of Settings > Hardware.
 
 ### Fixed
 
