@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Settings/GeneralPage.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -51,7 +54,7 @@ public:
     }
 
 
-    TEST_METHOD (Layout_ContentEndsAtTheFolderButtonInsideThePad)
+    TEST_METHOD (Layout_ContentEndsAtTheFolderLinkInsideThePad)
     {
         constexpr int  kPadDip = 16;
 
@@ -64,7 +67,7 @@ public:
         scaler.SetDpi (96);
         page.Layout   (rect, scaler);
         row    = page.GetAutoUpdateCheckbox().GetBounds();
-        folder = page.GetOpenFolderButton().GetBounds();
+        folder = page.GetFolderLink().GetBounds();
 
         Assert::AreEqual ((LONG) (rect.left + kPadDip), row.left);
         Assert::IsTrue   (row.top > rect.top + kPadDip, L"the Updates heading sits above the checkbox");
@@ -105,9 +108,9 @@ public:
     {
         GeneralPage  page;
 
-        Assert::AreEqual (L"Offer to download disk drive sounds", page.GetAudioOfferCheckbox().GetLabel().c_str());
-        Assert::AreEqual (L"Offer updated ROMs",                  page.GetRomOfferCheckbox().GetLabel().c_str());
-        Assert::AreEqual (L"Never checked.",                      page.GetLastCheckedLabel().GetText().c_str());
+        Assert::AreEqual (L"Disk drive sounds", page.GetAudioOfferCheckbox().GetLabel().c_str());
+        Assert::AreEqual (L"Updated ROMs",      page.GetRomOfferCheckbox().GetLabel().c_str());
+        Assert::AreEqual (L"Never checked.",    page.GetLastCheckedLabel().GetText().c_str());
     }
 
 
@@ -125,11 +128,53 @@ public:
 
         page.GetCheckNowButton().Click();
         page.GetStopSkippingButton().Click();
-        page.GetOpenFolderButton().Click();
+        page.GetFolderLink().Click();
 
         Assert::AreEqual (1, checks);
         Assert::AreEqual (1, unskips);
         Assert::AreEqual (1, folders);
+    }
+
+    TEST_METHOD (FolderLink_ShowsThePathGiven)
+    {
+        GeneralPage  page;
+
+        page.SetFolderPath (L"C:\\Users\\someone\\AppData\\Local\\Casso");
+
+        Assert::AreEqual (L"C:\\Users\\someone\\AppData\\Local\\Casso", page.GetFolderLink().GetAccessibleName().c_str());
+    }
+
+
+    TEST_METHOD (FolderLink_PaintSizesItToTheMeasuredPath)
+    {
+        constexpr LONG  kPathWidthDip = 200;
+        constexpr LONG  kWideDip      = 5000;
+        constexpr LONG  kHeightDip    = 16;
+
+        GeneralPage           page;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        RECT                  rect   = { 0, 0, 720, 600 };
+        RECT                  folder = {};
+
+        scaler.SetDpi         (96);
+        page.SetFolderPath    (L"short");
+        page.Layout           (rect, scaler);
+        text.SetCannedMetrics (L"short", SIZE { kPathWidthDip, kHeightDip });
+        page.Paint            (painter, text, theme);
+        folder = page.GetFolderLink().GetBounds();
+
+        Assert::AreEqual (kPathWidthDip, folder.right - folder.left, L"the link is as wide as its text");
+
+        page.SetFolderPath    (L"long");
+        text.SetCannedMetrics (L"long", SIZE { kWideDip, kHeightDip });
+        page.Layout           (rect, scaler);
+        page.Paint            (painter, text, theme);
+        folder = page.GetFolderLink().GetBounds();
+
+        Assert::IsTrue (folder.right <= rect.right, L"a path wider than the page stays inside it");
     }
 
 

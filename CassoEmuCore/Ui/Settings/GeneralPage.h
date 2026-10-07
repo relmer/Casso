@@ -17,10 +17,12 @@
 //        * When the last check ran           (DxuiLabel) + Check now
 //        * The skipped release, when set     (DxuiLabel) + Cancel skip
 //      Downloads
-//        * Offer to download disk drive sounds  (DxuiCheckbox)
-//        * Offer updated ROMs                   (DxuiCheckbox)
+//        * Disk drive sounds                 (DxuiCheckbox)
+//        * Updated ROMs                      (DxuiCheckbox)
 //      Settings folder
-//        * Open settings folder              (DxuiButton)
+//        * The folder's path, as a link      (DxuiButton, Link variant)
+//          sized to its measured text and elided in the middle when it
+//          is wider than the page
 //
 //  Every control acts through its callback at once, so Cancel has nothing to
 //  revert and the page never marks itself dirty.
@@ -50,7 +52,11 @@ public:
     void  SetLastCheckedText     (const std::wstring & text);
     void  SetSkippedText         (const std::wstring & text);
 
+    // The settings folder's path, shown as the link's text.
+    void  SetFolderPath          (const std::wstring & path);
+
     void  Layout                 (const RECT & rect, const DxuiDpiScaler & scaler) override;
+    void  Paint                  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     // Test / wiring accessors.
     DxuiCheckbox       & GetAutoUpdateCheckbox ()       { return m_autoUpdateCheckbox; }
@@ -61,7 +67,7 @@ public:
     DxuiLabel          & GetSkippedLabel       ()       { return m_skippedLabel;       }
     DxuiButton         & GetCheckNowButton     ()       { return m_checkNowButton;     }
     DxuiButton         & GetStopSkippingButton ()       { return m_stopSkipButton;     }
-    DxuiButton         & GetOpenFolderButton   ()       { return m_openFolderButton;   }
+    DxuiButton         & GetFolderLink         ()       { return m_folderLink;         }
 
 private:
     static constexpr int  kRowHeightDp    = 28;
@@ -71,8 +77,10 @@ private:
     static constexpr int  kTextIndentDp   = 22;
     static constexpr int  kStatusWidthDp  = 250;
     static constexpr int  kButtonWidthDp  = 130;
-    static constexpr int  kFolderWidthDp  = 170;
     static constexpr int  kPagePadDp      = 16;
+
+    // The face size DxuiButton draws its label in, for measuring the link.
+    static constexpr float  kLinkFontDp   = 13.0f;
 
     static RECT  MakeRect   (int l, int t, int w, int h);
     static void  WireToggle (DxuiCheckbox & checkbox, const ToggleFn & fn);
@@ -96,11 +104,15 @@ private:
     DxuiCheckbox  m_romOfferCheckbox;
 
     DxuiLabel     m_folderHeading;
-    DxuiButton    m_openFolderButton;
+    DxuiButton    m_folderLink;
 
     // The last layout, so showing or hiding the skipped row can lay the page
     // out again at once.
     bool           m_hasLayout  = false;
     RECT           m_lastRect   = {};
     DxuiDpiScaler  m_lastScaler;
+
+    // The widest the folder link may grow, from the last layout; Paint narrows
+    // it to the path's measured width.
+    int            m_folderMaxWidthPx = 0;
 };

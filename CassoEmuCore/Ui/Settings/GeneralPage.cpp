@@ -72,7 +72,7 @@ GeneralPage::GeneralPage (std::wstring title)
     Adopt (m_audioOfferCheckbox);
     Adopt (m_romOfferCheckbox);
     Adopt (m_folderHeading);
-    Adopt (m_openFolderButton);
+    Adopt (m_folderLink);
 
     // Each group gets a heading of its own over its rows, as on the Storage page.
     for (DxuiLabel * heading : { &m_updatesHeading, &m_downloadsHeading, &m_folderHeading })
@@ -86,8 +86,8 @@ GeneralPage::GeneralPage (std::wstring title)
     m_folderHeading.SetText    (L"Settings folder");
 
     m_autoUpdateCheckbox.SetLabel (L"Check for updates automatically");
-    m_audioOfferCheckbox.SetLabel (L"Offer to download disk drive sounds");
-    m_romOfferCheckbox.SetLabel   (L"Offer updated ROMs");
+    m_audioOfferCheckbox.SetLabel (L"Disk drive sounds");
+    m_romOfferCheckbox.SetLabel   (L"Updated ROMs");
 
     WireToggle (m_autoUpdateCheckbox, m_onAutoUpdateToggled);
     WireToggle (m_audioOfferCheckbox, m_onAudioOfferToggled);
@@ -99,13 +99,17 @@ GeneralPage::GeneralPage (std::wstring title)
     m_skippedLabel.SetVisible      (false);
     m_stopSkipButton.SetVisible    (false);
 
-    m_checkNowButton.SetLabel   (L"Check now");
-    m_stopSkipButton.SetLabel   (L"Cancel skip");
-    m_openFolderButton.SetLabel (L"Open settings folder");
+    m_checkNowButton.SetLabel (L"Check now");
+    m_stopSkipButton.SetLabel (L"Cancel skip");
 
-    m_checkNowButton.SetOnClick   ([this] { if (m_onCheckNow)     { m_onCheckNow();     } });
-    m_stopSkipButton.SetOnClick   ([this] { if (m_onStopSkipping) { m_onStopSkipping(); } });
-    m_openFolderButton.SetOnClick ([this] { if (m_onOpenFolder)   { m_onOpenFolder();   } });
+    // The path is long and its two ends identify it: the drive and user at
+    // the front, the Casso folder at the back.
+    m_folderLink.SetVariant (DxuiButton::Variant::Link);
+    m_folderLink.SetElide   (DxuiElide::Middle);
+
+    m_checkNowButton.SetOnClick ([this] { if (m_onCheckNow)     { m_onCheckNow();     } });
+    m_stopSkipButton.SetOnClick ([this] { if (m_onStopSkipping) { m_onStopSkipping(); } });
+    m_folderLink.SetOnClick     ([this] { if (m_onOpenFolder)   { m_onOpenFolder();   } });
 }
 
 
@@ -121,6 +125,21 @@ GeneralPage::GeneralPage (std::wstring title)
 void GeneralPage::SetLastCheckedText (const std::wstring & text)
 {
     m_lastCheckedLabel.SetText (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GeneralPage::SetFolderPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GeneralPage::SetFolderPath (const std::wstring & path)
+{
+    m_folderLink.SetLabel (path);
 }
 
 
@@ -218,7 +237,10 @@ void GeneralPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_folderHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
     y += rowStep;
 
-    m_openFolderButton.Layout (MakeRect (x, y, scaler.ToPx (kFolderWidthDp), rowHeight));
+    // Paint narrows the link to the path's measured width; until then it may
+    // take the page's inner width.
+    m_folderMaxWidthPx = innerW;
+    m_folderLink.Layout (MakeRect (x, y, innerW, rowHeight));
 
     m_updatesHeading.SetDpi     (dpi);
     m_autoUpdateCheckbox.SetDpi (dpi);
@@ -230,7 +252,7 @@ void GeneralPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_audioOfferCheckbox.SetDpi (dpi);
     m_romOfferCheckbox.SetDpi   (dpi);
     m_folderHeading.SetDpi      (dpi);
-    m_openFolderButton.SetDpi   (dpi);
+    m_folderLink.SetDpi         (dpi);
 
     DxuiPanel::SetBounds (rect);
 
@@ -241,4 +263,47 @@ void GeneralPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // Every control is a fixed height, so the lowest visible one is where the
     // content ends.
     SetContentHeightPx (GetLowestChildBottomPx() + pad - rect.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GeneralPage::Paint
+//
+//  Narrows the folder link to its path's width, measured in the face and
+//  size the link draws in, so only the text itself is the hit target. A path
+//  wider than the page keeps the page's inner width, and the link elides it
+//  in the middle. Painting is the first point where a text renderer is at
+//  hand to measure with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GeneralPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    HRESULT       hr       = S_OK;
+    std::wstring  label    = m_folderLink.GetAccessibleName();
+    RECT          bounds   = m_folderLink.GetBounds();
+    float         fontPx   = m_lastScaler.ToPxf (kLinkFontDp);
+    float         widthPx  = 0.0f;
+    float         heightPx = 0.0f;
+    int           linkW    = 0;
+
+
+
+    if (m_hasLayout)
+    {
+        hr = text.MeasureString (label.c_str(), fontPx, DxuiTheme::kBodyFace, widthPx, heightPx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        // A failed or empty measurement keeps the full width rather than
+        // shrinking the link to nothing clickable.
+        linkW        = widthPx > 0.0f ? std::min ((int) std::ceil (widthPx), m_folderMaxWidthPx) : m_folderMaxWidthPx;
+        bounds.right = bounds.left + linkW;
+        m_folderLink.Layout (bounds);
+    }
+
+    DxuiPanel::Paint (painter, text, theme);
 }

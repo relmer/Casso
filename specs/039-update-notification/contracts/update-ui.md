@@ -119,15 +119,17 @@
 - Only when `skippedVersion` is set: "Skipped version: 1.31.91" with "Stop
   skipping", which clears it, saves, and decides the indicator again from
   `latestKnownVersion` as at startup.
-- Under an "Offer downloads at startup" heading: "Offer to download disk drive sounds"
-  (`audioDownloadConsent`) and "Offer updated ROMs" (`romRefreshConsent`, the
+- Under an "Offer downloads at startup" heading: "Disk drive sounds"
+  (`audioDownloadConsent`) and "Updated ROMs" (`romRefreshConsent`, the
   offer to replace a ROM file Casso installed and has since updated; a
   missing ROM is still downloaded as before). Checked is anything but "decline";
   unchecking stores "decline", checking stores "ask"
   (`GeneralPageModel::IsOfferChecked` / `MakeConsentFromChecked`). Both save
   when clicked.
-- Under a "Settings folder" heading: "Open settings folder" opens
-  `%LOCALAPPDATA%\Casso` in Explorer.
+- Under a "Settings folder" heading: a link whose text is the folder's
+  absolute path (`%LOCALAPPDATA%\Casso`, from `EmulatorShell::GetSettingsFolder`)
+  opens it in Explorer. The link is as wide as its measured text; a path wider
+  than the page is elided in the middle.
 - Settings tabs are sized to their labels, so the eight tabs fit the sheet's
   720 DIP design width.
 

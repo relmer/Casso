@@ -245,6 +245,10 @@ public:
     void SetAudioDownloadConsent (const std::string & consent);
     void SetRomRefreshConsent    (const std::string & consent);
     void OpenSettingsFolder      ();
+
+    // %LOCALAPPDATA%\Casso, where the preferences files live.
+    static std::wstring GetSettingsFolder();
+
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void    DumpTrace        (const wstring & reason);
     HRESULT WriteTrace       (const wstring & reason, std::wstring & path);

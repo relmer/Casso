@@ -197,22 +197,39 @@ void EmulatorShell::SetRomRefreshConsent (const std::string & consent)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::GetSettingsFolder
+//
+//  %LOCALAPPDATA%\Casso, where the preferences files live. Empty when the
+//  folder cannot be resolved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::GetSettingsFolder()
+{
+    return PathResolver::GetLocalAppDataDir (L"Casso").wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::OpenSettingsFolder
 //
-//  Opens %LOCALAPPDATA%\Casso, where the preferences files live, in
-//  Explorer.
+//  Opens the settings folder in Explorer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OpenSettingsFolder()
 {
-    fs::path  folder = PathResolver::GetLocalAppDataDir (L"Casso");
+    std::wstring  folder = GetSettingsFolder();
 
 
 
     if (!folder.empty())
     {
-        OpenUrl (folder.wstring());
+        OpenUrl (folder);
     }
 }
 

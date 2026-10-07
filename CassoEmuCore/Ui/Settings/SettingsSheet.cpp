@@ -342,6 +342,7 @@ HRESULT SettingsSheet::OpenModeless (
     {
         m_emuShell->StopSkippingVersion();
     });
+    m_generalPage->SetFolderPath   (EmulatorShell::GetSettingsFolder());
     m_generalPage->SetOnOpenFolder ([this] ()
     {
         m_emuShell->OpenSettingsFolder();
