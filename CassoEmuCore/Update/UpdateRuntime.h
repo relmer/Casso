@@ -37,6 +37,7 @@ public:
     UpdateRuntime & operator= (const UpdateRuntime &) = delete;
 
     UpdateService & GetService() { return *m_service; }
+    bool            IsUsingLocalFeed() const { return m_localFeed != nullptr; }
 
     static std::int64_t  GetUtcNow();
     static ReleaseArch   GetRunningArch();

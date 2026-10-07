@@ -179,18 +179,27 @@ void EmulatorShell::StartAutomaticUpdateCheck()
     isDue = UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic,
                                         m_globalPrefs.autoUpdateCheck,
                                         m_globalPrefs.lastUpdateCheckUtc,
-                                        UpdateRuntime::GetUtcNow());
+                                        UpdateRuntime::GetUtcNow(),
+                                        m_updateRuntime->IsUsingLocalFeed());
 
     if (isDue)
     {
         hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_globalPrefs.skippedVersion);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        OutputDebugStringW (std::format (L"Casso: update check started (automatic, hr=0x{:08X})\n", (unsigned) hr).c_str());
     }
     else
     {
         isShown = m_globalPrefs.autoUpdateCheck &&
                   UpdateSchedule::ShouldShowIndicator (running, m_globalPrefs.latestKnownVersion, m_globalPrefs.skippedVersion);
         ShowUpdateIndicator (isShown);
+
+        OutputDebugStringW (std::format (L"Casso: update check not due (auto={}, last={}); latest known '{}', skipped '{}': indicator {}\n",
+                                         m_globalPrefs.autoUpdateCheck, m_globalPrefs.lastUpdateCheckUtc,
+                                         TextEncoding::Utf8ToWide (m_globalPrefs.latestKnownVersion),
+                                         TextEncoding::Utf8ToWide (m_globalPrefs.skippedVersion),
+                                         isShown ? L"shown" : L"hidden").c_str());
     }
 
 Error:
@@ -320,6 +329,11 @@ void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
 
 
     m_isManualCheckPending = false;
+
+    OutputDebugStringW (std::format (L"Casso: update check result ({}): failure {}, release '{}', newer {}, offered {}\n",
+                                     isManual ? L"manual" : L"automatic", (int) result.failure,
+                                     TextEncoding::Utf8ToWide (result.release.version.ToString()),
+                                     result.isNewer, isOffered).c_str());
 
     if (result.failure != UpdateFailure::None)
     {

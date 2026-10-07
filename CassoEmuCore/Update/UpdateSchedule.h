@@ -46,7 +46,8 @@ public:
     static bool  IsCheckDue          (UpdateCheckTrigger  trigger,
                                       bool                autoUpdateCheck,
                                       std::int64_t        lastCheckUtc,
-                                      std::int64_t        nowUtc);
+                                      std::int64_t        nowUtc,
+                                      bool                isLocalFeed = false);
 
     static bool  ShouldShowIndicator (const ReleaseVersion & running,
                                       std::string_view       latestKnownVersion,

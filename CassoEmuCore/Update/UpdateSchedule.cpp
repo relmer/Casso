@@ -13,7 +13,9 @@
 //  A manual check always runs. The automatic one runs only when it is turned
 //  on and either it has never run, a full interval has passed, or the clock
 //  now reads earlier than the last check (a backward clock change would
-//  otherwise suppress checks until it caught up).
+//  otherwise suppress checks until it caught up). With a local update feed
+//  it runs at every start: the last check's record came from another feed
+//  (GitHub, or an earlier test), so it says nothing about this one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +23,8 @@ bool UpdateSchedule::IsCheckDue (
     UpdateCheckTrigger  trigger,
     bool                autoUpdateCheck,
     std::int64_t        lastCheckUtc,
-    std::int64_t        nowUtc)
+    std::int64_t        nowUtc,
+    bool                isLocalFeed)
 {
     bool  isDue = false;
 
@@ -33,7 +36,8 @@ bool UpdateSchedule::IsCheckDue (
     }
     else if (autoUpdateCheck)
     {
-        isDue = lastCheckUtc == 0                               ||
+        isDue = isLocalFeed                                     ||
+                lastCheckUtc == 0                               ||
                 nowUtc < lastCheckUtc                           ||
                 nowUtc - lastCheckUtc >= kCheckIntervalSeconds;
     }

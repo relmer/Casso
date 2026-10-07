@@ -48,6 +48,18 @@ public:
 
 
 
+    //  A local update feed is a test of this build against that feed, so a
+    //  check recorded against GitHub (or another feed) an hour ago does not
+    //  stand in for it; turned off, it still does not run.
+    TEST_METHOD (Automatic_DueAtEveryStartWithALocalFeed)
+    {
+        Assert::IsFalse (UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic, true, 1000, 1000 + 3600));
+        Assert::IsTrue  (UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic, true, 1000, 1000 + 3600, true));
+        Assert::IsFalse (UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic, false, 0, 1000, true));
+    }
+
+
+
     TEST_METHOD (Automatic_NeverDueWhenTurnedOff)
     {
         Assert::IsFalse (UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic, false, 0,            kNow));

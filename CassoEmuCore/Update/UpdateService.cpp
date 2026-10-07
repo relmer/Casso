@@ -616,6 +616,11 @@ void UpdateService::RunCheck (UpdateCheckTrigger trigger, ReleaseVersion running
         hasLock = m_deps.host->TryAcquireCheckLock();
     }
 
+    if (!hasLock)
+    {
+        OutputDebugStringW (L"Casso: automatic update check skipped: another Casso holds the check lock\n");
+    }
+
     BAIL_OUT_IF (!hasLock, S_OK);
 
     request.host            = kpszApiHost;
