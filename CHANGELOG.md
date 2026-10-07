@@ -8,6 +8,32 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-10-07: The one where Casso updates itself
+
+### Added
+
+- Casso checks for a new release at startup, at most once a day, and shows a
+  title-bar indicator when one is available. Help > Check for updates checks
+  right away.
+- The update dialog shows the new release's highlights and its changelog
+  entries for every version since the one running, newest first, with the
+  release's screenshots.
+- Update now downloads the new version, checks it, installs it and restarts
+  Casso. Update when closed installs it the next time Casso closes. Copies
+  installed from the MSIX package and copies unzipped from the release zip both
+  update in place; a copy built from source does not.
+- Skip this version hides the indicator until a newer release comes out.
+- A General settings page for app-wide options: automatic update checks, with
+  the time of the last check, a Check now button and a way to cancel a skipped
+  version; the download offers at startup (disk drive sounds and updated ROMs),
+  which could not be changed after the first answer; and a link to the settings
+  folder.
+
+### Changed
+
+- A release build fails rather than publishing unsigned files.
+- Settings tabs are sized to their labels.
+
 ## [1.31.0] - 2026-10-06: The one with cassette tape support
 
 ### Added
