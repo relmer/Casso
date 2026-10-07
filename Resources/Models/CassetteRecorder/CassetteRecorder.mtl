@@ -233,6 +233,21 @@ Ka 0 0 0
 Kd 0.2 0.2 0.205
 d 1
 
+newmtl side_jack_rings
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl side_jack_holes
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl side_print
+Ka 0 0 0 
+Kd 0.94 0.94 0.94
+d 1
+
 newmtl grille_perf
 Ka 0 0 0 
 Kd 0.2 0.2 0.205

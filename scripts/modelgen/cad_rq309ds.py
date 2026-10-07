@@ -79,7 +79,7 @@ SCREW   = (0.260, 0.255, 0.250)     # blackened steel
 
 
 LETTERED = {"brand", "legend", "mic_legend", "door_relief", "door_print", "wheel_legend",
-            "bottom_warning", "bottom_label_ink"}
+            "bottom_warning", "bottom_label_ink", "side_print"}
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -261,7 +261,7 @@ def build():
     m.add("grille", box(x0, x1, dy1 + 2.0, gy1, top - 0.5, top + 0.6), GRILLE)
     m.add_triangles("grille_perf", perforation(x0 + 1, x1 - 1, dy1 + 3.0, gy1 - 1, top + 0.62), PERF)
 
-    # THE DOOR IS ONE PIECE OF SMOKED PLASTIC, frameless, flush with the top
+    # The door is one piece of smoked plastic, frameless, flush with the top
     # face; the scene draws it see-through. Two struts of the same plastic,
     # 3 mm in from its sides, hang from its underside down into the well and
     # curve back under the grille to the hinge, just behind the door's back
@@ -281,7 +281,7 @@ def build():
 
     for sx in (x0 + 3.0, x1 - 3.0 - DOOR_T):
         pane = pane.union(strut(sx, HINGE_Y, top - DOOR_T, STRUT_RO, STRUT_RI, DOOR_T))
-    # THE PLAY ARROW, embossed in the pane over the cassette window: an
+    # The Play arrow, embossed in the pane over the cassette window: an
     # outline pointing right, its shaft open along the bottom into the tip,
     # and only the upper half of the head drawn.
     ax0, ax1 = W / 2 - 13.0, W / 2 + 10.0         # tail and tip
@@ -304,7 +304,7 @@ def build():
     m.add("door_relief", arrow.union(molded), RELIEF)
     m.add("door_print", painted, PRINT)
 
-    # THE CASSETTE, a compact cassette lying label up with its tape edge
+    # The cassette, a compact cassette lying label up with its tape edge
     # toward the keys, as it sits in the deck: dark shell, a paper label with
     # a stripe and writing lines, two hub holes and a window cut through it,
     # white toothed hubs in the holes, brown tape wound on the spools in the
@@ -386,7 +386,7 @@ def build():
             hub = hub.union(tooth)
         m.add(f"cassette_hub_{i}", hub, HUB)
 
-    # THE SPINDLES the hubs sit on, standing up from the well floor: a collar,
+    # The spindles the hubs sit on, standing up from the well floor: a collar,
     # a shaft, and six splines that fall between the hub's six teeth. They
     # show with the deck empty, and through the hub holes with a tape in;
     # the scene turns each about its own axis while the tape moves.
@@ -408,7 +408,7 @@ def build():
               cq.Workplane("XY").workplane(offset=cz - 0.8).center(hx, hub_y).circle(0.7).extrude(0.2), SILVER)
 
     # A brushed metal plate on the well floor between the spindles, under the
-    # cassette's window: lined up with it and a little larger all round.
+    # cassette's window: lined up with it and a little larger all around.
     # Matte, not chrome: down in the well there is nothing for it to mirror.
     m.add("window_plate",
           box(ccx - 13.5, ccx + 13.5, hub_y - 7.0, hub_y + 7.0, floor_z, floor_z + 0.4).edges("|Z").fillet(3.0),
@@ -468,11 +468,11 @@ def build():
     kx0, kx1 = x0 + 1.0, x1 - 1.0
     pitch = (kx1 - kx0) / 6.0
     legends = ["RECORD", "REW", "FF", "PLAY", "STOP", "EJECT"]
-    # The legends, as printed: RECORD in reverse -- a black block with the
+    # The legends, as printed: Record in reverse -- a black block with the
     # letters cut through to the silver -- and the transport keys each led by
-    # its glyph. A thin bracket ties RECORD to PLAY, the two pressed together
-    # to record; short risers at each end keep its long run clear of REW and
-    # FF between them.
+    # its glyph. A thin bracket ties Record to Play, the two pressed together
+    # to record; short risers at each end keep its long run clear of Rewind
+    # and Fast-forward between them.
     ly, lz = sy0 + 7, top + 0.6
     LH = 3.0
     glyph_w = LH * 0.8
@@ -520,13 +520,13 @@ def build():
                .union(box(rx - LINE_T / 2, px + LINE_T / 2, rise_y, rise_y + LINE_T, lz, lz + 0.3)))
     m.add("legend", legend.union(bracket), BAND)
 
-    # Keys: 5 mm black plates with FLAT tops, flush with the top plates and
+    # Keys: 5 mm black plates with flat tops, flush with the top plates and
     # parallel to the grille. They do not reach down into the slope: each is
     # hinged at the back, just under the edge of the legend plate, and
     # cantilevers forward over the slope.
     #
     # The recess is a stadium -- a rounded rectangle closed by a semicircle at
-    # each end -- cut STRAIGHT DOWN into the key, flat at the bottom. Both of
+    # each end -- cut straight down into the key, flat at the bottom. Both of
     # its edges are rounded over a little: where the wall meets the key face,
     # and where it meets the floor.
     kw = pitch - 2.0
@@ -559,11 +559,11 @@ def build():
                     ktop - KEY_T - STEM_DROP, ktop - KEY_T + 0.5)
                 .edges().fillet(0.8))
         m.add(f"keys_{i}", key.union(hinge).union(stem), KEY, angular=0.25)
-    # THE CARRY HANDLE, polished chrome: a bar across the front, standing
+    # The handle, polished chrome: a bar across the front, standing
     # proud of the front face by its own depth, on two arms that run back
     # along the sides into the case.
     #
-    # ONE SOLID, made from one side profile pushed across the whole width --
+    # One solid, made from one side profile pushed across the whole width --
     # the stretch between the arms runs inside the case and never shows. Built
     # from separate bar and arm pieces it showed a seam where they met.
     #
@@ -579,7 +579,7 @@ def build():
     NOSE_Y, NOSE_RUN     = dy0, 9.0
 
     # Each end is half an ellipse, which meets the straight top and bottom
-    # with no kink. EXACT CURVES, NOT SPLINES: a mirror shows every ripple
+    # with no kink. Exact curves, not splines: a mirror shows every ripple
     # in its surface, and the splines this was first drawn with, and the
     # fillets laid over them, came out wavy enough to read as a texture.
     half  = (HANDLE_Z1 - HANDLE_Z0) / 2
@@ -601,8 +601,8 @@ def build():
     # default tolerance the curved ends came out lumpy.
     m.add("chrome_handle", handle, CHROME, tolerance=0.02, angular=0.08)
 
-    # THE SHELL'S SEAM: a 2 mm channel where its top and bottom halves meet,
-    # level with the arms' tips, from one tip round the back to the other.
+    # The shell's seam: a 2 mm channel where its top and bottom halves meet,
+    # level with the arms' tips, from one tip around the back to the other.
     # The groove's inner wall is rounded at the back corners to follow the
     # case's own rounding, or the groove runs out where the corners curve away.
     seam_y = NOSE_Y + NOSE_RUN
@@ -611,7 +611,7 @@ def build():
     m.parts[0].solid = (m.parts[0].solid
                         .cut(box(-1.0, W + 1.0, seam_y, D + 1.0, zc - 1.0, zc + 1.0).cut(inner)))
 
-    # THE TONE AND VOLUME THUMBWHEELS, in a cutout taken out of the sloping
+    # The tone and volume thumbwheels, in a cutout taken out of the sloping
     # chin under the handle: 5 mm in from the sides and from the handle, back
     # to an upright wall straight above where the chin meets the bottom. Each
     # is a knurled disc lying flat behind its window in that wall, so a thumb
@@ -660,8 +660,8 @@ def build():
     m.add("wheel_wells", on_face(liners), (0.02, 0.02, 0.02))
 
     # Each wheel's rim stands a few millimeters proud of its window. The
-    # volume wheel is its own part, so the scene can turn it and the pointer
-    # can take hold of it; the tone wheel is part of the case.
+    # volume wheel is its own part, so the scene can turn it and the user can
+    # drag it with the pointer; the tone wheel is part of the case.
     WHEEL_PROUD = 2.5
     for wx, part in zip(wheel_x, ("wheels", "volume_wheel")):
         pts = []
@@ -698,6 +698,8 @@ def build():
         marks = mark if marks is None else marks.union(mark)
     m.add("wheel_legend", on_face(marks), SILVER)
     bottom(m)
+    left_side(m)
+    rear_feet(m)
 
     # Lettering is meshed finely: at the model's default tolerance a letter
     # a few millimeters tall comes out with its curves visibly faceted.
@@ -810,7 +812,7 @@ def _small_caps(s, size, z, bold, depth, small=0.75):
         piece = (cq.Workplane("XY").workplane(offset=z)
                  .text(run.upper(), rsize, depth, halign="left", valign="bottom",
                        kind="bold" if bold else "regular", font="Arial"))
-        # Spaces carry no outline, so a run's advance is measured from its
+        # Spaces have no outline, so a run's advance is measured from its
         # letters with the spaces put back.
         bb = piece.val().BoundingBox()
         lead = (len(run) - len(run.lstrip(" "))) * rsize * 0.28
@@ -864,6 +866,96 @@ def _phillips_head(cx, cy, seat_z, radius, dome=0.8):
         head = head.cut(box(cx - w / 2, cx + w / 2, cy - l / 2, cy + l / 2, apex - 0.1, apex + 0.5))
     return head
 
+
+def _on_left_side(shape, y, z, x=0.0):
+    """Turns lettering laid out on the XY plane to face out of the left side
+    (-x), reading front-to-back with the front on the reader's right, as it
+    reads standing at that side. The XY origin lands at (x, y, z)."""
+    turned = shape.val().transformGeometry(cq.Matrix([[0, 0, -1, 0], [-1, 0, 0, 0], [0, 1, 0, 0]]))
+    return cq.Workplane("XY").add(turned).translate((x, y, z))
+
+
+def _side_hole(y, z, radius, depth):
+    """A round hole into the left side, from x = 0 inward."""
+    return cq.Workplane("YZ").workplane(offset=-0.1).center(y, z).circle(radius).extrude(depth + 0.1)
+
+
+def left_side(m):
+    """The left side, from a photograph with the handle's end at the top
+    right, so the front is to the right. Scaled off the handle arm, whose
+    underside is 30 mm up: about 0.22 mm a pixel, which also makes the
+    figure-eight power socket its real 22 mm. Toward the back, a recessed
+    panel with that socket and the DC jack; toward the front, a recessed
+    panel with the monitor, remote and microphone jacks. Each has its legend
+    printed under it."""
+    body = m.parts[0].solid
+
+    # Both panels sit forward of where the photograph's scale alone puts
+    # them, so the MIC jack is wholly under the rounded tip of the handle's
+    # arm, which runs from 90 mm to 99 mm back from the front.
+    def at(y):
+        return y - 18.1
+
+    # The jack panel, and three jacks: a silver ring standing on the panel
+    # floor around a hole that is black inside.
+    # Its two top corners are rounded with a large radius, as on the case.
+    JACK_Z, PANEL_D = 15.4, 2.0
+    body = body.cut(box(-0.1, PANEL_D, at(104.5), at(146.5), 9.9, 20.5).edges("|X and >Z").fillet(4.0))
+    rings, dark = None, None
+    jacks = ((at(140.8), "MONITOR"), (at(122.8), "REMOTE"), (at(111.1), "MIC"))
+    for jy, _ in jacks:
+        body = body.cut(_side_hole(jy, JACK_Z, 1.8, 9.0))
+        ring = (cq.Workplane("YZ").workplane(offset=PANEL_D - 0.6).center(jy, JACK_Z)
+                .circle(2.9).circle(1.8).extrude(0.6))
+        floor = cq.Workplane("YZ").workplane(offset=8.6).center(jy, JACK_Z).circle(1.8).extrude(0.4)
+        rings = ring if rings is None else rings.union(ring)
+        dark = floor if dark is None else dark.union(floor)
+
+    # The power panel: a figure-eight socket with two pins, and a round DC
+    # jack with a center pin, both centered on the panel's height.
+    POWER_D, POWER_Z0, POWER_Z1 = 2.5, 15.4, 26.4
+    AC_Y, DC_Y = at(193.6), at(173.4)
+    AC_Z = DC_Z = (POWER_Z0 + POWER_Z1) / 2
+    body = body.cut(box(-0.1, POWER_D, at(167.0), at(207.0), POWER_Z0, POWER_Z1))
+    body = body.cut(cq.Workplane("YZ").workplane(offset=POWER_D - 0.1).center(AC_Y, AC_Z).slot2D(22.0, 7.0).extrude(5.0))
+    dark = dark.union(cq.Workplane("YZ").workplane(offset=POWER_D + 4.6).center(AC_Y, AC_Z).slot2D(22.0, 7.0).extrude(0.4))
+    body = body.cut(_side_hole(DC_Y, DC_Z, 2.7, POWER_D + 5.5))
+    dark = dark.union(cq.Workplane("YZ").workplane(offset=POWER_D + 5.1).center(DC_Y, DC_Z).circle(2.7).extrude(0.4))
+    pins = None
+    for py, pz, r, x0, x1 in ((AC_Y - 4.5, AC_Z, 0.8, POWER_D + 1.0, POWER_D + 4.6),
+                              (AC_Y + 4.5, AC_Z, 0.8, POWER_D + 1.0, POWER_D + 4.6),
+                              (DC_Y, DC_Z, 0.8, POWER_D + 1.5, POWER_D + 5.1)):
+        pin = cq.Workplane("YZ").workplane(offset=x0).center(py, pz).circle(r).extrude(x1 - x0)
+        pins = pin if pins is None else pins.union(pin)
+
+    m.add("side_jack_rings", rings.union(pins), SILVER)
+    m.add("side_jack_holes", dark, BAND)
+
+    # The legends, printed under each jack and socket.
+    ink = None
+    for ly, label, lz in [(jy, s, 6.0) for jy, s in jacks] + [(AC_Y, "AC IN", 13.0), (DC_Y, "DC IN 6V", 13.0)]:
+        t = text(label, 2.6, 0, 0, 0, depth=0.08)
+        bb = t.val().BoundingBox()
+        t = _on_left_side(t.translate((-(bb.xmin + bb.xmax) / 2, -(bb.ymin + bb.ymax) / 2, 0)), ly, lz, x=0.0)
+        ink = t if ink is None else ink.union(t)
+    m.add("side_print", ink, PRINT)
+
+    m.parts[0].solid = body
+
+def rear_feet(m):
+    """Two thin ribs down the back, about 10 mm in from each side, that the
+    recorder stands on when set down on its back. Each runs from the top
+    chamfer across the upright band to the bottom chamfer, its outer edge a
+    straight vertical line 1.2 mm behind the band, so it is deepest where
+    the chamfers slope away and both ribs meet a flat surface along their
+    whole length. They are molded in the case's plastic."""
+    RIB_W, RIB_PROUD, RIB_Z0, RIB_Z1, RIB_INSET = 2.4, 1.2, 6.0, 60.0, 10.5
+    body = m.parts[0].solid
+    for rx in (RIB_INSET, W - RIB_INSET - RIB_W):
+        rib = box(rx, rx + RIB_W, D - 16.0, D + RIB_PROUD, RIB_Z0, RIB_Z1)
+        rib = rib.edges("|X and >Y").fillet(1.0)
+        body = body.union(rib)
+    m.parts[0].solid = body
 
 def bottom(m):
     """THE UNDERSIDE, from a photograph of the bottom with the handle toward
