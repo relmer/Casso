@@ -2198,7 +2198,8 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 //
 //  The coalescing global-prefs write. It is a one-shot: the timer is armed by
 //  SaveGlobalPrefsDeferred, re-armed by each further change, and killed here
-//  once the changes have stopped long enough for it to fire.
+//  once the changes have stopped long enough for it to fire. Also the poll
+//  for another instance's update check record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2207,6 +2208,12 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
     HRESULT  hr = S_OK;
 
 
+
+    if (timerId == kSharedCheckTimerId)
+    {
+        PollSharedCheckRecord();
+        return DxuiMessageResult::Handled;
+    }
 
     if (timerId != kPrefsSaveTimerId)
     {

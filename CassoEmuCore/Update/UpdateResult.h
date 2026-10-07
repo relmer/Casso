@@ -19,6 +19,8 @@
 //  Which piece of update work an UpdateResult reports on.
 //
 //    Check          a check for the latest release finished
+//    CheckSkipped   an automatic check did not run, because another Casso
+//                   holds the check lock; that one records what it finds
 //    Notes          the release notes for a release were fetched
 //    ReadyToDeploy  an MSIX bundle is downloaded and verified; the UI thread
 //                   flushes disks and settings, then starts the deploy
@@ -32,6 +34,7 @@
 enum class UpdateResultKind
 {
     Check,
+    CheckSkipped,
     Notes,
     ReadyToDeploy,
     Applied,

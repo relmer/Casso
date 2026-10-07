@@ -184,6 +184,8 @@ void EmulatorShell::StartAutomaticUpdateCheck()
 
     if (isDue)
     {
+        m_launchCheckUtc = m_globalPrefs.lastUpdateCheckUtc;
+
         hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_globalPrefs.skippedVersion);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -269,6 +271,10 @@ void EmulatorShell::HandleUpdateResult (UpdateResult & result)
             HandleUpdateCheckResult (result);
             break;
 
+        case UpdateResultKind::CheckSkipped:
+            StartSharedCheckWait();
+            break;
+
         case UpdateResultKind::Notes:
             if (m_updateDialog != nullptr && result.release.tag == m_updateRelease.tag)
             {
@@ -330,6 +336,8 @@ void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
 
     m_isManualCheckPending = false;
 
+    StopSharedCheckWait();
+
     OutputDebugStringW (std::format (L"Casso: update check result ({}): failure {}, release '{}', newer {}, offered {}\n",
                                      isManual ? L"manual" : L"automatic", (int) result.failure,
                                      TextEncoding::Utf8ToWide (result.release.version.ToString()),
@@ -363,6 +371,126 @@ void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
     {
         OpenUpdateDialog();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::StartSharedCheckWait
+//
+//  The startup check was skipped because another Casso holds the check
+//  lock. That instance records what it finds in the prefs file, so poll
+//  the file for it rather than leave the indicator hidden all session.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StartSharedCheckWait()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_sharedCheckPolls = 0;
+
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
+
+    hr = m_host->SetTimer (kSharedCheckTimerId, UpdateSchedule::kSharedCheckPollMs);
+    CHRA (hr);
+
+    m_isSharedCheckWaiting = true;
+
+    OutputDebugStringW (L"Casso: waiting for another Casso's update check record\n");
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PollSharedCheckRecord
+//
+//  One re-read of the update fields. A record newer than the one read at
+//  launch is adopted and decides the indicator as the not-due path would,
+//  and the poll stops. When the wait runs out, the record on disk decides
+//  it whatever its age. A read that fails, say against a file mid-write,
+//  waits for the next poll.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PollSharedCheckRecord()
+{
+    HRESULT             hr       = S_OK;
+    GlobalUserPrefs     stored;
+    SharedCheckOutcome  outcome  = SharedCheckOutcome::Wait;
+    bool                hasStore = m_userConfigStore != nullptr;
+
+
+
+    m_sharedCheckPolls++;
+
+    CBRA (hasStore);
+
+    hr = m_userConfigStore->ReadGlobalPrefs (m_uiFs, stored);
+    CHR (hr);
+
+    outcome = UpdateSchedule::DecideSharedCheck (m_launchCheckUtc,
+                                                 stored.lastUpdateCheckUtc,
+                                                 m_globalPrefs.autoUpdateCheck,
+                                                 GetRunningVersion(),
+                                                 stored.latestKnownVersion,
+                                                 stored.skippedVersion,
+                                                 m_sharedCheckPolls >= UpdateSchedule::kSharedCheckPollLimit);
+    BAIL_OUT_IF (outcome == SharedCheckOutcome::Wait, S_OK);
+
+    m_globalPrefs.lastUpdateCheckUtc = stored.lastUpdateCheckUtc;
+    m_globalPrefs.latestKnownVersion = stored.latestKnownVersion;
+    m_globalPrefs.skippedVersion     = stored.skippedVersion;
+
+    ShowUpdateIndicator (outcome == SharedCheckOutcome::Show);
+
+    OutputDebugStringW (std::format (L"Casso: adopted another Casso's update check record; latest known '{}': indicator {}\n",
+                                     TextEncoding::Utf8ToWide (m_globalPrefs.latestKnownVersion),
+                                     outcome == SharedCheckOutcome::Show ? L"shown" : L"hidden").c_str());
+
+Error:
+    if (outcome != SharedCheckOutcome::Wait || m_sharedCheckPolls >= UpdateSchedule::kSharedCheckPollLimit)
+    {
+        StopSharedCheckWait();
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::StopSharedCheckWait
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StopSharedCheckWait()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_isSharedCheckWaiting && m_host != nullptr)
+    {
+        hr = m_host->KillTimer (kSharedCheckTimerId);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    m_isSharedCheckWaiting = false;
 }
 
 

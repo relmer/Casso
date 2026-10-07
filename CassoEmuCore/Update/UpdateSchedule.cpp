@@ -107,3 +107,44 @@ bool UpdateSchedule::ShouldOfferRelease (
 
     return isNewer && !isSkipped;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateSchedule::DecideSharedCheck
+//
+//  For an instance whose startup check was skipped because another Casso
+//  holds the check lock. The prefs file's record is that instance's only
+//  once its check time is later than the one read at launch; until then,
+//  wait. A newer record shows the indicator exactly when the not-due path
+//  would: the automatic check is on and the latest release is offered. On
+//  the final poll the record on disk decides whatever its age, so a holder
+//  that never writes one leaves this instance where the not-due path would.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SharedCheckOutcome UpdateSchedule::DecideSharedCheck (
+    std::int64_t           launchCheckUtc,
+    std::int64_t           storedCheckUtc,
+    bool                   autoUpdateCheck,
+    const ReleaseVersion & running,
+    std::string_view       latestKnownVersion,
+    std::string_view       skippedVersion,
+    bool                   isFinalPoll)
+{
+    SharedCheckOutcome  outcome = SharedCheckOutcome::Wait;
+
+
+
+    if (isFinalPoll || storedCheckUtc > launchCheckUtc)
+    {
+        outcome = (autoUpdateCheck && ShouldShowIndicator (running, latestKnownVersion, skippedVersion))
+                      ? SharedCheckOutcome::Show
+                      : SharedCheckOutcome::Hide;
+    }
+
+    return outcome;
+}

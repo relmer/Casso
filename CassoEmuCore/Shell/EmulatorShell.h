@@ -1544,6 +1544,9 @@ private:
     void                   CheckForUpdatesNow          ();
     void                   HandleUpdateResult          (UpdateResult & result);
     void                   HandleUpdateCheckResult     (UpdateResult & result);
+    void                   StartSharedCheckWait        ();
+    void                   PollSharedCheckRecord       ();
+    void                   StopSharedCheckWait         ();
     void                   HandleUpdateApplyResult     (UpdateResult & result);
     void                   ShowUpdateIndicator         (bool isShown);
     void                   RefitUpdateIndicator        (bool force);
@@ -1576,6 +1579,13 @@ private:
     bool                            m_isManualCheckPending  = false;
     bool                            m_wasLaunchedByUpdate   = false;
     DWORD                           m_cleanupOldPid         = 0;
+
+    // An instance whose startup check was skipped for the check lock polls
+    // the prefs file for the record the lock holder writes.
+    static constexpr UINT_PTR       kSharedCheckTimerId     = 0xCA56;
+    std::int64_t                    m_launchCheckUtc        = 0;
+    int                             m_sharedCheckPolls      = 0;
+    bool                            m_isSharedCheckWaiting  = false;
     std::wstring                    m_updateIndicatorLine;
     int                             m_indicatorClientPx     = -1;
     int                             m_indicatorWidthDip     = 0;

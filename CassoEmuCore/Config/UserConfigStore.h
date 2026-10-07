@@ -82,6 +82,10 @@ public:
                                     LoadReport       & outReport);
     HRESULT      SaveAll           (const GlobalUserPrefs & prefs,
                                     IFileSystem           & fs) const;
+    // Reads the global section another Casso may have written, leaving this
+    // store's state and the file untouched.
+    HRESULT      ReadGlobalPrefs   (IFileSystem      & fs,
+                                    GlobalUserPrefs  & outPrefs) const;
     HRESULT      Load              (const std::string & machineName,
                                     const JsonValue   & defaultJson,
                                     IFileSystem       & fs,

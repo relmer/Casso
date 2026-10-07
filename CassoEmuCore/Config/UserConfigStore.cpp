@@ -1268,6 +1268,53 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UserConfigStore::ReadGlobalPrefs
+//
+//  The global section of the prefs file as it is on disk now, for a value
+//  another running Casso may have written since this one loaded. Unlike
+//  LoadAll it migrates nothing, caches nothing and never moves a file
+//  aside: a file that will not read or parse is only a failed read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::ReadGlobalPrefs (
+    IFileSystem      & fs,
+    GlobalUserPrefs  & outPrefs) const
+{
+    HRESULT            hr        = S_OK;
+    std::string        text;
+    JsonValue          root;
+    JsonParseError     err;
+    const JsonValue  * global    = nullptr;
+    bool               hasGlobal = false;
+
+
+
+    outPrefs = GlobalUserPrefs {};
+
+    hr = fs.ReadAllText (GetUserPrefsFilePath(), text);
+    CHR (hr);
+
+    hr = JsonParser::Parse (text, root, err);
+    CHR (hr);
+
+    global    = FindObjectValue (root, kpszGlobalKey);
+    hasGlobal = global != nullptr;
+    CBREx (hasGlobal, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    hr = outPrefs.FromJson (*global);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UserConfigStore::PreserveUnreadableFile
 //
 //  Sets the unreadable prefs file aside so a later save cannot destroy it.

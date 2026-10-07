@@ -106,4 +106,58 @@ public:
         Assert::IsFalse (UpdateSchedule::ShouldOfferRelease (UpdateCheckTrigger::Manual,    latest,  running, ""),
                          L"a manual check still offers only a newer release");
     }
+
+
+
+    TEST_METHOD (SharedCheck_WaitsUntilTheRecordIsNewerThanAtLaunch)
+    {
+        ReleaseVersion  running { 1, 30, 0 };
+
+
+
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (kNow, kNow,     true, running, "1.31.0", "", false) == SharedCheckOutcome::Wait,
+                        L"the record read at launch is not the holder's");
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (kNow, kNow - 1, true, running, "1.31.0", "", false) == SharedCheckOutcome::Wait,
+                        L"an older record is not the holder's");
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (0,    0,        true, running, "",       "", false) == SharedCheckOutcome::Wait,
+                        L"never checked, and nothing written yet");
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (kNow, kNow + 1, true, running, "1.31.0", "", false) == SharedCheckOutcome::Show);
+    }
+
+
+
+    TEST_METHOD (SharedCheck_NewerRecordShowsAsTheNotDuePathWould)
+    {
+        ReleaseVersion  running { 1, 30, 0 };
+
+
+
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (0, kNow, true,  running, "1.31.0", "",       false) == SharedCheckOutcome::Show);
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (0, kNow, true,  running, "1.30.0", "",       false) == SharedCheckOutcome::Hide, L"up to date");
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (0, kNow, true,  running, "1.31.0", "1.31.0", false) == SharedCheckOutcome::Hide, L"skipped");
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (0, kNow, false, running, "1.31.0", "",       false) == SharedCheckOutcome::Hide, L"automatic check off");
+    }
+
+
+
+    TEST_METHOD (SharedCheck_FinalPollDecidesFromTheRecordOnDisk)
+    {
+        ReleaseVersion  running { 1, 30, 0 };
+
+
+
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (kNow, kNow, true,  running, "1.31.0", "", true) == SharedCheckOutcome::Show,
+                        L"the holder never wrote, so the launch record decides as the not-due path would");
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (kNow, kNow, true,  running, "1.30.0", "", true) == SharedCheckOutcome::Hide);
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (0,    0,    true,  running, "",       "", true) == SharedCheckOutcome::Hide,
+                        L"nothing known shows nothing");
+        Assert::IsTrue (UpdateSchedule::DecideSharedCheck (kNow, kNow, false, running, "1.31.0", "", true) == SharedCheckOutcome::Hide);
+    }
+
+
+
+    TEST_METHOD (SharedCheck_PollsForTwoMinutesEveryFiveSeconds)
+    {
+        Assert::AreEqual (24, UpdateSchedule::kSharedCheckPollLimit);
+    }
 };

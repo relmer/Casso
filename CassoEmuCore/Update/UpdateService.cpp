@@ -591,7 +591,8 @@ void UpdateService::Post (std::unique_ptr<UpdateResult> result)
 //  The check worker. Fetches the latest release record, classifies this
 //  copy's install type (the signature check is too slow for the UI
 //  thread), and reports whether the release is news. An automatic check in
-//  an instance without the check lock ends without a result.
+//  an instance without the check lock fetches nothing and posts a
+//  CheckSkipped result, so the shell can wait for the holder's record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -619,6 +620,8 @@ void UpdateService::RunCheck (UpdateCheckTrigger trigger, ReleaseVersion running
     if (!hasLock)
     {
         OutputDebugStringW (L"Casso: automatic update check skipped: another Casso holds the check lock\n");
+
+        result->kind = UpdateResultKind::CheckSkipped;
     }
 
     BAIL_OUT_IF (!hasLock, S_OK);
@@ -654,10 +657,7 @@ void UpdateService::RunCheck (UpdateCheckTrigger trigger, ReleaseVersion running
 Error:
     m_isCheckBusy = false;
 
-    if (hasLock)
-    {
-        Post (std::move (result));
-    }
+    Post (std::move (result));
 }
 
 

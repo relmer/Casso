@@ -82,6 +82,7 @@ order only.
 
 - [X] T043 Remove the Debug-only unsigned update path (`UpdateTestBypass`, the MSIX `AllowUnsigned` deployment, `BuildMsix.ps1 -TestPublisher`); keep the local release feed (`CASSO_UPDATE_FEED`, `LocalFeedHttpClient`, `scripts/MakeLocalUpdateFeed.ps1`). The MSIX upgrade is first exercised by a signed release
 - [X] T044 [US2] Update dialog type weights: the header sentence and its age remark regular (400), the opener and the notes headings and bold runs SemiBold (600, Casso's `BodyBoldFont`) instead of Bold (700), in `UpdateDialogContent.cpp` and `ReleaseNotesView.cpp`
+- [X] T045 [US1] Lock fallback: an automatic check skipped for the check lock posts `UpdateResultKind::CheckSkipped`; the shell then re-reads `lastUpdateCheckUtc`, `latestKnownVersion` and `skippedVersion` through `UserConfigStore::ReadGlobalPrefs` every 5 s for up to 2 minutes and adopts a record newer than at launch, or the record on disk at the last poll, deciding the indicator with `UpdateSchedule::DecideSharedCheck`; tests in `UpdateScheduleTests.cpp`, `UserConfigStoreTests.cpp` and `UpdateServiceTests.cpp`
 
 ## Phase 7: Polish
 

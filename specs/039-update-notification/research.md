@@ -118,7 +118,11 @@
 - Due when automatic is on and (no previous check, now - last >= 24 h, or
   now < last, which handles a backward clock jump).
 - Only one instance runs the automatic check: `Local\Casso.UpdateCheck` mutex,
-  taken with a zero timeout.
+  taken with a zero timeout. An instance that does not get it re-reads the
+  update fields from the prefs file every 5 s for up to 2 minutes, adopts
+  the record once its check time is newer than at launch, and decides the
+  indicator as the not-due path does; when the wait runs out, the record on
+  disk decides it.
 - Not due: the indicator shows from `latestKnownVersion` when it is newer than
   the running build and not skipped. Release notes are fetched on dialog open.
 

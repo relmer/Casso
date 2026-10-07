@@ -222,7 +222,7 @@ public:
 
 
 
-    TEST_METHOD (Check_AutomaticWithoutLock_PostsNothingAndFetchesNothing)
+    TEST_METHOD (Check_AutomaticWithoutLock_PostsSkippedAndFetchesNothing)
     {
         Rig  rig;
 
@@ -234,7 +234,9 @@ public:
         AssertSucceeded (rig.service->StartCheck (UpdateCheckTrigger::Automatic, { 1, 30, 0 }, ""));
         rig.service->Wait();
 
-        Assert::AreEqual ((size_t) 0, rig.poster.results.size());
+        Assert::IsTrue   (rig.Only().kind == UpdateResultKind::CheckSkipped, L"the shell waits for the holder's record");
+        Assert::IsTrue   (rig.Only().failure == UpdateFailure::None);
+        Assert::IsFalse  (rig.Only().isOffered);
         Assert::AreEqual ((size_t) 0, rig.http.GetRequestCount(), L"another instance runs the check");
     }
 
