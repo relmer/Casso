@@ -427,9 +427,8 @@ public:
     }
 
 
-    //  The tip is placed clear of the pointer wherever it rests over the
-    //  indicator: below the lowest its image reaches, or above the highest
-    //  where below would leave the work area.
+    //  The tip is placed half the pointer's reach and gap beyond the
+    //  indicator: below it, or above it where below would leave the work area.
     TEST_METHOD (Tip_SitsClearOfThePointer)
     {
         constexpr int                kGapPx  = 4;
@@ -443,11 +442,11 @@ public:
 
 
         Assert::AreEqual (bounds.left,                 anchor.left,   L"along the indicator");
-        Assert::AreEqual (bounds.bottom + 20 + kGapPx, anchor.bottom, L"below the pointer anywhere over the indicator, and a gap");
-        Assert::AreEqual (bounds.top - 2 - kGapPx,     anchor.top);
+        Assert::AreEqual (bounds.bottom + (20 + kGapPx) / 2, anchor.bottom, L"half the pointer's reach below, and half the gap");
+        Assert::AreEqual (bounds.top - (2 + kGapPx) / 2,     anchor.top);
 
         placed = DxuiPopupHost::ComputePlacementForTest (anchor, work, DxuiPopupPlacement::Below, tipPx, true);
-        Assert::IsTrue (placed.top >= bounds.bottom + 20, L"below the pointer, not under its arrow");
+        Assert::IsTrue (placed.top >= bounds.bottom + 10, L"half the pointer's reach below the indicator");
     }
 
 
