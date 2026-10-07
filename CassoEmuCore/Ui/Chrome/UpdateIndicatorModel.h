@@ -113,11 +113,12 @@ public:
     static constexpr int64_t  kSweepPeriodMs    = 8000;
     static constexpr int64_t  kLeadMs           = 1000;   // the glints' lead pass, ahead of the band
     static constexpr int64_t  kBandMs           = 2000;   // the band itself
-    static constexpr int64_t  kTwinkleRiseMs    = 120;    // a glint eases in to full,
-    static constexpr int64_t  kTwinkleHoldMs    = 60;     // holds,
-    static constexpr int64_t  kTwinkleFallMs    = 200;    // and eases out
+    static constexpr int64_t  kBandStartMs      = kLeadMs / 2;   // the band starts with the lead pass half way across
+    static constexpr int64_t  kTwinkleRiseMs    = 500;    // a glint eases in to full,
+    static constexpr int64_t  kTwinkleHoldMs    = 80;     // holds,
+    static constexpr int64_t  kTwinkleFallMs    = 500;    // and eases out
     static constexpr int64_t  kTwinkleMs        = kTwinkleRiseMs + kTwinkleHoldMs + kTwinkleFallMs;
-    static constexpr int64_t  kSweepMs          = kLeadMs + kBandMs + kTwinkleMs;   // until the last twinkle ends: 3.38 s
+    static constexpr int64_t  kSweepMs          = kBandStartMs + kBandMs + kTwinkleMs;   // the later of the band's end and the last twinkle's: 3.58 s
     static constexpr int      kGlintCount       = GlintLayout::kCount;
     static constexpr float    kBandFraction     = 0.30f;  // shimmer band width, of the text's width
     static constexpr float    kGlintEdge        = 0.06f;  // glints keep this far (of the text width) from its ends
@@ -139,3 +140,9 @@ public:
     static GlintLayout                MakeEvenGlintLayout  ();
     static int64_t                    GetHoverClockStart   (int64_t nowMs);
 };
+
+
+
+
+
+static_assert (UpdateIndicatorModel::kSweepMs < UpdateIndicatorModel::kSweepPeriodMs, "a sweep must end before the next one starts");

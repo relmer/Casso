@@ -200,10 +200,11 @@ int64_t UpdateIndicatorModel::GetMsUntilSweep (int64_t elapsedMs)
 //
 //  UpdateIndicatorModel::GetSweepPhase
 //
-//  A sweep is a lead pass, then the band, then a short tail while the last
-//  glint finishes its twinkle: for the first kLeadMs the glints run across
-//  the text ahead of the band, then for kBandMs the band sweeps. During the
-//  tail neither is running. `sweepProgress` is the whole sweep's.
+//  A sweep is a lead pass with the band starting under it, then a tail while
+//  the last glint finishes its twinkle: for the first kLeadMs the glints run
+//  across the text, the band starts kBandStartMs in -- the lead pass half way
+//  across -- and sweeps for kBandMs. The two overlap, so both can be running.
+//  During the tail neither is. `sweepProgress` is the whole sweep's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,9 +219,10 @@ SweepPhase UpdateIndicatorModel::GetSweepPhase (float sweepProgress)
     {
         phase.lead = ms / (float) kLeadMs;
     }
-    else if (ms < (float) (kLeadMs + kBandMs))
+
+    if (ms >= (float) kBandStartMs && ms < (float) (kBandStartMs + kBandMs))
     {
-        phase.band = (ms - (float) kLeadMs) / (float) kBandMs;
+        phase.band = (ms - (float) kBandStartMs) / (float) kBandMs;
     }
 
     return phase;
@@ -306,7 +308,7 @@ std::vector<IndicatorGlint> UpdateIndicatorModel::GetGlints (
     {
         at              = layout.at[(size_t) i];
         leadStart       = at * (float) kLeadMs;
-        bandStart       = (float) kLeadMs + at * (float) kBandMs;
+        bandStart       = (float) kBandStartMs + at * (float) kBandMs;
         glint.x         = leftPx + widthPx * at;
         glint.y         = layout.isTop[(size_t) i] ? topPx : bottomPx;
         glint.intensity = std::max (GetTwinkle (sweepMs - leadStart), GetTwinkle (sweepMs - bandStart));

@@ -135,31 +135,31 @@ public:
 
         Assert::AreEqual ((int64_t) 1000, UpdateIndicatorModel::kLeadMs);
         Assert::AreEqual ((int64_t) 2000, UpdateIndicatorModel::kBandMs);
-        Assert::AreEqual ((int64_t) 3380, UpdateIndicatorModel::kSweepMs, L"lead, band, and the last twinkle's tail");
+        Assert::AreEqual ((int64_t) 500,  UpdateIndicatorModel::kBandStartMs, L"the band starts with the lead pass half way across");
+        Assert::AreEqual ((int64_t) 3580, UpdateIndicatorModel::kSweepMs, L"until the last possible twinkle ends");
+        Assert::IsTrue   (UpdateIndicatorModel::kSweepMs < UpdateIndicatorModel::kSweepPeriodMs, L"and inside the period");
         Assert::AreEqual ((int64_t) 8000, UpdateIndicatorModel::kSweepPeriodMs, L"start to start");
 
         phase = UpdateIndicatorModel::GetSweepPhase (0.0f);
         Assert::AreEqual (0.0f, *phase.lead);
-        Assert::IsFalse  (phase.band.has_value(), L"the lead pass comes first, without the band");
+        Assert::IsFalse  (phase.band.has_value(), L"the lead pass starts alone");
 
-        phase = UpdateIndicatorModel::GetSweepPhase (500.0f / (float) UpdateIndicatorModel::kSweepMs);
-        Assert::AreEqual (0.5f, *phase.lead, 0.0001f);
+        phase = UpdateIndicatorModel::GetSweepPhase (750.0f / (float) UpdateIndicatorModel::kSweepMs);
+        Assert::AreEqual (0.75f,  *phase.lead, 0.0001f);
+        Assert::AreEqual (0.125f, *phase.band, 0.0001f, L"the two overlap");
 
-        phase = UpdateIndicatorModel::GetSweepPhase (1000.0f / (float) UpdateIndicatorModel::kSweepMs);
+        phase = UpdateIndicatorModel::GetSweepPhase (1500.0f / (float) UpdateIndicatorModel::kSweepMs);
         Assert::IsFalse  (phase.lead.has_value(), L"the lead pass has finished");
-        Assert::AreEqual (0.0f, *phase.band, 0.0001f, L"before the band starts");
-
-        phase = UpdateIndicatorModel::GetSweepPhase (2000.0f / (float) UpdateIndicatorModel::kSweepMs);
-        Assert::AreEqual (0.5f, *phase.band, 0.0001f);
+        Assert::AreEqual (0.5f, *phase.band, 0.0001f, L"the band is half way");
 
         phase = UpdateIndicatorModel::GetSweepPhase (3100.0f / (float) UpdateIndicatorModel::kSweepMs);
-        Assert::IsFalse  (phase.lead.has_value() || phase.band.has_value(), L"the tail: only the last twinkle fading");
+        Assert::IsFalse  (phase.lead.has_value() || phase.band.has_value(), L"the tail: only the last twinkles fading");
     }
 
 
 
-    //  A twinkle is a fade measured in milliseconds: up over 120 ms, held,
-    //  down over 200 ms, continuous, 0 at both ends and 1 at the peak.
+    //  A twinkle is a fade measured in milliseconds: up over 500 ms, held for
+    //  80, down over 500, continuous, 0 at both ends and 1 at the peak.
     TEST_METHOD (Twinkle_FadesInHoldsAndFadesOut)
     {
         float  previous = 0.0f;
@@ -169,12 +169,13 @@ public:
 
 
 
-        Assert::AreEqual ((int64_t) 120, UpdateIndicatorModel::kTwinkleRiseMs);
-        Assert::AreEqual ((int64_t) 200, UpdateIndicatorModel::kTwinkleFallMs);
+        Assert::AreEqual ((int64_t) 500, UpdateIndicatorModel::kTwinkleRiseMs);
+        Assert::AreEqual ((int64_t) 80,  UpdateIndicatorModel::kTwinkleHoldMs);
+        Assert::AreEqual ((int64_t) 500, UpdateIndicatorModel::kTwinkleFallMs);
         Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (-5.0f), L"nothing before it starts");
         Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (0.0f),  L"starts at 0");
-        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetTwinkle (60.0f), 0.0001f, L"half way up");
-        Assert::AreEqual (1.0f, UpdateIndicatorModel::GetTwinkle (150.0f), L"held at full");
+        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetTwinkle (250.0f), 0.0001f, L"half way up");
+        Assert::AreEqual (1.0f, UpdateIndicatorModel::GetTwinkle (540.0f), L"held at full");
         Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle ((float) UpdateIndicatorModel::kTwinkleMs), L"ends at 0");
         Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (5000.0f));
 
@@ -223,21 +224,30 @@ public:
         float        bandStart  = 0.0f;
         float        lastLead   = -1.0f;
         float        lastBand   = -1.0f;
+        float        ms         = 0.0f;
         int          i          = 0;
+        const float  kStepMs    = 10.0f;
 
 
 
         for (i = 0; i < UpdateIndicatorModel::kGlintCount; i++)
         {
             leadStart = layout.at[(size_t) i] * (float) UpdateIndicatorModel::kLeadMs;
-            bandStart = (float) UpdateIndicatorModel::kLeadMs + layout.at[(size_t) i] * (float) UpdateIndicatorModel::kBandMs;
+            bandStart = (float) UpdateIndicatorModel::kBandStartMs + layout.at[(size_t) i] * (float) UpdateIndicatorModel::kBandMs;
 
             Assert::AreEqual (1.0f, UpdateIndicatorModel::GetGlints (leadStart + peakMs, layout, 0.0f, 100.0f, 0.0f, 10.0f)[(size_t) i].intensity,
                               L"full in the lead pass");
             Assert::AreEqual (1.0f, UpdateIndicatorModel::GetGlints (bandStart + peakMs, layout, 0.0f, 100.0f, 0.0f, 10.0f)[(size_t) i].intensity,
                               L"full again with the band");
+
+            for (ms = leadStart; ms < bandStart + (float) UpdateIndicatorModel::kTwinkleMs; ms += kStepMs)
+            {
+                Assert::AreEqual (std::max (UpdateIndicatorModel::GetTwinkle (ms - leadStart), UpdateIndicatorModel::GetTwinkle (ms - bandStart)),
+                                  UpdateIndicatorModel::GetGlints (ms, layout, 0.0f, 100.0f, 0.0f, 10.0f)[(size_t) i].intensity,
+                                  0.0001f, L"overlapping twinkles combine by max, never summing");
+            }
+
             Assert::IsTrue   (leadStart > lastLead && bandStart > lastBand, L"left to right in both passes");
-            Assert::IsTrue   (leadStart + (float) UpdateIndicatorModel::kTwinkleMs <= bandStart, L"the lead twinkle ends before the band arrives");
 
             lastLead = leadStart;
             lastBand = bandStart;
