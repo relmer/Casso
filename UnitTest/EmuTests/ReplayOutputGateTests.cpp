@@ -19,11 +19,14 @@ static constexpr Word      s_kGatePrintSite   = 0x0808;
 //
 //  ReplayOutputGateTests
 //
-//  Every replay reverse execution runs is silent: a guest that clicks the
-//  speaker on every pass and prints a byte every 256th is moved through its
-//  history by a seek, a step back and a reverse continue, and none of them
-//  leaves a speaker click for the audio pipeline or a byte for the printer.
-//  Running live again after them clicks and prints as before.
+//  Every replay reverse execution runs to reach a point is silent: a guest
+//  that clicks the speaker on every pass and prints a byte every 256th is
+//  moved through its history by a seek, a step back and a reverse continue,
+//  and none of them leaves a speaker click for the audio pipeline or a byte
+//  for the printer. Running on from the past plays the recorded future at
+//  its own pace, so it sounds as it did live, while its printout, already
+//  printed, is not printed again. Running live again after them clicks and
+//  prints as before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,10 +78,13 @@ public:
 
         Assert::IsFalse (machine.IsOutputMuted(), L"no replay leaves the output muted");
 
-        //  Running on from the past replays the recorded future, silently,
-        //  until the machine is live again.
+        //  Running on from the past replays the recorded future, heard but
+        //  not printed, until the machine is live again.
         machine.RunCycles (s_kGateAfterCycles);
-        AssertSilent (machine, L"running on behind live");
+        Assert::IsTrue   (controller.IsInHistory(), L"still behind live");
+        Assert::IsFalse  (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"running on behind live, the speaker clicks");
+        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"but the printer gets nothing");
+        Drain (machine);
 
         while (controller.IsInHistory())
         {

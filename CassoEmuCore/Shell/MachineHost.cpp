@@ -91,29 +91,48 @@ void MachineHost::NoteDebuggerEdit()
 //
 //  MachineHost::SetOutputMuted
 //
+//  Sound and the printer together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetOutputMuted (bool isMuted)
+{
+    SetOutputMuted (isMuted, isMuted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetOutputMuted
+//
 //  The speaker and the printer card hold their own flag. The Disk II's
 //  drive sounds go out through its audio sink, which is held here and
 //  detached while muted. Muting twice, or unmuting twice, changes nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineHost::SetOutputMuted (bool isMuted)
+void MachineHost::SetOutputMuted (bool isSoundMuted, bool isPrinterMuted)
 {
-    if (isMuted == m_isOutputMuted)
+    if (isPrinterMuted != m_isPrinterMuted && m_refs.printerCard != nullptr)
+    {
+        m_refs.printerCard->SetMuted (isPrinterMuted);
+    }
+
+    m_isPrinterMuted = isPrinterMuted;
+
+    if (isSoundMuted == m_isSoundMuted)
     {
         return;
     }
 
-    m_isOutputMuted = isMuted;
+    m_isSoundMuted = isSoundMuted;
 
     if (m_refs.speaker != nullptr)
     {
-        m_refs.speaker->SetMuted (isMuted);
-    }
-
-    if (m_refs.printerCard != nullptr)
-    {
-        m_refs.printerCard->SetMuted (isMuted);
+        m_refs.speaker->SetMuted (isSoundMuted);
     }
 
     if (m_refs.diskController == nullptr)
@@ -121,7 +140,7 @@ void MachineHost::SetOutputMuted (bool isMuted)
         return;
     }
 
-    if (isMuted)
+    if (isSoundMuted)
     {
         m_mutedDiskAudio   = m_refs.diskController->GetAudioSink();
         m_wasMotorOnAtMute = m_refs.diskController->IsMotorOn();

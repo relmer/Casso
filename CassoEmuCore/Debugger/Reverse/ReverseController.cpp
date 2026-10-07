@@ -18,8 +18,9 @@
 //
 //  ReverseController::ReverseController
 //
-//  Every replay runs muted: the sound and printout it reproduces were heard
-//  and printed when the machine first ran them. The history observer hears
+//  Every replay that moves the machine to a point runs muted: the sound and
+//  printout it reproduces were heard and printed when the machine first ran
+//  them. Running on from the past is heard (ReplayHere). The history observer hears
 //  of every keyframe a replay loads.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1854,8 +1855,9 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
 //  instruction then runs with the debug hook attached, so breakpoints stop
 //  it as they stop a live run. A stretch that ends in a gap goes on at the
 //  keyframe after it, and reaching the end of history makes the machine
-//  live there. Sound and the printer stay muted, and the disk files are not
-//  touched, as in any replay.
+//  live there. The machine runs at its own pace here, so it is heard as it
+//  was live; the printer stays muted, since what it prints was printed
+//  live, and the disk files are not touched, as in any replay.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1879,7 +1881,7 @@ HRESULT ReverseController::ReplayHere (bool isStarting)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    m_machine.SetOutputMuted (true);
+    m_machine.SetOutputMuted (false, true);
     m_machine.GetDiskStore().SetReplaying (true);
 
     // The stretch is looked up only when the machine leaves the one it was in.
@@ -1904,6 +1906,11 @@ HRESULT ReverseController::ReplayHere (bool isStarting)
 
     hr = m_replayer.PrepareStepHere (report, isStarting);
     CHR (hr);
+
+    //  A keyframe the step loaded was loaded muted, and gave the output back
+    //  as a replay leaves it.
+    m_machine.SetOutputMuted (false, true);
+    m_machine.GetDiskStore().SetReplaying (true);
 
     if (report.isDiverged)
     {

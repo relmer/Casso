@@ -289,10 +289,15 @@ public:
     void  NoteDebuggerEdit();
 
     //  Silences what the machine sends to the host while it runs: speaker
-    //  clicks, the Disk II drive sounds and printer bytes. Reverse execution
-    //  mutes a replay, since what it replays was heard and printed live.
+    //  clicks and the Disk II drive sounds, and printer bytes, together or
+    //  apart. Reverse execution mutes a replay that reaches a point, since
+    //  what it replays was heard and printed live; one that plays on at the
+    //  machine's own pace is heard again but not printed again.
     void  SetOutputMuted (bool isMuted);
-    bool  IsOutputMuted  () const noexcept { return m_isOutputMuted; }
+    void  SetOutputMuted (bool isSoundMuted, bool isPrinterMuted);
+    bool  IsOutputMuted  () const noexcept { return m_isSoundMuted || m_isPrinterMuted; }
+    bool  IsSoundMuted   () const noexcept { return m_isSoundMuted; }
+    bool  IsPrinterMuted () const noexcept { return m_isPrinterMuted; }
 
     //  The opcodes, a 256-entry table read in place, whose fetches the CPU
     //  tells the watcher of (see IOpcodeWatcher); null for none. It survives
@@ -422,7 +427,8 @@ private:
     HeldInputWatch    *  m_heldInputWatch   = nullptr;
     IDriveAudioSink   *  m_mutedDiskAudio   = nullptr;  // the Disk II's sound sink, held while muted
     uint64_t             m_position         = 0;
-    bool                 m_isOutputMuted    = false;
+    bool                 m_isSoundMuted     = false;
+    bool                 m_isPrinterMuted   = false;
     bool                 m_wasMotorOnAtMute = false;
 
     mutable uint64_t  m_romIdentity           = 0;
