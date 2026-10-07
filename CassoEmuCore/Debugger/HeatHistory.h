@@ -42,6 +42,18 @@ class MachineHost;
 //  nothing. A run on from the past takes its totals from history at every
 //  keyframe it reaches.
 //
+//  The last accesses. The map keeps, for every address, the latest access
+//  up to the furthest the machine has run, which is the last access as of
+//  any earlier position whenever it is from before that position. Where it
+//  is not, the last access before the machine is found in history at the
+//  moment it is asked for (LookUpLastAccess), and nothing more is stored for
+//  it: the counts kept beside each keyframe say which stretch it was in, the
+//  newest stretch whose counts include the address, and that one stretch is
+//  replayed on a second machine (IHeatAccessFinder) to find the instruction.
+//  The partial stretch the machine stands in is replayed first, up to the
+//  machine, unless its counts show no access there. A record from a future
+//  history drops is forgotten, and found the same way.
+//
 //  The heat. A move through history clears it, and the heat at the landing
 //  is rebuilt by replaying three fade times before it, on a second machine
 //  (IHeatRebuilder), so neither the machine nor the debugger waits; heat
@@ -66,6 +78,7 @@ public:
 
     void      Attach            (KeyframeStore * keyframes);
     void      SetRebuilder      (IHeatRebuilder * rebuilder) { m_rebuilder = rebuilder; }
+    void      SetAccessFinder   (IHeatAccessFinder * finder) { m_finder = finder; }
     void      SetCumulative     (bool isCumulative)          { m_isCumulative = isCumulative; }
     bool      IsAttached        () const                     { return m_keyframes != nullptr; }
 
@@ -89,6 +102,11 @@ public:
 
     //  The totals at a keyframe, from the counts history keeps.
     bool      TryGetTotalsAt    (uint64_t keyframePosition, std::vector<int64_t> & outTotals);
+
+    //  The instruction that last wrote or read an address in a space as of
+    //  where the machine stands, looked up in history where the map does not
+    //  hold it; unknown when history does not reach back to it either.
+    HeatAccessState  LookUpLastAccess (HeatSpace space, bool isWrite, Word address, HeatLastAccess & outAccess);
 
     void      OnKeyframeAdding  (uint64_t position, std::vector<Byte> & outSide) override;
     void      OnKeyframeLoaded  (uint64_t position) override;
@@ -119,11 +137,17 @@ private:
     HRESULT   AddPart           (size_t index, uint64_t endPosition, uint64_t endCycle, HeatRebuildJob & ioJob);
     HRESULT   CopyInputs        (size_t journalIndex, uint64_t position, std::vector<InputRecord> & outInputs) const;
     HRESULT   CopyDisks         (std::vector<HeatRebuildDisk> & outDisks);
+    HRESULT   FindInStretch     (size_t index, uint64_t endPosition, uint64_t endCycle, const HeatRebuildJob::Query & query, bool & outIsFound, HeatLastAccess & outAccess);
+    bool      HasCountIn        (size_t index, size_t entry, bool & outHasSide);
+
+    //  The last access a query asks for, in the stretches before the machine.
+    HeatAccessState  SearchHistory (const HeatRebuildJob::Query & query, HeatLastAccess & outAccess);
 
     MachineHost                    & m_machine;
     AccessHeatMap                  & m_map;
     KeyframeStore                  * m_keyframes      = nullptr;
     IHeatRebuilder                 * m_rebuilder      = nullptr;
+    IHeatAccessFinder              * m_finder         = nullptr;
     KeyframeUnpacker                 m_noUnpacker;                   // holds nothing, so every copy includes its whole snapshot
 
     bool                             m_hasAnchor      = false;
@@ -140,6 +164,11 @@ private:
     bool                             m_isRebuildDue   = false;
     bool                             m_isDragging     = false;
     bool                             m_isCumulative   = false;
+
+    //  Last accesses looked up in history, by entry, for the position they
+    //  were looked up at.
+    std::unordered_map<size_t, std::pair<HeatAccessState, HeatLastAccess>>  m_lookups;
+    uint64_t                                                                m_lookupsAt = UINT64_MAX;
 
     std::unordered_map<uint64_t, std::shared_ptr<const std::vector<Byte>>>  m_diskImages;   // by medium
     std::shared_ptr<const std::vector<Byte>>                                m_blankSectorImage;

@@ -5,6 +5,7 @@
 #include "Core/Cpu65C02.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/IRunDriver.h"
+#include "Devices/RamDevice.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
@@ -135,7 +136,86 @@ bool MachineDebugTarget::TryConnectHeatMap (
     busCpu->SetAccessSink (map);
     busCpu->SetFetchSink  (map);
 
+    if (map != nullptr)
+    {
+        map->SetCycleSource (cpu->GetCycleCounterPtr());
+        ConfigureBankMap (host, map->GetBankMap());
+    }
+
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::ConfigureBankMap
+//
+//  The machine's RAM, each buffer where it stands in its bank's space: main
+//  RAM, which is the CPU's own memory on a ][ or ][+ and a RAM device's on
+//  the //e, aux RAM where the MMU has it, and the language card's banks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::ConfigureBankMap (
+    MachineHost   & host,
+    HeatBankMap   & bankMap)
+{
+    constexpr Word        kLowRamSize = 0xC000;
+    constexpr Word        kBank1Index = 0xC000;
+    constexpr Word        kBank2Index = 0xD000;
+    constexpr Word        kHighIndex  = 0xE000;
+    constexpr size_t      kBankSize   = 0x1000;
+    constexpr size_t      kHighSize   = 0x2000;
+    EmuCpu              * cpu         = host.GetCpu();
+    RamDevice           * mainRam     = host.GetRefs().mainRamDev;
+    Apple2eMmu          * mmu         = host.GetMmu();
+    const LanguageCard  * card        = host.GetRefs().languageCard;
+
+
+
+    bankMap.Clear();
+    bankMap.SetBus (&host.GetMemoryBus());
+
+    if (cpu != nullptr)
+    {
+        bankMap.AddRegion (cpu->GetMemory(), kLowRamSize, HeatSpace::Main, 0);
+    }
+
+    if (mainRam != nullptr)
+    {
+        bankMap.AddRegion (mainRam->GetData(), (size_t) (mainRam->GetEnd() - mainRam->GetStart()) + 1, HeatSpace::Main, mainRam->GetStart());
+    }
+
+    if (mmu != nullptr)
+    {
+        bankMap.AddRegion (mmu->GetAuxBuffer(), kLowRamSize, HeatSpace::Aux, 0);
+    }
+
+    if (card == nullptr)
+    {
+        return;
+    }
+
+    bankMap.SetLanguageCard (card);
+
+    for (bool isAux : { false, true })
+    {
+        HeatSpace  space = isAux ? HeatSpace::Aux : HeatSpace::Main;
+
+
+
+        if (isAux && mmu == nullptr)
+        {
+            continue;
+        }
+
+        bankMap.AddRegion (card->GetBank1   (isAux), kBankSize, space, kBank1Index);
+        bankMap.AddRegion (card->GetBank2   (isAux), kBankSize, space, kBank2Index);
+        bankMap.AddRegion (card->GetHighRam (isAux), kHighSize, space, kHighIndex);
+    }
 }
 
 
@@ -174,6 +254,33 @@ void MachineDebugTarget::AttachHistory (
 {
     m_heatHistory.Attach       (keyframes);
     m_heatHistory.SetRebuilder (rebuilder);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::LookUpHeatMapAccess
+//
+//  History looks it up when the map follows history, and the map alone says
+//  otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatAccessState MachineDebugTarget::LookUpHeatMapAccess (
+    HeatSpace          space,
+    bool               isWrite,
+    Word               address,
+    HeatLastAccess   & outAccess)
+{
+    if (m_heatHistory.IsAttached())
+    {
+        return m_heatHistory.LookUpLastAccess (space, isWrite, address, outAccess);
+    }
+
+    return m_heat.GetLastAccess (space, isWrite, address, outAccess);
 }
 
 

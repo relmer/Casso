@@ -5,6 +5,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebuggerController.h"
+#include "Debugger/Reverse/ReverseHost.h"
 #include "resource.h"
 
 
@@ -555,6 +556,21 @@ void EmulatorShell::SetDebuggerHeatMapOptions (const std::string & text)
 void EmulatorShell::ResetDebuggerHeatMap()
 {
     m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SendDebuggerHeatMapRequest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SendDebuggerHeatMapRequest (const std::string & words)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
 }
 
 
@@ -1388,6 +1404,96 @@ void EmulatorShell::ResetDebugHeatMap()
     if (m_debugger != nullptr)
     {
         m_debugger->GetSession().GetTarget().ResetHeatMap();
+    }
+
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugHeatMapHover
+//
+//  CPU thread. The next snapshot carries the cell's last writer and reader.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebugHeatMapHover (std::optional<Word> address)
+{
+    m_debugViewState.SetHeatMapHover (address);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunDebugHeatMapAccess
+//
+//  CPU thread. The access the heat map holds for the cell, as of where the
+//  machine stands, or history holds where the map does not, shown in the
+//  first disassembly view, or gone back to: a
+//  running machine stops first, as a step back would find it. What cannot be
+//  done is said in the console.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunDebugHeatMapAccess (const HeatAccessRequest & request)
+{
+    HeatLastAccess   access;
+    HeatAccessState  state       = HeatAccessState::None;
+    HeatAccessPlan   plan;
+    bool             isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
+    uint64_t         oldest      = 0;
+
+
+
+    if (m_debugger == nullptr)
+    {
+        return;
+    }
+
+    if (m_debugger->GetSession().GetTarget().FoldHeatMap() != nullptr)
+    {
+        state = m_debugger->GetSession().GetTarget().LookUpHeatMapAccess (HeatMapOptions::GetSpace (request.bank), request.isWrite, request.address, access);
+    }
+
+    if (isRecording)
+    {
+        oldest = m_reverseHost->GetController().GetOldestPosition();
+    }
+
+    plan = HeatAccessJump::Plan (request, state, access, isRecording, oldest);
+
+    switch (plan.kind)
+    {
+    case HeatAccessPlan::Kind::ShowCode:
+        SetDebugView ("code", plan.pc);
+        break;
+
+    case HeatAccessPlan::Kind::Seek:
+        if (!m_cpuManager.IsPaused())
+        {
+            m_cpuManager.SetPaused (true);
+            NotifyDebugPauseChanged (true);
+        }
+
+        RunReverseCommand (ReverseCommand::Seek, plan.position);
+        break;
+
+    default:
+        {
+            std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+            m_debugConsolePending.push_back (plan.message);
+        }
+
+        break;
     }
 
     m_isDebugViewDirty = true;

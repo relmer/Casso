@@ -247,6 +247,8 @@
     <ClCompile Include="Debugger\Handlers\SymbolHandlers.cpp" />
     <ClCompile Include="Debugger\AccessHeatMap.cpp" />
     <ClCompile Include="Debugger\HeatMapOptions.cpp" />
+    <ClCompile Include="Debugger\HeatAccessJump.cpp" />
+    <ClCompile Include="Debugger\HeatBankMap.cpp" />
     <ClCompile Include="Debugger\HeatCountDelta.cpp" />
     <ClCompile Include="Debugger\HeatHistory.cpp" />
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
@@ -716,6 +718,8 @@
     <ClInclude Include="Debugger\Handlers\SymbolHandlers.h" />
     <ClInclude Include="Debugger\AccessHeatMap.h" />
     <ClInclude Include="Debugger\HeatMapOptions.h" />
+    <ClInclude Include="Debugger\HeatAccessJump.h" />
+    <ClInclude Include="Debugger\HeatBankMap.h" />
     <ClInclude Include="Debugger\HeatCountDelta.h" />
     <ClInclude Include="Debugger\HeatHistory.h" />
     <ClInclude Include="Debugger\HeatRebuildJob.h" />

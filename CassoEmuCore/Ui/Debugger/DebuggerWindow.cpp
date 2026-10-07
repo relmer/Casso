@@ -5855,8 +5855,8 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 //  DebuggerWindow::ShowContentMenu
 //
 //  The actions on what was right-clicked: a line, a breakpoint, a watch, a
-//  byte. Reports false when the point is not on the pane's content, which
-//  leaves it to the pane's own menu.
+//  byte, a heat map cell. Reports false when the point is not on the pane's
+//  content, which leaves it to the pane's own menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5867,6 +5867,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     MemoryPane                                                 * memory = nullptr;
     int                                                          row    = -1;
     RECT                                                         bounds = {};
+    std::optional<Word>                                          byte;
 
 
 
@@ -5933,6 +5934,23 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         if (memory->CanRedo())
         {
             items.push_back ({ GetUndoLabel (true, memory->GetRedoText()), [this, memory] { UndoMemoryEdit (memory, true); } });
+        }
+
+        byte = memory->GetAddressAt (clientPx);
+
+        if (byte.has_value())
+        {
+            AddHeatMapAccessItems (*byte, HeatMapOptions::Bank::Cpu, items);
+        }
+    }
+
+    if (GetPaneOfControl (m_heatMapView) == pane && IsRoutable (m_heatMapView) && m_heatMapView->IsVisible())
+    {
+        byte = m_heatMapView->GetPickAt (clientPx);
+
+        if (byte.has_value())
+        {
+            AddHeatMapAccessItems (*byte, m_heatMapView->GetShownBank(), items);
         }
     }
 
@@ -6690,8 +6708,10 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 //
 //  The options the user last left, sent on to the machine at once, since it
 //  starts from the defaults; then each change is saved and sent as it is
-//  made, and a cell clicked is shown in memory. The pane's bar is built here
-//  too, in the breakpoints pane's style.
+//  made, and a cell clicked is shown in memory, or with Ctrl its last access
+//  asked of the machine; the machine is told which cell the mouse is over,
+//  for its last writer and reader. The pane's bar is built here too, in the
+//  breakpoints pane's style.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6732,6 +6752,19 @@ void DebuggerWindow::ConfigureHeatMap()
     SetHeatMapBarMenus();
 
     m_heatMapView->SetOnPickAddress ([this] (Word address) { ShowHeatMapAddress (address); });
+
+    m_heatMapView->SetOnPickAccess ([this] (Word address, HeatMapView::PickAction action)
+    {
+        RequestHeatMapAccess (address, action, m_heatMapView->GetShownBank());
+    });
+
+    m_heatMapView->SetOnHoverChanged ([this] (std::optional<Word> address)
+    {
+        if (m_host != nullptr)
+        {
+            m_host->SendDebuggerHeatMapRequest (address.has_value() ? std::format ("hover {:04X}", *address) : std::string ("hover none"));
+        }
+    });
 
     if (m_host != nullptr)
     {
@@ -6875,8 +6908,9 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 
 void DebuggerWindow::ApplyHeatMap()
 {
-    DebuggerTextColors::Set  colors  = GetTextColors();
+    DebuggerTextColors::Set  colors     = GetTextColors();
     HeatMapView::Palette     palette;
+    bool                     isNewHover = false;
 
 
 
@@ -6886,10 +6920,21 @@ void DebuggerWindow::ApplyHeatMap()
     palette.read       = colors.annotation;
     palette.write      = colors.changed;
 
-    m_heatMapView->SetPalette    (palette);
-    m_heatMapView->SetTop        (m_snapshot->heatMap.top);
-    m_heatMapView->SetLevels     (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
-    m_heatMapView->SetRebuilding (m_snapshot->heatMap.isRebuilding);
+    isNewHover = m_snapshot->heatMap.hover.has_value();
+
+    m_heatMapView->SetPalette     (palette);
+    m_heatMapView->SetTop         (m_snapshot->heatMap.top);
+    m_heatMapView->SetShownBank   (m_snapshot->heatMap.bank, m_snapshot->heatMap.hasAux);
+    m_heatMapView->SetLevels      (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
+    m_heatMapView->SetRebuilding  (m_snapshot->heatMap.isRebuilding);
+    m_heatMapView->SetHoverAccess (m_snapshot->heatMap.hover);
+
+    //  The tip over the map shows the last writer and reader as soon as they
+    //  come in, without waiting for the mouse to move.
+    if (isNewHover && m_heatMapTipAt.has_value() && m_tooltip.IsVisible())
+    {
+        UpdateTooltip (*m_heatMapTipAt);
+    }
 }
 
 
@@ -8468,8 +8513,12 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
     //  Over the heat map, the cell the mouse picks and what touched it, the
     //  same way.
+    m_heatMapTipAt.reset();
+
     if (TryGetHeatMapTip (clientPx, cell, text))
     {
+        m_heatMapTipAt = clientPx;
+
         tip.SetMonospace   (true);
         tip.RequestShowNow (cell, text, now);
         return;

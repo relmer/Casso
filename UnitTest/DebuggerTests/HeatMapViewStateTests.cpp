@@ -111,6 +111,75 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (TheSnapshotCarriesTheBankChosenAndTheBanksTheMachineHas)
+        {
+            ControllerRig           rig;
+            DebuggerViewSnapshot    snapshot;
+            HeatMapOptions          options;
+            const AccessHeatMap   * map    = nullptr;
+
+
+
+            rig.view.SetHeatMapShown (true);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((size_t) HeatMapOptions::kBankCount, snapshot.heatMap.banks.size(), L"a //e has every bank");
+            Assert::IsTrue   (snapshot.heatMap.hasAux);
+            Assert::AreEqual ((int) HeatMapOptions::Bank::Cpu, (int) snapshot.heatMap.bank);
+
+            //  LDA #$41 at $0300: executed from main RAM.
+            rig.machine.StepOne();
+
+            options.cumulative = true;
+            options.bank       = HeatMapOptions::Bank::Main;
+            rig.view.SetHeatMapOptions (options);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            map      = rig.controller.GetSession().GetTarget().FoldHeatMap();
+
+            Assert::AreEqual ((int) HeatMapOptions::Bank::Main, (int) snapshot.heatMap.bank);
+            Assert::IsNotNull (map);
+            Assert::AreEqual ((double) map->GetMostTotal (HeatSpace::Main), snapshot.heatMap.top, L"the top is the bank's busiest");
+            Assert::AreEqual ((Byte) 255, snapshot.heatMap.execute[0x0300], L"the main RAM's levels");
+
+            options.bank = HeatMapOptions::Bank::LanguageCard;
+            rig.view.SetHeatMapOptions (options);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((Byte) 0, snapshot.heatMap.execute[0x0300], L"the language card's view shows its 16 KB alone");
+        }
+
+
+
+        TEST_METHOD (WithTheMouseOverACellTheSnapshotCarriesItsLastWriterAndReader)
+        {
+            ControllerRig         rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.SetHeatMapShown (true);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            //  LDA #$41, then STA $0400.
+            rig.machine.StepOne();
+            rig.machine.StepOne();
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::IsFalse (snapshot.heatMap.hover.has_value(), L"no cell, nothing looked up");
+
+            rig.view.SetHeatMapHover (Word (0x0400));
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue   (snapshot.heatMap.hover.has_value());
+            Assert::AreEqual ((Word) 0x0400, snapshot.heatMap.hover->address);
+            Assert::IsTrue   (snapshot.heatMap.hover->writer.has, L"STA $0400 wrote it");
+            Assert::AreEqual ((Word) 0x0302, snapshot.heatMap.hover->writer.pc);
+            Assert::AreEqual (std::string ("STA $0400"), snapshot.heatMap.hover->writer.instruction);
+            Assert::IsFalse  (snapshot.heatMap.hover->reader.has, L"nothing read it");
+        }
+
+
+
         TEST_METHOD (TheViewMessageReadsOnAndOff)
         {
             bool  shown = false;

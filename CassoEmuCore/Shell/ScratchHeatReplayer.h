@@ -42,9 +42,13 @@ class MachineHost;
 //  Submit, TryTakeResult and Cancel on the thread that runs it; Rebuild on
 //  one worker at a time, or by a test.
 //
+//  An instance of its own, given no jobs to submit, finds an address's last
+//  access in a stretch of history for the heat map (IHeatAccessFinder), on
+//  the calling thread, and lets go of its map's tables after each find.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-class ScratchHeatReplayer : public IHeatRebuilder
+class ScratchHeatReplayer : public IHeatRebuilder, public IHeatAccessFinder
 {
 public:
                 ScratchHeatReplayer  ();
@@ -63,6 +67,9 @@ public:
 
     //  The replay itself, on the calling thread, each part's heat in turn.
     HRESULT     Rebuild        (const HeatRebuildJob & job, std::vector<HeatRebuildResult> & outResults);
+
+    // IHeatAccessFinder
+    HRESULT     FindAccess     (const HeatRebuildJob & job, HeatRebuildResult & outResult) override;
 
 private:
     //  The medium each drive bay holds, slot-major, zero for none.

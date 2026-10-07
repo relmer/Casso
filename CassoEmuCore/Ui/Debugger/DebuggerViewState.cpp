@@ -232,14 +232,19 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 //
 //  The map records only while its pane is shown, so the build that first
 //  sees the pane hidden turns it off; the one that sees it shown turns it on
-//  and carries what it has counted, as fading heat or as totals.
+//  and carries what it has counted, as fading heat or as totals, in the bank
+//  chosen when the machine has it and in the CPU's otherwise. A language
+//  card's view shows its 16 KB alone. With the mouse over a cell, the cell's
+//  last writer and reader go with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
-    IDebugTarget         & target = session.GetTarget();
-    const AccessHeatMap  * map    = nullptr;
+    IDebugTarget                         & target = session.GetTarget();
+    const AccessHeatMap                  * map    = nullptr;
+    DebuggerViewSnapshot::HeatMapState   & state  = snapshot.heatMap;
+    HeatSpace                              space  = HeatSpace::Cpu;
 
 
 
@@ -253,22 +258,106 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
         return;
     }
 
-    if (m_heatMapOptions.cumulative)
+    for (size_t bank = 0; bank < HeatMapOptions::kBankCount; bank++)
     {
-        snapshot.heatMap.top = (double) map->GetMostTotal();
-
-        map->GetTotalLevels (HeatKind::Execute, snapshot.heatMap.execute);
-        map->GetTotalLevels (HeatKind::Read,    snapshot.heatMap.read);
-        map->GetTotalLevels (HeatKind::Write,   snapshot.heatMap.write);
-        return;
+        if (HeatMapOptions::IsAvailable ((HeatMapOptions::Bank) bank, map->GetBankMap()))
+        {
+            state.banks.push_back ((HeatMapOptions::Bank) bank);
+        }
     }
 
-    snapshot.heatMap.top          = AccessHeatMap::kHottestPerSecond;
-    snapshot.heatMap.isRebuilding = target.IsHeatMapRebuilding();
+    state.hasAux = map->GetBankMap().HasSpace (HeatSpace::Aux);
+    state.bank   = (std::ranges::find (state.banks, m_heatMapOptions.bank) != state.banks.end()) ? m_heatMapOptions.bank : HeatMapOptions::Bank::Cpu;
+    space        = HeatMapOptions::GetSpace (state.bank);
 
-    map->GetLevels (HeatKind::Execute, snapshot.heatMap.execute);
-    map->GetLevels (HeatKind::Read,    snapshot.heatMap.read);
-    map->GetLevels (HeatKind::Write,   snapshot.heatMap.write);
+    if (m_heatMapOptions.cumulative)
+    {
+        state.top = (double) map->GetMostTotal (space);
+
+        map->GetTotalLevels (space, HeatKind::Execute, state.execute);
+        map->GetTotalLevels (space, HeatKind::Read,    state.read);
+        map->GetTotalLevels (space, HeatKind::Write,   state.write);
+    }
+    else
+    {
+        state.top          = AccessHeatMap::kHottestPerSecond;
+        state.isRebuilding = target.IsHeatMapRebuilding();
+
+        map->GetLevels (space, HeatKind::Execute, state.execute);
+        map->GetLevels (space, HeatKind::Read,    state.read);
+        map->GetLevels (space, HeatKind::Write,   state.write);
+    }
+
+    for (size_t address = 0; address < state.execute.size(); address++)
+    {
+        if (!HeatMapOptions::IsShown (state.bank, (Word) address))
+        {
+            state.execute[address] = 0;
+            state.read[address]    = 0;
+            state.write[address]   = 0;
+        }
+    }
+
+    if (m_heatMapHover.has_value() && HeatMapOptions::IsShown (state.bank, *m_heatMapHover))
+    {
+        state.hover = HeatAccessHover { *m_heatMapHover, state.bank,
+                                        GetHeatAccess (session, space, true,  *m_heatMapHover),
+                                        GetHeatAccess (session, space, false, *m_heatMapHover) };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetHeatAccess
+//
+//  The instruction that last wrote or read an address, looked up in history
+//  where the map does not hold it, and disassembled from the code at its PC
+//  as it stands now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatAccessInfo DebuggerViewState::GetHeatAccess (
+    DebugSession  & session,
+    HeatSpace       space,
+    bool            isWrite,
+    Word            address)
+{
+    HeatAccessInfo                   info;
+    HeatLastAccess                   access;
+    HeatAccessState                  state = HeatAccessState::None;
+    std::optional<DisassemblyLine>   line;
+
+
+
+    state         = session.GetTarget().LookUpHeatMapAccess (space, isWrite, address, access);
+    info.has      = state == HeatAccessState::Found;
+    info.isTooOld = state == HeatAccessState::Unknown;
+
+    if (!info.has)
+    {
+        return info;
+    }
+
+    info.pc    = access.GetPc();
+    info.cycle = access.cycle;
+    line       = GetInstructionAt (session, info.pc);
+
+    if (line.has_value())
+    {
+        info.label       = line->label;
+        info.instruction = line->instruction.mnemonic;
+
+        if (!line->instruction.operand.empty())
+        {
+            info.instruction += " " + line->GetShownOperand();
+        }
+    }
+
+    return info;
 }
 
 

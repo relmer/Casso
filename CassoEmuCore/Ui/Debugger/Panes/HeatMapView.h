@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatMapOptions.h"
 
 
@@ -35,7 +36,15 @@
 //  zooms about the mouse; a drag pans, and the scrollbars show and move the
 //  part in view. A click on a cell shows its address in a memory window.
 //  While cells are small the cell the mouse picks is the busiest one near it,
-//  so a lone hot byte is easy to land on.
+//  so a lone hot byte is easy to land on. With Ctrl the click shows the
+//  instruction that last wrote the address in the disassembly, with Shift
+//  as well the one that last read it; with Ctrl and Alt it takes the
+//  machine back through history to just after that write, or with Shift
+//  as well that read.
+//
+//  The map shows one bank (HeatMapOptions::Bank), and the tip gives where
+//  in it the cell is and, once the machine has looked them up, the cell's
+//  last writer and reader.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +52,19 @@ class HeatMapView : public IDxuiControl
 {
 public:
     using Mode = HeatMapOptions::View;
+    using Bank = HeatMapOptions::Bank;
+
+    //  What a click on a cell asks for, by the keys held.
+    enum class PickAction
+    {
+        ShowMemory,
+        ShowWriter,
+        ShowReader,
+        RewindToWrite,
+        RewindToRead,
+    };
+
+    static PickAction  GetPickAction (bool ctrl, bool shift, bool alt);
 
     struct Palette
     {
@@ -115,6 +137,17 @@ public:
     //  The options changed by a press on the pane; a cell clicked.
     void   SetOnOptionsChanged (std::function<void()> fn)     { m_onOptionsChanged = std::move (fn); }
     void   SetOnPickAddress    (std::function<void(Word)> fn) { m_onPickAddress    = std::move (fn); }
+
+    //  A click with Ctrl on a cell; the cell the mouse frames changed.
+    void   SetOnPickAccess     (std::function<void(Word, PickAction)> fn)    { m_onPickAccess    = std::move (fn); }
+    void   SetOnHoverChanged   (std::function<void(std::optional<Word>)> fn) { m_onHoverChanged  = std::move (fn); }
+
+    //  The bank the levels are of, and whether the machine has aux RAM, for
+    //  the tip's location; the last writer and reader the machine looked up
+    //  for a cell.
+    void   SetShownBank        (Bank bank, bool hasAux) { m_shownBank = bank; m_hasAux = hasAux; }
+    Bank   GetShownBank        () const                 { return m_shownBank; }
+    void   SetHoverAccess      (const std::optional<HeatAccessHover> & hover) { m_hoverAccess = hover; }
 
     //  The zoom, as a cell's height in pixels and the width a row's cells are
     //  stretched from; the addresses in a row and the rows; and how far the
@@ -202,6 +235,7 @@ private:
     bool                 OnRelease      (const DxuiMouseEvent & ev);
     bool                 OnDragOrHover  (const DxuiMouseEvent & ev);
     bool                 OnWheel        (const DxuiMouseEvent & ev);
+    void                 SetHover       (std::optional<Word> hover);
     void                 MeasureGutter  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                 PaintBar       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
@@ -234,4 +268,10 @@ private:
     bool                       m_isRebuilding = false;
     std::function<void()>      m_onOptionsChanged;
     std::function<void(Word)>  m_onPickAddress;
+
+    std::function<void(Word, PickAction)>     m_onPickAccess;
+    std::function<void(std::optional<Word>)>  m_onHoverChanged;
+    std::optional<HeatAccessHover>            m_hoverAccess;
+    Bank                                      m_shownBank = Bank::Cpu;
+    bool                                      m_hasAux    = false;
 };

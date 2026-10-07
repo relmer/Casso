@@ -78,6 +78,9 @@ public:
     //  Asks again for the bytes the window last read.
     void  Refresh ();
 
+    //  The address of the byte under a point, if any.
+    std::optional<Word>  GetAddressAt (POINT clientDip) const;
+
     bool  Undo    () { return m_view->IsEditable() && m_model.Undo(); }
     bool  Redo    () { return m_view->IsEditable() && m_model.Redo(); }
     bool  CanUndo () const { return m_view->IsEditable() && m_model.CanUndo(); }

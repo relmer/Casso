@@ -3,6 +3,7 @@
 #include "EmuTests/InlineWorkQueue.h"
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/AccessHeatMap.h"
+#include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatHistory.h"
 #include "Debugger/MachineDebugTarget.h"
 #include "Shell/ScratchHeatReplayer.h"
@@ -195,6 +196,142 @@ public:
     }
 
 
+    //  Entries to compare the last accesses by: every space's writes and
+    //  reads the live map holds, picked evenly across the order they were
+    //  made in, and a few it never saw.
+    static std::vector<size_t> PickLastSample (const AccessHeatMap & map)
+    {
+        constexpr size_t                                kPicks = 24;
+        std::vector<std::pair<uint64_t, size_t>>        made;
+        std::vector<size_t>                             sample;
+        HeatLastAccess                                  access;
+
+
+
+        for (size_t space = 0; space < AccessHeatMap::kSpaceCount; space++)
+        {
+            for (bool isWrite : { true, false })
+            {
+                for (size_t address = 0; address < AccessHeatMap::kAddressCount; address++)
+                {
+                    if (map.GetLastAccess ((HeatSpace) space, isWrite, (Word) address, access) == HeatAccessState::Found)
+                    {
+                        made.emplace_back (access.GetPosition(), AccessHeatMap::GetLastIndex ((HeatSpace) space, isWrite, (Word) address));
+                    }
+                }
+            }
+        }
+
+        Assert::IsTrue (made.size() > kPicks, L"the session made accesses to pick from");
+
+        std::ranges::sort (made);
+
+        for (size_t i = 0; i < kPicks; i++)
+        {
+            sample.push_back (made[i * made.size() / kPicks].second);
+        }
+
+        sample.push_back (AccessHeatMap::GetLastIndex (HeatSpace::Aux, true, 0xBFFE));
+        sample.push_back (AccessHeatMap::GetLastIndex (HeatSpace::Rom, false, 0xC3FF));
+        return sample;
+    }
+
+
+    //  An entry's space, kind and address, from its index.
+    static void SplitEntry (size_t entry, HeatSpace & space, bool & isWrite, Word & address)
+    {
+        space   = (HeatSpace) (entry / (2 * AccessHeatMap::kAddressCount));
+        isWrite = (entry / AccessHeatMap::kAddressCount) % 2 == 0;
+        address = (Word) (entry % AccessHeatMap::kAddressCount);
+    }
+
+
+    //  The sample's last accesses as the target gives them where the
+    //  machine stands, none for none, and a forgotten stamp for unknown.
+    static std::vector<HeatLastAccess> LookUpSample (IDebugTarget & target, const std::vector<size_t> & sample)
+    {
+        std::vector<HeatLastAccess>  found;
+        HeatLastAccess               access;
+        HeatSpace                    space   = HeatSpace::Cpu;
+        bool                         isWrite = false;
+        Word                         address = 0;
+        HeatAccessState              state   = HeatAccessState::None;
+
+
+
+        for (size_t entry : sample)
+        {
+            SplitEntry (entry, space, isWrite, address);
+
+            state = target.LookUpHeatMapAccess (space, isWrite, address, access);
+
+            if (state == HeatAccessState::Unknown)
+            {
+                access.stamp = HeatLastAccess::kForgotten;
+            }
+
+            found.push_back (access);
+        }
+
+        return found;
+    }
+
+
+    //  The sample's last accesses a second machine running the same session
+    //  saw, at each position asked for.
+    static std::map<uint64_t, std::vector<HeatLastAccess>> GetStraightLast (const std::set<uint64_t> & positions, const std::vector<size_t> & sample)
+    {
+        TestMachine                                        machine ("Apple2e");
+        MachineDebugTarget                                 target  (machine);
+        HeatScript                                         script;
+        std::map<uint64_t, std::vector<HeatLastAccess>>   last;
+
+
+
+        ReverseSessionRig::Prepare (machine);
+        target.SetHeatMapOn (true);
+
+        for (uint64_t position : positions)
+        {
+            script.RunTo (machine, position);
+            Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"the straight run reaches the position");
+
+            (void) target.FoldHeatMap();
+            last[position] = LookUpSample (target, sample);
+        }
+
+        return last;
+    }
+
+
+    static void AssertSameLast (const std::vector<HeatLastAccess> & expected, const std::vector<HeatLastAccess> & actual, const std::wstring & where)
+    {
+        size_t  first = 0;
+        size_t  known = 0;
+
+
+
+        Assert::AreEqual (expected.size(), actual.size(), where.c_str());
+
+        while (first < expected.size() && expected[first] == actual[first])
+        {
+            first++;
+        }
+
+        known = (size_t) std::ranges::count_if (expected, [] (const HeatLastAccess & access) { return !access.IsNone() && !access.IsForgotten(); });
+
+        Assert::IsTrue (first == expected.size(),
+                        std::format (L"{}: sample {} holds PC ${:04X} at {}, a straight run gives PC ${:04X} at {}",
+                                     where,
+                                     first,
+                                     (first < actual.size())   ? actual[first].GetPc()         : 0,
+                                     (first < actual.size())   ? actual[first].GetPosition()   : 0,
+                                     (first < expected.size()) ? expected[first].GetPc()       : 0,
+                                     (first < expected.size()) ? expected[first].GetPosition() : 0).c_str());
+
+        Assert::IsTrue (known > 0, (where + L": the straight run saw no access, so the comparison proves nothing").c_str());
+    }
+
     //  The totals the map shows: none below zero.
     static std::vector<int64_t> GetShown (const AccessHeatMap & map)
     {
@@ -354,6 +491,129 @@ public:
 
         Assert::IsFalse (rig.controller.IsInHistory(), L"live again");
         AssertSameTotals (straight[firstEnd], GetShown (rig.GetMap()), L"back at the live end");
+    }
+
+
+    //  The instruction that last wrote and last read an address, in every
+    //  space, follows the machine as the totals do: after any seek, step or
+    //  run on, it is the one a straight run to the same position saw, the
+    //  map's own record where it holds one as of there and history's,
+    //  looked up by replaying a stretch, where it does not.
+    TEST_METHOD (LastAccessesFollowEverySeekStepAndRunOn)
+    {
+        Rig                                                    rig      (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+        ScratchHeatReplayer                                    finder;
+        std::vector<uint64_t>                                  spread;
+        std::set<uint64_t>                                     wanted;
+        std::vector<size_t>                                    sample;
+        std::map<uint64_t, std::vector<HeatLastAccess>>        straight;
+        ReverseResult                                          result;
+        HRESULT                                                hr       = S_OK;
+
+
+
+        finder.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
+        rig.target.SetHeatAccessFinder (&finder);
+
+        rig.script.RunTo (rig.machine, UINT64_MAX);
+        spread = SpreadPositions (rig.controller, rig.machine.GetPosition());
+        sample = PickLastSample (rig.GetMap());
+
+        for (uint64_t position : spread)
+        {
+            wanted.insert (position);
+            wanted.insert (position - 1);
+            wanted.insert (position + s_kHeatRunOn);
+        }
+
+        straight = GetStraightLast (wanted, sample);
+
+        for (size_t i = 0; i < spread.size(); i++)
+        {
+            uint64_t  at = spread[(i * s_kHeatShuffle) % spread.size()];
+
+
+
+            rig.Seek (at);
+            AssertSameLast (straight[at], LookUpSample (rig.target, sample), std::format (L"seek to {}", at));
+        }
+
+        for (size_t i = 0; i < spread.size(); i += 3)
+        {
+            uint64_t  position = spread[i];
+
+
+
+            rig.Seek (position);
+
+            hr = rig.controller.StepBack (result);
+            AssertSucceeded (hr, L"StepBack");
+            rig.target.NoteHistoryMoved (false);
+            AssertSameLast (straight[position - 1], LookUpSample (rig.target, sample), std::format (L"step back from {}", position));
+
+            while (rig.machine.GetPosition() < position + s_kHeatRunOn)
+            {
+                rig.machine.StepOne();
+            }
+
+            AssertSameLast (straight[position + s_kHeatRunOn], LookUpSample (rig.target, sample), std::format (L"running on from {}", position - 1));
+        }
+    }
+
+    //  Going back to an address's last write lands just after the
+    //  instruction that made it: the write is the last there, the step back
+    //  before it is that instruction, and there the write has not happened.
+    TEST_METHOD (GoingBackToALastWriteLandsJustAfterIt)
+    {
+        Rig                             rig      (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+        HeatLastAccess                  access;
+        HeatLastAccess                  there;
+        HeatAccessPlan                  plan;
+        HeatAccessRequest               request;
+        ReverseResult                   result;
+        std::optional<Word>             written;
+        HRESULT                         hr       = S_OK;
+        ScratchHeatReplayer             finder;
+
+
+
+        finder.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
+        rig.target.SetHeatAccessFinder (&finder);
+
+        rig.script.RunTo (rig.machine, UINT64_MAX);
+
+        //  An address written well inside history.
+        for (size_t address = 0; address < AccessHeatMap::kAddressCount && !written.has_value(); address++)
+        {
+            if (rig.GetMap().GetLastAccess (HeatSpace::Main, true, (Word) address, access) == HeatAccessState::Found && access.GetPosition() > rig.controller.GetOldestPosition() + s_kHeatRunOn)
+            {
+                written = (Word) address;
+            }
+        }
+
+        Assert::IsTrue (written.has_value(), L"something was written inside history, or the test proves nothing");
+
+        request.isRewind = true;
+        request.isWrite  = true;
+        request.bank     = HeatMapOptions::Bank::Main;
+        request.address  = *written;
+
+        plan = HeatAccessJump::Plan (request, HeatAccessState::Found, access, rig.controller.IsRecording(), rig.controller.GetOldestPosition());
+        Assert::AreEqual ((int) HeatAccessPlan::Kind::Seek, (int) plan.kind);
+
+        rig.Seek (plan.position);
+
+        Assert::AreEqual<uint64_t> (access.GetPosition() + 1, rig.machine.GetPosition(), L"just after the writer");
+        Assert::AreEqual ((int) HeatAccessState::Found, (int) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, *written, there), L"the write is there");
+        Assert::IsTrue (there == access, L"and it is the last");
+
+        hr = rig.controller.StepBack (result);
+        AssertSucceeded (hr, L"StepBack");
+        rig.target.NoteHistoryMoved (false);
+
+        Assert::AreEqual (access.GetPc(), rig.target.GetRegisters().pc, L"a step back is the writer");
+        (void) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, *written, there);
+        Assert::IsFalse (there == access, L"before it ran, the write has not happened");
     }
 
 

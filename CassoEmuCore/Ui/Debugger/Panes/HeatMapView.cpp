@@ -1023,13 +1023,16 @@ std::wstring HeatMapView::FormatAmount (Byte level) const
 //
 //  "$C65E  executed 120/s, read 3.5/s" while fading; "$C65E  executed 1,200
 //  times, read once" while cumulative; "$C65E  untouched" when nothing did.
+//  In a bank's view the address is where in the bank the cell is, "Aux RAM
+//  $2000". Once the machine has looked them up for the cell, a line for its
+//  last writer and one for its last reader follow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring HeatMapView::GetTipText (Word address) const
 {
     constexpr size_t  kCount = (size_t) kAddressCount;
-    std::wstring      text   = std::format (L"${:04X}", address);
+    std::wstring      text   = HeatMapOptions::DescribeLocation (m_shownBank, address, m_hasAux);
     std::wstring      amount;
     int               shown  = 0;
     const std::pair<const wchar_t *, const std::vector<Byte> *>  kinds[] =
@@ -1062,6 +1065,12 @@ std::wstring HeatMapView::GetTipText (Word address) const
     if (shown == 0)
     {
         text += L"  untouched";
+    }
+
+    if (m_hoverAccess.has_value() && m_hoverAccess->address == address && m_hoverAccess->bank == m_shownBank)
+    {
+        text += L"\n" + HeatAccessJump::Describe (true,  m_hoverAccess->writer);
+        text += L"\n" + HeatAccessJump::Describe (false, m_hoverAccess->reader);
     }
 
     return text;
@@ -1497,13 +1506,15 @@ bool HeatMapView::OnPress (const DxuiMouseEvent & ev)
 //
 //  HeatMapView::OnRelease
 //
-//  A press that never became a drag is a click on the cell it picked.
+//  A press that never became a drag is a click on the cell it picked, for
+//  what the keys held ask (GetPickAction).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
 {
     std::optional<Word>  picked;
+    PickAction           action = PickAction::ShowMemory;
 
 
 
@@ -1526,11 +1537,23 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
 
     m_press.reset();
     m_isDragging = false;
-    m_hover      = GetPickAt (ev.positionDip);
 
-    if (picked.has_value() && m_onPickAddress)
+    SetHover (GetPickAt (ev.positionDip));
+
+    if (!picked.has_value())
+    {
+        return true;
+    }
+
+    action = GetPickAction (ev.ctrl, ev.shift, ev.alt);
+
+    if (action == PickAction::ShowMemory && m_onPickAddress)
     {
         m_onPickAddress (*picked);
+    }
+    else if (action != PickAction::ShowMemory && m_onPickAccess)
+    {
+        m_onPickAccess (*picked, action);
     }
 
     return true;
@@ -1577,7 +1600,7 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
         (void) m_vertBar.SetHover (m_hasVertBar && m_vertBar.HitTest (at.x, at.y), at);
         (void) m_horzBar.SetHover (m_hasHorzBar && m_horzBar.HitTest (at.x, at.y), at);
 
-        m_hover = GetPickAt (at);
+        SetHover (GetPickAt (at));
         return false;
     }
 
@@ -1587,7 +1610,7 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
     if (!m_isDragging && std::max (std::abs (dx), std::abs (dy)) >= m_scaler.ToPx (kDragDip))
     {
         m_isDragging = true;
-        m_hover.reset();
+        SetHover (std::nullopt);
     }
 
     if (!m_isDragging)
@@ -1647,7 +1670,7 @@ bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
         ScrollBy (0, -step);
     }
 
-    m_hover = GetPickAt (ev.positionDip);
+    SetHover (GetPickAt (ev.positionDip));
     return true;
 }
 
@@ -1668,7 +1691,7 @@ bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Leave:
         if (!IsPressed())
         {
-            m_hover.reset();
+            SetHover (std::nullopt);
             (void) m_vertBar.SetHover (false);
             (void) m_horzBar.SetHover (false);
         }
@@ -1691,3 +1714,63 @@ bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
         return false;
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetPickAction
+//
+//  A plain click shows the address in memory. Ctrl shows the last writer in
+//  the disassembly, and Shift with it the last reader; Alt with Ctrl goes
+//  back through history to that write or read instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapView::PickAction HeatMapView::GetPickAction (bool ctrl, bool shift, bool alt)
+{
+    if (!ctrl)
+    {
+        return PickAction::ShowMemory;
+    }
+
+    if (alt)
+    {
+        return shift ? PickAction::RewindToRead : PickAction::RewindToWrite;
+    }
+
+    return shift ? PickAction::ShowReader : PickAction::ShowWriter;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::SetHover
+//
+//  The cell framed, and whoever follows it told when it changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SetHover (std::optional<Word> hover)
+{
+    bool  isChanged = hover != m_hover;
+
+
+
+    m_hover = hover;
+
+    if (isChanged && m_onHoverChanged)
+    {
+        m_onHoverChanged (m_hover);
+    }
+}
+
+
+
+
+

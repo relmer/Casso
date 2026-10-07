@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Debugger/DebugCommand.h"
+#include "Debugger/HeatAccessJump.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/ReverseCommand.h"
 #include "Shell/CpuManager.h"
@@ -81,6 +82,11 @@ public:
     virtual void     SetDebugHeatMapOptions   (const std::string & text)                        { (void) text; }
     virtual void     ResetDebugHeatMap        ()                                                { }
 
+    //  The heat map cell the mouse is over, none when it is over none; and a
+    //  request about a cell's last write or read.
+    virtual void     SetDebugHeatMapHover     (std::optional<Word> address)                     { (void) address; }
+    virtual void     RunDebugHeatMapAccess    (const HeatAccessRequest & request)               { (void) request; }
+
     //  Draws the picture again if what is marked on it has changed while
     //  the machine is stopped, when no frame runs to draw it.
     virtual void     RedrawDebugFrame         ()                                                { }
@@ -142,6 +148,9 @@ public:
 
     //  "options <text>" after "heatmap": the options' text.
     static bool  TryGetHeatMapOptions (const std::string & where, std::string & text);
+
+    //  "hover <hex>" or "hover none" after "heatmap": the cell under the mouse.
+    static bool  TryGetHeatMapHover (const std::string & where, std::optional<Word> & address);
 
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);

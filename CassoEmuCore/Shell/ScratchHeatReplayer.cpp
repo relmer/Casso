@@ -219,6 +219,48 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ScratchHeatReplayer::FindAccess
+//
+//  The job's one part replayed on the calling thread, the access it found
+//  taken from the result, and the map's tables let go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ScratchHeatReplayer::FindAccess (
+    const HeatRebuildJob  & job,
+    HeatRebuildResult     & outResult)
+{
+    HRESULT                         hr        = S_OK;
+    bool                            isOnePart = job.parts.size() == 1;
+    bool                            hasResult = false;
+    std::vector<HeatRebuildResult>  results;
+
+
+
+    outResult = HeatRebuildResult();
+
+    CBRAEx (isOnePart && job.query.isSet, E_INVALIDARG);
+
+    hr = Rebuild (job, results);
+    CHR (hr);
+
+    hasResult = !results.empty();
+    CBRA (hasResult);
+
+    outResult = std::move (results.front());
+
+Error:
+    m_map.Stop();
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ScratchHeatReplayer::RunJob
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,8 +651,16 @@ HRESULT ScratchHeatReplayer::Replay (
     CBREx (cycle == part.endCycle, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outResult.cycle        = cycle;
-    outResult.heat         = m_map.GetHeatTable();
     outResult.instructions = m_replayer->GetReplayedCount() - before;
+
+    if (job.query.isSet)
+    {
+        outResult.hasAccess = m_map.GetLastAccess (job.query.space, job.query.isWrite, job.query.address, outResult.access) == HeatAccessState::Found;
+    }
+    else
+    {
+        outResult.heat = m_map.GetHeatTable();
+    }
 
 Error:
     isConnected = MachineDebugTarget::TryConnectHeatMap (*m_machine, nullptr);

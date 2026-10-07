@@ -1,10 +1,12 @@
 #pragma once
 
+#include "Debugger/HeatTypes.h"
 #include "Debugger/Reply.h"
 
 class AccessHeatMap;
 class DebugHook;
 class IDiagnosticsProvider;
+class IHeatAccessFinder;
 class IHeatRebuilder;
 class IHistoryObserver;
 class IOpcodeWatcher;
@@ -145,6 +147,22 @@ public:
     virtual void                    NoteHistoryMoved      (bool isInterim)      { (void) isInterim; }
     virtual void                    SetHeatMapCumulative  (bool isCumulative)   { (void) isCumulative; }
     virtual bool                    IsHeatMapRebuilding   () const              { return false; }
+
+    // The instruction that last wrote or read an address in one of the heat
+    // map's spaces, as of where the machine stands, looked up in history
+    // where the map does not hold it; and what looks it up there. A target
+    // with no machine has none.
+    virtual HeatAccessState  LookUpHeatMapAccess (HeatSpace space, bool isWrite, Word address, HeatLastAccess & outAccess)
+    {
+        (void) space;
+        (void) isWrite;
+        (void) address;
+
+        outAccess = HeatLastAccess();
+        return HeatAccessState::None;
+    }
+
+    virtual void             SetHeatAccessFinder (IHeatAccessFinder * finder) { (void) finder; }
 
     // The devices that publish debugger panels. A target with no devices has
     // none, which is the default.

@@ -70,6 +70,16 @@ public:
 
     void SetMmu       (IMmu * mmu) { m_mmu = mmu; }
 
+    // The RAM banks, main or aux, for the debugger to tell them apart: bank 1
+    // and bank 2 of $D000-$DFFF, and the high RAM of $E000-$FFFF.
+    const Byte * GetBank1   (bool isAux) const { return isAux ? m_ramBank1Aux.data() : m_ramBank1Main.data(); }
+    const Byte * GetBank2   (bool isAux) const { return isAux ? m_ramBank2Aux.data() : m_ramBank2Main.data(); }
+    const Byte * GetHighRam (bool isAux) const { return isAux ? m_ramAuxHigh.data()  : m_ramMainHigh.data();  }
+
+    // The RAM byte a write to address in the window lands on now; null when
+    // the card is write-protected or the address is outside the window.
+    const Byte * GetWriteTarget (Word address) const;
+
     void SetRomData (const vector<Byte> & rom) { m_romData = rom; }
     Byte ReadRom    (Word address) const;
 

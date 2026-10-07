@@ -103,6 +103,7 @@ void HeatHistory::OnMapStarted()
     m_isDragging   = false;
     m_awaited      = 0;
 
+    m_lookups.clear();
     DropAnchor();
 
     isFound = m_keyframes != nullptr && m_keyframes->TryFindByPosition (position, index);
@@ -145,6 +146,7 @@ void HeatHistory::OnMapStopped()
     m_walk         = std::vector<int64_t>();
 
     m_diskImages.clear();
+    m_lookups.clear();
 }
 
 
@@ -184,6 +186,8 @@ void HeatHistory::Reset()
     m_heatFrom     = m_machine.GetPosition();
     m_awaited      = 0;
     m_isRebuildDue = false;
+
+    m_lookups.clear();
 }
 
 
@@ -317,21 +321,283 @@ bool HeatHistory::TryGetTotalsAt (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatHistory::LookUpLastAccess
+//
+//  The map's record when it is one as of here; otherwise what history holds,
+//  looked up once for each position the machine stands at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatAccessState HeatHistory::LookUpLastAccess (
+    HeatSpace          space,
+    bool               isWrite,
+    Word               address,
+    HeatLastAccess   & outAccess)
+{
+    HeatAccessState        state    = m_map.GetLastAccess (space, isWrite, address, outAccess);
+    uint64_t               position = m_machine.GetPosition();
+    size_t                 entry    = AccessHeatMap::GetLastIndex (space, isWrite, address);
+    HeatRebuildJob::Query  query;
+
+
+
+    if (state != HeatAccessState::Unknown || m_finder == nullptr || m_keyframes == nullptr)
+    {
+        return state;
+    }
+
+    if (m_lookupsAt != position)
+    {
+        m_lookups.clear();
+        m_lookupsAt = position;
+    }
+
+    if (m_lookups.contains (entry))
+    {
+        outAccess = m_lookups[entry].second;
+        return m_lookups[entry].first;
+    }
+
+    query.isSet   = true;
+    query.space   = space;
+    query.isWrite = isWrite;
+    query.address = address;
+
+    state = SearchHistory (query, outAccess);
+
+    m_lookups[entry] = { state, outAccess };
+
+    return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatHistory::SearchHistory
+//
+//  First the stretch the machine stands in, from its keyframe up to the
+//  machine, unless the counts kept for it show no access there; then each
+//  stretch before it, newest first, by its counts, down to where the map
+//  started counting, and the first with an access is replayed. A stretch
+//  with no counts kept, or a replay that cannot reach its end, leaves the
+//  access unknown, as does history running out before the map started.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatAccessState HeatHistory::SearchHistory (
+    const HeatRebuildJob::Query  & query,
+    HeatLastAccess               & outAccess)
+{
+    HRESULT          hr       = S_OK;
+    const EmuCpu   * cpu      = m_machine.GetCpu();
+    uint64_t         position = m_machine.GetPosition();
+    size_t           entry    = AccessHeatMap::GetIndex (query.space, query.isWrite ? HeatKind::Write : HeatKind::Read, query.address);
+    size_t           here     = 0;
+    bool             isFound  = false;
+    bool             hasCount = false;
+    bool             hasSide  = false;
+    HeatAccessState  state    = HeatAccessState::Unknown;
+
+
+
+    outAccess = HeatLastAccess();
+
+    CBRA (cpu);
+
+    hr = m_keyframes->WaitForPending();
+    CHR (hr);
+
+    isFound = m_keyframes->TryFindByPosition (position, here);
+    BAIL_OUT_IF (!isFound, S_OK);
+
+    hasCount = here + 1 >= m_keyframes->GetCount() || HasCountIn (here + 1, entry, hasSide) || !hasSide;
+
+    if (hasCount && m_keyframes->GetInfo (here).position < position)
+    {
+        hr = FindInStretch (here, position, cpu->GetTotalCycles(), query, isFound, outAccess);
+        CHR (hr);
+
+        BAIL_OUT_IF (isFound, S_OK);
+    }
+
+    for (size_t index = here; index > 0; index--)
+    {
+        if (m_keyframes->GetInfo (index).position <= m_heatFrom)
+        {
+            state = HeatAccessState::None;
+            break;
+        }
+
+        hasCount = HasCountIn (index, entry, hasSide);
+
+        BAIL_OUT_IF (!hasSide, S_OK);
+
+        if (!hasCount)
+        {
+            continue;
+        }
+
+        hr = FindInStretch (index - 1, m_keyframes->GetInfo (index).position, m_keyframes->GetInfo (index).cycle, query, isFound, outAccess);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_keyframes->GetInfo (0).position <= m_heatFrom)
+    {
+        state = HeatAccessState::None;
+    }
+
+Error:
+    if (FAILED (hr))
+    {
+        state = HeatAccessState::Unknown;
+    }
+
+    return isFound ? HeatAccessState::Found : state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatHistory::HasCountIn
+//
+//  Whether the counts kept with keyframe index, those of the stretch from
+//  the keyframe before it, include the entry; and whether it kept counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatHistory::HasCountIn (
+    size_t    index,
+    size_t    entry,
+    bool    & outHasSide)
+{
+    HRESULT       hr      = S_OK;
+    const Byte  * side    = nullptr;
+    size_t        size    = 0;
+    uint64_t      count   = 0;
+    bool          isRead  = false;
+
+
+
+    m_keyframes->GetSide (index, side, size);
+
+    outHasSide = size != 0 && side != nullptr;
+
+    BAIL_OUT_IF (!outHasSide, S_OK);
+
+    hr = HeatCountDelta::Unpack (side, size, m_compressor, m_delta);
+    CHR (hr);
+
+    isRead = HeatCountDelta::TryGetCount (m_delta.data(), m_delta.size(), entry, count);
+    CBREx (isRead, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    if (FAILED (hr))
+    {
+        outHasSide = false;
+    }
+
+    return SUCCEEDED (hr) && count > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatHistory::FindInStretch
+//
+//  Replays from keyframe index to the end given on the finder's machine,
+//  with the map there counting from where this one started, and takes the
+//  last access the query asks for that the replay made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HeatHistory::FindInStretch (
+    size_t                          index,
+    uint64_t                        endPosition,
+    uint64_t                        endCycle,
+    const HeatRebuildJob::Query   & query,
+    bool                          & outIsFound,
+    HeatLastAccess                & outAccess)
+{
+    HRESULT            hr = S_OK;
+    HeatRebuildJob     job;
+    HeatRebuildResult  result;
+
+
+
+    outIsFound = false;
+
+    hr = AddPart (index, endPosition, endCycle, job);
+    CHR (hr);
+
+    job.inputsFrom  = m_keyframes->GetInfo (index).journalIndex;
+    job.countFrom   = m_heatFrom;
+    job.fadeSeconds = m_map.GetFadeSeconds();
+    job.generation  = ++m_generation;
+    job.query       = query;
+
+    hr = CopyInputs (job.inputsFrom, endPosition, job.inputs);
+    CHR (hr);
+
+    hr = CopyDisks (job.disks);
+    CHR (hr);
+
+    hr = m_finder->FindAccess (job, result);
+    CHR (hr);
+
+    outIsFound = result.hasAccess;
+    outAccess  = result.access;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatHistory::OnKeyframeDrop
 //
 //  History is about to drop a keyframe: when it is the anchor, the anchor
 //  moves to the neighbor that stays, by the counts of the stretch between,
 //  which are still there to read. Dropping everything drops the anchor.
+//  Dropping the newest drops a future, and the map's records from it, from
+//  the keyframe before it or the machine, whichever is earlier, are
+//  forgotten.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
 {
-    size_t  count     = m_keyframes->GetCount();
-    size_t  index     = (drop == KeyframeDrop::Oldest) ? 0 : count - 1;
-    bool    isApplied = false;
+    size_t    count     = m_keyframes->GetCount();
+    size_t    index     = (drop == KeyframeDrop::Oldest) ? 0 : count - 1;
+    bool      isApplied = false;
+    uint64_t  cut       = m_machine.GetPosition();
 
 
+
+    if (drop != KeyframeDrop::Oldest)
+    {
+        if (drop == KeyframeDrop::Newest && count >= 2)
+        {
+            cut = std::min (cut, m_keyframes->GetInfo (count - 2).position);
+        }
+
+        m_map.ForgetAccessesFrom (cut);
+        m_lookups.clear();
+    }
 
     if (!m_hasAnchor || drop == KeyframeDrop::All)
     {

@@ -28,12 +28,16 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
     m_counts.assign (kEntryCount, 0);
     m_heat.assign   (kEntryCount, 0.0f);
     m_totals.assign (kEntryCount, 0);
+    m_last.assign   (kLastCount, HeatLastAccess());
 
-    m_mostTotal    = 0;
+    m_mostTotal    = {};
     m_foldedAt     = cycle;
     m_countFrom    = (m_position != nullptr) ? *m_position : 0;
-    m_lastRead.reset();
+    m_lastFrom     = m_countFrom;
     m_operandsLeft = 0;
+
+    m_lastRead.reset();
+    m_instruction.reset();
 }
 
 
@@ -48,20 +52,24 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
 
 void AccessHeatMap::Stop()
 {
-    std::vector<uint32_t>  noCounts;
-    std::vector<float>     noHeat;
-    std::vector<int64_t>   noTotals;
+    std::vector<uint32_t>        noCounts;
+    std::vector<float>           noHeat;
+    std::vector<int64_t>         noTotals;
+    std::vector<HeatLastAccess>  noLast;
 
 
 
     m_counts.swap (noCounts);
     m_heat.swap   (noHeat);
     m_totals.swap (noTotals);
+    m_last.swap   (noLast);
 
-    m_mostTotal      = 0;
+    m_mostTotal      = {};
     m_instructionSet = nullptr;
-    m_lastRead.reset();
     m_operandsLeft   = 0;
+
+    m_lastRead.reset();
+    m_instruction.reset();
 }
 
 
@@ -82,6 +90,7 @@ void AccessHeatMap::Fold (uint64_t cycle)
 {
     double  frames = 0.0;
     float   fade   = 1.0f;
+    size_t  space  = 0;
 
 
 
@@ -104,10 +113,11 @@ void AccessHeatMap::Fold (uint64_t cycle)
 
 
 
-        m_heat[i]   = (heat < kColdHeat) ? 0.0f : heat;
-        m_totals[i] += m_counts[i];
-        m_mostTotal  = std::max (m_mostTotal, (uint64_t) std::max<int64_t> (m_totals[i], 0));
-        m_counts[i]  = 0;
+        space              = i / kSpaceEntryCount;
+        m_heat[i]          = (heat < kColdHeat) ? 0.0f : heat;
+        m_totals[i]       += m_counts[i];
+        m_mostTotal[space] = std::max (m_mostTotal[space], (uint64_t) std::max<int64_t> (m_totals[i], 0));
+        m_counts[i]        = 0;
     }
 }
 
@@ -119,6 +129,9 @@ void AccessHeatMap::Fold (uint64_t cycle)
 //
 //  AccessHeatMap::Reset
 //
+//  The last accesses stay as they are, since history keeps them as they
+//  change, and are shown only from here on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AccessHeatMap::Reset()
@@ -127,7 +140,8 @@ void AccessHeatMap::Reset()
     std::ranges::fill (m_heat,   0.0f);
     std::ranges::fill (m_totals, 0ll);
 
-    m_mostTotal = 0;
+    m_mostTotal = {};
+    m_lastFrom  = (m_position != nullptr) ? *m_position : 0;
 }
 
 
@@ -160,7 +174,7 @@ void AccessHeatMap::GetTotalsNow (std::vector<int64_t> & outTotals) const
 //
 //  The machine was put back where these were the totals, so the counts made
 //  since the last fold belong to positions it no longer stands after, and
-//  go; so does what the last read left owed.
+//  go; so does what the last read left owed, and the instruction running.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,9 +194,83 @@ void AccessHeatMap::SetTotals (const std::vector<int64_t> & totals)
     std::ranges::fill (m_counts, 0u);
 
     m_lastRead.reset();
+    m_instruction.reset();
     m_operandsLeft = 0;
 
     FindMostTotal();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::GetLastAccess
+//
+//  A record from before the position the map was started or reset at is
+//  none. One from at or after the machine's position is of the future the
+//  machine has been back from, and the access before here is not known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatAccessState AccessHeatMap::GetLastAccess (
+    HeatSpace          space,
+    bool               isWrite,
+    Word               address,
+    HeatLastAccess   & outAccess) const
+{
+    HeatLastAccess  access;
+
+
+
+    outAccess = HeatLastAccess();
+
+    if (!IsOn())
+    {
+        return HeatAccessState::None;
+    }
+
+    access = m_last[GetLastIndex (space, isWrite, address)];
+
+    if (access.IsForgotten())
+    {
+        return HeatAccessState::Unknown;
+    }
+
+    if (access.IsNone() || access.GetPosition() < m_lastFrom)
+    {
+        return HeatAccessState::None;
+    }
+
+    if (m_position != nullptr && access.GetPosition() >= *m_position)
+    {
+        return HeatAccessState::Unknown;
+    }
+
+    outAccess = access;
+    return HeatAccessState::Found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::ForgetAccessesFrom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::ForgetAccessesFrom (uint64_t position)
+{
+    for (HeatLastAccess & access : m_last)
+    {
+        if (!access.IsNone() && !access.IsForgotten() && access.GetPosition() >= position)
+        {
+            access.stamp = HeatLastAccess::kForgotten;
+        }
+    }
 }
 
 
@@ -275,11 +363,16 @@ void AccessHeatMap::MergeHeat (
 
 void AccessHeatMap::FindMostTotal()
 {
-    m_mostTotal = 0;
+    size_t  space = 0;
 
-    for (int64_t total : m_totals)
+
+
+    m_mostTotal = {};
+
+    for (size_t i = 0; i < m_totals.size(); i++)
     {
-        m_mostTotal = std::max (m_mostTotal, (uint64_t) std::max<int64_t> (total, 0));
+        space              = i / kSpaceEntryCount;
+        m_mostTotal[space] = std::max (m_mostTotal[space], (uint64_t) std::max<int64_t> (m_totals[i], 0));
     }
 }
 
@@ -335,9 +428,9 @@ double AccessHeatMap::MakeFadePerFrame (double seconds)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double AccessHeatMap::GetRate (HeatKind kind, Word address) const
+double AccessHeatMap::GetRate (HeatSpace space, HeatKind kind, Word address) const
 {
-    return (double) GetHeat (kind, address) * GetRatePerHeat();
+    return (double) GetHeat (space, kind, address) * GetRatePerHeat();
 }
 
 
@@ -350,9 +443,9 @@ double AccessHeatMap::GetRate (HeatKind kind, Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float AccessHeatMap::GetHeat (HeatKind kind, Word address) const
+float AccessHeatMap::GetHeat (HeatSpace space, HeatKind kind, Word address) const
 {
-    return IsOn() ? m_heat[GetIndex (kind, address)] : 0.0f;
+    return IsOn() ? m_heat[GetIndex (space, kind, address)] : 0.0f;
 }
 
 
@@ -365,9 +458,9 @@ float AccessHeatMap::GetHeat (HeatKind kind, Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t AccessHeatMap::GetTotal (HeatKind kind, Word address) const
+uint64_t AccessHeatMap::GetTotal (HeatSpace space, HeatKind kind, Word address) const
 {
-    return IsOn() ? (uint64_t) std::max<int64_t> (m_totals[GetIndex (kind, address)], 0) : 0;
+    return IsOn() ? (uint64_t) std::max<int64_t> (m_totals[GetIndex (space, kind, address)], 0) : 0;
 }
 
 
@@ -383,9 +476,9 @@ uint64_t AccessHeatMap::GetTotal (HeatKind kind, Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AccessHeatMap::GetLevels (HeatKind kind, std::vector<Byte> & levels) const
+void AccessHeatMap::GetLevels (HeatSpace space, HeatKind kind, std::vector<Byte> & levels) const
 {
-    size_t  first   = GetIndex (kind, 0);
+    size_t  first   = GetIndex (space, kind, 0);
     double  perHeat = GetRatePerHeat();
 
 
@@ -415,10 +508,10 @@ void AccessHeatMap::GetLevels (HeatKind kind, std::vector<Byte> & levels) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AccessHeatMap::GetTotalLevels (HeatKind kind, std::vector<Byte> & levels) const
+void AccessHeatMap::GetTotalLevels (HeatSpace space, HeatKind kind, std::vector<Byte> & levels) const
 {
-    size_t  first = GetIndex (kind, 0);
-    double  top   = (double) m_mostTotal;
+    size_t  first = GetIndex (space, kind, 0);
+    double  top   = (double) GetMostTotal (space);
 
 
 
@@ -477,19 +570,112 @@ Byte AccessHeatMap::ToLevel (double value, double top)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AccessHeatMap::Count
+//
+//  One access of a kind, at the address the CPU used and where the bank map
+//  says it landed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AccessHeatMap::Landing AccessHeatMap::Count (
+    HeatKind  kind,
+    Word      address,
+    bool      isWrite)
+{
+    Landing       landing;
+    HeatLocation  location;
+
+
+
+    landing.cpu = GetIndex (kind, address);
+    m_counts[landing.cpu]++;
+
+    landing.hasBank = m_bankMap.TryResolve (address, isWrite, location);
+
+    if (landing.hasBank)
+    {
+        landing.space = location.space;
+        landing.index = location.index;
+        landing.bank  = GetIndex (location.space, kind, location.index);
+        m_counts[landing.bank]++;
+    }
+
+    return landing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::RecordLast
+//
+//  The instruction running as the last to write or read the address, where
+//  the CPU addressed it and where it landed, unless a record there is from
+//  later on, as when the past is replayed. Nothing before the first fetch is
+//  known to be any instruction's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::RecordLast (
+    bool              isWrite,
+    Word              address,
+    const Landing   & landing)
+{
+    HeatLastAccess  * cpu  = nullptr;
+    HeatLastAccess  * bank = nullptr;
+
+
+
+    if (!m_instruction.has_value())
+    {
+        return;
+    }
+
+    cpu = &m_last[GetLastIndex (HeatSpace::Cpu, isWrite, address)];
+
+    if (cpu->stamp <= m_instruction->stamp || cpu->IsForgotten())
+    {
+        *cpu = *m_instruction;
+    }
+
+    if (!landing.hasBank)
+    {
+        return;
+    }
+
+    bank = &m_last[GetLastIndex (landing.space, isWrite, landing.index)];
+
+    if (bank->stamp <= m_instruction->stamp || bank->IsForgotten())
+    {
+        *bank = *m_instruction;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AccessHeatMap::OnWatchedAccess
 //
 //  The operand bytes the last fetch is still owed are executed, not read; any
 //  other read ends them, since the CPU fetches them before anything else.
+//  A read may be the next opcode's, which its fetch then takes back, so the
+//  last reads it replaces are kept until then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous)
 {
+    Landing  landing;
+
+
+
     (void) value;
     (void) previous;
-
-
 
     if (!IsOn() || !IsCounting())
     {
@@ -499,7 +685,9 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
     if (access == BusAccess::Write)
     {
         m_operandsLeft = 0;
-        m_counts[GetIndex (HeatKind::Write, address)]++;
+        landing        = Count (HeatKind::Write, address, true);
+
+        RecordLast (true, address, landing);
         return;
     }
 
@@ -510,9 +698,17 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
         return;
     }
 
-    m_operandsLeft = 0;
-    m_lastRead     = address;
-    m_counts[GetIndex (HeatKind::Read, address)]++;
+    m_operandsLeft    = 0;
+    m_lastRead        = address;
+    m_lastReadLanding = Count (HeatKind::Read, address, false);
+    m_lastReadWasCpu  = m_last[GetLastIndex (HeatSpace::Cpu, false, address)];
+
+    if (m_lastReadLanding.hasBank)
+    {
+        m_lastReadWasBank = m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)];
+    }
+
+    RecordLast (false, address, m_lastReadLanding);
 }
 
 
@@ -525,13 +721,16 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
 //
 //  The bus reported the opcode as a read just before; it becomes an execute,
 //  as do the operand bytes the instruction takes, which the bus reports next.
+//  The read gives back the last reads it took, and the instruction fetched
+//  is the one running from here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AccessHeatMap::OnFetch (Word pc, Byte opcode)
 {
-    size_t  readIndex = GetIndex (HeatKind::Read, pc);
-    int     length    = 1;
+    int       length   = 1;
+    uint64_t  position = 0;
+    uint64_t  cycle    = 0;
 
 
 
@@ -545,19 +744,31 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
         length = 1 + (int) OpcodeTable::GetOperandSize (m_instructionSet[opcode].globalAddressingMode);
     }
 
-    if (m_lastRead == pc && m_counts[readIndex] > 0)
+    if (m_lastRead == pc && m_counts[m_lastReadLanding.cpu] > 0)
     {
-        m_counts[readIndex]--;
+        m_counts[m_lastReadLanding.cpu]--;
+        m_last[GetLastIndex (HeatSpace::Cpu, false, pc)] = m_lastReadWasCpu;
+
+        if (m_lastReadLanding.hasBank && m_counts[m_lastReadLanding.bank] > 0)
+        {
+            m_counts[m_lastReadLanding.bank]--;
+            m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)] = m_lastReadWasBank;
+        }
     }
 
     for (int i = 0; i < length; i++)
     {
-        m_counts[GetIndex (HeatKind::Execute, (Word) (pc + i))]++;
+        (void) Count (HeatKind::Execute, (Word) (pc + i), false);
     }
 
-    m_lastRead.reset();
+    position = (m_position != nullptr) ? *m_position : 0;
+    cycle    = (m_cycles   != nullptr) ? *m_cycles   : 0;
+
+    m_instruction  = HeatLastAccess::Make (pc, position, cycle);
     m_nextOperand  = (Word) (pc + 1);
     m_operandsLeft = length - 1;
+
+    m_lastRead.reset();
 }
 
 

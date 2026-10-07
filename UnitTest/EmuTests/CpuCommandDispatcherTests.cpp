@@ -423,6 +423,24 @@ public:
     }
 
 
+    TEST_METHOD (TheHeatMapsHoverAndAccessRequestsReachTheTarget)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_VIEW, "heatmap hover 2000",             target);
+        Dispatch (IDM_DEBUG_VIEW, "heatmap hover none",             target);
+        Dispatch (IDM_DEBUG_VIEW, "heatmap rewind write main C123", target);
+        Dispatch (IDM_DEBUG_VIEW, "heatmap code read cpu 0400",     target);
+        Dispatch (IDM_DEBUG_VIEW, "heatmap rewind write main",      target);
+
+        Assert::AreEqual ((size_t) 4, target.calls.size(), L"the request with no address asks for nothing");
+        Assert::AreEqual (std::string ("SetDebugHeatMapHover 2000"),                       target.calls[0]);
+        Assert::AreEqual (std::string ("SetDebugHeatMapHover none"),                       target.calls[1]);
+        Assert::AreEqual (std::string ("RunDebugHeatMapAccess rewind write main C123"),    target.calls[2]);
+        Assert::AreEqual (std::string ("RunDebugHeatMapAccess code read cpu 0400"),        target.calls[3]);
+    }
+
+
 private:
 
     //  A target that writes down what it was asked, one line per call.
@@ -532,6 +550,16 @@ private:
         void     CloseDebugChannel (bool isDetach) override { calls.push_back (isDetach ? "DetachDebugChannel" : "CloseDebugChannel"); }
         void     PauseDebugRun()     override { calls.push_back ("PauseDebugRun"); }
         void     RunDebugActions()   override { calls.push_back ("RunDebugActions"); }
+
+        void     SetDebugHeatMapHover (std::optional<Word> address) override
+        {
+            calls.push_back (address.has_value() ? std::format ("SetDebugHeatMapHover {:04X}", *address) : std::string ("SetDebugHeatMapHover none"));
+        }
+
+        void     RunDebugHeatMapAccess (const HeatAccessRequest & request) override
+        {
+            calls.push_back ("RunDebugHeatMapAccess " + HeatAccessJump::FormatWords (request));
+        }
 
         void     SetDebugView (const std::string & view, std::optional<Word> address) override
         {

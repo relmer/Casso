@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Debugger/HeatMapOptions.h"
+
 
 
 
@@ -10,7 +12,8 @@
 //
 //  HeatMapBarCommands
 //
-//  What the heat map pane's bar shows: Fading and Cumulative, the fade time
+//  What the heat map pane's bar shows: the bank shown as a drop-down,
+//  Fading and Cumulative, the fade time
 //  as a drop-down and Reset counts, then Zoom in, Zoom out and Reset zoom at
 //  the far end. The bar is a DxuiToolbar, so what does not fit goes into its
 //  "..." menu as on every other strip.
@@ -30,6 +33,7 @@ public:
     static constexpr int  kZoomIn      = 5;
     static constexpr int  kZoomOut     = 6;
     static constexpr int  kResetZoom   = 7;
+    static constexpr int  kBank        = 20;
 
     struct Handlers
     {
@@ -48,6 +52,10 @@ public:
     //  the one in force, "Fade: 10 s".
     static std::wstring  GetFadeChoiceLabel (int seconds);
     static std::wstring  GetFadeLabel       (int seconds);
+
+    //  The bank in force as the entry shows it, "Main RAM": the name alone,
+    //  as the bar has little room.
+    static std::wstring  GetBankEntryLabel  (HeatMapOptions::Bank bank);
 
 private:
     struct Row

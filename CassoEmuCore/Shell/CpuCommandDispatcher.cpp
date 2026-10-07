@@ -480,6 +480,48 @@ bool CpuCommandDispatcher::TryGetHeatMapOptions (const std::string & where, std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetHeatMapHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetHeatMapHover (
+    const std::string     & where,
+    std::optional<Word>   & address)
+{
+    static constexpr std::string_view  kPrefix    = "hover ";
+    constexpr size_t                   kMaxDigits = 4;
+    std::string                        digits;
+
+
+
+    if (!where.starts_with (kPrefix))
+    {
+        return false;
+    }
+
+    digits = where.substr (kPrefix.size());
+
+    if (digits == "none")
+    {
+        address.reset();
+        return true;
+    }
+
+    if (digits.empty() || digits.size() > kMaxDigits || digits.find_first_not_of ("0123456789abcdefABCDEF") != std::string::npos)
+    {
+        return false;
+    }
+
+    address = (Word) std::stoul (digits, nullptr, 16);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchDebugView
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
@@ -488,7 +530,9 @@ bool CpuCommandDispatcher::TryGetHeatMapOptions (const std::string & where, std:
 //  has room for. "trace <decimal>" and "trace end" place the trace pane.
 //  "goto <window> <text>" is a memory window's Go to, as typed. "heatmap on"
 //  and "heatmap off" say whether the heat map pane is shown, "heatmap options
-//  <text>" sets its options and "heatmap reset" zeroes its counts. "beam" asks for
+//  <text>" sets its options and "heatmap reset" zeroes its counts; "heatmap
+//  hover" gives the cell under the mouse, and the words HeatAccessJump makes
+//  ask about a cell's last access. "beam" asks for
 //  the stopped picture to be drawn again with the beam mark turned on or off.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
@@ -508,6 +552,8 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
     bool                     isCode     = false;
     bool                     isShown    = false;
     std::string              options;
+    std::optional<Word>      hover;
+    HeatAccessRequest        access;
 
 
 
@@ -524,6 +570,14 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         else if (where == "reset")
         {
             target.ResetDebugHeatMap();
+        }
+        else if (TryGetHeatMapHover (where, hover))
+        {
+            target.SetDebugHeatMapHover (hover);
+        }
+        else if (HeatAccessJump::TryParseWords (where, access))
+        {
+            target.RunDebugHeatMapAccess (access);
         }
 
         return;

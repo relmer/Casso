@@ -194,6 +194,11 @@ public:
     virtual void         SetDebuggerHeatMapOptions (const std::string &)   {}
     virtual void         ResetDebuggerHeatMap      ()                      {}
 
+    //  A heat map request for the machine, in the words after "heatmap" of
+    //  its command: the cell the mouse is over ("hover 2000", "hover none"),
+    //  or an access to show or go back to (HeatAccessJump::FormatWords).
+    virtual void         SendDebuggerHeatMapRequest (const std::string & words) { (void) words; }
+
     //  Which optional views were open, in DebuggerViewState's text for them,
     //  kept the same way.
     virtual std::string  GetDebuggerOpenViews ()                           = 0;
@@ -435,9 +440,19 @@ protected:
     bool                       IsHeatMapBarChecked  (int id) const;
     std::wstring               GetHeatMapBarLabel   (int id) const;
     bool                       TryGetHeatMapTip     (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    void                       RequestHeatMapAccess (Word address, HeatMapView::PickAction action, HeatMapOptions::Bank bank);
+
+    //  The rows a menu on a byte or a heat map cell gets for its last write
+    //  and read: show each in the disassembly, or go back to it.
+    void                       AddHeatMapAccessItems (Word address, HeatMapOptions::Bank bank, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+
+    //  The heat map's banks the machine has, and the one shown.
+    std::vector<HeatMapOptions::Bank>  GetHeatMapBanks     () const;
+    HeatMapOptions::Bank               GetShownHeatMapBank () const;
 
     //  The fade drop-down's rows, as last built, so a test can choose one.
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapFadeCommands () const { return m_heatMapFadeCommands; }
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapBankCommands () const { return m_heatMapBankCommands; }
 
     //  Protected so a test can read the breakpoints pane's columns (FR-117)
     //  and the breakpoint each row shows once sorted.
@@ -1015,10 +1030,12 @@ private:
     HeatMapView                                                                    * m_heatMapView        = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapFrame;
     bool                                                                             m_isHeatMapRecording = false;
+    std::optional<POINT>                                                             m_heatMapTipAt;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapBarSlot;
     DxuiToolbar                                                                    * m_heatMapBar         = nullptr;
     std::unique_ptr<HeatMapBarCommands>                                              m_heatMapCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapFadeCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapBankCommands;
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;

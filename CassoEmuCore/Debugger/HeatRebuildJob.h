@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Debugger/AccessHeatMap.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 #include "Devices/Disk/IDiskImage.h"
@@ -72,10 +73,22 @@ struct HeatRebuildPart
 //  of the first; and the disks in the bays. The map counts from countFrom
 //  on, and fades a single access away in fadeSeconds of machine time.
 //
+//  The same replay looks up an address's last access in a stretch of
+//  history, given a query: the last write or read of an address in a space
+//  over the part replayed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct HeatRebuildJob
 {
+    struct Query
+    {
+        bool       isSet   = false;
+        HeatSpace  space   = HeatSpace::Cpu;
+        bool       isWrite = true;
+        Word       address = 0;
+    };
+
     uint64_t                        generation  = 0;
     std::vector<HeatRebuildPart>    parts;
     size_t                          inputsFrom  = 0;
@@ -83,6 +96,7 @@ struct HeatRebuildJob
     std::vector<HeatRebuildDisk>    disks;
     uint64_t                        countFrom   = 0;
     double                          fadeSeconds = 0.0;
+    Query                           query;
 };
 
 
@@ -96,7 +110,8 @@ struct HeatRebuildJob
 //  The heat one part of a rebuild built, one entry per kind and address as
 //  the map keeps it, as of the cycle the part ends at; which part, and
 //  whether it is the last to come; how long it took; and whether it worked.
-//  A part that failed is the last.
+//  A part that failed is the last. For a query, the last access the part
+//  made, if it made one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,6 +125,8 @@ struct HeatRebuildResult
     uint64_t            instructions = 0;
     double              ms           = 0.0;
     HRESULT             hr           = S_OK;
+    bool                hasAccess    = false;
+    HeatLastAccess      access;
 };
 
 
@@ -136,4 +153,25 @@ public:
     virtual HRESULT  Submit        (std::shared_ptr<const HeatRebuildJob> job) = 0;
     virtual bool     TryTakeResult (HeatRebuildResult & outResult) = 0;
     virtual void     Cancel        () = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IHeatAccessFinder
+//
+//  Replays a job with a query on the calling thread and gives the access it
+//  found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IHeatAccessFinder
+{
+public:
+    virtual          ~IHeatAccessFinder() = default;
+
+    virtual HRESULT  FindAccess (const HeatRebuildJob & job, HeatRebuildResult & outResult) = 0;
 };

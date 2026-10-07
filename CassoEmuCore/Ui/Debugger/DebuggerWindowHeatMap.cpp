@@ -7,6 +7,19 @@
 
 
 
+//  The rows a menu on a byte or a heat map cell gets for its last accesses.
+static constexpr std::pair<const wchar_t *, HeatMapView::PickAction>  s_kAccessRows[] =
+{
+    { L"Show last writer", HeatMapView::PickAction::ShowWriter    },
+    { L"Show last reader", HeatMapView::PickAction::ShowReader    },
+    { L"Go to last write", HeatMapView::PickAction::RewindToWrite },
+    { L"Go to last read",  HeatMapView::PickAction::RewindToRead  },
+};
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebuggerWindow::SetHeatMapOptions
@@ -38,7 +51,8 @@ void DebuggerWindow::SetHeatMapOptions (const HeatMapOptions & options)
 //
 //  DebuggerWindow::SetHeatMapBarMenus
 //
-//  The fade times, the one in force checked.
+//  The fade times, the one in force checked; and the banks the machine has,
+//  the one shown checked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +82,72 @@ void DebuggerWindow::SetHeatMapBarMenus()
     }
 
     m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kFade, std::move (items));
+
+    items.clear();
+    m_heatMapBankCommands.clear();
+
+    for (HeatMapOptions::Bank bank : GetHeatMapBanks())
+    {
+        std::shared_ptr<DxuiCommand>  command = MakeMenuCommand (HeatMapOptions::GetBankLabel (bank), bank == GetShownHeatMapBank(), [this, bank]
+        {
+            HeatMapOptions  options = m_heatMapView->GetOptions();
+
+
+
+            options.bank = bank;
+            SetHeatMapOptions (options);
+        });
+
+        m_heatMapBankCommands.push_back (command);
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    }
+
+    m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kBank, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatMapBanks
+//
+//  The banks the machine has, as the last snapshot gave them; the CPU's
+//  alone before one has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<HeatMapOptions::Bank> DebuggerWindow::GetHeatMapBanks() const
+{
+    if (m_snapshot == nullptr || m_snapshot->heatMap.banks.empty())
+    {
+        return { HeatMapOptions::Bank::Cpu };
+    }
+
+    return m_snapshot->heatMap.banks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetShownHeatMapBank
+//
+//  The bank chosen while the machine has it, and the CPU's otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapOptions::Bank DebuggerWindow::GetShownHeatMapBank() const
+{
+    std::vector<HeatMapOptions::Bank>  banks  = GetHeatMapBanks();
+    HeatMapOptions::Bank               chosen = m_heatMapView->GetOptions().bank;
+
+
+
+    return (std::ranges::find (banks, chosen) != banks.end()) ? chosen : HeatMapOptions::Bank::Cpu;
 }
 
 
@@ -175,13 +255,15 @@ bool DebuggerWindow::RouteHeatMapBarMouse (const DxuiMouseEvent & ev)
 //  DebuggerWindow::IsHeatMapBarEnabled
 //
 //  The fade time counts only while fading, and Reset counts only while
-//  cumulative.
+//  cumulative. There is a bank to choose only on a machine with aux RAM or
+//  a language card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::IsHeatMapBarEnabled (int id) const
 {
-    bool  isCumulative = m_heatMapView->GetOptions().cumulative;
+    constexpr size_t  kBanksWithoutBanking = 3;        // the CPU's, main RAM and ROM
+    bool              isCumulative         = m_heatMapView->GetOptions().cumulative;
 
 
 
@@ -189,6 +271,7 @@ bool DebuggerWindow::IsHeatMapBarEnabled (int id) const
     {
     case HeatMapBarCommands::kFade:        return !isCumulative;
     case HeatMapBarCommands::kResetCounts: return isCumulative;
+    case HeatMapBarCommands::kBank:        return GetHeatMapBanks().size() > kBanksWithoutBanking;
     default:                               return true;
     }
 }
@@ -225,7 +308,8 @@ bool DebuggerWindow::IsHeatMapBarChecked (int id) const
 //
 //  DebuggerWindow::GetHeatMapBarLabel
 //
-//  The fade drop-down reads the time in force; the rest keep their labels.
+//  The fade drop-down reads the time in force, and the bank drop-down the
+//  bank shown; the rest keep their labels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,6 +318,11 @@ std::wstring DebuggerWindow::GetHeatMapBarLabel (int id) const
     if (id == HeatMapBarCommands::kFade)
     {
         return HeatMapBarCommands::GetFadeLabel (m_heatMapView->GetOptions().fadeSeconds);
+    }
+
+    if (id == HeatMapBarCommands::kBank)
+    {
+        return HeatMapBarCommands::GetBankEntryLabel (GetShownHeatMapBank());
     }
 
     return {};
@@ -302,3 +391,65 @@ bool DebuggerWindow::TryGetHeatMapTip (POINT clientPx, RECT & anchor, std::wstri
     return IsRoutable (m_heatMapView) && m_heatMapView->IsVisible() && DxuiDockSite::Contains (m_heatMapView->GetBounds(), clientPx) &&
            m_heatMapView->TryGetTipAt (clientPx, anchor, text);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RequestHeatMapAccess
+//
+//  A Ctrl+click on a cell, or a row of a menu on one: the machine looks up
+//  the access in the bank given and shows its instruction or goes back to
+//  it, and says so in the console when it cannot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RequestHeatMapAccess (
+    Word                      address,
+    HeatMapView::PickAction   action,
+    HeatMapOptions::Bank      bank)
+{
+    HeatAccessRequest  request;
+
+
+
+    if (m_host == nullptr || action == HeatMapView::PickAction::ShowMemory)
+    {
+        return;
+    }
+
+    request.isRewind = action == HeatMapView::PickAction::RewindToWrite || action == HeatMapView::PickAction::RewindToRead;
+    request.isWrite  = action == HeatMapView::PickAction::RewindToWrite || action == HeatMapView::PickAction::ShowWriter;
+    request.bank     = bank;
+    request.address  = address;
+
+    m_host->SendDebuggerHeatMapRequest (HeatAccessJump::FormatWords (request));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddHeatMapAccessItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddHeatMapAccessItems (
+    Word                                                           address,
+    HeatMapOptions::Bank                                           bank,
+    std::vector<std::pair<std::wstring, std::function<void()>>>  & items)
+{
+    for (const auto & [label, action] : s_kAccessRows)
+    {
+        items.push_back ({ label, [this, address, bank, action = action] { RequestHeatMapAccess (address, action, bank); } });
+    }
+}
+
+
+
+
+

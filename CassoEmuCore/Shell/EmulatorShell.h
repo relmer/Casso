@@ -590,6 +590,8 @@ private:
     void    SetDebugHeatMapShown   (bool shown) override;
     void    SetDebugHeatMapOptions (const std::string & text) override;
     void    ResetDebugHeatMap      () override;
+    void    SetDebugHeatMapHover   (std::optional<Word> address) override;
+    void    RunDebugHeatMapAccess  (const HeatAccessRequest & request) override;
 
     // Draws a stopped machine's picture again when the beam mark changed.
     void    RedrawDebugFrame     () override;
@@ -650,6 +652,7 @@ private:
     std::string  GetDebuggerHeatMapOptions () override;
     void         SetDebuggerHeatMapOptions (const std::string & text) override;
     void         ResetDebuggerHeatMap      () override;
+    void         SendDebuggerHeatMapRequest (const std::string & words) override;
     std::string  GetDebuggerOpenViews () override;
     void         SetDebuggerOpenViews (const std::string & text) override;
     std::string  GetDebuggerPlacementKey () const;
@@ -2343,6 +2346,10 @@ private:
     // on a scratch machine of its own. Declared before the debugger, whose
     // heat map holds it.
     ScratchHeatReplayer           m_heatReplayer;
+
+    // The heat map's look-ups of an address's last access in history, on a
+    // scratch machine of its own, replayed on the CPU thread when asked.
+    ScratchHeatReplayer           m_heatFinder;
 
     void            ServiceHistoryThumbnails();
     void            SyncHeatHistory         (bool isAttached);

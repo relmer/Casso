@@ -187,6 +187,8 @@
     <ClCompile Include="DebuggerTests\MachineDebugTargetTests.cpp" />
     <ClCompile Include="DebuggerTests\AccessHeatMapTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapMachineTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatBankAccessTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatMapAccessWindowTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatCountDeltaTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapViewTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapPaneWindowTests.cpp" />

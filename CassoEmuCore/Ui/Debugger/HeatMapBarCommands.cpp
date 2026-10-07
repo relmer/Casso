@@ -18,7 +18,7 @@ static constexpr const wchar_t *  s_kGlyphZoomOut = s_kpszMdl2ZoomOut;   // magn
 //
 //  HeatMapBarCommands::GetRows
 //
-//  How the map counts, then the zoom at the far end.
+//  The bank shown, how the map counts, then the zoom at the far end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +26,7 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
+        { kBank,        L"Bank",         nullptr,          L"Show what the CPU addresses, or one bank as it is stored",  DxuiToolbar::Kind::DropDown, 3, false, false },
         { kFading,      L"Fading",       nullptr,          L"Show how recently and how often each address was touched", DxuiToolbar::Kind::Toggle,   0, false, false },
         { kCumulative,  L"Cumulative",   nullptr,          L"Show each address's total since the counts were reset",    DxuiToolbar::Kind::Toggle,   0, false, false },
         { kFade,        L"Fade",         nullptr,          L"How long a single access stays on the map",                DxuiToolbar::Kind::DropDown, 1, false, false },
@@ -179,3 +180,23 @@ std::wstring HeatMapBarCommands::GetFadeLabel (int seconds)
 {
     return L"Fade: " + GetFadeChoiceLabel (seconds);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapBarCommands::GetBankEntryLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapBarCommands::GetBankEntryLabel (HeatMapOptions::Bank bank)
+{
+    return HeatMapOptions::GetBankLabel (bank);
+}
+
+
+
+
+

@@ -246,6 +246,76 @@ bool HeatCountDelta::TryApply (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatCountDelta::TryGetCount
+//
+//  The segments are walked until one reaches the entry, or passes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatCountDelta::TryGetCount (
+    const Byte  * bytes,
+    size_t        size,
+    size_t        index,
+    uint64_t    & outCount)
+{
+    size_t    at        = 0;
+    size_t    end       = 0;
+    size_t    start     = 0;
+    size_t    length    = 0;
+    uint64_t  gap       = 0;
+    uint64_t  header    = 0;
+    uint64_t  value     = 0;
+    bool      isUniform = false;
+    bool      isRead    = true;
+
+
+
+    outCount = 0;
+
+    while (isRead && at < size)
+    {
+        isRead = TryReadNumber (bytes, size, at, gap) && TryReadNumber (bytes, size, at, header);
+
+        if (!isRead)
+        {
+            break;
+        }
+
+        isUniform = (header & 1) != 0;
+        length    = (size_t) (header >> 1) + 1;
+        start     = end + (size_t) gap;
+
+        if (start > index)
+        {
+            return true;
+        }
+
+        for (size_t i = start; isRead && i < start + length; i++)
+        {
+            if (!isUniform || i == start)
+            {
+                isRead = TryReadNumber (bytes, size, at, value);
+            }
+
+            if (i == index)
+            {
+                outCount = isRead ? value : 0;
+                return isRead;
+            }
+        }
+
+        end = start + length;
+    }
+
+    return isRead;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatCountDelta::Pack
 //
 //  The header, then the delta packed when packing makes it smaller, else

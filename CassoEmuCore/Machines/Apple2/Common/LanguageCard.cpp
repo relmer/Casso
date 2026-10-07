@@ -325,6 +325,39 @@ void LanguageCard::WriteRam (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetWriteTarget
+//
+//  Where WriteRam would store the byte, without storing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Byte * LanguageCard::GetWriteTarget (Word address) const
+{
+    bool  canWrite = (m_flags & kLcFlagWriteRam) != 0;
+    bool  altZp    = m_mmu != nullptr && m_mmu->GetAltZp();
+    bool  bank2    = (m_flags & kLcFlagBank2) != 0;
+
+
+
+    if (!canWrite || address < kLcWindowStart)
+    {
+        return nullptr;
+    }
+
+    if (address <= kLcBank2Last)
+    {
+        return (bank2 ? GetBank2 (altZp) : GetBank1 (altZp)) + (address - kLcWindowStart);
+    }
+
+    return GetHighRam (altZp) + (address - kLcHighStart);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Reset / SoftReset
 //
 //  Reset() forwards to SoftReset() to preserve LC RAM contents (audit C7).

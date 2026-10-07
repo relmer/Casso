@@ -82,6 +82,9 @@ public:
     void                    NoteHistoryMoved      (bool isInterim) override     { m_heatHistory.OnMoved (isInterim); }
     void                    SetHeatMapCumulative  (bool isCumulative) override  { m_heatHistory.SetCumulative (isCumulative); }
     bool                    IsHeatMapRebuilding   () const override             { return m_heat.IsOn() && m_heatHistory.IsRebuilding(); }
+    void                    SetHeatAccessFinder   (IHeatAccessFinder * finder) override { m_heatHistory.SetAccessFinder (finder); }
+
+    HeatAccessState         LookUpHeatMapAccess   (HeatSpace space, bool isWrite, Word address, HeatLastAccess & outAccess) override;
 
     HeatHistory           & GetHeatHistory        () { return m_heatHistory; }
 
@@ -91,6 +94,8 @@ public:
     bool                                       TryGetMockingboardBase  (Word & base) const override;
 
 private:
+    static void         ConfigureBankMap  (MachineHost & host, HeatBankMap & bankMap);
+
     MachineHost       & m_host;
     DebugMemoryView     m_view;
     RunStopHook         m_runHook;

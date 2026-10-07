@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
+#include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatMapOptions.h"
 #include "Debugger/Reply.h"
 #include "Debugger/Reverse/HistoryStatus.h"
@@ -242,14 +243,20 @@ struct DebuggerViewSnapshot
     //  empty while the pane is hidden and nothing is recorded. Level 255
     //  stands for top: accesses a second while fading, the busiest
     //  address's count while cumulative. While fading, after a move through
-    //  history, isRebuilding until the heat at the landing is rebuilt.
+    //  history, isRebuilding until the heat at the landing is rebuilt. The
+    //  levels are of one bank, of those the machine has; with the mouse over
+    //  a cell, its last writer and reader in that bank.
     struct HeatMapState
     {
-        std::vector<Byte>  execute;
-        std::vector<Byte>  read;
-        std::vector<Byte>  write;
-        double             top          = 0.0;
-        bool               isRebuilding = false;
+        std::vector<Byte>                   execute;
+        std::vector<Byte>                   read;
+        std::vector<Byte>                   write;
+        double                              top          = 0.0;
+        bool                                isRebuilding = false;
+        HeatMapOptions::Bank                bank         = HeatMapOptions::Bank::Cpu;
+        std::vector<HeatMapOptions::Bank>   banks;
+        bool                                hasAux       = false;
+        std::optional<HeatAccessHover>      hover;
     };
 
     HeatMapState                          heatMap;
@@ -421,6 +428,10 @@ public:
     //  long the heat takes to fade.
     void                    SetHeatMapOptions (const HeatMapOptions & options) { m_heatMapOptions = options; }
     const HeatMapOptions &  GetHeatMapOptions () const                         { return m_heatMapOptions; }
+
+    //  The cell the mouse is over on the heat map, whose last writer and
+    //  reader each snapshot carries; none when it is over none.
+    void                    SetHeatMapHover   (std::optional<Word> address)    { m_heatMapHover = address; }
 
     //  Device panels by provider id. A panel stays open until closed or until
     //  its device leaves the machine; only open panels cost the devices
@@ -634,6 +645,7 @@ private:
     void  BuildTraceNext (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildHeatMap   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
 
     Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
     Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
@@ -708,6 +720,7 @@ private:
     std::optional<uint64_t>                      m_traceTop;
     bool                                         m_isHeatMapShown = false;
     HeatMapOptions                               m_heatMapOptions;
+    std::optional<Word>                          m_heatMapHover;
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
     std::wstring  m_showPane;
     uint32_t      m_showPaneSerial   = 0;

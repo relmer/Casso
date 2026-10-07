@@ -92,6 +92,109 @@ namespace DebuggerTests
 
 
 
+        //  Each address keeps the instruction that last wrote it and the one
+        //  that last read it as data, with where it stood and its cycle; an
+        //  opcode's read is the fetch's, not the instruction before's.
+        TEST_METHOD (TheLastWriterAndReaderOfAnAddressAreKept)
+        {
+            AccessHeatMap   map;
+            uint64_t        position = 10;
+            uint64_t        cycles   = 500;
+            HeatLastAccess  access;
+
+
+
+            map.SetPositionSource (&position);
+            map.SetCycleSource    (&cycles);
+            map.Start (GetCpu65C02InstructionSet(), 0);
+
+            // $0300: STA $2000
+            Run   (map, 0x0300, kStaAbsolute, 2);
+            Write (map, 0x2000);
+
+            position = 11;
+            cycles   = 504;
+
+            // $0303: LDA $2000, then $0306: NOP, whose opcode comes as a read
+            // before its fetch takes the read back.
+            Run  (map, 0x0303, kLdaAbsolute, 2);
+            Read (map, 0x2000);
+
+            position = 12;
+            cycles   = 508;
+
+            Run (map, 0x0306, kNop, 0);
+
+            position = 13;
+
+            Assert::IsTrue   (map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access) == HeatAccessState::Found, L"written");
+            Assert::AreEqual ((Word) 0x0300,    access.GetPc());
+            Assert::AreEqual ((uint64_t) 10,    access.GetPosition());
+            Assert::AreEqual ((uint64_t) 500,   access.cycle);
+
+            Assert::IsTrue   (map.GetLastAccess (HeatSpace::Cpu, false, 0x2000, access) == HeatAccessState::Found, L"read");
+            Assert::AreEqual ((Word) 0x0303,    access.GetPc());
+            Assert::AreEqual ((uint64_t) 11,    access.GetPosition());
+            Assert::AreEqual ((uint64_t) 504,   access.cycle);
+
+            Assert::IsFalse  (map.GetLastAccess (HeatSpace::Cpu, false, 0x0306, access) == HeatAccessState::Found, L"an opcode is executed, not read");
+            Assert::IsFalse  (map.GetLastAccess (HeatSpace::Cpu, true,  0x2001, access) == HeatAccessState::Found, L"untouched");
+
+            //  As of a position before the write, it has not happened.
+            position = 10;
+            Assert::AreEqual ((int) HeatAccessState::Unknown, (int) map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access), L"as of its own position, the access before it is not in the map");
+
+            //  A reset shows nothing from before it.
+            position = 13;
+            map.Reset();
+            Assert::IsFalse  (map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access) == HeatAccessState::Found, L"from before the reset");
+        }
+
+
+
+        //  A replay of the past makes accesses at earlier positions, which
+        //  leave a later record in place: the record is the last up to the
+        //  furthest the machine ran, and unknown before it. History cut at a
+        //  position forgets the records from there on.
+        TEST_METHOD (ARecordOnlyMovesLaterAndACutForgetsTheFuture)
+        {
+            AccessHeatMap   map;
+            uint64_t        position = 10;
+            HeatLastAccess  access;
+
+
+
+            map.SetPositionSource (&position);
+            map.Start (GetCpu65C02InstructionSet(), 0);
+
+            position = 50;
+            Run   (map, 0x0300, kStaAbsolute, 2);
+            Write (map, 0x2000);
+
+            position = 20;
+            Run   (map, 0x0400, kStaAbsolute, 2);
+            Write (map, 0x2000);
+
+            position = 60;
+            Assert::AreEqual ((int) HeatAccessState::Found, (int) map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access));
+            Assert::AreEqual ((Word) 0x0300, access.GetPc(), L"the replay's earlier write left the later one");
+
+            position = 30;
+            Assert::AreEqual ((int) HeatAccessState::Unknown, (int) map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access), L"before the later record, unknown");
+
+            map.ForgetAccessesFrom (40);
+            position = 60;
+            Assert::AreEqual ((int) HeatAccessState::Unknown, (int) map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access), L"a record from a future dropped is forgotten");
+
+            Run   (map, 0x0500, kStaAbsolute, 2);
+            Write (map, 0x2000);
+            position = 61;
+            Assert::AreEqual ((int) HeatAccessState::Found, (int) map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access), L"and set again by the next write");
+            Assert::AreEqual ((Word) 0x0500, access.GetPc());
+        }
+
+
+
         TEST_METHOD (AReadOfTheNextAddressAfterAOneByteInstructionIsData)
         {
             AccessHeatMap  map;

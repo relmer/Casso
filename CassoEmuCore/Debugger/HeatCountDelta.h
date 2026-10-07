@@ -45,15 +45,21 @@ public:
     //  not a delta of count entries.
     static bool  TryApply (const Byte * bytes, size_t size, bool isSubtracting, int64_t * totals, size_t count);
 
+    //  The count the bytes hold for one entry, zero where they hold none;
+    //  false when the bytes are not a delta reaching that far.
+    static bool  TryGetCount (const Byte * bytes, size_t size, size_t index, uint64_t & outCount);
+
     //  A delta as history keeps it: its size, shifted left with a flag in
     //  the low bit for whether what follows is packed, then the bytes; and
     //  back. Unpack fails on bytes that are not a packed delta.
     static HRESULT  Pack   (const std::vector<Byte> & delta, SnapshotCompressor & compressor, std::vector<Byte> & outBytes);
     static HRESULT  Unpack (const Byte * bytes, size_t size, SnapshotCompressor & compressor, std::vector<Byte> & outDelta);
 
-private:
+    //  A number seven bits a byte, low first, and back.
     static void  AppendNumber   (uint64_t value, std::vector<Byte> & outBytes);
     static bool  TryReadNumber  (const Byte * bytes, size_t size, size_t & ioAt, uint64_t & outValue);
+
+private:
     static void  AppendSegment  (const int64_t * later, const int64_t * earlier, size_t start, size_t end, bool isUniform, size_t & ioEnd, std::vector<Byte> & outBytes);
     static void  AppendRun      (const int64_t * later, const int64_t * earlier, size_t start, size_t end, size_t & ioEnd, std::vector<Byte> & outBytes);
 

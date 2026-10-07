@@ -172,6 +172,83 @@ namespace DebuggerTests
 
 
 
+        //  A //e program that writes aux RAM through RAMWRT, both language
+        //  card banks and the high RAM, main and aux, and reads ROM, then
+        //  spins. Run for kBudget cycles from $0300.
+        static void RunBanking (Rig & rig)
+        {
+            static constexpr Byte  kProgram[] =
+            {
+                0x8D, 0x05, 0xC0,       // STA $C005    RAMWRT on
+                0x8D, 0x00, 0x20,       // STA $2000    aux $2000
+                0x8D, 0x04, 0xC0,       // STA $C004    RAMWRT off
+                0xAD, 0x8B, 0xC0,       // LDA $C08B    bank 1, RAM, write armed
+                0xAD, 0x8B, 0xC0,       // LDA $C08B    write enabled
+                0x8D, 0x00, 0xD0,       // STA $D000    main bank 1
+                0xAD, 0x83, 0xC0,       // LDA $C083    bank 2
+                0xAD, 0x83, 0xC0,       // LDA $C083
+                0x8D, 0x00, 0xD0,       // STA $D000    main bank 2
+                0x8D, 0x00, 0xE0,       // STA $E000    main high RAM
+                0xAD, 0x82, 0xC0,       // LDA $C082    ROM, write protected
+                0xAD, 0x00, 0xD0,       // LDA $D000    ROM
+                0x8D, 0x09, 0xC0,       // STA $C009    ALTZP on
+                0xAD, 0x8B, 0xC0,       // LDA $C08B    bank 1, RAM, write armed
+                0xAD, 0x8B, 0xC0,       // LDA $C08B
+                0x8D, 0x01, 0xD0,       // STA $D001    aux bank 1
+                0x8D, 0x08, 0xC0,       // STA $C008    ALTZP off
+                0xAD, 0x82, 0xC0,       // LDA $C082    ROM
+                0x4C, 0x36, 0x03,       // JMP $0336
+            };
+            Cpu6502Registers       registers  = rig.target.GetRegisters();
+            RunRequest             run;
+            Word                   at         = 0x0300;
+
+
+
+            for (Byte b : kProgram)
+            {
+                rig.target.TryPoke (at++, b);
+            }
+
+            registers.pc = 0x0300;
+            registers.p  = 0x34;
+            rig.target.SetRegisters (registers);
+
+            run.kind   = RunKind::Go;
+            run.budget = kBudget;
+            Assert::AreEqual (S_OK, rig.target.StartRun (run));
+        }
+
+
+
+        TEST_METHOD (EachAccessCountsWhereItLandedAsWellAsWhereTheCpuAddressedIt)
+        {
+            Rig                    rig;
+            const AccessHeatMap  * map = nullptr;
+
+
+
+            rig.target.SetHeatMapOn (true);
+            RunBanking (rig);
+            map = rig.target.FoldHeatMap();
+
+            Assert::IsNotNull (map);
+            Assert::AreEqual  ((uint64_t) 2, map->GetTotal (HeatSpace::Cpu,  HeatKind::Write,   0xD000), L"the CPU wrote $D000 twice");
+            Assert::AreEqual  ((uint64_t) 1, map->GetTotal (HeatSpace::Aux,  HeatKind::Write,   0x2000), L"RAMWRT sent $2000 to aux");
+            Assert::AreEqual  ((uint64_t) 0, map->GetTotal (HeatSpace::Main, HeatKind::Write,   0x2000), L"and not to main");
+            Assert::AreEqual  ((uint64_t) 1, map->GetTotal (HeatSpace::Main, HeatKind::Write,   0xC000), L"bank 1 of $D000 stands at $C000");
+            Assert::AreEqual  ((uint64_t) 1, map->GetTotal (HeatSpace::Main, HeatKind::Write,   0xD000), L"bank 2 at $D000");
+            Assert::AreEqual  ((uint64_t) 1, map->GetTotal (HeatSpace::Main, HeatKind::Write,   0xE000), L"the high RAM at $E000");
+            Assert::AreEqual  ((uint64_t) 1, map->GetTotal (HeatSpace::Aux,  HeatKind::Write,   0xC001), L"ALTZP sent bank 1 to aux");
+            Assert::AreEqual  ((uint64_t) 1, map->GetTotal (HeatSpace::Rom,  HeatKind::Read,    0xD000), L"a read with ROM banked in reads ROM");
+            Assert::AreEqual  ((uint64_t) 0, map->GetTotal (HeatSpace::Main, HeatKind::Read,    0xD000));
+            Assert::IsTrue    (map->GetTotal (HeatSpace::Main, HeatKind::Execute, 0x0300) > 0, L"the code ran from main RAM");
+            Assert::AreEqual  ((uint64_t) 0, map->GetTotal (HeatSpace::Main, HeatKind::Read, 0xC005), L"I/O is the CPU's alone");
+            Assert::AreEqual  ((uint64_t) 0, map->GetTotal (HeatSpace::Rom,  HeatKind::Write, 0xC005));
+        }
+
+
+
         TEST_METHOD (ClearForgetsTheMap)
         {
             Rig  rig;

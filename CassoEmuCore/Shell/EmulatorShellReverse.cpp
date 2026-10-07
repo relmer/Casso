@@ -85,10 +85,11 @@ void EmulatorShell::StartReverseRecording()
 
     //  A history begun again: the timeline's pictures were of the old one,
     //  and the next are drawn on a machine built as this one is, as are the
-    //  heat map's rebuilds.
+    //  heat map's rebuilds and its look-ups of last accesses.
     m_historyThumbnails.Clear();
     m_historyRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_heatFinder.SetMachine      (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 }
 
 
@@ -1117,7 +1118,8 @@ void EmulatorShell::SyncHeatHistory (bool isAttached)
 
     if (target != nullptr)
     {
-        target->AttachHistory (isLinked ? &controller->GetKeyframes() : nullptr, isLinked ? &m_heatReplayer : nullptr);
+        target->AttachHistory       (isLinked ? &controller->GetKeyframes() : nullptr, isLinked ? &m_heatReplayer : nullptr);
+        target->SetHeatAccessFinder (isLinked ? &m_heatFinder : nullptr);
     }
 }
 

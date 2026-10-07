@@ -332,3 +332,32 @@ void MemoryPane::NoteRefusal (uint64_t offset) const
         m_note (std::format ("${:04X} cannot be edited until the window has read it.", address));
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::GetAddressAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> MemoryPane::GetAddressAt (POINT clientDip) const
+{
+    DxuiHexView::HitResult  hit = m_view->HitTestPoint (clientDip);
+
+
+
+    if (!hit.hit)
+    {
+        return std::nullopt;
+    }
+
+    return m_model.GetAddressOf (hit.offset);
+}
+
+
+
+
+
