@@ -272,6 +272,7 @@
     <BakedMesh Include="DiskII" />
     <BakedMesh Include="Disk2c" />
     <BakedMesh Include="DuoDisk" />
+    <BakedMesh Include="CassetteRecorder" />
     <BakedMesh Include="ImageWriterII" />
   </ItemGroup>
   <Target Name="BakeMeshes"

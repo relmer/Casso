@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -145,6 +145,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Widgets\DxuiDivider.cpp" />
     <ClCompile Include="Core\DxuiFocusRing.cpp" />
     <ClCompile Include="Core\DxuiTextElide.cpp" />
     <ClCompile Include="Core\DxuiFrameRate.cpp" />
@@ -176,6 +177,7 @@
     <ClCompile Include="Widgets\DxuiComboBox.cpp" />
     <ClCompile Include="Widgets\DxuiContextMenu.cpp" />
     <ClCompile Include="Widgets\DxuiToolbar.cpp" />
+    <ClCompile Include="Widgets\DxuiInfoTip.cpp" />
     <ClCompile Include="Widgets\DxuiShadowedText.cpp" />
     <ClCompile Include="Widgets\DxuiOrbitControl.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
@@ -213,6 +215,7 @@
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Widgets\DxuiDivider.h" />
     <ClInclude Include="Dxui.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\DxuiFocusRing.h" />
@@ -259,6 +262,7 @@
     <ClInclude Include="Widgets\DxuiToolbar.h" />
     <ClInclude Include="Widgets\DxuiLabel.h" />
     <ClInclude Include="Widgets\DxuiHudNotice.h" />
+    <ClInclude Include="Widgets\DxuiInfoTip.h" />
     <ClInclude Include="Widgets\DxuiShadowedText.h" />
     <ClInclude Include="Widgets\DxuiOrbitControl.h" />
     <ClInclude Include="Widgets\DxuiIconButton.h" />

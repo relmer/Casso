@@ -34,7 +34,7 @@ HRESULT KeystrokeInjector::WaitForStrobeClear (MachineHost & host, uint64_t cycl
 
     while (!cleared && host.GetCpu()->GetTotalCycles() < target)
     {
-        cleared = host.GetRefs().iieKeyboard->IsStrobeClear();
+        cleared = host.GetRefs().keyboard->IsStrobeClear();
 
         if (!cleared)
         {
@@ -48,7 +48,7 @@ HRESULT KeystrokeInjector::WaitForStrobeClear (MachineHost & host, uint64_t cycl
 
     // Re-checking after the loop covers the budget-exhausted exit, where the
     // last batch may have cleared the strobe on its final instruction.
-    cleared = cleared || host.GetRefs().iieKeyboard->IsStrobeClear();
+    cleared = cleared || host.GetRefs().keyboard->IsStrobeClear();
     CBR (cleared);
 
 Error:
@@ -70,19 +70,19 @@ HRESULT KeystrokeInjector::InjectKey (
     Byte             ch,
     uint64_t         cycleBudget)
 {
-    HRESULT  hr    = S_OK;
-    bool     has2e = (host.GetCpu() != nullptr && host.GetMmu() != nullptr);
+    HRESULT  hr          = S_OK;
+    bool     hasKeyboard = (host.GetCpu() != nullptr && host.GetRefs().keyboard != nullptr);
 
 
 
-    CBR (has2e);
+    CBR (hasKeyboard);
 
     // Two waits, not one: the first makes sure the PREVIOUS key was consumed
     // before overwriting the latch, the second that this one was.
     hr = WaitForStrobeClear (host, cycleBudget);
     CHR (hr);
 
-    host.GetRefs().iieKeyboard->PressKey (ch);
+    host.GetRefs().keyboard->PressKey (ch);
 
     hr = WaitForStrobeClear (host, cycleBudget);
     CHR (hr);

@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
@@ -60,8 +61,14 @@ Byte Apple2eKeyboard::Read (Word address)
 
     // Each arm carries its own sibling test rather than sharing one up front:
     // with the sibling absent the address must keep falling through, and for
-    // $C00C-$C00F that means reaching the base keyboard below.
-    if (isSoftSwitch && m_softSwitchSibling != nullptr)
+    // $C00C-$C00F that means reaching the base keyboard below. The cassette
+    // output comes first so $C028 toggles it on the //e; the //c, whose ROM
+    // bank flips there, has no cassette port.
+    if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
+    {
+        m_cassettePort->ToggleOutput();
+    }
+    else if (isSoftSwitch && m_softSwitchSibling != nullptr)
     {
         value = m_softSwitchSibling->Read (address);
     }
@@ -80,6 +87,11 @@ Byte Apple2eKeyboard::Read (Word address)
     {
         value = ReadButton (address);
         EmitButtonRead (address, value);
+    }
+    else if (address == CassettePort::kInputAddress && m_cassettePort != nullptr)
+    {
+        // Cassette input, bit 7; the rest of the byte reads 0 as before.
+        value = m_cassettePort->ReadInputLevel() ? CassettePort::kInputBit : 0;
     }
     else if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
     {
@@ -483,6 +495,10 @@ void Apple2eKeyboard::Write (Word address, Byte value)
     if (address == 0xC010)
     {
         AppleKeyboard::Write (address, value);
+    }
+    else if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
+    {
+        m_cassettePort->ToggleOutput();
     }
     else if (isSoftSwitch && m_softSwitchSibling != nullptr)
     {

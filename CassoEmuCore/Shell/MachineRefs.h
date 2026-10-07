@@ -28,6 +28,7 @@ struct MachineRefs
     class AppleSoftSwitchBank *   softSwitches     = nullptr;
     class AppleGamePort *         gamePort         = nullptr;
     class AppleSpeaker *          speaker          = nullptr;
+    class CassettePort *          cassettePort     = nullptr;
     class RamDevice *             mainRamDev       = nullptr;
     class Disk2Controller *       diskController   = nullptr;
     class MockingboardCard *      mockingboard     = nullptr;

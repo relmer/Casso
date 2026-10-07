@@ -6,11 +6,9 @@
 [![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
 -->
 
-Casso is a retro platform emulator, 6502/65C02 assembler, and disk manager,
-written in C++ with hardware-accelerated DirectX rendering and a multithreaded
-core.
-
-*It's your retro Swiss Army knife.*
+Casso is your Apple II Swiss Army knife: emulator, 6502/65C02 assembler, and
+disk manager, all in one Windows app, written in C++ with hardware-accelerated
+DirectX rendering and a multithreaded core.
 
 Today it emulates the Apple II family:
 
@@ -77,6 +75,46 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
+
+<a id="v1-31"></a>
+### [2026-10-06 · 1.31] Tape it to the limit
+
+Casso now loads and saves cassette tapes on the Apple ][, ][+ and //e. Insert a
+WAV, AIFF, MP3 or FLAC recording, type `LOAD` and press Play: the program loads
+through the machine's own ROM, exactly as it did from a real tape. Fast loading,
+on by default, runs the load at full speed while playing short slices of the
+tape's audio at normal pitch, so a load that took minutes takes seconds. `SAVE`
+records onto a blank tape, as a 16-bit or an 8-bit WAV. Loading was tested
+against the 25 most-downloaded Apple II cassette titles on the Internet Archive.
+
+The tapes play on a Panasonic RQ-309DS, the recorder Apple II owners actually
+used, modeled in CAD and sitting on the desk beside the drives. All of it works:
+
+- The six keys go down when pressed and latch the way the real mechanism does:
+  Record and Play go down together, pressing any key releases the others, and
+  Stop or Eject releases them all.
+- The tape's spools and the recorder's spindles turn while the tape plays,
+  fast-forwards or rewinds.
+- The volume wheel on the front turns and sets the tape's volume.
+- The counter under the recorder shows the tape position, and clicking it moves
+  the tape to a time you type.
+- The tape's name is handwritten on the cassette's label, a little differently
+  for every tape.
+
+The second drive and the recorder attach and detach from the Storage menu, or by
+right-clicking them, so the recorder can be put away when you are not using
+tapes.
+
+In the flat themes the tape deck is one more slot in the drive band, beside the
+drives, so it takes no extra room.
+
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="39%" align="center"><img src="Assets/tape-1-31-desk.png" alt="The Apple //e desk scene: a Monitor II over two Disk II drives, with the Panasonic RQ-309DS cassette recorder beside them, a cassette in its well and Little Brick Out.wav and the counter 0:00 / 2:20 under it" width="100%" /><br /><sub>The recorder beside the drives</sub></td>
+  <td valign="top" width="29%" align="center"><img src="Assets/tape-1-31-cassette.png" alt="A close view of the RQ-309DS from above: a cassette in the well under the smoked lid, with Little Brick Out handwritten in blue on its label, white hubs in the spool holes, the speaker grille behind, and the embossed Panasonic badge, condenser mic bars and key legends in front" width="100%" /><br /><sub>The tape's name, written on its label</sub></td>
+  <td valign="top" width="32%" align="center"><img src="Assets/tape-1-31-darkmodern.png" alt="Casso in the Dark Modern theme at the DOS 3.3 prompt: the menu and toolbar above the picture, and the drive band below it with Drive 1, Drive 2 and the tape deck side by side, the deck showing Little Brick Out.wav, its Record, Rewind, Fast-forward, Play, Stop and Eject buttons and the counter at 0:00" width="100%" /><br /><sub>The tape deck in the Dark Modern drive band</sub></td>
+</tr>
+</table>
 
 <a id="v1-30"></a>
 ### [2026-10-03 · 1.30] WOZ 2.1 flux support—great Scott!
@@ -345,6 +383,14 @@ its name, with hover text explaining why it is protected. Click a drive's door
 to pick an image, or drag one onto the drive.
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Two Disk II drives on the desk: Drive 1 loaded with Karateka.woz, its red IN USE lamp lit and a padlock beside the name, Drive 2 empty with its door open" width="700" /></p>
+
+**A cassette recorder sits beside the drives** on the ][, ][+ and //e: a
+Panasonic RQ-309DS, the deck Apple II owners actually loaded tapes from.
+Insert a WAV, AIFF, MP3 or FLAC recording, type `LOAD` and press Play; with
+fast loading on, the program loads in seconds. Type `SAVE` to record onto a
+blank tape. The keys, the volume wheel and the counter all work, and the tape's
+name is written on the cassette's label. Detach the recorder from the
+Storage menu, or by right-clicking it, if you don't use tapes.
 
 A consolidated **Settings** sheet holds machine selection and its slots,
 emulation speed, disk write mode, floppy sound and mechanism, write protect, the

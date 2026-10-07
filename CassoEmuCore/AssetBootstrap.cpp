@@ -1233,7 +1233,7 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
+void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable, MediaFilter isWanted)
 {
     std::vector<fs::path>  demos;
     error_code             ec;
@@ -1289,7 +1289,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
         error_code  ecFile;
 
         if (entry.is_regular_file (ecFile) &&
-            IsSupportedDiskImageExtension (entry.path().wstring()))
+            isWanted (entry.path().wstring()))
         {
             demos.push_back (entry.path().lexically_normal());
         }
@@ -1348,9 +1348,12 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable)
+void AssetBootstrap::AppendSiblingDisksFromMruFolders (
+    std::vector<DiskMru::Entry>       & mountable,
+    const std::vector<DiskMru::Entry> & scanFrom,
+    MediaFilter                         isWanted)
 {
-    std::vector<fs::path>  folders = DiskMru::DistinctFolders (mountable);
+    std::vector<fs::path>  folders = DiskMru::DistinctFolders (scanFrom);
     std::vector<fs::path>  discovered;
 
 
@@ -1369,7 +1372,7 @@ void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entr
             error_code  ecFile;
 
             if (entry.is_regular_file (ecFile) &&
-                IsSupportedDiskImageExtension (entry.path().wstring()) &&
+                isWanted (entry.path().wstring()) &&
                 !IsForeignCheckoutDisk (entry.path()))
             {
                 discovered.push_back (entry.path().lexically_normal());
@@ -2100,6 +2103,7 @@ public:
 
     void  SetText           (const std::wstring & title, const std::wstring & intro) { m_title = title; m_intro = intro; }
     void  SetModelRows      (std::vector<ModelRow> rows)                             { m_model = std::move (rows); }
+    void  SetMediaColumn    (const std::wstring & label)                             { m_mediaColumn = label; }
     void  AddButton         (const DialogButton & button)                           { m_buttons.push_back (button); }
     void  SetCloseBoxResult (int code)                                              { m_closeBoxResult = code; }
     void  SetAnchorRect     (const RECT & anchorRectPx)                             { m_anchorRectPx = anchorRectPx; m_hasAnchor = true; }
@@ -2146,6 +2150,7 @@ private:
     std::string                m_themeName;
     std::wstring               m_title;
     std::wstring               m_intro;
+    std::wstring               m_mediaColumn = L"Disk image";
     std::vector<ModelRow>      m_model;
     std::vector<DialogButton>  m_buttons;
     std::optional<int>         m_closeBoxResult;
@@ -2278,7 +2283,7 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
 
     cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
-    cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ m_mediaColumn,  0, false, DxuiTextRenderer::HAlign::Left });
     cols.push_back ({ L"Location",    0, false, DxuiTextRenderer::HAlign::Left });
 
     m_list.SetDpi                    (m_dpi);
@@ -2831,6 +2836,63 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeDiskPickerKind
+//
+//  The words the insert picker has always used for a drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MediaPickerKind AssetBootstrap::MakeDiskPickerKind (int drive)
+{
+    MediaPickerKind  kind;
+
+
+
+    kind.title          = std::wstring (L"Casso ") + s_kchEmDash + format (L" Insert disk in Drive {}", drive);
+    kind.intro          = format (L"Choose a disk image for Drive {}, browse for another, or download a stock master from the Asimov archive.", drive);
+    kind.emptyIntro     = format (L"No recent disks for Drive {}. Browse for an image, or download a stock master from the Asimov archive.", drive);
+    kind.createLabel    = L"<Create new disk...>";
+    kind.mediaColumn    = L"Disk image";
+    kind.offerDownloads = true;
+
+    return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeTapePickerKind
+//
+//  The same picker for the cassette recorder. No downloads: there is no stock
+//  tape to fetch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MediaPickerKind AssetBootstrap::MakeTapePickerKind()
+{
+    MediaPickerKind  kind;
+
+
+
+    kind.title          = std::wstring (L"Casso ") + s_kchEmDash + L" Insert tape";
+    kind.intro          = L"Choose a tape recording, or browse for another.";
+    kind.emptyIntro     = L"No recent tapes. Browse for a recording, or create a new blank tape.";
+    kind.createLabel    = L"<Create new tape...>";
+    kind.mediaColumn    = L"Tape";
+    kind.offerDownloads = false;
+
+    return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PromptInsertDiskMru
 //
 //  Runtime-insert sibling of PromptBootDiskMru. Same MRU + DOS 3.3 /
@@ -2846,7 +2908,7 @@ Error:
 HRESULT AssetBootstrap::PromptInsertDiskMru (
     HINSTANCE                      hInstance,
     HWND                           hwndParent,
-    int                            drive,
+    const MediaPickerKind        & kind,
     const RECT                   * anchorRectPx,
     const vector<DiskMru::Entry> & mruEntries,
     const fs::path               & diskDir,
@@ -2888,11 +2950,18 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     mruLabels.assign ((size_t) mruCount, nullptr);
 
+    // Only disks have stock masters to download; for any other kind the
+    // download rows never appear.
     for (const DownloadRow & dr : downloads)
     {
         fs::path           wantPath  = diskDir / dr.spec->cassoName;
         bool               foundAny  = false;
         std::error_code    ecCmp;
+
+        if (!kind.offerDownloads)
+        {
+            break;
+        }
 
         for (int i = 0; i < mruCount; ++i)
         {
@@ -2919,22 +2988,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     downloadCount = (int) shownDownloads.size();
     rowCount      = mruCount + downloadCount;
 
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += format (L" Insert Disk in Drive {}", drive);
-
-    if (mruCount > 0)
-    {
-        intro  = format (L"Choose a disk image for Drive {}, browse for "
-                         L"another, or download a stock master from the "
-                         L"Asimov archive.", drive);
-    }
-    else
-    {
-        intro  = format (L"No recent disks for Drive {}. Browse for an "
-                         L"image, or download a stock master from the "
-                         L"Asimov archive.", drive);
-    }
+    title = kind.title;
+    intro = mruCount > 0 ? kind.intro : kind.emptyIntro;
 
     models.reserve ((size_t) rowCount + 1);
 
@@ -2945,7 +3000,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     {
         DiskMruPickerSession::ModelRow  row;
 
-        row.name        = L"<Create new disk...>";
+        row.name        = kind.createLabel;
         row.resultCode  = rowCount;
         row.pinnedFirst = true;
         models.push_back (std::move (row));
@@ -2992,6 +3047,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         session.SetText          (title, intro);
         session.SetModelRows     (models);
+        session.SetMediaColumn   (kind.mediaColumn);
         session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
         session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
         session.SetCloseBoxResult (s_kCloseBoxResult);

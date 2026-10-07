@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Devices/IInputEventSink.h"
 #include "Devices/IRomBankSwitch.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
@@ -355,6 +356,11 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
         }
 
         EmitPaddleTrigger();
+    }
+    else if (address == CassettePort::kInputMirrorAddress && m_cassettePort != nullptr)
+    {
+        // $C068 mirrors the cassette input at $C060.
+        result = m_cassettePort->ReadInputLevel() ? CassettePort::kInputBit : 0;
     }
     else if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
     {

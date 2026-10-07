@@ -10,6 +10,33 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MediaFilter, MediaPickerKind
+//
+//  What the insert picker is choosing. Disks and tapes share one picker, one
+//  recent list and one set of scanned folders; the filter keeps each picker to
+//  its own kind of file, and the kind holds the wording and the stock-download
+//  rows, which only disks have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+using MediaFilter = bool (*) (const std::wstring & path);
+
+struct MediaPickerKind
+{
+    std::wstring  title;
+    std::wstring  intro;            // shown when there are recent entries
+    std::wstring  emptyIntro;       // shown when there are none
+    std::wstring  createLabel;      // the pinned <Create new ...> row
+    std::wstring  mediaColumn;      // the list header over the file names
+    bool          offerDownloads = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssetBootstrap
 //
 //  First-run asset wrangling for the Casso shell:
@@ -74,7 +101,8 @@ public:
     // `mountable`, sorted and de-duplicated against existing entries. A repo
     // build finds the source tree's; a release zip ships its own beside the
     // exe. No-op where neither is present.
-    static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable);
+    static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable,
+                                            MediaFilter                   isWanted);
 
     // Append every supported disk image found in the folders that already
     // contain a `mountable` entry (i.e. the recent-disk folders), so a disk
@@ -83,7 +111,12 @@ public:
     // sorted and de-duplicated against existing entries by filesystem
     // identity, and foreign-worktree disks are excluded. Call this BEFORE
     // AppendBundledDemoDisks so the scan set is exactly the MRU folders.
-    static void     AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable);
+    //  The folders come from scanFrom -- every recent entry, disk or tape --
+    //  so disks and tapes share one set of folders; isWanted picks which kind
+    //  of file is listed.
+    static void     AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry>       & mountable,
+                                                      const std::vector<DiskMru::Entry> & scanFrom,
+                                                      MediaFilter                         isWanted);
 
     // True if `p` is a disk belonging to a checkout of this repo OTHER than
     // the one this build runs from (a sibling .claude/worktrees/<name> copy,
@@ -174,9 +207,12 @@ public:
     //   outCreateNew = true if the user chose the pinned
     //                  <Create new disk...> row (caller runs
     //                  the create-disk flow for the same drive)
+    static MediaPickerKind  MakeDiskPickerKind (int drive);
+    static MediaPickerKind  MakeTapePickerKind ();
+
     static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
-                                           int                      drive,
+                                           const MediaPickerKind  & kind,
                                            const RECT             * anchorRectPx,
                                            const vector<DiskMru::Entry> & mruEntries,
                                            const fs::path         & diskDir,

@@ -40,6 +40,11 @@ public:
     void ApplySpeedMode              (SettingsSpeedMode mode)                override;
     void ApplyColorMode              (SettingsColorMode mode)                override;
     void ApplyFloppySound            (bool enabled)                          override;
+    void ApplyFastTapeLoading        (bool enabled)                          override;
+    void ApplyTapeVolume             (float gain)                            override;
+    void ApplyTapeAutoStop           (bool enabled)                          override;
+    void ApplyTapeIdleStop           (bool enabled)                          override;
+    void ApplyTapeEightBit           (bool enabled)                          override;
     void ApplyMechanism              (const std::string & mechanism)         override;
     void ApplyDriveVolumes           (float motor, float head, float door)   override;
     void ApplyDrivePan               (float driveOnePan, float driveTwoPan)  override;
