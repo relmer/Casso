@@ -743,6 +743,47 @@ cell shows its address in a memory window: the one last used if it is in
 view, otherwise the first one that is, otherwise Memory 1, whose tab comes
 forward.
 
+#### Ranges
+
+The map can be focused on the regions a program uses rather than all 64 KB.
+The bar's set drop-down, **All memory** until a set is chosen, lists **All
+memory** and every saved set; choosing a set shows only its ranges, stacked
+in the set's order, each under a header that gives its name and span, such as
+"Hi-res page 1  $2000-$3FFF". Each range's rows follow the same rule as the
+whole map, starting at the range's own first address and stretched to the
+pane, and a range smaller than a row is one row across the pane. A newly
+chosen set starts at the largest zoom at which every range fits the pane
+without scrolling, and fits again as the pane is resized until the map is
+zoomed; one zoom applies to every range, and **Reset zoom** fits the set
+again. Hovering, the tip, the pick of a busy cell nearby and a click to show
+the address in memory all work in every range as on the whole map.
+
+**Edit ranges...** on the bar, or **View > Heat map ranges**, opens the pane
+that edits the sets; it stays closed until first opened. Its bar holds the
+set being edited as a drop-down, **New set**, **Rename set** and **Delete
+set**, then **New**, **Edit**, **Remove**, **Move up** and **Move down** for
+the set's ranges. The list shows each range's **Name**, **Start**, **End**,
+**Size** and whether it is **Built-in**, with a check box in front that
+includes the range in the map or leaves it out.
+
+Every set holds the built-in ranges: **Zero page**, **Stack**, **Text page
+1**, **Text page 2**, **Hi-res page 1**, **Hi-res page 2**, **I/O**,
+**Language Card**, and **My program**, which spans the symbols loaded from
+files and is listed only while some are loaded. A new set starts with all of
+them left out. A built-in range can be checked in or out and moved, but not
+edited or removed.
+
+**New** adds a range and opens its start for typing. A start accepts a whole
+span: `$6000-$95FF`, `ZP_VARS..+$20` (a symbol and a length), the console's
+`$300:$3FF` and `$300,$100`, or a symbol alone, which takes the size its
+cc65 debug file gave it. Double-clicking a cell, **Edit** or F2 edits a
+range's name, start, end or size in place; a size is kept as a length. Every
+start and end is read by the console's own evaluator, so symbols, decimal
+and arithmetic work as in any command. A range that does not read is
+refused with the reason under the bar, and the box stays open; Escape leaves
+the range as it was. Delete removes the selected range and Insert adds one.
+The sets and the set shown are kept between sessions.
+
 The machine records for the heat map only while its pane is open and in
 front. Closed, or behind another tab, it records nothing and costs nothing,
 and the cumulative totals count only what it recorded.
