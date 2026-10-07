@@ -263,7 +263,7 @@ identical memory; host time drops sharply with it on.
 - [X] T054 quickstart.md steps 1, 3 and 5. Step 1 automated 2026-10-04 with a temporary ROM-load test through the real Media Foundation decoder: Cassette 50 side 1 (Internet Archive) as WAV, MP3 and FLAC, each LOADed on the ][+ with no ERR, the WAV and MP3 LISTing the same Applesoft program (SC-006). Step 3 is TapeTurboGovernorTests (OffOnStopEjectAndEndOfTape, IIeButtonPollingWithNoTapeStaysOff). Step 5's position holding and rewinding are TapeDeckTests; the restart and //c checks are the owner's
 - [X] T055 Search all new code for magic numbers, British spelling, `name` used as a verb in strings or comments, and `\w \(\)`
 - [X] T056 Pre-merge gate: full suite Debug and Release x64 (`scripts/RunTests.ps1 -Build`), `scripts/Build.ps1 -RunCodeAnalysis`, ARM64 build, and `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`
-- [ ] T057 After the owner has tested and approved: draft the CHANGELOG `[Unreleased]` entry (`GH #160: ...`) and the README feature line for owner approval before committing
+- [X] T057 After the owner has tested and approved: draft the CHANGELOG `[Unreleased]` entry (`GH #160: ...`) and the README feature line for owner approval before committing
 
 ---
 
