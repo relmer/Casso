@@ -5,6 +5,7 @@
 #include "Ui/Dialogs/UpdateDialog.h"
 #include "Update/UpdateDialogModel.h"
 #include "Update/UpdateSchedule.h"
+#include "Ui/Chrome/UpdateIndicatorModel.h"
 #include "Version.h"
 
 
@@ -447,8 +448,20 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
         version = m_updateRelease.version.ToString();
     }
 
+    if (m_updateIndicatorLine.empty())
+    {
+        m_updateIndicatorLine = UpdateIndicatorModel::PickLine (version, &EmulatorShell::GetRandomIndex);
+    }
+
+    if (isShown && !m_updateIndicator.IsVisible())
+    {
+        m_updateIndicator.StartShimmerClock ((int64_t) GetTickCount64());
+    }
+
     m_updateIndicator.SetToolTipText (L"Update available: Casso " + std::wstring (version.begin(), version.end()));
+    m_updateIndicator.SetText        (m_updateIndicatorLine);
     m_updateIndicator.SetVisible     (isShown);
+    RefitUpdateIndicator (true);
 
     if (!isShown)
     {
@@ -808,4 +821,85 @@ void EmulatorShell::StopUpdateService()
     }
 
     m_updateRuntime.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RefitUpdateIndicator
+//
+//  Sizes the indicator for the caption it has: its text when there is room
+//  beside a title of at least the minimum width, the arrow alone when not.
+//  Runs when the indicator is shown and whenever the client width changes;
+//  `force` skips the width-unchanged shortcut.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefitUpdateIndicator (bool force)
+{
+    constexpr int  kBaseDpi = 96;
+
+
+
+    RECT          client    = {};
+    IndicatorFit  fit;
+    int           widthPx   = 0;
+    UINT          dpi       = m_scaler.GetDpi();
+
+
+
+    if (m_host == nullptr || m_hwnd == nullptr || GetClientRect (m_hwnd, &client) == FALSE)
+    {
+        return;
+    }
+
+    widthPx = client.right - client.left;
+
+    if (!force && widthPx == m_indicatorClientPx)
+    {
+        return;
+    }
+
+    m_indicatorClientPx = widthPx;
+
+    fit = UpdateIndicatorModel::Fit (MulDiv (widthPx, kBaseDpi, (int) dpi),
+                                     m_host->GetCaptionReservedWidthDip(),
+                                     m_updateIndicatorLine);
+
+    m_updateIndicator.SetShowsText (fit.showsText);
+
+    if (fit.widthDip != m_indicatorWidthDip)
+    {
+        m_indicatorWidthDip = fit.widthDip;
+        m_host->SetCaptionAccessoryWidth (fit.widthDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TickUpdateIndicator
+//
+//  Once per UI frame: refit on a width change, follow the system animation
+//  setting, and advance the shimmer. True while the shimmer needs frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TickUpdateIndicator (int64_t nowMs)
+{
+    if (!m_updateIndicator.IsVisible())
+    {
+        return false;
+    }
+
+    RefitUpdateIndicator (false);
+    m_updateIndicator.SetAnimationsEnabled (DxuiSystemSettings::Instance().AreAnimationsEnabled());
+
+    return m_updateIndicator.TickShimmer (nowMs);
 }

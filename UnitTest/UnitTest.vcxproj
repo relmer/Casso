@@ -479,6 +479,7 @@
     <ClCompile Include="UpdateTests\ReleaseNotesLayoutTests.cpp" />
     <ClCompile Include="UpdateTests\ReleaseNotesImageTests.cpp" />
     <ClCompile Include="UpdateTests\SizeGripTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateIndicatorModelTests.cpp" />
     <ClCompile Include="UpdateTests\ZipArchiveTests.cpp" />
     <ClCompile Include="UpdateTests\ZipUpdateInstallerTests.cpp" />
     <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />

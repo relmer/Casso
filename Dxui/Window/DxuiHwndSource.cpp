@@ -3777,11 +3777,6 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
 
 void DxuiHwndSource::SetCaptionAccessory (IDxuiControl * accessory)
 {
-    RECT  clientPx  = {};
-    RECT  clientDip = {};
-
-
-
     DXUI_ASSERT_UI_THREAD();
 
     if (!m_caption)
@@ -3790,6 +3785,65 @@ void DxuiHwndSource::SetCaptionAccessory (IDxuiControl * accessory)
     }
 
     m_caption->SetAccessory (accessory);
+
+    RelayoutCaptionNow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptionAccessoryWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetCaptionAccessoryWidth (int widthDip)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_caption)
+    {
+        m_caption->SetAccessoryWidthDip (widthDip);
+        RelayoutCaptionNow();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCaptionReservedWidthDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetCaptionReservedWidthDip() const
+{
+    return m_caption ? m_caption->GetReservedWidthDip() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RelayoutCaptionNow
+//
+//  Lays the caption out against the current client size at once, so a
+//  change to what it holds shows on the next paint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::RelayoutCaptionNow()
+{
+    RECT  clientPx  = {};
+    RECT  clientDip = {};
+
+
 
     if (m_hwnd != nullptr && GetClientRect (m_hwnd, &clientPx))
     {

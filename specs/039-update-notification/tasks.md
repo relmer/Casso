@@ -72,6 +72,8 @@ order only.
 
 - [X] T039 [US2] Firefly openers and age remark, and a size gripper in the update dialog's bottom-right corner (`SizeGrip`, placement and hit tests)
 
+- [X] T040 [US1] Text indicator in the title bar: a random short line beside the arrow (`UpdateIndicatorModel`), arrow-only fallback when the caption is narrow, and a periodic shimmer that repaints only during a sweep and follows the system animation setting; tests
+
 ## Phase 7: Polish
 
 - [X] T029 Replace "Warn that the release is unsigned" with a failing step and add the core publisher constant to the subject comparison in `.github/workflows/ci.yml`

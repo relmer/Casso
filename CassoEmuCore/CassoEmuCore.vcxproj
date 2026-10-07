@@ -387,6 +387,7 @@
     <ClCompile Include="Print\PrintJobStore.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
     <ClCompile Include="Ui\Chrome\UpdateIndicatorButton.cpp" />
+    <ClCompile Include="Ui\Chrome\UpdateIndicatorModel.cpp" />
     <ClCompile Include="Ui\CreateDiskBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerDialog.cpp" />
@@ -776,6 +777,7 @@
     <ClInclude Include="Ui\Dialogs\StartupDownloadDialog.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
     <ClInclude Include="Ui\Chrome\UpdateIndicatorButton.h" />
+    <ClInclude Include="Ui\Chrome\UpdateIndicatorModel.h" />
     <ClInclude Include="Ui\CreateDiskBodyPanel.h" />
     <ClInclude Include="Ui\PickerBodyPanel.h" />
     <ClInclude Include="Ui\PickerDialog.h" />

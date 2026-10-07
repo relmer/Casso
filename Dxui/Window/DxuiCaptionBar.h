@@ -72,6 +72,10 @@ public:
     // the system buttons; hidden, it takes no room from the title.
     void  SetAccessory     (IDxuiControl * accessory);
 
+    // The accessory's column width; one caption-button column by default.
+    void  SetAccessoryWidthDip (int widthDip) { m_accessoryWidthDip = widthDip; }
+    int   GetReservedWidthDip  () const;
+
     // Natural caption-strip height in physical pixels for the given DPI;
     // the host reserves this band at the top and lays content out below.
     int   GetPreferredHeightPx  (const DxuiDpiScaler & scaler) const;
@@ -92,16 +96,17 @@ private:
     static constexpr int      kButtonWidthDip   = 46;
     static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
 
-    bool                               m_renderCaption = false;
-    Buttons                            m_buttons       = Buttons::None;
-    std::wstring                       m_title;
-    std::vector<uint32_t>              m_iconPixels;
-    int                                m_iconW         = 0;
-    int                                m_iconH         = 0;
-    bool                               m_maximized     = false;
-    DxuiDpiScaler                      m_scaler;
-    std::unique_ptr<DxuiSystemButton>  m_minBtn;
-    std::unique_ptr<DxuiSystemButton>  m_maxBtn;
-    std::unique_ptr<DxuiSystemButton>  m_closeBtn;
-    IDxuiControl                     * m_accessory     = nullptr;
+    bool                                 m_renderCaption     = false;
+    Buttons                              m_buttons           = Buttons::None;
+    std::wstring                         m_title;
+    std::vector<uint32_t>                m_iconPixels;
+    int                                  m_iconW             = 0;
+    int                                  m_iconH             = 0;
+    bool                                 m_maximized         = false;
+    DxuiDpiScaler                        m_scaler;
+    std::unique_ptr<DxuiSystemButton>    m_minBtn;
+    std::unique_ptr<DxuiSystemButton>    m_maxBtn;
+    std::unique_ptr<DxuiSystemButton>    m_closeBtn;
+    IDxuiControl                       * m_accessory         = nullptr;
+    int                                  m_accessoryWidthDip = kButtonWidthDip;
 };

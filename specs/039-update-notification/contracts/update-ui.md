@@ -2,8 +2,18 @@
 
 ## Title-bar indicator
 
-- An icon button left of the minimize button, visible only when a newer,
-  unskipped release is known (or found by a manual check).
+- Left of the minimize button, visible only when a newer, unskipped release
+  is known (or found by a manual check): a download arrow and a short line of
+  text in the accent color, right-justified against the caption buttons, one
+  line picked at random per session from about ten ("Shiny new Casso!",
+  "Psst—update me", "Casso 1.30.0 is out", ...; some give the version).
+  Hover and press fills match the caption buttons.
+- When the caption is too narrow for the text beside a title of at least
+  80 DIPs, the indicator drops to the arrow alone; the title gives way first.
+- Shimmer: 2 s after it appears and then every 8 s, a 1 s diagonal highlight
+  sweeps across the arrow and text, with a small glint at mid-sweep. Frames
+  are requested only during a sweep; between sweeps nothing repaints. With
+  the system's "Show animations" off the text is static.
 - Tooltip: "Update available: Casso <version>".
 - Click opens the update dialog.
 

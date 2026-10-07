@@ -400,6 +400,8 @@ public:
     // buttons (see DxuiCaptionBar::SetAccessory). Non-owning; pass null to
     // remove it before the control is destroyed. No-op without a host caption.
     void          SetCaptionAccessory (IDxuiControl * accessory);
+    void          SetCaptionAccessoryWidth (int widthDip);
+    int           GetCaptionReservedWidthDip () const;
 
     // Turns the resize borders off and on at runtime. A window that has gone
     // borderless-fullscreen fills the monitor and has nothing to resize TO:
@@ -761,6 +763,7 @@ private:
     void     MaybeRelayoutRoot         (const RECT & clientPx);
     DxuiPanel *  GetRootPanel             () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }
     void     LayoutCaption             (const RECT & clientDip);
+    void     RelayoutCaptionNow        ();
     void     BuildCaption              ();
     bool     RouteCaptionNcMouse       (UINT msg, WPARAM wp, LPARAM lp);
 

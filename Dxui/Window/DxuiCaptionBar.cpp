@@ -305,7 +305,7 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     if (m_accessory != nullptr)
     {
-        rc = { right - kButtonWidthDip, top, right, bottom };
+        rc = { right - m_accessoryWidthDip, top, right, bottom };
         m_accessory->Layout (rc, scaler);
     }
 }
@@ -381,8 +381,8 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
 
     buttonCount   = (m_minBtn ? 1 : 0) + (m_maxBtn ? 1 : 0) + (m_closeBtn ? 1 : 0);
-    buttonCount  += (m_accessory != nullptr && m_accessory->IsVisible()) ? 1 : 0;
     buttonStripPx = (float) buttonCount * m_scaler.ToPxf ((float) kButtonWidthDip);
+    buttonStripPx += (m_accessory != nullptr && m_accessory->IsVisible()) ? m_scaler.ToPxf ((float) m_accessoryWidthDip) : 0.0f;
 
     textLeftPx   = xPx + textOffsetPx;
     titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.ToPxf (kTitlePadDip);
@@ -470,3 +470,28 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReservedWidthDip
+//
+//  What the caption keeps for everything but the title and the accessory:
+//  the system buttons, and the icon with the padding around it. A consumer
+//  sizing its accessory subtracts this from the caption width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiCaptionBar::GetReservedWidthDip() const
+{
+    constexpr int  kIconAndPadDip = 56;
+
+
+
+    int  buttons = (m_minBtn ? 1 : 0) + (m_maxBtn ? 1 : 0) + (m_closeBtn ? 1 : 0);
+
+
+
+    return buttons * kButtonWidthDip + kIconAndPadDip;
+}

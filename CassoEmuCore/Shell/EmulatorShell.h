@@ -1400,6 +1400,8 @@ private:
     void                   HandleUpdateCheckResult     (UpdateResult & result);
     void                   HandleUpdateApplyResult     (UpdateResult & result);
     void                   ShowUpdateIndicator         (bool isShown);
+    void                   RefitUpdateIndicator        (bool force);
+    bool                   TickUpdateIndicator         (int64_t nowMs);
     void                   OpenUpdateDialog            ();
     void                   ReportUpdateCheckFailure    (UpdateFailure failure);
     void                   ReportUpToDate              ();
@@ -1421,6 +1423,9 @@ private:
     bool                            m_isManualCheckPending  = false;
     bool                            m_wasLaunchedByUpdate   = false;
     DWORD                           m_cleanupOldPid         = 0;
+    std::wstring                    m_updateIndicatorLine;
+    int                             m_indicatorClientPx     = -1;
+    int                             m_indicatorWidthDip     = 0;
 
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend

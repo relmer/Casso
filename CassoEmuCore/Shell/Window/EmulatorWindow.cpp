@@ -1479,6 +1479,7 @@ void EmulatorShell::WaitForFrameOrMessage()
     DWORD                   timeout      = s_kIdleUpkeepMs;
     DWORD                   waited       = 0;
     std::optional<int64_t>  nextChangeMs = m_notices.GetNextChangeMs();
+    std::optional<int64_t>  shimmerMs    = m_updateIndicator.IsVisible() ? m_updateIndicator.GetMsUntilShimmer ((int64_t) GetTickCount64()) : std::nullopt;
     int64_t                 untilMs      = 0;
     int64_t                 nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -1499,6 +1500,12 @@ void EmulatorShell::WaitForFrameOrMessage()
     {
         untilMs = std::clamp (*nextChangeMs - nowMs, (int64_t) 0, (int64_t) timeout);
         timeout = (DWORD) untilMs;
+    }
+
+    // Wake for the update indicator's next shimmer sweep, no sooner.
+    if (shimmerMs.has_value())
+    {
+        timeout = (DWORD) std::clamp (*shimmerMs, (int64_t) 0, (int64_t) timeout);
     }
 
     waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
