@@ -113,6 +113,23 @@ namespace HeatMapRangesPaneTests
         using DebuggerWindow::ToggleHeatRange;
         using DebuggerWindow::GetRangeSetCommands;
         using DebuggerWindow::FocusControl;
+        using DebuggerWindow::IsFramePaintDue;
+        using DebuggerWindow::kIdlePaintMs;
+
+        //  Each question asked, answered with `answer` rather than shown.
+        int  ShowMessageBox (HWND, const std::wstring & text, const wchar_t * caption, UINT type) override
+        {
+            questions.push_back (text);
+            captions.push_back  (caption);
+            types.push_back     (type);
+
+            return answer;
+        }
+
+        int                        answer = IDNO;
+        std::vector<std::wstring>  questions;
+        std::vector<std::wstring>  captions;
+        std::vector<UINT>          types;
     };
 
 
@@ -467,6 +484,55 @@ namespace HeatMapRangesPaneTests
             Assert::IsTrue   (again->GetHeatRanges() == window.GetHeatRanges(), L"every set and the set shown");
             Assert::IsTrue   (again->GetHeatMapView()->HasRanges(), L"the map opens on the set it showed");
             Assert::AreEqual (std::string ("Game"), again->GetEditedRangeSet());
+        }
+
+
+
+        TEST_METHOD (AFrameRepaintsOnAnUpdateOrMovementAndOtherwiseOnlyNowAndThen)
+        {
+            constexpr int64_t  kPainted = 5000;
+
+
+
+            Assert::IsTrue  (RangesWindow::IsFramePaintDue (true,  false, kPainted + 1, kPainted), L"a snapshot or console line came in");
+            Assert::IsTrue  (RangesWindow::IsFramePaintDue (false, true,  kPainted + 1, kPainted), L"a menu slides or a scrollbar fades");
+            Assert::IsFalse (RangesWindow::IsFramePaintDue (false, false, kPainted + RangesWindow::kIdlePaintMs - 1, kPainted), L"nothing changed");
+            Assert::IsTrue  (RangesWindow::IsFramePaintDue (false, false, kPainted + RangesWindow::kIdlePaintMs, kPainted), L"a caret still blinks");
+        }
+
+
+
+        TEST_METHOD (DeleteSetAsksFirstAndKeepsTheSetOnNo)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            RangesHost     host;
+            RangesWindow   window (theme, host);
+            std::string    kept;
+
+
+
+            BuildWithSet (window, L"Game");
+            AddRange (window, L"$6000-$95FF");
+            kept = host.ranges;
+
+            window.answer = IDNO;
+            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kDeleteSet);
+
+            Assert::AreEqual ((size_t) 1, window.questions.size(), L"asked before deleting");
+            Assert::AreEqual (std::wstring (L"Delete set"), window.captions[0]);
+            Assert::IsTrue   (window.questions[0].find (L"\"Game\"") != std::wstring::npos, L"the question gives the set");
+            Assert::AreEqual ((int) MB_YESNO, (int) (window.types[0] & MB_TYPEMASK));
+            Assert::AreEqual ((int) MB_DEFBUTTON2, (int) (window.types[0] & MB_DEFMASK), L"No is the default");
+            Assert::AreEqual ((size_t) 1, window.GetHeatRanges().sets.size(), L"No keeps the set");
+            Assert::AreEqual (std::string ("Game"), window.GetEditedRangeSet());
+            Assert::AreEqual (kept, host.ranges, L"and saves nothing");
+
+            window.answer = IDYES;
+            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kDeleteSet);
+
+            Assert::AreEqual ((size_t) 2, window.questions.size());
+            Assert::IsTrue   (window.GetHeatRanges().sets.empty(), L"Yes deletes it");
+            Assert::AreNotEqual (kept, host.ranges, L"and saves that");
         }
 
 

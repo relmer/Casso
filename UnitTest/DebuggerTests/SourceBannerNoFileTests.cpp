@@ -120,7 +120,8 @@ namespace DebuggerTests
 
         TEST_METHOD (AReopenedDocument_FindsItsFileAgain)
         {
-            ControllerRig         rig;
+            std::unique_ptr<ControllerRig>  rig = std::make_unique<ControllerRig>();
+
             DxuiTextView          view;
             DxuiActionBanner      banner;
             bool                  onDisk   = true;
@@ -144,8 +145,8 @@ namespace DebuggerTests
 
 
 
-            LoadDebugFile (rig);
-            snapshot = rig.view.Build (rig.controller.GetSession());
+            LoadDebugFile (*rig);
+            snapshot = rig->view.Build (rig->controller.GetSession());
 
             pane.SetFile (0);
             pane.Apply   (snapshot);

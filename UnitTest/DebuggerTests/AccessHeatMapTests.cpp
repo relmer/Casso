@@ -354,6 +354,44 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (AFoldVisitsOnlyTheEntriesWithHeatUntilTheyGoCold)
+        {
+            AccessHeatMap      map;
+            std::vector<Byte>  levels;
+
+
+
+            map.Start (GetCpu65C02InstructionSet(), 0);
+            Assert::AreEqual ((size_t) 0, map.GetListedCount(), L"nothing to fold on a fresh map");
+
+            Read  (map, 0x2000);
+            Read  (map, 0x2000);
+            Write (map, 0x3000);
+            Assert::AreEqual ((size_t) 3, map.GetListedCount(), L"a read and a write, the write counted as a change too, listed once each");
+
+            map.Fold (0);
+            Assert::AreEqual ((size_t) 3, map.GetListedCount(), L"warm, they stay listed");
+
+            map.GetLevels (HeatKind::Read, levels);
+            Assert::IsTrue   (levels[0x2000] > 0);
+            Assert::AreEqual ((Byte) 0, levels[0x2001]);
+
+            map.Fold (GetCycles (25.0));
+            Assert::AreEqual ((size_t) 0, map.GetListedCount(), L"cold, they leave the list");
+            Assert::AreEqual (0.0f, map.GetHeat (HeatKind::Read, 0x2000));
+            Assert::AreEqual ((uint64_t) 2, map.GetTotal (HeatKind::Read, 0x2000), L"the totals keep them");
+
+            Read (map, 0x2000);
+            map.Fold (GetCycles (25.5));
+            Assert::AreEqual ((size_t) 1, map.GetListedCount(), L"touched again, listed again");
+            Assert::AreEqual ((uint64_t) 3, map.GetTotal (HeatKind::Read, 0x2000));
+
+            map.Reset();
+            Assert::AreEqual ((size_t) 0, map.GetListedCount(), L"a reset leaves nothing to fold");
+        }
+
+
+
         TEST_METHOD (TheFadeTimeIsHowLongASingleAccessStays)
         {
             AccessHeatMap  map;

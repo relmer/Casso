@@ -273,6 +273,10 @@ struct DebuggerViewSnapshot
         bool                                    hasAux       = false;
         std::shared_ptr<const HeatAccessHover>  hover;
 
+        //  A new number each time the map is read, so the window knows a
+        //  snapshot holding the last reading again has nothing new in it.
+        uint64_t                                serial       = 0;
+
         //  The reads of RAM nothing had written, but those in the ranges
         //  left out, and the writes that changed their byte, the same way;
         //  and the bytes the debugger edited, a mark each.
@@ -355,6 +359,11 @@ public:
     static constexpr int       kMemoryRows      = 16;
     static constexpr uint64_t  kBuildIntervalMs = 16;   // one frame at 60 Hz
 
+    //  How often a running machine's heat map is read again: the levels of
+    //  every address and the bytes under them. Each snapshot between holds
+    //  the last reading. A stopped machine's is read at every build.
+    static constexpr uint64_t  kHeatIntervalMs  = 100;
+
     //  The registers pane's last row: the CPU cycle count, read only.
     static constexpr const char  * kCyclesRegister = "Cycles";
 
@@ -366,8 +375,10 @@ public:
     static constexpr int       kMemoryRowBytes    = 16;
 
     //  Whether the CPU thread should rebuild the snapshot now: every frame while
-    //  the machine runs, and at once after an action or a stop or start.
+    //  the machine runs, once the window has taken the last one, and at once
+    //  after an action or a stop or start.
     static bool  IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, uint64_t nowMs, uint64_t builtAtMs);
+    static bool  IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, bool isTaken, uint64_t nowMs, uint64_t builtAtMs);
 
     //  Up to four disassembly views; the first is always open. Each call
     //  names a view, the first when it does not.
@@ -447,13 +458,20 @@ public:
     //  The heat map pane: while it is shown the machine's accesses are
     //  counted and each snapshot carries their levels; hidden, the machine
     //  records nothing.
-    void                 SetHeatMapShown (bool shown) { m_isHeatMapShown = shown; }
+    void                 SetHeatMapShown (bool shown) { m_isHeatMapShown = shown; m_isHeatReadDue = true; }
     bool                 IsHeatMapShown  () const     { return m_isHeatMapShown; }
 
     //  Whether the levels come from the fading heat or the totals, and how
     //  long the heat takes to fade.
-    void                    SetHeatMapOptions (const HeatMapOptions & options) { m_heatMapOptions = options; }
+    void                    SetHeatMapOptions (const HeatMapOptions & options) { m_heatMapOptions = options; m_isHeatReadDue = true; }
     const HeatMapOptions &  GetHeatMapOptions () const                         { return m_heatMapOptions; }
+
+    //  The next build reads the heat map again whatever the time, as after
+    //  anything the window did; and the milliseconds the reading interval is
+    //  timed by, which a test gives a clock of its own.
+    void                    MarkHeatMapReadDue ()                              { m_isHeatReadDue = true; }
+    using Clock = uint64_t (*)();
+    void                    SetClock           (Clock clock)                   { m_clock = clock; }
 
     //  The cell the mouse is over on the heat map, whose last writer and
     //  reader each snapshot carries; none when it is over none.
@@ -675,7 +693,8 @@ private:
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTraceNext (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
-    void  BuildHeatMap   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildHeatMap   (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const;
+    void  ReadHeatMap    (DebugSession & session, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state) const;
     static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
     static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values);
     static void            FindHeatMarks  (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);
@@ -768,6 +787,14 @@ private:
     //  Every opcode's form, and the instruction set they were made for.
     mutable std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>    m_opcodeForms;
     mutable const Microcode                                           * m_opcodeFormsSet = nullptr;
+
+    //  The heat map as last read, when, and whether the next build reads it
+    //  again whatever the time.
+    mutable std::shared_ptr<const DebuggerViewSnapshot::HeatMapState>     m_heatRead;
+    mutable uint64_t                                                      m_heatReadAt     = 0;
+    mutable uint64_t                                                      m_heatSerial     = 0;
+    mutable bool                                                          m_isHeatReadDue  = true;
+    Clock                                                                 m_clock          = [] () -> uint64_t { return GetTickCount64(); };
 
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
     std::wstring  m_showPane;

@@ -1609,6 +1609,7 @@ void EmulatorShell::PublishDebuggerView()
     ULONGLONG                                     now        = GetTickCount64();
     bool                                          isDue      = false;
     bool                                          isBreaking = false;
+    bool                                          isTaken    = true;
     std::shared_ptr<const DebuggerViewSnapshot>   snapshot;
 
 
@@ -1636,8 +1637,14 @@ void EmulatorShell::PublishDebuggerView()
         return;
     }
 
-    isDue =DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
-                                           now, m_debugViewBuiltAt);
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        isTaken = !m_isDebugViewFresh;
+    }
+
+    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
+                                           isTaken, now, m_debugViewBuiltAt);
 
     //  A stopped machine waiting on the heat map's rebuild builds again a
     //  frame apart, so the rebuilt heat shows when it comes in.
@@ -1651,6 +1658,12 @@ void EmulatorShell::PublishDebuggerView()
     //  The clock panel reports the speed, which the CPU manager paces and the
     //  machine does not know.
     m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
+
+    //  Anything the window did is shown at once, the heat map included.
+    if (m_isDebugViewDirty)
+    {
+        m_debugViewState.MarkHeatMapReadDue();
+    }
 
     //  The heat map follows the machine through history.
     SyncHeatHistory (true);

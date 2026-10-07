@@ -3006,6 +3006,18 @@ namespace DebuggerViewStateTests
             Assert::IsTrue (DebuggerViewState::IsBuildDue (true, true,  true,  1000, 1000));
             Assert::IsTrue (DebuggerViewState::IsBuildDue (true, false, false, 1000, 1000));
         }
+
+
+        TEST_METHOD (ARunningMachineWaitsForTheWindowToTakeTheLastSnapshot)
+        {
+            //  A snapshot the window has not taken yet would only be thrown
+            //  away by the next, so time alone builds none until it is taken.
+            Assert::IsFalse (DebuggerViewState::IsBuildDue (false, false, false, false, 1000 + 10 * kFrame, 1000), L"not taken");
+            Assert::IsTrue  (DebuggerViewState::IsBuildDue (false, false, false, true,  1000 + kFrame,      1000), L"taken");
+
+            Assert::IsTrue  (DebuggerViewState::IsBuildDue (true,  false, false, false, 1000, 1000), L"an action is due all the same");
+            Assert::IsTrue  (DebuggerViewState::IsBuildDue (false, true,  false, false, 1000, 1000), L"so is a stop");
+        }
     };
 
 
@@ -3290,7 +3302,8 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (ThePaneLoadsTheFileAtPcAndMarksItsLine)
         {
-            MachineRig            rig;
+            std::unique_ptr<MachineRig>  rig = std::make_unique<MachineRig>();
+
             DxuiTextView          view;
             DxuiActionBanner      banner;
             int                   finds    = 0;
@@ -3313,9 +3326,9 @@ namespace DebuggerViewStateTests
 
 
 
-            LoadDebugFile (rig);
-            SetPc (rig, 0x0302);
-            snapshot = rig.view.Build (rig.controller.GetSession());
+            LoadDebugFile (*rig);
+            SetPc (*rig, 0x0302);
+            snapshot = rig->view.Build (rig->controller.GetSession());
             pane.SetOnToggleBody ([&toggled] { toggled = true; });
             pane.SetFile (snapshot.source->fileId);
             pane.Apply (snapshot);

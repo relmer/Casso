@@ -206,17 +206,23 @@ void HeatHistory::Reset()
 //  keyframe becomes the anchor. The written bits go beside them, or a note
 //  that they have not changed since the keyframe before.
 //
+//  This runs on the thread that runs the machine, at every keyframe, over
+//  all 1.3 million totals, so nothing is copied that need not be: an anchor
+//  that is already the newest keyframe needs no walk, and the totals now
+//  become the anchor's by a swap.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatHistory::OnKeyframeAdding (
     uint64_t             position,
     std::vector<Byte>  & outSide)
 {
-    HRESULT  hr        = S_OK;
-    size_t   anchor    = 0;
-    size_t   newest    = 0;
-    bool     hasWalk   = false;
-    bool     isChanged = false;
+    HRESULT                         hr        = S_OK;
+    size_t                          anchor    = 0;
+    size_t                          newest    = 0;
+    bool                            hasWalk   = false;
+    bool                            isChanged = false;
+    const std::vector<int64_t>    * earlier   = nullptr;
 
 
 
@@ -234,13 +240,20 @@ void HeatHistory::OnKeyframeAdding (
     if (m_hasAnchor && m_keyframes->GetCount() > 0 && TryFindKeyframe (m_anchorPosition, anchor))
     {
         newest  = m_keyframes->GetCount() - 1;
-        m_walk  = m_anchorTotals;
-        hasWalk = TryWalk (anchor, newest, m_walk);
+        earlier = &m_anchorTotals;
+        hasWalk = true;
+
+        if (anchor != newest)
+        {
+            m_walk  = m_anchorTotals;
+            earlier = &m_walk;
+            hasWalk = TryWalk (anchor, newest, m_walk);
+        }
     }
 
-    if (hasWalk)
+    if (hasWalk && earlier->size() == m_now.size())
     {
-        HeatCountDelta::Encode (m_now.data(), m_walk.data(), m_now.size(), m_delta);
+        HeatCountDelta::Encode (m_now.data(), earlier->data(), m_now.size(), m_delta);
 
         hr = HeatCountDelta::Pack (m_delta, m_compressor, m_counts);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -256,7 +269,9 @@ void HeatHistory::OnKeyframeAdding (
     hr = HeatKeyframeSide::Make (m_counts, isChanged ? &m_bits : nullptr, m_compressor, outSide);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    SetAnchor (position, m_now);
+    m_anchorTotals.swap (m_now);
+    m_anchorPosition = position;
+    m_hasAnchor      = true;
 }
 
 

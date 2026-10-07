@@ -318,9 +318,9 @@ public:
     RECT   GetHorizontalBarRect () const;
     RECT   GetVerticalBarRect   () const;
 
-    //  The map as drawn, a pixel each, the size of the map's area; and the
-    //  color one address is drawn in.
-    const std::vector<uint32_t> &  GetPixels    () const { return m_frame; }
+    //  The map as drawn, a pixel each, the size of the map's area, drawn again
+    //  first if anything changed it since; and the color one address is drawn in.
+    const std::vector<uint32_t> &  GetPixels    ();
     uint32_t                       GetCellColor (Word address) const;
 
     static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette);

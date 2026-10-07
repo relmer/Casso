@@ -57,6 +57,43 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (ARunningMachinesMapIsReadNowAndThenAndAStoppedOnesEveryBuild)
+        {
+            std::unique_ptr<ControllerRig>  rig      = std::make_unique<ControllerRig>();
+            DebuggerViewSnapshot            snapshot;
+            uint64_t                        first    = 0;
+            uint64_t                        running  = 0;
+            uint64_t                        asked    = 0;
+
+
+
+            rig->view.SetClock ([] { return (uint64_t) 1000; });
+            rig->view.SetHeatMapShown (true);
+            snapshot = rig->view.Build (rig->controller.GetSession(), false);
+            first    = snapshot.heatMap.serial;
+
+            //  LDA #$41 at $0300: counted, but a running machine's snapshot
+            //  within the interval holds the reading before it.
+            rig->machine.StepOne();
+            snapshot = rig->view.Build (rig->controller.GetSession(), false);
+            running  = snapshot.heatMap.serial;
+
+            Assert::AreNotEqual ((uint64_t) 0, first);
+            Assert::AreEqual    (first, running, L"the same reading");
+            Assert::AreEqual    ((Byte) 0, snapshot.heatMap.execute[0x0300]);
+
+            rig->view.MarkHeatMapReadDue();
+            snapshot = rig->view.Build (rig->controller.GetSession(), false);
+            asked    = snapshot.heatMap.serial;
+
+            Assert::AreNotEqual (running, asked, L"read again when asked");
+            Assert::IsTrue      (snapshot.heatMap.execute[0x0300] > 0);
+
+            snapshot = rig->view.Build (rig->controller.GetSession(), true);
+            Assert::AreNotEqual (asked, snapshot.heatMap.serial, L"a stopped machine's at every build");
+        }
+
+
         TEST_METHOD (HidingThePaneAgainStopsTheRecording)
         {
             ControllerRig         rig;

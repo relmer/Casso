@@ -39,9 +39,28 @@
 
 bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, uint64_t nowMs, uint64_t builtAtMs)
 {
+    return IsBuildDue (isDirty, isPaused, wasPaused, true, nowMs, builtAtMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::IsBuildDue
+//
+//  A snapshot the window has yet to take would only be replaced unseen, so
+//  time alone builds no other until it is taken; the window takes one each
+//  time it paints, so the machine builds no more than the window shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, bool isTaken, uint64_t nowMs, uint64_t builtAtMs)
+{
     return isDirty                 ||
            isPaused != wasPaused   ||
-           (!isPaused && nowMs - builtAtMs >= kBuildIntervalMs);
+           (!isPaused && isTaken && nowMs - builtAtMs >= kBuildIntervalMs);
 }
 
 
@@ -219,7 +238,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     BuildSource  (session, snapshot);
     BuildTrace   (session, snapshot);
     BuildPanels  (session, snapshot);
-    BuildHeatMap (session, snapshot);
+    BuildHeatMap (session, snapshot, isPaused);
 
     return snapshot;
 }
@@ -234,23 +253,27 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 //
 //  The map records only while its pane is shown, so the build that first
 //  sees the pane hidden turns it off; the one that sees it shown turns it on
-//  and carries what it has counted, as fading heat or as totals, in the bank
-//  chosen when the machine has it and in the CPU's otherwise. A language
-//  card's view shows its 16 KB alone. With the mouse over a cell, the cell's
-//  last writer and reader go with it. So do the bank's bytes, the opcodes
-//  fetched, and where the PC and stack pointer are, for the overlays. The map
-//  stays on while BRKUNINIT is, pane or no pane, since only it sees a read
-//  before written; those in the ranges left out are not carried, and with
-//  same-value writes left out the writes carried are the changes alone.
+//  and puts what it has counted in the snapshot (ReadHeatMap). The map stays
+//  on while BRKUNINIT is, pane or no pane, since only it sees a read before
+//  written.
+//
+//  A running machine's map is read every kHeatIntervalMs, and the snapshots
+//  between hold that reading; reading all 64K addresses at every snapshot
+//  took the thread that runs the machine several milliseconds a frame in a
+//  debug build. A stopped machine's is read at every build, as is the map
+//  after a change of its options or anything the window did. With the mouse
+//  over a cell, the cell's last writer and reader go with every snapshot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const
 {
-    IDebugTarget                         & target = session.GetTarget();
-    const AccessHeatMap                  * map    = nullptr;
-    DebuggerViewSnapshot::HeatMapState   & state  = snapshot.heatMap;
-    HeatSpace                              space  = HeatSpace::Cpu;
+    IDebugTarget                                         & target = session.GetTarget();
+    const AccessHeatMap                                  * map    = nullptr;
+    DebuggerViewSnapshot::HeatMapState                   & state  = snapshot.heatMap;
+    uint64_t                                               now    = m_clock();
+    std::shared_ptr<DebuggerViewSnapshot::HeatMapState>    read;
+    HeatSpace                                              space  = HeatSpace::Cpu;
 
 
 
@@ -261,41 +284,96 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
 
     if (map == nullptr || !m_isHeatMapShown)
     {
+        m_isHeatReadDue = true;
         return;
     }
 
+    if (m_heatRead == nullptr || isPaused || m_isHeatReadDue || now - m_heatReadAt >= kHeatIntervalMs)
+    {
+        read = std::make_shared<DebuggerViewSnapshot::HeatMapState>();
+        ReadHeatMap (session, *map, *read);
+
+        read->serial    = ++m_heatSerial;
+        m_heatRead      = read;
+        m_heatReadAt    = now;
+        m_isHeatReadDue = false;
+    }
+
+    state = *m_heatRead;
+    space = HeatMapOptions::GetSpace (state.bank);
+
+    if (!m_heatMapOptions.cumulative)
+    {
+        state.isRebuilding = target.IsHeatMapRebuilding();
+    }
+
+    if (m_heatMapHover.has_value() && HeatMapOptions::IsShown (state.bank, *m_heatMapHover))
+    {
+        state.hover = std::make_shared<const HeatAccessHover> (HeatAccessHover { *m_heatMapHover,
+                                                                                 state.bank,
+                                                                                 GetHeatAccess (session, space, true,  *m_heatMapHover),
+                                                                                 GetHeatAccess (session, space, false, *m_heatMapHover) });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ReadHeatMap
+//
+//  What the map has counted, as fading heat or as totals, in the bank chosen
+//  when the machine has it and in the CPU's otherwise. A language card's
+//  view shows its 16 KB alone. With them go the bank's bytes, the opcodes
+//  fetched, and where the PC and stack pointer are, for the overlays. Reads
+//  before written in the ranges left out are dropped, and with
+//  same-value writes left out the writes given are the changes alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::ReadHeatMap (
+    DebugSession                          & session,
+    const AccessHeatMap                   & map,
+    DebuggerViewSnapshot::HeatMapState    & state) const
+{
+    IDebugTarget  & target = session.GetTarget();
+    HeatSpace       space  = HeatSpace::Cpu;
+
+
+
     for (size_t bank = 0; bank < HeatMapOptions::kBankCount; bank++)
     {
-        if (HeatMapOptions::IsAvailable ((HeatMapOptions::Bank) bank, map->GetBankMap()))
+        if (HeatMapOptions::IsAvailable ((HeatMapOptions::Bank) bank, map.GetBankMap()))
         {
             state.banks.push_back ((HeatMapOptions::Bank) bank);
         }
     }
 
-    state.hasAux = map->GetBankMap().HasSpace (HeatSpace::Aux);
+    state.hasAux = map.GetBankMap().HasSpace (HeatSpace::Aux);
     state.bank   = (std::ranges::find (state.banks, m_heatMapOptions.bank) != state.banks.end()) ? m_heatMapOptions.bank : HeatMapOptions::Bank::Cpu;
     space        = HeatMapOptions::GetSpace (state.bank);
 
     if (m_heatMapOptions.cumulative)
     {
-        state.top = (double) map->GetMostTotal (space);
+        state.top = (double) map.GetMostTotal (space);
 
-        map->GetTotalLevels (space, HeatKind::Execute,       state.execute);
-        map->GetTotalLevels (space, HeatKind::Read,          state.read);
-        map->GetTotalLevels (space, HeatKind::Write,         state.write);
-        map->GetTotalLevels (space, HeatKind::UnwrittenRead, state.unwritten);
-        map->GetTotalLevels (space, HeatKind::ChangedWrite,  state.changed);
+        map.GetTotalLevels (space, HeatKind::Execute,       state.execute);
+        map.GetTotalLevels (space, HeatKind::Read,          state.read);
+        map.GetTotalLevels (space, HeatKind::Write,         state.write);
+        map.GetTotalLevels (space, HeatKind::UnwrittenRead, state.unwritten);
+        map.GetTotalLevels (space, HeatKind::ChangedWrite,  state.changed);
     }
     else
     {
-        state.top          = AccessHeatMap::kHottestPerSecond;
-        state.isRebuilding = target.IsHeatMapRebuilding();
+        state.top = AccessHeatMap::kHottestPerSecond;
 
-        map->GetLevels (space, HeatKind::Execute,       state.execute);
-        map->GetLevels (space, HeatKind::Read,          state.read);
-        map->GetLevels (space, HeatKind::Write,         state.write);
-        map->GetLevels (space, HeatKind::UnwrittenRead, state.unwritten);
-        map->GetLevels (space, HeatKind::ChangedWrite,  state.changed);
+        map.GetLevels (space, HeatKind::Execute,       state.execute);
+        map.GetLevels (space, HeatKind::Read,          state.read);
+        map.GetLevels (space, HeatKind::Write,         state.write);
+        map.GetLevels (space, HeatKind::UnwrittenRead, state.unwritten);
+        map.GetLevels (space, HeatKind::ChangedWrite,  state.changed);
     }
 
     if (m_heatMapOptions.ignoreSameWrites)
@@ -303,8 +381,8 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
         state.write = state.changed;
     }
 
-    map->GetOpcodeMarks (space, state.opcodes);
-    map->GetEditedMarks (space, state.edited);
+    map.GetOpcodeMarks (space, state.opcodes);
+    map.GetEditedMarks (space, state.edited);
 
     for (size_t address = 0; address < state.execute.size(); address++)
     {
@@ -318,24 +396,16 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
             state.edited[address]    = 0;
         }
 
-        if (map->IsUnwrittenIgnored (HeatMapOptions::GetCpuAddress (state.bank, (Word) address)))
+        if (map.IsUnwrittenIgnored (HeatMapOptions::GetCpuAddress (state.bank, (Word) address)))
         {
             state.unwritten[address] = 0;
         }
     }
 
-    ReadHeatValues (target, *map, state.bank, state.values);
-    FindHeatMarks  (target, *map, state);
+    ReadHeatValues (target, map, state.bank, state.values);
+    FindHeatMarks  (target, map, state);
 
     state.opcodeForms = GetOpcodeForms (target.GetInstructionSet());
-
-    if (m_heatMapHover.has_value() && HeatMapOptions::IsShown (state.bank, *m_heatMapHover))
-    {
-        state.hover = std::make_shared<const HeatAccessHover> (HeatAccessHover { *m_heatMapHover,
-                                                                                 state.bank,
-                                                                                 GetHeatAccess (session, space, true,  *m_heatMapHover),
-                                                                                 GetHeatAccess (session, space, false, *m_heatMapHover) });
-    }
 }
 
 

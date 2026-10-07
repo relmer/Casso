@@ -357,6 +357,11 @@ void DebuggerWindow::RunHeatRangeBarEntry (int id)
         break;
 
     case HeatMapRangeBarCommands::kDeleteSet:
+        if (!ConfirmDeleteRangeSet())
+        {
+            break;
+        }
+
         (void) m_heatRanges.TryDeleteSet (m_heatRangeSet);
         m_heatRangeSet = m_heatRanges.sets.empty() ? std::string() : m_heatRanges.sets.front().name;
         SaveHeatRanges();
@@ -1089,6 +1094,50 @@ bool DebuggerWindow::RouteHeatRangeKey (const DxuiKeyEvent & ev, IDxuiControl * 
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ConfirmDeleteRangeSet
+//
+//  A set and its ranges go only once the user says yes, in a box centered
+//  on the window that holds the pane, floating or not; No is the default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ConfirmDeleteRangeSet()
+{
+    DxuiWindow    * host     = GetPaneHost (DebuggerLayout::kHeatRanges);
+    std::wstring    question = std::format (L"Delete the set \"{}\" and all of its ranges?", TextEncoding::Utf8ToWide (m_heatRangeSet));
+    int             answer   = IDNO;
+
+
+
+    answer = ShowMessageBox ((host != nullptr) ? host->GetHwnd() : GetHwnd(), question, L"Delete set", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
+
+    return answer == IDYES;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowMessageBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::ShowMessageBox (
+    HWND                   owner,
+    const std::wstring   & text,
+    const wchar_t        * caption,
+    UINT                   type)
+{
+    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type);
+}
 
 
 

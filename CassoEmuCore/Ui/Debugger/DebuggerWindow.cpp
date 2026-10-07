@@ -6323,7 +6323,10 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 //
 //  DebuggerWindow::RenderFrame
 //
-//  Once per UI frame: take whatever the CPU thread published, then repaint.
+//  Once per UI frame: take whatever the CPU thread published, then repaint
+//  when that brought something, when something is moving, or after
+//  kIdlePaintMs, which keeps a caret blinking. Painting every frame, and
+//  twice when a snapshot came in, cost a fifth of a core in a release build.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6331,7 +6334,9 @@ void DebuggerWindow::RenderFrame()
 {
     std::shared_ptr<const DebuggerViewSnapshot>  snapshot;
     std::vector<std::string>                     console;
-    int64_t                                      now = (int64_t) GetTickCount64();
+    int64_t                                      now         = (int64_t) GetTickCount64();
+    bool                                         hasUpdate   = false;
+    bool                                         isAnimating = GetCapture() != nullptr;
 
 
 
@@ -6342,6 +6347,8 @@ void DebuggerWindow::RenderFrame()
 
     if (m_host->TakeDebuggerUpdate (snapshot, console))
     {
+        hasUpdate = true;
+
         if (snapshot != nullptr)
         {
             TakeSnapshot (std::move (snapshot));
@@ -6384,6 +6391,7 @@ void DebuggerWindow::RenderFrame()
         if (strip != nullptr && strip->WantsTick())
         {
             strip->TickMenus (now);
+            isAnimating = true;
         }
     }
 
@@ -6392,12 +6400,14 @@ void DebuggerWindow::RenderFrame()
         if (document.bar->WantsTick())
         {
             document.bar->TickMenus (now);
+            isAnimating = true;
         }
     }
 
     if (m_menuBar->WantsTick())
     {
         m_menuBar->TickMenus (now);
+        isAnimating = true;
     }
 
     //  A menu dismissed by a click outside closes in its own popup, so the
@@ -6407,11 +6417,13 @@ void DebuggerWindow::RenderFrame()
     if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
     {
         GetPopupHost()->GetContextMenu().Tick (now);
+        isAnimating = true;
     }
 
     if (m_tooltip.WantsTick())
     {
         m_tooltip.Tick (now);
+        isAnimating = true;
     }
 
     TickFloats (now);
@@ -6419,15 +6431,12 @@ void DebuggerWindow::RenderFrame()
     for (MemoryPane * pane : GetOpenMemoryPanes())
     {
         pane->FollowScroll();
-        (void) pane->GetView()->TickScrollbars (now);
+        isAnimating = pane->GetView()->TickScrollbars (now) || isAnimating;
     }
 
     m_tracePane->FollowScroll();
 
-    if (m_heatMapView->TickScrollbars (now))
-    {
-        Invalidate();
-    }
+    isAnimating = m_heatMapView->TickScrollbars (now) || m_timelineScrub.IsScrubbing() || isAnimating;
 
     SyncFloats();
     m_barHost.Sync();
@@ -6454,10 +6463,65 @@ void DebuggerWindow::RenderFrame()
     for (const auto & entry : m_floats)
     {
         entry.second->PollCaptionDrag();
+    }
+
+    if (!IsFramePaintDue (hasUpdate, isAnimating, now, m_framePaintedAt))
+    {
+        return;
+    }
+
+    m_framePaintedAt = now;
+
+    for (const auto & entry : m_floats)
+    {
         entry.second->Invalidate();
     }
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsFramePaintDue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsFramePaintDue (
+    bool     hasUpdate,
+    bool     isAnimating,
+    int64_t  nowMs,
+    int64_t  paintedAtMs)
+{
+    return hasUpdate || isAnimating || nowMs - paintedAtMs >= kIdlePaintMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RequestPaint
+//
+//  The window paints once the messages waiting are handled, not now, so
+//  input that comes in a burst is all taken before the paint that shows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RequestPaint()
+{
+    HWND  hwnd = GetHwnd();
+
+
+
+    if (hwnd != nullptr)
+    {
+        InvalidateRect (hwnd, nullptr, FALSE);
+    }
 }
 
 
@@ -6696,8 +6760,6 @@ void DebuggerWindow::ApplyHistory()
             }
         }
     }
-
-    Invalidate();
 }
 
 
@@ -6920,9 +6982,12 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 
     isUsed = m_heatMapView->OnMouse (ev);
 
+    //  Painted once the messages waiting are handled, so a wheel spun hard
+    //  moves the map by every notch before it is drawn, rather than drawing
+    //  each notch while the rest wait.
     if (ev.kind == DxuiMouseEventKind::Move || isUsed)
     {
-        Invalidate();
+        RequestPaint();
     }
 
     return isUsed;
@@ -6987,14 +7052,24 @@ void DebuggerWindow::ApplyHeatMap()
     m_heatMapView->SetTop          (state.top);
     m_heatMapView->SetShownBank    (state.bank, state.hasAux);
     m_heatMapView->SetSymbols      (m_snapshot->heatMapSymbols);
-    m_heatMapView->SetOpcodes      (state.opcodes);
-    m_heatMapView->SetValues       (state.values);
     m_heatMapView->SetOpcodeForms  (state.opcodeForms);
     m_heatMapView->SetCpuMarks     (state.pc, state.stack);
     m_heatMapView->SetBreakpoints  (std::move (breakpoints));
-    m_heatMapView->SetChannelLevels (state.unwritten, state.changed, state.edited);
-    m_heatMapView->SetLevels       (state.execute, state.read, state.write);
     m_heatMapView->SetRebuilding   (state.isRebuilding);
+
+    //  The machine reads its map only now and then while it runs, and the
+    //  snapshots between hold the same reading, whose cells are already
+    //  colored. A state no reading numbered is always new.
+    if (state.serial == 0 || state.serial != m_heatAppliedSerial)
+    {
+        m_heatAppliedSerial = state.serial;
+
+        m_heatMapView->SetOpcodes       (state.opcodes);
+        m_heatMapView->SetValues        (state.values);
+        m_heatMapView->SetChannelLevels (state.unwritten, state.changed, state.edited);
+        m_heatMapView->SetLevels        (state.execute, state.read, state.write);
+    }
+
     m_heatMapView->SetHoverAccess  (state.hover);
 
     //  The ranges read again only when the symbols they read against change.

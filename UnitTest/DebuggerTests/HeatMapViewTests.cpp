@@ -75,7 +75,7 @@ namespace DebuggerTests
         }
 
         //  The frame's pixel under a point.
-        static uint32_t GetPixelAt (const HeatMapView & view, POINT point)
+        static uint32_t GetPixelAt (HeatMapView & view, POINT point)
         {
             RECT  map   = view.GetMapRect();
             long  width = map.right - map.left;

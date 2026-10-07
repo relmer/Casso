@@ -179,6 +179,10 @@ public:
 
     const std::vector<float> &  GetHeatTable () const { return m_heat; }
 
+    //  How many entries have heat or counts not yet folded: all a fold
+    //  visits.
+    size_t  GetListedCount () const { return m_listed.size(); }
+
     //  One mark per address of a space, nonzero where an opcode was fetched
     //  since the map was started or reset, as of where the machine stands:
     //  the bytes executed that are not marked were only ever an instruction's
@@ -306,6 +310,11 @@ private:
     static void    SetBit           (std::vector<uint64_t> & bits, size_t bit)       { bits[bit / kBitsPerWord] |= 1ull << (bit % kBitsPerWord); }
     void           MarkOpcode       (Word pc, const Landing & landing);
 
+    //  One more access at an entry, which then has something to fold; and
+    //  the list of such entries emptied, once nothing on it has any.
+    void           Bump             (size_t entry);
+    void           ClearListed      ();
+
     const Microcode                    * m_instructionSet = nullptr;
     const uint64_t                     * m_position       = nullptr;
     const uint64_t                     * m_cycles         = nullptr;
@@ -316,6 +325,13 @@ private:
     std::vector<int64_t>                 m_totals;
     std::vector<HeatLastAccess>          m_last;
     std::vector<Byte>                    m_opcodes;
+
+    //  The entries with heat or counts not yet folded, the only ones a fold
+    //  has anything to do for, and a flag per entry for whether it is listed.
+    //  An idle machine touches a few hundred of the 1.3 million.
+    std::vector<uint32_t>                m_listed;
+    std::vector<Byte>                    m_isListed;
+
     std::array<uint64_t, kSpaceCount>    m_mostTotal      = {};
     uint64_t                             m_foldedAt       = 0;
     double                               m_fadeSeconds    = HeatMapOptions::kDefaultFadeSeconds;

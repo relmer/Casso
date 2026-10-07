@@ -490,6 +490,17 @@ protected:
     void                       ApplyHeatRanges        ();
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetRangeSetCommands () const { return m_rangeSetCommands; }
 
+    //  A question put to the user in a message box centered on owner, as
+    //  DxuiMessageBox puts it, with its answer; a test answers it instead.
+    virtual int                ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type);
+    bool                       ConfirmDeleteRangeSet  ();
+
+    //  Whether a frame repaints the window: when it took an update, while
+    //  something moves, and otherwise every kIdlePaintMs, for a caret's blink.
+    static constexpr int64_t   kIdlePaintMs           = 100;
+    static bool                IsFramePaintDue        (bool hasUpdate, bool isAnimating, int64_t nowMs, int64_t paintedAtMs);
+    void                       RequestPaint           ();
+
     //  Protected so a test can read the breakpoints pane's columns (FR-117)
     //  and the breakpoint each row shows once sorted.
     void                                          ApplyBreakpoints       ();
@@ -1066,6 +1077,8 @@ private:
     HeatMapView                                                                    * m_heatMapView        = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapFrame;
     bool                                                                             m_isHeatMapRecording = false;
+    int64_t                                                                          m_framePaintedAt     = 0;
+    uint64_t                                                                         m_heatAppliedSerial  = 0;
     std::optional<POINT>                                                             m_heatMapTipAt;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapBarSlot;
     DxuiToolbar                                                                    * m_heatMapBar         = nullptr;

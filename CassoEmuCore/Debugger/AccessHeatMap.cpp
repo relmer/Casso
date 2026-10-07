@@ -32,6 +32,8 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
     m_totals.assign (kEntryCount, 0);
     m_last.assign   (kLastCount, HeatLastAccess());
     m_opcodes.assign (kSpaceCount * kAddressCount, 0);
+    m_isListed.assign (kEntryCount, 0);
+    m_listed.clear();
 
     m_mostTotal    = {};
     m_foldedAt     = cycle;
@@ -73,6 +75,8 @@ void AccessHeatMap::Stop()
     std::vector<uint64_t>        noWritten;
     std::vector<uint64_t>        noEdited;
     std::vector<Byte>            noOpcodes;
+    std::vector<uint32_t>        noListed;
+    std::vector<Byte>            noIsListed;
 
 
 
@@ -83,6 +87,8 @@ void AccessHeatMap::Stop()
     m_written.swap (noWritten);
     m_edited.swap  (noEdited);
     m_opcodes.swap (noOpcodes);
+    m_listed.swap  (noListed);
+    m_isListed.swap (noIsListed);
 
     m_mostTotal      = {};
     m_instructionSet = nullptr;
@@ -107,6 +113,11 @@ void AccessHeatMap::Stop()
 //  last fold, then takes the counts, which the totals take too. A cycle count
 //  that went backward, as a rewind makes it, fades nothing.
 //
+//  Only the listed entries have heat or counts, so only they are visited,
+//  and one gone cold leaves the list. A fold of all 1.3 million entries took
+//  tens of milliseconds in a debug build, on the thread that runs the
+//  machine, at every snapshot.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AccessHeatMap::Fold (uint64_t cycle)
@@ -114,6 +125,7 @@ void AccessHeatMap::Fold (uint64_t cycle)
     double  frames = 0.0;
     float   fade   = 1.0f;
     size_t  space  = 0;
+    size_t  kept   = 0;
 
 
 
@@ -130,7 +142,7 @@ void AccessHeatMap::Fold (uint64_t cycle)
     fade       = (float) std::pow (m_fadePerFrame, frames);
     m_foldedAt = cycle;
 
-    for (size_t i = 0; i < m_heat.size(); i++)
+    for (uint32_t i : m_listed)
     {
         float  heat = m_heat[i] * fade + (float) m_counts[i];
 
@@ -141,7 +153,17 @@ void AccessHeatMap::Fold (uint64_t cycle)
         m_totals[i]       += m_counts[i];
         m_mostTotal[space] = std::max (m_mostTotal[space], (uint64_t) std::max<int64_t> (m_totals[i], 0));
         m_counts[i]        = 0;
+
+        if (m_heat[i] == 0.0f)
+        {
+            m_isListed[i] = 0;
+            continue;
+        }
+
+        m_listed[kept++] = i;
     }
+
+    m_listed.resize (kept);
 }
 
 
@@ -164,9 +186,56 @@ void AccessHeatMap::Reset()
     std::ranges::fill (m_totals, 0ll);
     std::ranges::fill (m_opcodes, (Byte) 0);
 
+    ClearListed();
+
     m_mostTotal     = {};
     m_lastFrom      = (m_position != nullptr) ? *m_position : 0;
     m_isKeptChanged = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::Bump
+//
+//  An entry's first count since it went cold lists it for the next fold.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::Bump (size_t entry)
+{
+    m_counts[entry]++;
+
+    if (m_isListed[entry] == 0)
+    {
+        m_isListed[entry] = 1;
+        m_listed.push_back ((uint32_t) entry);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::ClearListed
+//
+//  For when no entry has heat or counts left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::ClearListed()
+{
+    for (uint32_t i : m_listed)
+    {
+        m_isListed[i] = 0;
+    }
+
+    m_listed.clear();
 }
 
 
@@ -181,11 +250,21 @@ void AccessHeatMap::Reset()
 
 void AccessHeatMap::GetTotalsNow (std::vector<int64_t> & outTotals) const
 {
-    outTotals.resize (m_totals.size());
+    const int64_t   * totals = m_totals.data();
+    const uint32_t  * counts = m_counts.data();
+    int64_t         * out    = nullptr;
+    size_t            count  = m_totals.size();
 
-    for (size_t i = 0; i < m_totals.size(); i++)
+
+
+    outTotals.resize (count);
+    out = outTotals.data();
+
+    //  Through pointers, since this runs over every entry at every keyframe
+    //  and a debug build checks each subscript.
+    for (size_t i = 0; i < count; i++)
     {
-        outTotals[i] = m_totals[i] + m_counts[i];
+        out[i] = totals[i] + counts[i];
     }
 }
 
@@ -318,13 +397,14 @@ void AccessHeatMap::ClearHeat (uint64_t cycle)
         return;
     }
 
-    for (size_t i = 0; i < m_totals.size(); i++)
+    for (uint32_t i : m_listed)
     {
         m_totals[i] += m_counts[i];
         m_counts[i]  = 0;
+        m_heat[i]    = 0.0f;
     }
 
-    std::ranges::fill (m_heat, 0.0f);
+    ClearListed();
 
     m_foldedAt = cycle;
 
@@ -373,6 +453,12 @@ void AccessHeatMap::MergeHeat (
     {
         merged    = m_heat[i] + heat[i] * fade;
         m_heat[i] = (merged < kColdHeat) ? 0.0f : merged;
+
+        if (m_heat[i] != 0.0f && m_isListed[i] == 0)
+        {
+            m_isListed[i] = 1;
+            m_listed.push_back ((uint32_t) i);
+        }
     }
 }
 
@@ -515,11 +601,15 @@ void AccessHeatMap::GetLevels (HeatSpace space, HeatKind kind, std::vector<Byte>
         return;
     }
 
-    levels.resize (kAddressCount);
+    levels.assign (kAddressCount, 0);
 
-    for (size_t address = 0; address < kAddressCount; address++)
+    //  Only a listed entry has heat.
+    for (uint32_t i : m_listed)
     {
-        levels[address] = ToLevel ((double) m_heat[first + address] * perHeat, kHottestPerSecond);
+        if (i >= first && i < first + kAddressCount)
+        {
+            levels[i - first] = ToLevel ((double) m_heat[i] * perHeat, kHottestPerSecond);
+        }
     }
 }
 
@@ -613,7 +703,7 @@ AccessHeatMap::Landing AccessHeatMap::Count (
 
 
     landing.cpu = GetIndex (kind, address);
-    m_counts[landing.cpu]++;
+    Bump (landing.cpu);
 
     landing.hasBank = m_bankMap.TryResolve (address, isWrite, location);
 
@@ -622,7 +712,7 @@ AccessHeatMap::Landing AccessHeatMap::Count (
         landing.space = location.space;
         landing.index = location.index;
         landing.bank  = GetIndex (location.space, kind, location.index);
-        m_counts[landing.bank]++;
+        Bump (landing.bank);
     }
 
     return landing;
@@ -949,11 +1039,11 @@ void AccessHeatMap::CountAlso (
     Word              address,
     const Landing   & landing)
 {
-    m_counts[GetIndex (kind, address)]++;
+    Bump (GetIndex (kind, address));
 
     if (landing.hasBank)
     {
-        m_counts[GetIndex (landing.space, kind, landing.index)]++;
+        Bump (GetIndex (landing.space, kind, landing.index));
     }
 }
 

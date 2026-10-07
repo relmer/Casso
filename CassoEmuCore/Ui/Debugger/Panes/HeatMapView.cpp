@@ -185,7 +185,7 @@ void HeatMapView::FitRanges()
         }
     }
 
-    BuildFrame();
+    m_isFrameStale = true;
 }
 
 
@@ -685,7 +685,7 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
         m_scroll.y = (long) std::lround (down * (double) m_contentH) - (point.y - m_map.top);
 
         ClampScroll();
-        BuildFrame();
+        m_isFrameStale = true;
         return;
     }
 
@@ -700,7 +700,7 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
     m_scroll.y = placed->rowsTop + (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
 
     ClampScroll();
-    BuildFrame();
+    m_isFrameStale = true;
 }
 
 
@@ -791,7 +791,7 @@ void HeatMapView::ScrollBy (int dx, int dy)
     m_scroll.y += dy;
 
     ClampScroll();
-    BuildFrame();
+    m_isFrameStale = true;
 }
 
 
@@ -819,7 +819,7 @@ void HeatMapView::ResetZoom()
     m_scroll = {};
 
     PlaceMap();
-    BuildFrame();
+    m_isFrameStale = true;
 }
 
 
@@ -1184,7 +1184,7 @@ void HeatMapView::BuildCells()
         }
     }
 
-    BuildFrame();
+    m_isFrameStale = true;
 }
 
 
@@ -1532,6 +1532,31 @@ void HeatMapView::BuildFrame()
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetPixels
+//
+//  A change marks the frame stale rather than drawing it again: a wheel spun
+//  or a snapshot that came in redrew every pixel of the map each time, and
+//  input waited behind it. The frame is drawn once, when it is painted or
+//  asked for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<uint32_t> & HeatMapView::GetPixels()
+{
+    if (m_isFrameStale)
+    {
+        BuildFrame();
+    }
+
+    return m_frame;
 }
 
 
@@ -2025,7 +2050,7 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     }
 
     PlaceMap();
-    BuildFrame();
+    m_isFrameStale = true;
 }
 
 
@@ -2075,7 +2100,7 @@ void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & th
     }
 
     PlaceMap();
-    BuildFrame();
+    m_isFrameStale = true;
 }
 
 
@@ -2956,7 +2981,7 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
     m_scroll = { m_pressScroll.x - dx, m_pressScroll.y - dy };
 
     ClampScroll();
-    BuildFrame();
+    m_isFrameStale = true;
     return true;
 }
 
