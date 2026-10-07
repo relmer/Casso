@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "MockDxuiTextRenderer.h"
+
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -593,5 +595,83 @@ public:
         // Edge pad 16, button 75x28, bottom margin 16 -> y = 300-16-28 = 256.
         AssertRect (MakeRect (16, 256, 91, 284), rects[0], L"browse");
         Assert::AreEqual (bounds.left + 16, rects[0].left);
+    }
+
+    TEST_METHOD (LayoutTabRects_WidthIsLabelPlusPadOnBothSides)
+    {
+        DxuiDpiScaler                scaler;
+        RECT                         strip   = MakeRect (0, 0, 720, 36);
+        std::array<DxuiSheetTab, 2>  tabs    = { DxuiSheetTab { 50.0f, true }, DxuiSheetTab { 80.0f, true } };
+        std::array<RECT, 2>          rects   = {};
+
+        scaler.SetDpi (96);
+        DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
+
+        // Left pad 16; widths 50+12*2 = 74 and 80+12*2 = 104, edge to edge.
+        AssertRect (MakeRect (16, 0, 90,  36), rects[0], L"first");
+        AssertRect (MakeRect (90, 0, 194, 36), rects[1], L"second");
+    }
+
+
+    TEST_METHOD (LayoutTabRects_ShortLabelGetsMinimumWidth)
+    {
+        DxuiDpiScaler                scaler;
+        RECT                         strip   = MakeRect (0, 0, 720, 36);
+        std::array<DxuiSheetTab, 2>  tabs    = { DxuiSheetTab { 20.0f, true }, DxuiSheetTab { 50.0f, true } };
+        std::array<RECT, 2>          rects   = {};
+
+        scaler.SetDpi (96);
+        DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
+
+        Assert::AreEqual ((LONG) DxuiPropertySheet::kTabMinWidthDip, rects[0].right - rects[0].left, L"held to the minimum");
+        Assert::AreEqual (rects[0].right, rects[1].left, L"next tab starts where the short one ends");
+    }
+
+
+    TEST_METHOD (LayoutTabRects_HiddenTabTakesNoSpace)
+    {
+        DxuiDpiScaler                scaler;
+        RECT                         strip   = MakeRect (0, 0, 720, 36);
+        std::array<DxuiSheetTab, 3>  tabs    = { DxuiSheetTab { 50.0f, true },
+                                                 DxuiSheetTab { 90.0f, false },
+                                                 DxuiSheetTab { 50.0f, true } };
+        std::array<RECT, 3>          rects   = {};
+
+        scaler.SetDpi (96);
+        DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
+
+        AssertRect (MakeRect (16, 0, 90,  36), rects[0], L"first");
+        AssertRect (MakeRect (0,  0, 0,   0),  rects[1], L"hidden");
+        AssertRect (MakeRect (90, 0, 164, 36), rects[2], L"third follows the first");
+    }
+
+
+    TEST_METHOD (LayoutTabRects_ScalesWithDpi)
+    {
+        DxuiDpiScaler                scaler;
+        RECT                         strip   = MakeRect (10, 5, 1090, 59);
+        std::array<DxuiSheetTab, 2>  tabs    = { DxuiSheetTab { 50.0f, true }, DxuiSheetTab { 10.0f, true } };
+        std::array<RECT, 2>          rects   = {};
+
+        scaler.SetDpi (144);
+        DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
+
+        // Pad 24; 75 + 18*2 = 111; the short one is held to 64*1.5 = 96.
+        AssertRect (MakeRect (34,  5, 145, 59), rects[0], L"first");
+        AssertRect (MakeRect (145, 5, 241, 59), rects[1], L"second");
+    }
+
+
+    TEST_METHOD (MeasureTabLabelDip_ReturnsMeasuredWidth)
+    {
+        MockDxuiTextRenderer  text;
+        float                 widthDip = 0.0f;
+        HRESULT               hr       = S_OK;
+
+        text.SetCannedMetrics (L"General", SIZE { 47, 17 });
+        hr = DxuiPropertySheet::MeasureTabLabelDip (text, L"General", widthDip);
+
+        Assert::AreEqual (S_OK, hr);
+        Assert::AreEqual (47.0f, widthDip);
     }
 };
