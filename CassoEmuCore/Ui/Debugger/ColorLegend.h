@@ -69,6 +69,7 @@ public:
         HistoryFull,
         HeatUnwritten,
         HeatChanged,
+        MemoryUnread,
         Count,
     };
 

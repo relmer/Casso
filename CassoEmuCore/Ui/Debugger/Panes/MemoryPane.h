@@ -18,7 +18,8 @@
 //  THE VIEW SCROLLS THE WHOLE 64K; THE SNAPSHOT HOLDS A WINDOW OF IT. When the
 //  rows on screen leave the bytes the CPU thread last read for this window,
 //  the pane asks for a read around them. Until it arrives, rows outside the
-//  read show as zero.
+//  read show what an earlier read left there, with its colors, or zero in the
+//  muted color where no read has reached.
 //
 //  The window owns the view as a child control; the pane holds a pointer to
 //  it and the model it reads from.
@@ -118,4 +119,5 @@ private:
     uint32_t               m_changedArgb = 0xFFFF6B68;
     uint32_t               m_romArgb     = 0xFF7FB2E5;
     uint32_t               m_ioArgb      = 0xFF909090;
+    uint32_t               m_unreadArgb  = 0xFF707070;
 };

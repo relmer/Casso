@@ -313,7 +313,7 @@ namespace DebuggerTests
             Assert::IsTrue   (hex.right > hex.left, L"the byte is on screen");
             Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell");
             Assert::IsTrue   (window.GetTooltip().GetText().starts_with (L"$"), window.GetTooltip().GetText().c_str());
-            Assert::AreEqual ((size_t) 5, window.GetTooltip().GetText().size(), L"a four-digit address");
+            Assert::IsTrue   (window.GetTooltip().GetText().size() == 5 || window.GetTooltip().GetText()[5] == L' ', L"a four-digit address");
 
             (void) window.OnMouse (MakeMove (text.left + 1, text.top + 1));
             Assert::IsTrue   (window.GetTooltip().IsVisible(), L"the text column too");

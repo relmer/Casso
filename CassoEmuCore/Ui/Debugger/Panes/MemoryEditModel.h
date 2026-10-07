@@ -39,6 +39,9 @@ public:
     static constexpr uint8_t  kMarkRom     = 2;
     static constexpr uint8_t  kMarkChanged = 3;
 
+    //  A byte no read has reached yet, whose value and region are unknown.
+    static constexpr uint8_t  kMarkUnread  = 4;
+
     //  The regions a window outlines: one for each run with a label of its
     //  own, every slot's ROM apart from the next. Main RAM is in none.
     static constexpr uint16_t  kRegionRom          = 1;
@@ -120,12 +123,23 @@ private:
     bool  TryGetShown   (uint64_t address, size_t & outIndex) const;
     void  SendPatch     (Word address, std::span<const Byte> bytes) const;
 
+    //  The byte and region at an address from the current read, or else from
+    //  the last read that reached it. False for an address none has.
+    bool  TryGetKnown   (Word address, std::optional<Byte> & outByte, MemoryRegion & outRegion) const;
+
     Word                                      m_first    = 0;
     ByteChanges                               m_changes;
     Word                                      m_phase    = 0;
     bool                                      m_isPaused = true;
     mutable std::vector<std::optional<Byte>>  m_bytes;
     std::vector<MemoryRegion>                 m_regions;
+
+    //  Every read's bytes and regions, kept by address, so a window scrolled
+    //  past its read draws what it was last shown there rather than unmarked
+    //  zeros until the next read arrives. A region is kept one above its
+    //  value; zero is an address no read has reached.
+    std::vector<std::optional<Byte>>          m_keptBytes;
+    std::vector<uint8_t>                      m_keptRegions;
     mutable std::vector<Edit>                 m_history;
     mutable std::vector<Edit>                 m_redo;
     PatchFn                                   m_onPatch;

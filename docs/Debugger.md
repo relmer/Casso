@@ -997,6 +997,12 @@ a narrow pane moves into the bar's **...** menu. Type over the hex or the
 text to edit memory, in RAM or in ROM; Ctrl+Z undoes the last edit in that
 window.
 
+A window reads the bytes around its rows as it scrolls. Until a read reaches
+rows scrolled into view, they show what an earlier read left there, in the
+same colors; rows no read has reached yet show zeros in a muted color, and
+their tip says "not read yet". Addresses are always the 64K's four digits,
+wherever Go to starts the rows.
+
 Each region of memory a window shows that is not main RAM has a box drawn
 around its bytes: ROM, each slot's ROM (labeled with its slot, such as Slot 6
 ROM), a card's expansion ROM, I/O, the Language Card's two banks and aux RAM,
@@ -1008,7 +1014,9 @@ short for it, as when a region starts near a row's end, the label moves down
 to the edge along the next row. Rows move apart only where an edge runs
 between them, so no line or label covers a byte. ROM and I/O boxes are drawn
 in their bytes' colors, and the Language Card's and aux RAM's in the memory
-map's.
+map's. While the boxes are drawn, the gaps before and after the values are a
+character wider, so a box's edge does not crowd the addresses or the text.
+
 ### Device panels
 
 **Window > Device panels** lists the machine's devices: the Disk II controller, the //e MMU

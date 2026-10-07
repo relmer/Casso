@@ -74,6 +74,10 @@ void MemoryPane::Configure (HWND hwnd)
         {
             outArgb = m_romArgb;
         }
+        else if (mark == MemoryEditModel::kMarkUnread)
+        {
+            outArgb = m_unreadArgb;
+        }
 
         return mark != MemoryEditModel::kMarkNone;
     });
@@ -103,6 +107,7 @@ void MemoryPane::SetTextColors (const DebuggerTextColors::Set & colors)
     m_changedArgb = colors.changed;
     m_romArgb     = colors.rom;
     m_ioArgb      = colors.io;
+    m_unreadArgb  = colors.muted;
 
     regions.rom     = colors.rom;
     regions.io      = colors.io;

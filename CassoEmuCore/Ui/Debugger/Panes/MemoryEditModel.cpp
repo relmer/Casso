@@ -30,9 +30,59 @@ void MemoryEditModel::SetContents (Word first, std::vector<std::optional<Byte>> 
 
     m_changes.Update (m_isPaused, seen);
 
+    if (m_keptBytes.empty())
+    {
+        m_keptBytes.resize   ((size_t) kAddressSpace);
+        m_keptRegions.resize ((size_t) kAddressSpace, 0);
+    }
+
+    for (size_t i = 0; i < bytes.size() && i < regions.size(); i++)
+    {
+        size_t  address = (size_t) ((first + i) & 0xFFFF);
+
+        m_keptBytes[address]   = bytes[i];
+        m_keptRegions[address] = (uint8_t) ((uint8_t) regions[i] + 1);
+    }
+
     m_first   = first;
     m_bytes   = std::move (bytes);
     m_regions = std::move (regions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::TryGetKnown
+//
+//  The current read first, since an edit shows there at once; then whatever
+//  an earlier read left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryEditModel::TryGetKnown (Word address, std::optional<Byte> & outByte, MemoryRegion & outRegion) const
+{
+    size_t  index = 0;
+
+
+
+    if (TryGetShown (address, index) && index < m_regions.size())
+    {
+        outByte   = m_bytes[index];
+        outRegion = m_regions[index];
+        return true;
+    }
+
+    if (address >= m_keptRegions.size() || m_keptRegions[address] == 0)
+    {
+        return false;
+    }
+
+    outByte   = m_keptBytes[address];
+    outRegion = (MemoryRegion) (m_keptRegions[address] - 1);
+    return true;
 }
 
 
@@ -94,13 +144,16 @@ std::optional<MemoryRegion> MemoryEditModel::TryGetRegion (Word address) const
 
 void MemoryEditModel::ReadBytes (uint64_t offset, std::span<uint8_t> out) const
 {
-    size_t  index = 0;
+    std::optional<Byte>  value;
+    MemoryRegion         region = MemoryRegion::MainRam;
 
 
 
     for (size_t i = 0; i < out.size(); i++)
     {
-        out[i] = TryGetShown (GetAddressOf (offset + i), index) ? m_bytes[index].value_or (0) : 0;
+        value.reset();
+
+        out[i] = TryGetKnown (GetAddressOf (offset + i), value, region) ? value.value_or (0) : 0;
     }
 }
 
@@ -114,33 +167,45 @@ void MemoryEditModel::ReadBytes (uint64_t offset, std::span<uint8_t> out) const
 //
 //  I/O and ROM each get a mark, so a window can color the bytes an edit
 //  cannot reach and the ones it patches rather than writes. A byte that
-//  changed since the last read is marked so above either.
+//  changed since the last read is marked so above either. Outside the current
+//  read a byte keeps the mark the last read to reach it gave, so the marks
+//  come with the values in the same paint; a byte no read has reached is
+//  marked unread rather than drawn as plain RAM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryEditModel::ReadMarks (uint64_t offset, std::span<uint8_t> out) const
 {
-    size_t  index = 0;
+    size_t               index  = 0;
+    std::optional<Byte>  value;
+    MemoryRegion         region = MemoryRegion::MainRam;
 
 
 
     for (size_t i = 0; i < out.size(); i++)
     {
+        Word  address = GetAddressOf (offset + i);
+
         out[i] = kMarkNone;
 
-        if (TryGetShown (GetAddressOf (offset + i), index) && m_changes.IsChanged (GetAddressOf (offset + i)))
+        if (TryGetShown (address, index) && m_changes.IsChanged (address))
         {
             out[i] = kMarkChanged;
+            continue;
         }
-        else if (TryGetShown (GetAddressOf (offset + i), index) && index < m_regions.size())
+
+        if (!TryGetKnown (address, value, region))
         {
-            switch (m_regions[index])
-            {
-            case MemoryRegion::Io:      out[i] = kMarkIo;  break;
-            case MemoryRegion::Rom:
-            case MemoryRegion::SlotRom: out[i] = kMarkRom; break;
-            default:                                        break;
-            }
+            out[i] = kMarkUnread;
+            continue;
+        }
+
+        switch (region)
+        {
+        case MemoryRegion::Io:      out[i] = kMarkIo;  break;
+        case MemoryRegion::Rom:
+        case MemoryRegion::SlotRom: out[i] = kMarkRom; break;
+        default:                                        break;
         }
     }
 }
@@ -217,10 +282,11 @@ bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
 
     switch (mark)
     {
-    case kMarkChanged: tip += L"  changed"; break;
-    case kMarkIo:      tip += L"  I/O";     break;
-    case kMarkRom:     tip += L"  ROM";     break;
-    default:                                break;
+    case kMarkChanged: tip += L"  changed";      break;
+    case kMarkIo:      tip += L"  I/O";          break;
+    case kMarkRom:     tip += L"  ROM";          break;
+    case kMarkUnread:  tip += L"  not read yet"; break;
+    default:                                     break;
     }
 
     return true;
@@ -306,20 +372,24 @@ std::wstring MemoryEditModel::GetRegionLabel (uint16_t key)
 //
 //  MemoryEditModel::ReadRegions
 //
-//  The region of each byte the snapshot read; a byte it did not read is in
-//  none, so a window scrolled past its read draws no outline there until the
-//  read arrives.
+//  The region of each byte as the last read to reach it gave it, so a window
+//  scrolled past its read keeps the outlines it was shown there; a byte no
+//  read has reached is in none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) const
 {
+    std::optional<Byte>  value;
+    MemoryRegion         region = MemoryRegion::MainRam;
+
+
+
     for (size_t i = 0; i < out.size(); i++)
     {
-        Word                         address = GetAddressOf (offset + i);
-        std::optional<MemoryRegion>  region  = TryGetRegion (address);
+        Word  address = GetAddressOf (offset + i);
 
-        out[i] = region.has_value() ? GetRegionKey (*region, address) : (uint16_t) 0;
+        out[i] = TryGetKnown (address, value, region) ? GetRegionKey (region, address) : (uint16_t) 0;
     }
 }
 

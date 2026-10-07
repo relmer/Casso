@@ -258,7 +258,39 @@ namespace DebuggerTests
             Assert::AreEqual (MemoryEditModel::kMarkRom, marks[0]);
 
             rig.model.ReadMarks (0xF7FF, std::span<uint8_t> (marks, 1));
+            Assert::AreEqual (MemoryEditModel::kMarkUnread, marks[0], L"never read, so not RAM either");
+
+            rig.Show (0xF7F0, MemoryRegion::MainRam);
+            rig.model.ReadMarks (0xF7FF, std::span<uint8_t> (marks, 1));
             Assert::AreEqual (MemoryEditModel::kMarkNone, marks[0]);
+        }
+
+
+        //  A window scrolled away from its read keeps the bytes it was shown
+        //  there, with their colors and outlines, until the next read arrives:
+        //  drawn as plain RAM in the meantime, ROM flashed white before turning
+        //  blue.
+        TEST_METHOD (BytesReadBeforeKeepTheirMarksUntilTheNextRead)
+        {
+            Rig       rig;
+            uint8_t   mark    = 0;
+            uint16_t  region  = 0;
+            Byte      value   = 0;
+
+
+
+            rig.Show (0xF800, MemoryRegion::Rom);
+            rig.Show (0x0300, MemoryRegion::MainRam);
+
+            rig.model.ReadMarks   (0xF805, std::span<uint8_t>  (&mark,   1));
+            rig.model.ReadRegions (0xF805, std::span<uint16_t> (&region, 1));
+            value = rig.Read (0xF805);
+
+            Assert::AreEqual (MemoryEditModel::kMarkRom,   mark,   L"ROM the window read before is still marked ROM");
+            Assert::AreEqual (MemoryEditModel::kRegionRom, region, L"and still outlined");
+            Assert::AreEqual ((Byte) 5,                    value,  L"with the value it read");
+
+            Assert::IsFalse (rig.Write (0xF805, { 0x00 }), L"an edit still needs the byte in the window's current read");
         }
     };
 }

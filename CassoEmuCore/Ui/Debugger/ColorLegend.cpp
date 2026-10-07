@@ -51,6 +51,7 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { s_kpszMemory,      Meaning::Changed,            Swatch::Text    },
         { s_kpszMemory,      Meaning::RomByte,            Swatch::Text    },
         { s_kpszMemory,      Meaning::IoByte,             Swatch::Text    },
+        { s_kpszMemory,      Meaning::MemoryUnread,       Swatch::Text    },
         { s_kpszMemory,      Meaning::LcBank1Box,         Swatch::Outline },
         { s_kpszMemory,      Meaning::LcBank2Box,         Swatch::Outline },
         { s_kpszMemory,      Meaning::AuxBox,             Swatch::Outline },
@@ -148,6 +149,7 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     case Meaning::HistoryFull:        return L"History buffer full; the oldest history makes room";
     case Meaning::HeatUnwritten:      return L"Read before written: RAM read before anything wrote it since power-on";
     case Meaning::HeatChanged:        return L"Value changed: a write that stored a different value";
+    case Meaning::MemoryUnread:       return L"Not read yet: shown when the window has read it";
     case Meaning::Count:              break;
     }
 
@@ -215,6 +217,7 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::HistoryFull:        return palette.meterFull;
     case Meaning::HeatUnwritten:      return palette.text.heatUnwritten;
     case Meaning::HeatChanged:        return palette.text.heatChanged;
+    case Meaning::MemoryUnread:       return palette.text.muted;
     case Meaning::Count:              break;
     }
 
