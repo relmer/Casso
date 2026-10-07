@@ -474,10 +474,7 @@ void DebuggerWindow::RunHeatMapBarEntry (int id)
 
         break;
 
-    case HeatMapBarCommands::kZoomIn:     m_heatMapView->ZoomIn();    break;
-    case HeatMapBarCommands::kZoomOut:    m_heatMapView->ZoomOut();   break;
-    case HeatMapBarCommands::kResetZoom:  m_heatMapView->ResetZoom(); break;
-    case HeatMapBarCommands::kEditRanges: OpenHeatRanges();           break;
+    case HeatMapBarCommands::kEditRanges: OpenHeatRanges(); break;
 
     default:
         break;

@@ -4,6 +4,7 @@
 
 #include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatMapOptions.h"
+#include "Ui/Debugger/Panes/HeatMapZoomWidget.h"
 
 struct BreakpointInfo;
 class  HeatMapSymbols;
@@ -40,7 +41,9 @@ class  HeatMapSymbols;
 //
 //  The wheel scrolls up and down, Shift with it across, and Ctrl with it
 //  zooms about the mouse; a drag pans, and the scrollbars show and move the
-//  part in view. A click on a cell shows its address in a memory window.
+//  part in view. The zoom widget in the corner shows the zoom and opens a
+//  slider (HeatMapZoomWidget). A click on a cell shows its address in a
+//  memory window.
 //  While cells are small the cell the mouse picks is the busiest one near it,
 //  so a lone hot byte is easy to land on. With Ctrl the click shows the
 //  instruction that last wrote the address in the disassembly, with Shift
@@ -300,6 +303,13 @@ public:
     void   ScrollBy   (int dx, int dy);
     void   ResetZoom  ();
 
+    //  The cell size the map starts at, which the zoom's percentage is of;
+    //  the zoom widget in the map's bottom-right corner; and its tip, for a
+    //  point over its button.
+    int                        GetStartCellPx  () const { return std::max (1, m_scaler.ToPx (kDefaultCellDip)); }
+    const HeatMapZoomWidget &  GetZoomWidget   () const { return m_zoomWidget; }
+    bool                       TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & text) const;
+
     //  The addresses a row holds for a width at a pitch: the largest power of
     //  two from kMinColumns to kMaxColumns whose cells fit, or twice that when
     //  those would stretch past kMaxStretch and a cell still has a pixel.
@@ -410,6 +420,8 @@ private:
     bool                 OnRelease      (const DxuiMouseEvent & ev);
     bool                 OnDragOrHover  (const DxuiMouseEvent & ev);
     bool                 OnWheel        (const DxuiMouseEvent & ev);
+    bool                 OnZoomWidget   (const DxuiMouseEvent & ev);
+    RECT                 GetZoomCorner  () const;
     void                 SetHover       (const std::optional<Place> & hover);
     void                 MeasureGutter  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                 PaintBar       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
@@ -475,4 +487,5 @@ private:
     std::shared_ptr<const HeatMapSymbols>             m_symbols;
     Bank                                              m_symbolsBank = Bank::Cpu;
     std::vector<Byte>                                 m_symbolMarks;
+    HeatMapZoomWidget                                 m_zoomWidget;
 };

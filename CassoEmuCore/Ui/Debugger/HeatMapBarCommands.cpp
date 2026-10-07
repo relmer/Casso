@@ -7,20 +7,13 @@
 
 
 
-static constexpr const wchar_t *  s_kGlyphZoomIn  = s_kpszMdl2ZoomIn;    // magnifier with a plus
-static constexpr const wchar_t *  s_kGlyphZoomOut = s_kpszMdl2ZoomOut;   // magnifier with a minus
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HeatMapBarCommands::GetRows
 //
 //  How the map counts and how it mixes colors, which ranges and which bank
-//  it shows, which writes and reads before written it leaves out, then the
-//  zoom at the far end.
+//  it shows, and which writes and reads before written it leaves out. The
+//  zoom is the map's own widget, in its bottom-right corner.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,9 +31,6 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
         { kBank,        L"Bank",           nullptr,         L"Show what the CPU addresses, or one bank as it is stored",  DxuiToolbar::Kind::DropDown, 3, false, false },
         { kIgnoreSame,  L"Ignore writes that don't change the value", nullptr, L"Show only the writes that stored a different value", DxuiToolbar::Kind::Toggle, 5, false, false },
         { kIgnoreSet,   L"Leave out: None", nullptr,        L"Leave a set's ranges out of the reads before written",       DxuiToolbar::Kind::DropDown, 5, false, false },
-        { kZoomIn,      L"Zoom in",        s_kGlyphZoomIn,  L"Zoom in (Ctrl+wheel over the map)",                        DxuiToolbar::Kind::Command,  2, true,  true  },
-        { kZoomOut,     L"Zoom out",       s_kGlyphZoomOut, L"Zoom out (Ctrl+wheel over the map)",                       DxuiToolbar::Kind::Command,  2, true,  true  },
-        { kResetZoom,   L"Reset zoom",     nullptr,         L"Go back to the starting size, with $0000 at the top left", DxuiToolbar::Kind::Command,  2, false, true  },
     };
 
 

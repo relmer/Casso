@@ -511,6 +511,34 @@ namespace DebuggerTests
 
 
 
+        //  The zoom widget's percentage is of the starting cell, and its
+        //  slider runs on the logarithm from one pixel to the largest cell, so
+        //  its middle is the cell halfway in scale, and each end its size.
+        TEST_METHOD (TheZoomWidgetShowsAPercentageAndSlidesInScale)
+        {
+            constexpr int  kMax = HeatMapView::kMaxCellPx;
+
+
+
+            Assert::AreEqual (100,                HeatMapZoomWidget::GetPercent (3, 3));
+            Assert::AreEqual (200,                HeatMapZoomWidget::GetPercent (6, 3));
+            Assert::AreEqual (33,                 HeatMapZoomWidget::GetPercent (1, 3));
+            Assert::AreEqual (std::wstring (L"300%"), HeatMapZoomWidget::GetPercentLabel (9, 3));
+
+            Assert::AreEqual (0.0f,               HeatMapZoomWidget::GetPosition (1, kMax));
+            Assert::AreEqual (1.0f,               HeatMapZoomWidget::GetPosition (kMax, kMax));
+            Assert::AreEqual (1,                  HeatMapZoomWidget::GetCellPxAtPosition (0.0f, kMax));
+            Assert::AreEqual (kMax,               HeatMapZoomWidget::GetCellPxAtPosition (1.0f, kMax));
+            Assert::AreEqual (8,                  HeatMapZoomWidget::GetCellPxAtPosition (0.5f, kMax), L"halfway in scale from 1 to 64");
+
+            for (int cell = 1; cell <= kMax; cell++)
+            {
+                Assert::AreEqual (cell, HeatMapZoomWidget::GetCellPxAtPosition (HeatMapZoomWidget::GetPosition (cell, kMax), kMax), L"every cell size has its place");
+            }
+        }
+
+
+
         TEST_METHOD (ZoomInAndZoomOutGoAboutTheMiddleOfTheMap)
         {
             HeatMapView  view;

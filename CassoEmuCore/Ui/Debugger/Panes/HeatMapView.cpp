@@ -638,6 +638,7 @@ void HeatMapView::PlaceMap()
     m_rowPx      = contentW;
     m_map        = { left, top, left + std::min (width, contentW), top + std::min (height, contentH) };
 
+    m_zoomWidget.Place (GetZoomCorner(), m_boundsDip, m_scaler);
     ClampScroll();
 }
 
@@ -1748,7 +1749,7 @@ std::optional<HeatMapView::Mode> HeatMapView::GetModeAt (POINT point) const
 
 bool HeatMapView::IsPressed() const
 {
-    return m_press.has_value() || m_vertBar.IsDragging() || m_horzBar.IsDragging();
+    return m_press.has_value() || m_vertBar.IsDragging() || m_horzBar.IsDragging() || m_zoomWidget.IsDragging();
 }
 
 
@@ -1997,7 +1998,7 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) 
 
 
 
-    if (!m_visible || IsPressed())
+    if (!m_visible || IsPressed() || m_zoomWidget.HitTest (point) != HeatMapZoomWidget::Hit::None)
     {
         return false;
     }
@@ -2148,6 +2149,9 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     PaintOverlays (text, theme);
     PaintHeaders  (text, theme);
     PaintHover    (text, theme);
+
+    m_zoomWidget.Place (GetZoomCorner(), m_boundsDip, m_scaler);
+    m_zoomWidget.Paint (text, theme, m_cellPx, GetStartCellPx(), kMaxCellPx);
 
     if (m_hasVertBar)
     {
@@ -3040,12 +3044,146 @@ bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::OnZoomWidget
+//
+//  A press on the zoom's button opens its panel or closes it; one on the
+//  track zooms to the cell size there and drags the zoom along it until the
+//  button comes up; one on Reset goes back to the starting zoom. A press
+//  anywhere else closes the panel and goes on to the map. The mouse over the
+//  widget frames no cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
+{
+    using Hit = HeatMapZoomWidget::Hit;
+
+    POINT  center = { (m_map.left + m_map.right) / 2, (m_map.top + m_map.bottom) / 2 };
+    Hit    hit    = Hit::None;
+
+
+
+    m_zoomWidget.Place (GetZoomCorner(), m_boundsDip, m_scaler);
+    hit = m_zoomWidget.HitTest (ev.positionDip);
+
+    if (m_zoomWidget.IsDragging())
+    {
+        if (ev.kind == DxuiMouseEventKind::Move)
+        {
+            ApplyCellPx (m_zoomWidget.GetCellPxAt (ev.positionDip, kMaxCellPx), center);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Up)
+        {
+            m_zoomWidget.SetDragging (false);
+        }
+
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move && hit != Hit::None)
+    {
+        SetHover (std::nullopt);
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up)
+    {
+        return hit != Hit::None;
+    }
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left)
+    {
+        return false;
+    }
+
+    switch (hit)
+    {
+    case Hit::Button:
+        m_zoomWidget.SetOpen (!m_zoomWidget.IsOpen());
+        return true;
+
+    case Hit::Track:
+        m_zoomWidget.SetDragging (true);
+        ApplyCellPx (m_zoomWidget.GetCellPxAt (ev.positionDip, kMaxCellPx), center);
+        return true;
+
+    case Hit::Reset:
+        ResetZoom();
+        return true;
+
+    case Hit::Panel:
+        return true;
+
+    default:
+        m_zoomWidget.SetOpen (false);
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetZoomCorner
+//
+//  The map's area inside the scrollbars' room, whether they show or not, so
+//  the zoom widget stays put as zooming changes the map's size and brings the
+//  scrollbars and takes them away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapView::GetZoomCorner() const
+{
+    long  room = m_scaler.ToPx (kInsetDip) + m_scaler.ToPx (kScrollbarDip);
+
+
+
+    return { m_boundsDip.left + m_gutterPx, m_boundsDip.top + m_scaler.ToPx (kBarDip), m_boundsDip.right - room, m_boundsDip.bottom - room };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::TryGetZoomTipAt
+//
+//  Over the zoom's button, how to zoom: the tip anchored to the button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & text) const
+{
+    if (!m_visible || m_zoomWidget.HitTest (point) != HeatMapZoomWidget::Hit::Button)
+    {
+        return false;
+    }
+
+    anchor = m_zoomWidget.GetButtonRect();
+    text   = HeatMapZoomWidget::kpszTip;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
 {
+    if (OnZoomWidget (ev))
+    {
+        return true;
+    }
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Leave:

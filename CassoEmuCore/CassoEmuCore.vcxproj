@@ -187,6 +187,7 @@
     <ClCompile Include="Ui\Debugger\Panes\SourcePane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapView.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapZoomWidget.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DebuggerPaneFrame.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\FindWidgetPlate.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DiagnosticsPane.cpp" />
@@ -652,6 +653,7 @@
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapView.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapZoomWidget.h" />
     <ClInclude Include="Ui\Debugger\HeatMapRangeBarCommands.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneFrame.h" />
     <ClInclude Include="Ui\Debugger\Panes\FindWidgetPlate.h" />

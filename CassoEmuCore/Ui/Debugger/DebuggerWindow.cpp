@@ -8659,6 +8659,14 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         return;
     }
 
+    //  Over the heat map's zoom, how to zoom, as a control's tip.
+    if (IsRoutable (m_heatMapView) && m_heatMapView->IsVisible() && m_heatMapView->TryGetZoomTipAt (clientPx, cell, text))
+    {
+        tip.SetMonospace (false);
+        tip.RequestShow  (cell, text, now);
+        return;
+    }
+
     //  Over a memory window's byte, its address, at once and following the
     //  pointer itself rather than snapping from byte to byte.
     if (TryGetMemoryTip (clientPx, cell, text))

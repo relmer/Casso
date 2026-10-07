@@ -725,14 +725,20 @@ between sessions.
 The mouse wheel over the map scrolls it up and down, and Shift with the wheel
 scrolls it across when the rows are wider than the pane; scrollbars show along
 each side the map overflows, and dragging the map pans it. Ctrl with the wheel
-over the map zooms it in and out, as do **Zoom in** and **Zoom out** on the
-bar; elsewhere in the debugger Ctrl with the wheel still sizes the text.
-Zooming changes the cells' height at every step and, about every third step,
-how many addresses a row holds; the row under the mouse stays at the mouse's
-height, and when the row length does not change, or the rows are wider than
-the pane, the address under the mouse stays under it too. **Reset zoom** goes back to the
-starting size, three pixels a cell at 100% scaling, with $0000 at the top
-left.
+over the map zooms it in and out; elsewhere in the debugger Ctrl with the
+wheel still sizes the text. Zooming changes the cells' height at every step
+and, about every third step, how many addresses a row holds; the row under the
+mouse stays at the mouse's height, and when the row length does not change, or
+the rows are wider than the pane, the address under the mouse stays under it
+too.
+
+The zoom shows in the map's bottom-right corner as a percentage of the
+starting size, three pixels a cell at 100% scaling. Hovering over it gives a
+tip about Ctrl with the wheel. Clicking it opens a slider above it, from one
+pixel a cell at the left to the largest at the right, each step along it
+scaling the cells by the same factor, and **Reset**, which goes back to the
+starting size with $0000 at the top left. Clicking it again, or anywhere else
+on the map, closes the slider.
 
 The address the mouse is over shows at once in a tip beside it, with what
 touched it and how much, and then its last writer and reader (see below): "$C65E  executed 120/s, read 3.4/s" while fading, or
@@ -795,8 +801,8 @@ whole map, starting at the range's own first address and stretched to the
 pane, and a range smaller than a row is one row across the pane. A newly
 chosen set starts at the largest zoom at which every range fits the pane
 without scrolling, and fits again as the pane is resized until the map is
-zoomed; one zoom applies to every range, and **Reset zoom** fits the set
-again. Hovering, the tip, the pick of a busy cell nearby and a click to show
+zoomed; one zoom applies to every range, and the zoom's **Reset** fits the
+set again. Hovering, the tip, the pick of a busy cell nearby and a click to show
 the address in memory all work in every range as on the whole map.
 
 **Edit ranges...** on the bar, or **View > Heat map ranges**, opens the pane

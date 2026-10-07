@@ -492,27 +492,77 @@ namespace HeatMapPaneWindowTests
 
 
 
-        TEST_METHOD (TheZoomButtonsZoomTheMap)
+        //  A click at a point, as the mouse makes it.
+        static void ClickAt (HeatMapWindow & window, POINT at)
         {
-            CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Move, at));
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Down, at));
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Up,   at));
+        }
+
+        static POINT GetCenter (const RECT & rect)
+        {
+            return { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
+        }
+
+
+        //  The zoom is a widget in the map's bottom-right corner, not buttons
+        //  on the bar: it shows the zoom as a percentage, its tip says how
+        //  Ctrl+wheel zooms, and a click opens a slider from the smallest cell
+        //  to the largest with a Reset.
+        TEST_METHOD (TheZoomWidgetZoomsTheMap)
+        {
+            constexpr int  kCornerRoom = HeatMapZoomWidget::kMarginDip + HeatMapView::kScrollbarDip;
+            CassoTheme     theme       = CassoTheme::MakeSkeuomorphic();
             HeatMapHost    host;
             HeatMapWindow  window (theme, host);
-            HeatMapView  * view   = nullptr;
+            HeatMapView  * view        = nullptr;
+            RECT           button      = {};
+            RECT           map         = {};
+            RECT           track       = {};
+            RECT           moved       = {};
+            RECT           anchor      = {};
+            DxuiDpiScaler  scaler;
+            std::wstring   text;
 
 
 
             BuildShown (window);
-            view = window.GetHeatMapView();
 
-            ClickBarEntry (window, HeatMapBarCommands::kZoomIn);
-            Assert::IsTrue   (view->GetCellPx() > 3, L"Zoom in");
+            //  Tall enough for the pane to hold the slider above the button.
+            scaler.SetDpi (96);
+            window.Layout (RECT { 0, 0, 1400, 3000 }, scaler);
 
-            ClickBarEntry (window, HeatMapBarCommands::kZoomOut);
-            ClickBarEntry (window, HeatMapBarCommands::kZoomOut);
-            Assert::IsTrue   (view->GetCellPx() < 3, L"Zoom out");
+            view   = window.GetHeatMapView();
+            map    = view->GetMapRect();
+            button = view->GetZoomWidget().GetButtonRect();
 
-            ClickBarEntry (window, HeatMapBarCommands::kResetZoom);
-            Assert::AreEqual (3, view->GetCellPx(), L"Reset zoom");
+            Assert::IsTrue   (button.right > button.left, L"the widget is placed");
+            Assert::IsTrue   (button.right <= map.right && button.bottom <= map.bottom, L"over the map");
+            Assert::IsTrue   (button.right >= map.right - kCornerRoom && button.bottom >= map.bottom - kCornerRoom, L"in its bottom-right corner");
+            Assert::AreEqual (100, HeatMapZoomWidget::GetPercent (view->GetCellPx(), view->GetStartCellPx()), L"the starting zoom is 100%");
+
+            Assert::IsTrue   (view->TryGetZoomTipAt (GetCenter (button), anchor, text));
+            Assert::IsTrue   (text.find (L"Ctrl+wheel") != std::wstring::npos, text.c_str());
+
+            ClickAt (window, GetCenter (button));
+            Assert::IsTrue   (view->GetZoomWidget().IsOpen(), L"a click opens the slider");
+
+            track = view->GetZoomWidget().GetTrackRect();
+            ClickAt (window, POINT { track.right - 1, GetCenter (track).y });
+            Assert::AreEqual ((int) HeatMapView::kMaxCellPx, view->GetCellPx(), L"the right end is the largest cell");
+
+            moved = view->GetZoomWidget().GetTrackRect();
+            Assert::IsTrue   (EqualRect (&track, &moved) != FALSE, L"the slider stays put as the zoom changes the map");
+
+            ClickAt (window, POINT { track.left, GetCenter (track).y });
+            Assert::AreEqual (1, view->GetCellPx(), L"the left end is the smallest");
+
+            ClickAt (window, GetCenter (view->GetZoomWidget().GetResetRect()));
+            Assert::AreEqual (3, view->GetCellPx(), L"Reset");
+
+            ClickAt (window, GetCenter (button));
+            Assert::IsFalse  (view->GetZoomWidget().IsOpen(), L"a second click closes it");
         }
 
 

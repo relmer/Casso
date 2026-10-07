@@ -16,7 +16,7 @@
 //  as a drop-down and Reset counts, Blend, the set of ranges shown as a
 //  drop-down, Edit ranges and the bank shown as a drop-down, whether writes
 //  that change nothing are left out and the set whose reads before written
-//  are, as a drop-down, then Zoom in, Zoom out and Reset zoom at the far end.
+//  are, as a drop-down. The zoom is a widget in the map's own corner.
 //  The bar is a DxuiToolbar, so what does not fit goes into its "..." menu as
 //  on every other strip.
 //
@@ -32,9 +32,6 @@ public:
     static constexpr int  kCumulative  = 2;
     static constexpr int  kFade        = 3;
     static constexpr int  kResetCounts = 4;
-    static constexpr int  kZoomIn      = 5;
-    static constexpr int  kZoomOut     = 6;
-    static constexpr int  kResetZoom   = 7;
 
     //  Apart from the others' numbers, so an entry added beside them keeps
     //  its own: which set of ranges the map shows, the pane that edits them,
