@@ -29,6 +29,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -55,6 +56,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Seams/Win32DiskFileIo.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -373,9 +375,11 @@ HRESULT EmulatorShell::Initialize (
     const wstring       & machineName,
     const MachineConfig & config,
     const string        & disk1Path,
-    const string        & disk2Path)
+    const string        & disk2Path,
+    const string        & tapePath)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    HRESULT  hrTape = S_OK;
 
 
 
@@ -603,6 +607,22 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
+    // A tape given on the command line goes in instead of the remembered one,
+    // and is remembered in its place, as --disk1 is.
+    if (tapePath.empty())
+    {
+        hrTape = m_tapeManager->RestoreSavedTape();
+        IGNORE_RETURN_VALUE (hrTape, S_OK);
+    }
+    else if (MachineHasCassettePort())
+    {
+        m_tapeManager->Insert (tapePath);
+    }
+    else
+    {
+        PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
+    }
+
     ApplyPersistedAudioPrefs();
 
 Error:
@@ -679,6 +699,21 @@ void EmulatorShell::InitAssetPathsAndStores()
     //  gets. --no-image-watch installs one that refuses every watch, so the
     //  check made before every write can be measured on its own.
     m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
+
+    m_tapeAudioSource.Attach (&m_machine.GetTapeDeck(),
+                              [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
+    m_tapeAudioMixer.RegisterSource (&m_tapeAudioSource);
+
+    m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
+    m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();
+    m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
+                                                   m_uiFs,
+                                                   *m_userConfigStore,
+                                                   m_tapeAudioDecoder,
+                                                   [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
+                                                   [this] () { return m_machine.GetCurrentMachineName(); },
+                                                   [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
+    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { PostNotice (text); });
 }
 
 
@@ -1108,6 +1143,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
                 m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
             }
         }
+
+        RegisterTapeDropTarget();
     }
 
     if (m_fOleInitialized)
@@ -1162,7 +1199,15 @@ void EmulatorShell::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
+    // Disks and tapes both; OnFileDropped sends each only to what can take it.
+    hrDrop = m_dragDropTarget.Initialize (m_hwnd,
+                                          &m_uiShell.GetHitTester(),
+                                          [this] (int tag, const std::wstring & path) { OnFileDropped (tag, path); },
+                                          [] (const std::wstring & path)
+                                          {
+                                              return IsSupportedDiskImageExtension (path) ||
+                                                     TapeImageLoader::IsTapeFileExtension (path);
+                                          });
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
     // UIPI whitelist. When Casso runs at a higher integrity

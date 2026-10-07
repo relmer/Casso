@@ -80,7 +80,11 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
                                              const float *                      monitorBoundsMax,
                                              const float *                      driveBoundsMin,
                                              const float *                      driveBoundsMax,
-                                             const DeskRegionBox *              driveDoorBoxes)
+                                             const DeskRegionBox *              driveDoorBoxes,
+                                             const float *                      recorderBoundsMin,
+                                             const float *                      recorderBoundsMax,
+                                             const float *                      recorderKeyBoxes,
+                                             size_t                             recorderKeyCount)
 {
     SceneHitResult   result;
     float            invViewProj[16] = {};
@@ -323,5 +327,92 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
         }
     }
 
+    if (comp.hasRecorder != 0 && recorderBoundsMin != nullptr && recorderBoundsMax != nullptr)
+    {
+        float  occluderT = tMonitorBody;
+
+        for (int drive = 0; drive < comp.driveCount; drive++)
+        {
+            occluderT = std::min (occluderT, tDriveBody[drive]);
+        }
+
+        ClassifyRecorder (comp, origin, dir, recorderBoundsMin, recorderBoundsMax,
+                          occluderT, bestT, result, recorderKeyBoxes, recorderKeyCount);
+    }
+
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneHitTester::ClassifyRecorder
+//
+//  The whole case is the target: a click anywhere on the recorder means the
+//  same thing, which is picking a tape. Tested from any side, since it has
+//  no front furniture whose box would extend through air behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneHitTester::ClassifyRecorder (const DeskSceneComposition & comp,
+                                           const float                  origin[3],
+                                           const float                  dir[3],
+                                           const float                  boxMin[3],
+                                           const float                  boxMax[3],
+                                           float                        occluderT,
+                                           float                      & bestT,
+                                           SceneHitResult             & result,
+                                           const float *                keyBoxes,
+                                           size_t                       keyCount)
+{
+    float   keyT           = FLT_MAX;
+    float   invWorld[16]   = {};
+    float   modelOrigin[3] = {};
+    float   modelDir[3]    = {};
+    float   tNear          = 0.0f;
+
+
+
+    if (!SceneCamera::Inverse44 (comp.recorderWorld, invWorld) ||
+        !SceneCamera::TransformPoint (invWorld, origin, modelOrigin))
+    {
+        return;
+    }
+
+    SceneCamera::TransformVector (invWorld, dir, modelDir);
+
+    if (!RayHitsBox (modelOrigin, modelDir, boxMin, boxMax, tNear))
+    {
+        return;
+    }
+
+    // Another device's body standing nearer along the ray hides it.
+    if (occluderT < tNear - kOcclusionSlackMm || tNear >= bestT)
+    {
+        return;
+    }
+
+    bestT              = tNear;
+    result.target      = SceneHitResult::Target::Recorder;
+    result.driveIndex  = -1;
+    result.region      = {};
+    result.recorderKey = -1;
+
+    // Then which key, if any: the nearest key box the same ray enters.
+    for (size_t key = 0; keyBoxes != nullptr && key < keyCount; key++)
+    {
+        const float *  box   = keyBoxes + key * 6;
+        float          lo[3] = { box[0] - kKeyHitPadMm, box[1] - kKeyHitPadMm, box[2] };
+        float          hi[3] = { box[3] + kKeyHitPadMm, box[4] + kKeyHitPadMm, box[5] + kKeyHitPadMm };
+        float          t     = 0.0f;
+
+        if (box[3] > box[0] && RayHitsBox (modelOrigin, modelDir, lo, hi, t) && t < keyT)
+        {
+            keyT               = t;
+            result.recorderKey = (int) key;
+        }
+    }
 }

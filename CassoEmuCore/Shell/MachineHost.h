@@ -9,6 +9,7 @@
 #include "Core/MemoryBus.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Devices/Tape/TapeDeck.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/MachineRefs.h"
@@ -163,10 +164,12 @@ public:
     CharacterRomData  &  GetCharacterRom () noexcept { return *m_charRom; }
     DiskImageStore    &  GetDiskStore    () noexcept { return *m_diskStore; }
     MachineConfig     &  GetConfig       () noexcept { return *m_config; }
+    TapeDeck          &  GetTapeDeck     () noexcept { return *m_tapeDeck; }
 
     const CharacterRomData  &  GetCharacterRom () const noexcept { return *m_charRom; }
     const DiskImageStore    &  GetDiskStore    () const noexcept { return *m_diskStore; }
     const MachineConfig     &  GetConfig       () const noexcept { return *m_config; }
+    const TapeDeck          &  GetTapeDeck     () const noexcept { return *m_tapeDeck; }
 
     //  Raw pointers into the two collections above, reset whenever either is
     //  rebuilt. See MachineRefs.
@@ -222,6 +225,14 @@ public:
     //  one would hold rather than the contents it just had.
     void  PowerCycle();
 
+    //  Stops the recorder at the current cycle; the tape stays inserted. Reset,
+    //  power cycle and a machine switch all do this.
+    void  StopTape();
+
+    // How many times a reset, power cycle or rebuild has stopped the tape, so
+    // the UI can detect one and release the recorder's keys.
+    uint32_t  GetTapeResetCount() const { return m_tapeResetCount.load (std::memory_order_acquire); }
+
     //  Where this machine's pending printer strip persists across a switch
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
     std::filesystem::path  GetPendingPrintDir() const;
@@ -268,6 +279,12 @@ private:
     // frame budget.
     std::unique_ptr<DiskImageStore>  m_diskStore;
     std::unique_ptr<MachineConfig>   m_config;
+
+    // The recorder plugged into the cassette jacks. It is the owner's, not the
+    // machine's, so it outlives every rebuild; each new cassette port is
+    // connected to it.
+    std::unique_ptr<TapeDeck>        m_tapeDeck;
+    std::atomic<uint32_t>            m_tapeResetCount { 0 };
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;

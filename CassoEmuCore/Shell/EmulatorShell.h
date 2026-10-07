@@ -5,8 +5,10 @@
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/PrinterAudioSource.h"
+#include "Audio/TapeAudioSource.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
+#include "Devices/Tape/MfTapeAudioDecoder.h"
 #include "Config/Win32FileSystem.h"
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
@@ -35,6 +37,8 @@
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
+#include "Shell/BackgroundWorkQueue.h"
+#include "Shell/TapeManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
@@ -43,6 +47,7 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Chrome/TapeDeckWidget.h"
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -164,7 +169,8 @@ public:
         const wstring        & machineName,
         const MachineConfig  & config,
         const string    & disk1Path,
-        const string    & disk2Path);
+        const string    & disk2Path,
+        const string    & tapePath = {});
 
     int RunMessageLoop();
 
@@ -426,6 +432,14 @@ private:
     // marshaled via IDM_AUDIO_DRIVE_TEST.
     void PlayDriveTestSound (int drive, int kind);
 
+    // Runs one tape-deck command. CPU-thread only, marshaled through
+    // the IDM_TAPE_* commands.
+    void ControlTape (TapeCommand command);
+
+
+    // Engages or releases the fast-load override from the tape governor.
+    void ApplyTapeTurbo ();
+
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.
     void LoadAudioAssetsForDeviceRate();
@@ -532,6 +546,20 @@ private:
     // to hide m_driveChrome[1] and skip its hit rect when disconnected.
     bool    ShouldShowExternalDrive       () const;
 
+    // Connecting and disconnecting storage devices, from the Storage menu and
+    // the devices' right-click menus. Both are live, and saved with the
+    // machine as Settings saves them.
+    void    SetSecondDriveConnected   (bool connected);
+    void    SetTapeRecorderConnected  (bool connected);
+    void    SaveStorageDevices        ();
+    bool    IsSecondDriveOffered      () const;
+
+    // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
+    // menu, at a client point.
+    static constexpr int  kStorageMenuRecorder = 2;
+    void    ShowStorageContextMenu    (int device, int x, int y);
+    int     StorageDeviceAt           (int x, int y) const;
+
     SIZE    GetClientSizeForCenterPx      (int centerWidthPx, int centerHeightPx);
     SIZE    GetClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp);
 
@@ -636,7 +664,7 @@ private:
     // array size: the row is centered on that, so a //c with no external
     // drive centers its one drive rather than leaving a gap where the second
     // would have been.
-    static void  LayoutDriveWidgetsInCommandBar (
+    void         LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
         int                           bottomInsetPx,
         int                           clientW,
@@ -768,6 +796,14 @@ public:
     // wrapper over the CpuManager queue.
 public:
     void PostCommand (WORD id, const string & payload = "");
+
+    // Whether tape loads run at Maximum speed. Read by the CPU thread each
+    // slice; written by Settings and at startup.
+    void SetFastTapeLoading (bool enabled) { m_fastTapeLoading.store (enabled, std::memory_order_relaxed); }
+    void SetTapeVolume      (float gain)   { m_tapeAudioSource.SetVolume (gain); }
+    void SetTapeAutoStop    (bool enabled) { m_machine.GetTapeDeck().SetAutoStop (enabled); }
+    void SetTapeIdleStop    (bool enabled) { m_machine.GetTapeDeck().SetIdleStop (enabled); }
+    void SetTapeEightBit    (bool enabled) { if (m_tapeManager) { m_tapeManager->SetBlankEightBit (enabled); } }
 
     // Single-step the CPU from the UI thread. Only safe when the
     // CPU thread is paused (provably idle on pauseCV.wait); the
@@ -1002,9 +1038,13 @@ private:
     // drive region / nothing).
     SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
 
-    // Resolves against the fullscreen strip's drives-only composition
-    // (glass excluded -- its monitor placement is meaningless).
+    // Resolves against the fullscreen strip's drives-and-recorder
+    // composition (glass excluded -- its monitor placement is meaningless).
     SceneHitResult  StripHit     (int xPx, int yPx) const;
+
+    // Whichever of those two holds the recorder the pointer can reach: the
+    // strip while it is up in fullscreen, the desk otherwise.
+    SceneHitResult  RecorderHit  (int xPx, int yPx) const;
 
     // How many drives the scene composes: the machine's Disk II presence and
     // the //c external-drive connection, the same gates the 2D widgets use.
@@ -1042,8 +1082,9 @@ private:
     // Below 1 the fitted composition shrinks into the window with margin
     // around it -- the step-back look. Pan slack stays zero down there (see
     // ClampSceneView), so zooming back in cannot strand the scene off-center.
-    static constexpr float  s_kSceneZoomMin  = 0.5f;
-    static constexpr float  s_kSceneZoomMax  = 8.0f;
+    static constexpr float  s_kSceneZoomMin     = 0.5f;
+    static constexpr float  s_kScenePanFloorNdc = 1.0f;   // pan room at any zoom: half the viewport
+    static constexpr float  s_kSceneZoomMax     = 8.0f;
 
     // One wheel notch. Geometric, so the same flick covers the same visual
     // proportion at every zoom -- a fixed additive step feels fast when close
@@ -1070,13 +1111,95 @@ private:
     // come from the composition's projected drive bounds.
     void    SyncSceneDriveChrome ();
 
+    // The cassette recorder's flat widget and what its controls do. Shown
+    // when the machine has a cassette port and the recorder is connected.
+    bool          MachineHasCassettePort () const;
+    bool          IsTapeRecorderShown    () const { return MachineHasCassettePort() && m_tapeRecorderConnected; }
+    TapeDeckView  GetTapeView            () const;
+    void          SyncTapeChrome         ();
+    void          HandleTapeClick        (TapeDeckRegion region);
+    void          PickTape               ();
+    void          BrowseForTape          ();
+    void          InsertTape             (const std::wstring & path);
+    void          CreateBlankTape        ();
+    void          PromptTapePosition     ();
+    void          LatchRecorderKeys      (TapeDeckRegion region);
+    bool          ReleaseOtherRecorderKeys (TapeDeckRegion region);
+    void          EjectAndPickTape       ();
+    int           GetDriveRowWidthPx     ();
+    void          RegisterTapeDropTarget ();
+    void          OnFileDropped          (int tag, const std::wstring & path);
+
+    // The drop tag of the tape, after the drives' 0 and 1.
+    static constexpr int  s_kTapeDropTag = 2;
+
     // Re-hangs the mounted-image basename strip under each projected drive.
+    // The desk's baked labels: the two drives' names, then the recorder's
+    // tape name, its counter, and the name of the key under the pointer.
+    static constexpr size_t  s_kSceneLabelCount    = 6;
+    static constexpr int     s_kSceneTapeNameCell  = 2;
+    static constexpr int     s_kSceneCounterCell   = 3;
+    static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;
+    static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
+
+    // The cassette title's pen: a handwriting face that ships with Windows 10
+    // and later, in ballpoint blue, with no halo -- it is ink on paper, not a
+    // caption. The text is sized down to fit the label rather than cut.
+    static constexpr const wchar_t *  s_kpszCassetteInkFace     = L"Ink Free";
+    static constexpr uint32_t         s_kCassetteInkArgb        = 0xFF101A5C;
+    static constexpr float            s_kCassetteInkHeightRatio = 0.85f;  // of a row's height
+    static constexpr LONG             s_kCassetteCellTall       = 4;      // the title's cell, in name strips: two rows of writing
+
+    // How far each written letter strays, as fractions: its size, its rise
+    // off the line (of the letter height), its spacing, its lean (as the
+    // tangent of the slant), and how much lighter the ink can come out; and
+    // how often a letter is pressed harder, drawn heavier.
+    static constexpr float            s_kInkSizeWobble          = 0.10f;
+    static constexpr float            s_kInkRiseWobble          = 0.08f;
+    static constexpr float            s_kInkSpaceWobble         = 0.18f;
+    static constexpr float            s_kInkSlantWobble         = 0.14f;
+    static constexpr float            s_kInkPressWobble         = 0.25f;
+    static constexpr float            s_kInkHeavyShare          = 0.3f;
+    static constexpr float            s_kInkHeavyOffset         = 0.03f;  // of the letter size, between a heavy letter's two strokes
+    static constexpr float            s_kCassetteInkRoom        = 0.9f;   // of the width, before a title goes to two rows
+    static constexpr float            s_kInkSpaceEm             = 0.4f;   // a space between words, at the least
+
+    // One written letter, as PaintHandwritten lays it out.
+    struct InkGlyph
+    {
+        wchar_t  ch      = 0;
+        float    size    = 0.0f;
+        float    rise    = 0.0f;
+        float    advance = 0.0f;
+        float    slant   = 0.0f;
+        float    ink     = 1.0f;
+        bool     isHeavy = false;
+    };
+
     void    SyncSceneDriveLabels ();
+    bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
+    float   GetSceneLabelScrollPx (int drive, int64_t nowMs);
+    bool    SyncRecorderKeys      (int64_t nowMs);
+    void    SyncSceneTapeLabel    ();
+    bool    GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3]);
+    void    SyncStripTapeLabels    (const DeskSceneComposition & comp, bool onStrip,
+                                    const std::array<std::wstring, s_kSceneLabelCount> & names);
+    void    SetStripLabelMarquee   (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
+    int     GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
+    bool    TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+
+    // The recorder's volume wheel on screen, where the pointer can reach it
+    // (the strip in fullscreen, the desk otherwise); empty when it is not.
+    RECT    GetVolumeWheelRect     (float * widthPx = nullptr) const;   // and the wheel's own width on screen
+    void    DragVolumeWheel        (int x, int64_t nowMs);
+    void    PersistTapeVolume      ();
+
+    static std::wstring  FormatTapeVolumeTip (float gain);
 
     // Hands each drive's name to the scene as a depth-tested quad: bakes the
     // two strings into one texture when either has changed, then re-solves
     // the quads, which move whenever the camera does.
-    void    SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> & names,
+    void    SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kSceneLabelCount> & names,
                                      const SIZE                        & cellPx,
                                      int                                 gapPx);
 
@@ -1084,8 +1207,31 @@ private:
     // the view. One texture because the text renderer has only one: a second
     // bake replaces the first, so baking per drive would leave both wearing
     // whichever name went last.
-    bool    TryBakeSceneDiskLabels  (const std::array<std::wstring, 2> & names,
+    bool    TryMakeSceneLabelQuad   (const DeskSceneComposition & comp, int cell, const SIZE & cellPx,
+                                     int gapPx, float corners[4][3]);
+    bool    TryBakeSceneDiskLabels  (const std::array<std::wstring, s_kSceneLabelCount> & names,
                                      const SIZE                        & cellPx);
+
+    // Where a label's cell starts in that texture, with room between cells
+    // for each name's glow.
+    static LONG GetSceneLabelCellTopPx    (int cell, const SIZE & cellPx);
+    static LONG GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx);
+    LONG        GetSceneLabelCellWidthPx  (int cell, const SIZE & cellPx) const;
+
+    static void  PaintHandwritten (IDxuiTextRenderer & text, const std::wstring & name, float top,
+                                   float width, float height);
+    static void  LayOutInk        (IDxuiTextRenderer & text, const std::wstring & name, float basePx,
+                                   uint32_t & seed, std::vector<InkGlyph> & glyphs);
+    static float GetInkWidth      (const std::vector<InkGlyph> & glyphs);
+    static void  SplitInk         (const std::vector<InkGlyph> & glyphs, std::vector<InkGlyph> & first,
+                                   std::vector<InkGlyph> & second);
+    static void  FillInk          (const std::vector<InkGlyph> & glyphs, float width, std::vector<InkGlyph> & first,
+                                   std::vector<InkGlyph> & second);
+    static void  FitInk           (IDxuiTextRenderer & text, std::vector<InkGlyph> & row, float width,
+                                   float basePx, uint32_t & seed);
+    static void  DrawInkRow       (IDxuiTextRenderer & text, const std::vector<InkGlyph> & row, float top,
+                                   float width, float height);
+    static float NextWobble       (uint32_t & seed);
 
     // Retires both quads, for a theme or a presentation that draws no scene
     // drives at all.
@@ -1402,6 +1548,20 @@ private:
     POINT      m_bezelTiltStartPx      = {};
     float      m_bezelTiltStartRad     = 0.0f;
 
+    // Dragging the recorder's volume wheel: left is silent, right is full,
+    // and the pointer's travel across the wheel's own width on screen is the
+    // whole range, so the wheel stays under the pointer as it goes. The
+    // wheel turns s_kVolumeWheelTurnRad over that range.
+    bool       m_volumeDragging        = false;
+    int        m_volumeDragStartX      = 0;
+    float      m_volumeDragStartGain   = 0.0f;
+    float      m_volumeDragSpanPx      = 0.0f;
+
+    static constexpr int    s_kVolumeWheelSlopDp   = 4;
+    static constexpr int    s_kVolumeWheelLabelKey = (int) DeskSceneModel::kRecorderKeyCount;   // m_recorderHoverKey for the wheel
+    static constexpr int    s_kVolumeWheelMinDp    = 28;   // the smallest target, either way, however small the wheel
+    static constexpr float  s_kVolumeWheelTurnRad  = 2.0943951f;   // a third of a turn: the mark stays in the window
+
     // How much tilt a pixel of drag is worth. The assembly's whole travel is
     // about eleven degrees each way, so this spends it over a couple of
     // hundred pixels -- far enough that the limit is reached deliberately
@@ -1450,8 +1610,11 @@ private:
     // painter retires the latter. The caption (title + icon + min/max/
     // close) is owned and rendered by the DxuiHwndSource, not here.
     MainMenu                    m_mainMenu;
-    CassoTheme                  m_chromeTheme = CassoTheme::MakeSkeuomorphic();
+    CassoTheme                  m_chromeTheme   = CassoTheme::MakeSkeuomorphic();
     std::array<DriveWidget, 2>  m_driveChrome;
+    TapeDeckWidget              m_tapeChrome;
+    RECT                        m_tapeAnchor    = {};   // where the drive row placed it
+    UINT                        m_tapeAnchorDpi = 0;   // and at what DPI; 0 until it has
 
     // The command toolbar: the strip below the menu bar with Settings /
     // theme + monitor-color pickers / Printer (+status LED) / master Volume
@@ -1549,6 +1712,18 @@ protected:
     // needs to see it.
     DxuiViewport             * m_viewport        = nullptr;
 
+    // The flat drive band's row, for the band layout tests: lay the row out
+    // in a client of the given size with no band below it, and read back
+    // where the drives and the recorder landed.
+    void  LayoutDriveRowForTest   (int clientW, int clientH, UINT dpi, int visibleCount)
+    {
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, 0, clientW, clientH, dpi, 1.0f, visibleCount);
+    }
+
+    RECT  GetDriveRectForTest     (size_t drive) const { return m_driveChrome[drive].GetOuterRect(); }
+    RECT  GetTapeAnchorForTest    () const             { return m_tapeAnchor; }
+    void  SetRecorderAttachedForTest (bool attached)   { m_tapeRecorderConnected = attached; }
+
 private:
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
@@ -1645,18 +1820,64 @@ private:
     // it is read at a fixed size wherever the desk is posed.
     std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
 
+    // The recorder's tape name, counter and key name on the fullscreen strip,
+    // chrome there for the same reason the strip's drive names are.
+    std::array<DxuiShadowedText, 3>  m_stripTapeLabel;
+
+    // Where the desk recorder's tape name and counter are, for clicks.
+    RECT                      m_sceneTapeNameRect    = {};
+    std::wstring              m_sceneTapeLabelShown;   // what the baked recorder labels last showed
+    RECT                      m_sceneTapeCounterRect = {};
+
     // What the in-scene quads currently say and the cell they were baked at,
     // so the texture is rendered on a change rather than on every
     // composition pass. The view belongs to the text renderer and stays good
     // until the next bake, which is why nothing else may use that path.
-    std::array<std::wstring, 2>      m_sceneDiskLabelText;
-    SIZE                             m_sceneDiskLabelCell = {};
-    ID3D11ShaderResourceView       * m_sceneDiskLabelSrv  = nullptr;
+    std::array<std::wstring, s_kSceneLabelCount>    m_sceneDiskLabelText;
+    SIZE                                            m_sceneDiskLabelCell = {};
+    ID3D11ShaderResourceView                      * m_sceneDiskLabelSrv  = nullptr;
 
     // Where each of those strips landed, empty when a drive shows no name.
     // The write-protect tooltip belongs to the strip now that the padlock
     // does -- see SyncSceneDriveLabels.
     std::array<RECT, 2>       m_sceneDriveLabelRect = {};
+
+    // A desk name too long for its strip scrolls while the pointer is on its
+    // drive or the name. The period is the name plus its gap in baked pixels,
+    // zero for a name that fits.
+    std::array<float, s_kSceneLabelCount>  m_sceneDiskLabelPeriod = {};
+    int                                    m_sceneLabelHover      = -1;
+    int64_t                                m_sceneLabelHoverMs    = 0;
+
+    // When each of the desk recorder's keys was last clicked, for its dip.
+    std::array<int64_t, 6>    m_recorderKeyDipMs      = {};
+
+    // Where each key stands now, easing toward where the transport puts it,
+    // and when that was last advanced.
+    std::array<float, 6>      m_recorderKeyShownMm    = {};
+    int64_t                   m_recorderKeyStepMs     = 0;
+    std::array<int64_t, 6>    m_recorderKeyDownMs     = {};   // when each key's press began, 0 if not going down
+    std::array<float, 6>      m_recorderKeyDownFrom   = {};   // and where it started from
+    float                     m_recorderLidOpen       = 1.0f; // the door, 0 shut to 1 open
+    int64_t                   m_recorderLidStepMs     = 0;
+    float                     m_recorderReelRad       = 0.0f;  // how far the spindles have turned
+    int64_t                   m_recorderReelStepMs    = 0;
+
+    // The key under the pointer, whose name shows over it; -1 for none.
+    int                       m_recorderHoverKey      = -1;
+    int                       m_recorderHeldKey       = -1;   // the key the left button is holding down
+
+    // Which of the desk recorder's keys are locked down. They latch as the
+    // RQ-309DS's do: Record, Rewind, Fast-forward and Play stay down once
+    // pressed, and only Stop, Eject or a reset releases them.
+    std::array<bool, 6>       m_recorderKeyLatched    = {};
+    uint32_t                  m_seenTapeResets        = 0;
+    TapeTransport             m_seenTransport         = TapeTransport::Empty;  // as of the last frame
+    int64_t                   m_recorderReleaseAtMs   = 0;    // when a pressed Stop or Eject bottoms out
+
+    // How long a key takes to go all the way down.
+    static constexpr int64_t  s_kRecorderKeyDownMs    = 120;
+    TapeTransport             m_shownTapeTransport    = TapeTransport::Empty;   // last drawn, to repaint on a change
 
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no
@@ -1773,7 +1994,16 @@ private:
     // every moment the viewport moves.
     DxuiOrbitControl           m_sceneCompass;
 
+    // "Hold CTRL to pan", under the compass while the pointer is over it,
+    // fading in and out.
+    DxuiShadowedText           m_compassHint;
+    float                      m_compassHintOpacity = 0.0f;
+    int64_t                    m_compassHintStepMs  = 0;
+
     void  LayoutSceneCompass ();
+    bool  StepCompassHint    (int64_t nowMs);
+    void  PanSceneByCompass  (float dx, float dy);   // in pan units, down positive
+    bool  PointOnCompass     (int x, int y) const;
 
     // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
     // mirrored along the top edge: shown while the pointer is up there,
@@ -1905,6 +2135,12 @@ private:
     // fixed hardware (they have no banked ROM, so the gate is always open).
     bool                     m_externalDriveConnected = false;
 
+    // Whether the cassette recorder is connected, where the machine has a
+    // cassette port. Per machine, saved in $cassoUiPrefs.tapeRecorderConnected,
+    // and connected by default so new users find it. Disconnecting hides it
+    // everywhere and ejects its tape.
+    bool                     m_tapeRecorderConnected  = true;
+
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
     // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
     // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
@@ -1991,6 +2227,8 @@ private:
     // sources are owned by the MockingboardCard device; the mixer holds
     // borrowed pointers, re-registered by MachineManager on every build.
     DriveAudioMixer                      m_mockingboardAudioMixer;
+    DriveAudioMixer                      m_tapeAudioMixer;
+    TapeAudioSource                      m_tapeAudioSource;
 
     // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
     // at startup and updated via SetDriveAudioVolumes. Stored on the shell
@@ -2199,6 +2437,11 @@ private:
 
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
+    std::unique_ptr<IDiskFileIo>              m_tapeFileIo;
+    MfTapeAudioDecoder                        m_tapeAudioDecoder;
+    std::unique_ptr<TapeManager>              m_tapeManager;
+    std::unique_ptr<BackgroundWorkQueue>      m_tapeLoader;   // reads and decodes tape files
+    std::atomic<bool>                         m_fastTapeLoading { true };
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

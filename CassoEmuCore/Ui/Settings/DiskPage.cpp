@@ -73,10 +73,30 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_doorLabel);
     Adopt (m_panOneLabel);
     Adopt (m_panTwoLabel);
+    Adopt (m_tapeLabel);
+    Adopt (m_diskHeading);
+    Adopt (m_tapeHeading);
+    Adopt (m_tapeDivider);
+
+    // Each kind of storage gets a heading of its own over its rows.
+    m_diskHeading.SetTextRole   (DxuiTextRole::Heading);
+    m_diskHeading.SetFontWeight (DxuiFontWeight::SemiBold);
+    m_tapeHeading.SetTextRole   (DxuiTextRole::Heading);
+    m_tapeHeading.SetFontWeight (DxuiFontWeight::SemiBold);
 
     Adopt (m_writeMode);
     Adopt (m_mechanism);
     Adopt (m_driveAudio);
+    Adopt (m_fastTape);
+    Adopt (m_tapeAutoStop);
+    Adopt (m_tapeIdleStop);
+    Adopt (m_tapeWavFormat);
+    Adopt (m_tapeVolume);
+    Adopt (m_tapeVolumeLabel);
+    Adopt (m_tapeAutoStopLabel);
+    Adopt (m_tapeIdleStopLabel);
+    Adopt (m_tapeWavFormatLabel);
+    Adopt (m_tapeWavFormatInfo);
     for (DxuiCheckbox & checkbox : m_writeProtect)
     {
         Adopt (checkbox);
@@ -161,8 +181,13 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  playSize     = rowHeight;
     int  playX        = controlsX + dropWidth + scaler.ToPx (s_kPlayGapDp);
     int  resetW       = scaler.ToPx (s_kResetWidthDp);
+    int  right        = rect.right - pad;
 
 
+
+    m_diskHeading.SetRect (MakeRect (x, y, right - x, rowHeight));
+    m_diskHeading.SetText (L"Disk drives");
+    y += rowHeight + sectionGap;
 
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_wpLabel.SetText (L"Write protect:");
@@ -229,6 +254,57 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_panTwoPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
     y += rowHeight + sectionGap;
 
+
+    // The rule runs margin to margin and is laid out again on every resize,
+    // so it always spans the page as it is now.
+    m_tapeDivider.SetRect (MakeRect (x, y, right - x, sectionGap));
+    y += sectionGap * 2;
+
+    m_tapeHeading.SetRect (MakeRect (x, y, right - x, rowHeight));
+    m_tapeHeading.SetText (L"Cassette tape");
+    y += rowHeight + sectionGap;
+
+    // Off loads tapes at the selected speed with the tape audible, as a real
+    // load would sound.
+    m_tapeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeLabel.SetText (L"Fast tape loading:");
+    m_fastTape.SetRect  (MakeRect (controlsX, y, checkWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // Heard only when loading at real speed.
+    m_tapeVolumeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeVolumeLabel.SetText (L"Tape volume:");
+    ConfigureVolumeSlider (m_tapeVolume, MakeRect (controlsX, y, dropWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // Off leaves the deck running on past the end until Stop is pressed.
+    m_tapeAutoStopLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeAutoStopLabel.SetText (L"Stop at end of tape:");
+    m_tapeAutoStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // Not something the hardware did -- the Apple II has no motor control, so
+    // a person pressed Stop -- but nobody misses doing it.
+    m_tapeIdleStopLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeIdleStopLabel.SetText (L"Stop when loading ends:");
+    m_tapeIdleStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    // 16-bit is the common format. Some tools, among them CiderPress II, read
+    // only 8-bit; recording onto an existing tape keeps its bit depth. The
+    // info tip comes out of the label's width, so the dropdown stays in line
+    // with the controls above it.
+    m_tapeWavFormatLabel.SetRect (MakeRect (x, y, labelWidth - rowHeight, rowHeight));
+    m_tapeWavFormatLabel.SetText (L"New tape WAV format:");
+    m_tapeWavFormatInfo.SetRect  (MakeRect (controlsX - rowHeight, y, rowHeight, rowHeight));
+    m_tapeWavFormat.SetRect      (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_tapeWavFormat.SetItems     ({ L"16-bit", L"8-bit" });
+    m_tapeWavFormatInfo.SetText  (L"Casso reads 8-bit and 16-bit tapes alike. Some other tools, such as "
+                                 L"CiderPress II, read only 8-bit WAV files. This applies only to new blank "
+                                 L"tapes; recording onto an existing tape keeps its bit depth.");
+    y += rowHeight + sectionGap;
+
+    // Below both sections, because it restores the whole page.
     m_reset.SetLabel (L"Restore defaults");
     m_reset.Layout   (MakeRect (controlsX, y, resetW, rowHeight));
 
@@ -239,6 +315,20 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeMode.SetDpi       (dpi);
     m_mechanism.SetDpi       (dpi);
     m_driveAudio.SetDpi      (dpi);
+    m_fastTape.SetDpi        (dpi);
+    m_tapeAutoStop.SetDpi    (dpi);
+    m_tapeVolume.SetDpi      (dpi);
+    m_tapeVolumeLabel.SetDpi (dpi);
+    m_tapeAutoStopLabel.SetDpi (dpi);
+    m_tapeIdleStop.SetDpi      (dpi);
+    m_tapeIdleStopLabel.SetDpi (dpi);
+    m_tapeWavFormat.SetDpi      (dpi);
+    m_tapeWavFormatLabel.SetDpi (dpi);
+    m_tapeWavFormatInfo.SetDpi  (dpi);
+    m_tapeLabel.SetDpi       (dpi);
+    m_diskHeading.SetDpi     (dpi);
+    m_tapeHeading.SetDpi     (dpi);
+    m_tapeDivider.SetDpi     (dpi);
     m_writeProtect[0].SetDpi (dpi);
     m_writeProtect[1].SetDpi (dpi);
     m_motorLabel.SetDpi      (dpi);
@@ -289,6 +379,11 @@ void DiskPage::Rebuild()
     m_writeMode.SetSelected ((int) state->GetPrefs().writeMode);
     m_mechanism.SetSelected (state->GetPrefs().floppyMechanism == "alps" ? 1 : 0);
     m_driveAudio.SetChecked (state->GetPrefs().floppySoundEnabled);
+    m_fastTape.SetChecked   (state->GetPrefs().fastTapeLoading);
+    m_tapeAutoStop.SetChecked (state->GetPrefs().tapeAutoStop);
+    m_tapeIdleStop.SetChecked (state->GetPrefs().tapeIdleStop);
+    m_tapeWavFormat.SetSelected (state->GetPrefs().tapeEightBit ? 1 : 0);
+    m_tapeVolume.SetValue   (state->GetPrefs().tapeVolume * 100.0f);
     m_writeProtect[0].SetChecked (state->GetPrefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->GetPrefs().writeProtect[1]);
     m_motorVol.SetValue     (state->GetPrefs().driveMotorVolume * 100.0f);
@@ -305,6 +400,11 @@ void DiskPage::Rebuild()
         state->SetFloppySound (checked);
         ApplyDriveAudioChildEnabled (checked);
     });
+    m_fastTape.SetOnChange ([state] (bool checked) { state->SetFastTapeLoading (checked); });
+    m_tapeAutoStop.SetOnChange ([state] (bool checked) { state->SetTapeAutoStop (checked); });
+    m_tapeIdleStop.SetOnChange ([state] (bool checked) { state->SetTapeIdleStop (checked); });
+    m_tapeWavFormat.SetSelect   ([state] (int idx) { state->SetTapeEightBit (idx == 1); });
+    m_tapeVolume.SetOnChange ([state] (float v) { state->SetTapeVolume (v / 100.0f); });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
 
@@ -321,7 +421,7 @@ void DiskPage::Rebuild()
     m_doorPlay.SetOnClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 2, true);  } });
     m_panOnePlay.SetOnClick ([this] { if (m_onTestSound) { m_onTestSound (0, 1, false); } });
     m_panTwoPlay.SetOnClick ([this] { if (m_onTestSound) { m_onTestSound (1, 1, false); } });
-    m_reset.SetOnClick      ([this] { ResetDriveAudioToDefaults(); });
+    m_reset.SetOnClick      ([this] { ResetPageToDefaults(); });
 }
 
 
@@ -340,8 +440,10 @@ void DiskPage::Rebuild()
 
 void DiskPage::SetPopupHost (DxuiHwndSource * host)
 {
-    m_writeMode.SetPopupHost       (host);
-    m_mechanism.SetPopupHost       (host);
+    m_writeMode.SetPopupHost         (host);
+    m_mechanism.SetPopupHost         (host);
+    m_tapeWavFormat.SetPopupHost     (host);
+    m_tapeWavFormatInfo.SetPopupHost (host);
 }
 
 
@@ -353,8 +455,8 @@ void DiskPage::SetPopupHost (DxuiHwndSource * host)
 //  DiskPage::ApplyDriveAudioChildEnabled
 //
 //  Enables / disables every control nested under the Drive-audio toggle
-//  (mechanism, the volume + pan sliders, their play buttons, and the reset
-//  button) and dims their labels to match.
+//  (mechanism, the volume + pan sliders and their play buttons) and dims
+//  their labels to match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,7 +477,6 @@ void DiskPage::ApplyDriveAudioChildEnabled (bool enabled)
     m_doorPlay.SetEnabled  (enabled);
     m_panOnePlay.SetEnabled (enabled);
     m_panTwoPlay.SetEnabled (enabled);
-    m_reset.SetEnabled     (enabled);
     m_mechLabel.SetTextRole   (labelRole);
     m_motorLabel.SetTextRole  (labelRole);
     m_headLabel.SetTextRole   (labelRole);
@@ -465,32 +566,39 @@ void DiskPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskPage::ResetDriveAudioToDefaults
+//  DiskPage::ResetPageToDefaults
 //
-//  Restores every drive-audio knob to its SettingsUiPrefs default and syncs
-//  the slider widgets to match.
+//  Restores every setting on the page, disk drives and cassette tape alike,
+//  to its SettingsUiPrefs default, then re-syncs the widgets from the state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskPage::ResetDriveAudioToDefaults()
+void DiskPage::ResetPageToDefaults()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                hr       = S_OK;
+    const SettingsUiPrefs  defaults;
 
 
 
     CBRA (m_state != nullptr);
 
-    m_state->SetDriveMotorVolume (SettingsUiPrefs::kDefaultDriveMotorVolume);
-    m_state->SetDriveHeadVolume  (SettingsUiPrefs::kDefaultDriveHeadVolume);
-    m_state->SetDriveDoorVolume  (SettingsUiPrefs::kDefaultDriveDoorVolume);
-    m_state->SetDriveOnePan      (SettingsUiPrefs::kDefaultDriveOnePan);
-    m_state->SetDriveTwoPan      (SettingsUiPrefs::kDefaultDriveTwoPan);
+    m_state->SetWriteProtect     (0, defaults.writeProtect[0]);
+    m_state->SetWriteProtect     (1, defaults.writeProtect[1]);
+    m_state->SetWriteMode        (defaults.writeMode);
+    m_state->SetFloppySound      (defaults.floppySoundEnabled);
+    m_state->SetMechanism        (defaults.floppyMechanism);
+    m_state->SetDriveMotorVolume (defaults.driveMotorVolume);
+    m_state->SetDriveHeadVolume  (defaults.driveHeadVolume);
+    m_state->SetDriveDoorVolume  (defaults.driveDoorVolume);
+    m_state->SetDriveOnePan      (defaults.driveOnePan);
+    m_state->SetDriveTwoPan      (defaults.driveTwoPan);
+    m_state->SetFastTapeLoading  (defaults.fastTapeLoading);
+    m_state->SetTapeVolume       (defaults.tapeVolume);
+    m_state->SetTapeAutoStop     (defaults.tapeAutoStop);
+    m_state->SetTapeIdleStop     (defaults.tapeIdleStop);
+    m_state->SetTapeEightBit     (defaults.tapeEightBit);
 
-    m_motorVol.SetValue (SettingsUiPrefs::kDefaultDriveMotorVolume * 100.0f);
-    m_headVol.SetValue  (SettingsUiPrefs::kDefaultDriveHeadVolume  * 100.0f);
-    m_doorVol.SetValue  (SettingsUiPrefs::kDefaultDriveDoorVolume  * 100.0f);
-    m_panOne.SetValue   (SettingsUiPrefs::kDefaultDriveOnePan * 100.0f);
-    m_panTwo.SetValue   (SettingsUiPrefs::kDefaultDriveTwoPan * 100.0f);
+    Rebuild();
 
 Error:
     return;

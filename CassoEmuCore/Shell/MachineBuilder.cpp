@@ -31,6 +31,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -321,6 +322,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         else if (devCfg.type == "apple2-family-speaker")
         {
             m_host.GetRefs().speaker = static_cast<AppleSpeaker *> (device.get());
+        }
+        else if (devCfg.type == "apple2-family-cassette")
+        {
+            m_host.GetRefs().cassettePort = static_cast<CassettePort *> (device.get());
         }
 
         m_host.GetMemoryBus().AddDevice (device.get());
@@ -1496,6 +1501,8 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         }
     }
 
+    WireCassettePort();
+
 Error:
     return hr;
 }
@@ -1555,6 +1562,54 @@ void MachineBuilder::WireJoyport()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireCassettePort
+//
+//  Connects the cassette jacks to the recorder the host owns, times them off
+//  the CPU's bus-cycle counter, and hands them to whichever device decodes
+//  $C060 and $C068: the game port on the ][ and ][+, the keyboard and the
+//  soft-switch bank on the //e. Machines without the jacks have no port and
+//  nothing here runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireCassettePort()
+{
+    MachineRefs   & refs = m_host.GetRefs();
+    CassettePort  * port = refs.cassettePort;
+
+
+
+    if (port == nullptr)
+    {
+        return;
+    }
+
+    port->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
+    port->SetDeck           (&m_host.GetTapeDeck());
+    m_host.GetTapeDeck().SetCpuClock ((double) m_host.GetConfig().clockSpeed);
+
+    if (refs.gamePort != nullptr)
+    {
+        refs.gamePort->SetCassettePort (port);
+    }
+
+    if (refs.iieKeyboard != nullptr)
+    {
+        refs.iieKeyboard->SetCassettePort (port);
+    }
+
+    if (refs.iieSoftSwitches != nullptr)
+    {
+        refs.iieSoftSwitches->SetCassettePort (port);
+    }
 }
 
 

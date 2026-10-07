@@ -122,6 +122,7 @@ public:
     void     CreateVideoModes     ();
     HRESULT  CreateCpu            (const MachineConfig & config);
     void     WireJoyport          ();
+    void     WireCassettePort     ();
 
     Byte *   GetAuxRamBuffer      ();
 

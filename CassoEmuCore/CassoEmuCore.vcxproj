@@ -188,6 +188,24 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Ui\Dialogs\TapePositionDialog.cpp" />
+    <ClCompile Include="Shell\BackgroundWorkQueue.cpp" />
+    <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
+    <ClCompile Include="Audio\TapeAudioSource.cpp" />
+    <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
+    <ClCompile Include="Shell\EmulatorShellStorage.cpp" />
+    <ClCompile Include="Shell\EmulatorShellTape.cpp" />
+    <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
+    <ClCompile Include="Shell\TapeManager.cpp" />
+    <ClCompile Include="Devices\Tape\MfTapeAudioDecoder.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\CassettePort.cpp" />
+    <ClCompile Include="Devices\Tape\TapeDeck.cpp" />
+    <ClCompile Include="Devices\Tape\WavCodec.cpp" />
+    <ClCompile Include="Devices\Tape\TapeSignalDecoder.cpp" />
+    <ClCompile Include="Devices\Tape\TapeRecordScanner.cpp" />
+    <ClCompile Include="Devices\Tape\TapeImageLoader.cpp" />
+    <ClCompile Include="Devices\Tape\TapeChannelMixer.cpp" />
+    <ClCompile Include="Devices\Tape\AiffCodec.cpp" />
     <ClCompile Include="Core\AppleSingleCodec.cpp" />
     <ClCompile Include="Core\JsonParser.cpp" />
     <ClCompile Include="Core\JsonValue.cpp" />
@@ -474,6 +492,28 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
+    <ClInclude Include="Shell\BackgroundWorkQueue.h" />
+    <ClInclude Include="Devices\Tape\RecordingCapture.h" />
+    <ClInclude Include="Devices\Tape\TapeRecorder.h" />
+    <ClInclude Include="Audio\TapeAudioSource.h" />
+    <ClInclude Include="Devices\Tape\TapeTurboGovernor.h" />
+    <ClInclude Include="Ui\TapeDeckState.h" />
+    <ClInclude Include="Ui\Chrome\TapeDeckWidget.h" />
+    <ClInclude Include="Shell\TapeManager.h" />
+    <ClInclude Include="Devices\Tape\MfTapeAudioDecoder.h" />
+    <ClInclude Include="Machines\Apple2\Common\CassettePort.h" />
+    <ClInclude Include="Devices\Tape\ITapeDeckPort.h" />
+    <ClInclude Include="Devices\Tape\TapeDeck.h" />
+    <ClInclude Include="Devices\Tape\WavCodec.h" />
+    <ClInclude Include="Devices\Tape\TapeSignalDecoder.h" />
+    <ClInclude Include="Devices\Tape\TapeRecordScanner.h" />
+    <ClInclude Include="Devices\Tape\TapeImageLoader.h" />
+    <ClInclude Include="Devices\Tape\TapeImage.h" />
+    <ClInclude Include="Devices\Tape\TapeChannelMixer.h" />
+    <ClInclude Include="Devices\Tape\TapeAudio.h" />
+    <ClInclude Include="Devices\Tape\ITapeAudioDecoder.h" />
+    <ClInclude Include="Devices\Tape\AiffCodec.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\AppleSingleCodec.h" />
     <ClInclude Include="Core\MemoryDevice.h" />

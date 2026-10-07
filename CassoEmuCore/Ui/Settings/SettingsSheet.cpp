@@ -83,7 +83,7 @@ SettingsSheet::~SettingsSheet()
 void SettingsSheet::OnBuildPages()
 {
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
-    m_diskPage     = CreatePage<DiskPage>     (L"Disk");
+    m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
@@ -938,6 +938,11 @@ void SettingsSheet::OnDialogTick()
 
     UpdatePreviewCompose();
     GrowToContent();
+
+    // The pages' controls get the tick too. Nothing else ticks them, and a
+    // timed control -- an info tip's tooltip, which opens only once its
+    // dwell has passed -- would otherwise never advance.
+    DxuiPanel::Tick ((int64_t) GetTickCount64());
 }
 
 

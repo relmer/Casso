@@ -395,8 +395,10 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  per-gesture handlers, which take plain coordinates and are testable without
 //  framework events.
 //
-//  A move only updates hover and is reported unhandled, so the pointer
-//  crossing the strip does not consume moves other widgets want.
+//  A move is reported handled only when it changes which tab is hovered or
+//  armed, as DxuiButton does: that is what makes the window repaint at once
+//  rather than on its half-second tick, and a move that changes nothing still
+//  passes through to the widgets that handle it.
 //
 //  Only the left button acts; a right-click belongs to the host.
 //
@@ -404,7 +406,9 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  handled = false;
+    int   prevHover   = m_hover;
+    int   prevPressed = m_pressed;
+    bool  handled     = false;
 
 
 
@@ -412,6 +416,7 @@ bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
     {
     case DxuiMouseEventKind::Move:
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        handled = m_hover != prevHover || m_pressed != prevPressed;
         break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)

@@ -59,7 +59,9 @@ public:
     DxuiComboBox          & WriteModeDropdown    () { return m_writeMode; }
     DxuiComboBox          & GetMechanismDropdown () { return m_mechanism; }
     DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
+    DxuiToggle            & GetFastTapeToggle    () { return m_fastTape; }
     DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
+    DxuiButton            & GetRestoreDefaultsButton () { return m_reset; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
@@ -72,7 +74,7 @@ private:
     void  ApplyDriveAudioChildEnabled (bool enabled);
     void  ConfigureVolumeSlider       (DxuiSlider & slider, const RECT & rect);
     void  ConfigurePanSlider          (DxuiSlider & slider, const RECT & rect);
-    void  ResetDriveAudioToDefaults   ();
+    void  ResetPageToDefaults         ();
 
     SettingsPanelState         * m_state = nullptr;
     TestSoundFn                  m_onTestSound;
@@ -86,10 +88,24 @@ private:
     DxuiLabel                        m_doorLabel;
     DxuiLabel                        m_panOneLabel;
     DxuiLabel                        m_panTwoLabel;
+    DxuiLabel                        m_tapeLabel;
+    DxuiLabel                        m_diskHeading;
+    DxuiLabel                        m_tapeHeading;
+    DxuiDivider                      m_tapeDivider;
 
     DxuiComboBox                     m_writeMode;
     DxuiComboBox                     m_mechanism;
     DxuiToggle                       m_driveAudio;
+    DxuiToggle                       m_fastTape;
+    DxuiToggle                       m_tapeAutoStop;
+    DxuiToggle                       m_tapeIdleStop;
+    DxuiComboBox                     m_tapeWavFormat;
+    DxuiInfoTip                      m_tapeWavFormatInfo;
+    DxuiSlider                       m_tapeVolume;
+    DxuiLabel                        m_tapeVolumeLabel;
+    DxuiLabel                        m_tapeAutoStopLabel;
+    DxuiLabel                        m_tapeIdleStopLabel;
+    DxuiLabel                        m_tapeWavFormatLabel;
     std::array<DxuiCheckbox, 2>      m_writeProtect;
     DxuiSlider                       m_motorVol;
     DxuiSlider                       m_headVol;

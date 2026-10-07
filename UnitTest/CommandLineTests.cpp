@@ -3099,6 +3099,26 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("c.woz"),   slashed.disk1);
         }
 
+        //  A tape goes in by name either way, and a missing name is an error
+        //  rather than the next flag taken for a file.
+        TEST_METHOD (Emulator_TapeTakesAFileInEitherPrefix)
+        {
+            ArgVector  dashes  = { "--tape", "adventure.wav" };
+            ArgVector  slashes = { "/tape", "side-a.mp3" };
+            ArgVector  bare    = { "--tape" };
+
+            CommandLineOptions::EmulatorOptions  dashed  =
+                CommandLineParser::ParseEmulator (dashes.Count(),  dashes.Data());
+            CommandLineOptions::EmulatorOptions  slashed =
+                CommandLineParser::ParseEmulator (slashes.Count(), slashes.Data());
+            CommandLineOptions::EmulatorOptions  missing =
+                CommandLineParser::ParseEmulator (bare.Count(),    bare.Data());
+
+            Assert::AreEqual (std::string ("adventure.wav"), dashed.tape);
+            Assert::AreEqual (std::string ("side-a.mp3"),    slashed.tape);
+            Assert::IsFalse  (missing.refusalMessage.empty(), L"--tape with no file is refused");
+        }
+
         //  Bare, space-separated, and `=`; a suffix the table does not know
         //  leaves the bare number rather than failing at startup.
         TEST_METHOD (Emulator_TraceTakesItsThreeSpellings)

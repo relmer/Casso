@@ -40,6 +40,17 @@ public:
                                         const std::wstring  & machineName,
                                         const std::wstring  & path);
 
+    // The tape last inserted in the machine's cassette recorder.
+    static HRESULT  ReadSavedTapePath  (UserConfigStore     & store,
+                                        IFileSystem         & fs,
+                                        const std::wstring  & machineName,
+                                        std::wstring        & outPath);
+
+    static HRESULT  WriteSavedTapePath (UserConfigStore     & store,
+                                        IFileSystem         & fs,
+                                        const std::wstring  & machineName,
+                                        const std::wstring  & path);
+
     // Persist a single boolean under $cassoUiPrefs.<key> for one machine.
     // Used for the //c case-switch latches so they survive across runs.
     static HRESULT  WriteSavedUiPrefBool (UserConfigStore    & store,
@@ -56,6 +67,13 @@ public:
                                           const std::vector<std::pair<std::string, JsonValue>> & values);
 
 private:
+    static constexpr const char * kTapePathKey = "tapePath";
+
+    static HRESULT       ReadSavedPath          (UserConfigStore     & store,
+                                                 IFileSystem         & fs,
+                                                 const char          * keyName,
+                                                 const std::wstring  & machineName,
+                                                 std::wstring        & outPath);
     static HRESULT       LoadMachineDefaultJson (const std::wstring & machineName, JsonValue & outDefault);
     static std::string   WideToUtf8             (const std::wstring & w);
     static std::wstring  Utf8ToWide             (const std::string & s);
