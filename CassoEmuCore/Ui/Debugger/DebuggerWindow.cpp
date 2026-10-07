@@ -308,6 +308,7 @@ void DebuggerWindow::OnCreate()
 
     ConfigureWidgets();
     ConfigureDockSite();
+    CreateColorKeys();
     ConfigureHeatMap();
 
     //  The text size the user last left, once every pane it sizes exists.
@@ -2664,12 +2665,6 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
         SetWindowMenus();
     }
 
-    //  The legend, while it is open, takes the theme's colors too.
-    if (m_colorLegend != nullptr && m_colorLegend->IsShown())
-    {
-        m_colorLegend->SetColors (m_theme, GetColorPalette());
-    }
-
     Invalidate();
 }
 
@@ -4222,6 +4217,7 @@ void DebuggerWindow::LayoutWidgets()
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
+    PlaceColorKeys();
     PlaceFindBar();
     ClipPaneControls();
 }
@@ -4540,7 +4536,7 @@ void DebuggerWindow::PlaceMemoryBar()
     m_memoryBar->SetTextRenderer   (host->GetTextRenderer());
     m_memoryBar->SetPopupHost      (host->GetPopupHost());
     m_memoryBar->SetHostClientRect (host->GetBounds());
-    m_memoryBar->Layout            (slot, m_scaler);
+    m_memoryBar->Layout            (ColorKeyButton::GetStripBeside (slot, m_scaler), m_scaler);
 
     host->SetChildClip (m_memoryBar, slot);
     host->SetChildClip (m_memoryBox, slot);
@@ -4898,6 +4894,10 @@ void DebuggerWindow::ConfigureDockSite()
     //  The pane always shows hybrid; CALLS MODE picks another (FR-068), so
     //  the button that cycled them is not shown.
     m_callStackButton->SetVisible (false);
+
+    //  The call stack has no toolbar; a band of its own holds its info button.
+    m_callStackKeySlot = std::make_unique<DebuggerPaneFrame> (L"Colors");
+    m_callStackFrame->AddPart (m_callStackKeySlot.get(), barHeight);
     m_callStackFrame->AddPart (m_callStackList);
 
     //  The trace pane lists its keys above its rows.
@@ -6451,6 +6451,7 @@ void DebuggerWindow::RenderFrame()
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
+    PlaceColorKeys();
     PlaceFindBar();
     ClipPaneControls();
 
@@ -10234,6 +10235,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The panes' info buttons first: they sit at the ends of the toolbars.
+    if (RouteColorKeyMouse (ev))
+    {
+        return true;
+    }
+
     //  Then the memory bar, which owns its strip less the Address box, and
     //  whatever menu it has open.
     if (m_routingPane == GetBarRoutingPane (m_memoryBarPane) && RouteMemoryBarMouse (ev))
@@ -10536,6 +10543,33 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring & pane) const
 {
+    std::vector<IDxuiControl *>  controls = GetOwnControls (pane);
+    ColorKeyButton             * key      = GetColorKey (pane);
+
+
+
+    if (key != nullptr && !controls.empty())
+    {
+        controls.push_back (key);
+    }
+
+    return controls;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetOwnControls
+//
+//  A pane's controls less its info button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring & pane) const
+{
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
@@ -10556,7 +10590,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_undoBars[kWatchUndoBar].slot.get(), m_watchList, m_watchEditor, m_undoBars[kWatchUndoBar].bar }; }
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
-    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
+    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackKeySlot.get(), m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
     if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapBarSlot.get(), m_heatMapView, m_heatMapBar }; }
     if (pane == DebuggerLayout::kHeatRanges)  { return { m_heatRangeSlot.get(), m_heatRangeError, m_heatRangeList, m_heatRangeEditor, m_heatRangeBar }; }
@@ -12251,6 +12285,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (RouteMenuBarKey (ev, handled))
     {
         return handled;
+    }
+
+    //  A pane's color key, while it is up, closes on Escape.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && m_colorKeyPopup.IsShown())
+    {
+        HideColorKey();
+        return true;
     }
 
     //  The zoom popup, while open, takes Escape to close and the keys its

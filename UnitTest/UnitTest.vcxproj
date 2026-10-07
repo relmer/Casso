@@ -177,6 +177,7 @@
     <ClCompile Include="DebuggerTests\DebugMemoryViewPatchTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryEditModelTests.cpp" />
     <ClCompile Include="DebuggerTests\ColorLegendTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerColorKeyTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryRegionOutlineTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\Sha1Tests.cpp" />

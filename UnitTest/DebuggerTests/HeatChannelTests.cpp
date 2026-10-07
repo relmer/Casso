@@ -335,7 +335,7 @@ namespace DebuggerTests
             {
                 if (entry.meaning == ColorLegend::Meaning::HeatUnwritten || entry.meaning == ColorLegend::Meaning::HeatChanged)
                 {
-                    Assert::AreEqual (std::wstring (L"Heat map"), std::wstring (entry.group));
+                    Assert::IsTrue   (entry.pane == ColorLegend::Pane::HeatMap);
                     listed++;
                 }
             }

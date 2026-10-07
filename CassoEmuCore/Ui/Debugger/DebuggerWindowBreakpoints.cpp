@@ -140,7 +140,7 @@ void DebuggerWindow::PlaceBreakpointBar()
     m_breakpointBar->SetTextRenderer   (host->GetTextRenderer());
     m_breakpointBar->SetPopupHost      (host->GetPopupHost());
     m_breakpointBar->SetHostClientRect (host->GetBounds());
-    m_breakpointBar->Layout            (slot, m_scaler);
+    m_breakpointBar->Layout            (ColorKeyButton::GetStripBeside (slot, m_scaler), m_scaler);
 
     host->SetChildClip (m_breakpointBar, slot);
 }

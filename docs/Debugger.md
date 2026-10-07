@@ -594,7 +594,8 @@ find next and find previous), **View** (every pane, the device panels, and
 **Reset window layout**), **Debug** (run, break,
 detach, the steps, run to cursor, run one frame, show beam on screen, show next statement, step by source
 line and trace, then reset, power cycle and restart under debugger) and **Tools**
-(**Keyboard scheme**), and **Help** (**Colors**, below). The command bar below it holds the run and step buttons as icons,
+(**Keyboard scheme**); what the colors mean is behind each pane's info button
+(**Colors**, below). The command bar below it holds the run and step buttons as icons,
 each tip giving the command and its key in the scheme in force, and Trace.
 A command with two keys shows both in its tip and menu row, for example
 "Alt+F11 or Ctrl+R, F11".
@@ -1035,13 +1036,19 @@ from the command box.
 
 ### Colors
 
-**Help > Colors** opens a legend of every color in the window that means
-something, grouped by pane, each as a swatch beside its meaning. It stays open
-while the window is used, and its swatches follow the theme in force. Hovering over
-any of these colors in the window shows the same meaning as a tip; where the
-element already has a tip, such as a symbol or the flags, the meaning is added
-to it. The colors of syntax (mnemonics, directives, labels, numbers, strings
-and addresses) mean what the text says and are not listed.
+Every pane whose colors mean something has an info button (an i in a circle)
+at the end of its toolbar; the call stack and a device panel with a memory
+map or a disk head, which have no toolbar, have a band of their own for it.
+Resting the pointer on the button shows that pane's color key under it: a
+line for each color, its swatch beside its meaning, in the theme in force.
+The key goes when the pointer leaves. Clicking the button, or tabbing to it and
+pressing Space or Enter, holds the key open until the button is pressed
+again, Escape is pressed, the focus moves on, or a click lands elsewhere.
+Hovering over any of these colors in the window shows the same meaning as a
+tip; where the element already has a tip, such as a symbol or the flags, the
+meaning is added to it. The colors of syntax (mnemonics, directives, labels,
+numbers, strings and addresses) mean what the text says and are not listed.
+The debugger has no Help menu.
 
 - **Disassembly**: the PC's yellow arrow and row, the next instruction to run,
   whose arrow can be dragged to set the next statement; a green row, the line
@@ -1053,14 +1060,16 @@ and addresses) mean what the text says and are not listed.
   where a click sets one; bytes in the changed color, changed since the last
   stop; the operand in the comment green, what the instruction reads; and
   `Result: `, what it leaves behind, in the result color.
+- **Source**: the PC's row, a red dot for a breakpoint and a red ring for a
+  disabled one, and `Result: ` in the result color.
 - **Registers, watch and stack**: values in the changed color, changed since
-  the last stop; a dimmed automatic watch, touched by the previous
-  instruction; a dimmed watch, disabled.
+  the last stop; in the watch pane, a dimmed automatic watch, touched by the
+  previous instruction, and a dimmed watch, disabled.
 - **Call stack**: a dimmed frame, unverified, which may no longer be a live
   call; the dimmed last return, a call that has returned and left the stack.
 - **Memory**: bytes in the changed color; ROM bytes and I/O bytes in their
-  colors, with the boxes around them; and the boxes around the Language Card's
-  banks and aux RAM.
+  colors, with the boxes around them; bytes no read has reached yet in the
+  muted color; and the boxes around the Language Card's banks and aux RAM.
 - **Memory map**: main RAM, aux RAM, each Language Card bank, ROM, slot ROM and
   I/O, each in a color of the theme's, with a key below the map.
 - **Heat map**: code in the disassembly's instruction color, an operand byte
@@ -1073,5 +1082,7 @@ and addresses) mean what the text says and are not listed.
 - **Disk head**: the head muted while the motor is off, flashing as it steps,
   and settling to the accent on its track; a lamp lit while its phase magnet
   or the motor is on.
+- **Breakpoints**: a red dot for a breakpoint and a red ring for a disabled
+  one.
 - **Status bar**: the history meter, green while the buffer is empty, blending
-  to blue as it fills.
+  to blue as it fills; its own tip says so, and it has no info button.

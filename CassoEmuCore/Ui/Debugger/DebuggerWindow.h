@@ -14,7 +14,8 @@
 #include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ByteChanges.h"
 #include "Ui/Debugger/ColorLegend.h"
-#include "Ui/Debugger/ColorLegendDialog.h"
+#include "Ui/Debugger/ColorKeyButton.h"
+#include "Ui/Debugger/ColorKeyPopup.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
@@ -552,6 +553,10 @@ protected:
     //  Protected so a test can see whether a tip shows over the command bar,
     //  and that none shows while a menu is open.
     const DxuiTooltip &  GetTooltip    () const { return m_tooltip; }
+
+    //  A pane's info button, and the color key it opens.
+    ColorKeyButton *       GetColorKey      (const std::wstring & pane) const;
+    const ColorKeyPopup &  GetColorKeyPopup () const { return m_colorKeyPopup; }
     bool                 IsAnyMenuOpen () const;
 
     //  Protected so a test can read the status bar as a frame leaves it, and
@@ -749,7 +754,6 @@ private:
     void     ResetPaneLayout      ();
     void     OpenSourceFile       ();
     void     OpenReverseOptions   ();
-    void     OpenColorLegend      ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
     void     ConfigureCodeBars    ();
@@ -794,6 +798,7 @@ private:
     //  its controls moved there whole. The window's routing serves every
     //  window, filtered to the controls of the one the event came from.
     std::vector<IDxuiControl *>  GetPaneControls   (const std::wstring & pane) const;
+    std::vector<IDxuiControl *>  GetOwnControls    (const std::wstring & pane) const;
     IDxuiControl *               GetPaneContent    (const std::wstring & pane) const;
     std::wstring                 GetPaneTitle      (const std::wstring & pane) const;
     bool                         IsRoutable        (const IDxuiControl * control) const;
@@ -1019,7 +1024,6 @@ private:
     DxuiToolbar                                                                    * m_commandBar         = nullptr;
     DxuiMenuBar                                                                    * m_menuBar            = nullptr;
     std::vector<DxuiMenuBarItem>                                                     m_menuBarItems;
-    std::unique_ptr<ColorLegendDialog>                                               m_colorLegend;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleBarSlot;
     DxuiToolbar                                                                    * m_consoleBar         = nullptr;
     std::shared_ptr<DxuiCommand>                                                     m_dialectCommand;
@@ -1180,6 +1184,34 @@ private:
     void          RunPaneUndo        (size_t index, bool redo);
     bool          IsPaneUndoEnabled  (size_t index, bool redo) const;
     std::wstring  GetPaneUndoTip     (size_t index, bool redo) const;
+
+    //  Each pane whose colors mean something has an info button at the end of
+    //  its toolbar, in a band of its own where the pane has no toolbar (the
+    //  call stack, a device panel with a memory map or a disk head), and one
+    //  popup shows the key of the button the pointer rests on or that was
+    //  pressed. A legend function gives the key of a pane whose colors depend
+    //  on what it shows, or none to hide the button.
+    struct PaneColorKey
+    {
+        ColorKeyButton                                     * button = nullptr;
+        DebuggerPaneFrame                                  * slot   = nullptr;
+        std::function<std::optional<ColorLegend::Pane> ()>   legend;
+    };
+
+    std::vector<PaneColorKey>              m_colorKeys;
+    std::unique_ptr<DebuggerPaneFrame>     m_callStackKeySlot;
+    ColorKeyPopup                          m_colorKeyPopup;
+    ColorKeyButton                       * m_colorKeyOwner = nullptr;
+    ColorKeyButton                       * m_colorKeyHover = nullptr;
+
+    void  CreateColorKeys     ();
+    void  AddColorKey         (const std::wstring & pane, DebuggerPaneFrame * slot, ColorLegend::Pane legend,
+                               std::function<std::optional<ColorLegend::Pane> ()> dynamic = nullptr);
+    void  PlaceColorKeys      ();
+    bool  RouteColorKeyMouse  (const DxuiMouseEvent & ev);
+    void  ShowColorKey        (ColorKeyButton * button, bool hold);
+    void  ToggleColorKey      (ColorKeyButton * button);
+    void  HideColorKey        ();
     std::vector<std::wstring>                                     m_memoryHistory;
     MemoryPane                                                  * m_activePane          = nullptr;
     std::string                                                   m_machine;

@@ -179,7 +179,9 @@ namespace DebuggerMenuBarTests
     {
     public:
 
-        TEST_METHOD (MenuBarHoldsFileEditViewDebugToolsAndHelp)
+        //  Help held only Colors, which each pane's info button replaced, so
+        //  there is no Help menu.
+        TEST_METHOD (MenuBarHoldsFileEditViewDebugAndTools)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
             MenuBarHost    host;
@@ -195,14 +197,12 @@ namespace DebuggerMenuBarTests
                 titles.push_back (item.label);
             }
 
-            Assert::AreEqual (6, (int) titles.size());
+            Assert::AreEqual (5, (int) titles.size());
             Assert::AreEqual (std::wstring (L"&File"),   titles[0]);
             Assert::AreEqual (std::wstring (L"&Edit"),   titles[1]);
             Assert::AreEqual (std::wstring (L"&View"),   titles[2]);
             Assert::AreEqual (std::wstring (L"&Debug"),  titles[3]);
             Assert::AreEqual (std::wstring (L"&Tools"),  titles[4]);
-            Assert::AreEqual (std::wstring (L"&Help"),   titles[5]);
-            Assert::IsNotNull (MenuRows::GetRow (window.GetMenuBarItems(), L"&Help", L"Colors"), L"no Colors in Help");
         }
 
 

@@ -7,23 +7,11 @@
 
 
 
-//  The panes, in the order the legend lists them.
-static constexpr const wchar_t * s_kpszDisassembly = L"Disassembly";
-static constexpr const wchar_t * s_kpszValues      = L"Registers, watch and stack";
-static constexpr const wchar_t * s_kpszCallStack   = L"Call stack";
-static constexpr const wchar_t * s_kpszMemory      = L"Memory";
-static constexpr const wchar_t * s_kpszMemoryMap   = L"Memory map";
-static constexpr const wchar_t * s_kpszHeatMap     = L"Heat map";
-static constexpr const wchar_t * s_kpszDiskHead    = L"Disk head";
-static constexpr const wchar_t * s_kpszStatusBar   = L"Status bar";
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorLegend::GetEntries
+//
+//  Each pane's lines together, in the order its info button lists them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,61 +19,128 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
 {
     static const std::vector<Entry>  kEntries =
     {
-        { s_kpszDisassembly, Meaning::PcMarker,           Swatch::Marker  },
-        { s_kpszDisassembly, Meaning::PcRow,              Swatch::Row     },
-        { s_kpszDisassembly, Meaning::NavigatedRow,       Swatch::Row     },
-        { s_kpszDisassembly, Meaning::TargetRow,          Swatch::Row     },
-        { s_kpszDisassembly, Meaning::BranchTaken,        Swatch::Line    },
-        { s_kpszDisassembly, Meaning::BranchNotTaken,     Swatch::Line    },
-        { s_kpszDisassembly, Meaning::BreakpointEnabled,  Swatch::Dot     },
-        { s_kpszDisassembly, Meaning::BreakpointDisabled, Swatch::Ring    },
-        { s_kpszDisassembly, Meaning::BreakpointHover,    Swatch::Dot     },
-        { s_kpszDisassembly, Meaning::Changed,            Swatch::Text    },
-        { s_kpszDisassembly, Meaning::Annotation,         Swatch::Text    },
-        { s_kpszDisassembly, Meaning::Result,             Swatch::Text    },
-        { s_kpszValues,      Meaning::Changed,            Swatch::Text    },
-        { s_kpszValues,      Meaning::PreviousAutoWatch,  Swatch::Text    },
-        { s_kpszValues,      Meaning::DisabledWatch,      Swatch::Text    },
-        { s_kpszCallStack,   Meaning::UnverifiedFrame,    Swatch::Text    },
-        { s_kpszCallStack,   Meaning::LastReturn,         Swatch::Text    },
-        { s_kpszMemory,      Meaning::Changed,            Swatch::Text    },
-        { s_kpszMemory,      Meaning::RomByte,            Swatch::Text    },
-        { s_kpszMemory,      Meaning::IoByte,             Swatch::Text    },
-        { s_kpszMemory,      Meaning::MemoryUnread,       Swatch::Text    },
-        { s_kpszMemory,      Meaning::LcBank1Box,         Swatch::Outline },
-        { s_kpszMemory,      Meaning::LcBank2Box,         Swatch::Outline },
-        { s_kpszMemory,      Meaning::AuxBox,             Swatch::Outline },
-        { s_kpszMemoryMap,   Meaning::MapMain,            Swatch::Fill    },
-        { s_kpszMemoryMap,   Meaning::MapAux,             Swatch::Fill    },
-        { s_kpszMemoryMap,   Meaning::MapLcBank1,         Swatch::Fill    },
-        { s_kpszMemoryMap,   Meaning::MapLcBank2,         Swatch::Fill    },
-        { s_kpszMemoryMap,   Meaning::MapRom,             Swatch::Fill    },
-        { s_kpszMemoryMap,   Meaning::MapSlotRom,         Swatch::Fill    },
-        { s_kpszMemoryMap,   Meaning::MapIo,              Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatCode,           Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatOperand,        Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatRead,           Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatWrite,          Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatSelfModifying,  Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatSymbol,         Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatPc,             Swatch::Outline },
-        { s_kpszHeatMap,     Meaning::HeatStack,          Swatch::Outline },
-        { s_kpszHeatMap,     Meaning::HeatBreakpoint,     Swatch::Outline },
-        { s_kpszHeatMap,     Meaning::HeatReadWatch,      Swatch::Outline },
-        { s_kpszHeatMap,     Meaning::HeatWriteWatch,     Swatch::Outline },
-        { s_kpszHeatMap,     Meaning::HeatUnwritten,      Swatch::Fill    },
-        { s_kpszHeatMap,     Meaning::HeatChanged,        Swatch::Fill    },
-        { s_kpszDiskHead,    Meaning::HeadMotorOff,       Swatch::Fill    },
-        { s_kpszDiskHead,    Meaning::HeadMoving,         Swatch::Fill    },
-        { s_kpszDiskHead,    Meaning::HeadSettled,        Swatch::Fill    },
-        { s_kpszDiskHead,    Meaning::LampLit,            Swatch::Fill    },
-        { s_kpszStatusBar,   Meaning::HistoryEmpty,       Swatch::Fill    },
-        { s_kpszStatusBar,   Meaning::HistoryFull,        Swatch::Fill    },
+        { Pane::Disassembly, Meaning::PcMarker,           Swatch::Marker  },
+        { Pane::Disassembly, Meaning::PcRow,              Swatch::Row     },
+        { Pane::Disassembly, Meaning::NavigatedRow,       Swatch::Row     },
+        { Pane::Disassembly, Meaning::TargetRow,          Swatch::Row     },
+        { Pane::Disassembly, Meaning::BranchTaken,        Swatch::Line    },
+        { Pane::Disassembly, Meaning::BranchNotTaken,     Swatch::Line    },
+        { Pane::Disassembly, Meaning::BreakpointEnabled,  Swatch::Dot     },
+        { Pane::Disassembly, Meaning::BreakpointDisabled, Swatch::Ring    },
+        { Pane::Disassembly, Meaning::BreakpointHover,    Swatch::Dot     },
+        { Pane::Disassembly, Meaning::Changed,            Swatch::Text    },
+        { Pane::Disassembly, Meaning::Annotation,         Swatch::Text    },
+        { Pane::Disassembly, Meaning::Result,             Swatch::Text    },
+        { Pane::Source,      Meaning::PcRow,              Swatch::Row     },
+        { Pane::Source,      Meaning::BreakpointEnabled,  Swatch::Dot     },
+        { Pane::Source,      Meaning::BreakpointDisabled, Swatch::Ring    },
+        { Pane::Source,      Meaning::Result,             Swatch::Text    },
+        { Pane::Registers,   Meaning::Changed,            Swatch::Text    },
+        { Pane::Watch,       Meaning::Changed,            Swatch::Text    },
+        { Pane::Watch,       Meaning::PreviousAutoWatch,  Swatch::Text    },
+        { Pane::Watch,       Meaning::DisabledWatch,      Swatch::Text    },
+        { Pane::Stack,       Meaning::Changed,            Swatch::Text    },
+        { Pane::CallStack,   Meaning::UnverifiedFrame,    Swatch::Text    },
+        { Pane::CallStack,   Meaning::LastReturn,         Swatch::Text    },
+        { Pane::Memory,      Meaning::Changed,            Swatch::Text    },
+        { Pane::Memory,      Meaning::RomByte,            Swatch::Text    },
+        { Pane::Memory,      Meaning::IoByte,             Swatch::Text    },
+        { Pane::Memory,      Meaning::MemoryUnread,       Swatch::Text    },
+        { Pane::Memory,      Meaning::LcBank1Box,         Swatch::Outline },
+        { Pane::Memory,      Meaning::LcBank2Box,         Swatch::Outline },
+        { Pane::Memory,      Meaning::AuxBox,             Swatch::Outline },
+        { Pane::MemoryMap,   Meaning::MapMain,            Swatch::Fill    },
+        { Pane::MemoryMap,   Meaning::MapAux,             Swatch::Fill    },
+        { Pane::MemoryMap,   Meaning::MapLcBank1,         Swatch::Fill    },
+        { Pane::MemoryMap,   Meaning::MapLcBank2,         Swatch::Fill    },
+        { Pane::MemoryMap,   Meaning::MapRom,             Swatch::Fill    },
+        { Pane::MemoryMap,   Meaning::MapSlotRom,         Swatch::Fill    },
+        { Pane::MemoryMap,   Meaning::MapIo,              Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatCode,           Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatOperand,        Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatRead,           Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatWrite,          Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatSelfModifying,  Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatSymbol,         Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatPc,             Swatch::Outline },
+        { Pane::HeatMap,     Meaning::HeatStack,          Swatch::Outline },
+        { Pane::HeatMap,     Meaning::HeatBreakpoint,     Swatch::Outline },
+        { Pane::HeatMap,     Meaning::HeatReadWatch,      Swatch::Outline },
+        { Pane::HeatMap,     Meaning::HeatWriteWatch,     Swatch::Outline },
+        { Pane::HeatMap,     Meaning::HeatUnwritten,      Swatch::Fill    },
+        { Pane::HeatMap,     Meaning::HeatChanged,        Swatch::Fill    },
+        { Pane::DiskHead,    Meaning::HeadMotorOff,       Swatch::Fill    },
+        { Pane::DiskHead,    Meaning::HeadMoving,         Swatch::Fill    },
+        { Pane::DiskHead,    Meaning::HeadSettled,        Swatch::Fill    },
+        { Pane::DiskHead,    Meaning::LampLit,            Swatch::Fill    },
+        { Pane::Breakpoints, Meaning::BreakpointEnabled,  Swatch::Dot     },
+        { Pane::Breakpoints, Meaning::BreakpointDisabled, Swatch::Ring    },
+        { Pane::StatusBar,   Meaning::HistoryEmpty,       Swatch::Fill    },
+        { Pane::StatusBar,   Meaning::HistoryFull,        Swatch::Fill    },
     };
 
 
 
     return kEntries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetEntriesFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ColorLegend::Entry> ColorLegend::GetEntriesFor (Pane pane)
+{
+    std::vector<Entry>  entries;
+
+
+
+    for (const Entry & entry : GetEntries())
+    {
+        if (entry.pane == pane)
+        {
+            entries.push_back (entry);
+        }
+    }
+
+    return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetPaneTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ColorLegend::GetPaneTitle (Pane pane)
+{
+    switch (pane)
+    {
+    case Pane::Disassembly: return L"Disassembly";
+    case Pane::Source:      return L"Source";
+    case Pane::Registers:   return L"Registers";
+    case Pane::Watch:       return L"Watch";
+    case Pane::Stack:       return L"Stack";
+    case Pane::CallStack:   return L"Call stack";
+    case Pane::Memory:      return L"Memory";
+    case Pane::MemoryMap:   return L"Memory map";
+    case Pane::HeatMap:     return L"Heat map";
+    case Pane::DiskHead:    return L"Disk head";
+    case Pane::Breakpoints: return L"Breakpoints";
+    case Pane::StatusBar:   return L"Status bar";
+    case Pane::Count:       break;
+    }
+
+    return L"";
 }
 
 

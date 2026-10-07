@@ -5,7 +5,7 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/ColorLegend.h"
-#include "Ui/Debugger/ColorLegendDialog.h"
+#include "Ui/Debugger/ColorKeyPopup.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
@@ -204,20 +204,20 @@ namespace ColorLegendTests
 
         TEST_METHOD (EachPanesLinesSitTogether)
         {
-            std::vector<std::wstring>  seen;
+            std::vector<ColorLegend::Pane>  seen;
 
 
 
             for (const ColorLegend::Entry & entry : ColorLegend::GetEntries())
             {
-                if (seen.empty() || seen.back() != entry.group)
+                if (seen.empty() || seen.back() != entry.pane)
                 {
-                    Assert::IsTrue (std::ranges::find (seen, std::wstring (entry.group)) == seen.end(), std::format (L"{} is split", entry.group).c_str());
-                    seen.push_back (entry.group);
+                    Assert::IsTrue (std::ranges::find (seen, entry.pane) == seen.end(), std::format (L"{} is split", ColorLegend::GetPaneTitle (entry.pane)).c_str());
+                    seen.push_back (entry.pane);
                 }
             }
 
-            Assert::IsTrue (seen.size() > 1);
+            Assert::AreEqual ((size_t) ColorLegend::Pane::Count, seen.size(), L"every pane has a key");
         }
 
 
@@ -261,39 +261,35 @@ namespace ColorLegendTests
         }
 
 
-        TEST_METHOD (TheLegendHeadsEachPaneAndShowsEachColorAsItIsDrawn)
+        //  A pane's key lists that pane's colors alone, each swatch drawn as
+        //  the pane draws the color, in the palette's colors.
+        TEST_METHOD (APanesKeyShowsItsColorsAloneAsTheyAreDrawn)
         {
-            CassoTheme                                    theme   = CassoTheme::MakeSkeuomorphic();
-            ColorLegend::Palette                          palette = MakeDistinctPalette();
-            std::vector<std::vector<DxuiListView::Cell>>  rows    = ColorLegendDialog::MakeRows (palette, theme);
-            size_t                                        groups  = 0;
-            const wchar_t                               * last    = nullptr;
+            ColorLegend::Palette             palette = MakeDistinctPalette();
+            std::vector<ColorKeyPopup::Row>  rows    = ColorKeyPopup::MakeRows (ColorLegend::Pane::Disassembly, palette);
+            std::vector<ColorKeyPopup::Row>  memory  = ColorKeyPopup::MakeRows (ColorLegend::Pane::Memory, palette);
 
 
 
-            for (const ColorLegend::Entry & entry : ColorLegend::GetEntries())
+            Assert::AreEqual (ColorLegend::GetEntriesFor (ColorLegend::Pane::Disassembly).size(), rows.size());
+            Assert::IsFalse  (std::ranges::any_of (rows, [] (const ColorKeyPopup::Row & row) { return row.text == ColorLegend::GetText (Meaning::RomByte); }),
+                              L"the memory window's ROM in the disassembly's key");
+            Assert::IsTrue   (std::ranges::any_of (memory, [] (const ColorKeyPopup::Row & row) { return row.text == ColorLegend::GetText (Meaning::RomByte); }));
+
+            for (const ColorKeyPopup::Row & row : rows)
             {
-                groups += (last == nullptr || std::wstring (last) != entry.group) ? 1 : 0;
-                last    = entry.group;
-            }
-
-            Assert::AreEqual (ColorLegend::GetEntries().size() + groups, rows.size());
-            Assert::AreEqual (std::wstring (L"Disassembly"), rows[0][0].text);
-            Assert::IsTrue   (rows[0][0].spansRow, L"a pane's heading is a value");
-
-            for (const std::vector<DxuiListView::Cell> & row : rows)
-            {
-                if (row[1].text == ColorLegend::GetText (Meaning::PcRow))
+                if (row.text == ColorLegend::GetText (Meaning::PcRow))
                 {
-                    Assert::AreEqual (palette.text.pcRow, row[0].background, L"the PC's row is not shown on its fill");
+                    Assert::IsTrue   (row.swatch == ColorLegend::Swatch::Row);
+                    Assert::AreEqual (palette.text.pcRow, row.argb, L"the PC's row is not shown on its fill");
                 }
-                else if (row[1].text == ColorLegend::GetText (Meaning::Annotation))
+                else if (row.text == ColorLegend::GetText (Meaning::Annotation))
                 {
-                    Assert::AreEqual (palette.text.annotation, row[0].argb, L"a text color is not shown in its color");
+                    Assert::AreEqual (palette.text.annotation, row.argb, L"a text color is not shown in its color");
                 }
-                else if (row[1].text == ColorLegend::GetText (Meaning::BreakpointDisabled))
+                else if (row.text == ColorLegend::GetText (Meaning::BreakpointDisabled))
                 {
-                    Assert::IsNotNull (row[0].icon.get(), L"a ring is not drawn");
+                    Assert::IsNotNull (row.icon.get(), L"a ring is not drawn");
                 }
             }
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/DiagnosticsSnapshot.h"
+#include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
@@ -42,6 +43,13 @@ public:
     DiskHeadView                  * GetHead     () const { return m_head; }
     MemoryMapBar                  * GetMap      () const { return m_map; }
     DebuggerPaneFrame             * GetFrame    () const { return m_frame.get(); }
+
+    //  The band at the pane's top that holds its info button, shown while
+    //  the graphic has colors to explain: a memory map or a disk head.
+    DebuggerPaneFrame             * GetKeySlot  () const { return m_keySlot.get(); }
+
+    //  The key the info button opens, or none.
+    std::optional<ColorLegend::Pane>  GetColorKey () const;
 
     //  Every control of the pane, graphics first, in the order they stack.
     std::vector<IDxuiControl *>     GetControls () const;
@@ -86,5 +94,6 @@ private:
     DiskHeadView                      * m_head   = nullptr;
     MeterBar                          * m_meters = nullptr;
     std::unique_ptr<DebuggerPaneFrame>  m_frame;
+    std::unique_ptr<DebuggerPaneFrame>  m_keySlot;
     Visual                              m_visual = Visual::None;
 };

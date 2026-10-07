@@ -516,7 +516,7 @@ namespace DebuggerTests
 
             for (const ColorLegend::Entry & entry : ColorLegend::GetEntries())
             {
-                if (std::wstring (entry.group) == L"Heat map")
+                if (entry.pane == ColorLegend::Pane::HeatMap)
                 {
                     listed.push_back (entry.meaning);
                 }

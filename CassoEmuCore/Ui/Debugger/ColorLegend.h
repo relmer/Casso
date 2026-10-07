@@ -11,9 +11,9 @@
 //  ColorLegend
 //
 //  What each color the debugger window draws with means, said once: the
-//  same sentence is a hovered element's tip and its line in the Colors
-//  legend, and the swatch beside it is the color the theme in force gives
-//  it. Syntax colors are not listed; they mean what the text says.
+//  same sentence is a hovered element's tip and its line in its pane's color
+//  key, and the swatch beside it is the color the theme in force gives it.
+//  Syntax colors are not listed; they mean what the text says.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,16 +105,38 @@ public:
         uint32_t                 meterFull  = 0;
     };
 
+    //  The panes whose colors mean something, each with a legend of its own
+    //  behind the info button on its toolbar. The status bar's history meter
+    //  has its own tip and no button.
+    enum class Pane
+    {
+        Disassembly,
+        Source,
+        Registers,
+        Watch,
+        Stack,
+        CallStack,
+        Memory,
+        MemoryMap,
+        HeatMap,
+        DiskHead,
+        Breakpoints,
+        StatusBar,
+        Count,
+    };
+
     struct Entry
     {
-        const wchar_t  * group   = nullptr;
-        Meaning          meaning = Meaning::PcRow;
-        Swatch           swatch  = Swatch::Fill;
+        Pane     pane    = Pane::Disassembly;
+        Meaning  meaning = Meaning::PcRow;
+        Swatch   swatch  = Swatch::Fill;
     };
 
     //  The legend's lines, grouped by the pane they are seen in, in the order
-    //  the panes are listed.
-    static const std::vector<Entry> &  GetEntries();
+    //  the panes are listed; one pane's alone; and a pane's title.
+    static const std::vector<Entry> &  GetEntries    ();
+    static std::vector<Entry>          GetEntriesFor (Pane pane);
+    static const wchar_t *             GetPaneTitle  (Pane pane);
 
     //  The one-line meaning, which is also the tip over what it colors.
     static const wchar_t *  GetText (Meaning meaning);

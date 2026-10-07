@@ -12,8 +12,9 @@
 //
 //  DiagnosticsPane::DiagnosticsPane
 //
-//  Each graphic is a part of the frame shown only while the payload is of its
-//  kind, and the list takes the height that is left.
+//  The band for the info button comes first, shown while the graphic has a
+//  color key. Each graphic is a part of the frame shown only while the
+//  payload is of its kind, and the list takes the height that is left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,14 +25,18 @@ DiagnosticsPane::DiagnosticsPane (
     MemoryMapBar   * map,
     DiskHeadView   * head,
     MeterBar       * meters) :
-    m_id     (std::move (id)),
-    m_title  (std::move (title)),
-    m_list   (list),
-    m_map    (map),
-    m_head   (head),
-    m_meters (meters),
-    m_frame  (std::make_unique<DebuggerPaneFrame> (m_title))
+    m_id      (std::move (id)),
+    m_title   (std::move (title)),
+    m_list    (list),
+    m_map     (map),
+    m_head    (head),
+    m_meters  (meters),
+    m_frame   (std::make_unique<DebuggerPaneFrame> (m_title)),
+    m_keySlot (std::make_unique<DebuggerPaneFrame> (L"Colors"))
 {
+    m_frame->AddPart (m_keySlot.get(),
+                      [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (DxuiToolbar::kCompactBandDp); },
+                      [this] { return GetColorKey().has_value(); });
     m_frame->AddPart (m_map,
                       [this] (int width, const DxuiDpiScaler & scaler) { return m_map->GetPreferredHeightPx (width, scaler); },
                       [this] { return m_visual == Visual::MemoryMap; });
@@ -64,7 +69,30 @@ DiagnosticsPane::DiagnosticsPane (
 
 std::vector<IDxuiControl *> DiagnosticsPane::GetControls() const
 {
-    return { m_map, m_head, m_meters, m_list };
+    return { m_keySlot.get(), m_map, m_head, m_meters, m_list };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiagnosticsPane::GetColorKey
+//
+//  A memory map's sources and a disk head's states are colors; the meters
+//  and the list are not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<ColorLegend::Pane> DiagnosticsPane::GetColorKey() const
+{
+    switch (m_visual)
+    {
+    case Visual::MemoryMap: return ColorLegend::Pane::MemoryMap;
+    case Visual::DiskHead:  return ColorLegend::Pane::DiskHead;
+    default:                return std::nullopt;
+    }
 }
 
 

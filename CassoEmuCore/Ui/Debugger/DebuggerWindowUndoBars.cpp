@@ -92,7 +92,7 @@ void DebuggerWindow::PlaceUndoBars()
         each.bar->SetTextRenderer   (host->GetTextRenderer());
         each.bar->SetPopupHost      (host->GetPopupHost());
         each.bar->SetHostClientRect (host->GetBounds());
-        each.bar->Layout            (slot, m_scaler);
+        each.bar->Layout            (ColorKeyButton::GetStripBeside (slot, m_scaler), m_scaler);
 
         host->SetChildClip (each.bar, slot);
     }
