@@ -46,12 +46,12 @@ UpdateDialogContent::UpdateDialogContent()
     Adopt (m_pageLink);
 
     m_opener.SetTextRole    (DxuiTextRole::Heading);
-    m_opener.SetFontWeight  (DxuiFontWeight::Bold);
+    m_opener.SetFontWeight  (DxuiFontWeight::SemiBold);
     m_opener.SetFontSizeDip (kOpenerFontDip);
     m_opener.SetTextAlign   (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_header.SetTextRole   (DxuiTextRole::Heading);
-    m_header.SetFontWeight (DxuiFontWeight::Bold);
+    m_header.SetFontWeight (DxuiFontWeight::Normal);
     m_header.SetTextAlign  (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_status.SetTextRole  (DxuiTextRole::Body);
@@ -602,7 +602,7 @@ void UpdateDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     {
         float    width  = 0.0f;
         float    height = 0.0f;
-        HRESULT  hr     = text.MeasureStringWeighted (words.c_str(), sizePx, DxuiTheme::kBodyFace, DxuiFontWeight::Bold, width, height);
+        HRESULT  hr     = text.MeasureStringWeighted (words.c_str(), sizePx, DxuiTheme::kBodyFace, DxuiFontWeight::Normal, width, height);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
         return width;

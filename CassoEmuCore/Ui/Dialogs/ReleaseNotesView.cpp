@@ -108,7 +108,7 @@ void ReleaseNotesView::Reflow (IDxuiTextRenderer & text, const IDxuiTheme & them
     auto  measure = [&] (const std::wstring & word, const NotesRunStyle & style) -> float
     {
         const wchar_t  * face   = style.code ? mono.face : body.face;
-        DxuiFontWeight   weight = style.bold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal;
+        DxuiFontWeight   weight = style.bold ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal;
         float            width  = 0.0f;
         float            height = 0.0f;
         HRESULT          hr     = text.MeasureStringWeighted (word.c_str(), style.sizePx, face, weight, width, height);
@@ -193,7 +193,7 @@ void ReleaseNotesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                               run.style.code ? mono.face : body.face,
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Top,
-                              run.style.bold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal,
+                              run.style.bold ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
