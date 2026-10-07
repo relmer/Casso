@@ -167,6 +167,8 @@
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMap.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMapRanges.cpp" />
+    <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowMenuBar.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowTimeline.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionEffect.cpp" />
@@ -247,6 +249,8 @@
     <ClCompile Include="Debugger\Handlers\SymbolHandlers.cpp" />
     <ClCompile Include="Debugger\AccessHeatMap.cpp" />
     <ClCompile Include="Debugger\HeatMapOptions.cpp" />
+    <ClCompile Include="Debugger\HeatMapRangeSets.cpp" />
+    <ClCompile Include="Debugger\HeatMapSymbols.cpp" />
     <ClCompile Include="Debugger\HeatCountDelta.cpp" />
     <ClCompile Include="Debugger\HeatHistory.cpp" />
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
@@ -645,6 +649,7 @@
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapView.h" />
+    <ClInclude Include="Ui\Debugger\HeatMapRangeBarCommands.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneFrame.h" />
     <ClInclude Include="Ui\Debugger\Panes\FindWidgetPlate.h" />
     <ClInclude Include="Ui\Debugger\Panes\DiagnosticsPane.h" />
@@ -716,6 +721,8 @@
     <ClInclude Include="Debugger\Handlers\SymbolHandlers.h" />
     <ClInclude Include="Debugger\AccessHeatMap.h" />
     <ClInclude Include="Debugger\HeatMapOptions.h" />
+    <ClInclude Include="Debugger\HeatMapRangeSets.h" />
+    <ClInclude Include="Debugger\HeatMapSymbols.h" />
     <ClInclude Include="Debugger\HeatCountDelta.h" />
     <ClInclude Include="Debugger\HeatHistory.h" />
     <ClInclude Include="Debugger\HeatRebuildJob.h" />

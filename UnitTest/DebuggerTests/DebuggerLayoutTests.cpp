@@ -64,7 +64,7 @@ namespace DebuggerLayoutTests
                 Assert::IsTrue (layout.IsDocked (pane), pane);
             }
 
-            Assert::AreEqual ((size_t) 5, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size(), L"the four memory windows and the heat map");
+            Assert::AreEqual ((size_t) 6, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size(), L"the four memory windows, the heat map and its ranges");
             Assert::IsTrue   (IsInGroup (layout, DebuggerLayout::kConsole, DebuggerLayout::kTrace), L"the trace is a tab of the console");
         }
 
@@ -178,8 +178,8 @@ namespace DebuggerLayoutTests
                 Assert::IsTrue (restored.IsDocked (pane), pane.c_str());
             }
 
-            Assert::AreEqual ((size_t) 6, restored.GetGroup (DebuggerLayout::kRegisters).size(),
-                              L"registers, the four memory windows and the heat map");
+            Assert::AreEqual ((size_t) 7, restored.GetGroup (DebuggerLayout::kRegisters).size(),
+                              L"registers, the four memory windows, the heat map and its ranges");
         }
 
 

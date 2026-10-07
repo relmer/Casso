@@ -26,13 +26,15 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
-        { kFading,      L"Fading",       nullptr,          L"Show how recently and how often each address was touched", DxuiToolbar::Kind::Toggle,   0, false, false },
-        { kCumulative,  L"Cumulative",   nullptr,          L"Show each address's total since the counts were reset",    DxuiToolbar::Kind::Toggle,   0, false, false },
-        { kFade,        L"Fade",         nullptr,          L"How long a single access stays on the map",                DxuiToolbar::Kind::DropDown, 1, false, false },
-        { kResetCounts, L"Reset counts", nullptr,          L"Start the totals over",                                    DxuiToolbar::Kind::Command,  1, false, false },
-        { kZoomIn,      L"Zoom in",      s_kGlyphZoomIn,   L"Zoom in (Ctrl+wheel over the map)",                        DxuiToolbar::Kind::Command,  2, true,  true  },
-        { kZoomOut,     L"Zoom out",     s_kGlyphZoomOut,  L"Zoom out (Ctrl+wheel over the map)",                       DxuiToolbar::Kind::Command,  2, true,  true  },
-        { kResetZoom,   L"Reset zoom",   nullptr,          L"Go back to the starting size, with $0000 at the top left", DxuiToolbar::Kind::Command,  2, false, true  },
+        { kFading,      L"Fading",         nullptr,         L"Show how recently and how often each address was touched", DxuiToolbar::Kind::Toggle,   0, false, false },
+        { kCumulative,  L"Cumulative",     nullptr,         L"Show each address's total since the counts were reset",    DxuiToolbar::Kind::Toggle,   0, false, false },
+        { kFade,        L"Fade",           nullptr,         L"How long a single access stays on the map",                DxuiToolbar::Kind::DropDown, 1, false, false },
+        { kResetCounts, L"Reset counts",   nullptr,         L"Start the totals over",                                    DxuiToolbar::Kind::Command,  1, false, false },
+        { kRangeSet,    L"All memory",     nullptr,         L"Show all of memory, or only the ranges of a set",          DxuiToolbar::Kind::DropDown, 3, false, false },
+        { kEditRanges,  L"Edit ranges...", nullptr,         L"Make and change the sets of ranges the map can show",      DxuiToolbar::Kind::Command,  3, false, false },
+        { kZoomIn,      L"Zoom in",        s_kGlyphZoomIn,  L"Zoom in (Ctrl+wheel over the map)",                        DxuiToolbar::Kind::Command,  2, true,  true  },
+        { kZoomOut,     L"Zoom out",       s_kGlyphZoomOut, L"Zoom out (Ctrl+wheel over the map)",                       DxuiToolbar::Kind::Command,  2, true,  true  },
+        { kResetZoom,   L"Reset zoom",     nullptr,         L"Go back to the starting size, with $0000 at the top left", DxuiToolbar::Kind::Command,  2, false, true  },
     };
 
 

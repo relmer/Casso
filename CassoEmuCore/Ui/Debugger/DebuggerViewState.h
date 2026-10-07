@@ -12,6 +12,7 @@
 #include "Ui/Debugger/InstructionTouches.h"
 
 class SymbolTable;
+class HeatMapSymbols;
 
 class DebugSession;
 class IDiagnosticsProvider;
@@ -253,6 +254,10 @@ struct DebuggerViewSnapshot
     };
 
     HeatMapState                          heatMap;
+
+    //  The symbols the heat map's ranges are read against. The same copy is
+    //  shared from snapshot to snapshot until the symbols change.
+    std::shared_ptr<const HeatMapSymbols> heatMapSymbols;
 
     //  The pane CODE, DATA or CONSOLE last asked to bring forward. The
     //  window acts on it once, when the serial changes.
@@ -635,6 +640,10 @@ private:
     void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildHeatMap   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
+    //  The heat map ranges' copy of the symbols, taken again only when they
+    //  have changed since the last.
+    std::shared_ptr<const HeatMapSymbols>  GetHeatMapSymbols (const SymbolTable & symbols) const;
+
     Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
     Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
     void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -702,12 +711,14 @@ private:
         bool                 open         = false;
     };
 
-    mutable std::array<CodeView, kMaxCodeViews>  m_code;
-    int                                          m_follow         = 0;
-    Word                                         m_memoryAddress  = 0x0000;
-    std::optional<uint64_t>                      m_traceTop;
-    bool                                         m_isHeatMapShown = false;
-    HeatMapOptions                               m_heatMapOptions;
+    mutable std::array<CodeView, kMaxCodeViews>    m_code;
+    int                                            m_follow                 = 0;
+    Word                                           m_memoryAddress          = 0x0000;
+    std::optional<uint64_t>                        m_traceTop;
+    bool                                           m_isHeatMapShown         = false;
+    HeatMapOptions                                 m_heatMapOptions;
+    mutable std::shared_ptr<const HeatMapSymbols>  m_heatMapSymbols;
+    mutable uint64_t                               m_heatMapSymbolsRevision = 0;
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
     std::wstring  m_showPane;
     uint32_t      m_showPaneSerial   = 0;

@@ -10,6 +10,7 @@
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/GSSquaredParser.h"
+#include "Debugger/HeatMapSymbols.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Debugger/AppleWinCommandTable.h"
@@ -83,6 +84,7 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     snapshot.canRedoBreakpoints = m_breakpointHistory.CanRedo();
     snapshot.machine        = session.GetTarget().GetMachineInfo().name;
     snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
+    snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
     {
@@ -269,6 +271,30 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
     map->GetLevels (HeatKind::Execute, snapshot.heatMap.execute);
     map->GetLevels (HeatKind::Read,    snapshot.heatMap.read);
     map->GetLevels (HeatKind::Write,   snapshot.heatMap.write);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetHeatMapSymbols
+//
+//  Every snapshot carries the copy, but it is taken only when the tables'
+//  revision moves, so a running machine copies nothing frame to frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const HeatMapSymbols> DebuggerViewState::GetHeatMapSymbols (const SymbolTable & symbols) const
+{
+    if (m_heatMapSymbols == nullptr || m_heatMapSymbolsRevision != symbols.GetRevision())
+    {
+        m_heatMapSymbols         = HeatMapSymbols::Build (symbols);
+        m_heatMapSymbolsRevision = symbols.GetRevision();
+    }
+
+    return m_heatMapSymbols;
 }
 
 

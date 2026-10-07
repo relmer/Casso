@@ -105,7 +105,7 @@ namespace DebuggerDefaultLayoutTests
 
 
 
-            Assert::AreEqual ((size_t) DebuggerViewState::kMaxMemoryWindows + 1, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size(), L"and the heat map beside them");
+            Assert::AreEqual ((size_t) DebuggerViewState::kMaxMemoryWindows + 2, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size(), L"and the heat map and its ranges beside them");
         }
     };
 }

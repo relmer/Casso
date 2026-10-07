@@ -271,6 +271,10 @@ struct GlobalUserPrefs
     // default.
     std::string  debuggerHeatMapOptions;
 
+    // The heat map's sets of ranges and the set it shows, in
+    // HeatMapRangeSets' text; empty until the ranges pane first opens.
+    std::string  debuggerHeatMapRanges;
+
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one
     // following the PC, memory windows 2 to 4, and device panels. The layout
