@@ -538,6 +538,7 @@
     <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
     <ClCompile Include="UiTests\CrtResolverTests.cpp" />
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
+    <ClCompile Include="UiTests\GeneralPageModelTests.cpp" />
     <ClCompile Include="UiTests\GeneralPageTests.cpp" />
     <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\SettingsPageEnablementTests.cpp" />

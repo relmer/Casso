@@ -237,9 +237,14 @@ public:
     // is up and the old process has exited.
     void SetUpdateLaunch      (bool wasUpdated, DWORD cleanupOldPid) { m_wasLaunchedByUpdate = wasUpdated; m_cleanupOldPid = cleanupOldPid; }
 
-    // Settings > Theme: whether the once-a-day update check runs. Saved
-    // immediately, like the other live toggles on that page.
-    void SetAutoUpdateCheck   (bool enabled);
+    // Settings > General: whether the once-a-day update check runs, the
+    // skipped release, and the two download offers. Each is saved
+    // immediately, like the other live toggles in Settings.
+    void SetAutoUpdateCheck      (bool enabled);
+    void StopSkippingVersion     ();
+    void SetAudioDownloadConsent (const std::string & consent);
+    void SetRomRefreshConsent    (const std::string & consent);
+    void OpenSettingsFolder      ();
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void    DumpTrace        (const wstring & reason);
     HRESULT WriteTrace       (const wstring & reason, std::wstring & path);
@@ -1555,6 +1560,7 @@ private:
     void                   ReportUpdateCheckFailure    (UpdateFailure failure);
     void                   ReportUpToDate              ();
     void                   SkipOfferedRelease          ();
+    void                   RefreshSettingsUpdateStatus ();
     void                   StopUpdateService           ();
     bool                   OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx, int yPx);
     void                   OpenUrl                     (const std::wstring & url);

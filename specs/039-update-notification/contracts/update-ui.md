@@ -107,8 +107,27 @@
 
 ## Settings
 
-- On the General page, the first Settings tab: checkbox "Check for updates
-  automatically", default on. It saves when clicked, so Cancel does not revert it.
+- On the General page, the first Settings tab, under an "Updates" heading:
+  checkbox "Check for updates automatically", default on. It saves when
+  clicked, so Cancel does not revert it.
+- Under it, a muted line from `lastUpdateCheckUtc` in local time: "Last
+  checked today at 8:46 AM.", "Last checked yesterday at 9:07 PM.", "Last
+  checked on Mar 1." this year, "Last checked on Nov 20, 2025." before that,
+  or "Never checked." when 0 (`GeneralPageModel::MakeLastCheckedText`). Beside
+  it, "Check now" runs the same manual check as Help > Check for updates; the
+  line refreshes when the result arrives.
+- Only when `skippedVersion` is set: "Skipped version: 1.31.91" with "Stop
+  skipping", which clears it, saves, and decides the indicator again from
+  `latestKnownVersion` as at startup.
+- Under a "Downloads" heading: "Offer to download disk drive sounds"
+  (`audioDownloadConsent`) and "Offer updated ROMs" (`romRefreshConsent`, the
+  offer to replace a ROM file Casso installed and has since updated; a
+  missing ROM is still downloaded as before). Checked is anything but "decline";
+  unchecking stores "decline", checking stores "ask"
+  (`GeneralPageModel::IsOfferChecked` / `MakeConsentFromChecked`). Both save
+  when clicked.
+- Under a "Settings folder" heading: "Open settings folder" opens
+  `%LOCALAPPDATA%\Casso` in Explorer.
 - Settings tabs are sized to their labels, so the eight tabs fit the sheet's
   720 DIP design width.
 

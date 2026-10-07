@@ -8,25 +8,40 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GeneralPage::GeneralPage
-//
-//  Registers the checkbox in the page's child tree (non-owning Adopt) and
-//  forwards its changes to the callback the sheet installs.
+//  GeneralPage::MakeRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-GeneralPage::GeneralPage (std::wstring title)
-    : DxuiPropertyPage (std::move (title))
+RECT GeneralPage::MakeRect (int l, int t, int w, int h)
 {
-    Adopt (m_autoUpdateCheckbox);
+    RECT  rc = { l, t, l + w, t + h };
 
-    m_autoUpdateCheckbox.SetLabel (L"Check for updates automatically");
-    m_autoUpdateCheckbox.SetSingleLineLabel (true);
-    m_autoUpdateCheckbox.SetOnChange ([this] (bool checked)
+
+
+    return rc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GeneralPage::WireToggle
+//
+//  Forwards a checkbox's changes to the page's callback member. The member
+//  is read at the click, so a callback the sheet installs later still runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GeneralPage::WireToggle (DxuiCheckbox & checkbox, const ToggleFn & fn)
+{
+    checkbox.SetSingleLineLabel (true);
+    checkbox.SetOnChange ([&fn] (bool checked)
     {
-        if (m_onAutoUpdateToggled)
+        if (fn)
         {
-            m_onAutoUpdateToggled (checked);
+            fn (checked);
         }
     });
 }
@@ -37,30 +52,193 @@ GeneralPage::GeneralPage (std::wstring title)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GeneralPage::GeneralPage
+//
+//  Registers every control in the page's child tree (non-owning Adopt) and
+//  forwards each one's changes to the callback the sheet installs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GeneralPage::GeneralPage (std::wstring title)
+    : DxuiPropertyPage (std::move (title))
+{
+    Adopt (m_updatesHeading);
+    Adopt (m_autoUpdateCheckbox);
+    Adopt (m_lastCheckedLabel);
+    Adopt (m_checkNowButton);
+    Adopt (m_skippedLabel);
+    Adopt (m_stopSkipButton);
+    Adopt (m_downloadsHeading);
+    Adopt (m_audioOfferCheckbox);
+    Adopt (m_romOfferCheckbox);
+    Adopt (m_folderHeading);
+    Adopt (m_openFolderButton);
+
+    // Each group gets a heading of its own over its rows, as on the Storage page.
+    for (DxuiLabel * heading : { &m_updatesHeading, &m_downloadsHeading, &m_folderHeading })
+    {
+        heading->SetTextRole   (DxuiTextRole::Heading);
+        heading->SetFontWeight (DxuiFontWeight::SemiBold);
+    }
+
+    m_updatesHeading.SetText   (L"Updates");
+    m_downloadsHeading.SetText (L"Downloads");
+    m_folderHeading.SetText    (L"Settings folder");
+
+    m_autoUpdateCheckbox.SetLabel (L"Check for updates automatically");
+    m_audioOfferCheckbox.SetLabel (L"Offer to download disk drive sounds");
+    m_romOfferCheckbox.SetLabel   (L"Offer updated ROMs");
+
+    WireToggle (m_autoUpdateCheckbox, m_onAutoUpdateToggled);
+    WireToggle (m_audioOfferCheckbox, m_onAudioOfferToggled);
+    WireToggle (m_romOfferCheckbox,   m_onRomOfferToggled);
+
+    m_lastCheckedLabel.SetTextRole (DxuiTextRole::Muted);
+    m_skippedLabel.SetTextRole     (DxuiTextRole::Muted);
+    m_lastCheckedLabel.SetText     (L"Never checked.");
+    m_skippedLabel.SetVisible      (false);
+    m_stopSkipButton.SetVisible    (false);
+
+    m_checkNowButton.SetLabel   (L"Check now");
+    m_stopSkipButton.SetLabel   (L"Stop skipping");
+    m_openFolderButton.SetLabel (L"Open settings folder");
+
+    m_checkNowButton.SetOnClick   ([this] { if (m_onCheckNow)     { m_onCheckNow();     } });
+    m_stopSkipButton.SetOnClick   ([this] { if (m_onStopSkipping) { m_onStopSkipping(); } });
+    m_openFolderButton.SetOnClick ([this] { if (m_onOpenFolder)   { m_onOpenFolder();   } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GeneralPage::SetLastCheckedText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GeneralPage::SetLastCheckedText (const std::wstring & text)
+{
+    m_lastCheckedLabel.SetText (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GeneralPage::SetSkippedText
+//
+//  Shows or hides the skipped-release row with its button, and lays the page
+//  out again so the groups below move to fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GeneralPage::SetSkippedText (const std::wstring & text)
+{
+    bool  isShown = !text.empty();
+
+
+
+    m_skippedLabel.SetText      (text);
+    m_skippedLabel.SetVisible   (isShown);
+    m_stopSkipButton.SetVisible (isShown);
+
+    if (m_hasLayout)
+    {
+        Layout (m_lastRect, m_lastScaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GeneralPage::Layout
 //
-//  One row at the top left, inside the page pad. The row is clamped to the
-//  page's inner width so a narrow window cannot push it past the right edge.
+//  Three headed groups down the left, inside the page pad. The status lines
+//  indent under the update checkbox's label with their buttons in one column
+//  beside them; the skipped row takes space only while it is shown. Rows are
+//  clamped to the page's inner width so a narrow window cannot push them
+//  past the right edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void GeneralPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    int   pad       = scaler.ToPx (kPagePadDp);
-    int   rowHeight = scaler.ToPx (kRowHeightDp);
-    int   x         = rect.left + pad;
-    int   y         = rect.top  + pad;
-    int   innerW    = std::max (0, (int) (rect.right - rect.left) - pad * 2);
-    int   checkW    = std::min (scaler.ToPx (kCheckWidthDp), innerW);
-    RECT  row       = { x, y, x + checkW, y + rowHeight };
+    UINT  dpi        = scaler.GetDpi();
+    int   pad        = scaler.ToPx (kPagePadDp);
+    int   rowHeight  = scaler.ToPx (kRowHeightDp);
+    int   rowStep    = rowHeight + scaler.ToPx (kRowGapDp);
+    int   sectionGap = scaler.ToPx (kSectionGapDp);
+    int   indent     = scaler.ToPx (kTextIndentDp);
+    int   x          = rect.left + pad;
+    int   y          = rect.top  + pad;
+    int   innerW     = std::max (0, (int) (rect.right - rect.left) - pad * 2);
+    int   checkW     = std::min (scaler.ToPx (kCheckWidthDp), innerW);
+    int   statusW    = scaler.ToPx (kStatusWidthDp);
+    int   buttonW    = scaler.ToPx (kButtonWidthDp);
+    int   buttonX    = x + indent + statusW;
 
 
 
-    m_autoUpdateCheckbox.Layout (row, scaler);
-    m_autoUpdateCheckbox.SetDpi (scaler.GetDpi());
+    m_updatesHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
+    y += rowStep;
+
+    m_autoUpdateCheckbox.Layout (MakeRect (x, y, checkW, rowHeight), scaler);
+    y += rowStep;
+
+    m_lastCheckedLabel.SetRect (MakeRect (x + indent, y, statusW, rowHeight));
+    m_checkNowButton.Layout    (MakeRect (buttonX, y, buttonW, rowHeight));
+    y += rowStep;
+
+    m_skippedLabel.SetRect  (MakeRect (x + indent, y, statusW, rowHeight));
+    m_stopSkipButton.Layout (MakeRect (buttonX, y, buttonW, rowHeight));
+
+    if (m_skippedLabel.IsVisible())
+    {
+        y += rowStep;
+    }
+
+    y += sectionGap;
+
+    m_downloadsHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
+    y += rowStep;
+
+    m_audioOfferCheckbox.Layout (MakeRect (x, y, checkW, rowHeight), scaler);
+    y += rowStep;
+
+    m_romOfferCheckbox.Layout (MakeRect (x, y, checkW, rowHeight), scaler);
+    y += rowStep + sectionGap;
+
+    m_folderHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
+    y += rowStep;
+
+    m_openFolderButton.Layout (MakeRect (x, y, scaler.ToPx (kFolderWidthDp), rowHeight));
+
+    m_updatesHeading.SetDpi     (dpi);
+    m_autoUpdateCheckbox.SetDpi (dpi);
+    m_lastCheckedLabel.SetDpi   (dpi);
+    m_checkNowButton.SetDpi     (dpi);
+    m_skippedLabel.SetDpi       (dpi);
+    m_stopSkipButton.SetDpi     (dpi);
+    m_downloadsHeading.SetDpi   (dpi);
+    m_audioOfferCheckbox.SetDpi (dpi);
+    m_romOfferCheckbox.SetDpi   (dpi);
+    m_folderHeading.SetDpi      (dpi);
+    m_openFolderButton.SetDpi   (dpi);
 
     DxuiPanel::SetBounds (rect);
 
-    // The one control is a fixed height, so it is where the content ends.
+    m_hasLayout  = true;
+    m_lastRect   = rect;
+    m_lastScaler = scaler;
+
+    // Every control is a fixed height, so the lowest visible one is where the
+    // content ends.
     SetContentHeightPx (GetLowestChildBottomPx() + pad - rect.top);
 }

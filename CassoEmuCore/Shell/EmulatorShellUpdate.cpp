@@ -12,6 +12,8 @@
 #include "Update/Win32UpdateHost.h"
 #include "Update/ZipUpdateInstaller.h"
 #include "Core/TextEncoding.h"
+#include "Core/PathResolver.h"
+#include "Ui/Settings/SettingsSheet.h"
 #include "CommandLineParser.h"
 #include "Version.h"
 
@@ -121,6 +123,117 @@ void EmulatorShell::SetAutoUpdateCheck (bool enabled)
 {
     m_globalPrefs.autoUpdateCheck = enabled;
     SaveGlobalPrefs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::StopSkippingVersion
+//
+//  Settings > General > Stop skipping. Clearing the skip lets the release
+//  last found show the indicator again, decided as at startup.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StopSkippingVersion()
+{
+    bool  isShown = false;
+
+
+
+    m_globalPrefs.skippedVersion.clear();
+    SaveGlobalPrefs();
+
+    isShown = m_isUpdatePending ||
+              (m_globalPrefs.autoUpdateCheck &&
+               UpdateSchedule::ShouldShowIndicator (GetRunningVersion(), m_globalPrefs.latestKnownVersion, m_globalPrefs.skippedVersion));
+
+    if (m_updateCheckStarted)
+    {
+        ShowUpdateIndicator (isShown);
+    }
+
+    RefreshSettingsUpdateStatus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetAudioDownloadConsent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetAudioDownloadConsent (const std::string & consent)
+{
+    m_globalPrefs.audioDownloadConsent = consent;
+    SaveGlobalPrefs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetRomRefreshConsent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetRomRefreshConsent (const std::string & consent)
+{
+    m_globalPrefs.romRefreshConsent = consent;
+    SaveGlobalPrefs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OpenSettingsFolder
+//
+//  Opens %LOCALAPPDATA%\Casso, where the preferences files live, in
+//  Explorer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OpenSettingsFolder()
+{
+    fs::path  folder = PathResolver::GetLocalAppDataDir (L"Casso");
+
+
+
+    if (!folder.empty())
+    {
+        OpenUrl (folder.wstring());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RefreshSettingsUpdateStatus
+//
+//  Brings an open Settings sheet's update lines up to date with the prefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshSettingsUpdateStatus()
+{
+    if (m_settingsSheet != nullptr)
+    {
+        m_settingsSheet->RefreshUpdateStatus();
+    }
 }
 
 
@@ -356,6 +469,7 @@ void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
     m_globalPrefs.lastUpdateCheckUtc = result.checkedAtUtc;
     m_globalPrefs.latestKnownVersion = result.release.version.ToString();
     SaveGlobalPrefs();
+    RefreshSettingsUpdateStatus();
 
     m_updateRelease     = result.release;
     m_updateInstallType = result.installType;
@@ -454,6 +568,7 @@ void EmulatorShell::PollSharedCheckRecord()
     m_globalPrefs.skippedVersion     = stored.skippedVersion;
 
     ShowUpdateIndicator (outcome == SharedCheckOutcome::Show);
+    RefreshSettingsUpdateStatus();
 
     OutputDebugStringW (std::format (L"Casso: adopted another Casso's update check record; latest known '{}': indicator {}\n",
                                      TextEncoding::Utf8ToWide (m_globalPrefs.latestKnownVersion),
@@ -819,6 +934,7 @@ void EmulatorShell::SkipOfferedRelease()
     SaveGlobalPrefs();
 
     ShowUpdateIndicator (false);
+    RefreshSettingsUpdateStatus();
 }
 
 

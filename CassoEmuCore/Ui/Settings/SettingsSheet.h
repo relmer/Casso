@@ -81,6 +81,12 @@ public:
     void    ShowControllersPage ();
 
     //
+    //  Re-reads the update check time and the skipped release into the
+    //  General page, after a check finishes or the skip changes.
+    //
+    void    RefreshUpdateStatus ();
+
+    //
     //  The Controllers page on one controller with the New Profile dialog up,
     //  for New... in a player's profile section.
     //
