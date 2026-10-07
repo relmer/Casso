@@ -52,7 +52,7 @@ public:
     void                  SetAnimationsEnabled (bool isEnabled) { m_isAnimated = isEnabled; }
     void                  StartShimmerClock (int64_t nowMs) { m_shownAtMs = nowMs; }
     void                  SetRandomSource   (UpdateIndicatorModel::RandomIndexFn randomIndex) { m_random = std::move (randomIndex); }
-    const GlintLayout   & GetGlintLayout    () const { return m_glintLayout; }
+    const SweepGlints   & GetSweepGlints    () const { return m_sweepGlints; }
     bool                  TickShimmer       (int64_t nowMs);
     std::optional<int64_t>  GetMsUntilShimmer (int64_t nowMs) const;
 
@@ -72,7 +72,7 @@ private:
     bool                                 m_isAnimated  = false;
     int64_t                              m_shownAtMs   = 0;
     std::optional<float>                 m_sweep;
-    GlintLayout                          m_glintLayout = UpdateIndicatorModel::MakeEvenGlintLayout();
+    SweepGlints                          m_sweepGlints = UpdateIndicatorModel::MakeEvenSweepGlints();
     UpdateIndicatorModel::RandomIndexFn  m_random;
 
     void           PaintShimmer (IDxuiTextRenderer & text, float x, float y, float w, float h, float fontPx, float progress) const;

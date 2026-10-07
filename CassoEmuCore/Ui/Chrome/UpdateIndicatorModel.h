@@ -69,6 +69,25 @@ struct GlintLayout
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SweepGlints
+//
+//  A sweep's two sets of glints, each laid out on its own: one twinkles as
+//  the lead pass reaches it, the other as the band does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct SweepGlints
+{
+    GlintLayout  lead;
+    GlintLayout  band;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IndicatorFit
 //
 //  How the title-bar indicator fits the caption: with its text, or as the
@@ -124,7 +143,7 @@ public:
     static constexpr float    kGlintEdge        = 0.06f;  // glints keep this far (of the text width) from its ends
     static constexpr float    kGlintSpacing     = 0.14f;  // and at least this far from each other
     static constexpr size_t   kGlintSteps       = 1000;   // resolution of a random glint position
-    static constexpr int      kGlintTries       = 32;     // draws before falling back to an even spread
+    static constexpr int      kGlintTries       = 32;     // draws before falling back to a fixed spread
 
     static std::vector<std::wstring>  GetLines             (const std::string & version);
     static std::wstring               PickLine             (const std::string & version, const RandomIndexFn & randomIndex);
@@ -135,9 +154,15 @@ public:
     static float                      GetBandWeight        (float offsetPx, float halfWidthPx);
     static SweepPhase                 GetSweepPhase        (float sweepProgress);
     static float                      GetTwinkle           (float sinceStartMs);
-    static std::vector<IndicatorGlint>  GetGlints          (float sweepMs, const GlintLayout & layout, float leftPx, float widthPx, float topPx, float bottomPx);
+    static std::vector<IndicatorGlint>  GetGlints          (float sweepMs, const SweepGlints & sweepGlints, float leftPx, float widthPx, float topPx, float bottomPx);
     static GlintLayout                MakeGlintLayout      (const RandomIndexFn & randomIndex);
     static GlintLayout                MakeEvenGlintLayout  ();
+    static SweepGlints                MakeSweepGlints      (const RandomIndexFn & randomIndex);
+    static SweepGlints                MakeEvenSweepGlints  ();
+    static float                      GetLeadStartMs       (float at);
+    static float                      GetBandStartMs       (float at);
+    static bool                       DoesBandGlintClash   (const SweepGlints & sweepGlints, int j);
+    static bool                       DoGlintsClash        (const SweepGlints & sweepGlints);
     static int64_t                    GetHoverClockStart   (int64_t nowMs);
 };
 

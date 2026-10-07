@@ -291,7 +291,7 @@ void UpdateIndicatorButton::PaintShimmer (
         }
     }
 
-    glints = UpdateIndicatorModel::GetGlints (progress * (float) UpdateIndicatorModel::kSweepMs, m_glintLayout, x + glyphW, w - glyphW, top, bottom);
+    glints = UpdateIndicatorModel::GetGlints (progress * (float) UpdateIndicatorModel::kSweepMs, m_sweepGlints, x + glyphW, w - glyphW, top, bottom);
 
     for (const IndicatorGlint & glint : glints)
     {
@@ -349,7 +349,7 @@ bool UpdateIndicatorButton::TickShimmer (int64_t nowMs)
     // A new sweep scatters its glints afresh.
     if (sweep.has_value() && !m_sweep.has_value() && m_random)
     {
-        m_glintLayout = UpdateIndicatorModel::MakeGlintLayout (m_random);
+        m_sweepGlints = UpdateIndicatorModel::MakeSweepGlints (m_random);
     }
 
     changed = sweep.has_value() || m_sweep.has_value();

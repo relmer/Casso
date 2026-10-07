@@ -276,20 +276,56 @@ float UpdateIndicatorModel::GetTwinkle (float sinceStartMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdateIndicatorModel::GetLeadStartMs
+//
+//  When, into a sweep, the lead pass reaches `at` (a fraction of the text's
+//  width) and a lead glint there starts to twinkle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float UpdateIndicatorModel::GetLeadStartMs (float at)
+{
+    return at * (float) kLeadMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::GetBandStartMs
+//
+//  When, into a sweep, the band reaches `at` and a band glint there starts
+//  to twinkle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float UpdateIndicatorModel::GetBandStartMs (float at)
+{
+    return (float) kBandStartMs + at * (float) kBandMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateIndicatorModel::GetGlints
 //
-//  The sparkles, `sweepMs` into a sweep, where `layout` puts them. Each
-//  twinkles twice a sweep -- starting as the lead pass reaches its x, and
-//  again as the band does -- so, the layout being sorted left to right,
-//  they run across ahead of the band and then follow it. Every glint is
-//  inside [leftPx, leftPx + widthPx] and on `topPx` or `bottomPx`, which the
-//  caller keeps inside the caption.
+//  The sparkles, `sweepMs` into a sweep: the lead glints first, each
+//  twinkling as the lead pass reaches its x, then the band glints, each
+//  twinkling as the band does. Each layout being sorted left to right, both
+//  sets run across in order. Every glint is inside [leftPx, leftPx +
+//  widthPx] and on `topPx` or `bottomPx`, which the caller keeps inside the
+//  caption.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<IndicatorGlint> UpdateIndicatorModel::GetGlints (
     float                 sweepMs,
-    const GlintLayout   & layout,
+    const SweepGlints   & sweepGlints,
     float                 leftPx,
     float                 widthPx,
     float                 topPx,
@@ -297,21 +333,26 @@ std::vector<IndicatorGlint> UpdateIndicatorModel::GetGlints (
 {
     std::vector<IndicatorGlint>  glints;
     IndicatorGlint               glint;
-    float                        at        = 0.0f;
-    float                        leadStart = 0.0f;
-    float                        bandStart = 0.0f;
-    int                          i         = 0;
+    float                        at     = 0.0f;
+    int                          i      = 0;
 
 
 
     for (i = 0; i < kGlintCount; i++)
     {
-        at              = layout.at[(size_t) i];
-        leadStart       = at * (float) kLeadMs;
-        bandStart       = (float) kBandStartMs + at * (float) kBandMs;
+        at              = sweepGlints.lead.at[(size_t) i];
         glint.x         = leftPx + widthPx * at;
-        glint.y         = layout.isTop[(size_t) i] ? topPx : bottomPx;
-        glint.intensity = std::max (GetTwinkle (sweepMs - leadStart), GetTwinkle (sweepMs - bandStart));
+        glint.y         = sweepGlints.lead.isTop[(size_t) i] ? topPx : bottomPx;
+        glint.intensity = GetTwinkle (sweepMs - GetLeadStartMs (at));
+        glints.push_back (glint);
+    }
+
+    for (i = 0; i < kGlintCount; i++)
+    {
+        at              = sweepGlints.band.at[(size_t) i];
+        glint.x         = leftPx + widthPx * at;
+        glint.y         = sweepGlints.band.isTop[(size_t) i] ? topPx : bottomPx;
+        glint.intensity = GetTwinkle (sweepMs - GetBandStartMs (at));
         glints.push_back (glint);
     }
 
@@ -399,6 +440,162 @@ GlintLayout UpdateIndicatorModel::MakeGlintLayout (const RandomIndexFn & randomI
     }
 
     return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::DoesBandGlintClash
+//
+//  True when band glint `j` and some lead glint would be lit at once on the
+//  same edge closer than kGlintSpacing, so their stars would run into each
+//  other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UpdateIndicatorModel::DoesBandGlintClash (const SweepGlints & sweepGlints, int j)
+{
+    bool   isClash   = false;
+    float  leadAt    = 0.0f;
+    float  bandAt    = sweepGlints.band.at[(size_t) j];
+    float  leadStart = 0.0f;
+    float  bandStart = GetBandStartMs (bandAt);
+    int    i         = 0;
+
+
+
+    for (i = 0; i < kGlintCount; i++)
+    {
+        leadAt    = sweepGlints.lead.at[(size_t) i];
+        leadStart = GetLeadStartMs (leadAt);
+
+        isClash = isClash ||
+                  (sweepGlints.lead.isTop[(size_t) i] == sweepGlints.band.isTop[(size_t) j] &&
+                   std::abs (leadAt - bandAt) < kGlintSpacing                                 &&
+                   leadStart < bandStart + (float) kTwinkleMs                                 &&
+                   bandStart < leadStart + (float) kTwinkleMs);
+    }
+
+    return isClash;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::DoGlintsClash
+//
+//  True when any band glint clashes with a lead glint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UpdateIndicatorModel::DoGlintsClash (const SweepGlints & sweepGlints)
+{
+    bool  isClash = false;
+    int   j       = 0;
+
+
+
+    for (j = 0; j < kGlintCount; j++)
+    {
+        isClash = isClash || DoesBandGlintClash (sweepGlints, j);
+    }
+
+    return isClash;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::MakeEvenSweepGlints
+//
+//  The even spread for the lead pass, and the same spots on the opposite
+//  edges for the band, which can never clash: a band glint shares its x
+//  only with a lead glint on the other edge, and every other lead glint is
+//  kGlintSpacing away or more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SweepGlints UpdateIndicatorModel::MakeEvenSweepGlints()
+{
+    SweepGlints  sweepGlints;
+    int          i           = 0;
+
+
+
+    sweepGlints.lead = MakeEvenGlintLayout();
+    sweepGlints.band = sweepGlints.lead;
+
+    for (i = 0; i < kGlintCount; i++)
+    {
+        sweepGlints.band.isTop[(size_t) i] = !sweepGlints.lead.isTop[(size_t) i];
+    }
+
+    return sweepGlints;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::MakeSweepGlints
+//
+//  Fresh layouts for one sweep, one per pass, each drawn by
+//  MakeGlintLayout. A band glint that would clash with a lead one moves to
+//  the other edge; if it clashes there too, the band layout is redrawn, up
+//  to kGlintTries times; after that the band takes the lead's
+//  spots on the opposite edges, which cannot clash.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SweepGlints UpdateIndicatorModel::MakeSweepGlints (const RandomIndexFn & randomIndex)
+{
+    SweepGlints  sweepGlints;
+    bool         isClear     = false;
+    int          attempt     = 0;
+    int          i           = 0;
+
+
+
+    sweepGlints.lead = MakeGlintLayout (randomIndex);
+
+    for (attempt = 0; !isClear && attempt < kGlintTries; attempt++)
+    {
+        sweepGlints.band = MakeGlintLayout (randomIndex);
+
+        // A clashing band glint first tries the other edge.
+        for (i = 0; i < kGlintCount; i++)
+        {
+            if (DoesBandGlintClash (sweepGlints, i))
+            {
+                sweepGlints.band.isTop[(size_t) i] = !sweepGlints.band.isTop[(size_t) i];
+            }
+        }
+
+        isClear = !DoGlintsClash (sweepGlints);
+    }
+
+    if (!isClear)
+    {
+        sweepGlints.band = sweepGlints.lead;
+
+        for (i = 0; i < kGlintCount; i++)
+        {
+            sweepGlints.band.isTop[(size_t) i] = !sweepGlints.lead.isTop[(size_t) i];
+        }
+    }
+
+    return sweepGlints;
 }
 
 
