@@ -747,6 +747,31 @@ The machine records for the heat map only while its pane is open and in
 front. Closed, or behind another tab, it records nothing and costs nothing,
 and the cumulative totals count only what it recorded.
 
+The heat map shows the machine where it stands in reverse execution's
+history, not where the host's clock has reached. After a step back, a seek, a
+click or a drag on the timeline, a reverse run or a return to live, it shows
+the map as it was at the instruction the machine landed on, and running or
+stepping on from there counts on from there:
+
+- **Cumulative** totals are the counts from **Reset counts**, or from when the
+  pane was opened, up to the current position. History keeps the counts made
+  between each keyframe and the next, packed small, beside the keyframe, so
+  any position's totals follow from them. They count against the history
+  budget and show in its meter: a few percent more history for an idle
+  machine, and about two thirds more for a busy game, so the default 64 MB
+  holds about 26 minutes of such a game rather than 43. A position before a
+  reset, or before the pane was opened, shows nothing.
+- **Fading** heat is rebuilt after each move by replaying three times the
+  fade time before the landing, since a busy address stays warm well past
+  the fade time, as far back as history reaches, on a second machine in the
+  background, so neither the machine nor the debugger waits. The newest two
+  seconds come first and the older seconds fill in after them, and the bar
+  says **Rebuilding** in place of the color key until they are all in.
+  During a drag of the timeline the rebuild waits until the line is let go.
+
+A stretch of history recorded while the pane was closed keeps no counts, so
+a seek across it adds nothing for it.
+
 ### Memory windows
 
 Each memory window has Visual Studio's bar. The **Address** box takes an
