@@ -40,7 +40,8 @@ namespace MachineState
     //
     //  A 65C02 with its protected state opened up: Fill gives every saved
     //  field a value derived from a seed, and AssertSameState compares every
-    //  saved field against another CPU. The bools take the seed's low four
+    //  saved field against the CPU loaded from it. The bus cycle is not state,
+    //  so the loaded one stands at its total. The bools take the seed's low four
     //  bits, so a source and target filled from seeds whose low nibbles are
     //  complements differ in every field, and a field the load skips keeps
     //  the target's value and fails the compare.
@@ -98,7 +99,7 @@ namespace MachineState
             Assert::AreEqual (m_nmiLine,        other.m_nmiLine,        L"NMI line");
             Assert::AreEqual (m_nmiPending,     other.m_nmiPending,     L"NMI pending");
             Assert::AreEqual (m_totalCycles,    other.m_totalCycles,    L"total cycles");
-            Assert::AreEqual (m_busCycle,       other.m_busCycle,       L"bus cycle");
+            Assert::AreEqual (m_totalCycles,    other.m_busCycle,       L"bus cycle, not state, loads as the total");
             Assert::AreEqual (m_lastCycles,     other.m_lastCycles,     L"last cycles");
             Assert::AreEqual (m_lastPenalties,  other.m_lastPenalties,  L"last penalties");
             Assert::AreEqual (m_lastBranchFrom, other.m_lastBranchFrom, L"last branch from");

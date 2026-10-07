@@ -254,6 +254,14 @@ void MemoryBusCpu::PowerCycle (Prng & prng)
 //  re-derived from the interrupt controller, because the NMI pending edge has
 //  no other home.
 //
+//  The bus cycle is saved as the total. It holds where the last access the
+//  CPU made through the bus fell, which depends on which reads took the slow
+//  path: every one while a heat map, a trace or a watchpoint puts pages on the
+//  watched path, otherwise only I/O. Between instructions nothing reads it
+//  before an access sets it again, and one not past the total offsets nothing,
+//  so it is not state, and saving it would make the same machine hash
+//  differently with the debugger watching and without.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
@@ -272,7 +280,7 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_nmiPending);
 
     writer.WriteUInt64 (m_totalCycles);
-    writer.WriteUInt64 (m_busCycle);
+    writer.WriteUInt64 (m_totalCycles);
 
     writer.WriteByte   (m_lastCycles);
     writer.WriteByte   (m_lastPenalties);

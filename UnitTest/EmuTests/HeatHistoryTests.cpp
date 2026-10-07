@@ -554,6 +554,61 @@ public:
     }
 
 
+    //  The map puts every access on the bus's slow path, so its being on
+    //  or off must leave the machine's state alone: running on from the
+    //  past across a stretch recorded with the map in the other state
+    //  checks every keyframe it reaches, and a mismatch cuts history.
+    TEST_METHOD (RunningOnAcrossAStretchRecordedWithTheMapOffKeepsHistory)
+    {
+        Rig        rig      (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+        uint64_t   early    = 0;
+        uint64_t   on       = 0;
+        uint64_t   end      = 0;
+        uint64_t   through  = 0;
+
+
+
+        rig.script.RunTo (rig.machine, rig.machine.GetPosition() + 60000);
+        early = rig.machine.GetPosition() - 30000;
+
+        rig.target.SetHeatMapOn (false);
+
+        rig.script.RunTo (rig.machine, rig.machine.GetPosition() + 90000);
+        on = rig.machine.GetPosition();
+
+        rig.target.SetHeatMapOn (true);
+
+        rig.script.RunTo (rig.machine, UINT64_MAX);
+        end     = rig.machine.GetPosition();
+        through = on + s_kHeatRunOn;
+
+        Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"history ends where the session did");
+
+        //  With the map on, through the stretch recorded with it off.
+        rig.Seek (early);
+
+        while (rig.machine.GetPosition() < through && rig.controller.IsInHistory())
+        {
+            rig.machine.StepOne();
+        }
+
+        Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"running on with the map on across the stretch recorded with it off cut history");
+        Assert::IsTrue (rig.controller.IsInHistory(), L"still in history after running on with the map on");
+
+        //  With the map off, through the stretches recorded with it on.
+        rig.target.SetHeatMapOn (false);
+        rig.Seek (early);
+
+        while (rig.machine.GetPosition() < through && rig.controller.IsInHistory())
+        {
+            rig.machine.StepOne();
+        }
+
+        Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"running on with the map off across the stretches recorded with it on cut history");
+        Assert::IsTrue (rig.controller.IsInHistory(), L"still in history after running on with the map off");
+    }
+
+
     TEST_METHOD (AnAnchorDroppedWithItsHistoryMovesOn)
     {
         ReverseSettings                            settings = ReverseSessionRig::MakeSettings (1);
