@@ -535,7 +535,7 @@ std::wstring UpdateDialogModel::MakeFinalHeader (
     }
     else
     {
-        header = MakeAgeHeader (newer, publishedDate, running, MakeAgeRemark (index - shortCount, *ageDays, running));
+        header = MakeAgeHeader (newer, publishedDate, running, MakeAgeRemark (index - shortCount, ageDays.value_or (0), running));
     }
 
     return header;
