@@ -704,9 +704,10 @@ what touched it: code (the bytes of every instruction run) in the
 disassembly's instruction color, reads in green and writes in red. An address
 nothing touched is a dark gray (a light gray on a light theme), and every cell
 is set apart from its neighbors by a one-pixel gap of the page. **All**,
-**Code** and **Data** above the map choose what it shows: everything, with
-code ahead of data where an address is both; executes alone; or reads and
-writes alone.
+**Code**, **Data** and **Changed** above the map choose what it shows:
+everything, with code ahead of data where an address is both; executes
+alone; reads and writes alone; or only the writes that changed a value (see
+"Reads before written and changed values" below).
 
 The pane's bar holds the rest. **Fading**, the default, shows how recently and
 how often each address was touched. An address the program keeps busy is
@@ -874,9 +875,65 @@ on a second machine, which takes a few milliseconds. An access older than the hi
 Nothing from before the pane was opened, or from before **Reset counts**,
 is shown.
 
-The map's tables, with what it keeps to follow history, take about 35 MB of
-memory while the pane is open, and 20 MB more while fading heat is rebuilt;
-none while it is closed.
+#### Reads before written and changed values
+
+For every byte of main and aux RAM, the Language Card's banks among them,
+the heat map knows whether the CPU has written it since power-on. A read of
+a byte nothing has written is a **read before written**: the program is
+reading whatever power-on left there. In **All** and **Data** such reads
+are drawn in magenta over whatever else the cell shows, as hot as they
+were, and the tip adds "read before written" with how often. An instruction
+fetched from RAM nothing wrote is code, not a read, and is not counted. A
+byte written from the debugger (a memory window's edit, a poke, a binary
+loaded) counts as written. Only a power cycle makes RAM unwritten again; a
+reset (Ctrl+Reset) keeps it written, as the RAM keeps its bytes.
+
+The map can know what was written only from power-on. Opened later, it
+counts every byte as written and so finds no reads before written until
+the next power cycle; a power cycle with the pane open (or with
+`BRKUNINIT` on) starts the tracking. The ROM's own start-up reads some bytes
+before anything writes them, such as the power-up byte at $03F4, and a
+program may probe memory the same way.
+
+`BRKUNINIT ON` stops the machine after such a read, as a watchpoint does:
+"Read before written: $00 from $2000 by $0300" gives the value, the
+address read and the instruction that read it. `BRKUNINIT OFF` turns it
+off, and `BRKUNINIT` alone reports the setting, whether the map is tracking
+yet, and how many reads before written it has counted at how many
+addresses. The break keeps the heat map recording whether or not its pane
+is open. `BPC *` clears it with the breakpoints, `BPSAVE` writes it, and
+opening another machine or loading a machine state turns it off. A reverse
+run does not stop on it.
+
+To leave known reads out, put their ranges in a set (see "Ranges" above)
+and choose the set from the bar's **Leave out** drop-down: reads before
+written in its included ranges neither stop the machine nor show on the map
+nor count in what `BRKUNINIT` reports, though the map still counts them. A
+range given in a bank's view is matched at the address the CPU reaches the
+byte at, so bank 1 of the Language Card is at $D000. A set renamed or
+deleted leaves nothing out until it is chosen again.
+
+A write that stores the value a byte already holds changes nothing. **Ignore
+writes that don't change the value** on the bar leaves such writes out of the
+writes shown, in every view, fading or cumulative; the **Changed** view
+shows only the writes that changed a value, in amber. A write to I/O, or to
+an address no memory takes, cannot be read back first, and always counts as
+a change.
+
+Both follow the machine through history as the totals do. Beside each
+keyframe, history keeps which RAM had been written, packed, or a note that
+it is as at the keyframe before; a seek, a step back or a run on from the
+past puts it back, so a read counts as a read before written exactly as it
+did the first time, and a rebuild of fading heat starts from it. **Reset
+counts** zeroes their counts with the rest and leaves what was written
+alone. Loading a machine state starts the counts over, and, as the map comes
+on again away from power-on, every byte counts as written.
+
+The map's tables, with what it keeps to follow history, take about 60 MB of
+memory while the pane is open (or `BRKUNINIT` is on), and 35 MB more while
+fading heat is rebuilt; none while it is closed. Which RAM was written adds
+little to history: kept whole only at the keyframes where it changed, it
+packs to a few dozen bytes each.
 
 ### Memory windows
 
@@ -943,6 +1000,8 @@ and addresses) mean what the text says and are not listed.
   banks and aux RAM.
 - **Memory map**: main RAM, aux RAM, each Language Card bank, ROM, slot ROM and
   I/O, each in a color of the theme's, with a key below the map.
+- **Heat map**: a read before written, in magenta, and a write that changed a
+  value, in amber in the **Changed** view.
 - **Disk head**: the head muted while the motor is off, flashing as it steps,
   and settling to the accent on its track; a lamp lit while its phase magnet
   or the motor is on.
