@@ -3221,6 +3221,44 @@ namespace CommandLineTests
                 L"an invocation that names no label carries none");
         }
 
+        //  THE RELAUNCH AFTER A SELF-UPDATE. Casso writes these itself, so they
+        //  are undocumented; a process id that is not one stops startup rather
+        //  than leaving the old files to a guess.
+        TEST_METHOD (Emulator_TakesTheUndocumentedUpdateRelaunchFlags)
+        {
+            ArgVector  relaunch = { "--updated", "--cleanup-old", "4242" };
+            ArgVector  slashed  = { "/cleanup-old", "17" };
+            ArgVector  junk     = { "--cleanup-old", "12abc" };
+            ArgVector  zero     = { "--cleanup-old", "0" };
+            ArgVector  missing  = { "--cleanup-old" };
+            ArgVector  absent   = { "--machine", "Apple2e" };
+
+            CommandLineOptions::EmulatorOptions  parsed =
+                CommandLineParser::ParseEmulator (relaunch.Count(), relaunch.Data());
+
+            Assert::IsTrue   (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::IsTrue   (parsed.wasUpdated);
+            Assert::AreEqual ((std::uint32_t) 4242, parsed.cleanupOldPid);
+
+            Assert::AreEqual ((std::uint32_t) 17,
+                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data()).cleanupOldPid);
+
+            for (ArgVector * args : { &junk, &zero })
+            {
+                CommandLineOptions::EmulatorOptions  bad = CommandLineParser::ParseEmulator (args->Count(), args->Data());
+
+                Assert::IsTrue (bad.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+                Assert::IsTrue (bad.refusalMessage.starts_with ("Error: invalid process id "));
+            }
+
+            Assert::AreEqual (std::string ("Error: missing value for --cleanup-old"),
+                CommandLineParser::ParseEmulator (missing.Count(), missing.Data()).refusalMessage);
+
+            parsed = CommandLineParser::ParseEmulator (absent.Count(), absent.Data());
+            Assert::IsFalse  (parsed.wasUpdated);
+            Assert::AreEqual ((std::uint32_t) 0, parsed.cleanupOldPid);
+        }
+
 
         //  A BARE IMAGE PATH IS REFUSED, NOT GUESSED AT. This grammar has no
         //  operand: a drive is filled by --disk1 or --disk2 and by nothing else.
@@ -3573,6 +3611,9 @@ namespace CommandLineTests
 
             Assert::IsTrue (parsed.erase ("no-image-watch") == 1,
                 L"the developer switch is parsed and deliberately not described");
+
+            Assert::IsTrue (parsed.erase ("updated") == 1 && parsed.erase ("cleanup-old") == 1,
+                L"the self-update relaunch flags are parsed and deliberately not described");
 
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");

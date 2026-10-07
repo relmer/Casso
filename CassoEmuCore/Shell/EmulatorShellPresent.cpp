@@ -1062,6 +1062,13 @@ bool EmulatorShell::TryPresentUiFrame()
         m_driveTooltip.Tick     (nowMs);
         m_captionTooltip.Tick   (nowMs);
 
+        // The update indicator's shimmer asks for frames only while it sweeps;
+        // between sweeps the idle loop sleeps until the next one is due.
+        if (TickUpdateIndicator ((int64_t) GetTickCount64()))
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
         // An open menu's submenu waits out the system's show delay before it
         // opens, and the pointer resting on the row produces no messages, so
         // a present is requested every frame one is armed, as for the compass.

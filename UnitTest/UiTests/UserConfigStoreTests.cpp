@@ -2238,4 +2238,73 @@ public:
         Assert::IsTrue (text.find ("siriusJoyport") != std::string::npos, L"the //e's legacy key is still there");
         Assert::IsTrue (text.find ("maximum")       != std::string::npos, L"beside the pref the later save wrote");
     }
+
+
+    //  Two stores over one file stand in for two running instances: the
+    //  second writes an update record after the first has loaded, and the
+    //  first reads it back without reloading.
+    TEST_METHOD (ReadGlobalPrefs_SeesTheUpdateRecordAnotherInstanceWrote)
+    {
+        InMemoryFileSystem           fs;
+        UserConfigStore              waiter (L"C:\\Casso\\User");
+        UserConfigStore              holder (L"C:\\Casso\\User");
+        GlobalUserPrefs              waiterPrefs;
+        GlobalUserPrefs              holderPrefs;
+        GlobalUserPrefs              read;
+        UserConfigStore::LoadReport  report;
+
+
+
+        AssertSucceeded (waiter.LoadAll (waiterPrefs, fs, report));
+        AssertSucceeded (waiter.SaveAll (waiterPrefs, fs));
+        AssertSucceeded (holder.LoadAll (holderPrefs, fs, report));
+
+        holderPrefs.lastUpdateCheckUtc = 1790000000;
+        holderPrefs.latestKnownVersion = "1.31.0";
+        holderPrefs.skippedVersion     = "1.30.5";
+        AssertSucceeded (holder.SaveAll (holderPrefs, fs));
+
+        AssertSucceeded (waiter.ReadGlobalPrefs (fs, read));
+
+        Assert::AreEqual ((long long) 1790000000, (long long) read.lastUpdateCheckUtc);
+        Assert::AreEqual (std::string ("1.31.0"), read.latestKnownVersion);
+        Assert::AreEqual (std::string ("1.30.5"), read.skippedVersion);
+        Assert::AreEqual ((long long) 0, (long long) waiterPrefs.lastUpdateCheckUtc, L"the loaded prefs are not touched");
+    }
+
+
+    TEST_METHOD (ReadGlobalPrefs_UnreadableFileFailsAndStaysWhereItIs)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+        GlobalUserPrefs     read;
+        std::string         text;
+        HRESULT             hr = S_OK;
+
+
+
+        AssertSucceeded (fs.WriteAllText (store.GetUserPrefsFilePath(), "{ not json"));
+
+        hr = store.ReadGlobalPrefs (fs, read);
+
+        Assert::IsTrue  (FAILED (hr), L"a file that will not parse is a failed read");
+        AssertSucceeded (fs.ReadAllText (store.GetUserPrefsFilePath(), text));
+        Assert::AreEqual (std::string ("{ not json"), text, L"and is not moved aside");
+    }
+
+
+    TEST_METHOD (ReadGlobalPrefs_MissingFileFails)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+        GlobalUserPrefs     read;
+        HRESULT             hr = S_OK;
+
+
+
+        hr = store.ReadGlobalPrefs (fs, read);
+
+        Assert::IsTrue  (FAILED (hr));
+        Assert::IsFalse (fs.Exists (store.GetUserPrefsFilePath()), L"a read writes nothing");
+    }
 };

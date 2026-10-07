@@ -23,6 +23,7 @@
 #include "Ui/PickerBodyPanel.h"
 #include "Ui/PickerDialog.h"
 #include "Core/UnicodeSymbols.h"
+#include "Net/WinHttpClient.h"
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -30,7 +31,7 @@
 
 
 static constexpr LPCWSTR       s_kpszAppleWinHost = L"raw.githubusercontent.com";
-static constexpr LPCWSTR       s_kpszUserAgent    = L"Casso/1.0";
+static constexpr LPCWSTR       s_kpszUserAgent    = WinHttpClient::kpszUserAgent;
 static constexpr LPCWSTR       s_kpszUrlPrefix    = L"/AppleWin/AppleWin/master/resource/";
 
 static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
@@ -79,13 +80,13 @@ struct RomSpec
     string_view  altUrlPath  = {};
     string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
 
-    // SHA-256 of a file Casso used to install under this name and no longer
-    // wants. A ROM already on disk is otherwise taken as satisfied whatever
+    // SHA-256 of a file Casso used to install under this name and has since
+    // updated. A ROM already on disk is otherwise taken as satisfied whatever
     // it contains -- the size is checked on download, not on what is already
-    // there -- so a machine provisioned with the wrong part would keep it
-    // forever. An on-disk file matching this hash is treated as absent and
-    // re-fetched; anything else, including a regional variant the user chose,
-    // is left alone.
+    // there -- so a machine provisioned with the earlier file would keep it
+    // forever. An on-disk file matching this hash is offered the updated ROM
+    // in its place; anything else, including a regional variant the user
+    // chose, is left alone.
     string_view  supersededSha256 = {};
 };
 
@@ -1475,107 +1476,29 @@ static HRESULT DownloadHttp (
     std::atomic<std::uint64_t> * progressBytes  = nullptr,
     std::atomic<bool>          * cancelRequested = nullptr)
 {
-    HRESULT      hr           = S_OK;
-    HINTERNET    hConnect     = nullptr;
-    HINTERNET    hRequest     = nullptr;
-    BOOL         fOk          = FALSE;
-    DWORD        statusCode   = 0;
-    DWORD        statusSize   = sizeof (statusCode);
-    DWORD        bytesAvail   = 0;
-    DWORD        bytesRead    = 0;
-    bool         fCanceled    = false;
-    size_t       receivedSize = 0;
-    bool         hasBytes     = false;
-    string       narrowHost;
+    HRESULT       hr           = S_OK;
+    HttpRequest   request;
+    HttpResponse  response;
+    size_t        receivedSize = 0;
+    bool          hasBytes     = false;
 
 
 
     outBytes.clear();
-    outBytes.reserve (expectedSize);
 
-    if (progressBytes != nullptr)
-    {
-        progressBytes->store (0, std::memory_order_relaxed);
-    }
+    request.host            = host;
+    request.path            = urlPath;
+    request.displayName     = displayName;
+    request.progressBytes   = progressBytes;
+    request.cancelRequested = cancelRequested;
 
-    for (LPCWSTR p = host; *p; p++)
-    {
-        narrowHost.push_back (static_cast<char> (*p & 0x7F));
-    }
+    hr = WinHttpClient::GetWithSession (hSession, request, response, outError);
+    CHR (hr);
 
-    hConnect = WinHttpConnect (hSession, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
-    CBRF (hConnect != nullptr,
-          outError = format ("Cannot connect to {}", narrowHost));
+    CBRF (response.statusCode == HTTP_STATUS_OK,
+          outError = format ("HTTP {} fetching {}", response.statusCode, displayName));
 
-    hRequest = WinHttpOpenRequest (hConnect,
-                                   L"GET",
-                                   urlPath,
-                                   nullptr,
-                                   WINHTTP_NO_REFERER,
-                                   WINHTTP_DEFAULT_ACCEPT_TYPES,
-                                   WINHTTP_FLAG_SECURE);
-    CBRF (hRequest != nullptr,
-          outError = format ("Cannot open HTTPS request for {}", displayName));
-
-    fOk = WinHttpSendRequest (hRequest,
-                              WINHTTP_NO_ADDITIONAL_HEADERS,
-                              0,
-                              WINHTTP_NO_REQUEST_DATA,
-                              0,
-                              0,
-                              0);
-    CBRF (fOk,
-          outError = format ("Network send failed for {}", displayName));
-
-    fOk = WinHttpReceiveResponse (hRequest, nullptr);
-    CBRF (fOk,
-          outError = format ("No response from server for {}", displayName));
-
-    fOk = WinHttpQueryHeaders (hRequest,
-                               WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                               WINHTTP_HEADER_NAME_BY_INDEX,
-                               &statusCode,
-                               &statusSize,
-                               WINHTTP_NO_HEADER_INDEX);
-    CBRF (fOk && statusCode == 200,
-          outError = format ("HTTP {} fetching {}", statusCode, displayName));
-
-    while (true)
-    {
-        vector<Byte>  chunk;
-
-        fCanceled = (cancelRequested != nullptr) &&
-                    cancelRequested->load (std::memory_order_relaxed);
-        CBRFEx (!fCanceled, E_ABORT, outError = format ("{} canceled", displayName));
-
-        bytesAvail = 0;
-        fOk = WinHttpQueryDataAvailable (hRequest, &bytesAvail);
-        CBRF (fOk,
-              outError = format ("Read failed for {}", displayName));
-
-        if (bytesAvail == 0)
-        {
-            break;
-        }
-
-        chunk.resize (bytesAvail);
-        bytesRead = 0;
-        fOk = WinHttpReadData (hRequest, chunk.data(), bytesAvail, &bytesRead);
-        CBRF (fOk,
-              outError = format ("Read failed for {}", displayName));
-
-        if (bytesRead == 0)
-        {
-            break;
-        }
-
-        outBytes.insert (outBytes.end(), chunk.begin(), chunk.begin() + bytesRead);
-
-        if (progressBytes != nullptr)
-        {
-            progressBytes->store ((std::uint64_t) outBytes.size(), std::memory_order_relaxed);
-        }
-    }
+    outBytes = std::move (response.body);
 
     // A non-zero `expectedSize` is treated as an integrity check
     // (used for ROM downloads where we know the exact byte count
@@ -1598,16 +1521,6 @@ static HRESULT DownloadHttp (
     }
 
 Error:
-    if (hRequest != nullptr)
-    {
-        WinHttpCloseHandle (hRequest);
-    }
-
-    if (hConnect != nullptr)
-    {
-        WinHttpCloseHandle (hConnect);
-    }
-
     return hr;
 }
 
@@ -3495,7 +3408,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         found   = PathResolver::FindFile (searchPaths, relPath);
 
         // A ROM already on disk is satisfied -- unless it is a file Casso
-        // itself installed here and has since corrected, in which case a
+        // itself installed here and has since updated, in which case a
         // replacement is offered. The machine boots on the old file, so
         // the offer can be skipped, and once skipped it is not repeated.
         if (!found.empty())

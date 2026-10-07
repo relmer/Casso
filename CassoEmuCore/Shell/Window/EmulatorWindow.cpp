@@ -1539,6 +1539,12 @@ int EmulatorShell::RunMessageLoop()
         {
             WaitForFrameOrMessage();
         }
+        else if (!m_updateCheckStarted)
+        {
+            // After the first frame is on screen, so the update check never
+            // stands between a launch and a picture.
+            StartAutomaticUpdateCheck();
+        }
     }
 
     m_cpuManager.Stop();
@@ -1598,6 +1604,7 @@ void EmulatorShell::WaitForFrameOrMessage()
     DWORD                   timeout      = s_kIdleUpkeepMs;
     DWORD                   waited       = 0;
     std::optional<int64_t>  nextChangeMs = m_notices.GetNextChangeMs();
+    std::optional<int64_t>  shimmerMs    = m_updateIndicator.IsVisible() ? m_updateIndicator.GetMsUntilShimmer ((int64_t) GetTickCount64()) : std::nullopt;
     int64_t                 untilMs      = 0;
     int64_t                 nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -1620,6 +1627,12 @@ void EmulatorShell::WaitForFrameOrMessage()
     {
         untilMs = std::clamp (*nextChangeMs - nowMs, (int64_t) 0, (int64_t) timeout);
         timeout = (DWORD) untilMs;
+    }
+
+    // Wake for the update indicator's next shimmer sweep, no sooner.
+    if (shimmerMs.has_value())
+    {
+        timeout = (DWORD) std::clamp (*shimmerMs, (int64_t) 0, (int64_t) timeout);
     }
 
     waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
@@ -2185,7 +2198,8 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 //
 //  The coalescing global-prefs write. It is a one-shot: the timer is armed by
 //  SaveGlobalPrefsDeferred, re-armed by each further change, and killed here
-//  once the changes have stopped long enough for it to fire.
+//  once the changes have stopped long enough for it to fire. Also the poll
+//  for another instance's update check record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2194,6 +2208,12 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
     HRESULT  hr = S_OK;
 
 
+
+    if (timerId == kSharedCheckTimerId)
+    {
+        PollSharedCheckRecord();
+        return DxuiMessageResult::Handled;
+    }
 
     if (timerId != kPrefsSaveTimerId)
     {
@@ -2667,6 +2687,20 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         if (carried != nullptr)
         {
             HandleMountCompletion (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A piece of update work finished on the update service's thread.
+    if (msg == WM_APP_UPDATE_RESULT)
+    {
+        UpdateResult *  carried = reinterpret_cast<UpdateResult *> (lParam);
+
+        if (carried != nullptr)
+        {
+            HandleUpdateResult (*carried);
             delete carried;
         }
 

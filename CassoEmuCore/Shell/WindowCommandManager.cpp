@@ -2364,7 +2364,7 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
 //
 //  OnHelpCommand
 //
-//  The Help menu: the keyboard map and the About box.
+//  The Help menu: the keyboard map, the update check, and the About box.
 //
 //  Both are built as DialogDefinition data and handed to the shared modal
 //  renderer rather than being dialog resources, so they pick up the active
@@ -2403,6 +2403,14 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body  = KeyboardMapText::BuildBody (machine);
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
+            break;
+        }
+
+        case IDM_HELP_CHECK_UPDATES:
+        {
+            // Runs on the update service's thread; the result comes back to
+            // the shell, which reports it whatever it is.
+            m_shell.CheckForUpdatesNow();
             break;
         }
 

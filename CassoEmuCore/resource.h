@@ -128,6 +128,7 @@
 #define IDM_VIEW_SCENE_VIEW         40073
 
 #define IDM_HELP_KEYMAP             40040
+#define IDM_HELP_CHECK_UPDATES      40041
 #define IDM_HELP_ABOUT              40042
 
 // Accelerator table

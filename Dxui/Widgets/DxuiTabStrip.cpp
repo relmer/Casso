@@ -253,10 +253,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                   uint32_t idleArgb, uint32_t hoverArgb, uint32_t selectedArgb,
                                   uint32_t textArgb, uint32_t focusArgb) const
 {
-    constexpr float     s_kFontDip       = 13.0f;
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kFocusInsetDip = 1.0f;
-    constexpr float     s_kPadXDp        = 8.0f;
     constexpr float     s_kPadYDp        = 4.0f;
     constexpr float     s_kPressedScale  = 0.82f;   // armed-tab tint, a touch darker than hover
 
@@ -270,9 +268,9 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     size_t   n           = m_tabs.size();
     float    focusThick  = m_scaler.ToPxf (s_kFocusThickDip);
     float    focusInset  = m_scaler.ToPxf (s_kFocusInsetDip);
-    float    padX        = m_scaler.ToPxf (s_kPadXDp);
+    float    padX        = m_scaler.ToPxf (kLabelPadXDip);
     float    padY        = m_scaler.ToPxf (s_kPadYDp);
-    float    fontDip     = m_scaler.ToPxf (s_kFontDip);
+    float    fontDip     = m_scaler.ToPxf (kLabelFontDip);
     float    underline   = m_scaler.ToPxf (s_kUnderlineDip);
     uint32_t mutedText   = DxuiColor::Scale (textArgb, s_kMutedTextScale);
 

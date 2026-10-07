@@ -716,6 +716,10 @@ int WINAPI wWinMain (
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
 
+    // --updated / --cleanup-old: a relaunch by a finished zip update, which
+    // removes the old files once the process that ran them has exited.
+    shell->SetUpdateLaunch (parsed.wasUpdated, (DWORD) parsed.cleanupOldPid);
+
     // --trace: size the CPU ring and install the crash-time dump filter
     // before the CPU thread starts, so an illegal-opcode/__debugbreak or
     // any unhandled exception flushes the trace to a file on the way out.

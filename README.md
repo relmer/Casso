@@ -76,6 +76,29 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+<a id="v1-32"></a>
+### [2026-10-07 · 1.32] Shiny!
+
+Casso now tells you when a new release is out. Once a day at startup it checks
+GitHub, and when a newer version exists a short message appears in the title
+bar. Click it to read what changed, including every version you skipped, and
+choose Update now to install it and restart, or Update when closed to install it
+the next time you close Casso. Copies installed from the MSIX package and from
+the release zip both update in place. The download is checked before anything
+is replaced, and the old copy is put back if anything goes wrong.
+
+A new General page in Settings holds the update options, the download offers at
+startup, and a link to the settings folder.
+
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="100%" align="center"><img src="Assets/update-1-32-indicator.png" alt="The right end of Casso's title bar: a download arrow and the words 1.32.0 is calling, in blue, beside the minimize, maximize and close buttons" width="790" /><br /><sub>The title bar when a new release is out</sub></td>
+</tr>
+<tr>
+  <td valign="top" width="100%" align="center"><img src="Assets/update-1-32-dialog.png" alt="The Casso update dialog on its What's new tab: the heading Everything's shiny, Cap'n. A new Casso's in the black, the line Casso 1.32.0 (released 2026-10-07) is available, and the 1.32 highlight, with a link to the release on GitHub and the Skip this version, Update when closed and Update now buttons" width="600" /><br /><sub>What's new since the version running</sub></td>
+</tr>
+</table>
+
 <a id="v1-31"></a>
 ### [2026-10-06 · 1.31] Tape it to the limit
 
@@ -520,7 +543,7 @@ Full reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
 ### Testing
 
-**4000+ unit tests** covering CPU encoding and addressing, assembler features,
+**6400+ unit tests** covering CPU encoding and addressing, assembler features,
 the audio pipeline, the 6522 VIA and AY-3-8910, //e MMU and Language Card, video
 timing, the Disk II nibble engine, WOZ and nibblized formats, DOS 3.3 and ProDOS
 file read/write, the printer pipeline, and reset semantics.
@@ -544,6 +567,8 @@ From the [latest release](https://github.com/relmer/Casso/releases/latest):
   puts `casso` and `cassocli` on PATH.
 - `Casso-<version>-x64.zip` or `Casso-<version>-ARM64.zip` — unpack and run
   `Casso.exe`.
+
+Either way, Casso checks for new releases and updates itself in place.
 
 ## Requirements
 
@@ -671,7 +696,7 @@ Casso.sln
 ├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — assembler CLI (`as65`, `merlin`) with `run` and `disk` subcommands
-├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (4000+ tests)
+├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (6400+ tests)
 └── ScenarioTests/ Test DLL — system tests needing the DOS 3.3 System Master and a booted guest (`RunTests.ps1 -Scenario`)
 ```
 

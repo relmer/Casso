@@ -383,6 +383,16 @@ struct CommandLineOptions
         //  window readable while it runs, and a label that took the whole
         //  caption would buy identity at the cost of all of it.
         std::string  titlePrefix;                       // --title <text>
+
+        //  Set by Casso itself when it relaunches after replacing its own
+        //  files from a release zip: `--updated` marks the launch, and
+        //  `--cleanup-old` gives the id of the process that ran the old files,
+        //  which this one waits out before deleting them.
+        //
+        //  UNDOCUMENTED AND NOT IN THE HELP. Nobody types these; they are a
+        //  message from one process to its successor.
+        bool           wasUpdated    = false;           // --updated
+        std::uint32_t  cleanupOldPid = 0;               // --cleanup-old <pid>
     };
 
     DiskOptions   disk;

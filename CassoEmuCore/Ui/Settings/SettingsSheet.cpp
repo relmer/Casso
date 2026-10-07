@@ -5,6 +5,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Config/GlobalUserPrefs.h"
+#include "GeneralPageModel.h"
 #include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
@@ -82,6 +83,7 @@ SettingsSheet::~SettingsSheet()
 
 void SettingsSheet::OnBuildPages()
 {
+    m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
     m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
@@ -311,6 +313,39 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
         m_emuShell->SetCrtMonitorEnabled (enabled);
+    });
+
+    // The General page: every control is live and persisted on the click,
+    // like the CRT opt-in above, so Cancel has nothing to revert.
+    m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
+    m_generalPage->SetAudioOfferChecked (GeneralPageModel::IsOfferChecked (prefs.audioDownloadConsent));
+    m_generalPage->SetRomOfferChecked   (GeneralPageModel::IsOfferChecked (prefs.romRefreshConsent));
+    RefreshUpdateStatus();
+
+    m_generalPage->SetOnAutoUpdateToggled ([this] (bool enabled)
+    {
+        m_emuShell->SetAutoUpdateCheck (enabled);
+    });
+    m_generalPage->SetOnAudioOfferToggled ([this] (bool checked)
+    {
+        m_emuShell->SetAudioDownloadConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+    });
+    m_generalPage->SetOnRomOfferToggled ([this] (bool checked)
+    {
+        m_emuShell->SetRomRefreshConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+    });
+    m_generalPage->SetOnCheckNow ([this] ()
+    {
+        m_emuShell->CheckForUpdatesNow();
+    });
+    m_generalPage->SetOnStopSkipping ([this] ()
+    {
+        m_emuShell->StopSkippingVersion();
+    });
+    m_generalPage->SetFolderPath   (EmulatorShell::GetSettingsFolder());
+    m_generalPage->SetOnOpenFolder ([this] ()
+    {
+        m_emuShell->OpenSettingsFolder();
     });
 
     // Scene antialiasing rides the same live-and-persist channel: the cost is
@@ -652,6 +687,38 @@ void SettingsSheet::ShowControllersPage()
     }
 
     ActivateControllersPage();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshUpdateStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RefreshUpdateStatus()
+{
+    const GlobalUserPrefs  & prefs = m_emuShell->m_globalPrefs;
+    std::wstring             skipped;
+
+
+
+    if (m_generalPage == nullptr)
+    {
+        return;
+    }
+
+    if (!prefs.skippedVersion.empty())
+    {
+        skipped = GeneralPageModel::MakeSkippedText (prefs.skippedVersion);
+    }
+
+    m_generalPage->SetLastCheckedText (GeneralPageModel::MakeLastCheckedTextNow (prefs.lastUpdateCheckUtc));
+    m_generalPage->SetSkippedText     (skipped);
+    Invalidate();
 }
 
 

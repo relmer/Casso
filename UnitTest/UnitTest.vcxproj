@@ -114,6 +114,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -133,6 +134,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -148,6 +150,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -167,6 +170,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -182,6 +186,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -201,6 +206,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -474,6 +480,24 @@
     <ClCompile Include="UiTests\MachineInputPrefsTests.cpp" />
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UpdateTests\AuthenticodeVerifierTests.cpp" />
+    <ClCompile Include="UpdateTests\InflateTests.cpp" />
+    <ClCompile Include="UpdateTests\InstallTypeDetectorTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseInfoTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesExtractorTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesFormatterTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseVersionTests.cpp" />
+    <ClCompile Include="UpdateTests\LocalFeedHttpClientTests.cpp" />
+    <ClCompile Include="UpdateTests\RelaunchAndPendingTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateScheduleTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateServiceTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateDialogModelTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesLayoutTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesImageTests.cpp" />
+    <ClCompile Include="UpdateTests\SizeGripTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateIndicatorModelTests.cpp" />
+    <ClCompile Include="UpdateTests\ZipArchiveTests.cpp" />
+    <ClCompile Include="UpdateTests\ZipUpdateInstallerTests.cpp" />
     <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />
@@ -514,6 +538,8 @@
     <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
     <ClCompile Include="UiTests\CrtResolverTests.cpp" />
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
+    <ClCompile Include="UiTests\GeneralPageModelTests.cpp" />
+    <ClCompile Include="UiTests\GeneralPageTests.cpp" />
     <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\SettingsPageEnablementTests.cpp" />
     <ClCompile Include="UiTests\ControllersPageLayoutTests.cpp" />
@@ -620,6 +646,14 @@
     <ClInclude Include="EmuTests\FixtureProvider.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />
+    <ClInclude Include="UpdateTests\FakeInstallEnvironment.h" />
+    <ClInclude Include="UpdateTests\FakeSignatureVerifier.h" />
+    <ClInclude Include="UpdateTests\MockUpdateFileSystem.h" />
+    <ClInclude Include="UpdateTests\TestZipBuilder.h" />
+    <ClInclude Include="UpdateTests\FakePackageDeployer.h" />
+    <ClInclude Include="UpdateTests\FakeUpdateHost.h" />
+    <ClInclude Include="UpdateTests\MockHttpClient.h" />
+    <ClInclude Include="UpdateTests\RecordingResultPoster.h" />
     <ClInclude Include="Casso\FakeHostClipboard.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
     <ClInclude Include="EmuTests\GuestSession.h" />
