@@ -14,7 +14,9 @@
   sweeps across the arrow and text, with a small glint at mid-sweep. Frames
   are requested only during a sweep; between sweeps nothing repaints. With
   the system's "Show animations" off the text is static.
-- Tooltip: "Update available: Casso <version>".
+- Tooltip: "Update available: Casso <version>", after the usual dwell, placed
+  clear of the pointer: against the indicator grown by the pointer's image
+  above and below its hot spot, plus 4 DIPs, so it never sits under the arrow.
 - Click opens the update dialog.
 
 ## Help menu
@@ -52,7 +54,13 @@
     days? Srsly?" ("1 day" for one day). A date in the future gives no age.
   Without a known age only the short judgements are drawn. The remark is
   added once the notes arrive; until then the header ends at "<running>.".
-- Body (scrolls): README highlights, then CHANGELOG sections newest first.
+- Notes tabs: a tab strip over the body with "What's new" (README highlights)
+  and "Changelog" (CHANGELOG sections newest first). What's new is selected
+  when it has content. Without README highlights for the range there is no
+  strip at all, only the changelog: a lone tab would be a control with nothing
+  to choose. The loading and could-not-load notices also stand alone. Each tab
+  scrolls on its own and keeps its position when the other is shown.
+- Body (scrolls): the selected tab's notes.
   Images fit the body width (or their percent of it), are never scaled past
   their own size at the current DPI, keep their aspect, and have their
   caption centered beneath in a smaller muted face. Until an image loads, a

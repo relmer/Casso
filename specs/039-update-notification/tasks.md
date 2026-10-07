@@ -74,6 +74,10 @@ order only.
 
 - [X] T040 [US1] Text indicator in the title bar: a random short line beside the arrow (`UpdateIndicatorModel`), arrow-only fallback when the caption is narrow, and a periodic shimmer that repaints only during a sweep and follows the system animation setting; tests
 
+- [X] T041 [US1] Indicator tooltip placed clear of the pointer, using 035's `DxuiTooltip::MakePointerClearAnchor` (cherry-picked `b9a66eb9a`) while keeping the dwell; test
+
+- [X] T042 [US2] What's new and Changelog tabs over the update dialog's notes (`DxuiTabStrip`), What's new by default, no strip without README highlights, a scroll position per tab; `UpdateDialogModel` tab selection and content tests
+
 ## Phase 7: Polish
 
 - [X] T029 Replace "Warn that the release is unsigned" with a failing step and add the core publisher constant to the subject comparison in `.github/workflows/ci.yml`

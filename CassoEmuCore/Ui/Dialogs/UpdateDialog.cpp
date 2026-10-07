@@ -344,13 +344,7 @@ void UpdateDialog::OnDialogTick()
 
 void UpdateDialog::ShowNotes (const ReleaseNotes & notes)
 {
-    std::vector<FormattedLine>  lines;
-
-
-
-    UpdateDialogModel::FormatNotes (notes, lines);
-
-    m_content->SetNotesLines (std::move (lines));
+    m_content->SetNotes (notes);
     Invalidate();
 }
 

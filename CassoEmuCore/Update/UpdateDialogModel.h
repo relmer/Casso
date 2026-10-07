@@ -40,6 +40,25 @@ enum class UpdateButtonSet
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NotesTab
+//
+//  The update dialog's notes tabs: the README highlights, and the CHANGELOG
+//  sections.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class NotesTab
+{
+    WhatsNew,
+    Changelog,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateDialogModel
 //
 //  The update dialog's decisions and text, as data in and data out so the
@@ -60,6 +79,8 @@ public:
     static constexpr LPCWSTR  kpszInstalling     = L"Installing the update...";
     static constexpr LPCWSTR  kpszRestarting     = L"Restarting Casso...";
     static constexpr LPCWSTR  kpszUpToDate       = L"Casso is up to date.";
+    static constexpr LPCWSTR  kpszWhatsNewTab    = L"What's new";
+    static constexpr LPCWSTR  kpszChangelogTab   = L"Changelog";
 
     static UpdateButtonSet  SelectButtons        (InstallType installType, bool hasAsset);
     static UpdateButtonSet  SelectAfterFailure   (UpdateButtonSet current, UpdateFailure failure);
@@ -97,6 +118,10 @@ public:
     static std::wstring     MakeCheckFailedText  (UpdateFailure failure);
     static std::wstring     MakeUpdateFailedText (UpdateFailure failure);
     static void             FormatNotes          (const ReleaseNotes & notes, std::vector<FormattedLine> & outLines);
+    static void             FormatNotesTab       (const ReleaseNotes & notes, NotesTab tab, std::vector<FormattedLine> & outLines);
+    static std::vector<NotesTab>  GetNotesTabs   (const ReleaseNotes & notes);
+    static bool             ShowsTabStrip        (const std::vector<NotesTab> & tabs);
+    static LPCWSTR          GetTabLabel          (NotesTab tab);
     static std::string      StripVersionBrackets (const std::string & heading);
 
 private:

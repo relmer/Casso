@@ -13,8 +13,8 @@
 //  UpdateDialogContent::UpdateDialogContent
 //
 //  The widgets are members, adopted so the panel walks paint and route
-//  input to them. The notes view is adopted by the scroll panel, which
-//  moves and clips it.
+//  input to them. Each tab's notes view is adopted by its own scroll panel,
+//  which moves and clips it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,11 +26,24 @@ UpdateDialogContent::UpdateDialogContent()
 
     Adopt (m_opener);
     Adopt (m_header);
-    Adopt (m_scroll);
+    Adopt (m_tabStrip);
+
+    for (NotesPane & pane : m_panes)
+    {
+        Adopt (pane.scroll);
+        pane.scroll.Adopt (pane.view);
+
+        pane.view.SetOnOpenLink ([this] (const std::string & url)
+        {
+            if (m_onOpenUrl)
+            {
+                m_onOpenUrl (TextEncoding::Utf8ToWide (url));
+            }
+        });
+    }
+
     Adopt (m_status);
     Adopt (m_pageLink);
-
-    m_scroll.Adopt (m_notes);
 
     m_opener.SetTextRole    (DxuiTextRole::Heading);
     m_opener.SetFontWeight  (DxuiFontWeight::Bold);
@@ -54,13 +67,15 @@ UpdateDialogContent::UpdateDialogContent()
         }
     });
 
-    m_notes.SetOnOpenLink ([this] (const std::string & url)
+    m_tabStrip.SetOnChange ([this] (int index)
     {
-        if (m_onOpenUrl)
+        if (index >= 0 && index < (int) m_tabs.size())
         {
-            m_onOpenUrl (TextEncoding::Utf8ToWide (url));
+            SelectTab (m_tabs[(size_t) index]);
         }
     });
+
+    SetTabs ({ NotesTab::Changelog });
 }
 
 
@@ -99,20 +114,53 @@ void UpdateDialogContent::SetHeader (const std::wstring & header)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateDialogContent::SetNotesLines
+//  UpdateDialogContent::SetNotes
+//
+//  Each tab gets its own notes; the strip shows only when there is more
+//  than one tab, and the first, What's new when there is one, is selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::SetNotes (const ReleaseNotes & notes)
+{
+    std::vector<FormattedLine>  lines;
+
+
+
+    for (NotesTab tab : { NotesTab::WhatsNew, NotesTab::Changelog })
+    {
+        UpdateDialogModel::FormatNotesTab (notes, tab, lines);
+        SetPaneLines (tab, std::move (lines));
+        lines.clear();
+    }
+
+    SetTabs (UpdateDialogModel::GetNotesTabs (notes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::SetPaneLines
 //
 //  New notes start at the top, with the estimated height until the next
 //  paint measures them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UpdateDialogContent::SetNotesLines (std::vector<FormattedLine> lines)
+void UpdateDialogContent::SetPaneLines (NotesTab tab, std::vector<FormattedLine> lines)
 {
-    m_notes.SetLines (std::move (lines));
-    m_scroll.SetScrollPosPx (0);
-    m_placedHeightPx = 0;
+    NotesPane &  pane = GetPane (tab);
 
-    LayoutNotes();
+
+
+    pane.view.SetLines (std::move (lines));
+    pane.scroll.SetScrollPosPx (0);
+    pane.placedHeightPx = 0;
+
+    LayoutNotes (pane);
 }
 
 
@@ -124,7 +172,7 @@ void UpdateDialogContent::SetNotesLines (std::vector<FormattedLine> lines)
 //  UpdateDialogContent::SetNotesMessage
 //
 //  A one-line notice in place of the notes, while they load or when they
-//  could not be read.
+//  could not be read. It stands alone, with no tab strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,7 +186,101 @@ void UpdateDialogContent::SetNotesMessage (const std::wstring & message)
     run.text = TextEncoding::WideToUtf8 (message);
     lines[0].runs.push_back (run);
 
-    SetNotesLines (std::move (lines));
+    SetPaneLines (NotesTab::Changelog, std::move (lines));
+    SetTabs      ({ NotesTab::Changelog });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::SetTabs
+//
+//  The strip's tabs, in order, with the first selected. The strip's row is
+//  reserved only while it shows, so a change in whether it shows moves the
+//  layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::SetTabs (std::vector<NotesTab> tabs)
+{
+    bool                            wasShown = UpdateDialogModel::ShowsTabStrip (m_tabs);
+    std::vector<DxuiTabStrip::Tab>  strip;
+    DxuiTabStrip::Tab               entry;
+
+
+
+    m_tabs = std::move (tabs);
+
+    for (NotesTab tab : m_tabs)
+    {
+        entry.label = UpdateDialogModel::GetTabLabel (tab);
+        strip.push_back (entry);
+    }
+
+    m_tabStrip.SetTabs    (std::move (strip));
+    m_tabStrip.SetVisible (UpdateDialogModel::ShowsTabStrip (m_tabs));
+
+    SelectTab (m_tabs.front());
+
+    if (m_isLaidOut && wasShown != UpdateDialogModel::ShowsTabStrip (m_tabs))
+    {
+        Layout (GetBounds(), m_scaler);
+    }
+    else
+    {
+        LayoutTabStrip();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::SelectTab
+//
+//  Shows the tab's notes where they were left: each pane keeps its own
+//  scroll position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::SelectTab (NotesTab tab)
+{
+    size_t  i = 0;
+
+
+
+    m_selected = tab;
+
+    for (i = 0; i < m_tabs.size(); i++)
+    {
+        if (m_tabs[i] == tab)
+        {
+            m_tabStrip.SetSelected ((int) i);
+        }
+    }
+
+    ShowSelectedPane();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::ShowSelectedPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::ShowSelectedPane()
+{
+    GetPane (NotesTab::WhatsNew).scroll.SetVisible  (m_selected == NotesTab::WhatsNew);
+    GetPane (NotesTab::Changelog).scroll.SetVisible (m_selected == NotesTab::Changelog);
 }
 
 
@@ -177,11 +319,49 @@ void UpdateDialogContent::SetStatus (const std::wstring & status, bool isError)
 //
 //  UpdateDialogContent::SetNotesImage
 //
+//  Either tab's notes can show the image, so both are given it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void UpdateDialogContent::SetNotesImage (const std::string & src, std::shared_ptr<const NotesImage> image)
 {
-    m_notes.SetImage (src, std::move (image));
+    for (NotesPane & pane : m_panes)
+    {
+        pane.view.SetImage (src, image);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::GetImageSources
+//
+//  Every tab's images, each source once, so all of them are fetched as
+//  before whichever tab is showing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> UpdateDialogContent::GetImageSources() const
+{
+    std::vector<std::string>  sources;
+
+
+
+    for (const NotesPane & pane : m_panes)
+    {
+        for (const std::string & src : pane.view.GetImageSources())
+        {
+            if (std::find (sources.begin(), sources.end(), src) == sources.end())
+            {
+                sources.push_back (src);
+            }
+        }
+    }
+
+    return sources;
 }
 
 
@@ -207,24 +387,73 @@ void UpdateDialogContent::SetPageUrl (const std::wstring & url)
 //
 //  UpdateDialogContent::SyncNotesHeight
 //
-//  Lays the notes out again when painting measured a height other than
+//  Lays a tab's notes out again when painting measured a height other than
 //  the one they were placed with. True when it did, so the caller repaints.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool UpdateDialogContent::SyncNotesHeight()
 {
-    int   measured  = m_notes.GetMeasuredHeightPx();
-    bool  isChanged = m_isLaidOut && measured > 0 && measured != m_placedHeightPx;
+    int   measured  = 0;
+    bool  isChanged = false;
 
 
 
-    if (isChanged)
+    for (NotesPane & pane : m_panes)
     {
-        LayoutNotes();
+        measured = pane.view.GetMeasuredHeightPx();
+
+        if (m_isLaidOut && measured > 0 && measured != pane.placedHeightPx)
+        {
+            LayoutNotes (pane);
+            isChanged = true;
+        }
     }
 
     return isChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::LayoutTabStrip
+//
+//  DxuiTabStrip does not lay out its own tabs, so each gets a fixed width,
+//  left to right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::LayoutTabStrip()
+{
+    constexpr int  kTabWidthDip = 110;
+
+
+
+    std::vector<DxuiTabStrip::Tab>  tabs  = m_tabStrip.GetTabs();
+    int                             x     = m_tabStripPx.left;
+    int                             width = m_scaler.ToPx (kTabWidthDip);
+    int                             index = m_tabStrip.GetSelected();
+
+
+
+    if (!m_isLaidOut)
+    {
+        return;
+    }
+
+    for (DxuiTabStrip::Tab & tab : tabs)
+    {
+        tab.rect  = RECT { x, m_tabStripPx.top, x + width, m_tabStripPx.bottom };
+        x        += width;
+    }
+
+    m_tabStrip.SetTabs     (std::move (tabs));
+    m_tabStrip.SetSelected (index);
+    m_tabStrip.Layout      (m_tabStripPx, m_scaler);
+    m_tabStrip.SetDpi      (m_scaler.GetDpi());
 }
 
 
@@ -240,7 +469,7 @@ bool UpdateDialogContent::SyncNotesHeight()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UpdateDialogContent::LayoutNotes()
+void UpdateDialogContent::LayoutNotes (NotesPane & pane)
 {
     RECT  notesPx   = m_notesViewportPx;
     int   height    = 0;
@@ -254,21 +483,21 @@ void UpdateDialogContent::LayoutNotes()
         return;
     }
 
-    oldPos           = m_scroll.GetScrollPosPx();
-    oldHeight        = m_scroll.GetContentHeightPx();
-    height           = m_notes.GetEstimatedHeightPx (m_scaler);
-    m_placedHeightPx = m_notes.GetMeasuredHeightPx();
+    oldPos              = pane.scroll.GetScrollPosPx();
+    oldHeight           = pane.scroll.GetContentHeightPx();
+    height              = pane.view.GetEstimatedHeightPx (m_scaler);
+    pane.placedHeightPx = pane.view.GetMeasuredHeightPx();
 
     notesPx.right  -= m_scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip);
     notesPx.bottom  = notesPx.top + height;
 
-    m_scroll.SetLineStepPx (m_scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip * 2));
-    m_scroll.PlaceChild    (m_notes, notesPx);
-    m_scroll.Layout        (m_notesViewportPx, m_scaler);
+    pane.scroll.SetLineStepPx (m_scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip * 2));
+    pane.scroll.PlaceChild    (pane.view, notesPx);
+    pane.scroll.Layout        (m_notesViewportPx, m_scaler);
 
     // A resize rewraps the notes to a new height; keep the reader the same
     // fraction of the way down rather than snapping back to the top.
-    m_scroll.SetScrollPosPx (ReleaseNotesLayout::ScaleScrollPos (oldPos, oldHeight, m_scroll.GetContentHeightPx()));
+    pane.scroll.SetScrollPosPx (ReleaseNotesLayout::ScaleScrollPos (oldPos, oldHeight, pane.scroll.GetContentHeightPx()));
 }
 
 
@@ -291,6 +520,7 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     constexpr int  kHeaderLines   = 3;
     constexpr int  kOpenerDip     = 30;
     constexpr int  kLinkHeightDip = 22;
+    constexpr int  kTabStripDip   = 30;
 
 
 
@@ -298,6 +528,7 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     int  opener  = scaler.ToPx (kOpenerDip);
     int  gap     = scaler.ToPx (kGapDip);
     int  link    = scaler.ToPx (kLinkHeightDip);
+    int  strip   = UpdateDialogModel::ShowsTabStrip (m_tabs) ? scaler.ToPx (kTabStripDip) : 0;
     int  y       = boundsPx.top;
     int  bottom  = boundsPx.bottom;
     int  statusH = 0;
@@ -315,6 +546,11 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_header.Layout (RECT { boundsPx.left, y, boundsPx.right, y + line * kHeaderLines }, scaler);
     y += line * kHeaderLines + gap;
 
+    // The strip sits right on top of the notes it switches.
+    m_tabStripPx = RECT { boundsPx.left, y, boundsPx.right, y + strip };
+    LayoutTabStrip();
+    y += strip;
+
     m_pageLink.Layout (RECT { boundsPx.left, bottom - link, boundsPx.right, bottom });
     m_pageLink.SetDpi (scaler.GetDpi());
     bottom -= link;
@@ -326,5 +562,8 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     m_notesViewportPx = RECT { boundsPx.left, y, boundsPx.right, std::max (bottom, y) };
 
-    LayoutNotes();
+    for (NotesPane & pane : m_panes)
+    {
+        LayoutNotes (pane);
+    }
 }

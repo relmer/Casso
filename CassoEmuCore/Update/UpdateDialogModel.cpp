@@ -813,3 +813,98 @@ void UpdateDialogModel::FormatNotes (const ReleaseNotes & notes, std::vector<For
         }
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::FormatNotesTab
+//
+//  One tab's notes: What's new is the README highlights, each under its
+//  title; Changelog is the CHANGELOG sections, each under its heading line.
+//  A blank line separates one section from the next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogModel::FormatNotesTab (const ReleaseNotes & notes, NotesTab tab, std::vector<FormattedLine> & outLines)
+{
+    ReleaseNotes  only;
+
+
+
+    if (tab == NotesTab::WhatsNew)
+    {
+        only.highlights = notes.highlights;
+    }
+    else
+    {
+        only.changes = notes.changes;
+    }
+
+    FormatNotes (only, outLines);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::GetNotesTabs
+//
+//  The tabs the notes get, the default first: What's new when the README
+//  has highlights for the range, then Changelog. Without highlights there
+//  is only Changelog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<NotesTab> UpdateDialogModel::GetNotesTabs (const ReleaseNotes & notes)
+{
+    std::vector<NotesTab>  tabs;
+
+
+
+    if (!notes.highlights.empty())
+    {
+        tabs.push_back (NotesTab::WhatsNew);
+    }
+
+    tabs.push_back (NotesTab::Changelog);
+
+    return tabs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::ShowsTabStrip
+//
+//  A strip only when there is a choice to make: a lone tab would be a
+//  control that does nothing, so the changelog alone shows without one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UpdateDialogModel::ShowsTabStrip (const std::vector<NotesTab> & tabs)
+{
+    return tabs.size() > 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::GetTabLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR UpdateDialogModel::GetTabLabel (NotesTab tab)
+{
+    return (tab == NotesTab::WhatsNew) ? kpszWhatsNewTab : kpszChangelogTab;
+}

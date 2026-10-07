@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Update/UpdateDialogModel.h"
+#include "Ui/Dialogs/UpdateDialogContent.h"
 #include "Core/UnicodeSymbols.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -363,5 +364,83 @@ public:
         Assert::AreEqual (std::string ("1.31.0 - 2026-10-20"), lines[3].runs[0].text, L"the link brackets are dropped");
         Assert::IsTrue   (lines[4].kind == FormattedLineKind::Bullet);
         Assert::AreEqual (std::string ("1.30.1 - 2026-10-10"), lines[6].runs[0].text);
+    }
+
+
+    TEST_METHOD (NotesTabs_WhatsNewFirstWhenThereAreHighlights)
+    {
+        ReleaseNotes           notes;
+        std::vector<NotesTab>  tabs;
+
+
+
+        notes.changes.push_back ({ { 1, 31, 0 }, "[1.31.0] - 2026-10-20", "- New" });
+
+        tabs = UpdateDialogModel::GetNotesTabs (notes);
+        Assert::AreEqual ((size_t) 1, tabs.size(), L"no highlights: the changelog alone");
+        Assert::IsTrue   (tabs[0] == NotesTab::Changelog);
+        Assert::IsFalse  (UpdateDialogModel::ShowsTabStrip (tabs), L"and no strip for a lone tab");
+
+        notes.highlights.push_back ({ { 1, 31, 0 }, "Updates", "Casso can update itself." });
+
+        tabs = UpdateDialogModel::GetNotesTabs (notes);
+        Assert::AreEqual ((size_t) 2, tabs.size());
+        Assert::IsTrue   (tabs[0] == NotesTab::WhatsNew, L"the default, first");
+        Assert::IsTrue   (tabs[1] == NotesTab::Changelog);
+        Assert::IsTrue   (UpdateDialogModel::ShowsTabStrip (tabs));
+        Assert::AreEqual (std::wstring (L"What's new"), std::wstring (UpdateDialogModel::GetTabLabel (NotesTab::WhatsNew)));
+        Assert::AreEqual (std::wstring (L"Changelog"),  std::wstring (UpdateDialogModel::GetTabLabel (NotesTab::Changelog)));
+    }
+
+
+
+    TEST_METHOD (FormatNotesTab_EachTabHasOnlyItsOwnSections)
+    {
+        ReleaseNotes                notes;
+        std::vector<FormattedLine>  lines;
+
+
+
+        notes.highlights.push_back ({ { 1, 31, 0 }, "Updates", "Casso can update itself." });
+        notes.changes.push_back    ({ { 1, 31, 0 }, "[1.31.0] - 2026-10-20", "- New" });
+
+        UpdateDialogModel::FormatNotesTab (notes, NotesTab::WhatsNew, lines);
+        Assert::AreEqual ((size_t) 2, lines.size());
+        Assert::AreEqual (std::string ("Updates"), lines[0].runs[0].text);
+
+        UpdateDialogModel::FormatNotesTab (notes, NotesTab::Changelog, lines);
+        Assert::AreEqual ((size_t) 2, lines.size());
+        Assert::AreEqual (std::string ("1.31.0 - 2026-10-20"), lines[0].runs[0].text);
+        Assert::IsTrue   (lines[1].kind == FormattedLineKind::Bullet);
+    }
+
+
+
+    TEST_METHOD (DialogContent_ShowsTheStripOnlyWithBothTabs)
+    {
+        UpdateDialogContent  content;
+        ReleaseNotes         notes;
+        DxuiDpiScaler        scaler;
+
+
+
+        content.Layout (RECT { 0, 0, 600, 500 }, scaler);
+        Assert::IsFalse (content.IsTabStripShown(), L"loading: the message alone");
+
+        notes.changes.push_back ({ { 1, 31, 0 }, "[1.31.0] - 2026-10-20", "- New" });
+        content.SetNotes (notes);
+        Assert::IsFalse (content.IsTabStripShown(), L"no highlights: the changelog alone");
+        Assert::IsTrue  (content.GetSelectedTab() == NotesTab::Changelog);
+
+        notes.highlights.push_back ({ { 1, 31, 0 }, "Updates", "Casso can update itself." });
+        content.SetNotes (notes);
+        Assert::IsTrue  (content.IsTabStripShown());
+        Assert::IsTrue  (content.GetSelectedTab() == NotesTab::WhatsNew, L"What's new by default");
+
+        content.SelectTab (NotesTab::Changelog);
+        Assert::IsTrue  (content.GetSelectedTab() == NotesTab::Changelog);
+
+        content.SetNotesMessage (UpdateDialogModel::kpszNotesMissing);
+        Assert::IsFalse (content.IsTabStripShown(), L"a notice stands alone");
     }
 };
