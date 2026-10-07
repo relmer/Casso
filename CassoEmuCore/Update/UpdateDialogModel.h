@@ -122,6 +122,10 @@ public:
     static std::vector<NotesTab>  GetNotesTabs   (const ReleaseNotes & notes);
     static bool             ShowsTabStrip        (const std::vector<NotesTab> & tabs);
     static LPCWSTR          GetTabLabel          (NotesTab tab);
+
+    using MeasureWidthFn = std::function<float (const std::wstring & text)>;
+
+    static int              CountWrappedLines    (std::wstring_view text, float widthPx, const MeasureWidthFn & measure);
     static std::string      StripVersionBrackets (const std::string & heading);
 
 private:

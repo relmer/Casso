@@ -10,10 +10,18 @@
   Hover and press fills match the caption buttons.
 - When the caption is too narrow for the text beside a title of at least
   80 DIPs, the indicator drops to the arrow alone; the title gives way first.
-- Shimmer: 2 s after it appears and then every 8 s, a 1 s diagonal highlight
-  sweeps across the arrow and text, with a small glint at mid-sweep. Frames
-  are requested only during a sweep; between sweeps nothing repaints. With
-  the system's "Show animations" off the text is static.
+- Shimmer: 2 s after it appears and then every 8 s (start to start), a sweep
+  of 3.58 s. A lead pass of four glints crosses the text in 1 s; when it is
+  half way across, a soft diagonal band (30% of the text's width, smoothstep
+  edges) follows over 2 s with four more glints of its own. Each glint fades
+  in over 0.5 s, holds 80 ms and fades out over 0.5 s, starting as its pass
+  reaches its x. Every sweep scatters both passes' glints afresh at random
+  spots, each set inside the text, sorted and spaced apart; a band glint that
+  would be lit beside a lit lead glint on the same edge moves to the other
+  edge, or the band set is drawn again. Hovering starts a sweep at once
+  unless one is running, and the next periodic sweep comes a full period
+  later. Frames are requested only during a sweep; between sweeps nothing
+  repaints. With the system's "Show animations" off the text is static.
 - Tooltip: "Update available: Casso <version>", after the usual dwell, placed
   clear of the pointer: against the indicator grown by the pointer's image
   above and below its hot spot, plus 4 DIPs, so it never sits under the arrow.
@@ -59,7 +67,10 @@
   when it has content. Without README highlights for the range there is no
   strip at all, only the changelog: a lone tab would be a control with nothing
   to choose. The loading and could-not-load notices also stand alone. Each tab
-  scrolls on its own and keeps its position when the other is shown.
+  scrolls on its own and keeps its position when the other is shown. The
+  body starts 8 DIPs below the strip, or below the header when there is none.
+- Header: as many lines as the versions sentence and any age remark wrap to,
+  measured when painted; it grows when the remark arrives.
 - Body (scrolls): the selected tab's notes.
   Images fit the body width (or their percent of it), are never scaled past
   their own size at the current DPI, keep their aspect, and have their

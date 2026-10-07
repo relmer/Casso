@@ -443,4 +443,46 @@ public:
         content.SetNotesMessage (UpdateDialogModel::kpszNotesMissing);
         Assert::IsFalse (content.IsTabStripShown(), L"a notice stands alone");
     }
+
+
+    TEST_METHOD (CountWrappedLines_WrapsByWordAndBreaksAtNewlines)
+    {
+        auto  tenPerChar = [] (const std::wstring & text) { return 10.0f * (float) text.size(); };
+
+
+
+        Assert::AreEqual (0, UpdateDialogModel::CountWrappedLines (L"", 100.0f, tenPerChar));
+        Assert::AreEqual (1, UpdateDialogModel::CountWrappedLines (L"one two", 100.0f, tenPerChar), L"fits on one line");
+        Assert::AreEqual (2, UpdateDialogModel::CountWrappedLines (L"one two three", 100.0f, tenPerChar), L"wraps before the word that overflows");
+        Assert::AreEqual (2, UpdateDialogModel::CountWrappedLines (L"one\ntwo", 100.0f, tenPerChar), L"a newline starts a line");
+        Assert::AreEqual (1, UpdateDialogModel::CountWrappedLines (L"supercalifragilistic", 100.0f, tenPerChar), L"a word wider than the line takes one line");
+    }
+
+
+
+    //  The notes start right under the header's own lines, plus the gap
+    //  above the body: one line more when the age remark wraps it to two.
+    TEST_METHOD (DialogContent_HeaderTakesOnlyItsWrappedLines)
+    {
+        constexpr int        kLinePx = 20;
+        UpdateDialogContent  content;
+        DxuiDpiScaler        scaler;
+        int                  oneLine = 0;
+
+
+
+        content.Layout (RECT { 0, 0, 600, 500 }, scaler);
+        Assert::AreEqual (1, content.GetHeaderLines(), L"no reserved line for a remark that may never come");
+        oneLine = content.GetNotesViewport().top;
+
+        content.SetMeasuredHeaderLines (2);
+        Assert::IsTrue   (content.SyncNotesHeight(), L"a remark that wraps the header lays it out again");
+        Assert::AreEqual (2, content.GetHeaderLines());
+        Assert::AreEqual (oneLine + kLinePx, (int) content.GetNotesViewport().top);
+
+        content.SetMeasuredHeaderLines (1);
+        Assert::IsTrue   (content.SyncNotesHeight());
+        Assert::AreEqual (oneLine, (int) content.GetNotesViewport().top);
+        Assert::IsFalse  (content.SyncNotesHeight(), L"nothing more to do");
+    }
 };

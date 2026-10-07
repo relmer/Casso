@@ -908,3 +908,61 @@ LPCWSTR UpdateDialogModel::GetTabLabel (NotesTab tab)
 {
     return (tab == NotesTab::WhatsNew) ? kpszWhatsNewTab : kpszChangelogTab;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::CountWrappedLines
+//
+//  How many lines `text` takes wrapped word by word into `widthPx`, as a
+//  wrapping draw lays it out: each newline starts a line, and a word that
+//  does not fit on the current line starts the next. A word wider than the
+//  whole line still takes one line. Empty text takes none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int UpdateDialogModel::CountWrappedLines (std::wstring_view text, float widthPx, const MeasureWidthFn & measure)
+{
+    int           lines     = 0;
+    size_t        start     = 0;
+    size_t        end       = 0;
+    size_t        wordEnd   = 0;
+    std::wstring  line;
+    std::wstring  candidate;
+    std::wstring  word;
+
+
+
+    while (start <= text.size() && !text.empty())
+    {
+        end = text.find (L'\n', start);
+        end = (end == std::wstring_view::npos) ? text.size() : end;
+
+        lines++;
+        line.clear();
+
+        for (size_t at = start; at < end; at = wordEnd + 1)
+        {
+            wordEnd = text.find (L' ', at);
+            wordEnd = (wordEnd == std::wstring_view::npos || wordEnd > end) ? end : wordEnd;
+            word    = std::wstring (text.substr (at, wordEnd - at));
+
+            candidate = line.empty() ? word : line + L" " + word;
+
+            if (!line.empty() && measure (candidate) > widthPx)
+            {
+                lines++;
+                candidate = word;
+            }
+
+            line = candidate;
+        }
+
+        start = end + 1;
+    }
+
+    return lines;
+}

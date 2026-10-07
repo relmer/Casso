@@ -399,6 +399,14 @@ bool UpdateDialogContent::SyncNotesHeight()
 
 
 
+    // The header grew or shrank, say when the age remark arrived: lay the
+    // whole content out again, which places every pane as well.
+    if (m_isLaidOut && m_measuredHeaderLines != m_headerLines)
+    {
+        Layout (GetBounds(), m_scaler);
+        return true;
+    }
+
     for (NotesPane & pane : m_panes)
     {
         measured = pane.view.GetMeasuredHeightPx();
@@ -517,10 +525,10 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     constexpr int  kLineDip       = 20;
     constexpr int  kGapDip        = 8;
     constexpr int  kStatusLines   = 2;
-    constexpr int  kHeaderLines   = 3;
     constexpr int  kOpenerDip     = 30;
     constexpr int  kLinkHeightDip = 22;
     constexpr int  kTabStripDip   = 30;
+    constexpr int  kBodyGapDip    = 8;    // above the notes, under the strip or the header
 
 
 
@@ -542,14 +550,15 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_opener.Layout (RECT { boundsPx.left, y, boundsPx.right, y + opener }, scaler);
     y += opener;
 
-    // Room for the versions sentence wrapped once, plus an age remark below it.
-    m_header.Layout (RECT { boundsPx.left, y, boundsPx.right, y + line * kHeaderLines }, scaler);
-    y += line * kHeaderLines + gap;
+    // As many lines as the header wraps to, measured at the last paint, so
+    // a header without an age remark leaves no empty line below it.
+    m_headerLines = std::max (1, m_measuredHeaderLines);
+    m_header.Layout (RECT { boundsPx.left, y, boundsPx.right, y + line * m_headerLines }, scaler);
+    y += line * m_headerLines + gap;
 
-    // The strip sits right on top of the notes it switches.
     m_tabStripPx = RECT { boundsPx.left, y, boundsPx.right, y + strip };
     LayoutTabStrip();
-    y += strip;
+    y += strip + scaler.ToPx (kBodyGapDip);
 
     m_pageLink.Layout (RECT { boundsPx.left, bottom - link, boundsPx.right, bottom });
     m_pageLink.SetDpi (scaler.GetDpi());
@@ -566,4 +575,43 @@ void UpdateDialogContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     {
         LayoutNotes (pane);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogContent::Paint
+//
+//  Counts the lines the header wraps to in the face it is drawn in, word
+//  by word, before painting; a count other than the one laid out is picked
+//  up by SyncNotesHeight on the next tick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    RECT   bounds = m_header.GetBounds();
+    float  sizePx = m_scaler.ToPxf (theme.BodyFont().sizeDip);
+
+
+
+    auto  measure = [&] (const std::wstring & words) -> float
+    {
+        float    width  = 0.0f;
+        float    height = 0.0f;
+        HRESULT  hr     = text.MeasureStringWeighted (words.c_str(), sizePx, DxuiTheme::kBodyFace, DxuiFontWeight::Bold, width, height);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return width;
+    };
+
+    if (m_isLaidOut)
+    {
+        m_measuredHeaderLines = UpdateDialogModel::CountWrappedLines (m_header.GetText(), (float) (bounds.right - bounds.left), measure);
+    }
+
+    DxuiPanel::Paint (painter, text, theme);
 }

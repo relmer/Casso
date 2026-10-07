@@ -20,9 +20,9 @@
 //  line (developer text, progress, or a
 //  failure), and a link to the release page. Laid out in physical pixels.
 //
-//  The notes' real height is known only after they are painted, so the
-//  dialog calls SyncNotesHeight from its tick and lays the scroll area out
-//  again when the height changed.
+//  The header's wrapped lines and the notes' real height are known only
+//  after they are painted, so the dialog calls SyncNotesHeight from its tick
+//  and lays the content out again when either changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +51,12 @@ public:
     void  SetNotesImage    (const std::string & src, std::shared_ptr<const NotesImage> image);
     std::vector<std::string>  GetImageSources () const;
 
+    int   GetHeaderLines   () const { return m_headerLines; }
+    RECT  GetNotesViewport () const { return m_notesViewportPx; }
+    void  SetMeasuredHeaderLines (int lines) { m_measuredHeaderLines = lines; }
+
     void  Layout           (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void  Paint            (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
     static constexpr size_t  kTabCount = 2;
@@ -75,15 +80,17 @@ private:
     DxuiLabel                         m_header;
     DxuiTabStrip                      m_tabStrip;
     std::array<NotesPane, kTabCount>  m_panes;
-    std::vector<NotesTab>             m_tabs            = { NotesTab::Changelog };
-    NotesTab                          m_selected        = NotesTab::Changelog;
+    std::vector<NotesTab>             m_tabs                = { NotesTab::Changelog };
+    NotesTab                          m_selected            = NotesTab::Changelog;
     DxuiLabel                         m_status;
     DxuiButton                        m_pageLink;
     OpenUrlFn                         m_onOpenUrl;
     std::wstring                      m_pageUrl;
     DxuiDpiScaler                     m_scaler;
-    RECT                              m_tabStripPx      = {};
-    RECT                              m_notesViewportPx = {};
-    bool                              m_isLaidOut       = false;
-    bool                              m_hasStatus       = false;
+    RECT                              m_tabStripPx          = {};
+    RECT                              m_notesViewportPx     = {};
+    bool                              m_isLaidOut           = false;
+    bool                              m_hasStatus           = false;
+    int                               m_headerLines         = 1;
+    int                               m_measuredHeaderLines = 1;
 };
