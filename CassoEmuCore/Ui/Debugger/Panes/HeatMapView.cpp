@@ -3080,12 +3080,6 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Move && hit != Hit::None)
-    {
-        SetHover (std::nullopt);
-        return true;
-    }
-
     if (ev.kind == DxuiMouseEventKind::Up)
     {
         return hit != Hit::None;
@@ -3179,6 +3173,14 @@ bool HeatMapView::TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & te
 
 bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
 {
+    //  The pointer over the zoom frames no cell, and the move is left for the
+    //  window, which shows the zoom's tip.
+    if (ev.kind == DxuiMouseEventKind::Move && !IsPressed() && m_zoomWidget.HitTest (ev.positionDip) != HeatMapZoomWidget::Hit::None)
+    {
+        SetHover (std::nullopt);
+        return false;
+    }
+
     if (OnZoomWidget (ev))
     {
         return true;

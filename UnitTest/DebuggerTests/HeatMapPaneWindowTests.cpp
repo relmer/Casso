@@ -545,6 +545,10 @@ namespace HeatMapPaneWindowTests
             Assert::IsTrue   (view->TryGetZoomTipAt (GetCenter (button), anchor, text));
             Assert::IsTrue   (text.find (L"Ctrl+wheel") != std::wstring::npos, text.c_str());
 
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Move, GetCenter (button)));
+            Assert::IsTrue   (window.GetTooltip().WantsTick(), L"the pointer resting on the zoom asks for no tip");
+            Assert::IsFalse  (view->GetHover().has_value(), L"a cell under the zoom is framed");
+
             ClickAt (window, GetCenter (button));
             Assert::IsTrue   (view->GetZoomWidget().IsOpen(), L"a click opens the slider");
 
