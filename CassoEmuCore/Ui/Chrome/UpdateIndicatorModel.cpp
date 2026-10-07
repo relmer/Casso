@@ -198,39 +198,117 @@ int64_t UpdateIndicatorModel::GetMsUntilSweep (int64_t elapsedMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateIndicatorModel::GetGlints
+//  UpdateIndicatorModel::GetSweepPhase
 //
-//  The sparkles that follow the shimmer: kGlintCount of them, spread evenly
-//  across the text and alternating between its top edge and its bottom
-//  edge. Each lights as the sweep reaches its x -- `progress` runs across
-//  the text from 0 to 1 -- rising to full and falling back to nothing over
-//  kTwinkleSpan of the sweep, so they flare one after another behind the
-//  band. Every glint is inside [leftPx, leftPx + widthPx] and on `topPx` or
-//  `bottomPx`, which the caller keeps inside the caption.
+//  A sweep is a lead pass then the band: for the first kLeadMs the glints
+//  run across the text ahead of the band, then for kBandMs the band sweeps
+//  and the glints twinkle again behind it. `sweepProgress` is the whole
+//  sweep's, from GetSweepProgress.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<IndicatorGlint> UpdateIndicatorModel::GetGlints (float progress, float leftPx, float widthPx, float topPx, float bottomPx)
+SweepPhase UpdateIndicatorModel::GetSweepPhase (float sweepProgress)
+{
+    SweepPhase  phase;
+    float       ms     = sweepProgress * (float) kSweepMs;
+
+
+
+    if (ms < (float) kLeadMs)
+    {
+        phase.lead = ms / (float) kLeadMs;
+    }
+    else
+    {
+        phase.band = (ms - (float) kLeadMs) / (float) kBandMs;
+    }
+
+    return phase;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::GetTwinkle
+//
+//  How brightly a glint at `glintAt` (its x as a fraction of the text) shines
+//  while a pass is at `passProgress`: up to full and back down to nothing
+//  over kTwinkleSpan of the pass, centered where the pass reaches it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float UpdateIndicatorModel::GetTwinkle (std::optional<float> passProgress, float glintAt)
+{
+    float  twinkle = 0.0f;
+
+
+
+    if (passProgress.has_value())
+    {
+        twinkle = std::max (0.0f, 1.0f - std::abs (*passProgress - glintAt) / (kTwinkleSpan * 0.5f));
+    }
+
+    return twinkle;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::GetGlints
+//
+//  The sparkles: kGlintCount of them, spread evenly across the text and
+//  alternating between its top edge and its bottom edge. Each twinkles
+//  twice per sweep -- once as the lead pass reaches it, once as the band
+//  does -- so they run across ahead of the band and then follow it. Every
+//  glint is inside [leftPx, leftPx + widthPx] and on `topPx` or `bottomPx`,
+//  which the caller keeps inside the caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IndicatorGlint> UpdateIndicatorModel::GetGlints (const SweepPhase & phase, float leftPx, float widthPx, float topPx, float bottomPx)
 {
     std::vector<IndicatorGlint>  glints;
     IndicatorGlint               glint;
-    float                        at       = 0.0f;
-    float                        distance = 0.0f;
-    int                          i        = 0;
+    float                        at     = 0.0f;
+    int                          i      = 0;
 
 
 
     for (i = 0; i < kGlintCount; i++)
     {
         at              = ((float) i + 0.5f) / (float) kGlintCount;
-        distance        = std::abs (progress - at);
         glint.x         = leftPx + widthPx * at;
         glint.y         = (i % 2 == 0) ? topPx : bottomPx;
-        glint.intensity = std::max (0.0f, 1.0f - distance / (kTwinkleSpan * 0.5f));
+        glint.intensity = std::max (GetTwinkle (phase.lead, at), GetTwinkle (phase.band, at));
         glints.push_back (glint);
     }
 
     return glints;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::GetHoverClockStart
+//
+//  The shimmer clock start that puts a sweep's beginning at `nowMs`: a hover
+//  restarts the schedule rather than slipping an extra sweep into it, so the
+//  next periodic sweep comes a full period after the hover's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t UpdateIndicatorModel::GetHoverClockStart (int64_t nowMs)
+{
+    return nowMs - kFirstSweepMs;
 }
 
 

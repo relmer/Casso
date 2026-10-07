@@ -25,7 +25,18 @@
 class UpdateIndicatorButton : public IDxuiControl
 {
 public:
+    // What a pointer move means for the shell: repaint, raise the tooltip,
+    // or take it down now.
+    struct PointerResult
+    {
+        bool  repaint = false;
+        bool  showTip = false;
+        bool  hideTip = false;
+    };
+
     UpdateIndicatorButton();
+
+    PointerResult         OnPointer         (bool isInside, int64_t nowMs);
 
     bool                  ContainsDip       (POINT pointDip) const;
     bool                  SetHovered        (bool isHovered);

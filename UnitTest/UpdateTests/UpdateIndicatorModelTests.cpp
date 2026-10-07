@@ -127,19 +127,37 @@ public:
 
 
 
-    TEST_METHOD (Sweep_IsTwoSecondsEveryEightStartToStart)
+    TEST_METHOD (Sweep_IsALeadPassThenTheBandEveryEightSeconds)
     {
-        Assert::AreEqual ((int64_t) 2000, UpdateIndicatorModel::kSweepMs);
-        Assert::AreEqual ((int64_t) 8000, UpdateIndicatorModel::kSweepPeriodMs);
-        Assert::IsTrue   (UpdateIndicatorModel::GetSweepProgress (UpdateIndicatorModel::kFirstSweepMs + 1500).has_value(),
-                          L"still sweeping 1.5 s in");
+        SweepPhase  phase;
+
+
+
+        Assert::AreEqual ((int64_t) 1000, UpdateIndicatorModel::kLeadMs);
+        Assert::AreEqual ((int64_t) 2000, UpdateIndicatorModel::kBandMs);
+        Assert::AreEqual ((int64_t) 3000, UpdateIndicatorModel::kSweepMs, L"three seconds in all");
+        Assert::AreEqual ((int64_t) 8000, UpdateIndicatorModel::kSweepPeriodMs, L"start to start");
+
+        phase = UpdateIndicatorModel::GetSweepPhase (0.0f);
+        Assert::AreEqual (0.0f, *phase.lead);
+        Assert::IsFalse  (phase.band.has_value(), L"the lead pass comes first, without the band");
+
+        phase = UpdateIndicatorModel::GetSweepPhase (1.0f / 6.0f);
+        Assert::AreEqual (0.5f, *phase.lead, 0.0001f);
+
+        phase = UpdateIndicatorModel::GetSweepPhase (1.0f / 3.0f);
+        Assert::IsFalse  (phase.lead.has_value(), L"the lead pass has finished");
+        Assert::AreEqual (0.0f, *phase.band, 0.0001f, L"before the band starts");
+
+        phase = UpdateIndicatorModel::GetSweepPhase (2.0f / 3.0f);
+        Assert::AreEqual (0.5f, *phase.band, 0.0001f);
     }
 
 
 
     TEST_METHOD (Glints_AlternateEdgesAndStayInsideTheText)
     {
-        std::vector<IndicatorGlint>  glints = UpdateIndicatorModel::GetGlints (0.5f, 100.0f, 200.0f, 5.0f, 27.0f);
+        std::vector<IndicatorGlint>  glints = UpdateIndicatorModel::GetGlints (SweepPhase { std::nullopt, 0.5f }, 100.0f, 200.0f, 5.0f, 27.0f);
         size_t                       i      = 0;
 
 
@@ -158,39 +176,99 @@ public:
 
 
 
-    TEST_METHOD (Glints_TwinkleInTurnAsTheSweepPasses)
+    //  Each glint twinkles twice a sweep: once as the lead pass reaches it,
+    //  once as the band does, and only then.
+    TEST_METHOD (Glints_TwinkleOnceInTheLeadPassAndOnceWithTheBand)
     {
         std::vector<IndicatorGlint>  glints;
         int                          count = UpdateIndicatorModel::kGlintCount;
         int                          i     = 0;
         int                          j     = 0;
+        int                          pass  = 0;
         float                        at    = 0.0f;
+        SweepPhase                   phase;
 
 
 
-        for (i = 0; i < count; i++)
+        for (pass = 0; pass < 2; pass++)
         {
-            at     = ((float) i + 0.5f) / (float) count;
-            glints = UpdateIndicatorModel::GetGlints (at, 0.0f, 100.0f, 0.0f, 10.0f);
-
-            Assert::AreEqual (1.0f, glints[(size_t) i].intensity, L"full as the band reaches it");
-
-            for (j = 0; j < count; j++)
+            for (i = 0; i < count; i++)
             {
-                if (j != i)
+                at     = ((float) i + 0.5f) / (float) count;
+                phase  = (pass == 0) ? SweepPhase { at, std::nullopt } : SweepPhase { std::nullopt, at };
+                glints = UpdateIndicatorModel::GetGlints (phase, 0.0f, 100.0f, 0.0f, 10.0f);
+
+                Assert::AreEqual (1.0f, glints[(size_t) i].intensity, pass == 0 ? L"full as the lead pass reaches it"
+                                                                                : L"full as the band reaches it");
+
+                for (j = 0; j < count; j++)
                 {
-                    Assert::AreEqual (0.0f, glints[(size_t) j].intensity, L"the others are dark");
+                    if (j != i)
+                    {
+                        Assert::AreEqual (0.0f, glints[(size_t) j].intensity, L"the others are dark");
+                    }
                 }
             }
         }
 
-        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetGlints (0.125f + UpdateIndicatorModel::kTwinkleSpan * 0.25f, 0.0f, 100.0f, 0.0f, 10.0f)[0].intensity,
+        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetTwinkle (0.125f + UpdateIndicatorModel::kTwinkleSpan * 0.25f, 0.125f),
                           0.001f, L"halfway down from full");
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (std::nullopt, 0.125f), L"no pass, no twinkle");
 
-        for (const IndicatorGlint & glint : UpdateIndicatorModel::GetGlints (0.0f, 0.0f, 100.0f, 0.0f, 10.0f))
+        for (const IndicatorGlint & glint : UpdateIndicatorModel::GetGlints (SweepPhase { std::nullopt, 0.0f }, 0.0f, 100.0f, 0.0f, 10.0f))
         {
-            Assert::AreEqual (0.0f, glint.intensity, L"none lit before the band arrives");
+            Assert::AreEqual (0.0f, glint.intensity, L"dark between the lead pass and the band");
         }
+    }
+
+
+
+    TEST_METHOD (Hover_StartsASweepNowButNeverRestartsOne)
+    {
+        UpdateIndicatorButton  indicator;
+        int64_t                first = UpdateIndicatorModel::kFirstSweepMs;
+        int64_t                hover = 1000 + first + UpdateIndicatorModel::kSweepMs + 500;
+
+
+
+        indicator.SetVisible           (true);
+        indicator.SetShowsText         (true);
+        indicator.SetText              (L"New toys await");
+        indicator.SetAnimationsEnabled (true);
+        indicator.StartShimmerClock    (1000);
+
+        //  Resting between sweeps: entering starts one at once.
+        Assert::IsTrue  (indicator.OnPointer (true, hover).showTip);
+        Assert::IsTrue  (indicator.TickShimmer (hover), L"sweeping from the moment of the hover");
+        Assert::AreEqual ((int64_t) UpdateIndicatorModel::kSweepPeriodMs - UpdateIndicatorModel::kSweepMs,
+                          *indicator.GetMsUntilShimmer (hover + UpdateIndicatorModel::kSweepMs),
+                          L"the next periodic sweep is a full period after the hover's");
+
+        //  Leaving and coming back mid-sweep does not restart it.
+        Assert::IsTrue  (indicator.OnPointer (false, hover + 500).hideTip, L"the tip goes the moment the pointer leaves");
+        indicator.OnPointer (true, hover + 700);
+        Assert::AreEqual ((int64_t) 0, *indicator.GetMsUntilShimmer (hover + 700));
+        Assert::IsFalse (indicator.TickShimmer (hover + UpdateIndicatorModel::kSweepMs + 10) &&
+                         indicator.TickShimmer (hover + UpdateIndicatorModel::kSweepMs + 20),
+                         L"the original sweep ended on time, so it was not restarted at 700 ms");
+    }
+
+
+
+    TEST_METHOD (Hover_NoSweepWithAnimationsOff)
+    {
+        UpdateIndicatorButton  indicator;
+
+
+
+        indicator.SetVisible           (true);
+        indicator.SetShowsText         (true);
+        indicator.SetText              (L"New toys await");
+        indicator.SetAnimationsEnabled (false);
+        indicator.StartShimmerClock    (0);
+
+        Assert::IsTrue  (indicator.OnPointer (true, 100000).showTip, L"the tooltip still shows");
+        Assert::IsFalse (indicator.TickShimmer (100000), L"but nothing sweeps");
     }
 
 

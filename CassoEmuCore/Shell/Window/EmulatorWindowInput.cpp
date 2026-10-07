@@ -590,8 +590,12 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     m_uiShell.OnMouseLeave();
 
-    if (m_updateIndicator.SetHovered (false))
+    // Leaving the window -- into the caption counts -- from the update
+    // indicator takes its tooltip down at once; nothing else would, since the
+    // indicator is a client-area control under the caption's tooltip.
+    if (m_updateIndicator.OnPointer (false, (int64_t) GetTickCount64()).hideTip)
     {
+        m_captionTooltip.HideImmediate();
         InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 

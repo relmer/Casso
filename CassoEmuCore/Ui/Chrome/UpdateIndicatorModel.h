@@ -28,6 +28,25 @@ struct IndicatorGlint
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SweepPhase
+//
+//  Where one sweep is: the glints' lead pass across the text, then the band,
+//  each as its own progress from 0 to 1, or nothing while it is not running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct SweepPhase
+{
+    std::optional<float>  lead;
+    std::optional<float>  band;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IndicatorFit
 //
 //  How the title-bar indicator fits the caption: with its text, or as the
@@ -70,7 +89,9 @@ public:
     static constexpr float    kEstGlyphEm       = 0.56f;  // average Segoe UI glyph, generous
     static constexpr int64_t  kFirstSweepMs     = 2000;
     static constexpr int64_t  kSweepPeriodMs    = 8000;
-    static constexpr int64_t  kSweepMs          = 2000;   // the period is start to start, so 6 s of rest
+    static constexpr int64_t  kLeadMs           = 1000;   // the glints' lead pass, ahead of the band
+    static constexpr int64_t  kBandMs           = 2000;   // the band itself
+    static constexpr int64_t  kSweepMs          = kLeadMs + kBandMs;   // period is start to start: 5 s of rest
     static constexpr int      kGlintCount       = 4;
     static constexpr float    kBandFraction     = 0.30f;  // shimmer band width, of the text's width
     static constexpr float    kTwinkleSpan      = 0.18f;  // fraction of the sweep a glint is lit for
@@ -82,5 +103,8 @@ public:
     static std::optional<float>       GetSweepProgress     (int64_t elapsedMs);
     static int64_t                    GetMsUntilSweep      (int64_t elapsedMs);
     static float                      GetBandWeight        (float offsetPx, float halfWidthPx);
-    static std::vector<IndicatorGlint>  GetGlints          (float progress, float leftPx, float widthPx, float topPx, float bottomPx);
+    static SweepPhase                 GetSweepPhase        (float sweepProgress);
+    static float                      GetTwinkle           (std::optional<float> passProgress, float glintAt);
+    static std::vector<IndicatorGlint>  GetGlints          (const SweepPhase & phase, float leftPx, float widthPx, float topPx, float bottomPx);
+    static int64_t                    GetHoverClockStart   (int64_t nowMs);
 };

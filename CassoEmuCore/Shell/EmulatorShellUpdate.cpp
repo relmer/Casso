@@ -721,12 +721,13 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
 
     int64_t  nowMs      = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                               std::chrono::steady_clock::now().time_since_epoch()).count();
-    UINT     dpi        = m_scaler.GetDpi();
-    POINT    pointDip   = { MulDiv (xPx, kBaseDpi, (int) dpi), MulDiv (yPx, kBaseDpi, (int) dpi) };
-    bool     hasCaption = m_host != nullptr && m_host->GetCaptionHeightPx() > 0;
-    bool     isInside   = hasCaption && m_updateIndicator.ContainsDip (pointDip);
-    bool     isTaken    = false;
-    RECT     bounds     = m_updateIndicator.GetBounds();
+    UINT                                  dpi        = m_scaler.GetDpi();
+    POINT                                 pointDip   = { MulDiv (xPx, kBaseDpi, (int) dpi), MulDiv (yPx, kBaseDpi, (int) dpi) };
+    bool                                  hasCaption = m_host != nullptr && m_host->GetCaptionHeightPx() > 0;
+    bool                                  isInside   = hasCaption && m_updateIndicator.ContainsDip (pointDip);
+    bool                                  isTaken    = false;
+    UpdateIndicatorButton::PointerResult  pointer;
+    RECT                                  bounds     = m_updateIndicator.GetBounds();
     RECT     anchorPx   = { m_scaler.ToPx (bounds.left),  m_scaler.ToPx (bounds.top),
                             m_scaler.ToPx (bounds.right), m_scaler.ToPx (bounds.bottom) };
 
@@ -735,18 +736,21 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
     switch (kind)
     {
         case DxuiMouseEventKind::Move:
-            if (m_updateIndicator.SetHovered (isInside))
+            pointer = m_updateIndicator.OnPointer (isInside, (int64_t) GetTickCount64());
+
+            if (pointer.repaint)
             {
                 InvalidateRect (m_hwnd, nullptr, FALSE);
+            }
 
-                if (isInside)
-                {
-                    m_captionTooltip.RequestShow (anchorPx, m_updateIndicator.GetToolTipText().c_str(), nowMs);
-                }
-                else
-                {
-                    m_captionTooltip.RequestHide (nowMs);
-                }
+            if (pointer.showTip)
+            {
+                m_captionTooltip.RequestShow (anchorPx, m_updateIndicator.GetToolTipText().c_str(), nowMs);
+            }
+
+            if (pointer.hideTip)
+            {
+                m_captionTooltip.HideImmediate();
             }
 
             isTaken = isInside;

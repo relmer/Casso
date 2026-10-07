@@ -234,7 +234,8 @@ void UpdateIndicatorButton::PaintShimmer (
     float                        bandW     = w * kBandFraction;
     float                        sliceH    = h / (float) kSlices;
     float                        travel    = w + bandW + h;
-    float                        left      = x - bandW - h + travel * progress;
+    SweepPhase                   phase     = UpdateIndicatorModel::GetSweepPhase (progress);
+    float                        left      = x - bandW - h + travel * phase.band.value_or (0.0f);
     float                        sliceLeft = 0.0f;
     float                        columnW   = 0.0f;
     float                        offset    = 0.0f;
@@ -256,7 +257,9 @@ void UpdateIndicatorButton::PaintShimmer (
 
     columnW = bandW / (float) kColumns;
 
-    for (i = 0; i < kSlices; i++)
+    // The band runs only in the second half of a sweep; the lead pass before
+    // it is glints alone.
+    for (i = 0; phase.band.has_value() && i < kSlices; i++)
     {
         sliceLeft = left + (float) (kSlices - 1 - i) * sliceH;
 
@@ -287,7 +290,7 @@ void UpdateIndicatorButton::PaintShimmer (
         }
     }
 
-    glints = UpdateIndicatorModel::GetGlints (progress, x + glyphW, w - glyphW, top, bottom);
+    glints = UpdateIndicatorModel::GetGlints (phase, x + glyphW, w - glyphW, top, bottom);
 
     for (const IndicatorGlint & glint : glints)
     {
@@ -405,4 +408,45 @@ DxuiHitTestKind UpdateIndicatorButton::ClassifyHit (POINT clientDip) const
 std::wstring UpdateIndicatorButton::GetAccessibleName() const
 {
     return m_toolTip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorButton::OnPointer
+//
+//  The pointer moved, or left the window (isInside false). Entering raises
+//  the tooltip and, with animations on, starts a sweep at once unless one is
+//  already running -- a sweep is never restarted midway. The hover sweep
+//  restarts the schedule, so the next periodic one is a full period later.
+//  Leaving takes the tooltip down immediately rather than after a dwell: a
+//  tip over a control the pointer has left explains nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UpdateIndicatorButton::PointerResult UpdateIndicatorButton::OnPointer (bool isInside, int64_t nowMs)
+{
+    PointerResult  result;
+    bool           isSweeping = false;
+
+
+
+    result.repaint = SetHovered (isInside);
+    result.showTip = result.repaint && isInside;
+    result.hideTip = result.repaint && !isInside;
+
+    if (result.showTip && m_isAnimated && m_showsText && m_visible)
+    {
+        isSweeping = UpdateIndicatorModel::GetSweepProgress (nowMs - m_shownAtMs).has_value();
+
+        if (!isSweeping)
+        {
+            m_shownAtMs = UpdateIndicatorModel::GetHoverClockStart (nowMs);
+        }
+    }
+
+    return result;
 }
