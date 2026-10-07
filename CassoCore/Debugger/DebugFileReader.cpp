@@ -517,7 +517,8 @@ void DebugFileReader::ReadRecord (std::string_view keyword, const Fields & field
     else if (keyword == "sym")
     {
         file.symbols.push_back ({ GetInt (fields, "id", 0), GetString (fields, "name"), (uint32_t) GetNumber (fields, "val", 0),
-                                  GetInt (fields, "seg", -1), GetInt (fields, "scope", -1), GetString (fields, "type") });
+                                  GetInt (fields, "seg", -1), GetInt (fields, "scope", -1), GetString (fields, "type"),
+                                  (uint32_t) GetNumber (fields, "size", 0) });
     }
     else if (keyword == "scope")
     {

@@ -98,6 +98,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerFocusedPane",
     "debuggerDisassemblyOptions",
     "debuggerHeatMapOptions",
+    "debuggerHeatMapRanges",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
@@ -1274,6 +1275,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerFocusedPane", JsonValue (debuggerFocusedPane));
     root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debuggerDisassemblyOptions));
     root.emplace_back ("debuggerHeatMapOptions",     JsonValue (debuggerHeatMapOptions));
+    root.emplace_back ("debuggerHeatMapRanges",      JsonValue (debuggerHeatMapRanges));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debuggerOpenViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debuggerTextZoomPercent));
     root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debuggerSourceFolders));
@@ -1520,6 +1522,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     debuggerDisassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debuggerDisassemblyOptions);
     debuggerHeatMapOptions     = GetStringOpt (v, "debuggerHeatMapOptions",     debuggerHeatMapOptions);
+    debuggerHeatMapRanges      = GetStringOpt (v, "debuggerHeatMapRanges",      debuggerHeatMapRanges);
 
     debuggerTextZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debuggerTextZoomPercent),
                                           kMinDebuggerTextZoomPercent, kMaxDebuggerTextZoomPercent);

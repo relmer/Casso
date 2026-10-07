@@ -5,6 +5,9 @@
 #include "Ui/Debugger/MemoryAddressEntry.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/HeatMapRangeBarCommands.h"
+#include "Debugger/HeatMapRangeSets.h"
+#include "Debugger/HeatMapSymbols.h"
 #include "Seams/IHostDialogs.h"
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -198,6 +201,12 @@ public:
     //  its command: the cell the mouse is over ("hover 2000", "hover none"),
     //  or an access to show or go back to (HeatAccessJump::FormatWords).
     virtual void         SendDebuggerHeatMapRequest (const std::string & words) { (void) words; }
+
+    //  The heat map's sets of ranges and the set it shows, in HeatMapRangeSets'
+    //  text, kept the same way. Empty until the ranges pane first opens, so the
+    //  pane opens closed until then.
+    virtual std::string  GetDebuggerHeatMapRanges  ()                      { return {}; }
+    virtual void         SetDebuggerHeatMapRanges  (const std::string &)   {}
 
     //  Which optional views were open, in DebuggerViewState's text for them,
     //  kept the same way.
@@ -453,6 +462,27 @@ protected:
     //  The fade drop-down's rows, as last built, so a test can choose one.
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapFadeCommands () const { return m_heatMapFadeCommands; }
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapBankCommands () const { return m_heatMapBankCommands; }
+
+    //  The heat map's sets of ranges and the pane that edits them, protected
+    //  so a test can work them as the bars, the list and the edit box do:
+    //  the set the map shows and the set the pane edits, the pane's entries,
+    //  an edit in place over a cell or the set's name, and a range's check.
+    const HeatMapRangeSets &   GetHeatRanges          () const { return m_heatRanges; }
+    const std::string &        GetEditedRangeSet      () const { return m_heatRangeSet; }
+    DxuiListView *             GetHeatRangeList       () const { return m_heatRangeList; }
+    DxuiToolbar *              GetHeatRangeBar        () const { return m_heatRangeBar; }
+    DxuiTextInput *            GetHeatRangeEditor     () const { return m_heatRangeEditor; }
+    std::wstring               GetHeatRangeError      () const;
+    bool                       IsEditingHeatRange     () const { return m_heatRangeEdit.row >= 0 || m_heatRangeEdit.isSetName; }
+    void                       ShowRangeSet           (const std::string & name);
+    void                       EditRangeSet           (const std::string & name);
+    void                       RunHeatRangeBarEntry   (int id);
+    bool                       IsHeatRangeBarEnabled  (int id) const;
+    void                       BeginHeatRangeEdit     (int row, HeatMapRangeSets::Field field);
+    void                       EndHeatRangeEdit       (bool commit);
+    void                       ToggleHeatRange        (int row, bool included);
+    void                       ApplyHeatRanges        ();
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetRangeSetCommands () const { return m_rangeSetCommands; }
 
     //  Protected so a test can read the breakpoints pane's columns (FR-117)
     //  and the breakpoint each row shows once sorted.
@@ -1036,18 +1066,70 @@ private:
     std::unique_ptr<HeatMapBarCommands>                                              m_heatMapCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapFadeCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapBankCommands;
-    std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
-    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryFrames;
-    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>  m_memoryBars;
-    DxuiToolbar                                                                    * m_memoryBar          = nullptr;
-    DxuiWindow                                                                     * m_memoryBarHost      = nullptr;
-    std::wstring                                                                     m_memoryBarPane;
-    std::unique_ptr<MemoryBarCommands>                                               m_memoryCommands;
-    std::unique_ptr<MemoryAddressEntry>                                              m_addressEntry;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_breakpointFrame;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_breakpointSlot;
-    DxuiToolbar                                                                    * m_breakpointBar      = nullptr;
-    std::unique_ptr<BreakpointBarCommands>                                           m_breakpointCommands;
+
+    //  The heat map's ranges: every set and the set shown, the set the ranges
+    //  pane edits, the symbols they were last read against, and each list
+    //  row's range in the set. The pane is its bar over a line that says why
+    //  an edit was refused over its list, and an edit opens a box over a cell
+    //  or over the set's name on the bar.
+    struct HeatRangeEdit
+    {
+        int                      row       = -1;
+        HeatMapRangeSets::Field  field     = HeatMapRangeSets::Field::Start;
+        bool                     isNew     = false;
+        bool                     isSetName = false;
+    };
+
+    static constexpr int                         kHeatRangeEditMaxChars = 64;
+    static constexpr int                         kHeatRangeNameDip      = 150;
+    static constexpr int                         kHeatRangeSpanDip      = 130;
+    static constexpr int                         kHeatRangeSizeDip      = 70;
+    HeatMapRangeSets                             m_heatRanges;
+    std::string                                  m_heatRangeSet;
+    std::shared_ptr<const HeatMapSymbols>        m_heatRangeSymbols;
+    std::vector<size_t>                          m_heatRangeRows;
+    DxuiListView                               * m_heatRangeList        = nullptr;
+    DxuiToolbar                                * m_heatRangeBar         = nullptr;
+    DxuiTextInput                              * m_heatRangeEditor      = nullptr;
+    DxuiLabel                                  * m_heatRangeError       = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>           m_heatRangeFrame;
+    std::unique_ptr<DebuggerPaneFrame>           m_heatRangeSlot;
+    std::unique_ptr<HeatMapRangeBarCommands>     m_heatRangeCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_rangeSetCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_editedSetCommands;
+    HeatRangeEdit                                m_heatRangeEdit;
+    bool                                         m_isHeatRangesOpened   = false;
+
+    void                     ConfigureHeatRanges      ();
+    void                     OpenHeatRanges           ();
+    void                     SetHeatRangeMenus        ();
+    void                     PlaceHeatRangeBar        ();
+    bool                     RouteHeatRangeBarMouse   (const DxuiMouseEvent & ev);
+    bool                     RouteHeatRangeEditMouse  (const DxuiMouseEvent & ev);
+    bool                     RouteHeatRangeKey        (const DxuiKeyEvent & ev, IDxuiControl * focused);
+    std::wstring             GetHeatRangeBarLabel     (int id) const;
+    void                     ApplyHeatRangeRows       ();
+    void                     SaveHeatRanges           ();
+    void                     SetHeatRangeError        (const std::string & error);
+    void                     BeginSetNameEdit         (bool isNew);
+    void                     MoveHeatRange            (int delta);
+    void                     AddHeatRange             ();
+    HeatMapRangeSet *        GetEditedSet             ();
+    const HeatMapRangeSet *  GetEditedSet             () const;
+    const HeatMapSymbols &   GetHeatRangeSymbols      () const;
+    std::optional<size_t>    GetSelectedHeatRange     () const;
+    std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>           m_memoryPanes;
+    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryFrames;
+    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryBars;
+    DxuiToolbar                                                                           * m_memoryBar          = nullptr;
+    DxuiWindow                                                                            * m_memoryBarHost      = nullptr;
+    std::wstring                                                                            m_memoryBarPane;
+    std::unique_ptr<MemoryBarCommands>                                                      m_memoryCommands;
+    std::unique_ptr<MemoryAddressEntry>                                                     m_addressEntry;
+    std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointFrame;
+    std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointSlot;
+    DxuiToolbar                                                                           * m_breakpointBar      = nullptr;
+    std::unique_ptr<BreakpointBarCommands>                                                  m_breakpointCommands;
 
     //  The registers, stack and watch panes are each a bar of Undo and Redo
     //  over the pane's list, as the breakpoints pane is its bar over its rows.

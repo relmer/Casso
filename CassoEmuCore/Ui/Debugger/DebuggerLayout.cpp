@@ -141,7 +141,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges };
 
 
 
@@ -313,7 +313,7 @@ std::wstring DebuggerLayout::TakeClosedPanes (const std::wstring & text, std::se
 
 std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, const std::wstring & pane)
 {
-    if (pane.starts_with (L"memory") || pane == kHeatMap)
+    if (pane.starts_with (L"memory") || pane == kHeatMap || pane == kHeatRanges)
     {
         return GetMemoryPaneId (1);
     }
@@ -393,8 +393,9 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     }
 
     //  The heat map is a tab beside the memory windows, since a cell clicked
-    //  on it is shown in one.
-    layout.Add (kHeatMap, memory1);
+    //  on it is shown in one, and the ranges it can be focused on beside it.
+    layout.Add (kHeatMap,    memory1);
+    layout.Add (kHeatRanges, memory1);
 
     for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
     {

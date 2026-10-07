@@ -85,6 +85,380 @@ void HeatMapView::SetOptions (const HeatMapOptions & options)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::SetRanges
+//
+//  The same ranges again keep the zoom and scroll the user left; new ones
+//  start fitted to the pane, from the top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SetRanges (std::vector<Band> ranges)
+{
+    if (m_hasRanges && ranges == m_bands)
+    {
+        return;
+    }
+
+    m_bands     = std::move (ranges);
+    m_hasRanges = true;
+    m_scroll    = {};
+
+    m_hover.reset();
+    FitRanges();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::ClearRanges
+//
+//  All of memory again, at the starting zoom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ClearRanges()
+{
+    if (!m_hasRanges)
+    {
+        return;
+    }
+
+    m_bands     = { Band { {}, 0, kAddressCount } };
+    m_hasRanges = false;
+    m_isFitted  = false;
+
+    m_hover.reset();
+    ResetZoom();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::FitRanges
+//
+//  The largest cell whose rows all fit the pane, with no scrolling either
+//  way; a pane too small for even one pixel a cell scrolls at one. While the
+//  user has not zoomed, a resize fits them again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::FitRanges()
+{
+    m_isFitted = true;
+    m_scroll   = {};
+
+    for (int cell = kMaxCellPx; cell >= 1; cell--)
+    {
+        m_cellPx = cell;
+        PlaceMap();
+
+        if (!m_hasVertBar && !m_hasHorzBar)
+        {
+            break;
+        }
+    }
+
+    BuildFrame();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetColumnsOf
+//
+//  A range holds no more addresses to a row than the next power of two up
+//  from its size, so a small range is one row across the pane rather than
+//  a row mostly empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HeatMapView::GetColumnsOf (int columns, int count)
+{
+    int  fitted = 1;
+
+
+
+    while (fitted < count && fitted < columns)
+    {
+        fitted *= 2;
+    }
+
+    return std::max (1, std::min (fitted, columns));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PlaceBands
+//
+//  Each range's header and rows, one after another down the map. All of
+//  memory is one range with no header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PlaceBands()
+{
+    long  pitch  = GetPitch();
+    long  header = m_hasRanges ? m_scaler.ToPx (kHeaderDip) : 0;
+    long  y      = 0;
+
+
+
+    m_placed.assign (m_bands.size(), Placed {});
+
+    for (size_t i = 0; i < m_bands.size(); i++)
+    {
+        Placed  & placed = m_placed[i];
+        int       count  = std::max (1, m_bands[i].count);
+
+
+
+        placed.columns   = GetColumnsOf (m_columns, count);
+        placed.headerTop = y;
+        placed.rowsTop   = y + header;
+        placed.rows      = (count + placed.columns - 1) / placed.columns;
+
+        y = placed.rowsTop + placed.rows * pitch;
+    }
+
+    m_contentH = y;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetRows
+//
+//  Every range's rows together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HeatMapView::GetRows() const
+{
+    int  rows = 0;
+
+
+
+    for (const Band & band : m_bands)
+    {
+        int  count   = std::max (1, band.count);
+        int  columns = GetColumnsOf (m_columns, count);
+
+
+
+        rows += (count + columns - 1) / columns;
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetBandAt
+//
+//  The range whose rows hold a height in the map, or -1 over a header or
+//  past the last range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+long HeatMapView::GetBandAt (long y) const
+{
+    long  pitch = GetPitch();
+
+
+
+    for (size_t i = 0; i < m_placed.size(); i++)
+    {
+        if (y >= m_placed[i].rowsTop && y < m_placed[i].rowsTop + m_placed[i].rows * pitch)
+        {
+            return (long) i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetPlaceAt
+//
+//  The cell under a point in the map, a street counting as the cell before
+//  it; none over a header, past a range's last address, or off the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<HeatMapView::Place> HeatMapView::GetPlaceAt (POINT point) const
+{
+    const Placed  * placed = nullptr;
+    long            pitch  = GetPitch();
+    long            atX    = point.x - m_map.left + m_scroll.x;
+    long            atY    = point.y - m_map.top  + m_scroll.y;
+    long            band   = -1;
+    long            offset = 0;
+
+
+
+    if (m_cellPx <= 0 || point.x < m_map.left || point.x >= m_map.right || point.y < m_map.top || point.y >= m_map.bottom || atX >= m_rowPx)
+    {
+        return std::nullopt;
+    }
+
+    band = GetBandAt (atY);
+
+    if (band < 0)
+    {
+        return std::nullopt;
+    }
+
+    placed = &m_placed[(size_t) band];
+    offset = ((atY - placed->rowsTop) / pitch) * placed->columns + GetColumnAt (*placed, atX);
+
+    if (offset >= m_bands[(size_t) band].count)
+    {
+        return std::nullopt;
+    }
+
+    return Place { (size_t) band, offset };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetPlaceOf
+//
+//  The first range that holds an address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<HeatMapView::Place> HeatMapView::GetPlaceOf (Word address) const
+{
+    for (size_t i = 0; i < m_bands.size(); i++)
+    {
+        long  offset = (long) (Word) (address - m_bands[i].first);
+
+
+
+        if (offset < m_bands[i].count)
+        {
+            return Place { i, offset };
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetAddressOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word HeatMapView::GetAddressOf (const Place & place) const
+{
+    return (Word) (m_bands[place.band].first + place.offset);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetPlaceRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapView::GetPlaceRect (const Place & place) const
+{
+    const Placed  & placed = m_placed[place.band];
+    long            column = place.offset % placed.columns;
+    long            start  = GetColumnLeft (placed, column);
+    long            wide   = GetColumnLeft (placed, column + 1) - start - kStreetPx;
+    long            left   = m_map.left + start - m_scroll.x;
+    long            top    = m_map.top  + placed.rowsTop + (place.offset / placed.columns) * GetPitch() - m_scroll.y;
+
+
+
+    return { left, top, left + std::max (1L, wide), top + m_cellPx };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetHeaderRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapView::GetHeaderRect (size_t range) const
+{
+    long  top = 0;
+
+
+
+    if (!m_hasRanges || range >= m_placed.size())
+    {
+        return {};
+    }
+
+    top = m_map.top + m_placed[range].headerTop - m_scroll.y;
+
+    return { m_boundsDip.left, top, m_map.right, top + m_scaler.ToPx (kHeaderDip) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> HeatMapView::GetHover() const
+{
+    return m_hover.has_value() ? std::optional<Word> (GetAddressOf (*m_hover)) : std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::GetColumnsFor
 //
 //  Powers of two keep every row starting at a round address, so a row's label
@@ -131,17 +505,17 @@ int HeatMapView::GetColumnsFor (long widthPx, long pitchPx)
 //
 //  HeatMapView::GetColumnLeft
 //
-//  Where a column starts within the row, from its left: the row's width
-//  shared among its columns, the leftover pixels spread one to a column, so
-//  no column is more than a pixel wider than another. Rows that fit the
-//  pane at the zoom's size are as wide as the pane; kMinColumns that do not
-//  are a pitch a column, and scroll.
+//  Where a column starts within a range's row, from its left: the row's
+//  width shared among its columns, the leftover pixels spread one to a
+//  column, so no column is more than a pixel wider than another. Rows that
+//  fit the pane at the zoom's size are as wide as the pane; kMinColumns that
+//  do not are a pitch a column, and scroll.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-long HeatMapView::GetColumnLeft (long column) const
+long HeatMapView::GetColumnLeft (const Placed & placed, long column) const
 {
-    return (long) (((long long) column * m_rowPx) / m_columns);
+    return (long) (((long long) column * m_rowPx) / placed.columns);
 }
 
 
@@ -157,7 +531,7 @@ long HeatMapView::GetColumnLeft (long column) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-long HeatMapView::GetColumnAt (long x) const
+long HeatMapView::GetColumnAt (const Placed & placed, long x) const
 {
     long  column = 0;
 
@@ -168,9 +542,9 @@ long HeatMapView::GetColumnAt (long x) const
         return 0;
     }
 
-    column = std::min ((long) (((long long) x * m_columns) / m_rowPx), (long) m_columns - 1);
+    column = std::min ((long) (((long long) x * placed.columns) / m_rowPx), (long) placed.columns - 1);
 
-    if (column + 1 < m_columns && GetColumnLeft (column + 1) <= x)
+    if (column + 1 < placed.columns && GetColumnLeft (placed, column + 1) <= x)
     {
         column++;
     }
@@ -222,7 +596,10 @@ void HeatMapView::PlaceMap()
         height    = std::max (0L, bottom - top  - (hasHorz ? bar : 0));
         m_columns = GetColumnsFor (width, pitch);
         contentW  = std::max (width, (m_columns == kMinColumns) ? (long) m_columns * pitch : 0L);
-        contentH  = (long) GetRows() * pitch;
+
+        PlaceBands();
+
+        contentH  = m_contentH;
         needHorz  = contentW > width;
         needVert  = contentH > height;
 
@@ -254,37 +631,52 @@ void HeatMapView::PlaceMap()
 //  A new cell size, with the address under the point kept under it, the
 //  same fraction of the way across its cell: the rows may hold a different
 //  number of addresses afterward, so the address is found again by its
-//  index rather than by its row and column.
+//  range and its place in the range rather than by its row and column. A
+//  point over a header keeps the same fraction of the way down the map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::ApplyCellPx (int cellPx, POINT point)
 {
-    long    pitch  = GetPitch();
-    long    atX    = point.x - m_map.left + m_scroll.x;
-    long    atY    = point.y - m_map.top  + m_scroll.y;
-    long    column = GetColumnAt (atX);
-    long    left   = GetColumnLeft (column);
-    long    wide   = std::max (1L, GetColumnLeft (column + 1) - left);
-    double  fracX  = (double) std::clamp (atX - left, 0L, wide) / (double) wide;
-    double  fracY  = (double) (atY % pitch) / (double) pitch;
-    long    index  = std::clamp ((atY / pitch) * m_columns + column, 0L, (long) kAddressCount - 1);
-    long    row    = 0;
+    std::optional<Place>  place  = GetPlaceAt (point);
+    const Placed        * placed = place.has_value() ? &m_placed[place->band] : nullptr;
+    long                  pitch  = GetPitch();
+    long                  atX    = point.x - m_map.left + m_scroll.x;
+    long                  atY    = point.y - m_map.top  + m_scroll.y;
+    long                  column = (placed != nullptr) ? place->offset % placed->columns : 0;
+    long                  row    = (placed != nullptr) ? place->offset / placed->columns : 0;
+    long                  left   = (placed != nullptr) ? GetColumnLeft (*placed, column) : 0;
+    long                  wide   = (placed != nullptr) ? std::max (1L, GetColumnLeft (*placed, column + 1) - left) : 1;
+    long                  rowTop = (placed != nullptr) ? placed->rowsTop + row * pitch : 0;
+    double                fracX  = (double) std::clamp (atX - left, 0L, wide) / (double) wide;
+    double                fracY  = (double) std::clamp (atY - rowTop, 0L, pitch) / (double) pitch;
+    double                down   = (double) atY / (double) std::max (1L, m_contentH);
 
 
 
-    m_cellPx = std::clamp (cellPx, 1, kMaxCellPx);
+    m_cellPx   = std::clamp (cellPx, 1, kMaxCellPx);
+    m_isFitted = false;
 
     PlaceMap();
 
+    if (!place.has_value())
+    {
+        m_scroll.y = (long) std::lround (down * (double) m_contentH) - (point.y - m_map.top);
+
+        ClampScroll();
+        BuildFrame();
+        return;
+    }
+
+    placed = &m_placed[place->band];
     pitch  = GetPitch();
-    column = index % m_columns;
-    row    = index / m_columns;
-    left   = GetColumnLeft (column);
-    wide   = GetColumnLeft (column + 1) - left;
+    column = place->offset % placed->columns;
+    row    = place->offset / placed->columns;
+    left   = GetColumnLeft (*placed, column);
+    wide   = GetColumnLeft (*placed, column + 1) - left;
 
     m_scroll.x = left + (long) std::lround (fracX * (double) wide) - (point.x - m_map.left);
-    m_scroll.y = (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
+    m_scroll.y = placed->rowsTop + (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
 
     ClampScroll();
     BuildFrame();
@@ -389,12 +781,19 @@ void HeatMapView::ScrollBy (int dx, int dy)
 //
 //  HeatMapView::ResetZoom
 //
-//  Back to the starting cell size, with the map's top left in view.
+//  Back to the starting cell size, with the map's top left in view; for a
+//  set of ranges, the size that fits them all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::ResetZoom()
 {
+    if (m_hasRanges)
+    {
+        FitRanges();
+        return;
+    }
+
     m_cellPx = std::max (1, m_scaler.ToPx (kDefaultCellDip));
     m_scroll = {};
 
@@ -417,13 +816,8 @@ void HeatMapView::ResetZoom()
 
 void HeatMapView::ClampScroll()
 {
-    long  pitch    = GetPitch();
-    long  contentH = (long) GetRows() * pitch;
-
-
-
     m_scroll.x = std::clamp (m_scroll.x, 0L, std::max (0L, m_rowPx - (m_map.right - m_map.left)));
-    m_scroll.y = std::clamp (m_scroll.y, 0L, std::max (0L, contentH - (m_map.bottom - m_map.top)));
+    m_scroll.y = std::clamp (m_scroll.y, 0L, std::max (0L, m_contentH - (m_map.bottom - m_map.top)));
 
     SyncScrollbars();
 }
@@ -494,7 +888,7 @@ void HeatMapView::SyncScrollbars()
     m_vertBar.Configure (DxuiScrollbar::Orientation::Vertical, bar, bar, pitch);
     m_vertBar.SetTrack  (GetVerticalBarRect());
 
-    info.nMax  = GetRows() * pitch;
+    info.nMax  = (int) m_contentH;
     info.nPage = (UINT) std::max (0L, m_map.bottom - m_map.top);
     info.nPos  = (int) m_scroll.y;
     m_vertBar.SetScrollInfo (info);
@@ -669,20 +1063,21 @@ uint32_t HeatMapView::GetCellColor (Word address) const
 //
 //  HeatMapView::BuildFrame
 //
-//  The map's area a pixel at a time, as scrolled: each cell its color and
-//  the street after it the page.
+//  The map's area a pixel at a time, as scrolled: each cell its color, and
+//  the street after it, a range's header and the part of its last row past
+//  its last address the page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::BuildFrame()
 {
-    long              width      = m_map.right  - m_map.left;
-    long              height     = m_map.bottom - m_map.top;
-    long              pitch      = GetPitch();
-    long              rowCount   = GetRows();
-    uint32_t          background = m_palette.background | 0xFF000000u;
-    std::vector<int>  columns;
-    std::vector<int>  rows;
+    long                           width      = m_map.right  - m_map.left;
+    long                           height     = m_map.bottom - m_map.top;
+    long                           pitch      = GetPitch();
+    uint32_t                       background = m_palette.background | 0xFF000000u;
+    std::vector<std::vector<int>>  columns (m_bands.size());
+    std::vector<long>              bands;
+    std::vector<int>               rows;
 
 
 
@@ -701,52 +1096,70 @@ void HeatMapView::BuildFrame()
         return;
     }
 
-    //  The cell each pixel column and row falls in, or -1 for a street.
-    columns.resize ((size_t) width);
-    rows.resize    ((size_t) height);
-
-    for (long x = 0; x < width; x++)
-    {
-        long  at     = x + m_scroll.x;
-        long  column = GetColumnAt (at);
-
-
-
-        columns[(size_t) x] = (at < m_rowPx && at < GetColumnLeft (column + 1) - kStreetPx) ? (int) column : -1;
-    }
+    //  The range and the row each pixel row falls in, or -1 for a street or
+    //  a header.
+    bands.resize ((size_t) height);
+    rows.resize  ((size_t) height);
 
     for (long y = 0; y < height; y++)
     {
-        long  at = y + m_scroll.y;
+        long  at   = y + m_scroll.y;
+        long  band = GetBandAt (at);
+        long  into = (band < 0) ? 0 : at - m_placed[(size_t) band].rowsTop;
 
 
 
-        rows[(size_t) y] = (at / pitch < rowCount && at % pitch < m_cellPx) ? (int) (at / pitch) : -1;
+        bands[(size_t) y] = band;
+        rows[(size_t) y]  = (band >= 0 && into % pitch < m_cellPx) ? (int) (into / pitch) : -1;
     }
 
     m_frame.assign ((size_t) (width * height), background);
 
     for (long y = 0; y < height; y++)
     {
-        uint32_t  * line = m_frame.data() + (size_t) (y * width);
-        int         row  = rows[(size_t) y];
+        uint32_t          * line   = m_frame.data() + (size_t) (y * width);
+        int                 row    = rows[(size_t) y];
+        long                band   = bands[(size_t) y];
+        std::vector<int>  * across = (row < 0) ? nullptr : &columns[(size_t) band];
 
 
 
-        if (row < 0)
+        if (across == nullptr)
         {
             continue;
         }
 
+        //  The cell each pixel column falls in, or -1 for a street, for each
+        //  range as its first row comes into view.
+        if (across->empty())
+        {
+            const Placed  & placed = m_placed[(size_t) band];
+
+
+
+            across->resize ((size_t) width);
+
+            for (long x = 0; x < width; x++)
+            {
+                long  at     = x + m_scroll.x;
+                long  column = GetColumnAt (placed, at);
+
+
+
+                (*across)[(size_t) x] = (at < m_rowPx && at < GetColumnLeft (placed, column + 1) - kStreetPx) ? (int) column : -1;
+            }
+        }
+
         for (long x = 0; x < width; x++)
         {
-            int  column = columns[(size_t) x];
+            int   column = (*across)[(size_t) x];
+            long  offset = (long) row * m_placed[(size_t) band].columns + column;
 
 
 
-            if (column >= 0)
+            if (column >= 0 && offset < m_bands[(size_t) band].count)
             {
-                line[x] = GetCellColor ((Word) (row * m_columns + column));
+                line[x] = GetCellColor ((Word) (m_bands[(size_t) band].first + offset));
             }
         }
     }
@@ -764,15 +1177,16 @@ void HeatMapView::BuildFrame()
 
 RECT HeatMapView::GetCellRect (Word address) const
 {
-    long  column = (long) (address % m_columns);
-    long  start  = GetColumnLeft (column);
-    long  wide   = GetColumnLeft (column + 1) - start - kStreetPx;
-    long  left   = m_map.left + start - m_scroll.x;
-    long  top    = m_map.top  + (long) (address / m_columns) * GetPitch() - m_scroll.y;
+    std::optional<Place>  place = GetPlaceOf (address);
 
 
 
-    return { left, top, left + std::max (1L, wide), top + m_cellPx };
+    if (!place.has_value() || place->band >= m_placed.size())
+    {
+        return {};
+    }
+
+    return GetPlaceRect (*place);
 }
 
 
@@ -787,28 +1201,11 @@ RECT HeatMapView::GetCellRect (Word address) const
 
 std::optional<Word> HeatMapView::GetAddressAt (POINT point) const
 {
-    long  pitch  = GetPitch();
-    long  atX    = 0;
-    long  column = 0;
-    long  row    = 0;
+    std::optional<Place>  place = GetPlaceAt (point);
 
 
 
-    if (m_cellPx <= 0 || point.x < m_map.left || point.x >= m_map.right || point.y < m_map.top || point.y >= m_map.bottom)
-    {
-        return std::nullopt;
-    }
-
-    atX    = point.x - m_map.left + m_scroll.x;
-    column = GetColumnAt (atX);
-    row    = (point.y - m_map.top + m_scroll.y) / pitch;
-
-    if (atX >= m_rowPx || row >= GetRows())
-    {
-        return std::nullopt;
-    }
-
-    return (Word) (row * m_columns + column);
+    return place.has_value() ? std::optional<Word> (GetAddressOf (*place)) : std::nullopt;
 }
 
 
@@ -827,48 +1224,83 @@ std::optional<Word> HeatMapView::GetAddressAt (POINT point) const
 
 std::optional<Word> HeatMapView::GetPickAt (POINT point) const
 {
-    std::optional<Word>  under   = GetAddressAt (point);
-    long                 pitch   = GetPitch();
-    long                 reach   = m_scaler.ToPx (kSnapDip);
-    long                 atX     = point.x - m_map.left + m_scroll.x;
-    long                 atY     = point.y - m_map.top  + m_scroll.y;
-    long                 lastRow = (long) GetRows() - 1;
-    long                 lastCol = GetColumnAt (atX + reach);
-    Word                 best    = 0;
-    Byte                 hottest = 0;
-    double               nearest = 0.0;
+    std::optional<Place>  pick = GetPickPlaceAt (point);
 
 
 
-    if (!under.has_value() || m_cellPx >= m_scaler.ToPx (kComfortCellDip) || GetShownLevel (*under) > 0)
+    return pick.has_value() ? std::optional<Word> (GetAddressOf (*pick)) : std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetPickPlaceAt
+//
+//  The search runs through every range the reach crosses, so a hot cell
+//  just past a header is found as one in the same range is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<HeatMapView::Place> HeatMapView::GetPickPlaceAt (POINT point) const
+{
+    std::optional<Place>  under   = GetPlaceAt (point);
+    long                  pitch   = GetPitch();
+    long                  reach   = m_scaler.ToPx (kSnapDip);
+    long                  atX     = point.x - m_map.left + m_scroll.x;
+    long                  atY     = point.y - m_map.top  + m_scroll.y;
+    Place                 best;
+    Byte                  hottest = 0;
+    double                nearest = 0.0;
+
+
+
+    if (!under.has_value() || m_cellPx >= m_scaler.ToPx (kComfortCellDip) || GetShownLevel (GetAddressOf (*under)) > 0)
     {
         return under;
     }
 
     best = *under;
 
-    for (long row = std::max (0L, atY - reach) / pitch; row <= std::min (lastRow, (atY + reach) / pitch); row++)
+    for (size_t band = 0; band < m_placed.size(); band++)
     {
-        for (long column = GetColumnAt (atX - reach); column <= lastCol; column++)
+        const Placed  & placed   = m_placed[band];
+        long            firstRow = std::max (0L, atY - reach - placed.rowsTop) / pitch;
+        long            lastRow  = std::min (placed.rows - 1, (atY + reach - placed.rowsTop) / pitch);
+        long            lastCol  = GetColumnAt (placed, atX + reach);
+
+
+
+        if (atY + reach < placed.rowsTop)
         {
-            Word    address  = (Word) (row * m_columns + column);
-            Byte    level    = GetShownLevel (address);
-            double  left     = (double) GetColumnLeft (column);
-            double  wide     = (double) (GetColumnLeft (column + 1) - kStreetPx) - left;
-            double  dx       = left + wide / 2.0 - (double) atX;
-            double  dy       = (double) (row    * pitch) + (double) m_cellPx / 2.0 - (double) atY;
-            double  distance = dx * dx + dy * dy;
+            continue;
+        }
 
-
-
-            if (level == 0 || level < hottest || (level == hottest && distance >= nearest))
+        for (long row = firstRow; row <= lastRow; row++)
+        {
+            for (long column = GetColumnAt (placed, atX - reach); column <= lastCol; column++)
             {
-                continue;
-            }
+                Place   place    = { band, row * placed.columns + column };
+                Byte    level    = (place.offset < m_bands[band].count) ? GetShownLevel (GetAddressOf (place)) : (Byte) 0;
+                double  left     = (double) GetColumnLeft (placed, column);
+                double  wide     = (double) (GetColumnLeft (placed, column + 1) - kStreetPx) - left;
+                double  dx       = left + wide / 2.0 - (double) atX;
+                double  dy       = (double) (placed.rowsTop + row * pitch) + (double) m_cellPx / 2.0 - (double) atY;
+                double  distance = dx * dx + dy * dy;
 
-            best    = address;
-            hottest = level;
-            nearest = distance;
+
+
+                if (level == 0 || level < hottest || (level == hottest && distance >= nearest))
+                {
+                    continue;
+                }
+
+                best    = place;
+                hottest = level;
+                nearest = distance;
+            }
         }
     }
 
@@ -1091,7 +1523,7 @@ std::wstring HeatMapView::GetTipText (Word address) const
 
 bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) const
 {
-    std::optional<Word>  pick;
+    std::optional<Place>  pick;
 
 
 
@@ -1100,16 +1532,16 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) 
         return false;
     }
 
-    pick = GetPickAt (point);
+    pick = GetPickPlaceAt (point);
 
     if (!pick.has_value())
     {
         return false;
     }
 
-    anchor = GetCellRect (*pick);
+    anchor = GetPlaceRect (*pick);
     InflateRect (&anchor, kStreetPx, kStreetPx);
-    text   = GetTipText (*pick);
+    text   = GetTipText (GetAddressOf (*pick));
     return true;
 }
 
@@ -1121,7 +1553,8 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) 
 //
 //  HeatMapView::Layout
 //
-//  The first layout sets the starting zoom, which depends on the dpi.
+//  The first layout sets the starting zoom, which depends on the dpi. Ranges
+//  the user has not zoomed are fitted to the pane again at its new size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1138,6 +1571,12 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     if (m_gutterPx <= 0)
     {
         m_gutterPx = m_scaler.ToPx (kGutterDip);
+    }
+
+    if (m_hasRanges && m_isFitted)
+    {
+        FitRanges();
+        return;
     }
 
     PlaceMap();
@@ -1183,6 +1622,12 @@ void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & th
     }
 
     m_gutterPx = gutter;
+
+    if (m_hasRanges && m_isFitted)
+    {
+        FitRanges();
+        return;
+    }
 
     PlaceMap();
     BuildFrame();
@@ -1230,7 +1675,8 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    PaintHover (text, theme);
+    PaintHeaders (text, theme);
+    PaintHover   (text, theme);
 
     if (m_hasVertBar)
     {
@@ -1338,7 +1784,7 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  Each row's first address beside it, every row while the rows are tall
 //  enough to tell the labels apart and every second, fourth and so on below
-//  that.
+//  that, counted from each range's first row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1349,10 +1795,7 @@ void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & t
     DxuiFontHandle   font        = theme.MonospaceFont();
     float            size        = m_scaler.ToPxf (font.sizeDip);
     long             pitch       = GetPitch();
-    long             rows        = GetRows();
     float            gutter      = (float) (m_gutterPx - m_scaler.ToPx (kPadDip));
-    long             step        = 1;
-    long             row         = 0;
     float            y           = 0.0f;
     std::wstring     label;
     HRESULT          hr          = S_OK;
@@ -1364,27 +1807,97 @@ void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & t
         return;
     }
 
-    while (step < rows && (float) (step * pitch) < size * kLineHeight)
+    for (size_t band = 0; band < m_placed.size(); band++)
     {
-        step *= 2;
-    }
+        const Placed  & placed = m_placed[band];
+        long            step   = 1;
+        long            row    = 0;
 
-    //  The first labeled row at or below the area's top.
-    row = ((m_scroll.y / pitch + step - 1) / step) * step;
 
-    for (; row < rows; row += step)
-    {
-        y = (float) (m_map.top + row * pitch - m_scroll.y);
 
-        if (y + size > (float) m_map.bottom)
+        while (step < placed.rows && (float) (step * pitch) < size * kLineHeight)
         {
-            break;
+            step *= 2;
         }
 
-        label = std::format (L"${:04X}", row * m_columns);
+        //  The first labeled row at or below the area's top.
+        row = ((std::max (0L, m_scroll.y - placed.rowsTop) / pitch + step - 1) / step) * step;
 
-        hr = text.DrawString (label.c_str(), (float) m_boundsDip.left, y, gutter, size * kLineHeight,
-                              theme.ForegroundMuted(), size, font.face, DxuiTextHAlign::Right, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+        for (; row < placed.rows; row += step)
+        {
+            y = (float) (m_map.top + placed.rowsTop + row * pitch - m_scroll.y);
+
+            if (y + size > (float) m_map.bottom)
+            {
+                break;
+            }
+
+            label = std::format (L"${:04X}", (Word) (m_bands[band].first + row * placed.columns));
+
+            hr = text.DrawString (label.c_str(), (float) m_boundsDip.left, y, gutter, size * kLineHeight,
+                                  theme.ForegroundMuted(), size, font.face, DxuiTextHAlign::Right, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PaintHeaders
+//
+//  Each range's name and span across the top of its rows, "Hi-res page 1
+//  $2000-$3FFF", where the whole header is in view; or, for a set with
+//  nothing in it, a note saying so where the map would be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PaintHeaders (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    constexpr int   kPadDip = 4;
+    DxuiFontHandle  font    = theme.BodyFont();
+    float           size    = m_scaler.ToPxf (font.sizeDip);
+    float           pad     = m_scaler.ToPxf ((float) kPadDip);
+    float           left    = (float) m_boundsDip.left + pad;
+    float           width   = std::max (0.0f, (float) m_map.right - left);
+    std::wstring    title;
+    HRESULT         hr      = S_OK;
+
+
+
+    if (!m_hasRanges)
+    {
+        return;
+    }
+
+    if (m_bands.empty())
+    {
+        hr = text.DrawString (kpszNoRangesNote, (float) m_map.left, (float) m_map.top, std::max (0.0f, (float) m_boundsDip.right - (float) m_map.left),
+                              m_scaler.ToPxf ((float) kHeaderDip), theme.ForegroundMuted(), size, font.face,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    for (size_t band = 0; band < m_bands.size() && band < m_placed.size(); band++)
+    {
+        RECT  header = GetHeaderRect (band);
+
+
+
+        if (header.top < m_map.top || header.bottom > m_map.bottom)
+        {
+            continue;
+        }
+
+        title = std::format (L"{}  ${:04X}-${:04X}", m_bands[band].title, m_bands[band].first,
+                             (Word) (m_bands[band].first + std::max (1, m_bands[band].count) - 1));
+
+        hr = text.DrawString (title.c_str(), left, (float) header.top, width, (float) (header.bottom - header.top), theme.Foreground(),
+                              size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -1420,7 +1933,7 @@ void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme
         return;
     }
 
-    cell = GetCellRect (*m_hover);
+    cell = GetPlaceRect (*m_hover);
     left = (float) (cell.left - kStreetPx);
     top  = (float) (cell.top  - kStreetPx);
     wide = (float) (cell.right - cell.left + 2 * kStreetPx);
@@ -1538,7 +2051,7 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
     m_press.reset();
     m_isDragging = false;
 
-    SetHover (GetPickAt (ev.positionDip));
+    SetHover (GetPickPlaceAt (ev.positionDip));
 
     if (!picked.has_value())
     {
@@ -1600,7 +2113,7 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
         (void) m_vertBar.SetHover (m_hasVertBar && m_vertBar.HitTest (at.x, at.y), at);
         (void) m_horzBar.SetHover (m_hasHorzBar && m_horzBar.HitTest (at.x, at.y), at);
 
-        SetHover (GetPickAt (at));
+        SetHover (GetPickPlaceAt (at));
         return false;
     }
 
@@ -1670,7 +2183,7 @@ bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
         ScrollBy (0, -step);
     }
 
-    SetHover (GetPickAt (ev.positionDip));
+    SetHover (GetPickPlaceAt (ev.positionDip));
     return true;
 }
 
@@ -1756,17 +2269,17 @@ HeatMapView::PickAction HeatMapView::GetPickAction (bool ctrl, bool shift, bool 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapView::SetHover (std::optional<Word> hover)
+void HeatMapView::SetHover (const std::optional<Place> & hover)
 {
-    bool  isChanged = hover != m_hover;
+    std::optional<Word>  before = GetHover();
 
 
 
     m_hover = hover;
 
-    if (isChanged && m_onHoverChanged)
+    if (GetHover() != before && m_onHoverChanged)
     {
-        m_onHoverChanged (m_hover);
+        m_onHoverChanged (GetHover());
     }
 }
 

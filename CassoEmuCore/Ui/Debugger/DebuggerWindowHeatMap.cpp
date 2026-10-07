@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 
@@ -103,6 +104,8 @@ void DebuggerWindow::SetHeatMapBarMenus()
     }
 
     m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kBank, std::move (items));
+
+    SetHeatRangeMenus();
 }
 
 
@@ -308,8 +311,8 @@ bool DebuggerWindow::IsHeatMapBarChecked (int id) const
 //
 //  DebuggerWindow::GetHeatMapBarLabel
 //
-//  The fade drop-down reads the time in force, and the bank drop-down the
-//  bank shown; the rest keep their labels.
+//  The fade drop-down reads the time in force, the bank drop-down the bank
+//  shown and the ranges' the set shown; the rest keep their labels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,6 +326,11 @@ std::wstring DebuggerWindow::GetHeatMapBarLabel (int id) const
     if (id == HeatMapBarCommands::kBank)
     {
         return HeatMapBarCommands::GetBankEntryLabel (GetShownHeatMapBank());
+    }
+
+    if (id == HeatMapBarCommands::kRangeSet)
+    {
+        return TextEncoding::Utf8ToWide (m_heatRanges.shown.empty() ? std::string (HeatMapRangeSets::kpszAllMemory) : m_heatRanges.shown);
     }
 
     return {};
@@ -365,6 +373,7 @@ void DebuggerWindow::RunHeatMapBarEntry (int id)
     case HeatMapBarCommands::kZoomIn:     m_heatMapView->ZoomIn();    break;
     case HeatMapBarCommands::kZoomOut:    m_heatMapView->ZoomOut();   break;
     case HeatMapBarCommands::kResetZoom:  m_heatMapView->ResetZoom(); break;
+    case HeatMapBarCommands::kEditRanges: OpenHeatRanges();           break;
 
     default:
         break;

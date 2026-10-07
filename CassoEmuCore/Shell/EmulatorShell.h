@@ -653,6 +653,8 @@ private:
     void         SetDebuggerHeatMapOptions (const std::string & text) override;
     void         ResetDebuggerHeatMap      () override;
     void         SendDebuggerHeatMapRequest (const std::string & words) override;
+    std::string  GetDebuggerHeatMapRanges  () override;
+    void         SetDebuggerHeatMapRanges  (const std::string & text) override;
     std::string  GetDebuggerOpenViews () override;
     void         SetDebuggerOpenViews (const std::string & text) override;
     std::string  GetDebuggerPlacementKey () const;

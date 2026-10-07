@@ -29,7 +29,7 @@ public:
 
     SymbolTable();
 
-    void     Add          (SymbolTableId table, const std::string & name, Word address, bool isConstant = false);
+    void     Add          (SymbolTableId table, const std::string & name, Word address, bool isConstant = false, Word size = 0);
     bool     TryRemove    (SymbolTableId table, const std::string & name);
     void     Clear        (SymbolTableId table);
     void     SetEnabled   (SymbolTableId table, bool enabled);
@@ -53,6 +53,14 @@ public:
     bool     TryFindSymbol   (const std::string & name, SymbolInfo & symbol) const;
     bool     TryFindSymbolIn (SymbolTableId table, const std::string & name, SymbolInfo & symbol) const;
 
+    // How many bytes a symbol spans, where its file said: cc65's debug
+    // files give a size for a label on data. False when none was given.
+    bool     TryGetSize      (const std::string & name, Word & size) const;
+
+    // A number that changes with every change to the tables, their enabled
+    // state or their origins, and is never given to two tables' states.
+    uint64_t  GetRevision    () const { return m_revision; }
+
     // A file in any format the reader knows, each address moved by offset.
     HRESULT  LoadFrom     (SymbolTableId table, const std::string & content, int offset, size_t & loaded, std::string & error);
 
@@ -74,9 +82,14 @@ private:
         std::string  upper;
         Word         address    = 0;
         bool         isConstant = false;
+        Word         size       = 0;
     };
+
+    static uint64_t  TakeRevision ();
+    void             NoteChange   () { m_revision = TakeRevision(); }
 
     std::vector<Entry>        m_tables[kTableCount];
     std::vector<std::string>  m_origins[kTableCount];
     bool                      m_enabled[kTableCount] = {};
+    uint64_t                  m_revision             = TakeRevision();
 };
