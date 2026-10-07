@@ -164,6 +164,17 @@ public:
 
     virtual void             SetHeatAccessFinder (IHeatAccessFinder * finder) { (void) finder; }
 
+    // The break on a read of RAM nothing has written since power-on, which
+    // only the heat map sees, so arming it turns the map on; the read it is
+    // holding for a stop, until cleared; the CPU addresses it leaves out,
+    // as first and last of each span; and what the map can say about such
+    // reads. A target with no machine has none.
+    virtual void                 SetUnwrittenBreak   (bool isArmed)                                    { (void) isArmed; }
+    virtual bool                 TryGetUnwrittenStop (HeatUnwrittenRead & outRead) const               { (void) outRead; return false; }
+    virtual void                 ClearUnwrittenStop  ()                                                {}
+    virtual void                 SetUnwrittenIgnore  (const std::vector<std::pair<Word, Word>> & spans) { (void) spans; }
+    virtual HeatUnwrittenStatus  GetUnwrittenStatus  () const                                          { return {}; }
+
     // The devices that publish debugger panels. A target with no devices has
     // none, which is the default.
     virtual std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const { return {}; }

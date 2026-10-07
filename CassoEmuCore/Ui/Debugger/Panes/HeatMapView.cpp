@@ -29,6 +29,24 @@ void HeatMapView::SetLevels (const std::vector<Byte> & execute, const std::vecto
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::SetChannelLevels
+//
+//  Kept for the next SetLevels, which draws them with the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed)
+{
+    m_unwritten = unwritten;
+    m_changed   = changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::SetPalette
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -962,6 +980,52 @@ uint32_t HeatMapView::GetColor (Mode mode, Byte execute, Byte read, Byte write, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::GetChannelColor
+//
+//  Changed shows the changes alone, mixed toward their color from the cold
+//  gray as the others are. All and Data draw a read before written over
+//  whatever else the address is, since it is the rare thing worth seeing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t HeatMapView::GetChannelColor (
+    Mode              mode,
+    Byte              unwritten,
+    Byte              changed,
+    uint32_t          color,
+    const Palette   & palette)
+{
+    constexpr float  kTop  = 255.0f;
+    uint32_t         hue   = palette.unwritten;
+    Byte             level = unwritten;
+
+
+
+    if (mode == Mode::Changed)
+    {
+        hue   = palette.changed;
+        level = changed;
+    }
+    else if (mode == Mode::Code || unwritten == 0)
+    {
+        return color;
+    }
+
+    if (level == 0)
+    {
+        return palette.cold | 0xFF000000u;
+    }
+
+    return DxuiColor::Mix (palette.cold | 0xFF000000u, hue | 0xFF000000u,
+                           kFaintest + (1.0f - kFaintest) * (float) level / kTop) | 0xFF000000u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::GetModeLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -970,9 +1034,10 @@ std::wstring HeatMapView::GetModeLabel (Mode mode)
 {
     switch (mode)
     {
-    case Mode::Code: return L"Code";
-    case Mode::Data: return L"Data";
-    default:         return L"All";
+    case Mode::Code:    return L"Code";
+    case Mode::Data:    return L"Data";
+    case Mode::Changed: return L"Changed";
+    default:            return L"All";
     }
 }
 
@@ -994,14 +1059,16 @@ Byte HeatMapView::GetShownLevel (Word address) const
     Byte              execute = (m_execute.size() == kCount) ? m_execute[address] : (Byte) 0;
     Byte              read    = (m_read.size()    == kCount) ? m_read[address]    : (Byte) 0;
     Byte              write   = (m_write.size()   == kCount) ? m_write[address]   : (Byte) 0;
+    Byte              changed = (m_changed.size() == kCount) ? m_changed[address] : (Byte) 0;
 
 
 
     switch (m_options.view)
     {
-    case Mode::Code: return execute;
-    case Mode::Data: return std::max (read, write);
-    default:         return std::max ({ execute, read, write });
+    case Mode::Code:    return execute;
+    case Mode::Data:    return std::max (read, write);
+    case Mode::Changed: return changed;
+    default:            return std::max ({ execute, read, write });
     }
 }
 
@@ -1023,6 +1090,8 @@ void HeatMapView::BuildCells()
     bool              hasExecute = m_execute.size() == kCount;
     bool              hasRead    = m_read.size()    == kCount;
     bool              hasWrite   = m_write.size()   == kCount;
+    bool              hasUnread  = m_unwritten.size() == kCount;
+    bool              hasChanged = m_changed.size() == kCount;
 
 
 
@@ -1035,6 +1104,12 @@ void HeatMapView::BuildCells()
                                      hasRead    ? m_read[address]    : (Byte) 0,
                                      hasWrite   ? m_write[address]   : (Byte) 0,
                                      m_palette);
+
+        m_cells[address] = GetChannelColor (m_options.view,
+                                            hasUnread  ? m_unwritten[address] : (Byte) 0,
+                                            hasChanged ? m_changed[address]   : (Byte) 0,
+                                            m_cells[address],
+                                            m_palette);
     }
 
     BuildFrame();
@@ -1469,9 +1544,11 @@ std::wstring HeatMapView::GetTipText (Word address) const
     int               shown  = 0;
     const std::pair<const wchar_t *, const std::vector<Byte> *>  kinds[] =
     {
-        { L"executed", &m_execute },
-        { L"read",     &m_read    },
-        { L"written",  &m_write   },
+        { L"executed",            &m_execute   },
+        { L"read",                &m_read      },
+        { L"written",             &m_write     },
+        { L"changed",             &m_changed   },
+        { L"read before written", &m_unwritten },
     };
 
 
@@ -1746,6 +1823,8 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     if (m_options.view != Mode::Code) { keys.emplace_back (L"Read",  m_palette.read);    }
     if (m_options.view != Mode::Code) { keys.emplace_back (L"Write", m_palette.write);   }
 
+    AddChannelKeys (keys);
+
     x += swatch;
 
     if (m_isRebuilding)
@@ -1759,18 +1838,60 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     for (const auto & [label, color] : keys)
     {
-        if (x + key > right)
+        float  width = key;
+        float  wide  = 0.0f;
+        float  high  = 0.0f;
+
+
+
+        //  A label longer than the key's room takes what it needs.
+        hr = text.MeasureString (label.c_str(), size, font.face, wide, high);
+
+        if (SUCCEEDED (hr))
+        {
+            width = std::max (key, wide + swatch * 2.5f);
+        }
+
+        if (x + width > right)
         {
             break;
         }
 
         painter.FillRect (x, top + (bar - swatch) / 2, swatch, swatch, color | 0xFF000000u);
 
-        hr = text.DrawString (label.c_str(), x + swatch * 1.5f, top, key - swatch * 1.5f, bar, theme.ForegroundMuted(),
+        hr = text.DrawString (label.c_str(), x + swatch * 1.5f, top, width - swatch * 1.5f, bar, theme.ForegroundMuted(),
                               size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        x += key;
+        x += width;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::AddChannelKeys
+//
+//  Changed shows its own color alone; All and Data add the reads before
+//  written to their keys.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::AddChannelKeys (KeyList & keys) const
+{
+    if (m_options.view == Mode::Changed)
+    {
+        keys.clear();
+        keys.emplace_back (L"Value changed", m_palette.changed);
+        return;
+    }
+
+    if (m_options.view != Mode::Code)
+    {
+        keys.emplace_back (L"Read before written", m_palette.unwritten);
     }
 }
 

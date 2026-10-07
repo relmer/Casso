@@ -26,8 +26,9 @@ static constexpr std::pair<const wchar_t *, HeatMapView::PickAction>  s_kAccessR
 //  DebuggerWindow::SetHeatMapOptions
 //
 //  A choice made on the heat map's bar: shown at once, kept, and sent on to
-//  the machine. The fade drop-down's rows are built again, since each holds
-//  the check it was built with.
+//  the machine, with the spans of the set whose reads before written are
+//  left out. The fade drop-down's rows are built again, since each holds the
+//  check it was built with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +41,7 @@ void DebuggerWindow::SetHeatMapOptions (const HeatMapOptions & options)
         m_host->SetDebuggerHeatMapOptions (options.ToText());
     }
 
+    SendHeatMapIgnore();
     SetHeatMapBarMenus();
     Invalidate();
 }
@@ -105,7 +107,92 @@ void DebuggerWindow::SetHeatMapBarMenus()
 
     m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kBank, std::move (items));
 
+    SetHeatIgnoreMenu();
     SetHeatRangeMenus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetHeatIgnoreMenu
+//
+//  None and then every set of ranges, the one left out checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetHeatIgnoreMenu()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    std::string                     current = m_heatMapView->GetOptions().ignoreSet;
+    std::vector<std::string>        names   = { std::string() };
+
+
+
+    m_heatIgnoreCommands.clear();
+
+    for (const HeatMapRangeSet & set : m_heatRanges.sets)
+    {
+        names.push_back (set.name);
+    }
+
+    for (const std::string & name : names)
+    {
+        std::wstring                  label   = name.empty() ? std::wstring (L"None") : TextEncoding::Utf8ToWide (name);
+        std::shared_ptr<DxuiCommand>  command = MakeMenuCommand (label, name == current, [this, name]
+        {
+            HeatMapOptions  options = m_heatMapView->GetOptions();
+
+
+
+            options.ignoreSet = name;
+            SetHeatMapOptions (options);
+        });
+
+        m_heatIgnoreCommands.push_back (command);
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    }
+
+    m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kIgnoreSet, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SendHeatMapIgnore
+//
+//  The spans of the set whose reads before written are left out, as they
+//  read against the symbols now, sent on to the machine when they change.
+//  A set no longer there leaves out nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SendHeatMapIgnore()
+{
+    std::vector<std::pair<Word, Word>>  spans;
+    std::string                         words;
+
+
+
+    for (const HeatMapRangeSets::Span & span : m_heatRanges.GetSpans (m_heatMapView->GetOptions().ignoreSet, GetHeatRangeSymbols()))
+    {
+        spans.emplace_back (span.first, span.last);
+    }
+
+    words = HeatMapRangeSets::FormatSpanWords (spans);
+
+    if (m_host == nullptr || words == m_heatIgnoreWords)
+    {
+        return;
+    }
+
+    m_heatIgnoreWords = words;
+    m_host->SendDebuggerHeatMapRequest ("ignore " + words);
 }
 
 
@@ -297,9 +384,10 @@ bool DebuggerWindow::IsHeatMapBarChecked (int id) const
 
     switch (id)
     {
-    case HeatMapBarCommands::kFading:     return !isCumulative;
-    case HeatMapBarCommands::kCumulative: return isCumulative;
-    default:                              return false;
+    case HeatMapBarCommands::kFading:      return !isCumulative;
+    case HeatMapBarCommands::kCumulative:  return isCumulative;
+    case HeatMapBarCommands::kIgnoreSame:  return m_heatMapView->GetOptions().ignoreSameWrites;
+    default:                               return false;
     }
 }
 
@@ -326,6 +414,11 @@ std::wstring DebuggerWindow::GetHeatMapBarLabel (int id) const
     if (id == HeatMapBarCommands::kBank)
     {
         return HeatMapBarCommands::GetBankEntryLabel (GetShownHeatMapBank());
+    }
+
+    if (id == HeatMapBarCommands::kIgnoreSet)
+    {
+        return HeatMapBarCommands::GetIgnoreSetLabel (TextEncoding::Utf8ToWide (m_heatMapView->GetOptions().ignoreSet));
     }
 
     if (id == HeatMapBarCommands::kRangeSet)
@@ -359,6 +452,11 @@ void DebuggerWindow::RunHeatMapBarEntry (int id)
     case HeatMapBarCommands::kFading:
     case HeatMapBarCommands::kCumulative:
         options.cumulative = (id == HeatMapBarCommands::kCumulative);
+        SetHeatMapOptions (options);
+        break;
+
+    case HeatMapBarCommands::kIgnoreSame:
+        options.ignoreSameWrites = !options.ignoreSameWrites;
         SetHeatMapOptions (options);
         break;
 

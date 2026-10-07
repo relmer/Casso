@@ -134,6 +134,12 @@ std::string ReplyJson::WriteStopped (const StopEvent & stop, std::optional<int64
         watch.emplace_back ("access",   MakeString (GetAccessName (stop.watch->access)));
         watch.emplace_back ("accessPc", MakeNumber (stop.watch->accessPc));
         watch.emplace_back ("mode",     MakeString (GetWatchModeName (stop.watch->mode)));
+
+        if (stop.watch->isUnwritten)
+        {
+            watch.emplace_back ("unwritten", JsonValue (true));
+        }
+
         members.emplace_back ("watch", JsonValue (std::move (watch)));
     }
 

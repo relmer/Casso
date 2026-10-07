@@ -45,6 +45,10 @@ public:
     //  everything without a bus.
     bool   TryResolve       (Word address, bool isWrite, HeatLocation & outLocation) const;
 
+    //  The byte a read or a write of address reaches now, which a write is
+    //  about to replace; null for I/O and for a write no memory takes.
+    const Byte * GetCell    (Word address, bool isWrite) const;
+
 private:
     struct Region
     {

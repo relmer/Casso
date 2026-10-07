@@ -12,6 +12,7 @@ static constexpr const wchar_t * s_kpszValues      = L"Registers, watch and stac
 static constexpr const wchar_t * s_kpszCallStack   = L"Call stack";
 static constexpr const wchar_t * s_kpszMemory      = L"Memory";
 static constexpr const wchar_t * s_kpszMemoryMap   = L"Memory map";
+static constexpr const wchar_t * s_kpszHeatMap     = L"Heat map";
 static constexpr const wchar_t * s_kpszDiskHead    = L"Disk head";
 static constexpr const wchar_t * s_kpszStatusBar   = L"Status bar";
 
@@ -59,6 +60,8 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { s_kpszMemoryMap,   Meaning::MapRom,             Swatch::Fill    },
         { s_kpszMemoryMap,   Meaning::MapSlotRom,         Swatch::Fill    },
         { s_kpszMemoryMap,   Meaning::MapIo,              Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatUnwritten,      Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatChanged,        Swatch::Fill    },
         { s_kpszDiskHead,    Meaning::HeadMotorOff,       Swatch::Fill    },
         { s_kpszDiskHead,    Meaning::HeadMoving,         Swatch::Fill    },
         { s_kpszDiskHead,    Meaning::HeadSettled,        Swatch::Fill    },
@@ -120,6 +123,8 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     case Meaning::LampLit:            return L"Phase magnet or motor on";
     case Meaning::HistoryEmpty:       return L"History buffer empty";
     case Meaning::HistoryFull:        return L"History buffer full; the oldest history makes room";
+    case Meaning::HeatUnwritten:      return L"Read before written: RAM read before anything wrote it since power-on";
+    case Meaning::HeatChanged:        return L"Value changed: a write that stored a different value";
     case Meaning::Count:              break;
     }
 
@@ -174,6 +179,8 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::LampLit:            return palette.accent;
     case Meaning::HistoryEmpty:       return palette.meterEmpty;
     case Meaning::HistoryFull:        return palette.meterFull;
+    case Meaning::HeatUnwritten:      return palette.text.heatUnwritten;
+    case Meaning::HeatChanged:        return palette.text.heatChanged;
     case Meaning::Count:              break;
     }
 

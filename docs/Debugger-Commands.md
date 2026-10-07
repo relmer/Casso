@@ -50,6 +50,7 @@ AppleWin commands:
     BRK [0|1|2|3|ALL] [ON|OFF]                           Stop on BRK, or on invalid opcodes of a length
     BRKINT [ON|OFF]                                      Stop on an interrupt
     BRKOP [opcode ...]                                   Stop on an opcode, or list the opcode breakpoints
+    BRKUNINIT [ON|OFF]                                   Stop on a read of RAM nothing has written since power-on
   Registers and flags
     CL flag                                              Clear a flag: C, Z, I, D, B, R, V or N
     CLB, RB                                              Clear the break flag
@@ -305,6 +306,7 @@ Casso commands:
     /BRK [0|1|2|3|ALL] [ON|OFF]                            Stop on BRK, or on invalid opcodes of a length
     /BRKINT [ON|OFF]                                       Stop on an interrupt
     /BRKOP [opcode ...]                                    Stop on an opcode, or list the opcode breakpoints
+    /BRKUNINIT [ON|OFF]                                    Stop on a read of RAM nothing has written since power-on
   Registers and flags
     /CALLS [MODE [RECORDED|WALK|HYBRID]]                   Show the call stack, or choose how it is found
     /CL flag                                               Clear a flag: C, Z, I, D, B, R, V or N
@@ -523,6 +525,7 @@ Casso commands:
     BRK [0|1|2|3|ALL] [ON|OFF]                      Stop on BRK, or on invalid opcodes of a length
     BRKINT [ON|OFF]                                 Stop on an interrupt
     BRKOP [opcode ...]                              Stop on an opcode, or list the opcode breakpoints
+    BRKUNINIT [ON|OFF]                              Stop on a read of RAM nothing has written since power-on
   Registers and flags
     CALLS [MODE [RECORDED|WALK|HYBRID]]             Show the call stack, or choose how it is found
     CL flag                                         Clear a flag: C, Z, I, D, B, R, V or N
@@ -710,6 +713,7 @@ Casso commands:
     !BRK [0|1|2|3|ALL] [ON|OFF]                      Stop on BRK, or on invalid opcodes of a length
     !BRKINT [ON|OFF]                                 Stop on an interrupt
     !BRKOP [opcode ...]                              Stop on an opcode, or list the opcode breakpoints
+    !BRKUNINIT [ON|OFF]                              Stop on a read of RAM nothing has written since power-on
   Registers and flags
     !CL flag                                         Clear a flag: C, Z, I, D, B, R, V or N
     !CLB, !RB                                        Clear the break flag
@@ -878,6 +882,7 @@ Casso commands:
     BRK [0|1|2|3|ALL] [ON|OFF]                           Stop on BRK, or on invalid opcodes of a length
     BRKINT [ON|OFF]                                      Stop on an interrupt
     BRKOP [opcode ...]                                   Stop on an opcode, or list the opcode breakpoints
+    BRKUNINIT [ON|OFF]                                   Stop on a read of RAM nothing has written since power-on
   Registers and flags
     CALLS [MODE [RECORDED|WALK|HYBRID]]                  Show the call stack, or choose how it is found
     CL flag                                              Clear a flag: C, Z, I, D, B, R, V or N

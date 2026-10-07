@@ -25,7 +25,8 @@ static constexpr std::pair<HeatMapOptions::Bank, const char *>  s_kBankWords[] =
 //  HeatMapOptions::ToText
 //
 //  Never empty, so a setting written once reads as written, not as unset.
-//  The bank is written only when it is not the CPU's.
+//  The bank is written only when it is not the CPU's. The set of ranges left
+//  out comes last, since its name may hold spaces and runs to the end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,9 +38,10 @@ std::string HeatMapOptions::ToText() const
 
     switch (view)
     {
-    case View::Code: text += " view=code"; break;
-    case View::Data: text += " view=data"; break;
-    default:         text += " view=all";  break;
+    case View::Code:    text += " view=code";    break;
+    case View::Data:    text += " view=data";    break;
+    case View::Changed: text += " view=changed"; break;
+    default:            text += " view=all";     break;
     }
 
     if (cumulative)
@@ -56,6 +58,18 @@ std::string HeatMapOptions::ToText() const
         }
     }
 
+    if (ignoreSameWrites)
+    {
+        text += " changesonly";
+    }
+
+    if (!ignoreSet.empty())
+    {
+        text += " ";
+        text += kIgnoreKey;
+        text += ignoreSet;
+    }
+
     return text;
 }
 
@@ -68,7 +82,8 @@ std::string HeatMapOptions::ToText() const
 //  HeatMapOptions::FromText
 //
 //  Words it does not know are passed over, and a fade out of range is held
-//  to the range, so a hand-edited setting still gives a usable map.
+//  to the range, so a hand-edited setting still gives a usable map. The set
+//  of ranges left out is the rest of the text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +95,7 @@ HeatMapOptions HeatMapOptions::FromText (const std::string & text)
     std::istringstream                 words (text);
     std::string                        word;
     std::string                        digits;
+    std::string                        rest;
     int                                seconds        = 0;
 
 
@@ -91,12 +107,29 @@ HeatMapOptions HeatMapOptions::FromText (const std::string & text)
         else if (word == "view=data")   { options.view       = View::Data; }
         else if (word == "view=all")    { options.view       = View::All;  }
 
+        if (word == "view=changed")
+        {
+            options.view = View::Changed;
+        }
+
+        if (word == "changesonly")
+        {
+            options.ignoreSameWrites = true;
+        }
+
         for (const auto & [each, name] : s_kBankWords)
         {
             if (word == std::string ("bank=") + name)
             {
                 options.bank = each;
             }
+        }
+
+        if (word.starts_with (kIgnoreKey))
+        {
+            rest              = text.substr (text.find (kIgnoreKey) + kIgnoreKey.size());
+            options.ignoreSet = rest.substr (0, rest.find_last_not_of (" \t\r\n") + 1);
+            break;
         }
 
         if (!word.starts_with (kFadeKey))
@@ -162,6 +195,36 @@ bool HeatMapOptions::IsShown (Bank bank, Word address)
 
 
     return !isCardView || address >= kLanguageCardFirst;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapOptions::GetCpuAddress
+//
+//  In a RAM bank's space, bank 1 of the language card is kept at $C000 and
+//  reached at $D000; every other cell is at the address the CPU uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word HeatMapOptions::GetCpuAddress (Bank bank, Word address)
+{
+    constexpr Word  kBank1Last = 0xCFFF;
+    constexpr Word  kBank1Step = 0x1000;
+    HeatSpace       space      = GetSpace (bank);
+    bool            isRam      = space == HeatSpace::Main || space == HeatSpace::Aux;
+
+
+
+    if (isRam && address >= kLanguageCardFirst && address <= kBank1Last)
+    {
+        return (Word) (address + kBank1Step);
+    }
+
+    return address;
 }
 
 

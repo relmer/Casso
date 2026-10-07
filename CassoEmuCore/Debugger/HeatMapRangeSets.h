@@ -161,6 +161,14 @@ public:
     //  all memory, and for a set with nothing in it.
     std::vector<Span>  GetShownSpans (const HeatMapSymbols & symbols) const;
 
+    //  The same for any set, by its name; empty for none.
+    std::vector<Span>  GetSpans      (const std::string & name, const HeatMapSymbols & symbols) const;
+
+    //  Spans as words the CPU thread is sent, "0000-00FF 03F0-03F4", or
+    //  "none"; and back, false for words that are not spans.
+    static std::string  FormatSpanWords   (const std::vector<std::pair<Word, Word>> & spans);
+    static bool         TryParseSpanWords (const std::string & words, std::vector<std::pair<Word, Word>> & spans);
+
 private:
     static std::string               Trim         (const std::string & text);
     static std::string               Quote        (const std::string & text);

@@ -87,6 +87,10 @@ public:
     virtual void     SetDebugHeatMapHover     (std::optional<Word> address)                     { (void) address; }
     virtual void     RunDebugHeatMapAccess    (const HeatAccessRequest & request)               { (void) request; }
 
+    //  The CPU addresses whose reads before written the heat map leaves out,
+    //  as first and last of each span.
+    virtual void     SetDebugHeatMapIgnore    (const std::vector<std::pair<Word, Word>> & spans) { (void) spans; }
+
     //  Draws the picture again if what is marked on it has changed while
     //  the machine is stopped, when no frame runs to draw it.
     virtual void     RedrawDebugFrame         ()                                                { }
@@ -151,6 +155,11 @@ public:
 
     //  "hover <hex>" or "hover none" after "heatmap": the cell under the mouse.
     static bool  TryGetHeatMapHover (const std::string & where, std::optional<Word> & address);
+
+    //  "ignore " and HeatMapRangeSets' span words after "heatmap": the spans
+    //  whose reads before written are left out.
+    static bool  TryGetHeatMapIgnore (const std::string & where, std::vector<std::pair<Word, Word>> & spans);
+    static void  SetHeatMapIgnore    (const std::string & where, ICpuCommandTarget & target);
 
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);

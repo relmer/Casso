@@ -289,6 +289,32 @@ HeatAccessState MachineDebugTarget::LookUpHeatMapAccess (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineDebugTarget::SetUnwrittenBreak
+//
+//  Only the heat map knows which RAM has been written, so arming the break
+//  turns it on; disarming leaves it as it is, for its pane to decide.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::SetUnwrittenBreak (bool isArmed)
+{
+    m_heat.SetUnwrittenBreak (isArmed);
+
+    if (!isArmed)
+    {
+        m_heat.ClearUnwrittenStop();
+        return;
+    }
+
+    SetHeatMapOn (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineDebugTarget::FoldHeatMap
 //
 //  A rebuilt heat that has come in is merged first.
@@ -384,6 +410,8 @@ bool MachineDebugTarget::TryPeek (Word address, Byte & value) const
 //
 //  MachineDebugTarget::TryPoke
 //
+//  A byte the debugger writes counts as written for the heat map.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MachineDebugTarget::TryPoke (Word address, Byte value)
@@ -395,6 +423,7 @@ bool MachineDebugTarget::TryPoke (Word address, Byte value)
     if (isPoked)
     {
         m_host.NoteDebuggerEdit();
+        m_heat.NoteHostWrite (address);
     }
 
     return isPoked;
@@ -419,6 +448,7 @@ bool MachineDebugTarget::TryPatch (Word address, Byte value)
     if (isPatched)
     {
         m_host.NoteDebuggerEdit();
+        m_heat.NoteHostWrite (address);
     }
 
     return isPatched;

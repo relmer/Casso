@@ -288,6 +288,11 @@ public:
     void   ClearBeamBreak        ();
     bool   HasBeamBreak          () const { return m_beamBreak.has_value(); }
 
+    // BRKUNINIT: stop after a read of RAM nothing has written since power-on,
+    // reported as a watchpoint hit is, with the address and the instruction.
+    void   SetUnwrittenBreak     (bool isOn);
+    bool   HasUnwrittenBreak     () const { return m_isUnwrittenBreak; }
+
     // DebugHook: the stop conditions consulted before each instruction.
     bool   ShouldStopBefore         (Word pc) override;
     bool   HasPendingStop           () const override;
@@ -353,6 +358,12 @@ private:
     Byte   PeekByte              (Word address) const;
     Word   FindStoreInProgress   () const;
     bool   HasStopConditions     () const;
+
+    //  A read before written's stop is reported under this id, which no
+    //  breakpoint or watchpoint has.
+    static constexpr int  kUnwrittenHitId = -1;
+
+    std::optional<WatchHit>  GetUnwrittenHit () const;
     bool   TryMatchBeforeWatchpoint (Word pc);
     void   NoteCpuOwnReads       (Word pc);
     bool   HasEnteredVideoBreak  ();
@@ -407,6 +418,9 @@ private:
     bool                                  m_videoBreakHit = false;
     std::optional<BeamBreak>              m_beamBreak;
     bool                                  m_beamBreakHit  = false;
+
+    //  BRKUNINIT is on.
+    bool                                  m_isUnwrittenBreak = false;
 
     std::optional<Word>           m_assemblyAddress;
     std::unique_ptr<OpcodeTable>  m_assemblyOpcodes;

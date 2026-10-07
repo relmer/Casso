@@ -76,6 +76,12 @@ public:
         //  light gray on a light one, so every cell stands apart from the
         //  page between them.
         uint32_t              heatCold       = 0;
+
+        //  The heat map's reads before written, a magenta apart from every
+        //  other kind's color, and its writes that changed their byte, an
+        //  amber apart from the writes' red.
+        uint32_t              heatUnwritten  = 0;
+        uint32_t              heatChanged    = 0;
     };
 
     //  Make with every one of a theme's own colors, its memory map's among

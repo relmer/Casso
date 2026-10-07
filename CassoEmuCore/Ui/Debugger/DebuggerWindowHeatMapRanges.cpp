@@ -734,7 +734,8 @@ void DebuggerWindow::EditRangeSet (const std::string & name)
 //  DebuggerWindow::ApplyHeatRanges
 //
 //  The map shows the shown set's ranges as they read against the symbols
-//  now, or all memory; the pane lists the set it edits.
+//  now, or all memory; the pane lists the set it edits. The set whose reads
+//  before written are left out reads again too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -743,6 +744,8 @@ void DebuggerWindow::ApplyHeatRanges()
     std::vector<HeatMapView::Band>  bands;
 
 
+
+    SendHeatMapIgnore();
 
     if (m_heatRanges.shown.empty())
     {

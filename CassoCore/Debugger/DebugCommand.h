@@ -108,6 +108,7 @@ enum class DebugVerb
     BreakOnBrk,
     BreakOnOpcode,
     BreakOnInterrupt,
+    BreakOnUnwrittenRead,
     ClearBreakpoint,
     DisableBreakpoint,
     EnableBreakpoint,

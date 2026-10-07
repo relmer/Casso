@@ -254,6 +254,7 @@
     <ClCompile Include="Debugger\HeatMapRangeSets.cpp" />
     <ClCompile Include="Debugger\HeatMapSymbols.cpp" />
     <ClCompile Include="Debugger\HeatCountDelta.cpp" />
+    <ClCompile Include="Debugger\HeatKeyframeSide.cpp" />
     <ClCompile Include="Debugger\HeatHistory.cpp" />
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
     <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
@@ -728,6 +729,7 @@
     <ClInclude Include="Debugger\HeatMapRangeSets.h" />
     <ClInclude Include="Debugger\HeatMapSymbols.h" />
     <ClInclude Include="Debugger\HeatCountDelta.h" />
+    <ClInclude Include="Debugger\HeatKeyframeSide.h" />
     <ClInclude Include="Debugger\HeatHistory.h" />
     <ClInclude Include="Debugger\HeatRebuildJob.h" />
     <ClInclude Include="Debugger\BinaryImageReader.h" />

@@ -3,6 +3,7 @@
 #include "Debugger/HeatHistory.h"
 
 #include "Debugger/HeatCountDelta.h"
+#include "Debugger/HeatKeyframeSide.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineHost.h"
@@ -144,6 +145,8 @@ void HeatHistory::OnMapStopped()
     m_anchorTotals = std::vector<int64_t>();
     m_now          = std::vector<int64_t>();
     m_walk         = std::vector<int64_t>();
+    m_bits         = std::vector<uint64_t>();
+    m_oldestBits   = std::vector<uint64_t>();
 
     m_diskImages.clear();
     m_lookups.clear();
@@ -200,7 +203,8 @@ void HeatHistory::Reset()
 //
 //  The counts made since the keyframe before, which is the newest held:
 //  the totals now less the totals there, followed from the anchor. The new
-//  keyframe becomes the anchor.
+//  keyframe becomes the anchor. The written bits go beside them, or a note
+//  that they have not changed since the keyframe before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,14 +212,16 @@ void HeatHistory::OnKeyframeAdding (
     uint64_t             position,
     std::vector<Byte>  & outSide)
 {
-    HRESULT  hr      = S_OK;
-    size_t   anchor  = 0;
-    size_t   newest  = 0;
-    bool     hasWalk = false;
+    HRESULT  hr        = S_OK;
+    size_t   anchor    = 0;
+    size_t   newest    = 0;
+    bool     hasWalk   = false;
+    bool     isChanged = false;
 
 
 
     outSide.clear();
+    m_counts.clear();
 
     if (!m_map.IsOn() || m_keyframes == nullptr)
     {
@@ -236,9 +242,19 @@ void HeatHistory::OnKeyframeAdding (
     {
         HeatCountDelta::Encode (m_now.data(), m_walk.data(), m_now.size(), m_delta);
 
-        hr = HeatCountDelta::Pack (m_delta, m_compressor, outSide);
+        hr = HeatCountDelta::Pack (m_delta, m_compressor, m_counts);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+
+    isChanged = m_map.TakeWrittenChange() || m_keyframes->GetCount() == 0;
+
+    if (isChanged)
+    {
+        m_map.GetWrittenBits (m_bits);
+    }
+
+    hr = HeatKeyframeSide::Make (m_counts, isChanged ? &m_bits : nullptr, m_compressor, outSide);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     SetAnchor (position, m_now);
 }
@@ -253,7 +269,8 @@ void HeatHistory::OnKeyframeAdding (
 //
 //  A replay put the machine back at a keyframe: the totals become that
 //  keyframe's, followed from the anchor, and the keyframe the anchor.
-//  Without an anchor to follow from, the totals stand as they are.
+//  Without an anchor to follow from, the totals stand as they are. The
+//  written bits become the keyframe's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -269,6 +286,9 @@ void HeatHistory::OnKeyframeLoaded (uint64_t position)
     {
         return;
     }
+
+    GetWrittenAt (index, m_bits);
+    m_map.SetWrittenBits (m_bits);
 
     if (m_hasAnchor && TryFindKeyframe (m_anchorPosition, anchor))
     {
@@ -486,9 +506,7 @@ bool HeatHistory::HasCountIn (
 
 
 
-    m_keyframes->GetSide (index, side, size);
-
-    outHasSide = size != 0 && side != nullptr;
+    outHasSide = TryGetCounts (index, side, size);
 
     BAIL_OUT_IF (!outHasSide, S_OK);
 
@@ -575,7 +593,8 @@ Error:
 //  which are still there to read. Dropping everything drops the anchor.
 //  Dropping the newest drops a future, and the map's records from it, from
 //  the keyframe before it or the machine, whichever is earlier, are
-//  forgotten.
+//  forgotten. Dropping the oldest keeps the written bits at the keyframe
+//  that becomes the oldest, which may note them only as unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -587,6 +606,18 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
     uint64_t  cut       = m_machine.GetPosition();
 
 
+
+    if (drop == KeyframeDrop::Oldest && count >= 2 && m_map.IsOn())
+    {
+        GetWrittenAt (1, m_bits);
+
+        m_oldestBits.swap (m_bits);
+        m_oldestBitsAt = m_keyframes->GetInfo (1).position;
+    }
+    else if (drop == KeyframeDrop::All)
+    {
+        m_oldestBits.clear();
+    }
 
     if (drop != KeyframeDrop::Oldest)
     {
@@ -708,12 +739,13 @@ bool HeatHistory::TryApplyStretch (
     const Byte  * side      = nullptr;
     size_t        size      = 0;
     bool          isApplied = true;
+    bool          hasCounts = false;
 
 
 
-    m_keyframes->GetSide (index, side, size);
+    hasCounts = TryGetCounts (index, side, size);
 
-    BAIL_OUT_IF (size == 0 || side == nullptr, S_OK);
+    BAIL_OUT_IF (!hasCounts, S_OK);
 
     hr = HeatCountDelta::Unpack (side, size, m_compressor, m_delta);
     CHR (hr);
@@ -722,6 +754,113 @@ bool HeatHistory::TryApplyStretch (
 
 Error:
     return SUCCEEDED (hr) && isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatHistory::TryGetCounts
+//
+//  The packed counts kept with keyframe index; false when it kept none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatHistory::TryGetCounts (
+    size_t          index,
+    const Byte   *& outBytes,
+    size_t        & outSize) const
+{
+    const Byte              * side    = nullptr;
+    size_t                    size    = 0;
+    HeatKeyframeSide::Part    counts;
+    HeatKeyframeSide::Part    written;
+
+
+
+    outBytes = nullptr;
+    outSize  = 0;
+
+    m_keyframes->GetSide (index, side, size);
+
+    if (!HeatKeyframeSide::TrySplit (side, size, counts, written) || counts.size == 0)
+    {
+        return false;
+    }
+
+    outBytes = counts.bytes;
+    outSize  = counts.size;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatHistory::GetWrittenAt
+//
+//  From the keyframe back to the newest that kept the bits themselves; one
+//  at or before where the map started counting, or with nothing kept, stands
+//  at the bits the map started with, as does history that does not reach
+//  back to bits at all. The oldest keyframe's are the ones kept as it
+//  became the oldest when it notes them unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatHistory::GetWrittenAt (
+    size_t                   index,
+    std::vector<uint64_t>  & outBits)
+{
+    HRESULT                   hr      = S_OK;
+    const Byte              * side    = nullptr;
+    size_t                    size    = 0;
+    size_t                    k       = index + 1;
+    bool                      isFound = false;
+    HeatKeyframeSide::Part    counts;
+    HeatKeyframeSide::Part    written;
+
+
+
+    outBits.clear();
+
+    while (!isFound && k > 0 && m_keyframes != nullptr && k <= m_keyframes->GetCount())
+    {
+        k--;
+
+        if (m_keyframes->GetInfo (k).position <= m_map.GetCountFrom())
+        {
+            break;
+        }
+
+        m_keyframes->GetSide (k, side, size);
+
+        if (size == 0 || !HeatKeyframeSide::TrySplit (side, size, counts, written))
+        {
+            break;
+        }
+
+        if (written.size != 0)
+        {
+            hr      = HeatKeyframeSide::UnpackWritten (written, m_compressor, outBits);
+            isFound = SUCCEEDED (hr);
+            break;
+        }
+
+        if (k == 0 && !m_oldestBits.empty() && m_oldestBitsAt == m_keyframes->GetInfo (0).position)
+        {
+            outBits = m_oldestBits;
+            isFound = true;
+        }
+    }
+
+    if (!isFound)
+    {
+        AccessHeatMap::MakeWrittenBits (!m_map.IsStartedClear(), outBits);
+    }
 }
 
 
@@ -1044,7 +1183,7 @@ void HeatHistory::FindPartStarts (
 //  HeatHistory::AddPart
 //
 //  The part from keyframe index to the end given, its keyframe copied out
-//  still packed.
+//  still packed, with the written bits as of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1071,6 +1210,8 @@ HRESULT HeatHistory::AddPart (
     part.journalIndex  = info.journalIndex;
     part.endPosition   = endPosition;
     part.endCycle      = endCycle;
+
+    GetWrittenAt (index, part.written);
 
     ioJob.parts.push_back (std::move (part));
 

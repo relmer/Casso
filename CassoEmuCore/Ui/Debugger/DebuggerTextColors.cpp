@@ -47,6 +47,9 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
 
     set.heatCold     = dark ? DxuiColor::Mix (page, 0xFFFFFFFF, s_kDarkHeatColdMix) : DxuiColor::Mix (page, 0xFF000000, s_kLightHeatColdMix);
 
+    set.heatUnwritten = dark ? 0xFFF060F0 : 0xFFB000B0;
+    set.heatChanged   = dark ? 0xFFFFB040 : 0xFFC06000;
+
     against = { page, set.pcRow, set.targetRow, set.navigatedRow };
 
     if (!dark)

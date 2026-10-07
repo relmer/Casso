@@ -30,7 +30,10 @@
 //
 //  Over the map a row of views: All shows everything, with code ahead of data
 //  where an address is both; Code shows executes alone; Data shows reads and
-//  writes alone. Beside them the colors' key.
+//  writes alone; Changed shows the writes that changed their byte alone, in
+//  a color of their own. In All and Data a read of RAM nothing had written
+//  since power-on shows in its own color over the rest, as hot as such
+//  reads were. Beside them the colors' key.
 //
 //  The wheel scrolls up and down, Shift with it across, and Ctrl with it
 //  zooms about the mouse; a drag pans, and the scrollbars show and move the
@@ -80,6 +83,8 @@ public:
         uint32_t  execute    = 0;
         uint32_t  read       = 0;
         uint32_t  write      = 0;
+        uint32_t  unwritten  = 0;
+        uint32_t  changed    = 0;
 
         bool operator== (const Palette & other) const = default;
     };
@@ -92,7 +97,7 @@ public:
     static constexpr int    kGutterDip      = 44;      // the row labels' column, until a paint measures them
     static constexpr int    kInsetDip       = 8;       // right of the map and below it
     static constexpr int    kScrollbarDip   = 10;
-    static constexpr int    kModeCount      = 3;
+    static constexpr int    kModeCount      = 4;
 
     //  A cell's side, without the street of one pixel after it: three at 96
     //  dpi to start, from one to kMaxCellPx as the zoom goes.
@@ -126,6 +131,10 @@ public:
     //  rate or the count, and the value level 255 stands for: accesses a
     //  second while fading, the busiest address's count while cumulative.
     void   SetLevels  (const std::vector<Byte> & execute, const std::vector<Byte> & read, const std::vector<Byte> & write);
+
+    //  The same for the reads before written and the writes that changed
+    //  their byte, drawn by the next SetLevels.
+    void   SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed);
     void   SetTop     (double top) { m_top = top; }
     void   SetPalette (const Palette & palette);
     void   SetMode    (Mode mode);
@@ -217,6 +226,10 @@ public:
     uint32_t                       GetCellColor (Word address) const;
 
     static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette);
+
+    //  An address's color with the reads before written and the changes
+    //  drawn as the mode shows them, from its color without them.
+    static uint32_t      GetChannelColor (Mode mode, Byte unwritten, Byte changed, uint32_t color, const Palette & palette);
     static std::wstring  GetModeLabel (Mode mode);
 
     //  The map's area within the pane: the part of the rows in view, without
@@ -298,6 +311,7 @@ private:
     void                 SetHover       (const std::optional<Place> & hover);
     void                 MeasureGutter  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                 PaintBar       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                 AddChannelKeys (KeyList & keys) const;
     void                 PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintHeaders   (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintHover     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
@@ -305,6 +319,8 @@ private:
     std::vector<Byte>          m_execute;
     std::vector<Byte>          m_read;
     std::vector<Byte>          m_write;
+    std::vector<Byte>          m_unwritten;
+    std::vector<Byte>          m_changed;
     std::vector<uint32_t>      m_cells;
     std::vector<uint32_t>      m_frame;
     Palette                    m_palette;

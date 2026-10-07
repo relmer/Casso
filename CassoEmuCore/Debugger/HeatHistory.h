@@ -54,6 +54,15 @@ class MachineHost;
 //  machine, unless its counts show no access there. A record from a future
 //  history drops is forgotten, and found the same way.
 //
+//  Which RAM had been written. Beside each keyframe taken live the map's
+//  written bits are kept too (HeatKeyframeSide), or a note that they are as
+//  they were at the keyframe before, and a keyframe loaded puts them back,
+//  so a read counts as a read before written exactly as it did when the
+//  machine first ran it, and a rebuild's replay starts from them. A keyframe
+//  at or before where the map started counting stands at the bits the map
+//  started with. When history drops the oldest keyframe, the bits there are
+//  kept here, for a keyframe after it that only notes them unchanged.
+//
 //  The heat. A move through history clears it, and the heat at the landing
 //  is rebuilt by replaying three fade times before it, on a second machine
 //  (IHeatRebuilder), so neither the machine nor the debugger waits; heat
@@ -103,6 +112,9 @@ public:
     //  The totals at a keyframe, from the counts history keeps.
     bool      TryGetTotalsAt    (uint64_t keyframePosition, std::vector<int64_t> & outTotals);
 
+    //  The map's written bits as of keyframe index.
+    void      GetWrittenAt      (size_t index, std::vector<uint64_t> & outBits);
+
     //  The instruction that last wrote or read an address in a space as of
     //  where the machine stands, looked up in history where the map does not
     //  hold it; unknown when history does not reach back to it either.
@@ -139,6 +151,7 @@ private:
     HRESULT   CopyDisks         (std::vector<HeatRebuildDisk> & outDisks);
     HRESULT   FindInStretch     (size_t index, uint64_t endPosition, uint64_t endCycle, const HeatRebuildJob::Query & query, bool & outIsFound, HeatLastAccess & outAccess);
     bool      HasCountIn        (size_t index, size_t entry, bool & outHasSide);
+    bool      TryGetCounts      (size_t index, const Byte *& outBytes, size_t & outSize) const;
 
     //  The last access a query asks for, in the stretches before the machine.
     HeatAccessState  SearchHistory (const HeatRebuildJob::Query & query, HeatLastAccess & outAccess);
@@ -156,7 +169,14 @@ private:
     std::vector<int64_t>             m_now;
     std::vector<int64_t>             m_walk;
     std::vector<Byte>                m_delta;
+    std::vector<Byte>                m_counts;
+    std::vector<uint64_t>            m_bits;
     SnapshotCompressor               m_compressor;
+
+    //  The written bits at the oldest keyframe, kept as history dropped the
+    //  one before it, and that keyframe's position; none while empty.
+    std::vector<uint64_t>            m_oldestBits;
+    uint64_t                         m_oldestBitsAt = 0;
 
     uint64_t                         m_heatFrom       = 0;           // where the map was turned on or last reset
     uint64_t                         m_generation     = 0;

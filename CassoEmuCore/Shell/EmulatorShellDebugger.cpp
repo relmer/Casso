@@ -1454,6 +1454,29 @@ void EmulatorShell::ResetDebugHeatMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebugHeatMapIgnore
+//
+//  CPU thread. The map leaves the spans out of its break and its count, and
+//  the next snapshot out of its reads before written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDebugHeatMapIgnore (const std::vector<std::pair<Word, Word>> & spans)
+{
+    if (m_debugger != nullptr)
+    {
+        m_debugger->GetSession().GetTarget().SetUnwrittenIgnore (spans);
+    }
+
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebugHeatMapHover
 //
 //  CPU thread. The next snapshot carries the cell's last writer and reader.
@@ -1583,8 +1606,9 @@ void EmulatorShell::RedrawDebugFrame()
 
 void EmulatorShell::PublishDebuggerView()
 {
-    ULONGLONG                                     now      = GetTickCount64();
-    bool                                          isDue    = false;
+    ULONGLONG                                     now        = GetTickCount64();
+    bool                                          isDue      = false;
+    bool                                          isBreaking = false;
     std::shared_ptr<const DebuggerViewSnapshot>   snapshot;
 
 
@@ -1594,11 +1618,21 @@ void EmulatorShell::PublishDebuggerView()
         return;
     }
 
-    //  The heat map records for its pane alone, which no one sees while the
-    //  window is closed.
+    //  The heat map records for its pane, which no one sees while the window
+    //  is closed, and for BRKUNINIT, which needs it whatever is shown; then it
+    //  is folded now and then, so its counts never pile up unfolded.
     if (!m_isDebugWindowShown.load())
     {
-        m_debugger->GetSession().GetTarget().SetHeatMapOn (false);
+        isBreaking = m_debugger->GetSession().HasUnwrittenBreak();
+
+        m_debugger->GetSession().GetTarget().SetHeatMapOn (isBreaking);
+
+        if (isBreaking && now - m_heatFoldedAt >= kHiddenHeatFoldMs)
+        {
+            (void) m_debugger->GetSession().GetTarget().FoldHeatMap();
+            m_heatFoldedAt = now;
+        }
+
         return;
     }
 

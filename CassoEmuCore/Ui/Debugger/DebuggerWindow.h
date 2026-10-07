@@ -451,6 +451,11 @@ protected:
     bool                       TryGetHeatMapTip     (POINT clientPx, RECT & anchor, std::wstring & text) const;
     void                       RequestHeatMapAccess (Word address, HeatMapView::PickAction action, HeatMapOptions::Bank bank);
 
+    //  The drop-down of the set whose reads before written are left out, and
+    //  the spans of that set, sent on to the machine.
+    void                       SetHeatIgnoreMenu    ();
+    void                       SendHeatMapIgnore    ();
+
     //  The rows a menu on a byte or a heat map cell gets for its last write
     //  and read: show each in the disassembly, or go back to it.
     void                       AddHeatMapAccessItems (Word address, HeatMapOptions::Bank bank, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
@@ -462,6 +467,7 @@ protected:
     //  The fade drop-down's rows, as last built, so a test can choose one.
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapFadeCommands () const { return m_heatMapFadeCommands; }
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapBankCommands () const { return m_heatMapBankCommands; }
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatIgnoreCommands  () const { return m_heatIgnoreCommands; }
 
     //  The heat map's sets of ranges and the pane that edits them, protected
     //  so a test can work them as the bars, the list and the edit box do:
@@ -1066,6 +1072,8 @@ private:
     std::unique_ptr<HeatMapBarCommands>                                              m_heatMapCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapFadeCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapBankCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatIgnoreCommands;
+    std::string                                                                      m_heatIgnoreWords;
 
     //  The heat map's ranges: every set and the set shown, the set the ranges
     //  pane edits, the symbols they were last read against, and each list

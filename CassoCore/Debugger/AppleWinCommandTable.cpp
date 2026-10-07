@@ -67,6 +67,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BRK",         V::BreakOnBrk,               F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BRKOP",       V::BreakOnOpcode,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BRKINT",      V::BreakOnInterrupt,         F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BRKUNINIT",   V::BreakOnUnwrittenRead,     F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BP",          V::SetBreakpoint,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPA",         V::SetBreakpointAndWatchpoint, F::Breakpoints, A::Headless,   nullptr,     nullptr },
     { "BPR",         V::SetRegisterBreakpoint,    F::Breakpoints, A::Headless,     nullptr,     nullptr },

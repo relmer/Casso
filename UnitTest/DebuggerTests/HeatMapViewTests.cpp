@@ -788,8 +788,12 @@ namespace DebuggerTests
             Assert::AreEqual ((int) Mode::Data, (int) view.GetMode());
 
             click.positionDip = { HeatMapView::kGutterDip + HeatMapView::kTabDip * 3 + 5, top };
+            view.OnMouse (click);
+            Assert::AreEqual ((int) Mode::Changed, (int) view.GetMode());
+
+            click.positionDip = { HeatMapView::kGutterDip + HeatMapView::kTabDip * 4 + 5, top };
             Assert::IsFalse  (view.OnMouse (click), L"past the last mode is no mode");
-            Assert::AreEqual ((int) Mode::Data, (int) view.GetMode());
+            Assert::AreEqual ((int) Mode::Changed, (int) view.GetMode());
         }
 
 

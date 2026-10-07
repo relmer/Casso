@@ -6938,7 +6938,8 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 //
 //  Code in the disassembly's instruction color, reads in the annotation
 //  green and writes in the changed red, from the theme's cold gray, over the
-//  page the panes are drawn on.
+//  page the panes are drawn on; reads before written and changed values in
+//  the heat map's own magenta and amber.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6955,12 +6956,15 @@ void DebuggerWindow::ApplyHeatMap()
     palette.execute    = colors.syntax.mnemonic;
     palette.read       = colors.annotation;
     palette.write      = colors.changed;
+    palette.unwritten  = colors.heatUnwritten;
+    palette.changed    = colors.heatChanged;
 
     isNewHover = m_snapshot->heatMap.hover != nullptr;
 
     m_heatMapView->SetPalette     (palette);
     m_heatMapView->SetTop         (m_snapshot->heatMap.top);
     m_heatMapView->SetShownBank   (m_snapshot->heatMap.bank, m_snapshot->heatMap.hasAux);
+    m_heatMapView->SetChannelLevels (m_snapshot->heatMap.unwritten, m_snapshot->heatMap.changed);
     m_heatMapView->SetLevels      (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
     m_heatMapView->SetRebuilding  (m_snapshot->heatMap.isRebuilding);
     m_heatMapView->SetHoverAccess (m_snapshot->heatMap.hover);

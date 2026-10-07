@@ -40,6 +40,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::BreakOnBrk:                 SetBrk        (session, command, reply);                         return true;
     case DebugVerb::BreakOnOpcode:              SetOpcode     (session, command, reply);                         return true;
     case DebugVerb::BreakOnInterrupt:           SetInterrupt  (session, command, reply);                         return true;
+    case DebugVerb::BreakOnUnwrittenRead:       SetUnwritten  (session, command, reply);                         return true;
     case DebugVerb::ClearBreakpoint:            Clear         (session, command, reply);                         return true;
     case DebugVerb::DisableBreakpoint:          Enable        (session, command, false, reply);                  return true;
     case DebugVerb::EnableBreakpoint:           Enable        (session, command, true,  reply);                  return true;
@@ -978,6 +979,87 @@ bool BreakpointHandlers::HasInterrupt (DebugSession & session)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHandlers::SetUnwritten
+//
+//  BRKUNINIT [ON|OFF]: stop after a read of RAM nothing has written since
+//  power-on. Each form reports the setting and what the heat map has seen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetUnwritten (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    bool  isOn  = command.text == "ON";
+    bool  isOff = command.text == "OFF";
+
+
+
+    if (!isOn && !isOff && !command.text.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "BRKUNINIT takes ON or OFF.");
+        return;
+    }
+
+    if (isOn || isOff)
+    {
+        session.SetUnwrittenBreak (isOn);
+    }
+
+    ReportUnwritten (session, reply);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::ReportUnwritten
+//
+//  The setting; whether the heat map knows which RAM has been written, which
+//  it learns only at a power cycle unless it was on from power-on; and the
+//  reads before written it counted outside the ranges left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::ReportUnwritten (DebugSession & session, Reply & reply)
+{
+    HeatUnwrittenStatus  status  = session.GetTarget().GetUnwrittenStatus();
+    MessageData          message;
+    std::string          counted;
+
+
+
+    message.lines.push_back (std::string ("Break on read before written: ") + (session.HasUnwrittenBreak() ? "on" : "off"));
+
+    if (!status.isOn)
+    {
+        message.lines.push_back ("The heat map is off, so no reads are seen.");
+    }
+    else if (!status.isTracking)
+    {
+        message.lines.push_back ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start.");
+    }
+    else
+    {
+        counted = std::format ("Reads before written counted: {} at {} address{}", status.reads, status.addresses, status.addresses == 1 ? "" : "es");
+
+        if (status.ignoredSpans > 0)
+        {
+            counted += std::format (", outside {} range{} left out", status.ignoredSpans, status.ignoredSpans == 1 ? "" : "s");
+        }
+
+        message.lines.push_back (counted + ".");
+    }
+
+    reply.data = message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHandlers::Clear
 //
 //  BPC # or BPC *.
@@ -1361,7 +1443,8 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
 //  BreakpointHandlers::MakeScript
 //
 //  A clear line, one definition per entry in id order, then disable and
-//  flag lines by the sequential ids the replay produces.
+//  flag lines by the sequential ids the replay produces, and BRKUNINIT when
+//  it is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1394,6 +1477,11 @@ std::string BreakpointHandlers::MakeScript (DebugSession & session)
         {
             script += std::format ("BPCHANGE {} {}\n", i, flags);
         }
+    }
+
+    if (session.HasUnwrittenBreak())
+    {
+        script += "BRKUNINIT ON\n";
     }
 
     return script;

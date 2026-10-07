@@ -237,7 +237,10 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 //  and carries what it has counted, as fading heat or as totals, in the bank
 //  chosen when the machine has it and in the CPU's otherwise. A language
 //  card's view shows its 16 KB alone. With the mouse over a cell, the cell's
-//  last writer and reader go with it.
+//  last writer and reader go with it. The map stays on while BRKUNINIT is,
+//  pane or no pane, since only it sees a read before written; those in the
+//  ranges left out are not carried, and with same-value writes left out the
+//  writes carried are the changes alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,12 +253,12 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
 
 
 
-    target.SetHeatMapOn         (m_isHeatMapShown);
+    target.SetHeatMapOn         (m_isHeatMapShown || session.HasUnwrittenBreak());
     target.SetHeatMapFade       ((double) m_heatMapOptions.fadeSeconds);
     target.SetHeatMapCumulative (m_heatMapOptions.cumulative);
     map = target.FoldHeatMap();
 
-    if (map == nullptr)
+    if (map == nullptr || !m_isHeatMapShown)
     {
         return;
     }
@@ -276,29 +279,47 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
     {
         state.top = (double) map->GetMostTotal (space);
 
-        map->GetTotalLevels (space, HeatKind::Execute, state.execute);
-        map->GetTotalLevels (space, HeatKind::Read,    state.read);
-        map->GetTotalLevels (space, HeatKind::Write,   state.write);
+        map->GetTotalLevels (space, HeatKind::Execute,       state.execute);
+        map->GetTotalLevels (space, HeatKind::Read,          state.read);
+        map->GetTotalLevels (space, HeatKind::Write,         state.write);
+        map->GetTotalLevels (space, HeatKind::UnwrittenRead, state.unwritten);
+        map->GetTotalLevels (space, HeatKind::ChangedWrite,  state.changed);
     }
     else
     {
         state.top          = AccessHeatMap::kHottestPerSecond;
         state.isRebuilding = target.IsHeatMapRebuilding();
 
-        map->GetLevels (space, HeatKind::Execute, state.execute);
-        map->GetLevels (space, HeatKind::Read,    state.read);
-        map->GetLevels (space, HeatKind::Write,   state.write);
+        map->GetLevels (space, HeatKind::Execute,       state.execute);
+        map->GetLevels (space, HeatKind::Read,          state.read);
+        map->GetLevels (space, HeatKind::Write,         state.write);
+        map->GetLevels (space, HeatKind::UnwrittenRead, state.unwritten);
+        map->GetLevels (space, HeatKind::ChangedWrite,  state.changed);
+    }
+
+    if (m_heatMapOptions.ignoreSameWrites)
+    {
+        state.write = state.changed;
     }
 
     for (size_t address = 0; address < state.execute.size(); address++)
     {
         if (!HeatMapOptions::IsShown (state.bank, (Word) address))
         {
-            state.execute[address] = 0;
-            state.read[address]    = 0;
-            state.write[address]   = 0;
+            state.execute[address]   = 0;
+            state.read[address]      = 0;
+            state.write[address]     = 0;
+            state.unwritten[address] = 0;
+            state.changed[address]   = 0;
+        }
+
+        if (map->IsUnwrittenIgnored (HeatMapOptions::GetCpuAddress (state.bank, (Word) address)))
+        {
+            state.unwritten[address] = 0;
         }
     }
+
+    state.unwrittenStatus = map->GetUnwrittenStatus();
 
     if (m_heatMapHover.has_value() && HeatMapOptions::IsShown (state.bank, *m_heatMapHover))
     {

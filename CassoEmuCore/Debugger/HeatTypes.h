@@ -96,3 +96,46 @@ enum class HeatAccessState
     None,
     Unknown,
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatUnwrittenRead
+//
+//  A read of a RAM byte nothing had written since power-on: the address the
+//  CPU read, the value it got and the instruction that read it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct HeatUnwrittenRead
+{
+    Word  address = 0;
+    Byte  value   = 0;
+    Word  pc      = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatUnwrittenStatus
+//
+//  What the map can say about reads before written: whether it knows which
+//  RAM has been written since power-on, and how many such reads it counted,
+//  at how many addresses, outside the ranges left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct HeatUnwrittenStatus
+{
+    bool      isOn         = false;
+    bool      isTracking   = false;
+    uint64_t  reads        = 0;
+    size_t    addresses    = 0;
+    size_t    ignoredSpans = 0;
+};

@@ -56,6 +56,8 @@ public:
         LampLit,
         HistoryEmpty,
         HistoryFull,
+        HeatUnwritten,
+        HeatChanged,
         Count,
     };
 

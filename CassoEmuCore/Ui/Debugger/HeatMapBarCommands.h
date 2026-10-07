@@ -14,8 +14,9 @@
 //
 //  What the heat map pane's bar shows: Fading and Cumulative, the fade time
 //  as a drop-down and Reset counts, the set of ranges shown as a drop-down,
-//  Edit ranges and the bank shown as a drop-down, then Zoom in, Zoom out
-//  and Reset zoom at the far end. The bar is a DxuiToolbar, so what does not
+//  Edit ranges and the bank shown as a drop-down, whether writes that change
+//  nothing are left out and the set whose reads before written are, as a
+//  drop-down, then Zoom in, Zoom out and Reset zoom at the far end. The bar is a DxuiToolbar, so what does not
 //  fit goes into its "..." menu as on every other strip.
 //
 //  The window owns the behavior: it hands over one dispatch, one enabled
@@ -41,6 +42,11 @@ public:
     static constexpr int  kEditRanges  = 21;
     static constexpr int  kBank        = 30;
 
+    //  Whether writes that stored the value already there are left out,
+    //  and the set of ranges whose reads before written are.
+    static constexpr int  kIgnoreSame  = 40;
+    static constexpr int  kIgnoreSet   = 41;
+
     struct Handlers
     {
         std::function<void (int id)>          dispatch;
@@ -62,6 +68,10 @@ public:
     //  The bank in force as the entry shows it, "Main RAM": the name alone,
     //  as the bar has little room.
     static std::wstring  GetBankEntryLabel  (HeatMapOptions::Bank bank);
+
+    //  The set left out as the entry shows it, "Leave out: Boot probes", or
+    //  "Leave out: None".
+    static std::wstring  GetIgnoreSetLabel  (const std::wstring & set);
 
 private:
     struct Row

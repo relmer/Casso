@@ -258,6 +258,13 @@ struct DebuggerViewSnapshot
         std::vector<HeatMapOptions::Bank>       banks;
         bool                                    hasAux       = false;
         std::shared_ptr<const HeatAccessHover>  hover;
+
+        //  The reads of RAM nothing had written, but those in the ranges
+        //  left out, and the writes that changed their byte, the same way;
+        //  and what the CPU's space counted of the reads before written.
+        std::vector<Byte>                       unwritten;
+        std::vector<Byte>                       changed;
+        HeatUnwrittenStatus                     unwrittenStatus;
     };
 
     HeatMapState                          heatMap;

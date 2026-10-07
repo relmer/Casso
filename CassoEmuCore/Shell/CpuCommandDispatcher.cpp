@@ -3,6 +3,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 
 #include "Debugger/DebugCommandPayload.h"
+#include "Debugger/HeatMapRangeSets.h"
 #include "resource.h"
 #include "Core/TextEncoding.h"
 
@@ -522,6 +523,59 @@ bool CpuCommandDispatcher::TryGetHeatMapHover (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetHeatMapIgnore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetHeatMapIgnore (
+    const std::string                    & where,
+    std::vector<std::pair<Word, Word>>   & spans)
+{
+    static constexpr std::string_view  kPrefix = "ignore ";
+
+
+
+    spans.clear();
+
+    if (!where.starts_with (kPrefix))
+    {
+        return false;
+    }
+
+    return HeatMapRangeSets::TryParseSpanWords (where.substr (kPrefix.size()), spans);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHeatMapIgnore
+//
+//  "ignore" and its spans after "heatmap" go to the target; any other words
+//  ask for nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, ICpuCommandTarget & target)
+{
+    std::vector<std::pair<Word, Word>>  spans;
+
+
+
+    if (TryGetHeatMapIgnore (where, spans))
+    {
+        target.SetDebugHeatMapIgnore (spans);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchDebugView
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
@@ -532,7 +586,8 @@ bool CpuCommandDispatcher::TryGetHeatMapHover (
 //  and "heatmap off" say whether the heat map pane is shown, "heatmap options
 //  <text>" sets its options and "heatmap reset" zeroes its counts; "heatmap
 //  hover" gives the cell under the mouse, and the words HeatAccessJump makes
-//  ask about a cell's last access. "beam" asks for
+//  ask about a cell's last access; "heatmap ignore" gives the spans whose
+//  reads before written are left out. "beam" asks for
 //  the stopped picture to be drawn again with the beam mark turned on or off.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
@@ -578,6 +633,10 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
         else if (HeatAccessJump::TryParseWords (where, access))
         {
             target.RunDebugHeatMapAccess (access);
+        }
+        else
+        {
+            SetHeatMapIgnore (where, target);
         }
 
         return;

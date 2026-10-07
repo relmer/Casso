@@ -44,18 +44,20 @@ struct HeatRebuildDisk
 //  One stretch of a rebuild's window: the keyframe it begins at, still
 //  packed, with its position, cycle and journal index, and the position and
 //  cycle it ends at, where the next newer part begins or, for the newest,
-//  where the heat is wanted.
+//  where the heat is wanted; and which RAM had been written as of its
+//  keyframe, so a read before written counts as it did.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct HeatRebuildPart
 {
-    PackedKeyframe  start;
-    uint64_t        startPosition = 0;
-    uint64_t        startCycle    = 0;
-    size_t          journalIndex  = 0;
-    uint64_t        endPosition   = 0;
-    uint64_t        endCycle      = 0;
+    PackedKeyframe         start;
+    uint64_t               startPosition = 0;
+    uint64_t               startCycle    = 0;
+    size_t                 journalIndex  = 0;
+    uint64_t               endPosition   = 0;
+    uint64_t               endCycle      = 0;
+    std::vector<uint64_t>  written;
 };
 
 

@@ -68,6 +68,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "BRK",         H::Breakpoints,        "BRK [0|1|2|3|ALL] [ON|OFF]",                     "Stop on BRK, or on invalid opcodes of a length"                                          },
     { "BRKINT",      H::Breakpoints,        "BRKINT [ON|OFF]",                                "Stop on an interrupt"                                                                    },
     { "BRKOP",       H::Breakpoints,        "BRKOP [opcode ...]",                             "Stop on an opcode, or list the opcode breakpoints"                                       },
+    { "BRKUNINIT",   H::Breakpoints,        "BRKUNINIT [ON|OFF]",                             "Stop on a read of RAM nothing has written since power-on"                                },
 
     { "CALLS",       H::RegistersAndFlags,  "CALLS [MODE [RECORDED|WALK|HYBRID]]",            "Show the call stack, or choose how it is found"                                          },
     { "CL",          H::RegistersAndFlags,  "CL flag",                                        "Clear a flag: C, Z, I, D, B, R, V or N"                                                  },

@@ -97,13 +97,19 @@ Byte MemoryBusCpu::ReadByteSlow (Word address)
 //  WriteByte
 //
 //  Every write the CPU makes comes here, and is reported while an access
-//  sink is set.
+//  sink is set: before the store, so the sink can read the byte it
+//  replaces, and after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryBusCpu::WriteByte (Word address, Byte value)
 {
     UpdateBusCycle();
+
+    if (m_accessSink != nullptr)
+    {
+        m_accessSink->OnBeforeWrite (address);
+    }
 
     m_memoryBus.WriteByte (address, value);
 
@@ -221,7 +227,8 @@ void MemoryBusCpu::SoftReset()
 //  PowerCycle
 //
 //  Refills Cpu::memory[$0000-$BFFF) with the DRAM power-on pattern, then
-//  runs the SoftReset sequence.
+//  runs the SoftReset sequence. The access sink hears of it, since every
+//  byte of RAM is now unwritten again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,6 +236,11 @@ void MemoryBusCpu::PowerCycle (Prng & prng)
 {
     DramPowerOnPattern::Fill (memory.data(), 0xC000, prng);
     m_pages.MarkAllWritten();
+
+    if (m_accessSink != nullptr)
+    {
+        m_accessSink->OnPowerCycle();
+    }
 
     A             = 0;
     X             = 0;

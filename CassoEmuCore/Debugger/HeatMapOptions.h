@@ -12,7 +12,12 @@
 //
 //  How the heat map pane shows its map, kept as text in the user's settings:
 //  which accesses it shows, whether heat fades or accumulates, how long a
-//  single access takes to fade away, and which bank it shows.
+//  single access takes to fade away, which bank it shows, whether its writes
+//  leave out those that stored the value already there, and the set of
+//  ranges whose reads before written it leaves out.
+//
+//  The views: All, Code and Data, and Changed, the writes that changed the
+//  byte they stored to, alone.
 //
 //  The banks: Cpu is the 64 KB the CPU addresses. Main and Aux are where
 //  accesses land, as the //e's DRAM holds them, the language card's banks in
@@ -29,6 +34,7 @@ public:
         All,
         Code,
         Data,
+        Changed,
     };
 
     enum class Bank
@@ -57,6 +63,12 @@ public:
     View  view        = View::All;
     Bank  bank        = Bank::Cpu;
 
+    //  Writes that stored the value already there are left out of the
+    //  writes shown; the set of ranges whose reads before written are left
+    //  out, none while empty.
+    bool         ignoreSameWrites = false;
+    std::string  ignoreSet;
+
     bool operator== (const HeatMapOptions & other) const = default;
 
     std::string            ToText              () const;
@@ -66,6 +78,10 @@ public:
     //  that space.
     static HeatSpace       GetSpace            (Bank bank);
     static bool            IsShown             (Bank bank, Word address);
+
+    //  The CPU address a cell of a bank's view stands for, as a range of
+    //  addresses is given: a language card's bank 1 is at $D000.
+    static Word            GetCpuAddress       (Bank bank, Word address);
 
     //  Whether a machine whose bank map is given has the bank.
     static bool            IsAvailable         (Bank bank, const HeatBankMap & bankMap);
@@ -80,4 +96,7 @@ public:
     //  The bank as the settings' text writes it, "main", and back.
     static std::string     GetBankWord         (Bank bank);
     static bool            TryGetBank          (const std::string & word, Bank & outBank);
+
+private:
+    static constexpr std::string_view  kIgnoreKey = "ignore=";
 };

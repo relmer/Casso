@@ -12,7 +12,9 @@
 //  AccessHeatMap::Start
 //
 //  A map already on keeps its heat; the instruction set is taken again, since
-//  a machine switch may have brought another CPU.
+//  a machine switch may have brought another CPU. At cycle zero the machine
+//  is at power-on and nothing has written its RAM; later, what was written
+//  before is not known, so every byte counts as written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,8 +38,18 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
     m_lastFrom     = m_countFrom;
     m_operandsLeft = 0;
 
+    m_isStartedClear      = cycle == 0;
+    m_isTracking          = m_isStartedClear;
+    m_isWrittenChanged    = true;
+    m_isLastReadUnwritten = false;
+    m_isLastReadStop      = false;
+
+    MakeWrittenBits (!m_isStartedClear, m_written);
+
     m_lastRead.reset();
     m_instruction.reset();
+    m_previous.reset();
+    m_unwrittenStop.reset();
 }
 
 
@@ -56,20 +68,25 @@ void AccessHeatMap::Stop()
     std::vector<float>           noHeat;
     std::vector<int64_t>         noTotals;
     std::vector<HeatLastAccess>  noLast;
+    std::vector<uint64_t>        noWritten;
 
 
 
-    m_counts.swap (noCounts);
-    m_heat.swap   (noHeat);
-    m_totals.swap (noTotals);
-    m_last.swap   (noLast);
+    m_counts.swap  (noCounts);
+    m_heat.swap    (noHeat);
+    m_totals.swap  (noTotals);
+    m_last.swap    (noLast);
+    m_written.swap (noWritten);
 
     m_mostTotal      = {};
     m_instructionSet = nullptr;
     m_operandsLeft   = 0;
+    m_isTracking     = false;
 
     m_lastRead.reset();
     m_instruction.reset();
+    m_previous.reset();
+    m_unwrittenStop.reset();
 }
 
 
@@ -670,11 +687,6 @@ void AccessHeatMap::RecordLast (
 
 void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous)
 {
-    Landing  landing;
-
-
-
-    (void) value;
     (void) previous;
 
     if (!IsOn() || !IsCounting())
@@ -684,10 +696,7 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
 
     if (access == BusAccess::Write)
     {
-        m_operandsLeft = 0;
-        landing        = Count (HeatKind::Write, address, true);
-
-        RecordLast (true, address, landing);
+        OnWrite (address, value);
         return;
     }
 
@@ -698,17 +707,492 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
         return;
     }
 
-    m_operandsLeft    = 0;
-    m_lastRead        = address;
-    m_lastReadLanding = Count (HeatKind::Read, address, false);
-    m_lastReadWasCpu  = m_last[GetLastIndex (HeatSpace::Cpu, false, address)];
+    OnRead (address, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::OnWrite
+//
+//  A write, a change too when the byte it replaced, read just before, held
+//  something else or could not be read. The byte it lands on is written
+//  from here on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::OnWrite (Word address, Byte value)
+{
+    Landing  landing;
+    bool     isChange = true;
+    size_t   bit      = 0;
+
+
+
+    m_operandsLeft = 0;
+    landing        = Count (HeatKind::Write, address, true);
+    isChange       = !m_previous.has_value() || m_previousAt != address || *m_previous != value;
+
+    m_previous.reset();
+
+    if (isChange)
+    {
+        CountAlso (HeatKind::ChangedWrite, address, landing);
+    }
+
+    if (TryGetWrittenBit (landing, bit) && !IsBitSet (m_written, bit))
+    {
+        SetBit (m_written, bit);
+
+        m_isWrittenChanged = true;
+    }
+
+    RecordLast (true, address, landing);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::OnRead
+//
+//  A read as data, unless the fetch that follows takes it back as the
+//  opcode. One of RAM nothing has written is a read before written too, and,
+//  with the break armed and no stop held, outside the ranges left out, the
+//  stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::OnRead (Word address, Byte value)
+{
+    size_t  bit = 0;
+
+
+
+    m_operandsLeft        = 0;
+    m_lastRead            = address;
+    m_lastReadLanding     = Count (HeatKind::Read, address, false);
+    m_lastReadWasCpu      = m_last[GetLastIndex (HeatSpace::Cpu, false, address)];
+    m_isLastReadUnwritten = TryGetWrittenBit (m_lastReadLanding, bit) && !IsBitSet (m_written, bit);
+    m_isLastReadStop      = false;
 
     if (m_lastReadLanding.hasBank)
     {
         m_lastReadWasBank = m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)];
     }
 
+    if (m_isLastReadUnwritten)
+    {
+        CountAlso (HeatKind::UnwrittenRead, address, m_lastReadLanding);
+    }
+
+    if (m_isLastReadUnwritten && m_isBreakArmed && !m_unwrittenStop.has_value() && !IsUnwrittenIgnored (address))
+    {
+        m_unwrittenStop  = HeatUnwrittenRead { address, value, m_instruction.has_value() ? m_instruction->GetPc() : (Word) 0 };
+        m_isLastReadStop = true;
+    }
+
     RecordLast (false, address, m_lastReadLanding);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::OnBeforeWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::OnBeforeWrite (Word address)
+{
+    const Byte  * cell = nullptr;
+
+
+
+    m_previous.reset();
+
+    if (!IsOn() || !IsCounting())
+    {
+        return;
+    }
+
+    cell = m_bankMap.GetCell (address, true);
+
+    if (cell != nullptr)
+    {
+        m_previous   = *cell;
+        m_previousAt = address;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::OnPowerCycle
+//
+//  RAM holds the power-on pattern again, which nothing wrote, so every bit
+//  clears and from here the map knows which bytes are written. Before the
+//  map counts, as in a replay of the past, a power cycle is no more its
+//  business than any access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::OnPowerCycle()
+{
+    if (!IsOn() || !IsCounting())
+    {
+        return;
+    }
+
+    MakeWrittenBits (false, m_written);
+
+    m_isTracking       = true;
+    m_isWrittenChanged = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::CountAlso
+//
+//  A second kind for an access already counted, where the CPU addressed it
+//  and where it landed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::CountAlso (
+    HeatKind          kind,
+    Word              address,
+    const Landing   & landing)
+{
+    m_counts[GetIndex (kind, address)]++;
+
+    if (landing.hasBank)
+    {
+        m_counts[GetIndex (landing.space, kind, landing.index)]++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::UncountAlso
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::UncountAlso (
+    HeatKind          kind,
+    Word              address,
+    const Landing   & landing)
+{
+    size_t  cpu  = GetIndex (kind, address);
+    size_t  bank = landing.hasBank ? GetIndex (landing.space, kind, landing.index) : 0;
+
+
+
+    if (m_counts[cpu] > 0)
+    {
+        m_counts[cpu]--;
+    }
+
+    if (landing.hasBank && m_counts[bank] > 0)
+    {
+        m_counts[bank]--;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::TryGetWrittenBit
+//
+//  Main RAM's bits come first, then aux RAM's; anything else has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AccessHeatMap::TryGetWrittenBit (
+    const Landing   & landing,
+    size_t          & outBit)
+{
+    if (!landing.hasBank || (landing.space != HeatSpace::Main && landing.space != HeatSpace::Aux))
+    {
+        return false;
+    }
+
+    outBit = ((landing.space == HeatSpace::Aux) ? kAddressCount : 0) + landing.index;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::IsWritten
+//
+//  Anything but RAM, and anything while the map is off, counts as written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AccessHeatMap::IsWritten (HeatSpace space, Word index) const
+{
+    Landing  landing;
+    size_t   bit     = 0;
+
+
+
+    landing.hasBank = true;
+    landing.space   = space;
+    landing.index   = index;
+
+    if (!IsOn() || !TryGetWrittenBit (landing, bit))
+    {
+        return true;
+    }
+
+    return IsBitSet (m_written, bit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::NoteHostWrite
+//
+//  The debugger put a value there on purpose, so a read of it is no read of
+//  whatever power-on left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::NoteHostWrite (Word address)
+{
+    Landing       landing;
+    HeatLocation  location;
+    size_t        bit      = 0;
+
+
+
+    if (!IsOn())
+    {
+        return;
+    }
+
+    landing.hasBank = m_bankMap.TryResolve (address, true, location);
+    landing.space   = location.space;
+    landing.index   = location.index;
+
+    if (TryGetWrittenBit (landing, bit) && !IsBitSet (m_written, bit))
+    {
+        SetBit (m_written, bit);
+
+        m_isWrittenChanged = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::SetWrittenBits
+//
+//  As history kept them at a keyframe now loaded. The map knows them from
+//  here, unless they are every bit set, which says only that nothing was
+//  known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::SetWrittenBits (const std::vector<uint64_t> & bits)
+{
+    bool  isSameSize = bits.size() == kWrittenWords;
+
+
+
+    if (!IsOn())
+    {
+        return;
+    }
+
+    if (isSameSize)
+    {
+        m_written = bits;
+    }
+    else
+    {
+        MakeWrittenBits (true, m_written);
+    }
+
+    m_isTracking       = std::ranges::any_of (m_written, [] (uint64_t word) { return word != UINT64_MAX; });
+    m_isWrittenChanged = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::TakeWrittenChange
+//
+//  Whether the bits changed since this was last asked; asking clears it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AccessHeatMap::TakeWrittenChange()
+{
+    bool  isChanged = m_isWrittenChanged;
+
+
+
+    m_isWrittenChanged = false;
+    return isChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::MakeWrittenBits
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::MakeWrittenBits (
+    bool                     isWritten,
+    std::vector<uint64_t>  & outBits)
+{
+    outBits.assign (kWrittenWords, isWritten ? UINT64_MAX : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::TryGetUnwrittenStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AccessHeatMap::TryGetUnwrittenStop (HeatUnwrittenRead & outRead) const
+{
+    if (!m_unwrittenStop.has_value())
+    {
+        return false;
+    }
+
+    outRead = *m_unwrittenStop;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::SetUnwrittenIgnore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::SetUnwrittenIgnore (const std::vector<std::pair<Word, Word>> & spans)
+{
+    std::ranges::fill (m_ignored, 0ull);
+
+    for (const auto & [first, last] : spans)
+    {
+        for (size_t address = first; address <= last; address++)
+        {
+            SetBit (m_ignored, address);
+        }
+    }
+
+    m_ignoredSpans = spans.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::IsUnwrittenIgnored
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AccessHeatMap::IsUnwrittenIgnored (Word address) const
+{
+    return IsBitSet (m_ignored, address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::GetUnwrittenStatus
+//
+//  The totals and the counts not yet folded, in the CPU's space, of every
+//  address not left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatUnwrittenStatus AccessHeatMap::GetUnwrittenStatus() const
+{
+    HeatUnwrittenStatus  status;
+    size_t               first  = GetIndex (HeatKind::UnwrittenRead, 0);
+    int64_t              reads  = 0;
+
+
+
+    status.isOn         = IsOn();
+    status.isTracking   = IsTrackingWrites();
+    status.ignoredSpans = m_ignoredSpans;
+
+    if (!IsOn())
+    {
+        return status;
+    }
+
+    for (size_t address = 0; address < kAddressCount; address++)
+    {
+        reads = m_totals[first + address] + m_counts[first + address];
+
+        if (reads <= 0 || IsUnwrittenIgnored ((Word) address))
+        {
+            continue;
+        }
+
+        status.reads += (uint64_t) reads;
+        status.addresses++;
+    }
+
+    return status;
 }
 
 
@@ -754,7 +1238,20 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
             m_counts[m_lastReadLanding.bank]--;
             m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)] = m_lastReadWasBank;
         }
+
+        if (m_isLastReadUnwritten)
+        {
+            UncountAlso (HeatKind::UnwrittenRead, pc, m_lastReadLanding);
+        }
+
+        if (m_isLastReadStop)
+        {
+            m_unwrittenStop.reset();
+        }
     }
+
+    m_isLastReadUnwritten = false;
+    m_isLastReadStop      = false;
 
     for (int i = 0; i < length; i++)
     {

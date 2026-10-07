@@ -592,6 +592,7 @@ private:
     void    ResetDebugHeatMap      () override;
     void    SetDebugHeatMapHover   (std::optional<Word> address) override;
     void    RunDebugHeatMapAccess  (const HeatAccessRequest & request) override;
+    void    SetDebugHeatMapIgnore  (const std::vector<std::pair<Word, Word>> & spans) override;
 
     // Draws a stopped machine's picture again when the beam mark changed.
     void    RedrawDebugFrame     () override;
@@ -2373,6 +2374,12 @@ private:
     bool                             m_isDebugViewDirty      = true;
     bool                             m_wasPausedAtDebugBuild = false;
     bool                             m_wasHeatRebuilding     = false;   // the last build's heat map awaited its rebuilt heat
+
+    // While the window is closed and BRKUNINIT keeps the heat map on, how
+    // often it is folded, and when it last was.
+    static constexpr ULONGLONG       kHiddenHeatFoldMs       = 1000;
+    ULONGLONG                        m_heatFoldedAt          = 0;
+
     std::atomic<bool>                              m_isDebugWindowShown { false };
     bool                                           m_isDetachPending    = false;
     std::mutex                                     m_debugViewMutex;

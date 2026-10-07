@@ -567,14 +567,15 @@ enum class StopReason
 
 struct WatchHit
 {
-    int                     id       = 0;
-    Word                    address  = 0;
-    Byte                    value    = 0;
+    int                     id          = 0;
+    Word                    address     = 0;
+    Byte                    value       = 0;
     std::optional<Byte>     previous;             // a memory write's replaced byte
-    WatchAccess             access   = WatchAccess::Read;
-    Word                    accessPc = 0;
-    WatchMode               mode     = WatchMode::After;
+    WatchAccess             access      = WatchAccess::Read;
+    Word                    accessPc    = 0;
+    WatchMode               mode        = WatchMode::After;
     std::optional<int32_t>  conditionValue;       // the IF expression's value, when there is one
+    bool                    isUnwritten = false;  // a read of RAM nothing had written, BRKUNINIT's stop
 };
 
 struct StopEvent

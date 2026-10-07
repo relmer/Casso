@@ -878,8 +878,25 @@ std::string HeatMapRangeSets::Trim (const std::string & text)
 
 std::vector<HeatMapRangeSets::Span> HeatMapRangeSets::GetShownSpans (const HeatMapSymbols & symbols) const
 {
+    return GetSpans (shown, symbols);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapRangeSets::GetSpans
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<HeatMapRangeSets::Span> HeatMapRangeSets::GetSpans (
+    const std::string     & name,
+    const HeatMapSymbols  & symbols) const
+{
     std::vector<Span>        spans;
-    const HeatMapRangeSet  * set   = FindSet (shown);
+    const HeatMapRangeSet  * set   = FindSet (name);
     std::string              error;
 
 
@@ -905,6 +922,96 @@ std::vector<HeatMapRangeSets::Span> HeatMapRangeSets::GetShownSpans (const HeatM
     }
 
     return spans;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapRangeSets::FormatSpanWords
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string HeatMapRangeSets::FormatSpanWords (const std::vector<std::pair<Word, Word>> & spans)
+{
+    std::string  words;
+
+
+
+    if (spans.empty())
+    {
+        return "none";
+    }
+
+    for (const auto & [first, last] : spans)
+    {
+        words += std::format ("{}{:04X}-{:04X}", words.empty() ? "" : " ", first, last);
+    }
+
+    return words;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapRangeSets::TryParseSpanWords
+//
+//  Each span as two hex addresses with a dash between, the first no later
+//  than the last; "none" for no span.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapRangeSets::TryParseSpanWords (
+    const std::string                    & words,
+    std::vector<std::pair<Word, Word>>   & spans)
+{
+    std::istringstream  stream (words);
+    std::string         word;
+    std::string         first;
+    std::string         last;
+    size_t              dash   = 0;
+    Word                from   = 0;
+    Word                to     = 0;
+
+
+
+    spans.clear();
+
+    while (stream >> word)
+    {
+        if (word == "none")
+        {
+            continue;
+        }
+
+        dash  = word.find ('-');
+        first = word.substr (0, dash);
+        last  = (dash == std::string::npos) ? std::string() : word.substr (dash + 1);
+
+        if (!IsHexNumber (first) || !IsHexNumber (last) || first.starts_with ('$') || last.starts_with ('$'))
+        {
+            spans.clear();
+            return false;
+        }
+
+        from = (Word) std::stoul (first, nullptr, 16);
+        to   = (Word) std::stoul (last,  nullptr, 16);
+
+        if (from > to)
+        {
+            spans.clear();
+            return false;
+        }
+
+        spans.emplace_back (from, to);
+    }
+
+    return true;
 }
 
 

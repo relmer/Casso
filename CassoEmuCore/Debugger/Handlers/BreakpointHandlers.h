@@ -17,7 +17,7 @@ class Microcode;
 //  BreakpointHandlers
 //
 //  Setting: BP, BPX, BPA, BPR, BPM, BPMR, BPMW, BPMV, BPIO, BRK, BRKOP,
-//  BRKINT. BP, BPX, BPM, BPMR, BPMW and BPMV take a trailing IF expression.
+//  BRKINT, BRKUNINIT. BP, BPX, BPM, BPMR, BPMW and BPMV take a trailing IF expression.
 //  Managing: BPC, BPD, BPE, BPL, BPEDIT, BPCHANGE. Saving: BPSAVE.
 //
 //  Breakpoints and watchpoints share one numbering, so every command that
@@ -73,6 +73,7 @@ private:
     static void  SetBrk         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetOpcode      (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetInterrupt   (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SetUnwritten   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Clear          (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Enable         (DebugSession & session, const DebugCommand & command, bool enabled, Reply & reply);
     static void  Edit           (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -87,6 +88,7 @@ private:
     static int   GetInvalidLength     (const Microcode * set, Byte opcode);
     static void  ReportBrk            (DebugSession & session, Reply & reply);
     static bool  HasInterrupt         (DebugSession & session);
+    static void  ReportUnwritten      (DebugSession & session, Reply & reply);
 
     static bool  TryFindInfo    (DebugSession & session, int id, BreakpointInfo & info);
     static bool  TryMakeEntry   (const DebugCommand & definition, int id, const BreakpointInfo & old, Breakpoint & breakpoint, Watchpoint & watchpoint, bool & isWatchpoint);

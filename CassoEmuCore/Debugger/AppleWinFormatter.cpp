@@ -39,7 +39,8 @@ void AppleWinFormatter::Format (Reply & reply)
 //
 //  A watchpoint stop says who touched what: the access, the value, the byte
 //  a write replaced when it is known, and the instruction that did it. A
-//  before-mode stop has no value yet. Other stops give the reason and PC.
+//  before-mode stop has no value yet. A read before written says so, with
+//  the value read. Other stops give the reason and PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +56,11 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
         const WatchHit & hit = *stop.watch;
 
 
+
+        if (hit.isUnwritten)
+        {
+            return std::format ("Read before written: ${:02X} from ${:04X} by ${:04X}", hit.value, hit.address, hit.accessPc);
+        }
 
         if (hit.mode == WatchMode::Before)
         {

@@ -1123,7 +1123,8 @@ void DebugSession::OnStopConditionsChanged()
 //  DebugSession::ClearAllBreakpoints
 //
 //  With both tables empty no id is live, so numbering starts over, which
-//  lets a saved breakpoint script address its entries by number.
+//  lets a saved breakpoint script address its entries by number. The video,
+//  beam and read before written breaks go too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1136,7 +1137,8 @@ void DebugSession::ClearAllBreakpoints()
     m_beamBreak.reset();
     m_beamBreakHit  = false;
     m_nextId        = 0;
-    UpdateHookInstalled();
+
+    SetUnwrittenBreak (false);
 }
 
 
@@ -1323,11 +1325,14 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_breakpoints.ClearAll();
     m_watchpoints.ClearAll();
     m_watchpoints.ClearPending();
+    m_target.ClearUnwrittenStop();
     m_videoBreak.reset();
     m_videoBreakHit = false;
     m_beamBreak.reset();
     m_beamBreakHit  = false;
     m_nextId = 0;
+    m_isUnwrittenBreak = false;
+    m_target.SetUnwrittenBreak (false);
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
     m_monitorReturn.reset();
@@ -1700,6 +1705,26 @@ void DebugSession::ClearBeamBreak()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::SetUnwrittenBreak
+//
+//  The heat map is what sees such a read, so the target turns it on with the
+//  break armed; a read held from before the break went off is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetUnwrittenBreak (bool isOn)
+{
+    m_isUnwrittenBreak = isOn;
+    m_target.SetUnwrittenBreak (isOn);
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::GetBeamCycle
 //
 //  The beam's place as the cycle within the frame.
@@ -1827,7 +1852,46 @@ bool DebugSession::TryMatchBeforeWatchpoint (Word pc)
 
 bool DebugSession::HasPendingStop() const
 {
-    return m_watchpoints.HasPendingStop();
+    HeatUnwrittenRead  read;
+
+
+
+    return m_watchpoints.HasPendingStop() || (m_isUnwrittenBreak && m_target.TryGetUnwrittenStop (read));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetUnwrittenHit
+//
+//  The read before written the heat map is holding, as a watchpoint hit:
+//  the address read, the value and the instruction, under no watchpoint's
+//  id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<WatchHit> DebugSession::GetUnwrittenHit() const
+{
+    HeatUnwrittenRead  read;
+    WatchHit           hit;
+
+
+
+    if (!m_isUnwrittenBreak || !m_target.TryGetUnwrittenStop (read))
+    {
+        return std::nullopt;
+    }
+
+    hit.id          = kUnwrittenHitId;
+    hit.address     = read.address;
+    hit.value       = read.value;
+    hit.access      = WatchAccess::Read;
+    hit.accessPc    = read.pc;
+    hit.isUnwritten = true;
+    return hit;
 }
 
 
@@ -1941,6 +2005,11 @@ void DebugSession::OnStopped (const StopEvent & stop)
     else if (event.reason == StopReason::Watchpoint)
     {
         event.watch = m_watchpoints.GetPendingHit();
+
+        if (!event.watch.has_value())
+        {
+            event.watch = GetUnwrittenHit();
+        }
     }
 
     AttachCondition (event);
@@ -1959,6 +2028,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
     }
 
     m_watchpoints.ClearPending();
+    m_target.ClearUnwrittenStop();
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
     m_monitorReturned = false;
@@ -2464,6 +2534,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     //  A watch hit raised while the machine was paused, by IN or OUT, belongs
     //  to no run, and would otherwise stop this one before it began.
     m_watchpoints.ClearPending();
+    m_target.ClearUnwrittenStop();
 
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;
     UpdateHookInstalled();
@@ -2895,7 +2966,8 @@ void DebugSession::UpdateHookInstalled()
 
 void DebugSession::RefreshHookFilter()
 {
-    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value();
+    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() ||
+                    m_isUnwrittenBreak;
 
 
 
@@ -2965,7 +3037,8 @@ void DebugSession::RefreshHookFilter()
 
 bool DebugSession::HasStopConditions() const
 {
-    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_monitorReturn.has_value();
+    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_monitorReturn.has_value() ||
+           m_isUnwrittenBreak;
 }
 
 

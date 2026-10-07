@@ -86,6 +86,12 @@ public:
 
     HeatAccessState         LookUpHeatMapAccess   (HeatSpace space, bool isWrite, Word address, HeatLastAccess & outAccess) override;
 
+    void                    SetUnwrittenBreak     (bool isArmed) override;
+    bool                    TryGetUnwrittenStop   (HeatUnwrittenRead & outRead) const override  { return m_heat.TryGetUnwrittenStop (outRead); }
+    void                    ClearUnwrittenStop    () override                                   { m_heat.ClearUnwrittenStop(); }
+    void                    SetUnwrittenIgnore    (const std::vector<std::pair<Word, Word>> & spans) override { m_heat.SetUnwrittenIgnore (spans); }
+    HeatUnwrittenStatus     GetUnwrittenStatus    () const override                             { return m_heat.GetUnwrittenStatus(); }
+
     HeatHistory           & GetHeatHistory        () { return m_heatHistory; }
 
     static bool             TryConnectHeatMap     (MachineHost & host, AccessHeatMap * map);

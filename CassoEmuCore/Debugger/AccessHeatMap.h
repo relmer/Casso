@@ -13,6 +13,11 @@
 //
 //  HeatKind
 //
+//  Besides executes, reads and writes, the reads of RAM nothing had written
+//  since power-on (UnwrittenRead), and the writes that changed the byte they
+//  stored to (ChangedWrite); each is also counted as the read or the write
+//  it is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class HeatKind
@@ -20,6 +25,8 @@ enum class HeatKind
     Execute,
     Read,
     Write,
+    UnwrittenRead,
+    ChangedWrite,
 };
 
 
@@ -66,17 +73,38 @@ enum class HeatKind
 //  before a reset below zero; they read as zero there. A last access from
 //  before the map was started or reset reads as none.
 //
+//  Which RAM has been written. For every byte of main and aux RAM, the
+//  language card's banks among them, one bit says whether the CPU has
+//  written it since power-on; a read that lands on a byte whose bit is clear
+//  counts as an UnwrittenRead, and, with the break armed, is held as a stop
+//  for the debugger to take. A power cycle clears every bit, and a reset
+//  leaves them, as the RAM itself keeps its bytes across a reset. A map
+//  started on a machine that has run since power-on cannot know what was
+//  written before it, so every bit starts set and nothing counts until the
+//  next power cycle; one started at power-on, cycle zero, starts clear.
+//  Reset leaves the bits alone, since they say what the RAM holds, not what
+//  was counted. History keeps the bits beside each keyframe, and a keyframe
+//  loaded puts them back (SetWrittenBits).
+//
+//  A write the CPU makes is told first, so the byte it replaces is read
+//  before the store; a write that stores a different value counts as a
+//  ChangedWrite too. A write the map cannot read the byte of, to I/O or where
+//  no memory takes it, counts as a change.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class AccessHeatMap : public IWatchSink, public IFetchSink
 {
 public:
     static constexpr size_t    kAddressCount    = 0x10000;
-    static constexpr size_t    kKindCount       = 3;
+    static constexpr size_t    kKindCount       = 5;
     static constexpr size_t    kSpaceCount      = 4;
     static constexpr size_t    kSpaceEntryCount = kKindCount * kAddressCount;
     static constexpr size_t    kEntryCount      = kSpaceCount * kSpaceEntryCount;
     static constexpr size_t    kLastCount       = kSpaceCount * 2 * kAddressCount;   // a write and a read per address
+    static constexpr size_t    kBitsPerWord     = 64;
+    static constexpr size_t    kWrittenWords    = 2 * kAddressCount / kBitsPerWord;  // main RAM's bits, then aux RAM's
+    static constexpr size_t    kAddressWords    = kAddressCount / kBitsPerWord;
     static constexpr uint64_t  kCyclesPerFrame  = 17030;
     static constexpr double    kCyclesPerSecond = 1020484.0;
     static constexpr double    kFramesPerSecond = kCyclesPerSecond / (double) kCyclesPerFrame;
@@ -125,8 +153,10 @@ public:
     //  forgotten, and read as unknown until an access sets them again.
     void   ForgetAccessesFrom (uint64_t position);
 
-    //  Where the records are shown from: where the map was started or reset.
-    uint64_t  GetLastFrom () const { return m_lastFrom; }
+    //  Where the records are shown from: where the map was started or reset;
+    //  and where it counts from.
+    uint64_t  GetLastFrom  () const { return m_lastFrom; }
+    uint64_t  GetCountFrom () const { return m_countFrom; }
 
     //  The counts not yet folded go to the totals alone and the heat is
     //  cleared, as of cycle; heat built elsewhere as of a cycle is faded to
@@ -168,11 +198,48 @@ public:
     //  `top` and above.
     static Byte  ToLevel (double value, double top);
 
+    //  Whether a byte of main or aux RAM has been written since power-on;
+    //  the bits as a whole, to keep and put back, and whether any changed
+    //  since they were last taken. Bits put back of the wrong size set
+    //  every bit. Whether the map knows the bits: it was started at power-on
+    //  or has seen a power cycle since.
+    bool   IsWritten         (HeatSpace space, Word index) const;
+    void   GetWrittenBits    (std::vector<uint64_t> & outBits) const { outBits = m_written; }
+    void   SetWrittenBits    (const std::vector<uint64_t> & bits);
+    bool   TakeWrittenChange ();
+    bool   IsStartedClear    () const { return m_isStartedClear; }
+    bool   IsTrackingWrites  () const { return IsOn() && m_isTracking; }
+
+    //  A byte the debugger wrote, as a memory window's edit or a poke: where
+    //  a write of address lands now is written from here on.
+    void   NoteHostWrite     (Word address);
+
+    //  Every bit set, or every bit clear, as the map starts with them.
+    static void  MakeWrittenBits (bool isWritten, std::vector<uint64_t> & outBits);
+
+    //  The break on a read before written: while armed, the first such read
+    //  outside the ranges left out is held for the debugger to stop on.
+    void   SetUnwrittenBreak     (bool isArmed) { m_isBreakArmed = isArmed; }
+    bool   IsUnwrittenBreakArmed () const       { return m_isBreakArmed; }
+    bool   TryGetUnwrittenStop   (HeatUnwrittenRead & outRead) const;
+    void   ClearUnwrittenStop    ()             { m_unwrittenStop.reset(); }
+
+    //  The CPU addresses whose reads before written neither stop the
+    //  machine nor count in the status, as first and last of each span.
+    void   SetUnwrittenIgnore    (const std::vector<std::pair<Word, Word>> & spans);
+    bool   IsUnwrittenIgnored    (Word address) const;
+
+    //  The reads before written counted in the CPU's space, outside the
+    //  ranges left out.
+    HeatUnwrittenStatus  GetUnwrittenStatus () const;
+
     // IWatchSink
     void   OnWatchedAccess (Word                  address,
                             Byte                  value,
                             BusAccess             access,
                             std::optional<Byte>   previous) override;
+    void   OnBeforeWrite   (Word address) override;
+    void   OnPowerCycle    () override;
 
     // IFetchSink
     void   OnFetch (Word pc, Byte opcode) override;
@@ -197,7 +264,17 @@ private:
     bool           IsCounting       () const { return m_position == nullptr || *m_position >= m_countFrom; }
     void           FindMostTotal    ();
     Landing        Count            (HeatKind kind, Word address, bool isWrite);
+    void           CountAlso        (HeatKind kind, Word address, const Landing & landing);
+    void           UncountAlso      (HeatKind kind, Word address, const Landing & landing);
     void           RecordLast       (bool isWrite, Word address, const Landing & landing);
+    void           OnWrite          (Word address, Byte value);
+    void           OnRead           (Word address, Byte value);
+
+    //  The written bit of a landing, and whether the landing has one.
+    static bool    TryGetWrittenBit (const Landing & landing, size_t & outBit);
+
+    static bool    IsBitSet         (const std::vector<uint64_t> & bits, size_t bit) { return (bits[bit / kBitsPerWord] & (1ull << (bit % kBitsPerWord))) != 0; }
+    static void    SetBit           (std::vector<uint64_t> & bits, size_t bit)       { bits[bit / kBitsPerWord] |= 1ull << (bit % kBitsPerWord); }
 
     const Microcode                    * m_instructionSet = nullptr;
     const uint64_t                     * m_position       = nullptr;
@@ -226,4 +303,29 @@ private:
 
     //  The instruction running: the one whose fetch came last.
     std::optional<HeatLastAccess>        m_instruction;
+
+    //  Which RAM has been written, main's bits then aux's; whether the map
+    //  started with them clear, and whether it knows them now; whether any
+    //  changed since they were last taken.
+    std::vector<uint64_t>                m_written;
+    bool                                 m_isStartedClear   = false;
+    bool                                 m_isTracking       = false;
+    bool                                 m_isWrittenChanged = false;
+
+    //  Whether the last read was a read before written, which the next
+    //  fetch takes back with the read when it was the opcode, and the stop
+    //  it raised, if it raised one.
+    bool                                 m_isLastReadUnwritten = false;
+    bool                                 m_isLastReadStop      = false;
+
+    //  The byte the write the CPU is about to make replaces, and where.
+    std::optional<Byte>                  m_previous;
+    Word                                 m_previousAt = 0;
+
+    //  The break on a read before written, the read it is holding, and the
+    //  CPU addresses it leaves out, a bit each.
+    bool                                 m_isBreakArmed = false;
+    std::optional<HeatUnwrittenRead>     m_unwrittenStop;
+    std::vector<uint64_t>                m_ignored      = std::vector<uint64_t> (kAddressWords, 0);
+    size_t                               m_ignoredSpans = 0;
 };

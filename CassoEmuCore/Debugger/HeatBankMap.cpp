@@ -94,7 +94,6 @@ bool HeatBankMap::TryResolve (
     bool            isWrite,
     HeatLocation  & outLocation) const
 {
-    const Byte  * page = nullptr;
     const Byte  * cell = nullptr;
 
 
@@ -104,16 +103,7 @@ bool HeatBankMap::TryResolve (
         return false;
     }
 
-    page = isWrite ? m_bus->GetShadowWritePage (address) : m_bus->GetShadowReadPage (address);
-
-    if (page != nullptr)
-    {
-        cell = page + (address & 0xFF);
-    }
-    else if (isWrite && m_card != nullptr && address >= kLcFirst)
-    {
-        cell = m_card->GetWriteTarget (address);
-    }
+    cell = GetCell (address, isWrite);
 
     if (cell != nullptr && TryFindRegion (cell, outLocation))
     {
@@ -127,6 +117,46 @@ bool HeatBankMap::TryResolve (
 
     outLocation = HeatLocation { HeatSpace::Rom, address };
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatBankMap::GetCell
+//
+//  The byte the page tables point a read or a write of address at, or, for
+//  a write the language card takes, the byte the card stores it in; null
+//  for I/O, for a write nothing stores, and without a bus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Byte * HeatBankMap::GetCell (Word address, bool isWrite) const
+{
+    const Byte  * page = nullptr;
+    const Byte  * cell = nullptr;
+
+
+
+    if (m_bus == nullptr || (address >= kIoFirst && address < kRomFirst))
+    {
+        return nullptr;
+    }
+
+    page = isWrite ? m_bus->GetShadowWritePage (address) : m_bus->GetShadowReadPage (address);
+
+    if (page != nullptr)
+    {
+        cell = page + (address & 0xFF);
+    }
+    else if (isWrite && m_card != nullptr && address >= kLcFirst)
+    {
+        cell = m_card->GetWriteTarget (address);
+    }
+
+    return cell;
 }
 
 
