@@ -226,6 +226,7 @@ void UpdateIndicatorButton::PaintShimmer (
     constexpr float     kGlintDip     = 2.5f;
     constexpr float     kEdgeOffsetEm = 0.62f;     // glint centers just off the glyph tops and bottoms
     constexpr float     kAlphaMax     = 255.0f;
+    constexpr float     kMinSize      = 0.55f;     // a glint's size at the edges of its twinkle
     constexpr wchar_t   kTextFamily[] = L"Segoe UI";
     constexpr wchar_t   kMdl2Family[] = L"Segoe MDL2 Assets";
 
@@ -290,7 +291,7 @@ void UpdateIndicatorButton::PaintShimmer (
         }
     }
 
-    glints = UpdateIndicatorModel::GetGlints (phase, x + glyphW, w - glyphW, top, bottom);
+    glints = UpdateIndicatorModel::GetGlints (progress * (float) UpdateIndicatorModel::kSweepMs, m_glintLayout, x + glyphW, w - glyphW, top, bottom);
 
     for (const IndicatorGlint & glint : glints)
     {
@@ -299,7 +300,9 @@ void UpdateIndicatorButton::PaintShimmer (
             continue;
         }
 
-        r     = rMax * glint.intensity;
+        // Opacity follows the twinkle; size only breathes with it, so the glint
+        // fades in place instead of shrinking away to a point.
+        r     = rMax * (kMinSize + (1.0f - kMinSize) * glint.intensity);
         color = ((uint32_t) (kAlphaMax * glint.intensity) << 24) | (kHighlight & 0x00FFFFFF);
 
         star[0] = { glint.x,             glint.y - r * 2.0f };
@@ -341,6 +344,12 @@ bool UpdateIndicatorButton::TickShimmer (int64_t nowMs)
     if (m_isAnimated && m_showsText && m_visible)
     {
         sweep = UpdateIndicatorModel::GetSweepProgress (nowMs - m_shownAtMs);
+    }
+
+    // A new sweep scatters its glints afresh.
+    if (sweep.has_value() && !m_sweep.has_value() && m_random)
+    {
+        m_glintLayout = UpdateIndicatorModel::MakeGlintLayout (m_random);
     }
 
     changed = sweep.has_value() || m_sweep.has_value();

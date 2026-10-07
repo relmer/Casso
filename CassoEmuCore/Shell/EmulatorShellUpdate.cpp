@@ -451,6 +451,7 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
     if (m_updateIndicatorLine.empty())
     {
         m_updateIndicatorLine = UpdateIndicatorModel::PickLine (version, &EmulatorShell::GetRandomIndex);
+        m_updateIndicator.SetRandomSource (&EmulatorShell::GetRandomIndex);
     }
 
     if (isShown && !m_updateIndicator.IsVisible())

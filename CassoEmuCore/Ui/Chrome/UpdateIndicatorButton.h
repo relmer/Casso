@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Ui/Chrome/UpdateIndicatorModel.h"
+
 
 
 
@@ -49,6 +51,8 @@ public:
     void                  SetShowsText      (bool showsText) { m_showsText = showsText; }
     void                  SetAnimationsEnabled (bool isEnabled) { m_isAnimated = isEnabled; }
     void                  StartShimmerClock (int64_t nowMs) { m_shownAtMs = nowMs; }
+    void                  SetRandomSource   (UpdateIndicatorModel::RandomIndexFn randomIndex) { m_random = std::move (randomIndex); }
+    const GlintLayout   & GetGlintLayout    () const { return m_glintLayout; }
     bool                  TickShimmer       (int64_t nowMs);
     std::optional<int64_t>  GetMsUntilShimmer (int64_t nowMs) const;
 
@@ -59,15 +63,17 @@ public:
     DxuiAccessibleRole    GetAccessibleRole () const override { return DxuiAccessibleRole::Button; }
 
 private:
-    DxuiDpiScaler         m_scaler;
-    std::wstring          m_toolTip;
-    bool                  m_isHovered  = false;
-    bool                  m_isPressed  = false;
-    std::wstring          m_text;
-    bool                  m_showsText  = false;
-    bool                  m_isAnimated = false;
-    int64_t               m_shownAtMs  = 0;
-    std::optional<float>  m_sweep;
+    DxuiDpiScaler                        m_scaler;
+    std::wstring                         m_toolTip;
+    bool                                 m_isHovered   = false;
+    bool                                 m_isPressed   = false;
+    std::wstring                         m_text;
+    bool                                 m_showsText   = false;
+    bool                                 m_isAnimated  = false;
+    int64_t                              m_shownAtMs   = 0;
+    std::optional<float>                 m_sweep;
+    GlintLayout                          m_glintLayout = UpdateIndicatorModel::MakeEvenGlintLayout();
+    UpdateIndicatorModel::RandomIndexFn  m_random;
 
     void           PaintShimmer (IDxuiTextRenderer & text, float x, float y, float w, float h, float fontPx, float progress) const;
 };

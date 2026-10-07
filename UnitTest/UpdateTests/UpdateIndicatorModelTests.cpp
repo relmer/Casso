@@ -135,29 +135,67 @@ public:
 
         Assert::AreEqual ((int64_t) 1000, UpdateIndicatorModel::kLeadMs);
         Assert::AreEqual ((int64_t) 2000, UpdateIndicatorModel::kBandMs);
-        Assert::AreEqual ((int64_t) 3000, UpdateIndicatorModel::kSweepMs, L"three seconds in all");
+        Assert::AreEqual ((int64_t) 3380, UpdateIndicatorModel::kSweepMs, L"lead, band, and the last twinkle's tail");
         Assert::AreEqual ((int64_t) 8000, UpdateIndicatorModel::kSweepPeriodMs, L"start to start");
 
         phase = UpdateIndicatorModel::GetSweepPhase (0.0f);
         Assert::AreEqual (0.0f, *phase.lead);
         Assert::IsFalse  (phase.band.has_value(), L"the lead pass comes first, without the band");
 
-        phase = UpdateIndicatorModel::GetSweepPhase (1.0f / 6.0f);
+        phase = UpdateIndicatorModel::GetSweepPhase (500.0f / (float) UpdateIndicatorModel::kSweepMs);
         Assert::AreEqual (0.5f, *phase.lead, 0.0001f);
 
-        phase = UpdateIndicatorModel::GetSweepPhase (1.0f / 3.0f);
+        phase = UpdateIndicatorModel::GetSweepPhase (1000.0f / (float) UpdateIndicatorModel::kSweepMs);
         Assert::IsFalse  (phase.lead.has_value(), L"the lead pass has finished");
         Assert::AreEqual (0.0f, *phase.band, 0.0001f, L"before the band starts");
 
-        phase = UpdateIndicatorModel::GetSweepPhase (2.0f / 3.0f);
+        phase = UpdateIndicatorModel::GetSweepPhase (2000.0f / (float) UpdateIndicatorModel::kSweepMs);
         Assert::AreEqual (0.5f, *phase.band, 0.0001f);
+
+        phase = UpdateIndicatorModel::GetSweepPhase (3100.0f / (float) UpdateIndicatorModel::kSweepMs);
+        Assert::IsFalse  (phase.lead.has_value() || phase.band.has_value(), L"the tail: only the last twinkle fading");
     }
 
 
 
-    TEST_METHOD (Glints_AlternateEdgesAndStayInsideTheText)
+    //  A twinkle is a fade measured in milliseconds: up over 120 ms, held,
+    //  down over 200 ms, continuous, 0 at both ends and 1 at the peak.
+    TEST_METHOD (Twinkle_FadesInHoldsAndFadesOut)
     {
-        std::vector<IndicatorGlint>  glints = UpdateIndicatorModel::GetGlints (SweepPhase { std::nullopt, 0.5f }, 100.0f, 200.0f, 5.0f, 27.0f);
+        float  previous = 0.0f;
+        float  value    = 0.0f;
+        float  peak     = 0.0f;
+        int    ms       = 0;
+
+
+
+        Assert::AreEqual ((int64_t) 120, UpdateIndicatorModel::kTwinkleRiseMs);
+        Assert::AreEqual ((int64_t) 200, UpdateIndicatorModel::kTwinkleFallMs);
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (-5.0f), L"nothing before it starts");
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (0.0f),  L"starts at 0");
+        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetTwinkle (60.0f), 0.0001f, L"half way up");
+        Assert::AreEqual (1.0f, UpdateIndicatorModel::GetTwinkle (150.0f), L"held at full");
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle ((float) UpdateIndicatorModel::kTwinkleMs), L"ends at 0");
+        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (5000.0f));
+
+        for (ms = 0; ms <= (int) UpdateIndicatorModel::kTwinkleMs; ms++)
+        {
+            value = UpdateIndicatorModel::GetTwinkle ((float) ms);
+
+            Assert::IsTrue (std::abs (value - previous) < 0.02f, L"continuous at one-millisecond steps: a fade, not a blink");
+            peak     = std::max (peak, value);
+            previous = value;
+        }
+
+        Assert::AreEqual (1.0f, peak);
+    }
+
+
+
+    TEST_METHOD (Glints_StayInsideTheTextOnTheirEdges)
+    {
+        GlintLayout                  layout = UpdateIndicatorModel::MakeEvenGlintLayout();
+        std::vector<IndicatorGlint>  glints = UpdateIndicatorModel::GetGlints (1500.0f, layout, 100.0f, 200.0f, 5.0f, 27.0f);
         size_t                       i      = 0;
 
 
@@ -167,58 +205,128 @@ public:
         for (i = 0; i < glints.size(); i++)
         {
             Assert::IsTrue   (glints[i].x > 100.0f && glints[i].x < 300.0f, L"over the text, never the buttons");
-            Assert::AreEqual (i % 2 == 0 ? 5.0f : 27.0f, glints[i].y, L"top, bottom, top, bottom");
+            Assert::AreEqual (layout.isTop[i] ? 5.0f : 27.0f, glints[i].y);
             Assert::IsTrue   (glints[i].intensity >= 0.0f && glints[i].intensity <= 1.0f);
         }
-
-        Assert::IsTrue (glints[0].x < glints[1].x && glints[1].x < glints[2].x && glints[2].x < glints[3].x);
     }
 
 
 
-    //  Each glint twinkles twice a sweep: once as the lead pass reaches it,
-    //  once as the band does, and only then.
-    TEST_METHOD (Glints_TwinkleOnceInTheLeadPassAndOnceWithTheBand)
+    //  Each glint twinkles twice a sweep: from the moment the lead pass
+    //  reaches its x, and again from the moment the band does; left to
+    //  right in both, so the order follows x.
+    TEST_METHOD (Glints_TwinkleInTheLeadPassAndWithTheBandInOrder)
     {
-        std::vector<IndicatorGlint>  glints;
-        int                          count = UpdateIndicatorModel::kGlintCount;
-        int                          i     = 0;
-        int                          j     = 0;
-        int                          pass  = 0;
-        float                        at    = 0.0f;
-        SweepPhase                   phase;
+        GlintLayout  layout     = UpdateIndicatorModel::MakeEvenGlintLayout();
+        float        peakMs     = (float) (UpdateIndicatorModel::kTwinkleRiseMs + UpdateIndicatorModel::kTwinkleHoldMs / 2);
+        float        leadStart  = 0.0f;
+        float        bandStart  = 0.0f;
+        float        lastLead   = -1.0f;
+        float        lastBand   = -1.0f;
+        int          i          = 0;
 
 
 
-        for (pass = 0; pass < 2; pass++)
+        for (i = 0; i < UpdateIndicatorModel::kGlintCount; i++)
         {
-            for (i = 0; i < count; i++)
+            leadStart = layout.at[(size_t) i] * (float) UpdateIndicatorModel::kLeadMs;
+            bandStart = (float) UpdateIndicatorModel::kLeadMs + layout.at[(size_t) i] * (float) UpdateIndicatorModel::kBandMs;
+
+            Assert::AreEqual (1.0f, UpdateIndicatorModel::GetGlints (leadStart + peakMs, layout, 0.0f, 100.0f, 0.0f, 10.0f)[(size_t) i].intensity,
+                              L"full in the lead pass");
+            Assert::AreEqual (1.0f, UpdateIndicatorModel::GetGlints (bandStart + peakMs, layout, 0.0f, 100.0f, 0.0f, 10.0f)[(size_t) i].intensity,
+                              L"full again with the band");
+            Assert::IsTrue   (leadStart > lastLead && bandStart > lastBand, L"left to right in both passes");
+            Assert::IsTrue   (leadStart + (float) UpdateIndicatorModel::kTwinkleMs <= bandStart, L"the lead twinkle ends before the band arrives");
+
+            lastLead = leadStart;
+            lastBand = bandStart;
+        }
+
+        Assert::IsTrue (lastBand + (float) UpdateIndicatorModel::kTwinkleMs <= (float) UpdateIndicatorModel::kSweepMs,
+                        L"frames run until the last twinkle has faded");
+    }
+
+
+
+    static UpdateIndicatorModel::RandomIndexFn MakeSeeded (unsigned seed)
+    {
+        auto  engine = std::make_shared<std::mt19937> (seed);
+
+        return [engine] (size_t count)
+        {
+            return (size_t) std::uniform_int_distribution<size_t> (0, count - 1) (*engine);
+        };
+    }
+
+
+
+    TEST_METHOD (GlintLayout_RandomButInRangeSortedAndSpaced)
+    {
+        GlintLayout  first;
+        GlintLayout  second;
+        unsigned     seed   = 0;
+        int          i      = 0;
+        bool         isSame = true;
+
+
+
+        for (seed = 1; seed <= 50; seed++)
+        {
+            GlintLayout  layout = UpdateIndicatorModel::MakeGlintLayout (MakeSeeded (seed));
+
+            for (i = 0; i < UpdateIndicatorModel::kGlintCount; i++)
             {
-                at     = ((float) i + 0.5f) / (float) count;
-                phase  = (pass == 0) ? SweepPhase { at, std::nullopt } : SweepPhase { std::nullopt, at };
-                glints = UpdateIndicatorModel::GetGlints (phase, 0.0f, 100.0f, 0.0f, 10.0f);
+                Assert::IsTrue (layout.at[(size_t) i] >= UpdateIndicatorModel::kGlintEdge &&
+                                layout.at[(size_t) i] <= 1.0f - UpdateIndicatorModel::kGlintEdge, L"inside the text");
 
-                Assert::AreEqual (1.0f, glints[(size_t) i].intensity, pass == 0 ? L"full as the lead pass reaches it"
-                                                                                : L"full as the band reaches it");
-
-                for (j = 0; j < count; j++)
+                if (i > 0)
                 {
-                    if (j != i)
-                    {
-                        Assert::AreEqual (0.0f, glints[(size_t) j].intensity, L"the others are dark");
-                    }
+                    Assert::IsTrue (layout.at[(size_t) i] - layout.at[(size_t) i - 1] >= UpdateIndicatorModel::kGlintSpacing - 0.0001f,
+                                    L"sorted, and never crowding");
                 }
             }
         }
 
-        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetTwinkle (0.125f + UpdateIndicatorModel::kTwinkleSpan * 0.25f, 0.125f),
-                          0.001f, L"halfway down from full");
-        Assert::AreEqual (0.0f, UpdateIndicatorModel::GetTwinkle (std::nullopt, 0.125f), L"no pass, no twinkle");
+        first  = UpdateIndicatorModel::MakeGlintLayout (MakeSeeded (7));
+        second = UpdateIndicatorModel::MakeGlintLayout (MakeSeeded (8));
 
-        for (const IndicatorGlint & glint : UpdateIndicatorModel::GetGlints (SweepPhase { std::nullopt, 0.0f }, 0.0f, 100.0f, 0.0f, 10.0f))
+        for (i = 0; i < UpdateIndicatorModel::kGlintCount; i++)
         {
-            Assert::AreEqual (0.0f, glint.intensity, L"dark between the lead pass and the band");
+            isSame = isSame && first.at[(size_t) i] == second.at[(size_t) i];
         }
+
+        Assert::IsFalse (isSame, L"two seeds, two layouts");
+        Assert::IsTrue  (UpdateIndicatorModel::MakeGlintLayout ([] (size_t) { return (size_t) 0; }).at ==
+                         UpdateIndicatorModel::MakeEvenGlintLayout().at, L"a source that keeps crowding falls back to the even spread");
+    }
+
+
+
+    TEST_METHOD (Glints_RescatterAtEachSweep)
+    {
+        UpdateIndicatorButton  indicator;
+        int64_t                first  = UpdateIndicatorModel::kFirstSweepMs;
+        GlintLayout            before;
+
+
+
+        indicator.SetVisible           (true);
+        indicator.SetShowsText         (true);
+        indicator.SetText              (L"New toys await");
+        indicator.SetAnimationsEnabled (true);
+        indicator.SetRandomSource      (MakeSeeded (3));
+        indicator.StartShimmerClock    (0);
+
+        indicator.TickShimmer (first + 10);
+        before = indicator.GetGlintLayout();
+
+        indicator.TickShimmer (first + 100);
+        Assert::IsTrue (before.at == indicator.GetGlintLayout().at, L"fixed within a sweep");
+
+        indicator.TickShimmer (first + UpdateIndicatorModel::kSweepMs + 100);
+        indicator.TickShimmer (first + UpdateIndicatorModel::kSweepPeriodMs + 10);
+        Assert::IsFalse (before.at == indicator.GetGlintLayout().at, L"scattered afresh for the next");
     }
 
 

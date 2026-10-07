@@ -47,6 +47,28 @@ struct SweepPhase
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GlintLayout
+//
+//  Where a sweep's glints sit: each one's x as a fraction of the text's
+//  width, in ascending order (the twinkles follow it left to right), and
+//  whether it sits on the top edge or the bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct GlintLayout
+{
+    static constexpr int  kCount = 4;
+
+    std::array<float, kCount>  at    = {};
+    std::array<bool,  kCount>  isTop = {};
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IndicatorFit
 //
 //  How the title-bar indicator fits the caption: with its text, or as the
@@ -91,10 +113,17 @@ public:
     static constexpr int64_t  kSweepPeriodMs    = 8000;
     static constexpr int64_t  kLeadMs           = 1000;   // the glints' lead pass, ahead of the band
     static constexpr int64_t  kBandMs           = 2000;   // the band itself
-    static constexpr int64_t  kSweepMs          = kLeadMs + kBandMs;   // period is start to start: 5 s of rest
-    static constexpr int      kGlintCount       = 4;
+    static constexpr int64_t  kTwinkleRiseMs    = 120;    // a glint eases in to full,
+    static constexpr int64_t  kTwinkleHoldMs    = 60;     // holds,
+    static constexpr int64_t  kTwinkleFallMs    = 200;    // and eases out
+    static constexpr int64_t  kTwinkleMs        = kTwinkleRiseMs + kTwinkleHoldMs + kTwinkleFallMs;
+    static constexpr int64_t  kSweepMs          = kLeadMs + kBandMs + kTwinkleMs;   // until the last twinkle ends: 3.38 s
+    static constexpr int      kGlintCount       = GlintLayout::kCount;
     static constexpr float    kBandFraction     = 0.30f;  // shimmer band width, of the text's width
-    static constexpr float    kTwinkleSpan      = 0.18f;  // fraction of the sweep a glint is lit for
+    static constexpr float    kGlintEdge        = 0.06f;  // glints keep this far (of the text width) from its ends
+    static constexpr float    kGlintSpacing     = 0.14f;  // and at least this far from each other
+    static constexpr size_t   kGlintSteps       = 1000;   // resolution of a random glint position
+    static constexpr int      kGlintTries       = 32;     // draws before falling back to an even spread
 
     static std::vector<std::wstring>  GetLines             (const std::string & version);
     static std::wstring               PickLine             (const std::string & version, const RandomIndexFn & randomIndex);
@@ -104,7 +133,9 @@ public:
     static int64_t                    GetMsUntilSweep      (int64_t elapsedMs);
     static float                      GetBandWeight        (float offsetPx, float halfWidthPx);
     static SweepPhase                 GetSweepPhase        (float sweepProgress);
-    static float                      GetTwinkle           (std::optional<float> passProgress, float glintAt);
-    static std::vector<IndicatorGlint>  GetGlints          (const SweepPhase & phase, float leftPx, float widthPx, float topPx, float bottomPx);
+    static float                      GetTwinkle           (float sinceStartMs);
+    static std::vector<IndicatorGlint>  GetGlints          (float sweepMs, const GlintLayout & layout, float leftPx, float widthPx, float topPx, float bottomPx);
+    static GlintLayout                MakeGlintLayout      (const RandomIndexFn & randomIndex);
+    static GlintLayout                MakeEvenGlintLayout  ();
     static int64_t                    GetHoverClockStart   (int64_t nowMs);
 };
