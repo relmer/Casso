@@ -299,6 +299,7 @@ bool DebuggerWindow::IsHeatMapBarChecked (int id) const
     {
     case HeatMapBarCommands::kFading:     return !isCumulative;
     case HeatMapBarCommands::kCumulative: return isCumulative;
+    case HeatMapBarCommands::kBlend:      return m_heatMapView->GetOptions().blend;
     default:                              return false;
     }
 }
@@ -359,6 +360,11 @@ void DebuggerWindow::RunHeatMapBarEntry (int id)
     case HeatMapBarCommands::kFading:
     case HeatMapBarCommands::kCumulative:
         options.cumulative = (id == HeatMapBarCommands::kCumulative);
+        SetHeatMapOptions (options);
+        break;
+
+    case HeatMapBarCommands::kBlend:
+        options.blend = !options.blend;
         SetHeatMapOptions (options);
         break;
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Debugger/HeatMapSymbols.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -291,6 +292,51 @@ namespace HeatMapAccessWindowTests
             Assert::AreEqual ((size_t) 2, host.requests.size());
             Assert::AreEqual (std::string ("rewind write main C123"), host.requests[0]);
             Assert::AreEqual (std::string ("code read main C123"),    host.requests[1]);
+        }
+
+
+
+        TEST_METHOD (TheSnapshotsPcStackBreakpointsAndSymbolsReachTheMap)
+        {
+            CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+            AccessHost                              host;
+            AccessWindow                            window (theme, host);
+            std::shared_ptr<DebuggerViewSnapshot>   snapshot = MakeSnapshot ({ Bank::Cpu, Bank::Main, Bank::Rom });
+            std::shared_ptr<HeatMapSymbols>         symbols  = std::make_shared<HeatMapSymbols>();
+            DebuggerViewSnapshot::BreakpointLine    line;
+            HeatMapView                           * view     = nullptr;
+
+
+
+            BuildShown (window);
+
+            symbols->Add ("COUT", 0xFDED);
+
+            line.id           = 1;
+            line.address      = 0x0300;
+            line.info.id      = 1;
+            line.info.kind    = BreakpointKind::Address;
+            line.info.address = 0x0300;
+            snapshot->breakpoints.push_back (line);
+
+            line.id           = 2;
+            line.info.id      = 2;
+            line.info.address = 0x0500;
+            line.info.enabled = false;
+            snapshot->breakpoints.push_back (line);
+
+            snapshot->heatMap.pc     = Word (0x0300);
+            snapshot->heatMap.stack  = Word (0x01FF);
+            snapshot->heatMapSymbols = symbols;
+
+            window.TakeSnapshot (snapshot);
+            view = window.GetHeatMapView();
+
+            Assert::AreEqual ((size_t) 2, view->GetOutlineColors (0x0300).size(), L"the PC and its breakpoint");
+            Assert::AreEqual ((size_t) 1, view->GetOutlineColors (0x01FF).size(), L"the stack pointer");
+            Assert::IsTrue   (view->GetOutlineColors (0x0500).empty(), L"a disabled breakpoint is not outlined");
+            Assert::IsTrue   (view->GetTipText (0x0300).find (L"\nBreakpoint #1") != std::wstring::npos);
+            Assert::IsTrue   (view->GetTipText (0xFDED).find (L"\nSymbol COUT")   != std::wstring::npos);
         }
     };
 }

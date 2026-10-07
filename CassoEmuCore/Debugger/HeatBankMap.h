@@ -45,6 +45,11 @@ public:
     //  everything without a bus.
     bool   TryResolve       (Word address, bool isWrite, HeatLocation & outLocation) const;
 
+    //  The byte a RAM space holds at an index, read from the buffer added
+    //  for it; false where no buffer holds it, and for the Cpu and Rom
+    //  spaces, which have none.
+    bool   TryPeek          (HeatSpace space, Word index, Byte & value) const;
+
 private:
     struct Region
     {

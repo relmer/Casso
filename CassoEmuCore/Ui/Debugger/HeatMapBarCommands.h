@@ -13,10 +13,10 @@
 //  HeatMapBarCommands
 //
 //  What the heat map pane's bar shows: Fading and Cumulative, the fade time
-//  as a drop-down and Reset counts, the set of ranges shown as a drop-down,
-//  Edit ranges and the bank shown as a drop-down, then Zoom in, Zoom out
-//  and Reset zoom at the far end. The bar is a DxuiToolbar, so what does not
-//  fit goes into its "..." menu as on every other strip.
+//  as a drop-down and Reset counts, Blend, the set of ranges shown as a
+//  drop-down, Edit ranges and the bank shown as a drop-down, then Zoom in,
+//  Zoom out and Reset zoom at the far end. The bar is a DxuiToolbar, so what
+//  does not fit goes into its "..." menu as on every other strip.
 //
 //  The window owns the behavior: it hands over one dispatch, one enabled
 //  test, one checked test and one label, each taking an id.
@@ -40,6 +40,9 @@ public:
     static constexpr int  kRangeSet    = 20;
     static constexpr int  kEditRanges  = 21;
     static constexpr int  kBank        = 30;
+
+    //  Whether an address touched more than one way mixes their colors.
+    static constexpr int  kBlend       = 40;
 
     struct Handlers
     {

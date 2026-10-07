@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Debugger/HeatMapSymbols.h"
+#include "Debugger/Reply.h"
 
 
 
@@ -934,26 +936,78 @@ bool HeatMapView::TickScrollbars (int64_t nowMs)
 
 uint32_t HeatMapView::GetColor (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette)
 {
-    constexpr float  kTop  = 255.0f;
-    Byte             data  = std::max (read, write);
-    uint32_t         hue   = (write >= read) ? palette.write : palette.read;
-    Byte             level = data;
+    return GetColor (mode, execute, read, write, palette, false, false);
+}
 
 
 
-    if (mode == Mode::Code || (mode == Mode::All && execute >= data))
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetColor
+//
+//  An operand byte's code color is drawn part of the way to the cold gray,
+//  so an instruction's opcode stands out from the bytes after it. With
+//  Blend, an address takes the colors of every kind the mode shows that
+//  touched it, each weighted by how hot it is, at the hottest's brightness;
+//  one both run as code and written takes the self-modifying color instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t HeatMapView::GetColor (
+    Mode               mode,
+    Byte               execute,
+    Byte               read,
+    Byte               write,
+    const Palette    & palette,
+    bool               isOperand,
+    bool               isBlend)
+{
+    constexpr float  kTop            = 255.0f;
+    constexpr int    kRedShift       = 16;
+    constexpr int    kGreenShift     = 8;
+    constexpr int    kBlueShift      = 0;
+    uint32_t         cold            = palette.cold | 0xFF000000u;
+    uint32_t         code            = isOperand ? DxuiColor::Mix (palette.execute | 0xFF000000u, cold, kOperandDim) : (palette.execute | 0xFF000000u);
+    Byte             ran             = (mode == Mode::Data) ? (Byte) 0 : execute;
+    Byte             got             = (mode == Mode::Code) ? (Byte) 0 : read;
+    Byte             put             = (mode == Mode::Code) ? (Byte) 0 : write;
+    Byte             data            = std::max (read, write);
+    uint32_t         hue             = (write >= read) ? palette.write : palette.read;
+    Byte             level           = data;
+    bool             isSelfModifying = ran > 0 && put > 0;
+    float            total           = (float) ran + (float) got + (float) put;
+    auto             mixChannel      = [&] (int shift)
     {
-        hue   = palette.execute;
+        float  sum = (float) ((code >> shift) & 0xFF) * ran + (float) ((palette.read >> shift) & 0xFF) * got + (float) ((palette.write >> shift) & 0xFF) * put;
+
+        return (uint32_t) std::lround (sum / total) << shift;
+    };
+
+
+
+    if (isBlend)
+    {
+        level = std::max ({ ran, got, put });
+
+        if (level > 0)
+        {
+            hue = isSelfModifying ? palette.selfModifying : (mixChannel (kRedShift) | mixChannel (kGreenShift) | mixChannel (kBlueShift));
+        }
+    }
+    else if (mode == Mode::Code || (mode == Mode::All && execute >= data))
+    {
+        hue   = code;
         level = execute;
     }
 
     if (level == 0)
     {
-        return palette.cold | 0xFF000000u;
+        return cold;
     }
 
-    return DxuiColor::Mix (palette.cold | 0xFF000000u, hue | 0xFF000000u,
-                           kFaintest + (1.0f - kFaintest) * (float) level / kTop) | 0xFF000000u;
+    return DxuiColor::Mix (cold, hue | 0xFF000000u, kFaintest + (1.0f - kFaintest) * (float) level / kTop) | 0xFF000000u;
 }
 
 
@@ -1013,7 +1067,9 @@ Byte HeatMapView::GetShownLevel (Word address) const
 //
 //  HeatMapView::BuildCells
 //
-//  Each address's color; a kind with no levels is cold everywhere.
+//  Each address's color; a kind with no levels is cold everywhere. An
+//  address with a symbol is tinted toward the symbol color, and the symbols
+//  are found again first when the bank shown has changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1023,8 +1079,16 @@ void HeatMapView::BuildCells()
     bool              hasExecute = m_execute.size() == kCount;
     bool              hasRead    = m_read.size()    == kCount;
     bool              hasWrite   = m_write.size()   == kCount;
+    bool              hasSymbols = false;
 
 
+
+    if (m_symbols != nullptr && m_symbolsBank != m_shownBank)
+    {
+        MarkSymbols();
+    }
+
+    hasSymbols = m_symbolMarks.size() == kCount;
 
     m_cells.resize (kCount);
 
@@ -1034,10 +1098,239 @@ void HeatMapView::BuildCells()
                                      hasExecute ? m_execute[address] : (Byte) 0,
                                      hasRead    ? m_read[address]    : (Byte) 0,
                                      hasWrite   ? m_write[address]   : (Byte) 0,
-                                     m_palette);
+                                     m_palette,
+                                     IsOperand ((Word) address),
+                                     m_options.blend);
+
+        if (hasSymbols && m_symbolMarks[address] != 0)
+        {
+            m_cells[address] = DxuiColor::Mix (m_cells[address], m_palette.symbol | 0xFF000000u, kSymbolTint) | 0xFF000000u;
+        }
     }
 
     BuildFrame();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::SetOpcodes
+//
+//  Drawn from the next levels set, which come with every snapshot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SetOpcodes (const std::vector<Byte> & opcodes)
+{
+    m_opcodes = opcodes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::IsOperand
+//
+//  Run as code but never fetched as an opcode: only ever an operand. With
+//  no opcodes known, no byte is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::IsOperand (Word address) const
+{
+    constexpr size_t  kCount = (size_t) kAddressCount;
+
+
+
+    return m_opcodes.size() == kCount && m_execute.size() == kCount && m_execute[address] > 0 && m_opcodes[address] == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::SetBreakpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SetBreakpoints (std::vector<Breakpoint> breakpoints)
+{
+    m_breakpoints = std::move (breakpoints);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::SetSymbols
+//
+//  The same copy again changes nothing; another is marked and drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SetSymbols (std::shared_ptr<const HeatMapSymbols> symbols)
+{
+    if (symbols == m_symbols)
+    {
+        return;
+    }
+
+    m_symbols = std::move (symbols);
+
+    MarkSymbols();
+    BuildCells();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::MarkSymbols
+//
+//  Each address of the bank shown whose CPU address has a symbol.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::MarkSymbols()
+{
+    constexpr size_t  kCount = (size_t) kAddressCount;
+    std::string       name;
+
+
+
+    m_symbolsBank = m_shownBank;
+    m_symbolMarks.clear();
+
+    if (m_symbols == nullptr)
+    {
+        return;
+    }
+
+    m_symbolMarks.assign (kCount, 0);
+
+    for (size_t address = 0; address < kCount; address++)
+    {
+        if (HeatMapOptions::IsShown (m_shownBank, (Word) address) &&
+            m_symbols->TryGetNameAt (HeatMapOptions::GetCpuAddress (m_shownBank, (Word) address), name))
+        {
+            m_symbolMarks[address] = 1;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetBreakKind
+//
+//  A breakpoint on an address is run; a watchpoint on memory or I/O is read,
+//  written or both, as it is set; one on memory taking a value is written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<HeatMapView::BreakKind> HeatMapView::GetBreakKind (const BreakpointInfo & info)
+{
+    if (!info.enabled)
+    {
+        return std::nullopt;
+    }
+
+    switch (info.kind)
+    {
+    case BreakpointKind::Address:
+        return BreakKind::Execute;
+
+    case BreakpointKind::Memory:
+    case BreakpointKind::Io:
+        switch (info.access)
+        {
+        case WatchAccess::Read:  return BreakKind::Read;
+        case WatchAccess::Write: return BreakKind::Write;
+        default:                 return BreakKind::ReadWrite;
+        }
+
+    case BreakpointKind::MemoryValue:
+        return BreakKind::Write;
+
+    default:
+        return std::nullopt;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetOutlineColors
+//
+//  A watchpoint on both reads and writes is outlined twice, read outside.
+//  A breakpoint is on the CPU's address, so in a bank's view it marks the
+//  bank's byte the CPU reaches at that address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> HeatMapView::GetOutlineColors (Word address) const
+{
+    std::vector<uint32_t>  colors;
+    Word                   cpu    = HeatMapOptions::GetCpuAddress (m_shownBank, address);
+
+
+
+    if (m_pc == address)
+    {
+        colors.push_back (m_palette.pc);
+    }
+
+    if (m_stack == address)
+    {
+        colors.push_back (m_palette.stack);
+    }
+
+    for (const Breakpoint & breakpoint : m_breakpoints)
+    {
+        if (cpu < breakpoint.first || cpu > breakpoint.last)
+        {
+            continue;
+        }
+
+        switch (breakpoint.kind)
+        {
+        case BreakKind::Execute:
+            colors.push_back (m_palette.breakpoint);
+            break;
+
+        case BreakKind::Read:
+            colors.push_back (m_palette.readWatch);
+            break;
+
+        case BreakKind::Write:
+            colors.push_back (m_palette.writeWatch);
+            break;
+
+        default:
+            colors.push_back (m_palette.readWatch);
+            colors.push_back (m_palette.writeWatch);
+            break;
+        }
+    }
+
+    return colors;
 }
 
 
@@ -1456,8 +1749,10 @@ std::wstring HeatMapView::FormatAmount (Byte level) const
 //  "$C65E  executed 120/s, read 3.5/s" while fading; "$C65E  executed 1,200
 //  times, read once" while cumulative; "$C65E  untouched" when nothing did.
 //  In a bank's view the address is where in the bank the cell is, "Aux RAM
-//  $2000". Once the machine has looked them up for the cell, a line for its
-//  last writer and one for its last reader follow.
+//  $2000". A byte only ever run as an operand is "executed as an operand".
+//  A line follows for each overlay on the cell (DescribeMarks). Once the
+//  machine has looked them up for the cell, a line for its last writer and
+//  one for its last reader follow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1469,9 +1764,9 @@ std::wstring HeatMapView::GetTipText (Word address) const
     int               shown  = 0;
     const std::pair<const wchar_t *, const std::vector<Byte> *>  kinds[] =
     {
-        { L"executed", &m_execute },
-        { L"read",     &m_read    },
-        { L"written",  &m_write   },
+        { IsOperand (address) ? L"executed as an operand" : L"executed", &m_execute },
+        { L"read",                                                        &m_read    },
+        { L"written",                                                     &m_write   },
     };
 
 
@@ -1499,10 +1794,77 @@ std::wstring HeatMapView::GetTipText (Word address) const
         text += L"  untouched";
     }
 
+    text += DescribeMarks (address);
+
     if (m_hoverAccess != nullptr && m_hoverAccess->address == address && m_hoverAccess->bank == m_shownBank)
     {
         text += L"\n" + HeatAccessJump::Describe (true,  m_hoverAccess->writer);
         text += L"\n" + HeatAccessJump::Describe (false, m_hoverAccess->reader);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::DescribeMarks
+//
+//  A line each, every one starting a new line of the tip: "Self-modifying:
+//  run as code and written", "PC", "Stack pointer", each breakpoint as
+//  "Breakpoint #2", "Read watchpoint #3", "Write watchpoint #4" or "Read
+//  and write watchpoint #5", and "Symbol COUT".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::DescribeMarks (Word address) const
+{
+    constexpr size_t  kCount   = (size_t) kAddressCount;
+    Word              cpu      = HeatMapOptions::GetCpuAddress (m_shownBank, address);
+    bool              hasRun   = m_execute.size() == kCount && m_execute[address] > 0;
+    bool              hasWrite = m_write.size()   == kCount && m_write[address]   > 0;
+    std::wstring      text;
+    std::string       name;
+
+
+
+    if (hasRun && hasWrite)
+    {
+        text += L"\nSelf-modifying: run as code and written";
+    }
+
+    if (m_pc == address)
+    {
+        text += L"\nPC";
+    }
+
+    if (m_stack == address)
+    {
+        text += L"\nStack pointer";
+    }
+
+    for (const Breakpoint & breakpoint : m_breakpoints)
+    {
+        if (cpu < breakpoint.first || cpu > breakpoint.last)
+        {
+            continue;
+        }
+
+        switch (breakpoint.kind)
+        {
+        case BreakKind::Execute: text += std::format (L"\nBreakpoint #{}",                breakpoint.id); break;
+        case BreakKind::Read:    text += std::format (L"\nRead watchpoint #{}",           breakpoint.id); break;
+        case BreakKind::Write:   text += std::format (L"\nWrite watchpoint #{}",          breakpoint.id); break;
+        default:                 text += std::format (L"\nRead and write watchpoint #{}", breakpoint.id); break;
+        }
+    }
+
+    if (m_symbols != nullptr && m_symbols->TryGetNameAt (cpu, name))
+    {
+        text += L"\nSymbol " + std::wstring (name.begin(), name.end());
     }
 
     return text;
@@ -1675,8 +2037,9 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    PaintHeaders (text, theme);
-    PaintHover   (text, theme);
+    PaintOverlays (text, theme);
+    PaintHeaders  (text, theme);
+    PaintHover    (text, theme);
 
     if (m_hasVertBar)
     {
@@ -1708,6 +2071,7 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 {
     constexpr int   kSwatchDip  = 10;
     constexpr int   kKeyDip     = 56;
+    constexpr float kKeyRoom    = 2.5f;     // swatches across a key besides its label: the swatch, a gap, and one after
     DxuiFontHandle  font        = theme.BodyFont();
     float           size        = m_scaler.ToPxf (font.sizeDip);
     float           bar         = m_scaler.ToPxf ((float) kBarDip);
@@ -1746,6 +2110,11 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     if (m_options.view != Mode::Code) { keys.emplace_back (L"Read",  m_palette.read);    }
     if (m_options.view != Mode::Code) { keys.emplace_back (L"Write", m_palette.write);   }
 
+    if (m_options.blend && m_options.view == Mode::All)
+    {
+        keys.emplace_back (kpszSelfModifyingKey, m_palette.selfModifying);
+    }
+
     x += swatch;
 
     if (m_isRebuilding)
@@ -1759,18 +2128,29 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     for (const auto & [label, color] : keys)
     {
-        if (x + key > right)
+        float  labelW = 0.0f;
+        float  labelH = 0.0f;
+        float  wide   = key;
+
+
+
+        hr = text.MeasureString (label.c_str(), size, font.face, labelW, labelH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        wide = std::max (key, swatch * kKeyRoom + labelW);
+
+        if (x + wide > right)
         {
             break;
         }
 
         painter.FillRect (x, top + (bar - swatch) / 2, swatch, swatch, color | 0xFF000000u);
 
-        hr = text.DrawString (label.c_str(), x + swatch * 1.5f, top, key - swatch * 1.5f, bar, theme.ForegroundMuted(),
+        hr = text.DrawString (label.c_str(), x + swatch * 1.5f, top, wide - swatch * 1.5f, bar, theme.ForegroundMuted(),
                               size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        x += key;
+        x += wide;
     }
 }
 
@@ -1898,6 +2278,335 @@ void HeatMapView::PaintHeaders (IDxuiTextRenderer & text, const IDxuiTheme & the
 
         hr = text.DrawString (title.c_str(), left, (float) header.top, width, (float) (header.bottom - header.top), theme.Foreground(),
                               size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::ForEachVisible
+//
+//  Every cell with any part in the map's area, as scrolled, with its
+//  address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ForEachVisible (const std::function<void (const Place &, Word)> & visit) const
+{
+    long  pitch  = GetPitch();
+    long  width  = m_map.right  - m_map.left;
+    long  height = m_map.bottom - m_map.top;
+
+
+
+    if (pitch <= 0 || width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    for (size_t band = 0; band < m_placed.size() && band < m_bands.size(); band++)
+    {
+        const Placed  & placed   = m_placed[band];
+        long            top      = m_scroll.y - placed.rowsTop;
+        long            bottom   = top + height;
+        long            firstRow = std::max (0L, top / pitch);
+        long            lastRow  = std::min (placed.rows - 1, bottom / pitch);
+        long            firstCol = GetColumnAt (placed, m_scroll.x);
+        long            lastCol  = GetColumnAt (placed, m_scroll.x + width);
+
+
+
+        if (bottom < 0)
+        {
+            continue;
+        }
+
+        for (long row = firstRow; row <= lastRow; row++)
+        {
+            for (long column = firstCol; column <= lastCol; column++)
+            {
+                Place  place = { band, row * placed.columns + column };
+
+
+
+                if (place.offset >= m_bands[band].count)
+                {
+                    continue;
+                }
+
+                visit (place, GetAddressOf (place));
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PaintOverlays
+//
+//  Over the cells in view, clipped to the map: each one's value and second
+//  line where the cells are large enough, then its outlines. A cell is
+//  checked against the marks before its outlines are gathered, so a map
+//  with none costs a comparison a cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    constexpr size_t  kCount     = (size_t) kAddressCount;
+    float             minFont    = m_scaler.ToPxf (kMinDetailFontDip);
+    float             pad        = m_scaler.ToPxf ((float) kDetailPadDip);
+    bool              hasDetail  = m_values.size() == kCount && (float) m_cellPx >= minFont * kLinePerEm + pad * 2.0f;
+    bool              hasMarks   = m_pc.has_value() || m_stack.has_value() || !m_breakpoints.empty();
+    HRESULT           hr         = S_OK;
+
+
+
+    if (!hasDetail && !hasMarks)
+    {
+        return;
+    }
+
+    hr = text.PushClipRect ((float) m_map.left, (float) m_map.top, (float) (m_map.right - m_map.left), (float) (m_map.bottom - m_map.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    ForEachVisible ([&] (const Place & place, Word address)
+    {
+        Word  cpu      = HeatMapOptions::GetCpuAddress (m_shownBank, address);
+        bool  isMarked = m_pc == address || m_stack == address ||
+                         std::ranges::any_of (m_breakpoints, [cpu] (const Breakpoint & each) { return cpu >= each.first && cpu <= each.last; });
+
+
+
+        if (hasDetail)
+        {
+            PaintDetail (text, theme, place, address);
+        }
+
+        if (isMarked)
+        {
+            PaintOutlines (text, place, address);
+        }
+    });
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetDetail
+//
+//  Two lines where both fit at kMinDetailFontDip or more, else one, else
+//  none; the text as large as fits, up to the theme's monospace size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapView::Detail HeatMapView::GetDetail (long widthPx, long heightPx, float maxFontPx, float minFontPx, float padPx)
+{
+    float  innerW = (float) widthPx  - padPx * 2.0f;
+    float  innerH = (float) heightPx - padPx * 2.0f;
+    float  one    = std::min ({ maxFontPx, innerH / kLinePerEm,        innerW / ((float) kValueChars  * kAdvancePerEm) });
+    float  two    = std::min ({ maxFontPx, innerH / (kLinePerEm * 2.0f), innerW / ((float) kDetailChars * kAdvancePerEm) });
+
+
+
+    if (two >= minFontPx)
+    {
+        return Detail { 2, two };
+    }
+
+    if (one >= minFontPx)
+    {
+        return Detail { 1, one };
+    }
+
+    return Detail {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetDetailLine
+//
+//  The opcode's form for a byte fetched as an opcode whose instruction is
+//  known; otherwise the byte's bits, high first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::GetDetailLine (Byte value, bool isOpcode, const std::string & form)
+{
+    constexpr int  kBits = 8;
+    std::wstring   bits;
+
+
+
+    if (isOpcode && !form.empty())
+    {
+        return std::wstring (form.begin(), form.end());
+    }
+
+    for (int bit = kBits - 1; bit >= 0; bit--)
+    {
+        bits += ((value >> bit) & 1) ? L'1' : L'0';
+    }
+
+    return bits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetDetailTextColor
+//
+//  The theme's text color or its page color, whichever stands out more from
+//  the cell, so a value reads on a dim cell and a bright one alike.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t HeatMapView::GetDetailTextColor (uint32_t cell, uint32_t foreground, uint32_t background)
+{
+    float  onText = DxuiColor::ComputeContrastRatio (foreground | 0xFF000000u, cell | 0xFF000000u);
+    float  onPage = DxuiColor::ComputeContrastRatio (background | 0xFF000000u, cell | 0xFF000000u);
+
+
+
+    return ((onText >= onPage) ? foreground : background) | 0xFF000000u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PaintDetail
+//
+//  The value in hex, and under it the second line, centered in the cell. A
+//  form longer than kDetailChars is made smaller to fit, but no smaller
+//  than kMinDetailFontDip, and is clipped to its cell beyond that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address) const
+{
+    DxuiFontHandle  font     = theme.MonospaceFont();
+    RECT            cell     = GetPlaceRect (place);
+    long            wide     = cell.right  - cell.left;
+    long            tall     = cell.bottom - cell.top;
+    float           minFont  = m_scaler.ToPxf (kMinDetailFontDip);
+    float           pad      = m_scaler.ToPxf ((float) kDetailPadDip);
+    Detail          detail   = GetDetail (wide, tall, m_scaler.ToPxf (font.sizeDip), minFont, pad);
+    int16_t         stored   = m_values[address];
+    Byte            value    = (Byte) stored;
+    bool            isOpcode = m_opcodes.size() == (size_t) kAddressCount && m_opcodes[address] != 0;
+    uint32_t        color    = GetDetailTextColor (GetCellColor (address), theme.Foreground(), m_palette.background);
+    float           lineH    = detail.fontPx * kLinePerEm;
+    float           top      = (float) cell.top + ((float) tall - lineH * (float) detail.lines) / 2.0f;
+    std::wstring    second;
+    float           fit      = 0.0f;
+    HRESULT         hr       = S_OK;
+
+
+
+    if (detail.lines == 0 || stored < 0)
+    {
+        return;
+    }
+
+    hr = text.DrawString (std::format (L"{:02X}", value).c_str(), (float) cell.left, top, (float) wide, lineH, color,
+                          detail.fontPx, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (detail.lines < 2)
+    {
+        return;
+    }
+
+    second = GetDetailLine (value, isOpcode, (m_opcodeForms != nullptr && m_opcodeForms->size() > value) ? (*m_opcodeForms)[value] : std::string());
+    fit    = ((float) wide - pad * 2.0f) / ((float) second.size() * kAdvancePerEm);
+
+    hr = text.PushClipRect ((float) cell.left, (float) cell.top, (float) wide, (float) tall);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (second.c_str(), (float) cell.left, top + lineH, (float) wide, lineH, color,
+                          std::max (minFont, std::min (detail.fontPx, fit)), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PaintOutlines
+//
+//  Each outline a ring, the first in the street around the cell like the
+//  hover frame and each after it inside the one before; two pixels thick
+//  once cells are large enough to keep their color inside them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PaintOutlines (IDxuiTextRenderer & text, const Place & place, Word address) const
+{
+    constexpr int          kThickCellPx = 12;
+    RECT                   cell         = GetPlaceRect (place);
+    long                   line         = (m_cellPx >= kThickCellPx) ? 2 : 1;
+    std::vector<uint32_t>  colors       = GetOutlineColors (address);
+    RECT                   ring         = {};
+    float                  left         = 0.0f;
+    float                  top          = 0.0f;
+    float                  wide         = 0.0f;
+    float                  tall         = 0.0f;
+    float                  thick        = (float) line;
+    HRESULT                hr           = S_OK;
+
+
+
+    for (size_t k = 0; k < colors.size(); k++)
+    {
+        ring = cell;
+        InflateRect (&ring, kStreetPx - (long) k * line, kStreetPx - (long) k * line);
+
+        if (ring.right - ring.left <= line * 2 || ring.bottom - ring.top <= line * 2)
+        {
+            break;
+        }
+
+        left = (float) ring.left;
+        top  = (float) ring.top;
+        wide = (float) (ring.right  - ring.left);
+        tall = (float) (ring.bottom - ring.top);
+
+        hr = text.FillRect (left,                top,                wide,  thick, colors[k] | 0xFF000000u);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.FillRect (left,                top + tall - thick, wide,  thick, colors[k] | 0xFF000000u);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.FillRect (left,                top,                thick, tall,  colors[k] | 0xFF000000u);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.FillRect (left + wide - thick, top,                thick, tall,  colors[k] | 0xFF000000u);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }

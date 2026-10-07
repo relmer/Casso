@@ -29,6 +29,7 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
     m_heat.assign   (kEntryCount, 0.0f);
     m_totals.assign (kEntryCount, 0);
     m_last.assign   (kLastCount, HeatLastAccess());
+    m_opcodes.assign (kSpaceCount * kAddressCount, 0);
 
     m_mostTotal    = {};
     m_foldedAt     = cycle;
@@ -56,13 +57,15 @@ void AccessHeatMap::Stop()
     std::vector<float>           noHeat;
     std::vector<int64_t>         noTotals;
     std::vector<HeatLastAccess>  noLast;
+    std::vector<Byte>            noOpcodes;
 
 
 
-    m_counts.swap (noCounts);
-    m_heat.swap   (noHeat);
-    m_totals.swap (noTotals);
-    m_last.swap   (noLast);
+    m_counts.swap  (noCounts);
+    m_heat.swap    (noHeat);
+    m_totals.swap  (noTotals);
+    m_last.swap    (noLast);
+    m_opcodes.swap (noOpcodes);
 
     m_mostTotal      = {};
     m_instructionSet = nullptr;
@@ -139,6 +142,7 @@ void AccessHeatMap::Reset()
     std::ranges::fill (m_counts, 0u);
     std::ranges::fill (m_heat,   0.0f);
     std::ranges::fill (m_totals, 0ll);
+    std::ranges::fill (m_opcodes, (Byte) 0);
 
     m_mostTotal = {};
     m_lastFrom  = (m_position != nullptr) ? *m_position : 0;
@@ -659,6 +663,56 @@ void AccessHeatMap::RecordLast (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AccessHeatMap::MarkOpcode
+//
+//  An opcode fetched, where the CPU addressed it and where it landed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::MarkOpcode (
+    Word              pc,
+    const Landing   & landing)
+{
+    m_opcodes[pc] = 1;
+
+    if (landing.hasBank)
+    {
+        m_opcodes[(size_t) landing.space * kAddressCount + landing.index] = 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::GetOpcodeMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::GetOpcodeMarks (HeatSpace space, std::vector<Byte> & marks) const
+{
+    size_t  first = (size_t) space * kAddressCount;
+
+
+
+    marks.clear();
+
+    if (!IsOn() || m_opcodes.size() < first + kAddressCount)
+    {
+        return;
+    }
+
+    marks.assign (m_opcodes.begin() + (ptrdiff_t) first, m_opcodes.begin() + (ptrdiff_t) (first + kAddressCount));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AccessHeatMap::OnWatchedAccess
 //
 //  The operand bytes the last fetch is still owed are executed, not read; any
@@ -756,7 +810,9 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
         }
     }
 
-    for (int i = 0; i < length; i++)
+    MarkOpcode (pc, Count (HeatKind::Execute, pc, false));
+
+    for (int i = 1; i < length; i++)
     {
         (void) Count (HeatKind::Execute, (Word) (pc + i), false);
     }

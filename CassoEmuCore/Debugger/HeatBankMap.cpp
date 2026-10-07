@@ -135,6 +135,33 @@ bool HeatBankMap::TryResolve (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatBankMap::TryPeek
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatBankMap::TryPeek (
+    HeatSpace   space,
+    Word        index,
+    Byte      & value) const
+{
+    for (const Region & region : m_regions)
+    {
+        if (region.space == space && index >= region.firstIndex && (size_t) (index - region.firstIndex) < region.size)
+        {
+            value = region.base[index - region.firstIndex];
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatBankMap::TryFindRegion
 //
 //  The region the last lookup found is tried first: an instruction's bytes

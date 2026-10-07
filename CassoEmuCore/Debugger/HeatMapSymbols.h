@@ -46,6 +46,10 @@ public:
     //  with no symbols loaded from a file.
     bool  TryGetProgramSpan (Word & first, Word & last) const;
 
+    //  The first symbol added at an address, as given; a constant has no
+    //  address and is never one.
+    bool  TryGetNameAt      (Word address, std::string & name) const;
+
 private:
     struct Entry
     {
@@ -54,6 +58,7 @@ private:
     };
 
     std::map<std::string, Entry>  m_symbols;
+    std::map<Word, std::string>   m_names;
     std::optional<Word>           m_programFirst;
     uint32_t                      m_programLast = 0;
 };

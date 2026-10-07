@@ -18,8 +18,8 @@ static constexpr const wchar_t *  s_kGlyphZoomOut = s_kpszMdl2ZoomOut;   // magn
 //
 //  HeatMapBarCommands::GetRows
 //
-//  How the map counts, which ranges and which bank it shows, then the zoom at
-//  the far end.
+//  How the map counts and how it mixes colors, which ranges and which bank
+//  it shows, then the zoom at the far end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +31,7 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
         { kCumulative,  L"Cumulative",     nullptr,         L"Show each address's total since the counts were reset",    DxuiToolbar::Kind::Toggle,   0, false, false },
         { kFade,        L"Fade",           nullptr,         L"How long a single access stays on the map",                DxuiToolbar::Kind::DropDown, 1, false, false },
         { kResetCounts, L"Reset counts",   nullptr,         L"Start the totals over",                                    DxuiToolbar::Kind::Command,  1, false, false },
+        { kBlend,       L"Blend",          nullptr,         L"Mix the colors of an address touched more than one way",  DxuiToolbar::Kind::Toggle,   4, false, false },
         { kRangeSet,    L"All memory",     nullptr,         L"Show all of memory, or only the ranges of a set",          DxuiToolbar::Kind::DropDown, 3, false, false },
         { kEditRanges,  L"Edit ranges...", nullptr,         L"Make and change the sets of ranges the map can show",      DxuiToolbar::Kind::Command,  3, false, false },
         { kBank,        L"Bank",           nullptr,         L"Show what the CPU addresses, or one bank as it is stored",  DxuiToolbar::Kind::DropDown, 3, false, false },

@@ -5,6 +5,9 @@
 #include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatMapOptions.h"
 
+struct BreakpointInfo;
+class  HeatMapSymbols;
+
 
 
 
@@ -53,6 +56,12 @@
 //  zoom sizes them all, and a new set starts at the largest that fits the
 //  pane.
 //
+//  Over the heat, outlines mark the PC, the stack pointer's byte and every
+//  enabled breakpoint, and an address with a symbol is tinted; a byte only
+//  ever run as an instruction's operand is drawn dimmer than its opcode, so
+//  where each instruction starts shows. Zoomed in far enough, a cell shows
+//  its value, and further in, its opcode's form or its bits.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class HeatMapView : public IDxuiControl
@@ -73,16 +82,81 @@ public:
 
     static PickAction  GetPickAction (bool ctrl, bool shift, bool alt);
 
+    //  The heat's colors, then the overlays': the PC's outline and the stack
+    //  pointer's, a breakpoint's and a read or write watchpoint's, the tint
+    //  of an address with a symbol, and Blend's color for an address both run
+    //  as code and written.
     struct Palette
     {
-        uint32_t  background = 0;
-        uint32_t  cold       = 0;
-        uint32_t  execute    = 0;
-        uint32_t  read       = 0;
-        uint32_t  write      = 0;
+        uint32_t  background    = 0;
+        uint32_t  cold          = 0;
+        uint32_t  execute       = 0;
+        uint32_t  read          = 0;
+        uint32_t  write         = 0;
+        uint32_t  pc            = 0;
+        uint32_t  stack         = 0;
+        uint32_t  breakpoint    = 0;
+        uint32_t  readWatch     = 0;
+        uint32_t  writeWatch    = 0;
+        uint32_t  symbol        = 0;
+        uint32_t  selfModifying = 0;
 
         bool operator== (const Palette & other) const = default;
     };
+
+    //  A breakpoint the map outlines: on running an address, or a watchpoint
+    //  on reading or writing a span, or both.
+    enum class BreakKind
+    {
+        Execute,
+        Read,
+        Write,
+        ReadWrite,
+    };
+
+    struct Breakpoint
+    {
+        int        id    = 0;
+        Word       first = 0;
+        Word       last  = 0;
+        BreakKind  kind  = BreakKind::Execute;
+
+        bool operator== (const Breakpoint & other) const = default;
+    };
+
+    //  The kind an enabled breakpoint on an address or a span is outlined
+    //  as; none for a disabled one and one on no address (an opcode, a
+    //  register, BRK, an interrupt).
+    static std::optional<BreakKind>  GetBreakKind (const BreakpointInfo & info);
+
+    //  How far an address with a symbol is tinted toward the symbol color,
+    //  and an operand byte's code color toward the cold gray.
+    static constexpr float  kSymbolTint  = 0.25f;
+    static constexpr float  kOperandDim  = 0.55f;
+
+    //  What a cell large enough shows inside it: its value in hex on one
+    //  line, and on a second the opcode's form when it was run as one, or
+    //  else the value in binary. A line's text is in the monospace face, as
+    //  large as the cell lets it be up to the theme's size, and shows only
+    //  where that is at least kMinDetailFontDip; the second line needs room
+    //  for kDetailChars. A character is taken as kAdvancePerEm of the size
+    //  across and a line kLinePerEm of it down.
+    struct Detail
+    {
+        int    lines  = 0;
+        float  fontPx = 0.0f;
+    };
+
+    static constexpr float  kMinDetailFontDip = 9.0f;
+    static constexpr int    kDetailPadDip     = 2;
+    static constexpr int    kValueChars       = 2;
+    static constexpr int    kDetailChars      = 10;
+    static constexpr float  kAdvancePerEm     = 0.6f;
+    static constexpr float  kLinePerEm        = 1.25f;
+
+    static Detail        GetDetail          (long widthPx, long heightPx, float maxFontPx, float minFontPx, float padPx);
+    static std::wstring  GetDetailLine      (Byte value, bool isOpcode, const std::string & form);
+    static uint32_t      GetDetailTextColor (uint32_t cell, uint32_t foreground, uint32_t background);
 
     static constexpr int    kAddressCount   = 0x10000;
     static constexpr int    kMinColumns     = 16;
@@ -135,11 +209,34 @@ public:
     //  so in place of the color key.
     static constexpr const wchar_t * kpszRebuildingNote = L"Rebuilding";
 
+    //  The key's swatch for Blend's color for code that is also written.
+    static constexpr const wchar_t * kpszSelfModifyingKey = L"Self-modifying";
+
     void   SetRebuilding (bool isRebuilding) { m_isRebuilding = isRebuilding; }
     bool   IsRebuilding  () const            { return m_isRebuilding; }
 
     void                    SetOptions (const HeatMapOptions & options);
     const HeatMapOptions &  GetOptions () const { return m_options; }
+
+    //  Which addresses were fetched as opcodes, nonzero where one was; empty
+    //  for none known, when every byte executed is drawn as an opcode.
+    void   SetOpcodes      (const std::vector<Byte> & opcodes);
+    bool   IsOperand       (Word address) const;
+
+    //  The bank's bytes, -1 where one is not known, and each opcode's form,
+    //  for the cells large enough to show them.
+    void   SetValues       (const std::vector<int16_t> & values) { m_values = values; }
+    void   SetOpcodeForms  (std::shared_ptr<const std::vector<std::string>> forms) { m_opcodeForms = std::move (forms); }
+
+    //  The overlays: where in the bank the PC and the stack pointer are, the
+    //  breakpoints, and the symbols, each on the CPU's addresses.
+    void   SetCpuMarks     (std::optional<Word> pc, std::optional<Word> stack) { m_pc = pc; m_stack = stack; }
+    void   SetBreakpoints  (std::vector<Breakpoint> breakpoints);
+    void   SetSymbols      (std::shared_ptr<const HeatMapSymbols> symbols);
+
+    //  The outlines around an address's cell, outermost first: the PC's, the
+    //  stack pointer's, then each breakpoint's on it.
+    std::vector<uint32_t>  GetOutlineColors (Word address) const;
 
     //  A range the map shows on its own, under a header that gives its
     //  title and span.
@@ -217,6 +314,10 @@ public:
     uint32_t                       GetCellColor (Word address) const;
 
     static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette);
+
+    //  The same with an operand byte's code dimmed, and with Blend mixing
+    //  the kinds that touched it instead of showing the hottest.
+    static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette, bool isOperand, bool isBlend);
     static std::wstring  GetModeLabel (Mode mode);
 
     //  The map's area within the pane: the part of the rows in view, without
@@ -301,6 +402,12 @@ private:
     void                 PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintHeaders   (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintHover     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                 PaintOverlays  (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                 PaintDetail    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address) const;
+    void                 PaintOutlines  (IDxuiTextRenderer & text, const Place & place, Word address) const;
+    void                 MarkSymbols    ();
+    void                 ForEachVisible (const std::function<void (const Place &, Word)> & visit) const;
+    std::wstring         DescribeMarks  (Word address) const;
 
     std::vector<Byte>          m_execute;
     std::vector<Byte>          m_read;
@@ -340,4 +447,14 @@ private:
     std::shared_ptr<const HeatAccessHover>    m_hoverAccess;
     Bank                                      m_shownBank = Bank::Cpu;
     bool                                      m_hasAux    = false;
+
+    std::vector<Byte>                                 m_opcodes;
+    std::vector<int16_t>                              m_values;
+    std::shared_ptr<const std::vector<std::string>>   m_opcodeForms;
+    std::optional<Word>                               m_pc;
+    std::optional<Word>                               m_stack;
+    std::vector<Breakpoint>                           m_breakpoints;
+    std::shared_ptr<const HeatMapSymbols>             m_symbols;
+    Bank                                              m_symbolsBank = Bank::Cpu;
+    std::vector<Byte>                                 m_symbolMarks;
 };

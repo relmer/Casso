@@ -19,6 +19,10 @@
 //  the top 16 KB (HeatSpace); LanguageCard and AuxLanguageCard show that top
 //  16 KB alone. Rom is the ROM reads reach.
 //
+//  Blend mixes the colors of an address touched more than one way, and gives
+//  one both run as code and written its own color, rather than showing the
+//  kind that touched it most.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class HeatMapOptions
@@ -56,6 +60,7 @@ public:
     int   fadeSeconds = kDefaultFadeSeconds;
     View  view        = View::All;
     Bank  bank        = Bank::Cpu;
+    bool  blend       = false;
 
     bool operator== (const HeatMapOptions & other) const = default;
 
@@ -66,6 +71,11 @@ public:
     //  that space.
     static HeatSpace       GetSpace            (Bank bank);
     static bool            IsShown             (Bank bank, Word address);
+
+    //  The address the CPU reaches an address of the bank at, as the
+    //  language card maps it in: bank 1 of a RAM space, held at $C000, is
+    //  reached at $D000. A breakpoint or a symbol is on that address.
+    static Word            GetCpuAddress       (Bank bank, Word address);
 
     //  Whether a machine whose bank map is given has the bank.
     static bool            IsAvailable         (Bank bank, const HeatBankMap & bankMap);
