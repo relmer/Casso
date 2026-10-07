@@ -127,6 +127,74 @@ public:
 
 
 
+    TEST_METHOD (Sweep_IsTwoSecondsEveryEightStartToStart)
+    {
+        Assert::AreEqual ((int64_t) 2000, UpdateIndicatorModel::kSweepMs);
+        Assert::AreEqual ((int64_t) 8000, UpdateIndicatorModel::kSweepPeriodMs);
+        Assert::IsTrue   (UpdateIndicatorModel::GetSweepProgress (UpdateIndicatorModel::kFirstSweepMs + 1500).has_value(),
+                          L"still sweeping 1.5 s in");
+    }
+
+
+
+    TEST_METHOD (Glints_AlternateEdgesAndStayInsideTheText)
+    {
+        std::vector<IndicatorGlint>  glints = UpdateIndicatorModel::GetGlints (0.5f, 100.0f, 200.0f, 5.0f, 27.0f);
+        size_t                       i      = 0;
+
+
+
+        Assert::AreEqual ((size_t) UpdateIndicatorModel::kGlintCount, glints.size());
+
+        for (i = 0; i < glints.size(); i++)
+        {
+            Assert::IsTrue   (glints[i].x > 100.0f && glints[i].x < 300.0f, L"over the text, never the buttons");
+            Assert::AreEqual (i % 2 == 0 ? 5.0f : 27.0f, glints[i].y, L"top, bottom, top, bottom");
+            Assert::IsTrue   (glints[i].intensity >= 0.0f && glints[i].intensity <= 1.0f);
+        }
+
+        Assert::IsTrue (glints[0].x < glints[1].x && glints[1].x < glints[2].x && glints[2].x < glints[3].x);
+    }
+
+
+
+    TEST_METHOD (Glints_TwinkleInTurnAsTheSweepPasses)
+    {
+        std::vector<IndicatorGlint>  glints;
+        int                          count = UpdateIndicatorModel::kGlintCount;
+        int                          i     = 0;
+        int                          j     = 0;
+        float                        at    = 0.0f;
+
+
+
+        for (i = 0; i < count; i++)
+        {
+            at     = ((float) i + 0.5f) / (float) count;
+            glints = UpdateIndicatorModel::GetGlints (at, 0.0f, 100.0f, 0.0f, 10.0f);
+
+            Assert::AreEqual (1.0f, glints[(size_t) i].intensity, L"full as the band reaches it");
+
+            for (j = 0; j < count; j++)
+            {
+                if (j != i)
+                {
+                    Assert::AreEqual (0.0f, glints[(size_t) j].intensity, L"the others are dark");
+                }
+            }
+        }
+
+        Assert::AreEqual (0.5f, UpdateIndicatorModel::GetGlints (0.125f + UpdateIndicatorModel::kTwinkleSpan * 0.25f, 0.0f, 100.0f, 0.0f, 10.0f)[0].intensity,
+                          0.001f, L"halfway down from full");
+
+        for (const IndicatorGlint & glint : UpdateIndicatorModel::GetGlints (0.0f, 0.0f, 100.0f, 0.0f, 10.0f))
+        {
+            Assert::AreEqual (0.0f, glint.intensity, L"none lit before the band arrives");
+        }
+    }
+
+
+
     TEST_METHOD (Shimmer_FramesOnlyDuringASweepAndNeverWithAnimationsOff)
     {
         UpdateIndicatorButton  indicator;

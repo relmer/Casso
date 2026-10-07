@@ -191,3 +191,44 @@ int64_t UpdateIndicatorModel::GetMsUntilSweep (int64_t elapsedMs)
 
     return until;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateIndicatorModel::GetGlints
+//
+//  The sparkles that follow the shimmer: kGlintCount of them, spread evenly
+//  across the text and alternating between its top edge and its bottom
+//  edge. Each lights as the sweep reaches its x -- `progress` runs across
+//  the text from 0 to 1 -- rising to full and falling back to nothing over
+//  kTwinkleSpan of the sweep, so they flare one after another behind the
+//  band. Every glint is inside [leftPx, leftPx + widthPx] and on `topPx` or
+//  `bottomPx`, which the caller keeps inside the caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IndicatorGlint> UpdateIndicatorModel::GetGlints (float progress, float leftPx, float widthPx, float topPx, float bottomPx)
+{
+    std::vector<IndicatorGlint>  glints;
+    IndicatorGlint               glint;
+    float                        at       = 0.0f;
+    float                        distance = 0.0f;
+    int                          i        = 0;
+
+
+
+    for (i = 0; i < kGlintCount; i++)
+    {
+        at              = ((float) i + 0.5f) / (float) kGlintCount;
+        distance        = std::abs (progress - at);
+        glint.x         = leftPx + widthPx * at;
+        glint.y         = (i % 2 == 0) ? topPx : bottomPx;
+        glint.intensity = std::max (0.0f, 1.0f - distance / (kTwinkleSpan * 0.5f));
+        glints.push_back (glint);
+    }
+
+    return glints;
+}

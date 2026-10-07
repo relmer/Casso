@@ -197,11 +197,13 @@ Error:
 //
 //  UpdateIndicatorButton::PaintShimmer
 //
+//
 //  A bright band sweeping left to right across the arrow and text, leaning
 //  45 degrees like light off glass: the text is drawn again in white,
 //  clipped to the band one thin horizontal slice at a time, each slice
-//  shifted right by its height above the baseline. At mid-sweep a small
-//  four-point glint flares at the band's top.
+//  shifted right by its height above the baseline. Small four-point glints
+//  on the text's top and bottom edges twinkle in turn as the band passes
+//  them, kept inside the caption's height and the text's width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,27 +219,30 @@ void UpdateIndicatorButton::PaintShimmer (
     constexpr int       kSlices       = 8;
     constexpr float     kBandFraction = 0.22f;
     constexpr uint32_t  kHighlight    = 0xFFFFFFFF;
-    constexpr float     kGlintDip     = 3.0f;
-    constexpr float     kGlintFrom    = 0.35f;
-    constexpr float     kGlintTo      = 0.65f;
+    constexpr float     kGlintDip     = 2.5f;
+    constexpr float     kEdgeOffsetEm = 0.62f;     // glint centers just off the glyph tops and bottoms
+    constexpr float     kAlphaMax     = 255.0f;
     constexpr wchar_t   kTextFamily[] = L"Segoe UI";
     constexpr wchar_t   kMdl2Family[] = L"Segoe MDL2 Assets";
 
 
 
-    float       bandW     = w * kBandFraction;
-    float       sliceH    = h / (float) kSlices;
-    float       travel    = w + bandW + h;
-    float       left      = x - bandW - h + travel * progress;
-    float       sliceLeft = 0.0f;
-    float       glyphW    = m_scaler.ToPxf ((float) UpdateIndicatorModel::kGlyphColumnDip);
-    float       glint     = 0.0f;
-    float       cx        = 0.0f;
-    float       cy        = 0.0f;
-    float       r         = 0.0f;
-    HRESULT     hr        = S_OK;
-    int         i         = 0;
-    DxuiPointF  star[8]   = {};
+    float                        bandW     = w * kBandFraction;
+    float                        sliceH    = h / (float) kSlices;
+    float                        travel    = w + bandW + h;
+    float                        left      = x - bandW - h + travel * progress;
+    float                        sliceLeft = 0.0f;
+    float                        glyphW    = m_scaler.ToPxf ((float) UpdateIndicatorModel::kGlyphColumnDip);
+    float                        rMax      = m_scaler.ToPxf (kGlintDip);
+    float                        mid       = y + h * 0.5f;
+    float                        top       = std::max (y + rMax * 2.0f,     mid - fontPx * kEdgeOffsetEm);
+    float                        bottom    = std::min (y + h - rMax * 2.0f, mid + fontPx * kEdgeOffsetEm);
+    float                        r         = 0.0f;
+    uint32_t                     color     = 0;
+    HRESULT                      hr        = S_OK;
+    int                          i         = 0;
+    DxuiPointF                   star[8]   = {};
+    std::vector<IndicatorGlint>  glints;
 
 
 
@@ -260,23 +265,28 @@ void UpdateIndicatorButton::PaintShimmer (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (progress > kGlintFrom && progress < kGlintTo)
+    glints = UpdateIndicatorModel::GetGlints (progress, x + glyphW, w - glyphW, top, bottom);
+
+    for (const IndicatorGlint & glint : glints)
     {
-        glint = 1.0f - std::abs ((progress - 0.5f) / (kGlintTo - 0.5f));
-        r     = m_scaler.ToPxf (kGlintDip) * glint;
-        cx    = left + h + bandW * 0.5f;
-        cy    = y + h * 0.25f;
+        if (glint.intensity <= 0.0f)
+        {
+            continue;
+        }
 
-        star[0] = { cx,              cy - r * 2.0f };
-        star[1] = { cx + r * 0.4f,   cy - r * 0.4f };
-        star[2] = { cx + r * 2.0f,   cy };
-        star[3] = { cx + r * 0.4f,   cy + r * 0.4f };
-        star[4] = { cx,              cy + r * 2.0f };
-        star[5] = { cx - r * 0.4f,   cy + r * 0.4f };
-        star[6] = { cx - r * 2.0f,   cy };
-        star[7] = { cx - r * 0.4f,   cy - r * 0.4f };
+        r     = rMax * glint.intensity;
+        color = ((uint32_t) (kAlphaMax * glint.intensity) << 24) | (kHighlight & 0x00FFFFFF);
 
-        hr = text.FillPolygon (star, std::size (star), kHighlight);
+        star[0] = { glint.x,             glint.y - r * 2.0f };
+        star[1] = { glint.x + r * 0.4f,  glint.y - r * 0.4f };
+        star[2] = { glint.x + r * 2.0f,  glint.y };
+        star[3] = { glint.x + r * 0.4f,  glint.y + r * 0.4f };
+        star[4] = { glint.x,             glint.y + r * 2.0f };
+        star[5] = { glint.x - r * 0.4f,  glint.y + r * 0.4f };
+        star[6] = { glint.x - r * 2.0f,  glint.y };
+        star[7] = { glint.x - r * 0.4f,  glint.y - r * 0.4f };
+
+        hr = text.FillPolygon (star, std::size (star), color);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
