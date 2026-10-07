@@ -119,7 +119,7 @@
 - Only when `skippedVersion` is set: "Skipped version: 1.31.91" with "Stop
   skipping", which clears it, saves, and decides the indicator again from
   `latestKnownVersion` as at startup.
-- Under a "Downloads" heading: "Offer to download disk drive sounds"
+- Under an "Offer downloads at startup" heading: "Offer to download disk drive sounds"
   (`audioDownloadConsent`) and "Offer updated ROMs" (`romRefreshConsent`, the
   offer to replace a ROM file Casso installed and has since updated; a
   missing ROM is still downloaded as before). Checked is anything but "decline";

@@ -133,7 +133,7 @@ void EmulatorShell::SetAutoUpdateCheck (bool enabled)
 //
 //  EmulatorShell::StopSkippingVersion
 //
-//  Settings > General > Stop skipping. Clearing the skip lets the release
+//  Settings > General > Cancel skip. Clearing the skip lets the release
 //  last found show the indicator again, decided as at startup.
 //
 ////////////////////////////////////////////////////////////////////////////////

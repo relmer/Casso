@@ -15,7 +15,7 @@
 //      Updates
 //        * Check for updates automatically  (DxuiCheckbox)
 //        * When the last check ran           (DxuiLabel) + Check now
-//        * The skipped release, when set     (DxuiLabel) + Stop skipping
+//        * The skipped release, when set     (DxuiLabel) + Cancel skip
 //      Downloads
 //        * Offer to download disk drive sounds  (DxuiCheckbox)
 //        * Offer updated ROMs                   (DxuiCheckbox)

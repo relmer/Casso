@@ -82,7 +82,7 @@ GeneralPage::GeneralPage (std::wstring title)
     }
 
     m_updatesHeading.SetText   (L"Updates");
-    m_downloadsHeading.SetText (L"Downloads");
+    m_downloadsHeading.SetText (L"Offer downloads at startup");
     m_folderHeading.SetText    (L"Settings folder");
 
     m_autoUpdateCheckbox.SetLabel (L"Check for updates automatically");
@@ -100,7 +100,7 @@ GeneralPage::GeneralPage (std::wstring title)
     m_stopSkipButton.SetVisible    (false);
 
     m_checkNowButton.SetLabel   (L"Check now");
-    m_stopSkipButton.SetLabel   (L"Stop skipping");
+    m_stopSkipButton.SetLabel   (L"Cancel skip");
     m_openFolderButton.SetLabel (L"Open settings folder");
 
     m_checkNowButton.SetOnClick   ([this] { if (m_onCheckNow)     { m_onCheckNow();     } });
