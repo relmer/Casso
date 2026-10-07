@@ -1243,7 +1243,9 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //  HeatMapView::PaintBar
 //
 //  The modes as tabs, the chosen one underlined in the accent; then a swatch
-//  for each color the mode shows.
+//  for each color the mode shows, or, while the heat is being rebuilt after
+//  a move through history, a note saying so in the key's place, where a
+//  narrow pane still has room for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1290,6 +1292,15 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     if (m_options.view != Mode::Code) { keys.emplace_back (L"Write", m_palette.write);   }
 
     x += swatch;
+
+    if (m_isRebuilding)
+    {
+        hr = text.DrawString (kpszRebuildingNote, x, top, std::max (right - x, 0.0f), bar, theme.ForegroundMuted(),
+                              size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        keys.clear();
+    }
 
     for (const auto & [label, color] : keys)
     {

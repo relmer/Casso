@@ -228,6 +228,38 @@ public:
         Assert::IsFalse (scrub.IsScrubbing(), L"the drag is over");
     }
 
+
+    //  The seeks a drag makes while it goes on are interim, so what waits on
+    //  where the machine lands, the heat map's rebuild, waits for the end;
+    //  the seek on letting go is not, and a release where the last seek went
+    //  is settled there instead.
+    TEST_METHOD (OnlyTheSeekThatEndsADragIsFinal)
+    {
+        HistoryTimelineScrub      scrub;
+        HistoryTimelineScrubStep  step;
+
+
+
+        scrub.OnDragged (4000, false, true, false);
+
+        step = scrub.OnFrame (true, false);
+        Assert::IsTrue (step.seek && step.isInterim, L"a seek while dragging is interim");
+        Assert::IsFalse (step.isSettled);
+
+        step = scrub.OnDragged (4100, true, true, false);
+        Assert::IsTrue  (step.seek, L"letting go seeks");
+        Assert::IsFalse (step.isInterim, L"and that seek is final");
+
+        scrub.OnDragged (4200, false, true, false);
+        step = scrub.OnFrame (true, false);
+        Assert::IsTrue (step.isInterim);
+
+        step = scrub.OnDragged (4200, true, true, false);
+        Assert::IsFalse (step.seek, L"let go where it last sought: no seek");
+        Assert::IsTrue  (step.isSettled, L"but settled there");
+        Assert::AreEqual<uint64_t> (4200, step.cycle, L"where the last seek went");
+    }
+
 private:
 
     static HistoryThumbnailCell MakeCell (uint64_t position, uint64_t cycle, bool isLive)

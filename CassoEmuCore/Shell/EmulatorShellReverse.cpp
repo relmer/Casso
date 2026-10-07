@@ -84,9 +84,11 @@ void EmulatorShell::StartReverseRecording()
     }
 
     //  A history begun again: the timeline's pictures were of the old one,
-    //  and the next are drawn on a machine built as this one is.
+    //  and the next are drawn on a machine built as this one is, as are the
+    //  heat map's rebuilds.
     m_historyThumbnails.Clear();
     m_historyRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_heatReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 }
 
 
@@ -220,6 +222,14 @@ void EmulatorShell::RunReverseCommand (
     hr = m_reverseHost->Execute (command, argument, m_reverseStopTest, result);
 
     m_isReplayingHistory.store (false, memory_order_release);
+
+    //  Landed or not, the machine may have moved; the heat map follows it,
+    //  rebuilding its heat once a drag of the timeline is let go.
+    if (m_debugSession != nullptr)
+    {
+        m_debugSession->GetTarget().NoteHistoryMoved (command == ReverseCommand::ScrubCycle);
+    }
+
     CHR (hr);
 
     if (speaker != nullptr)
@@ -255,7 +265,7 @@ void EmulatorShell::RunReverseCommand (
 
 Error:
     //  Landed or not, the seek is no longer on its way.
-    if (command == ReverseCommand::SeekCycle)
+    if (command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle)
     {
         m_seekCycleLanded.store (argument, memory_order_release);
     }
@@ -918,18 +928,20 @@ void EmulatorShell::UpdateReplayCaption()
 //  SeekHistoryCycle
 //
 //  UI thread: the timeline was clicked, or its playhead dragged, at a cycle,
-//  for a machine it has seen stopped. The CPU thread drops it when no
-//  history is kept. The cycle and when it was asked for are kept, so the
-//  timeline can tell whether the seek has landed.
+//  for a machine it has seen stopped; isInterim while the drag goes on. The
+//  CPU thread drops it when no history is kept. The cycle and when it was
+//  asked for are kept, so the timeline can tell whether the seek has landed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SeekHistoryCycle (uint64_t cycle)
+void EmulatorShell::SeekHistoryCycle (
+    uint64_t  cycle,
+    bool      isInterim)
 {
     m_seekCyclePosted.store   (cycle,            memory_order_release);
     m_seekCyclePostedAt.store (GetTickCount64(), memory_order_release);
 
-    PostReverseCommand (ReverseCommand::SeekCycle, cycle);
+    PostReverseCommand (isInterim ? ReverseCommand::ScrubCycle : ReverseCommand::SeekCycle, cycle);
 }
 
 
@@ -1074,6 +1086,39 @@ HistoryStatus EmulatorShell::GetHistoryStatus()
 
     status.outcome = m_lastReverseOutcome;
     return status;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncHeatHistory
+//
+//  CPU thread. Attached, the debugger's heat map keeps its counts in the
+//  history and is told what the history does; detached, before the debugger
+//  goes, the two are unlinked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncHeatHistory (bool isAttached)
+{
+    IDebugTarget       * target     = (m_debugSession != nullptr) ? &m_debugSession->GetTarget() : nullptr;
+    ReverseController  * controller = (m_reverseHost != nullptr) ? &m_reverseHost->GetController() : nullptr;
+    bool                 isLinked   = isAttached && target != nullptr && controller != nullptr;
+
+
+
+    if (controller != nullptr)
+    {
+        controller->SetHistoryObserver (isLinked ? target->GetHistoryObserver() : nullptr);
+    }
+
+    if (target != nullptr)
+    {
+        target->AttachHistory (isLinked ? &controller->GetKeyframes() : nullptr, isLinked ? &m_heatReplayer : nullptr);
+    }
 }
 
 

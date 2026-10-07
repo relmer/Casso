@@ -243,8 +243,9 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
 
 
 
-    target.SetHeatMapOn   (m_isHeatMapShown);
-    target.SetHeatMapFade ((double) m_heatMapOptions.fadeSeconds);
+    target.SetHeatMapOn         (m_isHeatMapShown);
+    target.SetHeatMapFade       ((double) m_heatMapOptions.fadeSeconds);
+    target.SetHeatMapCumulative (m_heatMapOptions.cumulative);
     map = target.FoldHeatMap();
 
     if (map == nullptr)
@@ -262,7 +263,8 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
         return;
     }
 
-    snapshot.heatMap.top = AccessHeatMap::kHottestPerSecond;
+    snapshot.heatMap.top          = AccessHeatMap::kHottestPerSecond;
+    snapshot.heatMap.isRebuilding = target.IsHeatMapRebuilding();
 
     map->GetLevels (HeatKind::Execute, snapshot.heatMap.execute);
     map->GetLevels (HeatKind::Read,    snapshot.heatMap.read);

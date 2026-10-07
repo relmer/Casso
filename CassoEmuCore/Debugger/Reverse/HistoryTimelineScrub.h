@@ -11,7 +11,9 @@
 //  HistoryTimelineScrubStep
 //
 //  What to do now for a drag of the history timeline's playhead line, in
-//  order: stop the machine; seek to a cycle; run on.
+//  order: stop the machine; seek to a cycle, isInterim while the drag goes
+//  on; run on. A drag let go where it last sought ends settled instead: the
+//  machine is already there, and what waits on the drag's end can go ahead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +21,8 @@ struct HistoryTimelineScrubStep
 {
     bool      pauseFirst = false;
     bool      seek       = false;
+    bool      isInterim  = false;
+    bool      isSettled  = false;
     uint64_t  cycle      = 0;
     bool      run        = false;
 };

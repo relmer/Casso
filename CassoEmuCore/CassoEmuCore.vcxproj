@@ -247,6 +247,8 @@
     <ClCompile Include="Debugger\Handlers\SymbolHandlers.cpp" />
     <ClCompile Include="Debugger\AccessHeatMap.cpp" />
     <ClCompile Include="Debugger\HeatMapOptions.cpp" />
+    <ClCompile Include="Debugger\HeatCountDelta.cpp" />
+    <ClCompile Include="Debugger\HeatHistory.cpp" />
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
     <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
@@ -267,6 +269,7 @@
     <ClCompile Include="Cli\DebugMode.cpp" />
     <ClCompile Include="Shell\HeadlessMachineFactory.cpp" />
     <ClCompile Include="Shell\ScratchMachineRenderer.cpp" />
+    <ClCompile Include="Shell\ScratchHeatReplayer.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
@@ -689,6 +692,7 @@
     <ClInclude Include="Debugger\Reverse\HistoryTimelineScrub.h" />
     <ClInclude Include="Debugger\Reverse\HistoryWallTimes.h" />
     <ClInclude Include="Debugger\Reverse\IHistoryFrameRenderer.h" />
+    <ClInclude Include="Debugger\Reverse\IHistoryObserver.h" />
     <ClInclude Include="Debugger\Reverse\Replayer.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
@@ -712,6 +716,9 @@
     <ClInclude Include="Debugger\Handlers\SymbolHandlers.h" />
     <ClInclude Include="Debugger\AccessHeatMap.h" />
     <ClInclude Include="Debugger\HeatMapOptions.h" />
+    <ClInclude Include="Debugger\HeatCountDelta.h" />
+    <ClInclude Include="Debugger\HeatHistory.h" />
+    <ClInclude Include="Debugger\HeatRebuildJob.h" />
     <ClInclude Include="Debugger\BinaryImageReader.h" />
     <ClInclude Include="Debugger\DebugHandlerSet.h" />
     <ClInclude Include="Debugger\MonitorFormatter.h" />
@@ -736,6 +743,7 @@
     <ClInclude Include="Cli\DebugMode.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />
     <ClInclude Include="Shell\ScratchMachineRenderer.h" />
+    <ClInclude Include="Shell\ScratchHeatReplayer.h" />
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />
     <ClInclude Include="Debugger\IDebugTarget.h" />

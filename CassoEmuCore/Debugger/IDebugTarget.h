@@ -5,9 +5,12 @@
 class AccessHeatMap;
 class DebugHook;
 class IDiagnosticsProvider;
+class IHeatRebuilder;
+class IHistoryObserver;
 class IOpcodeWatcher;
 class IRunObserver;
 class IWatchSink;
+class KeyframeStore;
 class Microcode;
 
 
@@ -130,6 +133,18 @@ public:
     virtual void                    ResetHeatMap   ()               {}
     virtual void                    SetHeatMapFade (double seconds) { (void) seconds; }
     virtual const AccessHeatMap   * FoldHeatMap    ()               { return nullptr; }
+
+    // The heat map follows the machine through reverse execution's history:
+    // the history it keeps its counts in and the rebuilder of its heat, or
+    // none; the observer the history is to tell of what it does; a move
+    // through history, isInterim while a drag of the timeline goes on;
+    // whether it accumulates rather than fades; and whether its heat is
+    // still being rebuilt.
+    virtual void                    AttachHistory         (KeyframeStore * keyframes, IHeatRebuilder * rebuilder) { (void) keyframes; (void) rebuilder; }
+    virtual IHistoryObserver      * GetHistoryObserver    ()                    { return nullptr; }
+    virtual void                    NoteHistoryMoved      (bool isInterim)      { (void) isInterim; }
+    virtual void                    SetHeatMapCumulative  (bool isCumulative)   { (void) isCumulative; }
+    virtual bool                    IsHeatMapRebuilding   () const              { return false; }
 
     // The devices that publish debugger panels. A target with no devices has
     // none, which is the default.

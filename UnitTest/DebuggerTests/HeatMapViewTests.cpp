@@ -1,5 +1,8 @@
 #include "Pch.h"
 
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -867,6 +870,31 @@ namespace DebuggerTests
 
             view.OnMouse (MakeEvent (DxuiMouseEventKind::Down, beside));
             Assert::IsFalse  (view.TryGetTipAt (beside, anchor, text), L"none while the button is down");
+        }
+
+
+
+        TEST_METHOD (WhileTheHeatIsRebuiltTheBarSaysSo)
+        {
+            HeatMapView           view;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            size_t                notes = 0;
+
+
+
+            Place (view);
+
+            view.Paint (painter, text, theme);
+            notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapView::kpszRebuildingNote; });
+            Assert::AreEqual ((size_t) 0, notes, L"no note while nothing is rebuilt");
+
+            view.SetRebuilding (true);
+            text.Reset();
+            view.Paint (painter, text, theme);
+            notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapView::kpszRebuildingNote; });
+            Assert::AreEqual ((size_t) 1, notes, L"one note while the heat is rebuilt");
         }
     };
 }

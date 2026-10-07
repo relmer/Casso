@@ -21,6 +21,7 @@ static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
     { ReverseCommand::StepForward,     "forward"    },
     { ReverseCommand::Seek,            "seek"       },
     { ReverseCommand::SeekCycle,       "seek-cycle" },
+    { ReverseCommand::ScrubCycle,      "scrub-cycle" },
     { ReverseCommand::GoLive,          "live"       },
 };
 
@@ -630,7 +631,7 @@ std::string CpuCommandDispatcher::FormatReversePayload (
         }
     }
 
-    if (command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle)
+    if (command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle)
     {
         payload += std::format (" {}", argument);
     }
@@ -681,7 +682,7 @@ bool CpuCommandDispatcher::TryParseReversePayload (
         return false;
     }
 
-    isSeek = command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle;
+    isSeek = command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle;
 
     if (isSeek != !rest.empty())
     {

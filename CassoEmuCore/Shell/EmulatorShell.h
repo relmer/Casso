@@ -42,6 +42,7 @@
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
+#include "Shell/ScratchHeatReplayer.h"
 #include "Shell/ScratchMachineRenderer.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
@@ -638,7 +639,7 @@ private:
     void         SetDebuggerTimelineDock   (const std::string & text) override;
 
     HistoryThumbnails *  GetHistoryThumbnails () override { return &m_historyThumbnails; }
-    void                 SeekHistoryCycle     (uint64_t cycle) override;
+    void                 SeekHistoryCycle     (uint64_t cycle, bool isInterim) override;
     bool                 IsHistorySeekBusy    () const override;
     std::string  GetDebuggerFocusedPane () override;
     void         SetDebuggerFocusedPane (const std::string & text) override;
@@ -2338,7 +2339,13 @@ private:
     ScratchMachineRenderer        m_historyRenderer;
     HistoryThumbnails             m_historyThumbnails     { m_historyRenderer };
 
+    // The fading heat map's rebuilds after a move through history, replayed
+    // on a scratch machine of its own. Declared before the debugger, whose
+    // heat map holds it.
+    ScratchHeatReplayer           m_heatReplayer;
+
     void            ServiceHistoryThumbnails();
+    void            SyncHeatHistory         (bool isAttached);
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
@@ -2356,6 +2363,7 @@ private:
     ULONGLONG                        m_debugViewBuiltAt      = 0;
     bool                             m_isDebugViewDirty      = true;
     bool                             m_wasPausedAtDebugBuild = false;
+    bool                             m_wasHeatRebuilding     = false;   // the last build's heat map awaited its rebuilt heat
     std::atomic<bool>                              m_isDebugWindowShown { false };
     bool                                           m_isDetachPending    = false;
     std::mutex                                     m_debugViewMutex;

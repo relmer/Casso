@@ -42,6 +42,14 @@ enum class HeatKind
 //  The tables are allocated by Start and freed by Stop; a map that is off
 //  holds no memory and ignores whatever it is told.
 //
+//  Given the machine's position, the map counts only the instructions at
+//  or after the position it was started at, so a replay of the past from
+//  before it counts nothing there either. Reverse execution sets the totals
+//  to what they were at a keyframe it loads (SetTotals), and clears the heat
+//  after a move for a rebuilt heat to be merged in (ClearHeat, MergeHeat).
+//  The totals are kept signed, since history's arithmetic can put a position
+//  before a reset below zero; they read as zero there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class AccessHeatMap : public IWatchSink, public IFetchSink
@@ -49,6 +57,7 @@ class AccessHeatMap : public IWatchSink, public IFetchSink
 public:
     static constexpr size_t    kAddressCount    = 0x10000;
     static constexpr size_t    kKindCount       = 3;
+    static constexpr size_t    kEntryCount      = kKindCount * kAddressCount;
     static constexpr uint64_t  kCyclesPerFrame  = 17030;
     static constexpr double    kCyclesPerSecond = 1020484.0;
     static constexpr double    kFramesPerSecond = kCyclesPerSecond / (double) kCyclesPerFrame;
@@ -64,6 +73,12 @@ public:
     void   Stop  ();
     bool   IsOn  () const { return !m_heat.empty(); }
 
+    //  The machine's position, read before each access; null counts every
+    //  access. Start counts from where it points then, or SetCountFrom from
+    //  a position given.
+    void       SetPositionSource (const uint64_t * position) { m_position = position; }
+    void       SetCountFrom      (uint64_t position)         { m_countFrom = position; }
+
     //  The counts since the last fold, faded heat plus counts after it, and
     //  added to the totals.
     void   Fold  (uint64_t cycle);
@@ -72,9 +87,23 @@ public:
     //  is on stays on.
     void   Reset ();
 
+    //  The totals as they stand, counts not yet folded included; the totals
+    //  set, with the counts not yet folded dropped.
+    void   GetTotalsNow (std::vector<int64_t> & outTotals) const;
+    void   SetTotals    (const std::vector<int64_t> & totals);
+
+    //  The counts not yet folded go to the totals alone and the heat is
+    //  cleared, as of cycle; heat built elsewhere as of a cycle is faded to
+    //  the last fold and added in.
+    void   ClearHeat (uint64_t cycle);
+    void   MergeHeat (const std::vector<float> & heat, uint64_t cycle);
+
+    const std::vector<float> &  GetHeatTable () const { return m_heat; }
+
     //  How long, in seconds of machine time, a single access stays on the
     //  map before it fades to cold.
     void   SetFadeSeconds  (double seconds);
+    double GetFadeSeconds  () const { return m_fadeSeconds; }
     double GetFadePerFrame () const { return m_fadePerFrame; }
 
     //  The heat, the rate in accesses a second it stands for, and the total.
@@ -104,18 +133,23 @@ public:
     // IFetchSink
     void   OnFetch (Word pc, Byte opcode) override;
 
-private:
     static size_t  GetIndex (HeatKind kind, Word address) { return (size_t) kind * kAddressCount + address; }
 
+private:
     static double  MakeFadePerFrame (double seconds);
     double         GetRatePerHeat   () const { return (1.0 - m_fadePerFrame) * kFramesPerSecond; }
+    bool           IsCounting       () const { return m_position == nullptr || *m_position >= m_countFrom; }
+    void           FindMostTotal    ();
 
     const Microcode        * m_instructionSet = nullptr;
+    const uint64_t         * m_position       = nullptr;
+    uint64_t                 m_countFrom      = 0;
     std::vector<uint32_t>    m_counts;
     std::vector<float>       m_heat;
-    std::vector<uint64_t>    m_totals;
+    std::vector<int64_t>     m_totals;
     uint64_t                 m_mostTotal      = 0;
     uint64_t                 m_foldedAt       = 0;
+    double                   m_fadeSeconds    = HeatMapOptions::kDefaultFadeSeconds;
     double                   m_fadePerFrame   = MakeFadePerFrame (HeatMapOptions::kDefaultFadeSeconds);
 
     //  The last read the bus reported, which is the opcode when a fetch is

@@ -11,6 +11,7 @@
 #include "Debugger/Reverse/Replayer.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
 
+class IHistoryObserver;
 class IReverseStopTest;
 class MachineHost;
 
@@ -93,6 +94,10 @@ struct ReverseResult
 //  after the target cycle. All of them run on the thread that runs the
 //  machine, between instructions.
 //
+//  A history observer, when one is set, is told of each keyframe taken live
+//  before it is stored, and may give it side bytes to keep, and of each
+//  keyframe whose state a replay loads.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ReverseController : public HistoryRecorder
@@ -121,6 +126,7 @@ public:
     void      SetReplayControl    (ReplayControl * control) { m_control = control; }
     void      SetCallerProbe      (CallerProbe probe) { m_callerProbe = std::move (probe); }
     void      SetCallerLinksProbe (CallerLinksProbe probe) { m_callerLinksProbe = std::move (probe); }
+    void      SetHistoryObserver  (IHistoryObserver * observer) { m_observer = observer; }
     void      Stop                ();
     bool      IsRecording         () const { return m_isRecording; }
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
@@ -202,6 +208,8 @@ private:
     Replayer                   m_replayer;
     StateWriter                m_writer;                 // kept so its section and segment lists keep their capacity
     StateWriter                m_hostWriter;             // the host input state taken with every capture
+    std::vector<Byte>          m_side;                   // the observer's bytes for the keyframe being taken, kept for its capacity
+    IHistoryObserver         * m_observer          = nullptr;
     IWorkQueue               * m_workQueueOverride = nullptr;  // set by a test
     ReplayControl            * m_control           = nullptr;  // the shell's, read and set from another thread
     CallerProbe                m_callerProbe;            // the debugger's call record, when one is attached

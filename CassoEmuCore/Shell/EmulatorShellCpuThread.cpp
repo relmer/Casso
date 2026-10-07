@@ -911,6 +911,8 @@ Error:
 
 void EmulatorShell::CloseDebugger()
 {
+    SyncHeatHistory (false);
+
     SetDebugRunDriver  (nullptr);
     SetDebugSession    (nullptr);
     SetReverseStopTest (nullptr);

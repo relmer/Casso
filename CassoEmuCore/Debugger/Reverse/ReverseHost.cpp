@@ -272,6 +272,7 @@ HRESULT ReverseHost::Move (
             break;
 
         case ReverseCommand::SeekCycle:
+        case ReverseCommand::ScrubCycle:
             hr = m_controller.SeekToCycle (argument, result);
             break;
 

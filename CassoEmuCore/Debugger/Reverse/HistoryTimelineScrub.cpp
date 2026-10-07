@@ -83,7 +83,8 @@ HistoryTimelineScrubStep HistoryTimelineScrub::OnFrame (
 //  Once the machine is stopped: a seek to where the line last was, when it
 //  has moved since the last seek and that seek has landed, or when it was
 //  let go; and once let go, the drag ends, and a machine that was running
-//  runs on.
+//  runs on. Every seek before the end is interim. An end that needs no seek
+//  is settled where the last seek went.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,17 +104,20 @@ HistoryTimelineScrubStep HistoryTimelineScrub::TakeStep (
 
     if (isMoved)
     {
-        step.seek    = true;
-        step.cycle   = *m_pending;
-        m_lastSought = *m_pending;
+        step.seek      = true;
+        step.isInterim = !m_isEnded;
+        step.cycle     = *m_pending;
+        m_lastSought   = *m_pending;
     }
 
     m_pending.reset();
 
     if (m_isEnded)
     {
-        step.run   = m_wasRunning;
-        m_isActive = false;
+        step.isSettled = !step.seek && m_lastSought != UINT64_MAX;
+        step.cycle     = m_lastSought;
+        step.run       = m_wasRunning;
+        m_isActive     = false;
     }
 
     return step;

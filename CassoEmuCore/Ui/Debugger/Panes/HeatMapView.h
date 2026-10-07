@@ -102,6 +102,13 @@ public:
     void   SetMode    (Mode mode);
     Mode   GetMode    () const { return m_options.view; }
 
+    //  While the heat is rebuilt after a move through history, the bar says
+    //  so in place of the color key.
+    static constexpr const wchar_t * kpszRebuildingNote = L"Rebuilding";
+
+    void   SetRebuilding (bool isRebuilding) { m_isRebuilding = isRebuilding; }
+    bool   IsRebuilding  () const            { return m_isRebuilding; }
+
     void                    SetOptions (const HeatMapOptions & options);
     const HeatMapOptions &  GetOptions () const { return m_options; }
 
@@ -224,6 +231,7 @@ private:
     POINT                      m_pressScroll  = {};
     bool                       m_isDragging   = false;
     bool                       m_isFrameStale = false;
+    bool                       m_isRebuilding = false;
     std::function<void()>      m_onOptionsChanged;
     std::function<void(Word)>  m_onPickAddress;
 };

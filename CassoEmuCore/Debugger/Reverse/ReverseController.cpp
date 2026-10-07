@@ -5,6 +5,7 @@
 #include "Core/StateWriter.h"
 #include "Debugger/DebugMemoryView.h"
 #include "Debugger/Reverse/HistoryStatus.h"
+#include "Debugger/Reverse/IHistoryObserver.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Shell/MachineHost.h"
@@ -18,7 +19,8 @@
 //  ReverseController::ReverseController
 //
 //  Every replay runs muted: the sound and printout it reproduces were heard
-//  and printed when the machine first ran them.
+//  and printed when the machine first ran them. The history observer hears
+//  of every keyframe a replay loads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +29,14 @@ ReverseController::ReverseController (MachineHost & machine) :
     m_replayer (machine, m_keyframes)
 {
     m_replayer.SetOutputGate ([&machine] (bool isMuted) { machine.SetOutputMuted (isMuted); });
+
+    m_replayer.SetStateLoadedCallback ([this] ()
+    {
+        if (m_observer != nullptr)
+        {
+            m_observer->OnKeyframeLoaded (m_machine.GetPosition());
+        }
+    });
 }
 
 
@@ -1668,7 +1678,8 @@ Error:
 //  The save shares the RAM chunks and disk tracks not written since the
 //  last one, so only what changed is copied; the keyframe store flattens it
 //  into a buffer of its own and packs it on its work queue. Every buffer,
-//  list and writer here is reused, so a capture allocates nothing.
+//  list and writer here is reused, so a capture allocates nothing. The
+//  history observer's side bytes, if any, are stored with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1719,7 +1730,14 @@ HRESULT ReverseController::CaptureNow()
 
     m_machine.CheckSharedSave (writer);
 
-    hr = m_keyframes.Add (position, cycle, journalEnd, writer);
+    m_side.clear();
+
+    if (m_observer != nullptr)
+    {
+        m_observer->OnKeyframeAdding (position, m_side);
+    }
+
+    hr = m_keyframes.Add (position, cycle, journalEnd, writer, m_side);
     CHR (hr);
 
     journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);

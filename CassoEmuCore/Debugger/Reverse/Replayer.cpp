@@ -75,6 +75,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LoadFrom
+//
+//  Loads a state the store does not hold, as RestoreKeyframe loads one it
+//  does; the next keyframe to check is the store's first after position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Replayer::LoadFrom (
+    const std::vector<Byte>  & state,
+    uint64_t                   position,
+    size_t                     journalIndex)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = LoadState (state, position, journalIndex);
+    CHR (hr);
+
+    FindNextKeyframe (position);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunTo
 //
 //  Runs from where the machine stands to target, never past endPosition, the
@@ -350,7 +381,7 @@ HRESULT Replayer::LoadState (
 
 
 
-    hr = m_machine.LoadState (reader);
+    hr = m_isOverMounted ? m_machine.LoadStateOverMountedMedia (reader) : m_machine.LoadState (reader);
     CHR (hr);
 
     m_machine.SetPosition (position);

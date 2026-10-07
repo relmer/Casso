@@ -25,12 +25,13 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
         return;
     }
 
-    m_counts.assign (kKindCount * kAddressCount, 0);
-    m_heat.assign   (kKindCount * kAddressCount, 0.0f);
-    m_totals.assign (kKindCount * kAddressCount, 0);
+    m_counts.assign (kEntryCount, 0);
+    m_heat.assign   (kEntryCount, 0.0f);
+    m_totals.assign (kEntryCount, 0);
 
     m_mostTotal    = 0;
     m_foldedAt     = cycle;
+    m_countFrom    = (m_position != nullptr) ? *m_position : 0;
     m_lastRead.reset();
     m_operandsLeft = 0;
 }
@@ -49,7 +50,7 @@ void AccessHeatMap::Stop()
 {
     std::vector<uint32_t>  noCounts;
     std::vector<float>     noHeat;
-    std::vector<uint64_t>  noTotals;
+    std::vector<int64_t>   noTotals;
 
 
 
@@ -105,7 +106,7 @@ void AccessHeatMap::Fold (uint64_t cycle)
 
         m_heat[i]   = (heat < kColdHeat) ? 0.0f : heat;
         m_totals[i] += m_counts[i];
-        m_mostTotal  = std::max (m_mostTotal, m_totals[i]);
+        m_mostTotal  = std::max (m_mostTotal, (uint64_t) std::max<int64_t> (m_totals[i], 0));
         m_counts[i]  = 0;
     }
 }
@@ -124,9 +125,162 @@ void AccessHeatMap::Reset()
 {
     std::ranges::fill (m_counts, 0u);
     std::ranges::fill (m_heat,   0.0f);
-    std::ranges::fill (m_totals, 0ull);
+    std::ranges::fill (m_totals, 0ll);
 
     m_mostTotal = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::GetTotalsNow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::GetTotalsNow (std::vector<int64_t> & outTotals) const
+{
+    outTotals.resize (m_totals.size());
+
+    for (size_t i = 0; i < m_totals.size(); i++)
+    {
+        outTotals[i] = m_totals[i] + m_counts[i];
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::SetTotals
+//
+//  The machine was put back where these were the totals, so the counts made
+//  since the last fold belong to positions it no longer stands after, and
+//  go; so does what the last read left owed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::SetTotals (const std::vector<int64_t> & totals)
+{
+    bool  isSameSize = totals.size() == m_totals.size();
+
+
+
+    if (!IsOn() || !isSameSize)
+    {
+        return;
+    }
+
+    m_totals = totals;
+
+    std::ranges::fill (m_counts, 0u);
+
+    m_lastRead.reset();
+    m_operandsLeft = 0;
+
+    FindMostTotal();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::ClearHeat
+//
+//  After a move through history: the counts the move's replay made are the
+//  totals' to keep, while the heat starts over as of cycle, to be rebuilt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::ClearHeat (uint64_t cycle)
+{
+    if (!IsOn())
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_totals.size(); i++)
+    {
+        m_totals[i] += m_counts[i];
+        m_counts[i]  = 0;
+    }
+
+    std::ranges::fill (m_heat, 0.0f);
+
+    m_foldedAt = cycle;
+
+    FindMostTotal();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::MergeHeat
+//
+//  Heat built as of cycle, faded by the frames from there to the last fold,
+//  joins what the map has gathered since; fading is linear, so the sum is
+//  what one map would hold. Heat from a cycle after the last fold is added
+//  as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::MergeHeat (
+    const std::vector<float>  & heat,
+    uint64_t                    cycle)
+{
+    bool    isSameSize = heat.size() == m_heat.size();
+    double  frames     = 0.0;
+    float   fade       = 1.0f;
+    float   merged     = 0.0f;
+
+
+
+    if (!IsOn() || !isSameSize)
+    {
+        return;
+    }
+
+    if (m_foldedAt > cycle)
+    {
+        frames = (double) (m_foldedAt - cycle) / (double) kCyclesPerFrame;
+    }
+
+    fade = (float) std::pow (m_fadePerFrame, frames);
+
+    for (size_t i = 0; i < m_heat.size(); i++)
+    {
+        merged    = m_heat[i] + heat[i] * fade;
+        m_heat[i] = (merged < kColdHeat) ? 0.0f : merged;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::FindMostTotal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::FindMostTotal()
+{
+    m_mostTotal = 0;
+
+    for (int64_t total : m_totals)
+    {
+        m_mostTotal = std::max (m_mostTotal, (uint64_t) std::max<int64_t> (total, 0));
+    }
 }
 
 
@@ -141,6 +295,7 @@ void AccessHeatMap::Reset()
 
 void AccessHeatMap::SetFadeSeconds (double seconds)
 {
+    m_fadeSeconds  = seconds;
     m_fadePerFrame = MakeFadePerFrame (seconds);
 }
 
@@ -212,7 +367,7 @@ float AccessHeatMap::GetHeat (HeatKind kind, Word address) const
 
 uint64_t AccessHeatMap::GetTotal (HeatKind kind, Word address) const
 {
-    return IsOn() ? m_totals[GetIndex (kind, address)] : 0;
+    return IsOn() ? (uint64_t) std::max<int64_t> (m_totals[GetIndex (kind, address)], 0) : 0;
 }
 
 
@@ -278,7 +433,7 @@ void AccessHeatMap::GetTotalLevels (HeatKind kind, std::vector<Byte> & levels) c
 
     for (size_t address = 0; address < kAddressCount; address++)
     {
-        levels[address] = ToLevel ((double) m_totals[first + address], top);
+        levels[address] = ToLevel ((double) std::max<int64_t> (m_totals[first + address], 0), top);
     }
 }
 
@@ -336,7 +491,7 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
 
 
 
-    if (!IsOn())
+    if (!IsOn() || !IsCounting())
     {
         return;
     }
@@ -380,7 +535,7 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
 
 
 
-    if (!IsOn())
+    if (!IsOn() || !IsCounting())
     {
         return;
     }

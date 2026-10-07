@@ -298,9 +298,11 @@ void DebuggerWindow::ApplyTimelineScrub (const HistoryTimelineScrubStep & step)
         m_host->PauseDebugger();
     }
 
-    if (step.seek)
+    //  Settled, the seek lands where the machine already is, which tells
+    //  what waits on the drag's end that it has ended.
+    if (step.seek || step.isSettled)
     {
-        m_host->SeekHistoryCycle (step.cycle);
+        m_host->SeekHistoryCycle (step.cycle, step.isInterim);
     }
 
     if (step.run)
@@ -347,7 +349,7 @@ void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
 
     if (plan.seek)
     {
-        m_host->SeekHistoryCycle (plan.cycle);
+        m_host->SeekHistoryCycle (plan.cycle, false);
     }
 
     if (plan.goLive)

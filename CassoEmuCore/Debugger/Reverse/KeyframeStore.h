@@ -60,7 +60,8 @@ struct KeyframeInfo
     size_t    journalIndex = 0;      // input journal end index when it was taken
     uint64_t  checksum     = 0;      // of the whole state: RAM, CPU, devices, disk media
     size_t    stateBytes   = 0;      // unpacked size
-    size_t    storedBytes  = 0;      // packed size held in memory
+    size_t    storedBytes  = 0;      // packed size held in memory, side bytes included
+    size_t    sideBytes    = 0;      // of storedBytes, what was kept beside the snapshot
     uint64_t  wallTime     = 0;      // host clock when it was taken, UTC FILETIME; not part of the state
     uint64_t  gapStart     = 0;      // with hasGapBefore: where recording paused before it
     bool      isWhole      = false;  // false: XOR difference from its group's whole snapshot
@@ -86,6 +87,26 @@ enum class KeyframeCopy
     Copied,
     Pending,
     Gone,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KeyframeDrop
+//
+//  Which keyframes KeyframeStore is about to drop: the oldest, the newest,
+//  or every one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class KeyframeDrop
+{
+    Oldest,
+    Newest,
+    All,
 };
 
 
@@ -132,6 +153,11 @@ enum class KeyframeCopy
 //  work runs inside Add. Everything but the work itself is called on one
 //  thread, the one that runs the machine.
 //
+//  A keyframe can be given side bytes, kept just after its packed snapshot
+//  in the arena and counted with it against the budget: the heat map keeps
+//  there the accesses counted since the keyframe before. A drop listener is
+//  told before each keyframe goes, while its side bytes can still be read.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class KeyframeStore
@@ -141,6 +167,10 @@ public:
 
     //  Reads the host's clock as a UTC FILETIME; tests substitute their own.
     using WallClock = uint64_t (*)();
+
+    //  Told before the oldest or the newest keyframe is dropped, or before
+    //  every one is.
+    using DropListener = std::function<void (KeyframeDrop drop)>;
 
               KeyframeStore     () = default;
               ~KeyframeStore    ();
@@ -154,12 +184,13 @@ public:
     void      Release           ();
     void      SetWorkQueue      (IWorkQueue * queue);
     void      SetWallClock      (WallClock clock) { m_wallClock = clock; }
+    void      SetDropListener   (DropListener listener) { m_onDrop = std::move (listener); }
 
     bool      IsDue             (uint64_t cycle) const { return cycle >= m_nextDueCycle; }
 
     HRESULT   Add               (uint64_t position, uint64_t cycle, const std::vector<Byte> & state) { return Add (position, cycle, 0, state); }
-    HRESULT   Add               (uint64_t position, uint64_t cycle, size_t journalIndex, const std::vector<Byte> & state);
-    HRESULT   Add               (uint64_t position, uint64_t cycle, size_t journalIndex, const StateWriter & writer);
+    HRESULT   Add               (uint64_t position, uint64_t cycle, size_t journalIndex, const std::vector<Byte> & state, const std::vector<Byte> & side = {});
+    HRESULT   Add               (uint64_t position, uint64_t cycle, size_t journalIndex, const StateWriter & writer, const std::vector<Byte> & side = {});
     HRESULT   Capture           (const MachineHost & machine, uint64_t position);
     HRESULT   WaitForPending    ();
 
@@ -177,6 +208,8 @@ public:
     size_t                    GetCount        () const { return m_count; }
     size_t                    GetPendingCount () const { return m_pendingCount; }
     const KeyframeInfo      & GetInfo         (size_t index) const { return GetEntry (index).info; }
+    void                      GetSide         (size_t index, const Byte *& outData, size_t & outSize) const;
+    size_t                    GetSideByteCount() const { return m_sideBytes; }
     size_t                    GetByteCount    () const { return m_storedBytes + m_wholeBytes; }
     size_t                    GetUsedBytes    () const;
     bool                      IsFull          () const { return m_isFull; }
@@ -209,12 +242,14 @@ private:
         size_t        offset = 0;      // where its packed bytes start in the arena
     };
 
-    //  One keyframe's work: the state handed over, and what packing it gave.
+    //  One keyframe's work: the state handed over, and what packing it gave;
+    //  the side bytes ride along untouched by the work.
     struct Job
     {
         KeyframeStore      * store    = nullptr;
         std::vector<Byte>    state;
         std::vector<Byte>    packed;
+        std::vector<Byte>    side;
         uint64_t             checksum = 0;
         bool                 isWhole  = false;
         HRESULT              hr       = S_OK;
@@ -235,7 +270,11 @@ private:
     HRESULT   TakeJob           (Job *& outJob);
     HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
     HRESULT   Collect           ();
-    HRESULT   Place             (const std::vector<Byte> & packed, size_t & outOffset);
+    HRESULT   Place             (const std::vector<Byte> & packed, const std::vector<Byte> & side, size_t & outOffset);
+    void      NotifyDrop        (KeyframeDrop drop);
+
+    const Job      & GetPendingJob  (size_t pendingIndex) const;
+    static size_t    GetPackedBytes (const KeyframeInfo & info) { return info.storedBytes - info.sideBytes; }
     bool      TryFindRoom       (size_t size, size_t & outOffset) const;
     void      Pack              (Job & job);
     HRESULT   ReloadLatestWhole ();
@@ -257,6 +296,7 @@ private:
     size_t                         m_arenaBytes   = 0;
     size_t                         m_arenaEnd     = 0;     // just past the newest packed snapshot
     size_t                         m_storedBytes  = 0;
+    size_t                         m_sideBytes    = 0;     // of m_storedBytes, the side bytes
     size_t                         m_groupLength  = 0;     // keyframes in the newest group
     size_t                         m_wholeBytes   = 0;     // size of the newest whole snapshot
     size_t                         m_groupWhole   = 0;     // packed size of the newest collected whole snapshot
@@ -268,6 +308,7 @@ private:
     std::array<Job, kBufferCount>  m_jobs;
     size_t                         m_nextJob      = 0;     // the job the next Add takes
     size_t                         m_pendingCount = 0;     // jobs handed over and not yet collected, the newest entries
+    DropListener                   m_onDrop;
 
     // Used by the work, so touched by the caller's thread only while none is in flight.
     std::vector<Byte>              m_latestWhole;          // unpacked copy of the newest whole snapshot

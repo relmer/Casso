@@ -187,6 +187,7 @@
     <ClCompile Include="DebuggerTests\MachineDebugTargetTests.cpp" />
     <ClCompile Include="DebuggerTests\AccessHeatMapTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapMachineTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatCountDeltaTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapViewTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapPaneWindowTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapViewStateTests.cpp" />
@@ -845,6 +846,8 @@
     <ClCompile Include="EmuTests\JoyportHostSettingStateTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeBudgetChangeTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
+    <ClCompile Include="EmuTests\KeyframeSideTests.cpp" />
+    <ClCompile Include="EmuTests\HeatHistoryTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
     <ClCompile Include="EmuTests\HistoryTimelineTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailCostTests.cpp" />

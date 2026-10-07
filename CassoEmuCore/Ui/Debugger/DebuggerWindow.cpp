@@ -6886,9 +6886,10 @@ void DebuggerWindow::ApplyHeatMap()
     palette.read       = colors.annotation;
     palette.write      = colors.changed;
 
-    m_heatMapView->SetPalette (palette);
-    m_heatMapView->SetTop     (m_snapshot->heatMap.top);
-    m_heatMapView->SetLevels  (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
+    m_heatMapView->SetPalette    (palette);
+    m_heatMapView->SetTop        (m_snapshot->heatMap.top);
+    m_heatMapView->SetLevels     (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
+    m_heatMapView->SetRebuilding (m_snapshot->heatMap.isRebuilding);
 }
 
 

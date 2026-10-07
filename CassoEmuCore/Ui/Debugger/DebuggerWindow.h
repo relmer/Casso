@@ -170,12 +170,12 @@ public:
     virtual void         SetDebuggerTimelineDock   (const std::string &)   {}
 
     //  The history timeline's pictures, a seek to a cycle in history for a
-    //  stopped machine, and whether the last seek asked for has yet to land.
-    //  A host that records no history, as a test's does not, has no pictures
-    //  and moves nowhere.
-    virtual HistoryThumbnails *  GetHistoryThumbnails ()                   { return nullptr; }
-    virtual void                 SeekHistoryCycle     (uint64_t cycle)     { (void) cycle; }
-    virtual bool                 IsHistorySeekBusy    () const             { return false; }
+    //  stopped machine, isInterim while a drag of the timeline goes on, and
+    //  whether the last seek asked for has yet to land. A host that records
+    //  no history, as a test's does not, has no pictures and moves nowhere.
+    virtual HistoryThumbnails *  GetHistoryThumbnails ()                              { return nullptr; }
+    virtual void                 SeekHistoryCycle     (uint64_t cycle, bool isInterim) { (void) cycle; (void) isInterim; }
+    virtual bool                 IsHistorySeekBusy    () const                        { return false; }
 
     //  The pane that had the keys when the window closed, by its layout id,
     //  kept the same way. A host with no preferences has none saved.

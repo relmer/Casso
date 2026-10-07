@@ -118,6 +118,12 @@ public:
     HRESULT   RunTo             (const ReplayTarget & target, uint64_t endPosition, IReverseStopTest * stopTest, ReplayReport & report, std::vector<ReplayStep> * steps = nullptr, std::vector<Byte> * stackPointers = nullptr);
     HRESULT   PrepareStepHere   (ReplayReport & report, bool includeObserved);
 
+    //  A state from outside the store, at position, its inputs from
+    //  journalIndex on; for a second machine whose disks were mounted from
+    //  files rather than kept, loaded over what is mounted.
+    HRESULT   LoadFrom            (const std::vector<Byte> & state, uint64_t position, size_t journalIndex);
+    void      SetOverMountedMedia (bool isOverMounted) { m_isOverMounted = isOverMounted; }
+
     bool      IsReplaying       () const          { return m_isReplaying; }
     uint64_t  GetReplayedCount  () const          { return m_replayedCount; }
     size_t    GetRestoreCount   () const          { return m_restoreCount; }
@@ -149,4 +155,5 @@ private:
     uint64_t                       m_replayedCount = 0;                // instructions every replay has run, for tests
     size_t                         m_restoreCount  = 0;                // keyframes loaded, for tests
     bool                           m_isReplaying   = false;
+    bool                           m_isOverMounted = false;
 };

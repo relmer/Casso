@@ -241,3 +241,39 @@ void InputJournal::Clear()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadRecords
+//
+//  The slots already held are written over, payloads and all, so a journal
+//  loaded again and again stops allocating once it has held its largest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputJournal::LoadRecords (
+    size_t                             firstIndex,
+    const std::vector<InputRecord>   & records)
+{
+    size_t  i = 0;
+
+
+
+    if (m_records.size() < records.size())
+    {
+        m_records.resize (records.size());
+    }
+
+    for (i = 0; i < records.size(); i++)
+    {
+        m_records[i] = records[i];
+    }
+
+    m_head       = 0;
+    m_count      = records.size();
+    m_firstIndex = firstIndex;
+}
+
+
+
+
+

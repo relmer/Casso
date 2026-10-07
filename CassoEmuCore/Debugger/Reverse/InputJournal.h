@@ -165,6 +165,10 @@ public:
     void  DiscardBefore (size_t beginIndex);
     void  Clear         ();
 
+    //  Holds just these records, the first at index firstIndex, as another
+    //  journal held them; for a second machine replaying the same inputs.
+    void  LoadRecords   (size_t firstIndex, const std::vector<InputRecord> & records);
+
 private:
     InputRecord  & AppendSlot();
 

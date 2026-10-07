@@ -241,13 +241,15 @@ struct DebuggerViewSnapshot
     //  The heat map pane's levels, one per address and kind, 0 for cold;
     //  empty while the pane is hidden and nothing is recorded. Level 255
     //  stands for top: accesses a second while fading, the busiest
-    //  address's count while cumulative.
+    //  address's count while cumulative. While fading, after a move through
+    //  history, isRebuilding until the heat at the landing is rebuilt.
     struct HeatMapState
     {
         std::vector<Byte>  execute;
         std::vector<Byte>  read;
         std::vector<Byte>  write;
-        double             top     = 0.0;
+        double             top          = 0.0;
+        bool               isRebuilding = false;
     };
 
     HeatMapState                          heatMap;

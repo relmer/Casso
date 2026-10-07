@@ -177,6 +177,11 @@ void KeyframeStore::Clear()
         m_queue->WaitAll();
     }
 
+    if (m_count > 0)
+    {
+        NotifyDrop (KeyframeDrop::All);
+    }
+
     m_pendingCount = 0;
 
     m_first = 0;
@@ -186,6 +191,7 @@ void KeyframeStore::Clear()
 
     m_arenaEnd     = 0;
     m_storedBytes  = 0;
+    m_sideBytes    = 0;
     m_groupLength  = 0;
     m_wholeBytes   = 0;
     m_groupWhole   = 0;
@@ -222,6 +228,7 @@ void KeyframeStore::Release()
     {
         job.state  = std::vector<Byte>();
         job.packed = std::vector<Byte>();
+        job.side   = std::vector<Byte>();
     }
 }
 
@@ -264,7 +271,7 @@ void KeyframeStore::SetWorkQueue (IWorkQueue * queue)
 //  index at that moment, where a replay from it starts reading inputs. It
 //  is stored whole when it opens a group (the store is empty, IsGroupDone,
 //  or the state's size changed) and as
-//  a difference otherwise.
+//  a difference otherwise. The side bytes, if any, are kept with it.
 //  Then the next keyframe is scheduled and the budget enforced.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +280,8 @@ HRESULT KeyframeStore::Add (
     uint64_t                   position,
     uint64_t                   cycle,
     size_t                     journalIndex,
-    const std::vector<Byte>  & state)
+    const std::vector<Byte>  & state,
+    const std::vector<Byte>  & side)
 {
     HRESULT   hr  = S_OK;
     Job     * job = nullptr;
@@ -287,6 +295,7 @@ HRESULT KeyframeStore::Add (
     CHR (hr);
 
     job->state.assign (state.begin(), state.end());
+    job->side.assign  (side.begin(),  side.end());
 
     hr = SubmitJob (*job, position, cycle, journalIndex);
     CHR (hr);
@@ -309,10 +318,11 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT KeyframeStore::Add (
-    uint64_t              position,
-    uint64_t              cycle,
-    size_t                journalIndex,
-    const StateWriter   & writer)
+    uint64_t                   position,
+    uint64_t                   cycle,
+    size_t                     journalIndex,
+    const StateWriter        & writer,
+    const std::vector<Byte>  & side)
 {
     HRESULT   hr  = S_OK;
     Job     * job = nullptr;
@@ -323,6 +333,7 @@ HRESULT KeyframeStore::Add (
     CHR (hr);
 
     writer.FlattenInto (job->state);
+    job->side.assign (side.begin(), side.end());
 
     hr = Reserve (job->state.size());
     CHR (hr);
@@ -765,6 +776,7 @@ HRESULT KeyframeStore::SubmitJob (
     entry->info.journalIndex = journalIndex;
     entry->info.wallTime     = m_wallClock();
     entry->info.stateBytes   = job.state.size();
+    entry->info.sideBytes    = job.side.size();
     entry->info.isWhole      = isEmpty || !isSameSize || isGroupFull;
 
     if (entry->info.isWhole)
@@ -913,20 +925,23 @@ Error:
 //  Collect
 //
 //  Lays the results of finished jobs, oldest first, into the arena for the
-//  newest entries they belong to. Stops at the first job still in flight,
-//  since jobs finish in the order they were handed over. Making room may
-//  drop the oldest groups, which moves every index, so a caller takes its
-//  keyframe indices after a wait, never before.
+//  newest entries they belong to, each followed by its side bytes. Stops at
+//  the first job still in flight, since jobs finish in the order they were
+//  handed over. Making room may drop the oldest groups, which moves every
+//  index, so a caller takes its keyframe indices after a wait, never before.
+//  The side bytes are left out when the arena has no room for them, so a
+//  keyframe is never lost to them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT KeyframeStore::Collect()
 {
-    HRESULT   hr     = S_OK;
-    Job     * job    = nullptr;
-    Entry   * entry  = nullptr;
-    size_t    offset = 0;
-    bool      isDone = false;
+    HRESULT                    hr       = S_OK;
+    Job                      * job      = nullptr;
+    Entry                    * entry    = nullptr;
+    size_t                     offset   = 0;
+    bool                       isDone   = false;
+    const std::vector<Byte>    noSide;
 
 
 
@@ -942,26 +957,36 @@ HRESULT KeyframeStore::Collect()
 
         CHR (job->hr);
 
-        hr = Place (job->packed, offset);
+        hr = Place (job->packed, job->side, offset);
+
+        if (hr == E_OUTOFMEMORY && !job->side.empty())
+        {
+            job->side.clear();
+
+            hr = Place (job->packed, noSide, offset);
+        }
+
         CHR (hr);
 
         entry = &GetEntry (m_count - m_pendingCount);
 
         entry->info.checksum    = job->checksum;
-        entry->info.storedBytes = job->packed.size();
+        entry->info.sideBytes   = job->side.size();
+        entry->info.storedBytes = job->packed.size() + job->side.size();
         entry->offset           = offset;
 
         m_storedBytes += entry->info.storedBytes;
+        m_sideBytes   += entry->info.sideBytes;
         m_pendingCount--;
 
         if (entry->info.isWhole)
         {
-            m_groupWhole = entry->info.storedBytes;
+            m_groupWhole = job->packed.size();
             m_groupDiffs = 0;
         }
         else
         {
-            m_groupDiffs += entry->info.storedBytes;
+            m_groupDiffs += job->packed.size();
         }
     }
 
@@ -977,18 +1002,22 @@ Error:
 //
 //  Place
 //
-//  Copies packed into the arena after the newest packed snapshot, dropping
-//  the oldest groups until it fits.
+//  Copies packed, then side, into the arena after the newest packed
+//  snapshot, dropping the oldest groups until they fit. The arena always
+//  has room for the snapshots of the newest group, so only side bytes can
+//  fail to fit, which is E_OUTOFMEMORY without an assert.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT KeyframeStore::Place (
     const std::vector<Byte>  & packed,
+    const std::vector<Byte>  & side,
     size_t                   & outOffset)
 {
     HRESULT  hr        = S_OK;
-    size_t   size      = packed.size();
+    size_t   size      = packed.size() + side.size();
     bool     hasRoom   = TryFindRoom (size, outOffset);
+    bool     hasSide   = !side.empty();
     bool     isDropped = false;
 
 
@@ -996,14 +1025,20 @@ HRESULT KeyframeStore::Place (
     while (!hasRoom)
     {
         isDropped = TryDropOldestGroup();
+        BAIL_OUT_IF (!isDropped && hasSide, E_OUTOFMEMORY);
         CBRAEx (isDropped, E_OUTOFMEMORY);
 
         hasRoom = TryFindRoom (size, outOffset);
     }
 
-    if (size != 0)
+    if (!packed.empty())
     {
-        memcpy (m_arena.get() + outOffset, packed.data(), size);
+        memcpy (m_arena.get() + outOffset, packed.data(), packed.size());
+    }
+
+    if (hasSide)
+    {
+        memcpy (m_arena.get() + outOffset + packed.size(), side.data(), side.size());
     }
 
     m_arenaEnd = outOffset + size;
@@ -1145,7 +1180,7 @@ HRESULT KeyframeStore::Restore (
 
     if (!isNewest)
     {
-        hr = m_compressor.Decompress (m_arena.get() + whole->offset, whole->info.storedBytes, whole->info.stateBytes, m_olderWhole);
+        hr = m_compressor.Decompress (m_arena.get() + whole->offset, GetPackedBytes (whole->info), whole->info.stateBytes, m_olderWhole);
         CHR (hr);
     }
 
@@ -1159,7 +1194,7 @@ HRESULT KeyframeStore::Restore (
     {
         CBRA (entry->info.stateBytes == whole->info.stateBytes);
 
-        hr = m_compressor.Decompress (m_arena.get() + entry->offset, entry->info.storedBytes, entry->info.stateBytes, outState);
+        hr = m_compressor.Decompress (m_arena.get() + entry->offset, GetPackedBytes (entry->info), entry->info.stateBytes, outState);
         CHR (hr);
 
         XorBytes (outState.data(), base, outState.data(), outState.size());
@@ -1273,13 +1308,13 @@ HRESULT KeyframeStore::CopyPacked (
     if (!unpacker.HoldsWhole (whole->info.position, whole->info.checksum))
     {
         bytes = m_arena.get() + whole->offset;
-        outPacked.whole.assign (bytes, bytes + whole->info.storedBytes);
+        outPacked.whole.assign (bytes, bytes + GetPackedBytes (whole->info));
     }
 
     if (!entry->info.isWhole)
     {
         bytes = m_arena.get() + entry->offset;
-        outPacked.difference.assign (bytes, bytes + entry->info.storedBytes);
+        outPacked.difference.assign (bytes, bytes + GetPackedBytes (entry->info));
     }
 
 Error:
@@ -1508,7 +1543,10 @@ HRESULT KeyframeStore::DropNewerThan (
 
     while (m_count > 0 && (isByPosition ? GetEntry (m_count - 1).info.position : GetEntry (m_count - 1).info.cycle) > limit)
     {
+        NotifyDrop (KeyframeDrop::Newest);
+
         m_storedBytes -= GetEntry (m_count - 1).info.storedBytes;
+        m_sideBytes   -= GetEntry (m_count - 1).info.sideBytes;
         m_count--;
         dropped = true;
     }
@@ -1563,17 +1601,17 @@ HRESULT KeyframeStore::ReloadLatestWhole()
     groupStart = FindGroupStart (count - 1);
     whole      = &GetEntry (groupStart);
 
-    hr = m_compressor.Decompress (m_arena.get() + whole->offset, whole->info.storedBytes, whole->info.stateBytes, m_latestWhole);
+    hr = m_compressor.Decompress (m_arena.get() + whole->offset, GetPackedBytes (whole->info), whole->info.stateBytes, m_latestWhole);
     CHR (hr);
 
     m_groupLength = count - groupStart;
     m_wholeBytes  = whole->info.stateBytes;
-    m_groupWhole  = whole->info.storedBytes;
+    m_groupWhole  = GetPackedBytes (whole->info);
     m_groupDiffs  = 0;
 
     for (size_t i = groupStart + 1; i < count; i++)
     {
-        m_groupDiffs += GetEntry (i).info.storedBytes;
+        m_groupDiffs += GetPackedBytes (GetEntry (i).info);
     }
 
 Error:
@@ -1682,10 +1720,92 @@ void KeyframeStore::DropOldestGroups()
 
 void KeyframeStore::PopOldest()
 {
+    NotifyDrop (KeyframeDrop::Oldest);
+
     m_storedBytes -= GetEntry (0).info.storedBytes;
+    m_sideBytes   -= GetEntry (0).info.sideBytes;
 
     m_first = (m_first + 1) % m_entries.size();
     m_count--;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDrop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::NotifyDrop (KeyframeDrop drop)
+{
+    if (m_onDrop)
+    {
+        m_onDrop (drop);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSide
+//
+//  The side bytes kept with keyframe index: in the arena after its packed
+//  snapshot once collected, and in its job while it is still in flight.
+//  Empty when it was given none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::GetSide (
+    size_t          index,
+    const Byte  *&  outData,
+    size_t        & outSize) const
+{
+    size_t         collected = m_count - m_pendingCount;
+    const Entry  & entry     = GetEntry (index);
+    const Job    * job       = nullptr;
+
+
+
+    outData = nullptr;
+    outSize = entry.info.sideBytes;
+
+    if (outSize == 0)
+    {
+        return;
+    }
+
+    if (index < collected)
+    {
+        outData = m_arena.get() + entry.offset + GetPackedBytes (entry.info);
+        return;
+    }
+
+    job     = &GetPendingJob (index - collected);
+    outData = job->side.data();
+    outSize = job->side.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPendingJob
+//
+//  The job of the pendingIndex-th keyframe still in flight, oldest first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const KeyframeStore::Job & KeyframeStore::GetPendingJob (size_t pendingIndex) const
+{
+    return m_jobs[(m_nextJob + m_jobs.size() - m_pendingCount + pendingIndex) % m_jobs.size()];
 }
 
 

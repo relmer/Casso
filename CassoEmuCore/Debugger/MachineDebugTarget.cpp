@@ -62,15 +62,15 @@ MachineDebugTarget::~MachineDebugTarget()
 //  makes reaches it, and the CPU reports each fetch, read and write to the
 //  map; the bus's own readers, such as the video modes, are not counted. Off
 //  gives both back, so the CPU reads its pages inline again and reports to
-//  nobody. A CPU not on the bus has nothing to report.
+//  nobody. A CPU not on the bus has nothing to report. The map counts from
+//  the machine's position when it comes on, and its history hears of both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineDebugTarget::SetHeatMapOn (bool on)
 {
-    MemoryBus     & bus    = m_host.GetMemoryBus();
-    EmuCpu        * cpu    = m_host.GetCpu();
-    MemoryBusCpu  * busCpu = nullptr;
+    EmuCpu  * cpu         = m_host.GetCpu();
+    bool      isConnected = false;
 
 
 
@@ -79,26 +79,63 @@ void MachineDebugTarget::SetHeatMapOn (bool on)
         return;
     }
 
-    busCpu = dynamic_cast<MemoryBusCpu *> (cpu->GetCpu());
+    if (on)
+    {
+        m_heat.SetPositionSource (m_host.GetPositionPtr());
+        m_heat.Start (GetInstructionSet(), GetCycleCount());
+
+        isConnected = TryConnectHeatMap (m_host, &m_heat);
+
+        if (!isConnected)
+        {
+            m_heat.Stop();
+            return;
+        }
+
+        m_heatHistory.OnMapStarted();
+        return;
+    }
+
+    isConnected = TryConnectHeatMap (m_host, nullptr);
+    IGNORE_RETURN_VALUE (isConnected, false);
+
+    m_heatHistory.OnMapStopped();
+    m_heat.Stop();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::TryConnectHeatMap
+//
+//  A map puts every page of the machine's bus on its watched path and takes
+//  the CPU's reports of each fetch, read and write; null gives both back.
+//  False when the machine's CPU is not on its bus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineDebugTarget::TryConnectHeatMap (
+    MachineHost    & host,
+    AccessHeatMap  * map)
+{
+    EmuCpu        * cpu    = host.GetCpu();
+    MemoryBusCpu  * busCpu = (cpu != nullptr) ? dynamic_cast<MemoryBusCpu *> (cpu->GetCpu()) : nullptr;
+
+
 
     if (busCpu == nullptr)
     {
-        return;
+        return false;
     }
 
-    if (on)
-    {
-        m_heat.Start (GetInstructionSet(), GetCycleCount());
-        bus.SetAllPagesWatched (true);
-        busCpu->SetAccessSink (&m_heat);
-        busCpu->SetFetchSink  (&m_heat);
-        return;
-    }
+    host.GetMemoryBus().SetAllPagesWatched (map != nullptr);
+    busCpu->SetAccessSink (map);
+    busCpu->SetFetchSink  (map);
 
-    busCpu->SetFetchSink  (nullptr);
-    busCpu->SetAccessSink (nullptr);
-    bus.SetAllPagesWatched (false);
-    m_heat.Stop();
+    return true;
 }
 
 
@@ -117,7 +154,26 @@ void MachineDebugTarget::SetHeatMapOn (bool on)
 void MachineDebugTarget::ClearHeatMap()
 {
     m_host.GetMemoryBus().SetAllPagesWatched (false);
+    m_heatHistory.OnMapStopped();
     m_heat.Stop();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::AttachHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::AttachHistory (
+    KeyframeStore   * keyframes,
+    IHeatRebuilder  * rebuilder)
+{
+    m_heatHistory.Attach       (keyframes);
+    m_heatHistory.SetRebuilder (rebuilder);
 }
 
 
@@ -128,6 +184,8 @@ void MachineDebugTarget::ClearHeatMap()
 //
 //  MachineDebugTarget::FoldHeatMap
 //
+//  A rebuilt heat that has come in is merged first.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 const AccessHeatMap * MachineDebugTarget::FoldHeatMap()
@@ -136,6 +194,8 @@ const AccessHeatMap * MachineDebugTarget::FoldHeatMap()
     {
         return nullptr;
     }
+
+    m_heatHistory.Service();
 
     m_heat.Fold (GetCycleCount());
     return &m_heat;

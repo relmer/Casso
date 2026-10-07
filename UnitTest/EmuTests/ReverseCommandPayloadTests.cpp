@@ -35,12 +35,15 @@ public:
             ReverseCommand::ReverseContinue,
             ReverseCommand::StepForward,
             ReverseCommand::Seek,
+            ReverseCommand::SeekCycle,
+            ReverseCommand::ScrubCycle,
             ReverseCommand::GoLive,
         };
         ReverseCommand  parsed   = ReverseCommand::StepBack;
         uint64_t        argument = 0;
         std::string     payload;
         bool            isParsed = false;
+        bool            isSeek   = false;
 
 
 
@@ -48,10 +51,11 @@ public:
         {
             payload  = CpuCommandDispatcher::FormatReversePayload (command, s_kPayloadSeekPosition);
             isParsed = CpuCommandDispatcher::TryParseReversePayload (payload, parsed, argument);
+            isSeek   = command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle;
 
             Assert::IsTrue (isParsed, std::format (L"parsed command {}", static_cast<int> (command)).c_str());
             Assert::IsTrue (parsed == command, std::format (L"the same command {}", static_cast<int> (command)).c_str());
-            Assert::AreEqual<uint64_t> ((command == ReverseCommand::Seek) ? s_kPayloadSeekPosition : 0, argument, L"the position goes with seek alone");
+            Assert::AreEqual<uint64_t> (isSeek ? s_kPayloadSeekPosition : 0, argument, L"the position or cycle goes with the seeks alone");
         }
     }
 

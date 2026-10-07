@@ -1460,6 +1460,10 @@ void EmulatorShell::PublishDebuggerView()
     isDue =DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
                                            now, m_debugViewBuiltAt);
 
+    //  A stopped machine waiting on the heat map's rebuild builds again a
+    //  frame apart, so the rebuilt heat shows when it comes in.
+    isDue = isDue || (m_wasHeatRebuilding && now - m_debugViewBuiltAt >= DebuggerViewState::kBuildIntervalMs);
+
     if (!isDue)
     {
         return;
@@ -1468,6 +1472,9 @@ void EmulatorShell::PublishDebuggerView()
     //  The clock panel reports the speed, which the CPU manager paces and the
     //  machine does not know.
     m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
+
+    //  The heat map follows the machine through history.
+    SyncHeatHistory (true);
 
     //  The run state is the CPU manager's, not the session's, so it is handed
     //  in: the command bar gates its stepping entries on it, and the code
@@ -1492,5 +1499,6 @@ void EmulatorShell::PublishDebuggerView()
 
     m_debugViewBuiltAt      = now;
     m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
+    m_wasHeatRebuilding     = m_debugger->GetSession().GetTarget().IsHeatMapRebuilding();
     m_isDebugViewDirty = false;
 }

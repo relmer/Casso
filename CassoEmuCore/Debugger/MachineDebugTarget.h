@@ -2,6 +2,7 @@
 
 #include "Debugger/AccessHeatMap.h"
 #include "Debugger/DebugMemoryView.h"
+#include "Debugger/HeatHistory.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/RunStopHook.h"
 #include "Debugger/TraceController.h"
@@ -72,9 +73,19 @@ public:
 
     void                    SetHeatMapOn   (bool on) override;
     void                    ClearHeatMap   () override;
-    void                    ResetHeatMap   () override                { m_heat.Reset(); }
+    void                    ResetHeatMap   () override                { m_heatHistory.Reset(); }
     void                    SetHeatMapFade (double seconds) override  { m_heat.SetFadeSeconds (seconds); }
     const AccessHeatMap   * FoldHeatMap    () override;
+
+    void                    AttachHistory         (KeyframeStore * keyframes, IHeatRebuilder * rebuilder) override;
+    IHistoryObserver      * GetHistoryObserver    () override                   { return &m_heatHistory; }
+    void                    NoteHistoryMoved      (bool isInterim) override     { m_heatHistory.OnMoved (isInterim); }
+    void                    SetHeatMapCumulative  (bool isCumulative) override  { m_heatHistory.SetCumulative (isCumulative); }
+    bool                    IsHeatMapRebuilding   () const override             { return m_heat.IsOn() && m_heatHistory.IsRebuilding(); }
+
+    HeatHistory           & GetHeatHistory        () { return m_heatHistory; }
+
+    static bool             TryConnectHeatMap     (MachineHost & host, AccessHeatMap * map);
 
     std::vector<const IDiagnosticsProvider *>  GetDiagnosticsProviders () const override;
     bool                                       TryGetMockingboardBase  (Word & base) const override;
@@ -85,6 +96,7 @@ private:
     RunStopHook         m_runHook;
     TraceController     m_trace;
     AccessHeatMap       m_heat;
+    HeatHistory         m_heatHistory   { m_host, m_heat };
     IRunDriver        * m_driver        = nullptr;
     IRunObserver      * m_observer      = nullptr;
 };
