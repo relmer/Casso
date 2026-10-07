@@ -734,7 +734,7 @@ starting size, three pixels a cell at 100% scaling, with $0000 at the top
 left.
 
 The address the mouse is over shows at once in a tip beside it, with what
-touched it and how much: "$C65E  executed 120/s, read 3.4/s" while fading, or
+touched it and how much, and then its last writer and reader (see below): "$C65E  executed 120/s, read 3.4/s" while fading, or
 "$C65E  executed 1,200 times, read once" while cumulative, the numbers to two
 figures since the map keeps 255 levels; a frame is drawn around its cell.
 While cells are small, a mouse over an untouched cell picks the busiest cell
@@ -771,6 +771,71 @@ stepping on from there counts on from there:
 
 A stretch of history recorded while the pane was closed keeps no counts, so
 a seek across it adds nothing for it.
+
+#### Banks
+
+On a machine with banked memory (the //e, the //c, and a ][+ with its
+Language Card), the **Bank** drop-down at the left of the bar chooses which
+memory the map shows. **CPU**, the default, is the 64 KB the CPU addresses,
+whatever is banked in at the time of each access. The others show where each
+access really landed:
+
+- **Main RAM** and **Aux RAM** (on the //e and //c) are 64 KB each, laid out
+  as the //e's memory chips hold them: - is the RAM the CPU reaches
+  there, and the top 16 KB holds the Language Card's RAM, bank 1 of  at
+  -, bank 2 at - and the high RAM at -. A write
+  with RAMWRT on shows in Aux RAM, a read with ALTZP on of - or of
+  the Language Card shows in Aux RAM, and so on.
+- **Language card** and **Aux language card** show that top 16 KB alone.
+- **ROM** shows the reads that reached ROM, at the addresses they were made
+  at, and any write to an address where ROM is banked in.
+
+I/O (-) appears in the CPU's view only. Each view fades, counts,
+resets and follows history just as the CPU's does, and the tip says where in
+the bank the cell is: "Aux RAM ", "Main language card bank 1 ",
+"High RAM " on a ][+, "ROM ". The choice is kept between sessions;
+on a machine without that bank the map shows the CPU's view.
+
+#### Last writer and last reader
+
+For every address, in every bank, the heat map also keeps the instruction
+that last wrote it and the one that last read it as data. Once the mouse has
+been over a cell for a moment, the tip adds them on two more lines: "Last
+written by  STA (),Y at cycle 1,234,567", with the symbol at that
+address when one is loaded (" DRAWROW: STA (),Y"), and "Not read
+since counting started" when nothing has read it. The instruction is
+disassembled from the code at that address as it stands now. An interrupt's
+pushes onto the stack count as the interrupted instruction's.
+
+- **Ctrl+click** a cell to show its last writer in the disassembly, and
+  **Ctrl+Shift+click** to show its last reader. A plain click still shows
+  the address in a memory window.
+- **Ctrl+Alt+click** a cell to go back through history to its last write, and
+  **Ctrl+Alt+Shift+click** to its last read. The machine stops first if it is
+  running, and lands just after the instruction that made the access: the
+  byte holds the value it wrote, the instruction is the one just above the
+  PC, and a step back runs to it. A write older than the history kept, or
+  made while history was not being recorded, is reported in the console
+  instead.
+- Right-click a cell, or a byte in a memory window, for the same four actions
+  as menu rows: **Show last writer**, **Show last reader**, **Go to last
+  write** and **Go to last read**. A memory window's rows use the CPU's view
+  of the byte.
+
+The last writers and readers follow the machine through history as the
+totals do: after a seek, a step or a run on from the past, they are what was
+true at that position. They take no history of their own. The map keeps, for
+each address, the latest access up to the furthest the machine has run;
+where that is later than where the machine stands, the access before it is
+found when the tip or a click asks for it: the counts history keeps say
+which stretch between keyframes it was in, and that one stretch is replayed
+on a second machine, which takes a few milliseconds. An access older than the history kept is reported as such.
+Nothing from before the pane was opened, or from before **Reset counts**,
+is shown.
+
+The map's tables, with what it keeps to follow history, take about 35 MB of
+memory while the pane is open, and 20 MB more while fading heat is rebuilt;
+none while it is closed.
 
 ### Memory windows
 
