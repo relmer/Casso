@@ -113,7 +113,7 @@ public:
     bool      TryGetTotalsAt    (uint64_t keyframePosition, std::vector<int64_t> & outTotals);
 
     //  The map's written bits as of keyframe index.
-    void      GetWrittenAt      (size_t index, std::vector<uint64_t> & outBits);
+    void      GetKeptAt      (size_t index, std::vector<uint64_t> & outBits);
 
     //  The instruction that last wrote or read an address in a space as of
     //  where the machine stands, looked up in history where the map does not

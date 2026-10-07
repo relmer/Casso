@@ -207,8 +207,9 @@ public:
     void   SetLevels  (const std::vector<Byte> & execute, const std::vector<Byte> & read, const std::vector<Byte> & write);
 
     //  The same for the reads before written and the writes that changed
-    //  their byte, drawn by the next SetLevels.
-    void   SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed);
+    //  their byte, drawn by the next SetLevels; and a mark for each byte the
+    //  debugger edited, which the tip says.
+    void   SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed, const std::vector<Byte> & edited = {});
     void   SetTop     (double top) { m_top = top; }
     void   SetPalette (const Palette & palette);
     void   SetMode    (Mode mode);
@@ -427,6 +428,7 @@ private:
     std::vector<Byte>          m_read;
     std::vector<Byte>          m_write;
     std::vector<Byte>          m_unwritten;
+    std::vector<Byte>          m_edited;
     std::vector<Byte>          m_changed;
     std::vector<uint32_t>      m_cells;
     std::vector<uint32_t>      m_frame;

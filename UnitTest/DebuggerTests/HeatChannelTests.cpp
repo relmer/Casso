@@ -131,6 +131,7 @@ namespace DebuggerTests
             std::vector<Byte>  write     (0x10000, 0);
             std::vector<Byte>  unwritten (0x10000, 0);
             std::vector<Byte>  changed   (0x10000, 0);
+            std::vector<Byte>  edited    (0x10000, 0);
             std::vector<Byte>  none;
 
 
@@ -151,6 +152,11 @@ namespace DebuggerTests
             Assert::AreEqual (kWrite,     view.GetCellColor (0x2001));
             Assert::AreEqual (std::wstring (L"$2000  read 50,000+/s, read before written 50,000+/s"), view.GetTipText (0x2000));
             Assert::AreEqual (std::wstring (L"$2001  written 50,000+/s, changed 50,000+/s"),          view.GetTipText (0x2001));
+
+            edited[0x2001] = 1;
+            view.SetChannelLevels (unwritten, changed, edited);
+            view.SetLevels        (none, read, write);
+            Assert::AreEqual (std::wstring (L"$2001  written 50,000+/s, changed 50,000+/s\nEdited in the debugger"), view.GetTipText (0x2001));
 
             options.view = Mode::Changed;
             view.SetOptions (options);
@@ -185,7 +191,7 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) 0, snapshot.heatMap.unwritten[0x2001]);
             Assert::IsTrue   (snapshot.heatMap.changed[0x2001] > 0);
             Assert::IsTrue   (snapshot.heatMap.changed[0x2001] < snapshot.heatMap.write[0x2001], L"one change of two writes");
-            Assert::AreEqual ((uint64_t) 1, snapshot.heatMap.unwrittenStatus.reads);
+            Assert::AreEqual ((uint64_t) 1, rig.controller.GetSession().GetTarget().GetUnwrittenStatus().reads);
 
             options.ignoreSameWrites = true;
             rig.view.SetHeatMapOptions (options);
@@ -212,7 +218,7 @@ namespace DebuggerTests
 
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual ((Byte) 0, snapshot.heatMap.unwritten[0x2000], L"in a span left out");
-            Assert::AreEqual ((uint64_t) 0, snapshot.heatMap.unwrittenStatus.reads);
+            Assert::AreEqual ((uint64_t) 0, rig.controller.GetSession().GetTarget().GetUnwrittenStatus().reads);
 
             rig.controller.GetSession().SetUnwrittenBreak (true);
             rig.view.SetHeatMapShown (false);

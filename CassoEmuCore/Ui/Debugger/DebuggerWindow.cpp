@@ -6992,7 +6992,7 @@ void DebuggerWindow::ApplyHeatMap()
     m_heatMapView->SetOpcodeForms  (state.opcodeForms);
     m_heatMapView->SetCpuMarks     (state.pc, state.stack);
     m_heatMapView->SetBreakpoints  (std::move (breakpoints));
-    m_heatMapView->SetChannelLevels (state.unwritten, state.changed);
+    m_heatMapView->SetChannelLevels (state.unwritten, state.changed, state.edited);
     m_heatMapView->SetLevels       (state.execute, state.read, state.write);
     m_heatMapView->SetRebuilding   (state.isRebuilding);
     m_heatMapView->SetHoverAccess  (state.hover);

@@ -620,7 +620,7 @@ HRESULT ScratchHeatReplayer::Replay (
     m_map.SetFadeSeconds    (job.fadeSeconds);
     m_map.Start             (cpu->GetCpu6502()->GetInstructionSet(), cpu->GetTotalCycles());
     m_map.SetCountFrom      (job.countFrom);
-    m_map.SetWrittenBits    (part.written);
+    m_map.SetKeptBits    (part.kept);
 
     isConnected = MachineDebugTarget::TryConnectHeatMap (*m_machine, &m_map);
     CBRA (isConnected);

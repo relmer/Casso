@@ -41,11 +41,12 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
 
     m_isStartedClear      = cycle == 0;
     m_isTracking          = m_isStartedClear;
-    m_isWrittenChanged    = true;
+    m_isKeptChanged    = true;
     m_isLastReadUnwritten = false;
     m_isLastReadStop      = false;
 
-    MakeWrittenBits (!m_isStartedClear, m_written);
+    m_written.assign (kWrittenWords, m_isStartedClear ? 0 : UINT64_MAX);
+    m_edited.assign  (kEditedWords, 0);
 
     m_lastRead.reset();
     m_instruction.reset();
@@ -70,6 +71,7 @@ void AccessHeatMap::Stop()
     std::vector<int64_t>         noTotals;
     std::vector<HeatLastAccess>  noLast;
     std::vector<uint64_t>        noWritten;
+    std::vector<uint64_t>        noEdited;
     std::vector<Byte>            noOpcodes;
 
 
@@ -79,6 +81,7 @@ void AccessHeatMap::Stop()
     m_totals.swap  (noTotals);
     m_last.swap    (noLast);
     m_written.swap (noWritten);
+    m_edited.swap  (noEdited);
     m_opcodes.swap (noOpcodes);
 
     m_mostTotal      = {};
@@ -161,8 +164,9 @@ void AccessHeatMap::Reset()
     std::ranges::fill (m_totals, 0ll);
     std::ranges::fill (m_opcodes, (Byte) 0);
 
-    m_mostTotal = {};
-    m_lastFrom  = (m_position != nullptr) ? *m_position : 0;
+    m_mostTotal     = {};
+    m_lastFrom      = (m_position != nullptr) ? *m_position : 0;
+    m_isKeptChanged = true;
 }
 
 
@@ -690,11 +694,20 @@ void AccessHeatMap::MarkOpcode (
     Word              pc,
     const Landing   & landing)
 {
+    size_t  bank = (size_t) landing.space * kAddressCount + landing.index;
+
+
+
+    if (m_opcodes[pc] == 0 || (landing.hasBank && m_opcodes[bank] == 0))
+    {
+        m_isKeptChanged = true;
+    }
+
     m_opcodes[pc] = 1;
 
     if (landing.hasBank)
     {
-        m_opcodes[(size_t) landing.space * kAddressCount + landing.index] = 1;
+        m_opcodes[bank] = 1;
     }
 }
 
@@ -801,7 +814,7 @@ void AccessHeatMap::OnWrite (Word address, Byte value)
     {
         SetBit (m_written, bit);
 
-        m_isWrittenChanged = true;
+        m_isKeptChanged = true;
     }
 
     RecordLast (true, address, landing);
@@ -816,7 +829,8 @@ void AccessHeatMap::OnWrite (Word address, Byte value)
 //  AccessHeatMap::OnRead
 //
 //  A read as data, unless the fetch that follows takes it back as the
-//  opcode. One of RAM nothing has written is a read before written too, and,
+//  opcode. One of RAM nothing has written, and the debugger has not edited,
+//  is a read before written too, and,
 //  with the break armed and no stop held, outside the ranges left out, the
 //  stop.
 //
@@ -824,7 +838,8 @@ void AccessHeatMap::OnWrite (Word address, Byte value)
 
 void AccessHeatMap::OnRead (Word address, Byte value)
 {
-    size_t  bit = 0;
+    size_t  bit    = 0;
+    size_t  edited = 0;
 
 
 
@@ -832,7 +847,8 @@ void AccessHeatMap::OnRead (Word address, Byte value)
     m_lastRead            = address;
     m_lastReadLanding     = Count (HeatKind::Read, address, false);
     m_lastReadWasCpu      = m_last[GetLastIndex (HeatSpace::Cpu, false, address)];
-    m_isLastReadUnwritten = TryGetWrittenBit (m_lastReadLanding, bit) && !IsBitSet (m_written, bit);
+    m_isLastReadUnwritten = TryGetWrittenBit (m_lastReadLanding, bit) && !IsBitSet (m_written, bit) &&
+                            TryGetEditedBit (m_lastReadLanding.space, m_lastReadLanding.index, edited) && !IsBitSet (m_edited, edited);
     m_isLastReadStop      = false;
 
     if (m_lastReadLanding.hasBank)
@@ -894,8 +910,8 @@ void AccessHeatMap::OnBeforeWrite (Word address)
 //
 //  AccessHeatMap::OnPowerCycle
 //
-//  RAM holds the power-on pattern again, which nothing wrote, so every bit
-//  clears and from here the map knows which bytes are written. Before the
+//  RAM holds the power-on pattern again, which nothing wrote and the
+//  debugger edited none of, so every bit clears and from here the map knows which bytes are written. Before the
 //  map counts, as in a replay of the past, a power cycle is no more its
 //  business than any access.
 //
@@ -908,10 +924,11 @@ void AccessHeatMap::OnPowerCycle()
         return;
     }
 
-    MakeWrittenBits (false, m_written);
+    m_written.assign (kWrittenWords, 0);
+    m_edited.assign  (kEditedWords, 0);
 
-    m_isTracking       = true;
-    m_isWrittenChanged = true;
+    m_isTracking    = true;
+    m_isKeptChanged = true;
 }
 
 
@@ -1035,14 +1052,14 @@ bool AccessHeatMap::IsWritten (HeatSpace space, Word index) const
 //
 //  AccessHeatMap::NoteHostWrite
 //
-//  The debugger put a value there on purpose, so a read of it is no read of
-//  whatever power-on left.
+//  The debugger put a value there on purpose: no guest wrote it, so nothing
+//  is counted or written, but a read of it is no read of whatever power-on
+//  left, and the tip can say who put it there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AccessHeatMap::NoteHostWrite (Word address)
 {
-    Landing       landing;
     HeatLocation  location;
     size_t        bit      = 0;
 
@@ -1053,15 +1070,18 @@ void AccessHeatMap::NoteHostWrite (Word address)
         return;
     }
 
-    landing.hasBank = m_bankMap.TryResolve (address, true, location);
-    landing.space   = location.space;
-    landing.index   = location.index;
-
-    if (TryGetWrittenBit (landing, bit) && !IsBitSet (m_written, bit))
+    if (TryGetEditedBit (HeatSpace::Cpu, address, bit) && !IsBitSet (m_edited, bit))
     {
-        SetBit (m_written, bit);
+        SetBit (m_edited, bit);
 
-        m_isWrittenChanged = true;
+        m_isKeptChanged = true;
+    }
+
+    if (m_bankMap.TryResolve (address, true, location) && TryGetEditedBit (location.space, location.index, bit) && !IsBitSet (m_edited, bit))
+    {
+        SetBit (m_edited, bit);
+
+        m_isKeptChanged = true;
     }
 }
 
@@ -1071,17 +1091,130 @@ void AccessHeatMap::NoteHostWrite (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AccessHeatMap::SetWrittenBits
+//  AccessHeatMap::TryGetEditedBit
 //
-//  As history kept them at a keyframe now loaded. The map knows them from
-//  here, unless they are every bit set, which says only that nothing was
-//  known.
+//  The CPU's space first, then main RAM's, then aux RAM's; ROM has none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AccessHeatMap::SetWrittenBits (const std::vector<uint64_t> & bits)
+bool AccessHeatMap::TryGetEditedBit (
+    HeatSpace   space,
+    Word        index,
+    size_t    & outBit)
 {
-    bool  isSameSize = bits.size() == kWrittenWords;
+    switch (space)
+    {
+    case HeatSpace::Cpu:  outBit = index;                     return true;
+    case HeatSpace::Main: outBit = kAddressCount + index;     return true;
+    case HeatSpace::Aux:  outBit = 2 * kAddressCount + index; return true;
+    default:                                                  return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::IsEdited
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AccessHeatMap::IsEdited (HeatSpace space, Word index) const
+{
+    size_t  bit = 0;
+
+
+
+    return IsOn() && TryGetEditedBit (space, index, bit) && IsBitSet (m_edited, bit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::GetEditedMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::GetEditedMarks (HeatSpace space, std::vector<Byte> & marks) const
+{
+    size_t  bit = 0;
+
+
+
+    marks.clear();
+
+    if (!IsOn())
+    {
+        return;
+    }
+
+    marks.assign (kAddressCount, 0);
+
+    for (size_t address = 0; address < kAddressCount; address++)
+    {
+        if (TryGetEditedBit (space, (Word) address, bit) && IsBitSet (m_edited, bit))
+        {
+            marks[address] = 1;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::GetKeptBits
+//
+//  The written bits, the edited bits, then a bit for each opcode mark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::GetKeptBits (std::vector<uint64_t> & outBits) const
+{
+    outBits.assign (kKeptWords, 0);
+
+    if (!IsOn())
+    {
+        return;
+    }
+
+    std::ranges::copy (m_written, outBits.begin());
+    std::ranges::copy (m_edited,  outBits.begin() + (ptrdiff_t) kWrittenWords);
+
+    for (size_t mark = 0; mark < m_opcodes.size(); mark++)
+    {
+        if (m_opcodes[mark] != 0)
+        {
+            SetBit (outBits, (kWrittenWords + kEditedWords) * kBitsPerWord + mark);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::SetKeptBits
+//
+//  As history kept them at a keyframe now loaded. The map knows what was
+//  written from here, unless every written bit is set, which says only that
+//  nothing was known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::SetKeptBits (const std::vector<uint64_t> & bits)
+{
+    std::vector<uint64_t>  kept;
+    bool                   isSameSize = bits.size() == kKeptWords;
 
 
 
@@ -1092,15 +1225,23 @@ void AccessHeatMap::SetWrittenBits (const std::vector<uint64_t> & bits)
 
     if (isSameSize)
     {
-        m_written = bits;
+        kept = bits;
     }
     else
     {
-        MakeWrittenBits (true, m_written);
+        MakeKeptBits (true, kept);
     }
 
-    m_isTracking       = std::ranges::any_of (m_written, [] (uint64_t word) { return word != UINT64_MAX; });
-    m_isWrittenChanged = true;
+    m_written.assign (kept.begin(),                                   kept.begin() + (ptrdiff_t) kWrittenWords);
+    m_edited.assign  (kept.begin() + (ptrdiff_t) kWrittenWords,       kept.begin() + (ptrdiff_t) (kWrittenWords + kEditedWords));
+
+    for (size_t mark = 0; mark < m_opcodes.size(); mark++)
+    {
+        m_opcodes[mark] = IsBitSet (kept, (kWrittenWords + kEditedWords) * kBitsPerWord + mark) ? 1 : 0;
+    }
+
+    m_isTracking    = std::ranges::any_of (m_written, [] (uint64_t word) { return word != UINT64_MAX; });
+    m_isKeptChanged = true;
 }
 
 
@@ -1109,19 +1250,19 @@ void AccessHeatMap::SetWrittenBits (const std::vector<uint64_t> & bits)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AccessHeatMap::TakeWrittenChange
+//  AccessHeatMap::TakeKeptChange
 //
 //  Whether the bits changed since this was last asked; asking clears it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AccessHeatMap::TakeWrittenChange()
+bool AccessHeatMap::TakeKeptChange()
 {
-    bool  isChanged = m_isWrittenChanged;
+    bool  isChanged = m_isKeptChanged;
 
 
 
-    m_isWrittenChanged = false;
+    m_isKeptChanged = false;
     return isChanged;
 }
 
@@ -1131,15 +1272,17 @@ bool AccessHeatMap::TakeWrittenChange()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AccessHeatMap::MakeWrittenBits
+//  AccessHeatMap::MakeKeptBits
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AccessHeatMap::MakeWrittenBits (
+void AccessHeatMap::MakeKeptBits (
     bool                     isWritten,
     std::vector<uint64_t>  & outBits)
 {
-    outBits.assign (kWrittenWords, isWritten ? UINT64_MAX : 0);
+    outBits.assign (kKeptWords, 0);
+
+    std::fill (outBits.begin(), outBits.begin() + (ptrdiff_t) kWrittenWords, isWritten ? UINT64_MAX : 0);
 }
 
 

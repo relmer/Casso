@@ -1689,9 +1689,77 @@ private:
     }
 
 
+    //  The opcode marks a second machine running the fill guest from
+    //  power-on holds at each position, the CPU's space then main RAM's.
+    static std::map<uint64_t, std::vector<Byte>> GetFillStraightMarks (const std::set<uint64_t> & positions)
+    {
+        TestMachine                              machine ("Apple2e");
+        MachineDebugTarget                       target  (machine);
+        std::map<uint64_t, std::vector<Byte>>    marks;
+        std::vector<Byte>                        main;
+
+
+
+        PrepareFill (machine);
+        target.SetHeatMapOn (true);
+
+        for (uint64_t position : positions)
+        {
+            RunFillTo (machine, position);
+            Assert::IsNotNull (target.FoldHeatMap());
+            target.FoldHeatMap()->GetOpcodeMarks (HeatSpace::Cpu,  marks[position]);
+            target.FoldHeatMap()->GetOpcodeMarks (HeatSpace::Main, main);
+            marks[position].insert (marks[position].end(), main.begin(), main.end());
+        }
+
+        return marks;
+    }
+
+
+    //  Where an opcode was fetched, and which bytes the debugger edited,
+    //  follow the machine through history: the fill guest runs its restart
+    //  code only after its first pass, so before then those bytes are no
+    //  opcode, as a straight run shows; and a byte the debugger poked is
+    //  edited from the poke on and not before it.
+    TEST_METHOD (OpcodeAndEditedMarksFollowTheMachine)
+    {
+        constexpr Word                             kPoked    = 0x9000;
+        constexpr uint64_t                         kPokeAt   = 50000;
+        constexpr Word                             kRestart  = 0x0318;
+        FillRig                                    rig;
+        std::set<uint64_t>                         wanted    = { 30000, 60000, 120000, 190000 };
+        std::map<uint64_t, std::vector<Byte>>      straight;
+        std::vector<Byte>                          marks;
+        std::vector<Byte>                          main;
+
+
+
+        RunFillTo (rig.machine, kPokeAt);
+        Assert::IsTrue (rig.target.TryPoke (kPoked, 0x77));
+        RunFillTo (rig.machine, kFillEnd);
+
+        straight = GetFillStraightMarks (wanted);
+
+        Assert::AreEqual ((Byte) 0, straight[60000][kRestart],  L"the restart code has not run by then, or the test proves nothing");
+        Assert::AreEqual ((Byte) 1, straight[190000][kRestart], L"and has by the end");
+
+        for (uint64_t at : { (uint64_t) 190000, (uint64_t) 30000, (uint64_t) 120000, (uint64_t) 60000 })
+        {
+            rig.Seek (at);
+
+            rig.GetMap().GetOpcodeMarks (HeatSpace::Cpu,  marks);
+            rig.GetMap().GetOpcodeMarks (HeatSpace::Main, main);
+            marks.insert (marks.end(), main.begin(), main.end());
+
+            Assert::IsTrue (marks == straight[at], std::format (L"opcode marks after a seek to {}", at).c_str());
+            Assert::AreEqual (at > kPokeAt, rig.GetMap().IsEdited (HeatSpace::Cpu,  kPoked), std::format (L"edited after a seek to {}", at).c_str());
+            Assert::AreEqual (at > kPokeAt, rig.GetMap().IsEdited (HeatSpace::Main, kPoked));
+        }
+    }
+
     //  What a history's heat map sides hold: the counts, those counts as
-    //  they would be packed without the two newest kinds, and the written
-    //  bits, with how many keyframes kept them whole.
+    //  they would be packed without the two newest kinds, and the kept bits,
+    //  with how many keyframes kept them whole.
     static std::string DescribeSideCost (const char * name, HeatHistory & history, const KeyframeStore & keyframes)
     {
         SnapshotCompressor        compressor;
@@ -1740,7 +1808,7 @@ private:
             oldBytes += packed.size();
         }
 
-        return std::format ("{}: {} keyframes, {} bytes of snapshots; counts {} bytes ({} without the two new kinds), written bits {} bytes, kept whole at {} keyframes\n",
+        return std::format ("{}: {} keyframes, {} bytes of snapshots; counts {} bytes ({} without the two new kinds), kept bits {} bytes, kept whole at {} keyframes\n",
                             name, keyframes.GetCount(), keyframes.GetByteCount() - keyframes.GetSideByteCount(), countBytes, oldBytes, bitBytes, whole);
     }
 

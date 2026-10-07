@@ -74,8 +74,7 @@ namespace DebuggerTests
 
         //  A byte nothing has written since power-on counts as a read before
         //  written each time it is read, in the CPU's space and in main RAM's;
-        //  a byte the program stored first does not, and neither does the
-        //  program the debugger put there.
+        //  a byte the program stored first does not.
         TEST_METHOD (AReadOfRamNothingWroteIsAReadBeforeWritten)
         {
             Rig  rig;
@@ -94,13 +93,7 @@ namespace DebuggerTests
             Assert::AreEqual ((uint64_t) 0, map.GetTotal (HeatSpace::Cpu,  HeatKind::UnwrittenRead, kStored), L"stored before it was read");
             Assert::AreEqual ((uint64_t) 1, map.GetTotal (HeatSpace::Cpu,  HeatKind::Read,          kStored));
 
-            for (Word address = kProgram; address < kProgram + 12; address++)
-            {
-                Assert::AreEqual ((uint64_t) 0, map.GetTotal (HeatSpace::Cpu, HeatKind::UnwrittenRead, address), L"code the debugger loaded is written");
-            }
-
             Assert::IsTrue  (map.IsWritten (HeatSpace::Main, kStored));
-            Assert::IsTrue  (map.IsWritten (HeatSpace::Main, kProgram), L"a byte the debugger wrote counts as written");
             Assert::IsFalse (map.IsWritten (HeatSpace::Main, kFresh));
         }
 
@@ -387,6 +380,46 @@ namespace DebuggerTests
             Assert::IsFalse  (status.isTracking);
             Assert::AreEqual ((uint64_t) 0, status.reads);
             Assert::AreEqual ((uint64_t) 0, rig.Fold().GetTotal (HeatSpace::Cpu, HeatKind::Write, kStored), L"the counts started over");
+        }
+
+
+        //  The debugger's own writes are no guest's: a poke, a memory
+        //  window's edit and a fill count as no write and no change, leave
+        //  no last writer and write no bit, but mark their bytes as edited,
+        //  and a read of an edited byte is no read before written.
+        TEST_METHOD (ADebuggerWriteIsNoGuestAccess)
+        {
+            Rig             rig;
+            HeatLastAccess  access;
+
+
+
+            rig.target.SetHeatMapOn (true);
+            LoadReadThenStore (rig);
+            rig.target.TryPoke  (kFresh, 0x42);
+            rig.target.TryPatch (0x2002, 0x43);
+            rig.RunOk ("F 2010 201F 55");
+            rig.RunOk ("G");
+
+            const AccessHeatMap & map = rig.Fold();
+
+            for (Word address : { kProgram, (Word) (kProgram + 3), kFresh, (Word) 0x2002, (Word) 0x2010, (Word) 0x201F })
+            {
+                Assert::AreEqual ((uint64_t) 0, map.GetTotal (HeatSpace::Cpu,  HeatKind::Write,        address), L"a debugger write is no write");
+                Assert::AreEqual ((uint64_t) 0, map.GetTotal (HeatSpace::Main, HeatKind::Write,        address));
+                Assert::AreEqual ((uint64_t) 0, map.GetTotal (HeatSpace::Cpu,  HeatKind::ChangedWrite, address), L"nor a change");
+                Assert::IsTrue   (map.GetLastAccess (HeatSpace::Cpu, true, address, access) == HeatAccessState::None, L"nor a last writer");
+                Assert::IsFalse  (map.IsWritten (HeatSpace::Main, address), L"nor written by the guest");
+                Assert::IsTrue   (map.IsEdited  (HeatSpace::Cpu,  address), L"but edited");
+                Assert::IsTrue   (map.IsEdited  (HeatSpace::Main, address));
+            }
+
+            Assert::AreEqual ((uint64_t) 1, map.GetTotal (HeatSpace::Cpu, HeatKind::Read,          kFresh), L"the guest's read is a read");
+            Assert::AreEqual ((uint64_t) 0, map.GetTotal (HeatSpace::Cpu, HeatKind::UnwrittenRead, kFresh), L"of a value the debugger put there");
+            Assert::IsFalse  (map.IsEdited (HeatSpace::Cpu, 0x2003));
+
+            rig.machine.PowerCycle();
+            Assert::IsFalse (rig.Fold().IsEdited (HeatSpace::Cpu, kFresh), L"a power cycle refills RAM");
         }
     };
 }

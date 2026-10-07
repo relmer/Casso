@@ -923,10 +923,17 @@ a byte nothing has written is a **read before written**: the program is
 reading whatever power-on left there. In **All** and **Data** such reads
 are drawn in violet over whatever else the cell shows, as hot as they
 were, and the tip adds "read before written" with how often. An instruction
-fetched from RAM nothing wrote is code, not a read, and is not counted. A
-byte written from the debugger (a memory window's edit, a poke, a binary
-loaded) counts as written. Only a power cycle makes RAM unwritten again; a
-reset (Ctrl+Reset) keeps it written, as the RAM keeps its bytes.
+fetched from RAM nothing wrote is code, not a read, and is not counted. Only
+a power cycle makes RAM unwritten again; a reset (Ctrl+Reset) keeps it
+written, as the RAM keeps its bytes.
+
+The debugger's own writes (a memory window's edit, a poke, a fill, a binary
+loaded, the line assembler) are not the program's, so the heat map counts
+them as nothing: no write, no change, no last writer, and not written for
+the purpose above. Each byte the debugger wrote is marked as edited instead,
+the tip over it ends with "Edited in the debugger", and a read of it is no
+read before written, since the debugger put the value there. A power cycle
+clears the marks with the RAM.
 
 The map can know what was written only from power-on. Opened later, it
 counts every byte as written and so finds no reads before written until
@@ -961,8 +968,10 @@ an address no memory takes, cannot be read back first, and always counts as
 a change.
 
 Both follow the machine through history as the totals do. Beside each
-keyframe, history keeps which RAM had been written, packed, or a note that
-it is as at the keyframe before; a seek, a step back or a run on from the
+keyframe, history keeps which RAM had been written, which bytes the
+debugger edited and which were fetched as opcodes (the marks that tell an
+operand from code), packed, or a note that they are as at the keyframe
+before; a seek, a step back or a run on from the
 past puts it back, so a read counts as a read before written exactly as it
 did the first time, and a rebuild of fading heat starts from it. **Reset
 counts** zeroes their counts with the rest and leaves what was written
@@ -972,8 +981,8 @@ on again away from power-on, every byte counts as written.
 The map's tables, with what it keeps to follow history, take about 60 MB of
 memory while the pane is open (or `BRKUNINIT` is on), and 35 MB more while
 fading heat is rebuilt; none while it is closed. Which RAM was written adds
-little to history: kept whole only at the keyframes where it changed, it
-packs to a few dozen bytes each.
+little to history: kept whole, with the edited and opcode marks, only at
+the keyframes where any of them changed, it packs to about 64 bytes each.
 
 ### Memory windows
 

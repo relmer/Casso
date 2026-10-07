@@ -37,10 +37,11 @@ void HeatMapView::SetLevels (const std::vector<Byte> & execute, const std::vecto
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapView::SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed)
+void HeatMapView::SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed, const std::vector<Byte> & edited)
 {
     m_unwritten = unwritten;
     m_changed   = changed;
+    m_edited    = edited;
 }
 
 
@@ -1872,6 +1873,11 @@ std::wstring HeatMapView::GetTipText (Word address) const
     }
 
     text += DescribeMarks (address);
+
+    if (m_edited.size() == kCount && m_edited[address] != 0)
+    {
+        text += L"\nEdited in the debugger";
+    }
 
     if (m_hoverAccess != nullptr && m_hoverAccess->address == address && m_hoverAccess->bank == m_shownBank)
     {

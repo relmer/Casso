@@ -246,11 +246,11 @@ void HeatHistory::OnKeyframeAdding (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    isChanged = m_map.TakeWrittenChange() || m_keyframes->GetCount() == 0;
+    isChanged = m_map.TakeKeptChange() || m_keyframes->GetCount() == 0;
 
     if (isChanged)
     {
-        m_map.GetWrittenBits (m_bits);
+        m_map.GetKeptBits (m_bits);
     }
 
     hr = HeatKeyframeSide::Make (m_counts, isChanged ? &m_bits : nullptr, m_compressor, outSide);
@@ -287,8 +287,8 @@ void HeatHistory::OnKeyframeLoaded (uint64_t position)
         return;
     }
 
-    GetWrittenAt (index, m_bits);
-    m_map.SetWrittenBits (m_bits);
+    GetKeptAt (index, m_bits);
+    m_map.SetKeptBits (m_bits);
 
     if (m_hasAnchor && TryFindKeyframe (m_anchorPosition, anchor))
     {
@@ -609,7 +609,7 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
 
     if (drop == KeyframeDrop::Oldest && count >= 2 && m_map.IsOn())
     {
-        GetWrittenAt (1, m_bits);
+        GetKeptAt (1, m_bits);
 
         m_oldestBits.swap (m_bits);
         m_oldestBitsAt = m_keyframes->GetInfo (1).position;
@@ -801,7 +801,7 @@ bool HeatHistory::TryGetCounts (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatHistory::GetWrittenAt
+//  HeatHistory::GetKeptAt
 //
 //  From the keyframe back to the newest that kept the bits themselves; one
 //  at or before where the map started counting, or with nothing kept, stands
@@ -811,7 +811,7 @@ bool HeatHistory::TryGetCounts (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatHistory::GetWrittenAt (
+void HeatHistory::GetKeptAt (
     size_t                   index,
     std::vector<uint64_t>  & outBits)
 {
@@ -859,7 +859,7 @@ void HeatHistory::GetWrittenAt (
 
     if (!isFound)
     {
-        AccessHeatMap::MakeWrittenBits (!m_map.IsStartedClear(), outBits);
+        AccessHeatMap::MakeKeptBits (!m_map.IsStartedClear(), outBits);
     }
 }
 
@@ -1211,7 +1211,7 @@ HRESULT HeatHistory::AddPart (
     part.endPosition   = endPosition;
     part.endCycle      = endCycle;
 
-    GetWrittenAt (index, part.written);
+    GetKeptAt (index, part.kept);
 
     ioJob.parts.push_back (std::move (part));
 

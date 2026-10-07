@@ -275,10 +275,10 @@ struct DebuggerViewSnapshot
 
         //  The reads of RAM nothing had written, but those in the ranges
         //  left out, and the writes that changed their byte, the same way;
-        //  and what the CPU's space counted of the reads before written.
+        //  and the bytes the debugger edited, a mark each.
         std::vector<Byte>                       unwritten;
         std::vector<Byte>                       changed;
-        HeatUnwrittenStatus                     unwrittenStatus;
+        std::vector<Byte>                       edited;
     };
 
     HeatMapState                          heatMap;

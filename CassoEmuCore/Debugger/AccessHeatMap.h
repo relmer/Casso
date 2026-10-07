@@ -83,8 +83,18 @@ enum class HeatKind
 //  written before it, so every bit starts set and nothing counts until the
 //  next power cycle; one started at power-on, cycle zero, starts clear.
 //  Reset leaves the bits alone, since they say what the RAM holds, not what
-//  was counted. History keeps the bits beside each keyframe, and a keyframe
-//  loaded puts them back (SetWrittenBits).
+//  was counted.
+//
+//  The debugger's own writes, a memory window's edit, a poke, a fill or a
+//  binary loaded, are no guest's: they count in no kind, record no last
+//  writer and set no written bit. Each marks its byte as edited instead, in
+//  the CPU's space and where it landed, and a read of an edited byte is no
+//  read before written, since the debugger put the value there.
+//
+//  The kept bits: which RAM was written, which bytes the debugger edited and
+//  where an opcode was fetched, all of which follow the machine's position.
+//  History keeps them beside each keyframe, and a keyframe loaded puts them
+//  back (SetKeptBits).
 //
 //  A write the CPU makes is told first, so the byte it replaces is read
 //  before the store; a write that stores a different value counts as a
@@ -105,6 +115,9 @@ public:
     static constexpr size_t    kBitsPerWord     = 64;
     static constexpr size_t    kWrittenWords    = 2 * kAddressCount / kBitsPerWord;  // main RAM's bits, then aux RAM's
     static constexpr size_t    kAddressWords    = kAddressCount / kBitsPerWord;
+    static constexpr size_t    kEditedWords     = 3 * kAddressWords;                 // the CPU's space, then main RAM's, then aux RAM's
+    static constexpr size_t    kOpcodeWords     = kSpaceCount * kAddressWords;
+    static constexpr size_t    kKeptWords       = kWrittenWords + kEditedWords + kOpcodeWords;
     static constexpr uint64_t  kCyclesPerFrame  = 17030;
     static constexpr double    kCyclesPerSecond = 1020484.0;
     static constexpr double    kFramesPerSecond = kCyclesPerSecond / (double) kCyclesPerFrame;
@@ -167,9 +180,14 @@ public:
     const std::vector<float> &  GetHeatTable () const { return m_heat; }
 
     //  One mark per address of a space, nonzero where an opcode was fetched
-    //  since the map was started or reset: the bytes executed that are not
-    //  marked were only ever an instruction's operands. Empty while off.
+    //  since the map was started or reset, as of where the machine stands:
+    //  the bytes executed that are not marked were only ever an instruction's
+    //  operands. Empty while off.
     void   GetOpcodeMarks (HeatSpace space, std::vector<Byte> & marks) const;
+
+    //  One mark per address of a space, nonzero where the debugger wrote the
+    //  byte since power-on; none in ROM's. Empty while off.
+    void   GetEditedMarks (HeatSpace space, std::vector<Byte> & marks) const;
 
     //  How long, in seconds of machine time, a single access stays on the
     //  map before it fades to cold.
@@ -203,24 +221,28 @@ public:
     //  `top` and above.
     static Byte  ToLevel (double value, double top);
 
-    //  Whether a byte of main or aux RAM has been written since power-on;
-    //  the bits as a whole, to keep and put back, and whether any changed
-    //  since they were last taken. Bits put back of the wrong size set
-    //  every bit. Whether the map knows the bits: it was started at power-on
-    //  or has seen a power cycle since.
+    //  Whether a byte of main or aux RAM has been written by the CPU since
+    //  power-on, and whether the debugger wrote a byte of a space; the kept
+    //  bits as a whole, to keep and put back, and whether any changed since
+    //  they were last taken. Bits put back of the wrong size set every
+    //  written bit and clear the rest. Whether the map knows what was
+    //  written: it was started at power-on or has seen a power cycle since.
     bool   IsWritten         (HeatSpace space, Word index) const;
-    void   GetWrittenBits    (std::vector<uint64_t> & outBits) const { outBits = m_written; }
-    void   SetWrittenBits    (const std::vector<uint64_t> & bits);
-    bool   TakeWrittenChange ();
+    bool   IsEdited          (HeatSpace space, Word index) const;
+    void   GetKeptBits       (std::vector<uint64_t> & outBits) const;
+    void   SetKeptBits       (const std::vector<uint64_t> & bits);
+    bool   TakeKeptChange    ();
     bool   IsStartedClear    () const { return m_isStartedClear; }
     bool   IsTrackingWrites  () const { return IsOn() && m_isTracking; }
 
-    //  A byte the debugger wrote, as a memory window's edit or a poke: where
-    //  a write of address lands now is written from here on.
+    //  A byte the debugger wrote, as a memory window's edit or a poke, at an
+    //  address of the CPU's: marked as edited there and where a write of it
+    //  lands now.
     void   NoteHostWrite     (Word address);
 
-    //  Every bit set, or every bit clear, as the map starts with them.
-    static void  MakeWrittenBits (bool isWritten, std::vector<uint64_t> & outBits);
+    //  The kept bits a map starts with: every written bit set, or every one
+    //  clear, and no byte edited or fetched as an opcode.
+    static void  MakeKeptBits (bool isWritten, std::vector<uint64_t> & outBits);
 
     //  The break on a read before written: while armed, the first such read
     //  outside the ranges left out is held for the debugger to stop on.
@@ -275,8 +297,10 @@ private:
     void           OnWrite          (Word address, Byte value);
     void           OnRead           (Word address, Byte value);
 
-    //  The written bit of a landing, and whether the landing has one.
+    //  The written bit of a landing, and whether the landing has one; and
+    //  the edited bit of an address of a space, and whether it has one.
     static bool    TryGetWrittenBit (const Landing & landing, size_t & outBit);
+    static bool    TryGetEditedBit  (HeatSpace space, Word index, size_t & outBit);
 
     static bool    IsBitSet         (const std::vector<uint64_t> & bits, size_t bit) { return (bits[bit / kBitsPerWord] & (1ull << (bit % kBitsPerWord))) != 0; }
     static void    SetBit           (std::vector<uint64_t> & bits, size_t bit)       { bits[bit / kBitsPerWord] |= 1ull << (bit % kBitsPerWord); }
@@ -311,13 +335,15 @@ private:
     //  The instruction running: the one whose fetch came last.
     std::optional<HeatLastAccess>        m_instruction;
 
-    //  Which RAM has been written, main's bits then aux's; whether the map
-    //  started with them clear, and whether it knows them now; whether any
-    //  changed since they were last taken.
+    //  Which RAM has been written, main's bits then aux's, and which bytes
+    //  the debugger edited; whether the map started with the written bits
+    //  clear, and whether it knows them now; whether any kept bit, opcode
+    //  marks included, changed since they were last taken.
     std::vector<uint64_t>                m_written;
-    bool                                 m_isStartedClear   = false;
-    bool                                 m_isTracking       = false;
-    bool                                 m_isWrittenChanged = false;
+    std::vector<uint64_t>                m_edited;
+    bool                                 m_isStartedClear = false;
+    bool                                 m_isTracking     = false;
+    bool                                 m_isKeptChanged  = false;
 
     //  Whether the last read was a read before written, which the next
     //  fetch takes back with the read when it was the opcode, and the stop

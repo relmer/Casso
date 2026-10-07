@@ -304,6 +304,7 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
     }
 
     map->GetOpcodeMarks (space, state.opcodes);
+    map->GetEditedMarks (space, state.edited);
 
     for (size_t address = 0; address < state.execute.size(); address++)
     {
@@ -314,6 +315,7 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
             state.write[address]     = 0;
             state.unwritten[address] = 0;
             state.changed[address]   = 0;
+            state.edited[address]    = 0;
         }
 
         if (map->IsUnwrittenIgnored (HeatMapOptions::GetCpuAddress (state.bank, (Word) address)))
@@ -322,7 +324,6 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
         }
     }
 
-    state.unwrittenStatus = map->GetUnwrittenStatus();
     ReadHeatValues (target, *map, state.bank, state.values);
     FindHeatMarks  (target, *map, state);
 
