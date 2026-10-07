@@ -2948,6 +2948,9 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_SETFOCUS:      isHandled = IsClaimed (m_client->OnSetFocus(),     RepaintOnClaim::No); break;
         case WM_KILLFOCUS:     isHandled = IsClaimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
         case WM_CANCELMODE:    isHandled = IsClaimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;
+        case WM_CAPTURECHANGED:
+            isHandled = IsClaimed (m_client->OnCaptureChanged (reinterpret_cast<HWND> (lp)), RepaintOnClaim::No);
+            break;
         case WM_COPYDATA:      isHandled = IsClaimed (m_client->OnCopyData (wp, lp), RepaintOnClaim::No); break;
         case WM_DROPFILES:     isHandled = IsClaimed (m_client->OnDropFiles (reinterpret_cast<HDROP> (wp)), RepaintOnClaim::Yes); break;
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
@@ -3521,7 +3524,9 @@ void DxuiHwndSource::DispatchNcUpToTrackedButton (LPARAM lp)
 //  HandleDpiChanged
 //
 //  Updates the scaler, re-positions / -sizes the window per the
-//  suggested rect, and triggers a relayout pass on the root panel.
+//  suggested rect, or the rect the client puts in its place, and triggers
+//  a relayout pass on the root panel. The window is sized once, here, so
+//  the frame WM_SIZE renders is the frame the window keeps.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3530,6 +3535,7 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
     UINT          newDpi      = HIWORD (wp);
     const RECT *  suggested   = reinterpret_cast<const RECT *> (lp);
     RECT          rcClient    = {};
+    RECT          rect        = {};
 
 
 
@@ -3542,12 +3548,19 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
 
     if (suggested != nullptr && m_hwnd != nullptr)
     {
+        rect = *suggested;
+
+        if (m_client != nullptr)
+        {
+            m_client->OnDpiChanging (newDpi, rect);
+        }
+
         SetWindowPos (m_hwnd,
                       nullptr,
-                      suggested->left,
-                      suggested->top,
-                      suggested->right  - suggested->left,
-                      suggested->bottom - suggested->top,
+                      rect.left,
+                      rect.top,
+                      rect.right  - rect.left,
+                      rect.bottom - rect.top,
                       SWP_NOZORDER | SWP_NOACTIVATE);
     }
 

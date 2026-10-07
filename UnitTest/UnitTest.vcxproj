@@ -752,7 +752,6 @@
     <ClCompile Include="Dxui\DxuiToolbarVerticalTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarFillTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarLiftTests.cpp" />
-    <ClCompile Include="Dxui\DxuiToolbarMoveTrackerTests.cpp" />
     <ClCompile Include="Dxui\DxuiImageStripStandingTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarEndEdgesTests.cpp" />
     <ClCompile Include="Dxui\CommandBarDockDragTests.cpp" />
@@ -764,6 +763,7 @@
     <ClCompile Include="Dxui\DxuiToolbarHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarBandsTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarDockGroupTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarDragSessionTests.cpp" />
     <ClCompile Include="Dxui\DxuiImageStripTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />

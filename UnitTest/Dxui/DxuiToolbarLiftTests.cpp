@@ -12,9 +12,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  A toolbar carried by its handle: it lifts off while it is carried and
 //  settles back when it is put down, with the move cursor over the handle;
-//  and a floating toolbar's far end, dragged up to the edge across from it,
-//  snaps it into that edge, as its handle does near any edge. Every lift
-//  here takes its time and its animation flag as arguments, or the host's
+//  and a place made on an edge from pixels keeps its offset in DIPs. Every
+//  lift here takes its time and its animation flag as arguments, or the host's
 //  animations are pinned, so none of them reads the system's setting.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +25,6 @@ public:
     static constexpr int64_t  kStartMs = 5000;
     static constexpr float    kNear    = 0.001f;
     static constexpr RECT     kArea    = { 0, 100, 1000, 800 };
-    static constexpr int      kBandPx  = 66;
 
 
     static void SetUpBar (DxuiToolbar & bar)
@@ -115,29 +113,6 @@ public:
         ev.kind = DxuiMouseEventKind::Up;
         Assert::IsTrue  (host.RouteDrag (ev), L"the release ends the drag");
         Assert::IsFalse (bar.IsLifted(),      L"and puts it down");
-    }
-
-
-    TEST_METHOD (AFarEndDraggedUpToTheEdgeAcrossFromItPicksThatEdge)
-    {
-        DxuiToolbarDock::Edge  edge   = DxuiToolbarDock::Edge::Top;
-        RECT                   before = { 100, 300, 900, 382 };
-        RECT                   after  = { 150, 300, 950, 382 };
-        RECT                   tallA  = { 300, 120, 382, 700 };
-        RECT                   tallB  = { 300, 150, 382, 760 };
-
-        Assert::IsTrue  (DxuiToolbarDock::TryGetFarEndEdge (after, before, false, kArea, kBandPx, edge), L"lying down, its right end reaches the right edge");
-        Assert::IsTrue  (edge == DxuiToolbarDock::Edge::Right);
-
-        Assert::IsFalse (DxuiToolbarDock::TryGetFarEndEdge (before, after, false, kArea, kBandPx, edge), L"moving away from the edge is not coming up to it");
-        Assert::IsFalse (DxuiToolbarDock::TryGetFarEndEdge (before, RECT { 50, 300, 850, 382 }, false, kArea, kBandPx, edge), L"nor is an end still well short of it");
-        Assert::IsFalse (DxuiToolbarDock::TryGetFarEndEdge (RECT { 300, 300, 1100, 382 }, RECT { 250, 300, 1050, 382 }, false, kArea, kBandPx, edge),
-                         L"an end already hanging past the edge has gone by it");
-        Assert::IsFalse (DxuiToolbarDock::TryGetFarEndEdge (RECT { 150, 900, 950, 982 }, RECT { 100, 900, 900, 982 }, false, kArea, kBandPx, edge),
-                         L"a toolbar below the window is not across from its right edge");
-
-        Assert::IsTrue  (DxuiToolbarDock::TryGetFarEndEdge (tallB, tallA, true, kArea, kBandPx, edge), L"standing up, its bottom end reaches the bottom edge");
-        Assert::IsTrue  (edge == DxuiToolbarDock::Edge::Bottom);
     }
 
 

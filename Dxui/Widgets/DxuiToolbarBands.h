@@ -125,8 +125,11 @@ struct DxuiToolbarBands
     //  The thickness of each of an edge's bands, from the edge in.
     static std::vector<int>  GetThicknesses (const Placement & placement, Edge edge);
 
+    //  A band `acrossPx` in from `edge` of `area`, `thicknessPx` thick,
+    //  running `lengthPx` from `startPx` along the edge.
+    static RECT       GetBandRect (Edge edge, const RECT & area, int acrossPx, int thicknessPx, int startPx, int lengthPx);
+
 private:
     static void  ArrangeEdge (const std::vector<Bar> & bars, Edge edge, int marginPx, Placement & placement);
     static void  PlaceAlong  (const std::vector<Bar> & bars, const std::vector<size_t> & members, int lengthPx, std::vector<int> & outPos, std::vector<int> & outLength);
-    static RECT  GetBandRect (Edge edge, const RECT & inner, int acrossPx, int thicknessPx, int startPx, int lengthPx);
 };

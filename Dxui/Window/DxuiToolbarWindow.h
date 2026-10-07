@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Pch.h"
-#include "Window/DxuiToolbarMoveTracker.h"
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiToolbar.h"
 
@@ -24,10 +23,11 @@
 //  application, which routes it to the toolbar as it would in its main
 //  window.
 //
-//  A DRAG BY THE GRAB HANDLE IS REPORTED as a floating pane's caption drag
-//  is: each tick of the system's move loop reports the cursor, in screen
-//  pixels, and the end of the loop reports where it ended, so the owner can
-//  dock the toolbar there.
+//  A PRESS ON THE GRAB HANDLE GOES TO THE OWNER, which moves the window
+//  itself, with the mouse held, from the press to the release; the window
+//  never enters the system's move loop. A DPI change goes to the owner too,
+//  which gives the rectangle the window takes at the new scale, so the
+//  window is sized once for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +37,7 @@ public:
     using  MouseFn  = std::function<bool (const DxuiMouseEvent & ev)>;
     using  PointFn  = std::function<void (POINT screenPx)>;
     using  ClosedFn = std::function<void ()>;
+    using  DpiFn    = std::function<void (UINT newDpi, RECT & inOutRectPx)>;
 
     DxuiToolbarWindow  ();
     ~DxuiToolbarWindow () override = default;
@@ -46,24 +47,17 @@ public:
     void            SetToolbar (DxuiToolbar * toolbar) { m_toolbar = toolbar; }
     DxuiToolbar  *  GetToolbar () const                { return m_toolbar; }
 
+    //  Mouse input the window does not take itself, a press on the grab
+    //  handle, in screen pixels, and a DPI change, with the rectangle the
+    //  system suggests for it, for the owner to change.
     void  SetOnContentMouse      (MouseFn fn)  { m_onMouse      = std::move (fn); }
-    void  SetOnCaptionDrag       (PointFn fn)  { m_onDrag       = std::move (fn); }
-    void  SetOnCaptionDragEnd    (PointFn fn)  { m_onDragEnd    = std::move (fn); }
-    void  SetOnCaptionDragCancel (ClosedFn fn) { m_onDragCancel = std::move (fn); }
+    void  SetOnGripPress         (PointFn fn)  { m_onGripPress  = std::move (fn); }
+    void  SetOnDpiChanging       (DpiFn fn)    { m_onDpi        = std::move (fn); }
 
-    //  Run on every tick of the system's move loop, after the drag is
-    //  reported: the OS owns the thread while the window is dragged, so an
-    //  owner that must keep drawing frames, and keep its machine running,
-    //  pumps one from here.
+    //  Run on every tick of a system move or size loop: the OS owns the
+    //  thread while it runs, so an owner that must keep drawing frames, and
+    //  keep its machine running, pumps one from here.
     void  SetOnMoveLoopFrame     (ClosedFn fn) { m_onMoveFrame  = std::move (fn); }
-
-    //  Starts the system's move loop as if the grab handle had been pressed,
-    //  for an owner that tears the toolbar off while its button is down.
-    void  BeginMove ();
-
-    //  Once a frame: reports the end of a drag the end of the move loop did
-    //  not.
-    void  PollCaptionDrag ();
 
     //  Moves and sizes the window, in screen pixels.
     void  SetScreenRect (const RECT & rectPx);
@@ -80,8 +74,7 @@ public:
     //  Where the toolbar goes in this window's client area, `clientPx`.
     RECT  GetToolbarBounds (const RECT & clientPx) const;
 
-    //  Whether a drag of the grab handle or of an end is under way.
-    bool  IsMoving () const { return m_move.IsMoving(); }
+    //  Whether a drag of an end is under way.
     bool  IsSizing () const { return m_sizingEnd != HTNOWHERE; }
 
     //  How far in from each end of the window a press resizes it.
@@ -109,20 +102,14 @@ protected:
     void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool     OnMouse           (const DxuiMouseEvent & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
-    void     OnWindowPlaced    () override;
-    void     OnDpiChanged      (UINT newDpi) override;
+    void     OnDpiChanging     (UINT newDpi, RECT & inOutRectPx) override;
 
 private:
-    void     OnMoveLoopTick   ();
-    void     Report           (DxuiToolbarMoveTracker::Event ev);
-    SIZE     GetScreenSize    () const;
     LRESULT  HitTestEnd       (POINT clientPx) const;
     int      GetEndPx         () const;
     bool     OnSizingMouse    (const DxuiMouseEvent & ev);
     POINT    ClientToScreenPx (POINT clientPx) const;
 
-    //  A move by the grab handle, through the system's move loop.
-    DxuiToolbarMoveTracker    m_move;
     bool                      m_lengthResizable = false;
 
     //  A size drag of an end: which end, and where the press and the window
@@ -133,8 +120,7 @@ private:
 
     DxuiToolbar             * m_toolbar      = nullptr;
     MouseFn                   m_onMouse;
-    PointFn                   m_onDrag;
-    PointFn                   m_onDragEnd;
-    ClosedFn                  m_onDragCancel;
+    PointFn                   m_onGripPress;
+    DpiFn                     m_onDpi;
     ClosedFn                  m_onMoveFrame;
 };

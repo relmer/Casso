@@ -762,8 +762,13 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
     // A modal overlay swallows every key (routing the ones it wants to its own
     // handler) so dialog navigation can't leak to the page behind it. The
     // overlay's own return is discarded on purpose: handled or not, the key
-    // stops here.
-    if (HasModalOverlay())
+    // stops here. A filter that keeps a key, such as Escape canceling a drag
+    // under way, comes before all of it.
+    if (RunKeyFilters (vk))
+    {
+        result = DxuiMessageResult::Handled;
+    }
+    else if (HasModalOverlay())
     {
         (void) OnOverlayKey (vk);
         result = DxuiMessageResult::Handled;
@@ -881,6 +886,48 @@ DxuiMessageResult DxuiWindow::OnKillFocus()
 {
     SetTextInputsWindowActive (this, false);
     Invalidate();
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCancelMode
+//
+//  The system canceling whatever mode the window is in, as it does before a
+//  dialog or a menu comes up. DefWindowProc still runs, and releases the
+//  capture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnCancelMode()
+{
+    RunMouseLost (WM_CANCELMODE);
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCaptureChanged
+//
+//  The window's own capture moving to itself is not a loss.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnCaptureChanged (HWND newCapture)
+{
+    if (newCapture != GetHwnd())
+    {
+        RunMouseLost (WM_CAPTURECHANGED);
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -1528,14 +1575,14 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AddMouseFilter
+//  AddInputFilter
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::AddMouseFilter (const void * key, MouseFilterFn fn)
+void DxuiWindow::AddInputFilter (const void * key, InputFilter filter)
 {
-    RemoveMouseFilter (key);
-    m_mouseFilters.emplace_back (key, std::move (fn));
+    RemoveInputFilter (key);
+    m_inputFilters.emplace_back (key, std::move (filter));
 }
 
 
@@ -1544,13 +1591,13 @@ void DxuiWindow::AddMouseFilter (const void * key, MouseFilterFn fn)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RemoveMouseFilter
+//  RemoveInputFilter
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::RemoveMouseFilter (const void * key)
+void DxuiWindow::RemoveInputFilter (const void * key)
 {
-    std::erase_if (m_mouseFilters, [key] (const auto & filter) { return filter.first == key; });
+    std::erase_if (m_inputFilters, [key] (const auto & filter) { return filter.first == key; });
 }
 
 
@@ -1567,15 +1614,68 @@ void DxuiWindow::RemoveMouseFilter (const void * key)
 
 bool DxuiWindow::RunMouseFilters (const DxuiMouseEvent & ev)
 {
-    for (const auto & filter : m_mouseFilters)
+    for (const auto & filter : m_inputFilters)
     {
-        if (filter.second && filter.second (ev))
+        if (filter.second.onMouse && filter.second.onMouse (ev))
         {
             return true;
         }
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunKeyFilters
+//
+//  True once a filter keeps the key; the rest do not see it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::RunKeyFilters (WPARAM vk)
+{
+    for (const auto & filter : m_inputFilters)
+    {
+        if (filter.second.onKeyDown && filter.second.onKeyDown (vk))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunMouseLost
+//
+//  Every filter hears it. A copy is walked, since a handler that ends a drag
+//  may remove filters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::RunMouseLost (UINT message)
+{
+    std::vector<std::pair<const void *, InputFilter>>  filters = m_inputFilters;
+
+
+
+    for (const auto & filter : filters)
+    {
+        if (filter.second.onMouseLost)
+        {
+            filter.second.onMouseLost (message);
+        }
+    }
 }
 
 

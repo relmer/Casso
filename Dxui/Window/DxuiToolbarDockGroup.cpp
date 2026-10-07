@@ -330,6 +330,43 @@ RECT DxuiToolbarDockGroup::GetBandRect (Edge edge, int band) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbarDockGroup::GetDropRect
+//
+//  A new band runs the edge's whole stretch at the boundary it is made at,
+//  as the band it becomes will.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiToolbarDockGroup::GetDropRect (Edge edge, int band, bool isNewBand, int thicknessPx) const
+{
+    std::vector<int>  thicknesses = GetBandThicknesses (edge);
+    RECT              edgeArea    = GetEdgeArea (edge);
+    bool              isSide      = edge == Edge::Left || edge == Edge::Right;
+    int               across      = 0;
+    int               start       = isSide ? edgeArea.top : edgeArea.left + m_marginPx;
+    int               length      = isSide ? edgeArea.bottom - edgeArea.top : edgeArea.right - edgeArea.left - m_marginPx * 2;
+
+
+
+    if (!isNewBand)
+    {
+        return GetBandRect (edge, band);
+    }
+
+    for (int i = 0; i < band && i < (int) thicknesses.size(); i++)
+    {
+        across += thicknesses[(size_t) i];
+    }
+
+    return DxuiToolbarBands::GetBandRect (edge, m_area, across, thicknessPx, start, length);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbarDockGroup::IsAloneInBand
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -440,3 +477,58 @@ void DxuiToolbarDockGroup::SaveAll()
         member.host->Save();
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarDockGroup::GetDocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbarDock> DxuiToolbarDockGroup::GetDocks() const
+{
+    std::vector<DxuiToolbarDock>  docks;
+
+
+
+    for (const Member & member : m_members)
+    {
+        docks.push_back (member.host->m_dock);
+    }
+
+    return docks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarDockGroup::RestoreDocks
+//
+//  Where each toolbar was laid out during the drag no longer orders it, so
+//  the places put back lay out as they did before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarDockGroup::RestoreDocks (const std::vector<DxuiToolbarDock> & docks)
+{
+    size_t  count = (std::min) (docks.size(), m_members.size());
+
+
+
+    for (size_t i = 0; i < count; i++)
+    {
+        m_members[i].host->m_dock = docks[i];
+        m_members[i].placed       = false;
+    }
+}
+
+
+
+
+

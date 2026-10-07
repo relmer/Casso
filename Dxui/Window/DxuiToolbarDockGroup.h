@@ -55,13 +55,15 @@ public:
     //  From the last layout: the area it was given, how deep an edge's bands
     //  run, the area that edge's offsets run in, its bands' thicknesses from
     //  the edge in, a band's whole stretch, whether a host's toolbar is the
-    //  only one in its band, and the whole placement.
+    //  only one in its band, the stretch a drop into a band, or into a new
+    //  band `thicknessPx` thick, would take, and the whole placement.
     const RECT                         &  GetArea            () const { return m_area; }
     int                                   GetDepthPx         (Edge edge) const;
     RECT                                  GetEdgeArea        (Edge edge) const;
     std::vector<int>                      GetBandThicknesses (Edge edge) const;
     RECT                                  GetBandRect        (Edge edge, int band) const;
     bool                                  IsAloneInBand      (const DxuiToolbarHost * host) const;
+    RECT                                  GetDropRect        (Edge edge, int band, bool isNewBand, int thicknessPx) const;
     const DxuiToolbarBands::Placement  &  GetPlacement       () const { return m_placement; }
 
     //  A new band at `band` on `edge`: every other host's place there or
@@ -72,6 +74,12 @@ public:
     //  they were laid out at, and every host's place is saved.
     void  Commit  (const DxuiToolbarHost * mover);
     void  SaveAll ();
+
+    //  Every host's place, in the order the hosts joined, taken when a drag
+    //  begins, and put back when it is canceled, the toolbars then ordered
+    //  in their bands by their offsets.
+    std::vector<DxuiToolbarDock>  GetDocks     () const;
+    void                          RestoreDocks (const std::vector<DxuiToolbarDock> & docks);
 
 private:
     //  A host and where its toolbar was laid out last, which gives its order

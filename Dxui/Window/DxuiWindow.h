@@ -212,16 +212,24 @@ public:
     void     RunModalLoopTick   ()                          { OnModalLoopTick(); }
 
     //
-    //  A handler that sees every mouse event ahead of the window's own
-    //  routing and keeps it when it returns true, for a helper such as a
-    //  toolbar host whose drag must not lose a move or a release to whatever
-    //  the pointer crosses. One handler per key; adding a key again replaces
-    //  its handler. A modal overlay still comes first.
+    //  Handlers that see the window's input ahead of its own routing, for a
+    //  helper such as a toolbar host whose drag must not lose a move, a
+    //  release or Escape to whatever the pointer crosses, and must know when
+    //  the window loses the mouse. The mouse and key handlers keep an event
+    //  by returning true; a modal overlay still comes first for the mouse.
+    //  The loss handler is told of WM_CAPTURECHANGED to another window, or
+    //  none, and of WM_CANCELMODE, with the message. One filter per key;
+    //  adding a key again replaces its filter. Any handler may be empty.
     //
-    using MouseFilterFn = std::function<bool (const DxuiMouseEvent & ev)>;
+    struct InputFilter
+    {
+        std::function<bool (const DxuiMouseEvent & ev)>  onMouse;
+        std::function<bool (WPARAM vk)>                  onKeyDown;
+        std::function<void (UINT message)>               onMouseLost;
+    };
 
-    void     AddMouseFilter     (const void * key, MouseFilterFn fn);
-    void     RemoveMouseFilter  (const void * key);
+    void     AddInputFilter     (const void * key, InputFilter filter);
+    void     RemoveInputFilter  (const void * key);
 
     //
     //  Control to focus when the dialog is first shown (e.g. a picker's
@@ -425,6 +433,8 @@ private:
     DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
     DxuiMessageResult  OnSetFocus    () override;
     DxuiMessageResult  OnKillFocus   () override;
+    DxuiMessageResult  OnCancelMode  () override;
+    DxuiMessageResult  OnCaptureChanged (HWND newCapture) override;
     DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
     void               OnModalLoopTick () override;
@@ -444,6 +454,8 @@ private:
                                       bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
     bool               RunMouseFilters (const DxuiMouseEvent & ev);
+    bool               RunKeyFilters   (WPARAM vk);
+    void               RunMouseLost    (UINT message);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
     void               ResizeToMaxSize   (bool growOnly);
 
@@ -484,5 +496,5 @@ private:
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
-    std::vector<std::pair<const void *, MouseFilterFn>>  m_mouseFilters;
+    std::vector<std::pair<const void *, InputFilter>>    m_inputFilters;
 };

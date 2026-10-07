@@ -440,34 +440,6 @@ POINT DxuiToolbarDock::GrabForDocking (POINT grabPx, bool vertical, int marginPx
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarDock::TryGetFarEndEdge
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiToolbarDock::TryGetFarEndEdge (const RECT & toolbar, const RECT & previous, bool vertical, const RECT & area, int bandPx, Edge & outEdge)
-{
-    int   gap     = vertical ? area.bottom - toolbar.bottom  : area.right - toolbar.right;
-    int   gapWas  = vertical ? area.bottom - previous.bottom : area.right - previous.right;
-    bool  across  = vertical ? toolbar.right > area.left && toolbar.left < area.right
-                             : toolbar.bottom > area.top && toolbar.top < area.bottom;
-
-
-
-    if (!across || gap < 0 || gap > bandPx || gap >= gapWas)
-    {
-        return false;
-    }
-
-    outEdge = vertical ? Edge::Bottom : Edge::Right;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiToolbarDock::MakeDocked
 //
 ////////////////////////////////////////////////////////////////////////////////

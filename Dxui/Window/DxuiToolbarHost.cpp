@@ -15,9 +15,13 @@
 
 void DxuiToolbarHost::Attach (DxuiWindow * owner, DxuiToolbar * toolbar, DxuiDockSite * dockSite, HINSTANCE hInstance)
 {
+    DxuiWindow::InputFilter  filter;
+
+
+
     if (m_owner != nullptr)
     {
-        m_owner->RemoveMouseFilter (this);
+        m_owner->RemoveInputFilter (this);
     }
 
     m_owner     = owner;
@@ -25,13 +29,17 @@ void DxuiToolbarHost::Attach (DxuiWindow * owner, DxuiToolbar * toolbar, DxuiDoc
     m_dockSite  = dockSite;
     m_hInstance = hInstance;
 
-    //  A drag of the handle takes the owner's mouse input ahead of anything
-    //  the owner routes itself, so whatever the pointer crosses -- a menu
-    //  bar, a status bar, another toolbar -- the drag sees every move and
-    //  the release that ends it.
+    //  A drag of the handle takes the owner's input ahead of anything the
+    //  owner routes itself, so whatever the pointer crosses -- a menu bar, a
+    //  status bar, another toolbar -- the drag sees every move, the release
+    //  that ends it, Escape, and the owner losing the mouse.
+    filter.onMouse     = [this] (const DxuiMouseEvent & ev) { return RouteDrag (ev); };
+    filter.onKeyDown   = [this] (WPARAM vk)                 { return OnDragKey (vk); };
+    filter.onMouseLost = [this] (UINT message)              { OnMouseLost (message); };
+
     if (m_owner != nullptr)
     {
-        m_owner->AddMouseFilter (this, [this] (const DxuiMouseEvent & ev) { return RouteDrag (ev); });
+        m_owner->AddInputFilter (this, std::move (filter));
     }
 }
 
@@ -64,7 +72,12 @@ DxuiToolbarHost::~DxuiToolbarHost()
 {
     if (m_owner != nullptr)
     {
-        m_owner->RemoveMouseFilter (this);
+        m_owner->RemoveInputFilter (this);
+
+        if (m_owner->GetRaisedChild() == &m_preview)
+        {
+            m_owner->SetRaisedChild (nullptr);
+        }
     }
 
     m_group->Remove (this);
@@ -117,6 +130,121 @@ void DxuiToolbarHost::ResetDock()
 HWND DxuiToolbarHost::GetOwnerHwnd() const
 {
     return (m_owner != nullptr) ? m_owner->GetHwnd() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::IsOwnerShowing
+//
+//  A host with no window, as a test's is, counts as showing, so its drops
+//  can be worked out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::IsOwnerShowing() const
+{
+    HWND  hwnd = GetOwnerHwnd();
+
+
+
+    return hwnd == nullptr || IsWindowVisible (hwnd) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::ToScreen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiToolbarHost::ToScreen (POINT clientPx) const
+{
+    POINT  point = clientPx;
+    HWND   hwnd  = GetOwnerHwnd();
+
+
+
+    if (hwnd != nullptr)
+    {
+        ClientToScreen (hwnd, &point);
+    }
+
+    return point;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::ToClient
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiToolbarHost::ToClient (POINT screenPx) const
+{
+    POINT  point = screenPx;
+    HWND   hwnd  = GetOwnerHwnd();
+
+
+
+    if (hwnd != nullptr)
+    {
+        ScreenToClient (hwnd, &point);
+    }
+
+    return point;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::ShowMoveCursor
+//
+//  The owner holds the mouse for the whole drag, so no WM_SETCURSOR comes
+//  to change the cursor; it is set once the drag starts and kept on every
+//  move, wherever the pointer goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::ShowMoveCursor() const
+{
+    if (GetOwnerHwnd() != nullptr)
+    {
+        SetCursor (LoadCursorW (nullptr, IDC_SIZEALL));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::IsLeftButtonDown
+//
+//  As of the message being handled, which is what a drag's messages go by.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::IsLeftButtonDown()
+{
+    constexpr SHORT  kKeyDown = (SHORT) 0x8000;
+
+
+
+    return (GetKeyState (VK_LBUTTON) & kKeyDown) != 0;
 }
 
 
@@ -203,6 +331,21 @@ int DxuiToolbarHost::GetFloatLengthPx (const DxuiToolbarDock & dock, bool fillsE
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbarHost::GetDpiChangedRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiToolbarHost::GetDpiChangedRect (const RECT & suggestedPx, SIZE sizePx)
+{
+    return RECT { suggestedPx.left, suggestedPx.top, suggestedPx.left + sizePx.cx, suggestedPx.top + sizePx.cy };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbarHost::GetDockedRect
 //
 //  The toolbar takes a band along its edge, at its place along that edge,
@@ -243,22 +386,6 @@ RECT DxuiToolbarHost::GetDockedRect (const DxuiToolbarDock & dock, const RECT & 
 long DxuiToolbarHost::GetEdgeShareThickness (DxuiToolbarDock::Edge edge, int bandPx, int marginPx)
 {
     return (edge == DxuiToolbarDock::Edge::Top) ? bandPx : bandPx - marginPx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarHost::GetTearOffTopLeft
-//
-////////////////////////////////////////////////////////////////////////////////
-
-POINT DxuiToolbarHost::GetTearOffTopLeft (POINT screenPx, bool vertical, int gripPx, int bandPx)
-{
-    return vertical ? POINT { screenPx.x - bandPx / 2, screenPx.y - gripPx / 2 }
-                    : POINT { screenPx.x - gripPx / 2, screenPx.y - bandPx / 2 };
 }
 
 
@@ -347,84 +474,275 @@ void DxuiToolbarHost::PlaceDocked (const RECT & bar, const RECT & band)
 //
 //  DxuiToolbarHost::RouteDrag
 //
-//  A press on the grab handle carries the docked toolbar: it slides along
-//  the band it is in, moves into another band of its edge or into a new one
-//  between two, however near another edge the pointer comes, and only a
-//  pull well away from the edge's bands tears it off to float under the
-//  pointer. The release saves its place, and its neighbors'.
+//  A press on the docked toolbar's grab handle starts a drag, and every
+//  mouse event the owner sees after it, wherever the pointer is, goes to
+//  that drag until it ends: the owner holds the mouse throughout, the
+//  floating window's drags included.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiToolbarHost::RouteDrag (const DxuiMouseEvent & ev)
 {
-    POINT            at    = ev.positionDip;
-    RECT             bar   = {};
-    int              along = 0;
-    int              reach = 0;
-    DxuiToolbarDock  dock;
+    POINT  at       = ev.positionDip;
+    bool   isLeft   = ev.button == DxuiMouseButton::Left;
+    UINT   message  = 0;
 
 
 
-    //  A floating toolbar's own window moves it.
-    if (m_toolbar == nullptr || m_float != nullptr)
+    if (m_toolbar == nullptr)
     {
         return false;
     }
 
-    bar = m_toolbar->GetBounds();
-
-    if (!m_dragging)
+    if (m_session.GetPhase() == DxuiToolbarDragSession::Phase::Idle)
     {
-        if (ev.kind != DxuiMouseEventKind::Down || m_toolbar->IsMenuOpen() || !m_toolbar->IsOnGrip (at.x, at.y))
+        if (m_float != nullptr || ev.kind != DxuiMouseEventKind::Down || !isLeft || m_toolbar->IsMenuOpen() || !m_toolbar->IsOnGrip (at.x, at.y))
         {
             return false;
         }
 
-        along      = m_dock.IsVertical() ? at.y - bar.top : at.x - bar.left;
-        //  Across the top or bottom the toolbar starts a margin in from the
-        //  window's edge, so the grab point counts it.
-        m_grab     = POINT { along + m_scaler.ToPx (kMarginDp), along };
-        m_dragging = true;
-
-        m_toolbar->SetDropSlot (m_group->GetBandRect (m_dock.edge, m_dock.band));
-        UpdateLift();
-
-        if (m_onDragStart)
-        {
-            m_onDragStart();
-        }
-
+        BeginCarry (at);
         return true;
     }
 
-    switch (ev.kind)
+    if (ev.kind == DxuiMouseEventKind::Move)
     {
-    case DxuiMouseEventKind::Move:
-        reach = m_group->GetDepthPx (m_dock.edge) + m_scaler.ToPx (kDockReachDp);
+        message = WM_MOUSEMOVE;
+    }
+    else if (ev.kind == DxuiMouseEventKind::Up && isLeft)
+    {
+        message = WM_LBUTTONUP;
+    }
 
-        if (DxuiToolbarDock::IsPulledOut (at, m_dock.edge, m_area, reach, m_scaler.ToPx (kPullDp)))
-        {
-            TearOff (at);
-            break;
-        }
-
-        dock = DxuiToolbarDock::SlideAlong (at, m_grab, m_dock, m_group->GetEdgeArea (m_dock.edge), (int) m_scaler.GetDpi());
-
-        MoveAcrossBands (at, dock);
-        break;
-
-    case DxuiMouseEventKind::Up:
-        m_dragging = false;
-        m_toolbar->SetDropSlot (RECT {});
-        UpdateLift();
-        m_group->Commit (this);
-        break;
-
-    default:
-        break;
+    //  Any other button or the wheel stays with the drag too.
+    if (message != 0)
+    {
+        Feed (message, ToScreen (at), message == WM_MOUSEMOVE && isLeft, 0);
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::BeginCarry
+//
+//  A press on the docked toolbar's handle. The owner already holds the
+//  mouse, from the press.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::BeginCarry (POINT clientPx)
+{
+    RECT   bar    = m_toolbar->GetBounds();
+    int    along  = m_dock.IsVertical() ? clientPx.y - bar.top : clientPx.x - bar.left;
+    POINT  origin = ToScreen (POINT { bar.left, bar.top });
+    RECT   screen = RECT { origin.x, origin.y, origin.x + bar.right - bar.left, origin.y + bar.bottom - bar.top };
+
+
+
+    //  Across the top or bottom the toolbar starts a margin in from the
+    //  window's edge, so the grab point counts it.
+    m_grab     = POINT { along + m_scaler.ToPx (kMarginDp), along };
+    m_dragging = true;
+
+    m_toolbar->SetDropSlot (m_group->GetBandRect (m_dock.edge, m_dock.band));
+
+    m_session.BeginDocked (ToScreen (clientPx), screen, m_dock.IsVertical(), m_scaler.GetDpi());
+    BeginDrag();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::BeginFloatDrag
+//
+//  A press on the floating toolbar's handle. The press went to the floating
+//  window, which took the mouse; the owner takes it from there, so the
+//  whole drag runs through the owner whatever the floating window does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::BeginFloatDrag (POINT screenPx)
+{
+    HWND  owner = GetOwnerHwnd();
+
+
+
+    if (m_float == nullptr || m_session.GetPhase() != DxuiToolbarDragSession::Phase::Idle)
+    {
+        return;
+    }
+
+    m_session.BeginFloating (screenPx, m_float->GetScreenRect(), m_dock.floatVertical, m_float->GetDpi());
+
+    if (owner != nullptr)
+    {
+        SetCapture (owner);
+    }
+
+    BeginDrag();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::BeginDrag
+//
+//  What a cancel puts back is taken before anything moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::BeginDrag()
+{
+    m_startDocks     = m_group->GetDocks();
+    m_startFloatRect = (m_float != nullptr) ? m_float->GetScreenRect() : RECT {};
+
+    UpdateLift();
+    ShowMoveCursor();
+
+    if (m_onDragStart)
+    {
+        m_onDragStart();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::Feed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::Feed (UINT message, POINT screenPx, bool buttonDown, WPARAM key)
+{
+    DxuiToolbarDragSession::Message  msg;
+    bool                             wasActive = m_session.IsActive();
+
+
+
+    msg.id         = message;
+    msg.screenPx   = screenPx;
+    msg.buttonDown = buttonDown;
+    msg.key        = key;
+
+    (void) m_session.OnMessage (msg);
+
+    if (m_session.IsActive())
+    {
+        ShowMoveCursor();
+    }
+
+    if (wasActive)
+    {
+        UpdateLift();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::OnDragKey
+//
+//  Escape cancels a drag, from whichever window has the keyboard.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::OnDragKey (WPARAM vk)
+{
+    bool  buttonDown = IsLeftButtonDown();
+    bool  isDrag     = m_session.IsActive();
+
+
+
+    if (!isDrag || vk != VK_ESCAPE)
+    {
+        return false;
+    }
+
+    Feed (WM_KEYDOWN, POINT {}, buttonDown, vk);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::OnMouseLost
+//
+//  The owner losing the mouse while the button is down -- to another
+//  window, a menu, a dialog -- cancels the drag. Its own release lets go of
+//  the mouse before the release arrives, with the button already up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::OnMouseLost (UINT message)
+{
+    bool  buttonDown = IsLeftButtonDown();
+
+
+
+    if (m_session.GetPhase() != DxuiToolbarDragSession::Phase::Idle)
+    {
+        Feed (message, POINT {}, buttonDown, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::IsPulledOut
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::IsPulledOut (POINT screenPx)
+{
+    int  reach = m_group->GetDepthPx (m_dock.edge) + m_scaler.ToPx (kDockReachDp);
+
+
+
+    return DxuiToolbarDock::IsPulledOut (ToClient (screenPx), m_dock.edge, m_area, reach, m_scaler.ToPx (kPullDp));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::SlideDocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::SlideDocked (POINT screenPx)
+{
+    POINT            client = ToClient (screenPx);
+    DxuiToolbarDock  dock   = DxuiToolbarDock::SlideAlong (client, m_grab, m_dock, m_group->GetEdgeArea (m_dock.edge), (int) m_scaler.GetDpi());
+
+
+
+    MoveAcrossBands (client, dock);
 }
 
 
@@ -483,6 +801,35 @@ void DxuiToolbarHost::MoveAcrossBands (POINT clientPx, DxuiToolbarDock & dock)
 //
 //  DxuiToolbarHost::TryPickDrop
 //
+//  The pointer alone says where a floating toolbar docks; the grab says
+//  where along the band, so the toolbar does not jump under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::TryPickDrop (POINT screenPx, int grabAlongDip, DxuiToolbarDock & outDock, bool & outNewBand)
+{
+    int  along = m_scaler.ToPx (grabAlongDip);
+
+
+
+    if (!IsOwnerShowing())
+    {
+        return false;
+    }
+
+    //  Across the top or bottom the toolbar starts a margin in from the
+    //  window's edge, so the grab point counts it.
+    return TryPickDropAt (ToClient (screenPx), POINT { along + m_scaler.ToPx (kMarginDp), along }, outDock, outNewBand);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::TryPickDropAt
+//
 //  Where a floating toolbar dropped at `clientPx` docks, with `grab` where
 //  the pointer holds it: on the edge whose bands the pointer is in or near,
 //  in the band under it or a new band at the boundary it is near. False
@@ -490,7 +837,7 @@ void DxuiToolbarHost::MoveAcrossBands (POINT clientPx, DxuiToolbarDock & dock)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiToolbarHost::TryPickDrop (POINT clientPx, POINT grab, DxuiToolbarDock & outDock, bool & outNewBand)
+bool DxuiToolbarHost::TryPickDropAt (POINT clientPx, POINT grab, DxuiToolbarDock & outDock, bool & outNewBand)
 {
     int                       reach  = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
     int                       split  = m_scaler.ToPx (DxuiToolbarDockGroup::kSplitDp);
@@ -514,6 +861,47 @@ bool DxuiToolbarHost::TryPickDrop (POINT clientPx, POINT grab, DxuiToolbarDock &
     outNewBand   = target.isNewBand;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::ShowDropPreview
+//
+//  The stretch a release would dock the toolbar in, tinted over the owner's
+//  content. The owner repaints only when it changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::ShowDropPreview (bool show, const DxuiToolbarDock & dock, bool isNewBand)
+{
+    RECT  rect    = show ? m_group->GetDropRect (dock.edge, dock.band, isNewBand, m_scaler.ToPx (GetBandDipOfBar())) : RECT {};
+    bool  changed = show != m_previewShown || EqualRect (&rect, &m_previewRect) == FALSE;
+
+
+
+    m_previewShown = show;
+    m_previewRect  = rect;
+
+    if (m_owner == nullptr || !changed)
+    {
+        return;
+    }
+
+    if (show)
+    {
+        m_preview.Layout (rect, m_scaler);
+        m_owner->SetRaisedChild (&m_preview);
+    }
+    else if (m_owner->GetRaisedChild() == &m_preview)
+    {
+        m_owner->SetRaisedChild (nullptr);
+    }
+
+    m_owner->Invalidate();
 }
 
 
@@ -547,46 +935,36 @@ void DxuiToolbarHost::TakeDrop (const DxuiToolbarDock & dock, bool isNewBand)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarHost::TearOff
+//  DxuiToolbarHost::DropDocked
 //
-//  A drag of the docked toolbar that leaves the edges floats it at once, its
-//  grab handle under the pointer, and the floating window carries on with
-//  the drag while the button is still down. A toolbar that fills its edge
-//  floats as long as it was docked.
+//  A floating toolbar released over a band. The frame docks it, outside any
+//  message of the floating window's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbarHost::TearOff (POINT clientPx)
+void DxuiToolbarHost::DropDocked (const DxuiToolbarDock & dock, bool isNewBand)
 {
-    POINT  screen   = clientPx;
-    int    grip     = m_scaler.ToPx (DxuiToolbar::kGripDp);
-    int    band     = m_scaler.ToPx (GetBandDipOfBar());
-    bool   vertical = m_dock.IsVertical();
+    TakeDrop (dock, isNewBand);
+}
 
 
 
-    ClientToScreen (GetOwnerHwnd(), &screen);
 
-    m_dragging            = false;
-    m_dock.floatVertical  = vertical;
-    m_dock.floating       = true;
-    m_dock.floatPx        = GetTearOffTopLeft (screen, m_dock.floatVertical, grip, band);
-    m_dock.floatLengthDip = m_fillsEdge ? GetTearOffLengthDip (m_toolbar->GetBounds(), vertical, (int) m_scaler.GetDpi()) : 0;
 
-    Float();
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::LeaveFloating
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    if (m_float == nullptr)
-    {
-        return;
-    }
+void DxuiToolbarHost::LeaveFloating()
+{
+    RECT  rect = (m_float != nullptr) ? m_float->GetScreenRect() : RECT {};
 
-    ReleaseCapture();
-    m_float->BeginMove();
 
-    if (m_onLayout)
-    {
-        m_onLayout();
-    }
+
+    m_dock.floating = true;
+    m_dock.floatPx  = POINT { rect.left, rect.top };
 
     Save();
 }
@@ -597,34 +975,276 @@ void DxuiToolbarHost::TearOff (POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarHost::GetFloatingRect
+//  DxuiToolbarHost::PutDown
 //
-//  The floating window: `lengthPx` long, or as long as the toolbar's icons
-//  need for 0, and one band high, with its top left at `topLeftPx`, or by
-//  the owner's when that is on no monitor, as a place saved on a monitor
-//  since unplugged would be.
+//  A docked toolbar carried and let go: it stays where the carry put it,
+//  and every place is saved, since a new band moves its neighbors.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx, int lengthPx)
+void DxuiToolbarHost::PutDown()
 {
-    int   length = lengthPx;
-    int   band   = m_scaler.ToPx (GetBandDipOfBar());
-    RECT  rect   = {};
-    RECT  owner  = {};
+    m_dragging = false;
+    m_toolbar->SetDropSlot (RECT {});
+
+    m_group->Commit (this);
+}
 
 
 
-    m_toolbar->SetVertical (m_dock.floatVertical);
-    m_toolbar->SetLabels   (false);
 
-    if (length <= 0)
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::Restore
+//
+//  A canceled drag: every place in the group back as it was when the drag
+//  began, and the floating window, if the drag began on one, back where it
+//  was. A toolbar torn off during the drag is docked again by the frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::Restore()
+{
+    m_dragging = false;
+    m_toolbar->SetDropSlot (RECT {});
+
+    m_group->RestoreDocks (m_startDocks);
+
+    if (m_dock.floating && m_float != nullptr)
     {
-        length = m_toolbar->GetNaturalLengthPx (m_scaler);
+        m_toolbar->SetVertical (m_dock.floatVertical);
+        m_float->SetScreenRect (m_startFloatRect);
+        m_float->Invalidate();
     }
 
-    rect = m_dock.floatVertical ? RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + band, topLeftPx.y + length }
-                                : RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + length, topLeftPx.y + band };
+    if (m_onLayout)
+    {
+        m_onLayout();
+    }
+
+    m_group->SaveAll();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::GetKeptLengthDip
+//
+//  The length a toolbar that fills its edge floats at: the length it has
+//  docked, while it is, and the length kept for it once it floats.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbarHost::GetKeptLengthDip() const
+{
+    if (!m_fillsEdge)
+    {
+        return 0;
+    }
+
+    if (m_float == nullptr && !m_dock.floating && m_toolbar != nullptr)
+    {
+        return GetTearOffLengthDip (m_toolbar->GetBounds(), m_dock.IsVertical(), (int) m_scaler.GetDpi());
+    }
+
+    return m_dock.floatLengthDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::TryTearOff
+//
+//  The docked toolbar floats in a window made at `rectPx`, under the
+//  pointer, while the button is still down; the owner keeps the mouse and
+//  the drag goes on. A toolbar that fills its edge floats as long as it was
+//  docked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::TryTearOff (const RECT & rectPx, bool vertical)
+{
+    DxuiToolbarDock  docked = m_dock;
+    bool             isMade = false;
+
+
+
+    m_dock.floatLengthDip = GetKeptLengthDip();
+    m_dock.floatVertical  = vertical;
+    m_dock.floating       = true;
+    m_dock.floatPx        = POINT { rectPx.left, rectPx.top };
+
+    isMade = Float (rectPx);
+
+    if (!isMade)
+    {
+        m_dock = docked;
+        return false;
+    }
+
+    m_dragging = false;
+    m_toolbar->SetDropSlot (RECT {});
+
+    if (m_onLayout)
+    {
+        m_onLayout();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::GetFloatDpi
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiToolbarHost::GetFloatDpi()
+{
+    return (m_float != nullptr) ? m_float->GetDpi() : m_scaler.GetDpi();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::GetFloatSizePx
+//
+//  The floating window at `dpi`: as long as the toolbar's icons need there,
+//  or the length it keeps, and one band thick, lying down or standing up.
+//  The same size every frame's fit and every DPI change come to, so the
+//  window is never sized one way and then the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiToolbarHost::GetFloatSizePx (bool vertical, UINT dpi)
+{
+    DxuiDpiScaler  scaler;
+    int            band   = 0;
+    int            length = 0;
+    int            kept   = GetKeptLengthDip();
+
+
+
+    scaler.SetDpi ((std::max) (dpi, 1u));
+    band = scaler.ToPx (GetBandDipOfBar());
+
+    if (m_toolbar == nullptr)
+    {
+        return SIZE {};
+    }
+
+    m_toolbar->SetVertical (vertical);
+    m_toolbar->SetLabels   (false);
+
+    length = (kept > 0) ? (std::max) (scaler.ToPx (kept), band) : m_toolbar->GetNaturalLengthPx (scaler);
+
+    return vertical ? SIZE { band, length } : SIZE { length, band };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::GetFloatInsetPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbarHost::GetFloatInsetPx (UINT dpi)
+{
+    return m_fillsEdge ? MulDiv (DxuiToolbarWindow::kResizeEndDp, (int) dpi, USER_DEFAULT_SCREEN_DPI) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::PickVertical
+//
+//  A floating toolbar dragged near a side of the owner stands on end, and
+//  near the top or bottom lies flat again; away from every edge it keeps
+//  the orientation it last took, so it can be left floating either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbarHost::PickVertical (POINT screenPx, bool current)
+{
+    int  reach = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
+
+
+
+    if (!IsOwnerShowing())
+    {
+        return current;
+    }
+
+    return DxuiToolbarDock::PickFloatVertical (ToClient (screenPx), m_area, reach, current);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::PlaceFloat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::PlaceFloat (const RECT & rectPx, bool vertical)
+{
+    if (m_float == nullptr)
+    {
+        return;
+    }
+
+    m_dock.floatVertical = vertical;
+    m_toolbar->SetVertical (vertical);
+
+    m_float->SetScreenRect (rectPx);
+    FitFloatWindow();
+    m_float->Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::GetFloatingRect
+//
+//  The floating window for the saved place: its top left at `topLeftPx`,
+//  or by the owner's when that is on no monitor, as a place saved on a
+//  monitor since unplugged would be, at the owner's scale.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx)
+{
+    SIZE  size  = GetFloatSizePx (m_dock.floatVertical, m_scaler.GetDpi());
+    int   band  = m_scaler.ToPx (GetBandDipOfBar());
+    RECT  rect  = RECT { topLeftPx.x, topLeftPx.y, topLeftPx.x + size.cx, topLeftPx.y + size.cy };
+    RECT  owner = {};
+
+
 
     if (MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) == nullptr && GetWindowRect (GetOwnerHwnd(), &owner))
     {
@@ -642,22 +1262,23 @@ RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx, int lengthPx)
 //
 //  DxuiToolbarHost::Float
 //
-//  A window for the floating toolbar, with no title, at its saved place,
-//  and the toolbar moved into it, showing icons alone. A toolbar that fills
-//  its edge keeps its length, and its window resizes along it, never
-//  shorter than the band is thick. The window is made where it goes, so it
-//  has that monitor's scale from the start and no scale change resizes it
-//  under a drag that has just torn the toolbar off.
+//  A window for the floating toolbar, with no title, at `rectPx`, and the
+//  toolbar moved into it, showing icons alone. A toolbar that fills its
+//  edge keeps its length, and its window resizes along it. The window is
+//  made where it goes, so it has that monitor's scale from the start; made
+//  on a monitor at another scale than the owner's, it is sized for that
+//  scale before it is shown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbarHost::Float()
+bool DxuiToolbarHost::Float (const RECT & rectPx)
 {
     std::unique_ptr<DxuiToolbarWindow>  window = std::make_unique<DxuiToolbarWindow>();
     std::unique_ptr<IDxuiControl>       owned;
     DxuiWindow::CreateParams            params;
-    RECT                                rect   = {};
+    DxuiWindow::InputFilter             filter;
     int                                 dpi    = (std::max) ((int) m_scaler.GetDpi(), 1);
+    SIZE                                size   = {};
     HRESULT                             hr     = S_OK;
 
 
@@ -665,14 +1286,12 @@ void DxuiToolbarHost::Float()
     if (m_owner == nullptr || m_toolbar == nullptr)
     {
         m_dock.floating = false;
-        return;
+        return false;
     }
-
-    rect = GetFloatingRect (m_dock.floatPx, GetFloatLengthPx (m_dock, m_fillsEdge, dpi));
 
     params.hInstance              = m_hInstance;
     params.ownerHwnd              = GetOwnerHwnd();
-    params.initialSizeDip         = { MulDiv (rect.right - rect.left, USER_DEFAULT_SCREEN_DPI, dpi), MulDiv (rect.bottom - rect.top, USER_DEFAULT_SCREEN_DPI, dpi) };
+    params.initialSizeDip         = { MulDiv (rectPx.right - rectPx.left, USER_DEFAULT_SCREEN_DPI, dpi), MulDiv (rectPx.bottom - rectPx.top, USER_DEFAULT_SCREEN_DPI, dpi) };
     params.minSizeDip             = m_fillsEdge ? SIZE { GetBandDipOfBar(), GetBandDipOfBar() } : SIZE {};
     params.resizable              = false;
     params.frameless              = true;
@@ -680,7 +1299,7 @@ void DxuiToolbarHost::Float()
     params.createNoActivate       = true;
     params.toolWindow             = true;
     params.useInitialWindowRectPx = true;
-    params.initialWindowRectPx    = rect;
+    params.initialWindowRectPx    = rectPx;
 
     hr = window->Create (params);
 
@@ -689,7 +1308,7 @@ void DxuiToolbarHost::Float()
         //  With no window to float in, the toolbar docks where it was.
         m_dock.floating = false;
         m_toolbar->SetLabels (true);
-        return;
+        return false;
     }
 
     if (m_onFloatCreated)
@@ -708,14 +1327,20 @@ void DxuiToolbarHost::Float()
     m_toolbar->SetTextRenderer (window->GetTextRenderer());
     m_toolbar->OnToolbarMouseLeave();
 
-    window->SetToolbar             (m_toolbar);
-    window->SetLengthResizable     (m_fillsEdge);
-    window->SetOnContentMouse     ([this] (const DxuiMouseEvent & ev) { return m_onFloatMouse ? m_onFloatMouse (ev) : false; });
-    window->SetOnCaptionDrag       ([this] (POINT screen)              { OnFloatDrag (screen); });
-    window->SetOnCaptionDragEnd    ([this] (POINT screen)              { OnFloatDragEnd (screen); });
-    window->SetOnCaptionDragCancel ([this]                             { FinishSnap(); });
-    window->SetOnMoveLoopFrame     ([this]                             { RunMoveLoopFrame(); });
-    window->SetScreenRect          (rect);
+    //  Escape reaches whichever window has the keyboard; the owner holds the
+    //  mouse during a drag, so only the owner hears it lost.
+    filter.onKeyDown = [this] (WPARAM vk) { return OnDragKey (vk); };
+
+    window->AddInputFilter     (this, std::move (filter));
+    window->SetToolbar         (m_toolbar);
+    window->SetLengthResizable (m_fillsEdge);
+    window->SetOnContentMouse  ([this] (const DxuiMouseEvent & ev)   { return m_onFloatMouse ? m_onFloatMouse (ev) : false; });
+    window->SetOnGripPress     ([this] (POINT screen)                { BeginFloatDrag (screen); });
+    window->SetOnDpiChanging   ([this] (UINT newDpi, RECT & rect)    { OnFloatDpi (newDpi, rect); });
+    window->SetOnMoveLoopFrame ([this]                               { RunMoveLoopFrame(); });
+
+    size = GetFloatSizePx (m_dock.floatVertical, window->GetDpi());
+    window->SetScreenRect (RECT { rectPx.left, rectPx.top, rectPx.left + size.cx, rectPx.top + size.cy });
 
     if (IsWindowVisible (GetOwnerHwnd()))
     {
@@ -727,6 +1352,36 @@ void DxuiToolbarHost::Float()
     if (m_onFloatChanged)
     {
         m_onFloatChanged();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarHost::OnFloatDpi
+//
+//  The floating window moved to a monitor at another scale, or its
+//  monitor's scale changed: under a drag it is placed for the new scale
+//  with the toolbar held where it was grabbed; otherwise it stays where the
+//  system suggests, at the size the toolbar has at that scale. Either way
+//  it is sized once, and each frame's fit then finds nothing to change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbarHost::OnFloatDpi (UINT newDpi, RECT & inOutRectPx)
+{
+    bool  isDrag = m_session.TryGetDpiRect (newDpi, inOutRectPx);
+
+
+
+    if (!isDrag)
+    {
+        inOutRectPx = GetDpiChangedRect (inOutRectPx, GetFloatSizePx (m_dock.floatVertical, newDpi));
     }
 }
 
@@ -787,53 +1442,29 @@ void DxuiToolbarHost::DockBack()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarHost::ResumeSnapDrag
-//
-//  A toolbar that snapped into a band while the button is still down goes
-//  on sliding along it with the pointer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarHost::ResumeSnapDrag()
-{
-    constexpr SHORT  kKeyDown = (SHORT) 0x8000;
-
-
-
-    if (!m_snapDragOn)
-    {
-        return;
-    }
-
-    m_snapDragOn = false;
-
-    if ((GetKeyState (VK_LBUTTON) & kKeyDown) != 0)
-    {
-        SetCapture (GetOwnerHwnd());
-        m_dragging = true;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiToolbarHost::Sync
+//
+//  A drag whose release went somewhere else -- the button found up with
+//  the drag still under way -- ends here, where the pointer last was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarHost::Sync()
 {
-    bool  visible = IsWindowVisible (GetOwnerHwnd()) != FALSE;
-    HWND  hwnd    = nullptr;
+    bool  visible    = IsWindowVisible (GetOwnerHwnd()) != FALSE;
+    bool  buttonDown = IsLeftButtonDown();
+    HWND  hwnd       = nullptr;
 
 
+
+    if (m_session.GetPhase() != DxuiToolbarDragSession::Phase::Idle)
+    {
+        Feed (WM_TIMER, POINT {}, buttonDown, 0);
+    }
 
     if (m_dock.floating && m_float == nullptr)
     {
-        Float();
+        (void) Float (GetFloatingRect (m_dock.floatPx));
 
         if (m_onLayout)
         {
@@ -843,7 +1474,6 @@ void DxuiToolbarHost::Sync()
     else if (!m_dock.floating && m_float != nullptr)
     {
         DockBack();
-        ResumeSnapDrag();
     }
 
     UpdateLift();
@@ -869,7 +1499,6 @@ void DxuiToolbarHost::Sync()
         }
     }
 
-    m_float->PollCaptionDrag();
     m_float->Invalidate();
 }
 
@@ -882,15 +1511,15 @@ void DxuiToolbarHost::Sync()
 //  DxuiToolbarHost::UpdateLift
 //
 //  The toolbar is lifted while it is carried, docked by its handle or
-//  floating in its window's move loop, and painted above everything else in
-//  the window it is in; put down, it settles back among the rest. While it
-//  rises, the window it is in draws every frame.
+//  floating, and painted above everything else in the window it is in; put
+//  down, it settles back among the rest. While it rises, the window it is
+//  in draws every frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarHost::UpdateLift()
 {
-    bool          lifted   = m_dragging || (m_float != nullptr && m_float->IsMoving());
+    bool          lifted   = m_dragging || m_session.IsFloating();
     int64_t       now      = (int64_t) GetTickCount64();
     DxuiWindow  * window   = (m_float != nullptr) ? m_float.get() : m_owner;
     bool          changed  = false;
@@ -932,52 +1561,59 @@ void DxuiToolbarHost::UpdateLift()
 //
 //  DxuiToolbarHost::FitFloatWindow
 //
-//  The window stays as long as the toolbar's entries need, so the toolbar
-//  never falls back on See more while it floats: a length measured before
-//  the window had its DPI, or before a theme or entry change, comes right
-//  here. The window's frame comes on top of the toolbar's length. A toolbar
-//  that fills its edge is as long as its window has been made instead, and
-//  only its thickness comes right.
+//  The window stays as long as the toolbar's entries need at the window's
+//  own scale, so the toolbar never falls back on See more while it floats:
+//  a length measured before a theme or entry change comes right here. A
+//  toolbar that fills its edge is as long as its window has been made
+//  instead, and only its thickness comes right. While a drag moves the
+//  window, the drag sizes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarHost::FitFloatWindow()
 {
-    HWND  hwnd    = m_float->GetHwnd();
-    RECT  client  = {};
-    RECT  current = m_float->GetScreenRect();
-    RECT  wanted  = {};
-    int   frameX  = 0;
-    int   frameY  = 0;
-    int   length  = 0;
+    HWND           hwnd    = m_float->GetHwnd();
+    UINT           dpi     = m_float->GetDpi();
+    RECT           client  = {};
+    RECT           current = m_float->GetScreenRect();
+    SIZE           wanted  = {};
+    DxuiDpiScaler  scaler;
+    int            frameX  = 0;
+    int            frameY  = 0;
 
 
+
+    scaler.SetDpi (dpi);
 
     if (!GetClientRect (hwnd, &client))
     {
         return;
     }
 
-    frameX = (current.right - current.left) - (client.right - client.left);
-    frameY = (current.bottom - current.top) - (client.bottom - client.top);
-
-    if (m_fillsEdge)
+    if (!m_session.IsFloating())
     {
-        length = AdoptFloatLength (current) - (m_dock.floatVertical ? frameY : frameX);
-    }
+        frameX = (current.right - current.left) - (client.right - client.left);
+        frameY = (current.bottom - current.top) - (client.bottom - client.top);
 
-    wanted = GetFloatingRect (POINT { current.left, current.top }, length);
+        if (m_fillsEdge)
+        {
+            (void) AdoptFloatLength (RECT { current.left, current.top, current.right - frameX, current.bottom - frameY }, dpi);
+        }
 
-    if (wanted.right - wanted.left + frameX != current.right - current.left || wanted.bottom - wanted.top + frameY != current.bottom - current.top)
-    {
-        m_float->SetScreenRect (RECT { current.left, current.top, current.left + wanted.right - wanted.left + frameX, current.top + wanted.bottom - wanted.top + frameY });
-        GetClientRect (hwnd, &client);
+        wanted = GetFloatSizePx (m_dock.floatVertical, dpi);
+
+        if (wanted.cx + frameX != current.right - current.left || wanted.cy + frameY != current.bottom - current.top)
+        {
+            m_float->SetScreenRect (RECT { current.left, current.top, current.left + wanted.cx + frameX, current.top + wanted.cy + frameY });
+            GetClientRect (hwnd, &client);
+        }
     }
 
     //  Measuring planned the toolbar for any length, so it is laid out
-    //  again for the window it is in, between the ends a resizable window
-    //  keeps for itself.
-    m_toolbar->Layout (m_float->GetToolbarBounds (client), m_scaler);
+    //  again for the window it is in, at the window's scale, between the
+    //  ends a resizable window keeps for itself.
+    m_toolbar->SetVertical (m_dock.floatVertical);
+    m_toolbar->Layout      (m_float->GetToolbarBounds (client), scaler);
 }
 
 
@@ -988,26 +1624,28 @@ void DxuiToolbarHost::FitFloatWindow()
 //
 //  DxuiToolbarHost::AdoptFloatLength
 //
-//  The floating window's length in pixels, frame and all, as its ends were
-//  last dragged to, and never shorter than the band is thick. The window
-//  is created at the length kept, so the length holds from one run to the
-//  next. A new length goes into the place and is saved, with the window's
-//  top left, which a drag of its leading end moves.
+//  The floating window's length in pixels, as its ends were last dragged
+//  to, and never shorter than the band is thick, at the window's scale.
+//  The window is created at the length kept, so the length holds from one
+//  run to the next. A new length goes into the place and is saved, with the
+//  window's top left, which a drag of its leading end moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiToolbarHost::AdoptFloatLength (const RECT & window)
+int DxuiToolbarHost::AdoptFloatLength (const RECT & window, UINT dpi)
 {
-    int  dpi       = (int) m_scaler.GetDpi();
+    int  scale     = (std::max) ((int) dpi, 1);
     int  lengthPx  = m_dock.floatVertical ? window.bottom - window.top : window.right - window.left;
     int  lengthDip = 0;
 
 
 
-    lengthPx  = (std::max) (lengthPx, m_scaler.ToPx (GetBandDipOfBar()));
-    lengthDip = MulDiv (lengthPx, USER_DEFAULT_SCREEN_DPI, (std::max) (dpi, 1));
+    lengthPx  = (std::max) (lengthPx, MulDiv (GetBandDipOfBar(), scale, USER_DEFAULT_SCREEN_DPI));
+    lengthDip = MulDiv (lengthPx, USER_DEFAULT_SCREEN_DPI, scale);
 
-    if (lengthDip != m_dock.floatLengthDip)
+    //  A length that comes back to the same pixels at this scale is the
+    //  same length; rounding at another scale is no resize.
+    if (MulDiv (m_dock.floatLengthDip, scale, USER_DEFAULT_SCREEN_DPI) != lengthPx)
     {
         m_dock.floatLengthDip = lengthDip;
         m_dock.floatPx        = POINT { window.left, window.top };
@@ -1042,91 +1680,11 @@ void DxuiToolbarHost::Hide()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarHost::OnFloatDragEnd
-//
-//  A floating toolbar dropped near an edge of the owner docks there, at the
-//  place that keeps its grab handle under the pointer; dropped anywhere else
-//  it stays where it was put. The frame docks it, outside the floating
-//  window's own message.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarHost::OnFloatDragEnd (POINT screenPx)
-{
-    POINT            client    = screenPx;
-    RECT             rect      = (m_float != nullptr) ? m_float->GetScreenRect() : RECT {};
-    POINT            grab      = POINT { screenPx.x - rect.left, screenPx.y - rect.top };
-    DxuiToolbarDock  dock;
-    bool             isNewBand = false;
-    bool             isDocked  = false;
-
-
-
-    ScreenToClient (GetOwnerHwnd(), &client);
-
-    m_hasLastFloat = false;
-
-    if (m_snapping)
-    {
-        FinishSnap();
-        return;
-    }
-
-    //  Across the top or bottom the toolbar starts a margin in from the
-    //  window's edge, so the grab point counts it.
-    isDocked = IsWindowVisible (GetOwnerHwnd()) && TryPickDrop (client, POINT { grab.x + m_scaler.ToPx (kMarginDp), grab.x }, dock, isNewBand);
-
-    if (isDocked)
-    {
-        TakeDrop (dock, isNewBand);
-        return;
-    }
-
-    m_dock.floating = true;
-    m_dock.floatPx  = POINT { rect.left, rect.top };
-
-    Save();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarHost::FinishSnap
-//
-//  The move loop a snap ended has ended: the toolbar takes the place it
-//  snapped to, and the frame docks it and carries the drag on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarHost::FinishSnap()
-{
-    m_hasLastFloat = false;
-
-    if (!m_snapping)
-    {
-        return;
-    }
-
-    m_snapping   = false;
-    m_snapDragOn = m_snapResumes;
-
-    TakeDrop (m_snapDock, m_snapNewBand);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiToolbarHost::RunMoveLoopFrame
 //
-//  The OS owns the thread while the floating window is dragged, so the
-//  owner's frames run from here, as every owner's do: its own tick unless
-//  it set another.
+//  The OS owns the thread while a system move or size loop runs for the
+//  floating window, so the owner's frames run from here, as every owner's
+//  do: its own tick unless it set another.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1140,143 +1698,6 @@ void DxuiToolbarHost::RunMoveLoopFrame()
     {
         m_owner->RunModalLoopTick();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarHost::OnFloatDrag
-//
-//  A floating toolbar dragged near a side of the owner stands on end, and
-//  near the top or bottom lies flat again; away from every edge it keeps
-//  the orientation it last took, so it can be left floating either way.
-//  Into a band, it snaps in where the pointer holds it: the move loop ends
-//  here, and once it has, the frame docks the toolbar and carries the drag
-//  on as a drag of the docked toolbar, which slides along the band and
-//  leaves it only past the pull.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarHost::OnFloatDrag (POINT screenPx)
-{
-    POINT  client   = screenPx;
-    RECT   rect     = {};
-    int    reach    = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
-    bool   vertical = false;
-    bool   isNear   = false;
-    POINT  grab     = {};
-
-
-
-    if (m_float == nullptr || !IsWindowVisible (GetOwnerHwnd()))
-    {
-        return;
-    }
-
-    ScreenToClient (GetOwnerHwnd(), &client);
-
-    if (m_snapping)
-    {
-        return;
-    }
-
-    rect   = m_float->GetScreenRect();
-    grab   = DxuiToolbarDock::GrabForDocking (POINT { screenPx.x - rect.left, screenPx.y - rect.top }, m_dock.floatVertical, m_scaler.ToPx (kMarginDp));
-    isNear = TryPickDrop (client, grab, m_snapDock, m_snapNewBand);
-
-    if (isNear)
-    {
-        m_grab        = grab;
-        m_snapResumes = true;
-        m_snapping    = true;
-
-        ReleaseCapture();
-        return;
-    }
-
-    if (TrySnapFarEnd (rect))
-    {
-        ReleaseCapture();
-        return;
-    }
-
-    vertical = DxuiToolbarDock::PickFloatVertical (client, m_area, reach, m_dock.floatVertical);
-
-    if (vertical == m_dock.floatVertical)
-    {
-        return;
-    }
-
-    m_dock.floatVertical = vertical;
-    m_dock.floatPx       = POINT { rect.left, rect.top };
-
-    m_float->SetScreenRect (GetFloatingRect (m_dock.floatPx, GetFloatLengthPx (m_dock, m_fillsEdge, (int) m_scaler.GetDpi())));
-    m_float->Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarHost::TrySnapFarEnd
-//
-//  A floating toolbar whose far end, the end away from its grab handle, is
-//  dragged up to the edge across from it snaps into that edge, as one held
-//  near an edge by its handle does. A long toolbar such as a strip of
-//  pictures reaches the right edge, or standing up the bottom, with that
-//  end while the pointer is still far away at the handle, so the band
-//  there must answer to the toolbar, not only to the pointer. The pointer
-//  is not in that band, so the drag ends with the snap rather than going on
-//  along the band, which would pull it straight out again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiToolbarHost::TrySnapFarEnd (const RECT & screenRect)
-{
-    POINT                  origin   = {};
-    RECT                   rect     = screenRect;
-    RECT                   previous = {};
-    RECT                   inner    = {};
-    int                    reach    = m_scaler.ToPx (GetBandDipOfBar() + kDockReachDp);
-    int                    offset   = 0;
-    bool                   isNear   = false;
-    DxuiToolbarDock::Edge  edge     = DxuiToolbarDock::Edge::Right;
-
-
-
-    ScreenToClient (GetOwnerHwnd(), &origin);
-    OffsetRect     (&rect, origin.x, origin.y);
-
-    previous       = m_hasLastFloat ? m_lastFloat : rect;
-    m_lastFloat    = rect;
-    m_hasLastFloat = true;
-
-    //  The far end meets the inner side of the bands already along that
-    //  edge, and the toolbar takes a new band there.
-    inner         = m_area;
-    inner.right  -= m_group->GetDepthPx (DxuiToolbarDock::Edge::Right);
-    inner.bottom -= m_group->GetDepthPx (DxuiToolbarDock::Edge::Bottom);
-
-    isNear = DxuiToolbarDock::TryGetFarEndEdge (rect, previous, m_dock.floatVertical, inner, reach, edge);
-
-    if (!isNear)
-    {
-        return false;
-    }
-
-    offset          = (edge == DxuiToolbarDock::Edge::Right) ? rect.top - m_group->GetEdgeArea (edge).top : rect.left - m_area.left - m_scaler.ToPx (kMarginDp);
-    m_snapDock      = DxuiToolbarDock::MakeDocked (edge, offset, (int) m_scaler.GetDpi());
-    m_snapDock.band = (int) m_group->GetBandThicknesses (edge).size();
-    m_snapNewBand   = true;
-    m_snapResumes   = false;
-    m_snapping      = true;
-
-    return true;
 }
 
 

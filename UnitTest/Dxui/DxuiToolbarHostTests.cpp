@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The toolbar host's geometry: where a docked toolbar sits along each edge,
 //  how much of the edge it takes from the dock site, and where its floating
-//  window starts when it is torn off.
+//  window goes when its scale changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +23,6 @@ public:
     static constexpr RECT  kArea   = { 0, 100, 1000, 800 };
     static constexpr int   kBand   = 40;
     static constexpr int   kMargin = 8;
-    static constexpr int   kGrip   = 12;
 
 
     static DxuiToolbarDock MakeDock (DxuiToolbarDock::Edge edge, int offsetDip)
@@ -103,16 +102,18 @@ public:
     }
 
 
-    TEST_METHOD (ATornOffBarKeepsItsGrabHandleUnderThePointer)
+    //  The system suggests the old size scaled by the ratio of the scales,
+    //  which rounds differently from the toolbar measured at the new one;
+    //  the window takes the measured size at once, so no frame fits it again.
+    TEST_METHOD (AFloatingWindowAtANewScaleTakesTheToolbarsSizeThereOnce)
     {
-        POINT  flat    = DxuiToolbarHost::GetTearOffTopLeft (POINT { 500, 300 }, false, kGrip, kBand);
-        POINT  upright = DxuiToolbarHost::GetTearOffTopLeft (POINT { 500, 300 }, true,  kGrip, kBand);
+        RECT  rect = DxuiToolbarHost::GetDpiChangedRect (RECT { 1200, 300, 1651, 360 }, SIZE { 456, 60 });
 
 
-        Assert::AreEqual (494L, flat.x,    L"the handle runs across the bar's start");
-        Assert::AreEqual (280L, flat.y);
-        Assert::AreEqual (480L, upright.x);
-        Assert::AreEqual (294L, upright.y, L"standing on end, the handle is across its top");
+        Assert::AreEqual (1200L, rect.left,   L"where the system suggests");
+        Assert::AreEqual (300L,  rect.top);
+        Assert::AreEqual (1656L, rect.right,  L"at the toolbar's own length at the new scale");
+        Assert::AreEqual (360L,  rect.bottom);
     }
 
 

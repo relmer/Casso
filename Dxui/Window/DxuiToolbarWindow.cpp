@@ -14,7 +14,13 @@
 
 DxuiToolbarWindow::DxuiToolbarWindow()
 {
-    SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
+    SetOnModalLoopTick ([this]
+    {
+        if (m_onMoveFrame)
+        {
+            m_onMoveFrame();
+        }
+    });
 }
 
 
@@ -96,8 +102,8 @@ RECT DxuiToolbarWindow::GetToolbarBounds (const RECT & clientPx) const
 //
 //  DxuiToolbarWindow::OnMouse
 //
-//  A press on an end sizes the window and one on the grab handle moves it;
-//  the rest is the owner's.
+//  A press on an end sizes the window, and one on the grab handle goes to
+//  the owner, which moves it; the rest is the owner's too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,9 +118,9 @@ bool DxuiToolbarWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && onGrip && !m_toolbar->IsMenuOpen())
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && onGrip && !m_toolbar->IsMenuOpen() && m_onGripPress)
     {
-        BeginMove();
+        m_onGripPress (ClientToScreenPx (ev.positionDip));
         return true;
     }
 
@@ -206,24 +212,6 @@ POINT DxuiToolbarWindow::ClientToScreenPx (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarWindow::BeginMove
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarWindow::BeginMove()
-{
-    m_move.Begin();
-
-    ReleaseCapture();
-    PostMessage (GetHwnd(), WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiToolbarWindow::GetCursorForPoint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,149 +241,21 @@ LPCWSTR DxuiToolbarWindow::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarWindow::OnMoveLoopTick
+//  DxuiToolbarWindow::OnDpiChanging
 //
-//  A loop the window's ends started is a resize, which is no drag to
-//  report; the owner's frames go on either way.
+//  Dragged onto a monitor at another scale, or with a monitor's scale
+//  changed under it, the window takes the rectangle its owner gives it at
+//  the new scale in place of the one the system suggests, so it is sized
+//  once and its first frame there is drawn at that size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbarWindow::OnMoveLoopTick()
+void DxuiToolbarWindow::OnDpiChanging (UINT newDpi, RECT & inOutRectPx)
 {
-    bool  buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
-
-
-
-    Report (m_move.OnTick (buttonDown, GetScreenSize()));
-
-    if (m_onMoveFrame)
+    if (m_onDpi)
     {
-        m_onMoveFrame();
+        m_onDpi (newDpi, inOutRectPx);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarWindow::OnWindowPlaced
-//
-//  The move loop ended, which is where a drag ends.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarWindow::OnWindowPlaced()
-{
-    Report (m_move.OnPlaced (GetScreenSize()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarWindow::OnDpiChanged
-//
-//  Dragged onto a monitor at another scale, the window takes the size the
-//  system gives it there. That is not a resize, so the drag goes on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarWindow::OnDpiChanged (UINT newDpi)
-{
-    UNREFERENCED_PARAMETER (newDpi);
-
-    m_move.Rebase (GetScreenSize());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarWindow::PollCaptionDrag
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarWindow::PollCaptionDrag()
-{
-    bool  buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
-
-
-
-    Report (m_move.OnPoll (buttonDown, GetScreenSize()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarWindow::Report
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiToolbarWindow::Report (DxuiToolbarMoveTracker::Event ev)
-{
-    POINT  cursor = {};
-
-
-
-    GetCursorPos (&cursor);
-
-    switch (ev)
-    {
-    case DxuiCaptionDragTracker::Event::Moved:
-        if (m_onDrag)
-        {
-            m_onDrag (cursor);
-        }
-
-        break;
-
-    case DxuiCaptionDragTracker::Event::Ended:
-        if (m_onDragEnd)
-        {
-            m_onDragEnd (cursor);
-        }
-
-        break;
-
-    case DxuiCaptionDragTracker::Event::Canceled:
-        if (m_onDragCancel)
-        {
-            m_onDragCancel();
-        }
-
-        break;
-
-    case DxuiCaptionDragTracker::Event::None:
-        break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiToolbarWindow::GetScreenSize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE DxuiToolbarWindow::GetScreenSize() const
-{
-    RECT  rect = GetScreenRect();
-
-
-
-    return SIZE { rect.right - rect.left, rect.bottom - rect.top };
 }
 
 
@@ -406,19 +266,12 @@ SIZE DxuiToolbarWindow::GetScreenSize() const
 //
 //  DxuiToolbarWindow::SetScreenRect
 //
-//  A place set here is the program's, so a drag by the grab handle goes on
-//  through it at the window's new size.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbarWindow::SetScreenRect (const RECT & rectPx)
 {
-    m_move.BeginPlace();
-
     SetWindowPos (GetHwnd(), nullptr, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
-
-    m_move.EndPlace (GetScreenSize());
 }
 
 

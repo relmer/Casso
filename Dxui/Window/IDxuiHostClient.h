@@ -378,6 +378,14 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_CAPTURECHANGED: the window lost the mouse capture to `newCapture`,
+    // which is null when it was released. Default returns NotHandled.
+    virtual DxuiMessageResult  OnCaptureChanged (HWND newCapture)
+    {
+        UNREFERENCED_PARAMETER (newCapture);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_GETMINMAXINFO. info is the MINMAXINFO * the OS pre-populated
     // with default min/max track sizes. Override to clamp the minimum
     // window size -- e.g. so a borderless window's custom chrome and
@@ -577,5 +585,16 @@ public:
     virtual void  OnDpiChanged     (UINT newDpi)
     {
         UNREFERENCED_PARAMETER (newDpi);
+    }
+
+    // WM_DPICHANGED pre-resize hook. Fires after the host has updated its
+    // DPI scaler and BEFORE it applies the rect, with the OS-suggested
+    // rect in `inOutRectPx`. A client that knows the size its content
+    // takes at the new DPI, or where it must sit, replaces the rect here,
+    // so the window is sized once rather than twice.
+    virtual void  OnDpiChanging    (UINT newDpi, RECT & inOutRectPx)
+    {
+        UNREFERENCED_PARAMETER (newDpi);
+        UNREFERENCED_PARAMETER (inOutRectPx);
     }
 };
