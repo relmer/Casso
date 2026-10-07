@@ -38,7 +38,8 @@ against a real install folder without a backup.
 
 ## Update when closed (zip, local feed)
 
-With the local feed and the Debug test bypass set up as above:
+With `CASSO_UPDATE_FEED` set to a `release.json` written by
+`scripts/MakeLocalUpdateFeed.ps1`, and a signed 1.31.90 copy as above:
 
 1. Launch the 1.31.90 copy with `--title 039-update-notification`, choose
    Help > Check for updates..., then **Update when closed**.
@@ -50,3 +51,9 @@ With the local feed and the Debug test bypass set up as above:
    updated to version 1.31.91.", and `.update-old` is gone.
 5. **Update now** instead relaunches at once, and the new title still
    carries `039-update-notification`.
+
+## MSIX upgrade
+
+The MSIX upgrade is first exercised by a signed release. Windows does not let
+a non-admin user upgrade an unsigned desktop MSIX, so there is no local
+unsigned path to test it with.

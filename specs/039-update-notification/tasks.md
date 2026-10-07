@@ -78,6 +78,10 @@ order only.
 
 - [X] T042 [US2] What's new and Changelog tabs over the update dialog's notes (`DxuiTabStrip`), What's new by default, no strip without README highlights, a scroll position per tab; `UpdateDialogModel` tab selection and content tests
 
+## Phase 6c: Testing aids and follow-ups
+
+- [X] T043 Remove the Debug-only unsigned update path (`UpdateTestBypass`, the MSIX `AllowUnsigned` deployment, `BuildMsix.ps1 -TestPublisher`); keep the local release feed (`CASSO_UPDATE_FEED`, `LocalFeedHttpClient`, `scripts/MakeLocalUpdateFeed.ps1`). The MSIX upgrade is first exercised by a signed release
+
 ## Phase 7: Polish
 
 - [X] T029 Replace "Warn that the release is unsigned" with a failing step and add the core publisher constant to the subject comparison in `.github/workflows/ci.yml`
