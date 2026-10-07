@@ -36,7 +36,12 @@ public:
         bool  hideTip = false;
     };
 
+    // The room between the tip and the pointer's image.
+    static constexpr int  kTipGapDip = 4;
+
     UpdateIndicatorButton();
+
+    static RECT           GetTipAnchorPx    (const RECT & boundsPx, const DxuiTooltip::PointerExtent & pointer, int gapPx);
 
     PointerResult         OnPointer         (bool isInside, int64_t nowMs);
 

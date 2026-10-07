@@ -746,7 +746,9 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
 
             if (pointer.showTip)
             {
-                m_captionTooltip.RequestShow (anchorPx, m_updateIndicator.GetToolTipText().c_str(), nowMs);
+                m_captionTooltip.RequestShow (UpdateIndicatorButton::GetTipAnchorPx (anchorPx, DxuiTooltip::MeasurePointerExtent(),
+                                                                                     m_scaler.ToPx (UpdateIndicatorButton::kTipGapDip)),
+                                              m_updateIndicator.GetToolTipText().c_str(), nowMs);
             }
 
             if (pointer.hideTip)

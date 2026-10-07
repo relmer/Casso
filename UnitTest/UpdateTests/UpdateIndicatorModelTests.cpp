@@ -427,6 +427,30 @@ public:
     }
 
 
+    //  The tip is placed clear of the pointer wherever it rests over the
+    //  indicator: below the lowest its image reaches, or above the highest
+    //  where below would leave the work area.
+    TEST_METHOD (Tip_SitsClearOfThePointer)
+    {
+        constexpr int                kGapPx  = 4;
+        RECT                         bounds  = { 900, 0, 1050, 32 };
+        DxuiTooltip::PointerExtent   pointer = { 2, 20 };
+        RECT                         anchor  = UpdateIndicatorButton::GetTipAnchorPx (bounds, pointer, kGapPx);
+        RECT                         work    = { 0, 0, 1920, 1040 };
+        RECT                         placed  = {};
+        SIZE                         tipPx   = { 200, 22 };
+
+
+
+        Assert::AreEqual (bounds.left,                 anchor.left,   L"along the indicator");
+        Assert::AreEqual (bounds.bottom + 20 + kGapPx, anchor.bottom, L"below the pointer anywhere over the indicator, and a gap");
+        Assert::AreEqual (bounds.top - 2 - kGapPx,     anchor.top);
+
+        placed = DxuiPopupHost::ComputePlacementForTest (anchor, work, DxuiPopupPlacement::Below, tipPx, true);
+        Assert::IsTrue (placed.top >= bounds.bottom + 20, L"below the pointer, not under its arrow");
+    }
+
+
     TEST_METHOD (Hover_StartsASweepNowButNeverRestartsOne)
     {
         UpdateIndicatorButton  indicator;

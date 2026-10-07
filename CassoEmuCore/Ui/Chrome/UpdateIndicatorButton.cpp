@@ -28,6 +28,27 @@ UpdateIndicatorButton::UpdateIndicatorButton()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdateIndicatorButton::GetTipAnchorPx
+//
+//  The rect the tip is placed against: the indicator's bounds grown by the
+//  pointer's image above and below its hot spot, plus `gapPx`, since the
+//  pointer can be anywhere over the indicator. The tip then sits clear of
+//  the pointer, as a tip that follows the pointer does, while keeping its
+//  dwell and fade.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT UpdateIndicatorButton::GetTipAnchorPx (const RECT & boundsPx, const DxuiTooltip::PointerExtent & pointer, int gapPx)
+{
+    return DxuiTooltip::MakePointerClearAnchor (boundsPx, pointer, gapPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateIndicatorButton::ContainsDip
 //
 ////////////////////////////////////////////////////////////////////////////////
