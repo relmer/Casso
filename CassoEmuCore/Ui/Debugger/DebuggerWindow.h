@@ -869,6 +869,9 @@ private:
     void     UpdateTooltip    (POINT clientPx);
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool     TryGetMemoryTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+
+    //  The anchor of a tip that follows the pointer: the pointer's own pixel.
+    static RECT  GetPointerAnchor (POINT clientPx) { return RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 }; }
     std::optional<Byte>  GetRegisterByte (const std::string & name) const;
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the

@@ -219,4 +219,41 @@ public:
 
         Assert::IsTrue (EqualRect (&anchor, &cell) != FALSE, L"a dwelled tip keeps its control's anchor");
     }
+
+    //  A tip that follows the pointer keeps the one balloon it raised and
+    //  moves it: hiding it and raising another at every step made it flicker
+    //  from place to place. New text is put in place and starts its own
+    //  lifetime; the same text moved along keeps the deadline it had.
+    TEST_METHOD (RequestShowNow_MovesTheBalloonItHasUp)
+    {
+        DxuiHwndSource     host;
+        DxuiTooltip        t;
+        DxuiPopupHost    * popup  = nullptr;
+        RECT               placed = {};
+
+
+
+        t.SetPopupHost       (&host);
+        t.SetPointerMeasurer (GetTallPointer);
+
+        t.RequestShowNow (MakeRect (100, 200, 101, 201), L"$0400", 0);
+
+        popup = t.GetActivePopup();
+        Assert::IsNotNull (popup);
+        Assert::AreEqual  (1, t.GetShowCount());
+
+        placed = popup->GetPlacedRectScreenPx();
+
+        t.RequestShowNow (MakeRect (130, 200, 131, 201), L"$0400", 10);
+        Assert::AreEqual (1, t.GetShowCount(), L"moved along, not raised again");
+        Assert::IsTrue   (t.GetActivePopup() == popup, L"the same balloon");
+        Assert::AreEqual (placed.left + 30, popup->GetPlacedRectScreenPx().left, L"with the pointer");
+
+        t.RequestShowNow (MakeRect (160, 200, 161, 201), L"$0401", 20);
+        Assert::AreEqual (1, t.GetShowCount(), L"new text is put in place");
+        Assert::AreEqual (std::wstring (L"$0401"), t.GetText());
+        Assert::AreEqual (placed.left + 60, popup->GetPlacedRectScreenPx().left);
+
+        t.HideImmediate();
+    }
 };

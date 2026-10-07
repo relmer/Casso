@@ -200,7 +200,7 @@ RECT DxuiTooltip::MakePointerClearAnchor (const RECT & anchor, const PointerExte
 
 RECT DxuiTooltip::GetPlacementAnchor() const
 {
-    PointerExtent  extent = {};
+    PointerExtent  extent = m_pointerExtent;
 
 
 
@@ -209,7 +209,12 @@ RECT DxuiTooltip::GetPlacementAnchor() const
         return m_anchor;
     }
 
-    extent = m_pfnMeasurePointer();
+    //  The pointer's image is read once when the tip comes up, not on every
+    //  move it follows.
+    if (!m_hasPointerExtent)
+    {
+        extent = m_pfnMeasurePointer();
+    }
 
     return MakePointerClearAnchor (m_anchor, extent, m_scaler.ToPx (kPointerGapDip));
 }
@@ -294,14 +299,22 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 //  RequestShowNow
 //
 //  Shown on the request itself. A repeat for the same anchor and text keeps
-//  the tip and its deadline, as RequestShow's does; a new one swaps in at
-//  once and starts its own lifetime.
+//  the tip and its deadline, as RequestShow's does.
+//
+//  A TIP ALREADY FOLLOWING THE POINTER IS MOVED, NOT RAISED AGAIN. Hiding the
+//  balloon and showing a new one at every cell the pointer crossed made the
+//  tip flicker from place to place; the one window that is up moves to the
+//  new anchor instead, with its text replaced in place. New text starts its
+//  own lifetime; the same text moved along keeps the one it has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    bool  isSame = m_visible && !m_fadingOut && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+    bool  isUp    = m_visible && !m_fadingOut && m_isInstant;
+    bool  isSame  = isUp && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+    bool  isMoved = isUp && m_activePopup != nullptr;
+    bool  isNew   = text != m_text;
 
 
 
@@ -316,7 +329,25 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
     m_visible   = true;
     m_fadingOut = false;
     m_isInstant = true;
-    m_hideAtMs  = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+
+    if (!isUp || isNew)
+    {
+        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+    }
+
+    if (isMoved)
+    {
+        MovePopup (isNew);
+        return;
+    }
+
+    m_hasPointerExtent = false;
+
+    if (m_pfnMeasurePointer != nullptr)
+    {
+        m_pointerExtent    = m_pfnMeasurePointer();
+        m_hasPointerExtent = true;
+    }
 
     ReleaseActivePopup();
     ShowPopup();
@@ -511,20 +542,8 @@ void DxuiTooltip::HideImmediate()
 void DxuiTooltip::ShowPopup()
 {
     DxuiPopupHost::ShowParams  showParams;
-    RECT                       anchor   = {};
-    POINT                      topLeft  = {};
-    POINT                      botRight = {};
     HWND                       owner    = nullptr;
     HRESULT                    hr       = S_OK;
-    UINT                       dpi      = 0;
-    float                      fontPx   = 0.0f;
-    float                      maxWPx   = 0.0f;
-    float                      padXPx   = 0.0f;
-    float                      padYPx   = 0.0f;
-    float                      textWPx  = 0.0f;
-    float                      textHPx  = 0.0f;
-    float                      boxWPx   = 0.0f;
-    float                      boxHPx   = 0.0f;
     bool                       shows    = false;
 
 
@@ -550,65 +569,14 @@ void DxuiTooltip::ShowPopup()
 
     if (shows)
     {
-        // MEASURED IN THE PIXELS IT WILL BE DRAWN IN, not in DIPs. RenderPopup
-        // draws at the DPI-scaled font, and a string's width at that size is
-        // not its width at 96 DPI scaled up -- hinting rounds each glyph. A
-        // balloon sized from the DIP measurement therefore came out a hair
-        // narrow, which is all DWrite needs to wrap at the last break
-        // opportunity and hide a trailing glyph on a second line the balloon
-        // has no room for. "Power-cycle the Apple //e" lost its "e" that way,
-        // to the break after the slashes.
-        dpi    = m_scaler.GetDpi();
-        dpi    = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
-        fontPx = m_scaler.ToPxf (m_fontDip);
-        maxWPx = m_scaler.ToPxf (s_kMaxTextWidthDip);
-        padXPx = m_scaler.ToPxf (s_kPadXDip);
-        padYPx = m_scaler.ToPxf (s_kPadYDip);
-
-        // The pooled popup's renderer is bound at 96 DPI, so its logical units
-        // ARE pixels and it measures whatever size it is handed. If it is
-        // unavailable (test mode) fall back to a glyph-count estimate wrapped
-        // the same way.
-        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(),
-                                                maxWPx, textWPx, textHPx);
-        if (FAILED (hr) || textWPx <= 0.0f)
-        {
-            float  estWPx   = (float) m_text.size() * fontPx * s_kEstCharWidthEm;
-            float  estLines = std::ceil (estWPx / maxWPx);
-
-            textWPx = std::min (estWPx, maxWPx);
-            textHPx = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
-        }
-
-        if (textHPx <= 0.0f)
-        {
-            textHPx = fontPx * s_kEstLineHeightEm;
-        }
-
-        boxWPx = std::ceil (textWPx) + padXPx * 2.0f;
-        boxHPx = std::ceil (textHPx) + padYPx * 2.0f;
-
-        // Anchor arrives in client pixels; the popup wants screen pixels.
-        anchor     = GetPlacementAnchor();
-        topLeft.x  = anchor.left;
-        topLeft.y  = anchor.top;
-        botRight.x = anchor.right;
-        botRight.y = anchor.bottom;
-        ClientToScreen (owner, &topLeft);
-        ClientToScreen (owner, &botRight);
-
         showParams.ownerHwnd        = owner;
-        showParams.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+        showParams.anchorRectScreen = GetScreenAnchor();
         showParams.placement        = DxuiPopupPlacement::Below;
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
         showParams.shadow           = true;
-        // Show scales these back up by the owner DPI, so the trip into DIPs
-        // rounds UP -- rounding down here would hand back the pixel the
-        // measurement above exists to keep.
-        showParams.sizeDip.cx       = (int) std::ceil (boxWPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
-        showParams.sizeDip.cy       = (int) std::ceil (boxHPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+        showParams.sizeDip          = MeasureBoxDip();
         showParams.backgroundArgb   = m_bgArgb;
 
         // A tip fades in rather than appearing. Same switch the menus read,
@@ -626,7 +594,147 @@ void DxuiTooltip::ShowPopup()
             m_popupHost->ReleasePopup (m_activePopup);
             m_activePopup = nullptr;
         }
+        else
+        {
+            m_showCount++;
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureBoxDip
+//
+//  The balloon's size for the current text.
+//
+//  MEASURED IN THE PIXELS IT WILL BE DRAWN IN, not in DIPs. RenderPopup draws
+//  at the DPI-scaled font, and a string's width at that size is not its width
+//  at 96 DPI scaled up -- hinting rounds each glyph. A balloon sized from the
+//  DIP measurement therefore came out a hair narrow, which is all DWrite needs
+//  to wrap at the last break opportunity and hide a trailing glyph on a second
+//  line the balloon has no room for. "Power-cycle the Apple //e" lost its "e"
+//  that way, to the break after the slashes.
+//
+//  The pooled popup's renderer is bound at 96 DPI, so its logical units ARE
+//  pixels and it measures whatever size it is handed. If it is unavailable
+//  (test mode) the size falls back to a glyph-count estimate wrapped the same
+//  way.
+//
+//  The popup scales the size back up by the owner DPI, so the trip into DIPs
+//  rounds UP -- rounding down would hand back the pixel the measurement exists
+//  to keep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiTooltip::MeasureBoxDip()
+{
+    HRESULT  hr      = S_OK;
+    UINT     dpi     = m_scaler.GetDpi();
+    float    fontPx  = m_scaler.ToPxf (m_fontDip);
+    float    maxWPx  = m_scaler.ToPxf (s_kMaxTextWidthDip);
+    float    padXPx  = m_scaler.ToPxf (s_kPadXDip);
+    float    padYPx  = m_scaler.ToPxf (s_kPadYDip);
+    float    textWPx = 0.0f;
+    float    textHPx = 0.0f;
+    SIZE     sizeDip = {};
+
+
+
+    dpi = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
+    hr  = (m_activePopup != nullptr)
+              ? m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(), maxWPx, textWPx, textHPx)
+              : E_FAIL;
+
+    if (FAILED (hr) || textWPx <= 0.0f)
+    {
+        float  estWPx   = (float) m_text.size() * fontPx * s_kEstCharWidthEm;
+        float  estLines = std::ceil (estWPx / maxWPx);
+
+        textWPx = std::min (estWPx, maxWPx);
+        textHPx = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
+    }
+
+    if (textHPx <= 0.0f)
+    {
+        textHPx = fontPx * s_kEstLineHeightEm;
+    }
+
+    sizeDip.cx = (int) std::ceil ((std::ceil (textWPx) + padXPx * 2.0f) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+    sizeDip.cy = (int) std::ceil ((std::ceil (textHPx) + padYPx * 2.0f) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+
+    return sizeDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetScreenAnchor
+//
+//  The placement anchor, which arrives in client pixels, in the screen pixels
+//  the popup is placed in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTooltip::GetScreenAnchor() const
+{
+    RECT   anchor   = GetPlacementAnchor();
+    POINT  topLeft  = { anchor.left,  anchor.top    };
+    POINT  botRight = { anchor.right, anchor.bottom };
+    HWND   owner    = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
+
+
+
+    if (owner != nullptr)
+    {
+        ClientToScreen (owner, &topLeft);
+        ClientToScreen (owner, &botRight);
+    }
+
+    return RECT { topLeft.x, topLeft.y, botRight.x, botRight.y };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MovePopup
+//
+//  The balloon that is up goes to the current anchor without being hidden:
+//  sized again and drawn with the new text before it moves, or, for the same
+//  text, moved as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::MovePopup (bool isNewText)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_activePopup == nullptr)
+    {
+        return;
+    }
+
+    if (isNewText)
+    {
+        hr = m_activePopup->MoveTo (GetScreenAnchor(), MeasureBoxDip());
+    }
+    else
+    {
+        hr = m_activePopup->Reposition (GetScreenAnchor());
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

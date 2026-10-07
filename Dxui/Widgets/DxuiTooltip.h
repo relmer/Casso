@@ -118,6 +118,10 @@ public:
 
     bool                 IsVisible () const { return m_visible; }
 
+    //  How many times a balloon window has been raised. A tip that follows
+    //  the pointer raises one and then moves it.
+    int                  GetShowCount () const { return m_showCount; }
+
     // True while a dwell timer (deferred open or timed close) is still
     // pending, so a host that idle-blocks knows to keep calling Tick on a
     // timeout rather than sleeping until the next input/frame.
@@ -153,6 +157,12 @@ private:
     //  already up. Releases the popup on Show failure.
     //
     void  ShowPopup          ();
+
+    //  The balloon's size for the current text, the anchor in screen
+    //  pixels, and the balloon that is up moved to the anchor in place.
+    SIZE  MeasureBoxDip      ();
+    RECT  GetScreenAnchor    () const;
+    void  MovePopup          (bool isNewText);
 
     //
     //  Return the live popup to the host pool (hiding its HWND) and
@@ -195,4 +205,7 @@ private:
     DxuiHwndSource   * m_popupHost         = nullptr;
     DxuiPopupHost    * m_activePopup       = nullptr;
     PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;
+    PointerExtent      m_pointerExtent     = {};
+    bool               m_hasPointerExtent  = false;
+    int                m_showCount         = 0;
 };

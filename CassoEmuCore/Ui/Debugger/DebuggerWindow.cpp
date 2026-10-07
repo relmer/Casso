@@ -8660,11 +8660,11 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     }
 
     //  Over a memory window's byte, its address, at once and following the
-    //  pointer from byte to byte.
+    //  pointer itself rather than snapping from byte to byte.
     if (TryGetMemoryTip (clientPx, cell, text))
     {
         tip.SetMonospace   (true);
-        tip.RequestShowNow (cell, text, now);
+        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
         return;
     }
 
@@ -8677,7 +8677,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_heatMapTipAt = clientPx;
 
         tip.SetMonospace   (true);
-        tip.RequestShowNow (cell, text, now);
+        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
         return;
     }
 

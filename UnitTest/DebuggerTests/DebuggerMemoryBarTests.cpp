@@ -326,6 +326,54 @@ namespace DebuggerTests
         }
 
 
+        //  The tip follows the pointer across the bytes: one balloon, raised
+        //  once and moved with the pointer, its text replaced in place, and
+        //  placed against the pointer rather than snapped to each byte.
+        TEST_METHOD (TheAddressTipFollowsThePointerWithoutBeingRaisedAgain)
+        {
+            constexpr int    kCellWidthDip  = 8;
+            constexpr int    kCellHeightDip = 16;
+            CassoTheme       theme          = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost    host;
+            MemoryBarWindow  window (theme, host);
+            DxuiHexView    * view           = nullptr;
+            uint64_t         first          = 0;
+            RECT             hex            = {};
+            RECT             next           = {};
+            int              shown          = 0;
+            std::wstring     firstText;
+
+
+
+            window.Build();
+            view = window.GetFirstHexView();
+            Assert::IsNotNull (view);
+
+            view->SetCellSizeDip (kCellWidthDip, kCellHeightDip);
+            window.Relayout();
+
+            first = view->GetTopRow() * (uint64_t) view->GetBytesPerRow();
+            hex   = view->GetByteRect (first + 3, DxuiHexView::Column::Hex);
+            next  = view->GetByteRect (first + 4, DxuiHexView::Column::Hex);
+
+            (void) window.OnMouse (MakeMove (hex.left + 1, hex.top + 1));
+            Assert::IsTrue (window.GetTooltip().IsVisible());
+
+            shown     = window.GetTooltip().GetShowCount();
+            firstText = window.GetTooltip().GetText();
+
+            Assert::AreEqual (hex.left + 1, window.GetTooltip().GetAnchor().left, L"at the pointer, not the byte's edge");
+
+            (void) window.OnMouse (MakeMove (hex.left + 3, hex.top + 2));
+            (void) window.OnMouse (MakeMove (next.left + 1, next.top + 1));
+
+            Assert::AreEqual (shown, window.GetTooltip().GetShowCount(), L"the balloon was hidden and raised again");
+            Assert::AreEqual (next.left + 1, window.GetTooltip().GetAnchor().left, L"the tip moved with the pointer");
+            Assert::AreEqual (next.top  + 1, window.GetTooltip().GetAnchor().top);
+            Assert::IsTrue   (firstText != window.GetTooltip().GetText(), L"the next byte's address, in place");
+        }
+
+
         TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)        {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
             MemoryBarHost    host;
