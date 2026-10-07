@@ -84,7 +84,7 @@ public:
     static std::wstring     MakeUpdateLabel      (const ReleaseVersion & newer);
     static JudgementList    GetJudgements        ();
     static std::wstring     PickJudgement        (const RandomIndexFn & randomIndex);
-    static JudgementList    GetOpeners           ();
+    static std::vector<std::wstring>  GetOpeners ();
     static std::wstring     PickOpener           (const RandomIndexFn & randomIndex);
     static JudgementList    GetDeveloperNudges   ();
     static std::wstring     PickDeveloperNudge   (const RandomIndexFn & randomIndex);

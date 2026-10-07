@@ -23,10 +23,13 @@
   still fit). On a resize the header and notes rewrap, images rescale to the
   new width (never past their own size), the notes keep the same fraction of
   the way down, and the buttons stay pinned bottom-left and bottom-right.
+- A resize gripper, six muted dots in a 45-degree triangle, marks the
+  bottom-right corner and resizes from there; it is hidden while maximized.
 - Opener, above the header in a larger bold face: one excited line picked at
   random per dialog ("Ooh ooh, new toys, new toys!!", "ZOMG! Fresh Casso
   available!!", "I love it when a plan comes together.", "I love the smell of
-  fresh Casso in the morning!", "This just in...", "Huzzah!", and a few more).
+  fresh Casso in the morning!", "This just in...", "Huzzah!", the Firefly lines ("Curse your sudden but inevitable update!",
+  ...), and a few more).
 - Header: "Casso <new> (released <date>) is available. Sadly, you're still
   using <running>" and one remark, picked at random per dialog:
   - a short judgement after an abutting em dash: "...still using

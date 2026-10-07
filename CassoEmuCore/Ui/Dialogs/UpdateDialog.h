@@ -8,6 +8,7 @@
 
 
 class UpdateDialogContent;
+class SizeGrip;
 
 
 
@@ -91,6 +92,7 @@ private:
     std::wstring                          m_updateLabel;
     std::wstring                          m_nudge;
     DxuiLabel                           * m_nudgeLabel   = nullptr;
+    SizeGrip                            * m_grip         = nullptr;
     Callbacks                             m_callbacks;
     RECT                                  m_lastBoundsPx = {};
     DxuiDpiScaler                         m_lastScaler;

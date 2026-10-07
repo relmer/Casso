@@ -243,6 +243,7 @@ static constexpr LPCWSTR  s_kAgeRemarks[] =
     L"Your copy is {0} old. In emulator years, that's a collector's item.",
     L"{1} came out {0} ago{2}the Apple II waited longer for less, but still.",
     L"It has been {0} since {1}. The floppies have stopped asking where you've been.",
+    L"Mal would've updated {0} ago.",
 };
 
 
@@ -254,7 +255,9 @@ static constexpr LPCWSTR  s_kAgeRemarks[] =
 //  s_kOpeners
 //
 //  The excited line above the update dialog's header, one per dialog. The
-//  first six are the owner's own words, kept verbatim.
+//  first six and the Firefly lines are the owner's own words, kept verbatim.
+//  {0} is an em dash, which a constant array cannot splice in from
+//  UnicodeSymbols.h, so GetOpeners fills it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,6 +273,11 @@ static constexpr LPCWSTR  s_kOpeners[] =
     L"New bits, fresh from the oven!",
     L"Stop the presses: there's a new Casso!",
     L"Somebody's been busy!",
+    L"New Casso just dropped{0}shiny!",
+    L"Curse your sudden but inevitable update!",
+    L"Gorram it, there's a new Casso.",
+    L"Can't stop the signal{0}or the updates.",
+    L"Everything's shiny, Cap'n. A new Casso's in the black.",
 };
 
 
@@ -282,9 +290,19 @@ static constexpr LPCWSTR  s_kOpeners[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-UpdateDialogModel::JudgementList UpdateDialogModel::GetOpeners()
+std::vector<std::wstring> UpdateDialogModel::GetOpeners()
 {
-    return JudgementList (s_kOpeners);
+    std::vector<std::wstring>  openers;
+    wchar_t                    dash = s_kchEmDash;
+
+
+
+    for (LPCWSTR pattern : s_kOpeners)
+    {
+        openers.push_back (std::vformat (pattern, std::make_wformat_args (dash)));
+    }
+
+    return openers;
 }
 
 
@@ -299,8 +317,8 @@ UpdateDialogModel::JudgementList UpdateDialogModel::GetOpeners()
 
 std::wstring UpdateDialogModel::PickOpener (const RandomIndexFn & randomIndex)
 {
-    JudgementList  list  = GetOpeners();
-    size_t         index = randomIndex ? randomIndex (list.size()) : 0;
+    std::vector<std::wstring>  list  = GetOpeners();
+    size_t                     index = randomIndex ? randomIndex (list.size()) : 0;
 
 
 

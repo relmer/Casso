@@ -70,6 +70,8 @@ order only.
 
 - [X] T038 [US2] Resizable update dialog: maximize and close caption (`DxuiCaptionStyle::MaxClose`), 480 x 420 minimum, notes and images reflow with the width and keep their scroll fraction; layout and scroll tests
 
+- [X] T039 [US2] Firefly openers and age remark, and a size gripper in the update dialog's bottom-right corner (`SizeGrip`, placement and hit tests)
+
 ## Phase 7: Polish
 
 - [X] T029 Replace "Warn that the release is unsigned" with a failing step and add the core publisher constant to the subject comparison in `.github/workflows/ci.yml`

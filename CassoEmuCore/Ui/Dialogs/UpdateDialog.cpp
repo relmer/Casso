@@ -2,6 +2,7 @@
 
 #include "Ui/Dialogs/UpdateDialog.h"
 #include "Ui/Dialogs/UpdateDialogContent.h"
+#include "Ui/Dialogs/SizeGrip.h"
 
 
 
@@ -112,6 +113,8 @@ void UpdateDialog::OnCreate()
         m_primaryBtn->SetOnClick ([this] () { OnPrimaryClick(); });
     }
 
+    m_grip = CreateChild<SizeGrip>();
+
     ApplyButtonLabels();
     SetDialogTickIntervalMs (kTickMs);
 }
@@ -153,6 +156,14 @@ void UpdateDialog::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     m_hasLayout    = true;
 
     DxuiDialogWindow::Layout (boundsPx, scaler);
+
+    // The gripper marks the bottom-right corner as a resize handle, and is
+    // gone while maximized, when there is nothing to resize.
+    if (m_grip != nullptr)
+    {
+        m_grip->Layout     (SizeGrip::GetGripRect (boundsPx, scaler.ToPx (SizeGrip::kSizeDip)), scaler);
+        m_grip->SetVisible (GetHwnd() == nullptr || IsZoomed (GetHwnd()) == FALSE);
+    }
 
     // A developer build's nudge takes the primary button's place: the
     // bottom-right of the button row.

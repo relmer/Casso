@@ -432,6 +432,7 @@
     <ClCompile Include="Ui\Dialogs\ReleaseNotesLayout.cpp" />
     <ClCompile Include="Ui\Dialogs\ReleaseNotesView.cpp" />
     <ClCompile Include="Ui\Dialogs\UpdateDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\SizeGrip.cpp" />
     <ClCompile Include="Ui\Dialogs\UpdateDialogContent.cpp" />
     <ClCompile Include="Ui\Dialogs\CreateDiskDialog.cpp" />
     <ClCompile Include="Ui\FileBrowseModel.cpp" />
@@ -765,6 +766,7 @@
     <ClInclude Include="Ui\Dialogs\ReleaseNotesLayout.h" />
     <ClInclude Include="Ui\Dialogs\ReleaseNotesView.h" />
     <ClInclude Include="Ui\Dialogs\UpdateDialog.h" />
+    <ClInclude Include="Ui\Dialogs\SizeGrip.h" />
     <ClInclude Include="Ui\Dialogs\UpdateDialogContent.h" />
     <ClInclude Include="Ui\Dialogs\CreateDiskDialog.h" />
     <ClInclude Include="Ui\FileBrowseModel.h" />

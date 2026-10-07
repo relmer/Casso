@@ -186,6 +186,18 @@ public:
 
 
 
+    TEST_METHOD (AgeRemarks_MalSaysDaysAgo)
+    {
+        size_t  count = UpdateDialogModel::GetAgeRemarkCount();
+
+
+
+        Assert::AreEqual (std::wstring (L"Mal would've updated 1 day ago."),   UpdateDialogModel::MakeAgeRemark (count - 1, 1,  { 1, 29, 0 }));
+        Assert::AreEqual (std::wstring (L"Mal would've updated 47 days ago."), UpdateDialogModel::MakeAgeRemark (count - 1, 47, { 1, 29, 0 }));
+    }
+
+
+
     TEST_METHOD (DaysSince_FutureOrBadDate_HasNoAge)
     {
         constexpr std::int64_t  kOct3Noon = 1759492800;
@@ -264,27 +276,33 @@ public:
 
     TEST_METHOD (Openers_IncludeTheOwnersLinesAndAreWellFormed)
     {
-        UpdateDialogModel::JudgementList  list  = UpdateDialogModel::GetOpeners();
+        std::vector<std::wstring>         list  = UpdateDialogModel::GetOpeners();
         std::set<std::wstring>            texts;
 
 
 
         Assert::IsTrue (list.size() >= 6);
 
-        for (LPCWSTR opener : list)
+        for (const std::wstring & text : list)
         {
-            std::wstring_view  text = opener;
-
-            Assert::IsTrue (iswupper (text.front()), opener);
-            Assert::IsTrue (std::wstring_view (L".!").find (text.back()) != std::wstring_view::npos, opener);
-            Assert::IsTrue (text.find (L"  ") == std::wstring_view::npos && text.find (L'\n') == std::wstring_view::npos, opener);
-            texts.insert (opener);
+            Assert::IsTrue (iswupper (text.front()), text.c_str());
+            Assert::IsTrue (std::wstring_view (L".!").find (text.back()) != std::wstring_view::npos, text.c_str());
+            Assert::IsTrue (text.find (L"  ") == std::wstring::npos && text.find (L'\n') == std::wstring::npos, text.c_str());
+            Assert::IsTrue (text.find_first_of (L"{}") == std::wstring::npos, L"every placeholder is filled");
+            Assert::IsTrue (text.find (std::wstring (L" ") + s_kchEmDash) == std::wstring::npos &&
+                            text.find (std::wstring (1, s_kchEmDash) + L" ") == std::wstring::npos, L"em dashes abut");
+            texts.insert (text);
         }
 
         Assert::IsTrue (texts.contains (L"Ooh ooh, new toys, new toys!!"));
         Assert::IsTrue (texts.contains (L"ZOMG! Fresh Casso available!!"));
         Assert::IsTrue (texts.contains (L"I love it when a plan comes together."));
-        Assert::AreEqual (std::wstring (list[2]), UpdateDialogModel::PickOpener ([] (size_t) { return (size_t) 2; }));
+        Assert::IsTrue (texts.contains (std::wstring (L"New Casso just dropped") + s_kchEmDash + L"shiny!"));
+        Assert::IsTrue (texts.contains (L"Curse your sudden but inevitable update!"));
+        Assert::IsTrue (texts.contains (L"Gorram it, there's a new Casso."));
+        Assert::IsTrue (texts.contains (std::wstring (L"Can't stop the signal") + s_kchEmDash + L"or the updates."));
+        Assert::IsTrue (texts.contains (L"Everything's shiny, Cap'n. A new Casso's in the black."));
+        Assert::AreEqual (list[2], UpdateDialogModel::PickOpener ([] (size_t) { return (size_t) 2; }));
     }
 
 
