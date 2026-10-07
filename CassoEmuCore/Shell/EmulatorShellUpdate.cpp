@@ -478,8 +478,10 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
 
 void EmulatorShell::OpenUpdateDialog()
 {
-    constexpr int  kWidthDip  = 600;
-    constexpr int  kHeightDip = 560;
+    constexpr int  kWidthDip     = 600;
+    constexpr int  kHeightDip    = 560;
+    constexpr int  kMinWidthDip  = 480;
+    constexpr int  kMinHeightDip = 420;
 
 
 
@@ -550,8 +552,13 @@ void EmulatorShell::OpenUpdateDialog()
     params.initialSizeDip           = { kWidthDip, kHeightDip };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.captionStyle             = DxuiCaptionStyle::MaxClose;
     params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    // Smaller than the default but no further: the opener, a wrapped header,
+    // a few lines of notes, the link and the button row with Skip and the
+    // primary side by side all still fit.
+    params.minSizeDip               = { kMinWidthDip, kMinHeightDip };
 
     hr = dlg.Create (params);
     CHRA (hr);

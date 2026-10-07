@@ -68,6 +68,8 @@ order only.
 - [X] T036 [US2] Shell wiring: fetch images after the notes, post each as `UpdateResultKind::Image`, reflow on arrival, cancel on dialog close
 - [X] T037 [US2] Opener pool additions, and status rows that collapse when no status shows
 
+- [X] T038 [US2] Resizable update dialog: maximize and close caption (`DxuiCaptionStyle::MaxClose`), 480 x 420 minimum, notes and images reflow with the width and keep their scroll fraction; layout and scroll tests
+
 ## Phase 7: Polish
 
 - [X] T029 Replace "Warn that the release is unsigned" with a failing step and add the core publisher constant to the subject comparison in `.github/workflows/ci.yml`

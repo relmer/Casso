@@ -3651,9 +3651,9 @@ void DxuiHwndSource::BuildCaption()
     DXUI_ASSERT_UI_THREAD();
 
     m_caption = std::make_unique<DxuiCaptionBar>();
-    m_caption->ConfigureButtons (m_params.captionStyle == DxuiCaptionStyle::Standard
-                                     ? DxuiCaptionBar::Buttons::MinMaxClose
-                                     : DxuiCaptionBar::Buttons::CloseOnly);
+    m_caption->ConfigureButtons (m_params.captionStyle == DxuiCaptionStyle::Standard ? DxuiCaptionBar::Buttons::MinMaxClose
+                               : m_params.captionStyle == DxuiCaptionStyle::MaxClose ? DxuiCaptionBar::Buttons::MaxClose
+                                                                                     : DxuiCaptionBar::Buttons::CloseOnly);
     m_caption->SetSystemHwnd (m_hwnd);
     m_caption->SetTitle      (m_params.title);
     m_caption->SetMaximized  (IsZoomed (m_hwnd) != FALSE);

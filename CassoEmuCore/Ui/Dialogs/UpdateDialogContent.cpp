@@ -242,8 +242,10 @@ bool UpdateDialogContent::SyncNotesHeight()
 
 void UpdateDialogContent::LayoutNotes()
 {
-    RECT  notesPx = m_notesViewportPx;
-    int   height  = 0;
+    RECT  notesPx   = m_notesViewportPx;
+    int   height    = 0;
+    int   oldPos    = 0;
+    int   oldHeight = 0;
 
 
 
@@ -252,6 +254,8 @@ void UpdateDialogContent::LayoutNotes()
         return;
     }
 
+    oldPos           = m_scroll.GetScrollPosPx();
+    oldHeight        = m_scroll.GetContentHeightPx();
     height           = m_notes.GetEstimatedHeightPx (m_scaler);
     m_placedHeightPx = m_notes.GetMeasuredHeightPx();
 
@@ -261,6 +265,10 @@ void UpdateDialogContent::LayoutNotes()
     m_scroll.SetLineStepPx (m_scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip * 2));
     m_scroll.PlaceChild    (m_notes, notesPx);
     m_scroll.Layout        (m_notesViewportPx, m_scaler);
+
+    // A resize rewraps the notes to a new height; keep the reader the same
+    // fraction of the way down rather than snapping back to the top.
+    m_scroll.SetScrollPosPx (ReleaseNotesLayout::ScaleScrollPos (oldPos, oldHeight, m_scroll.GetContentHeightPx()));
 }
 
 

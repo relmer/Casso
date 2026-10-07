@@ -171,6 +171,8 @@ public:
                               std::vector<PlacedNotesRun>       & outRuns,
                               std::vector<PlacedNotesImage>     & outImages);
 
+    static int    ScaleScrollPos (int oldPosPx, int oldHeightPx, int newHeightPx);
+
     static const PlacedNotesRun *  FindLinkAt (const std::vector<PlacedNotesRun> & runs, float x, float y);
 
 private:

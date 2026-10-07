@@ -69,12 +69,16 @@ void DxuiCaptionBar::ConfigureButtons (Buttons buttons)
     if (buttons == Buttons::MinMaxClose)
     {
         m_minBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Min);
-        m_maxBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Max);
         Adopt (*m_minBtn);
+    }
+
+    if (buttons == Buttons::MinMaxClose || buttons == Buttons::MaxClose)
+    {
+        m_maxBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Max);
         Adopt (*m_maxBtn);
     }
 
-    if (buttons == Buttons::MinMaxClose || buttons == Buttons::CloseOnly)
+    if (buttons != Buttons::None)
     {
         m_closeBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Close);
         Adopt (*m_closeBtn);
@@ -376,7 +380,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         textOffsetPx = m_scaler.ToPxf (kTitlePadDip) + iconSizePx + iconPadPx;
     }
 
-    buttonCount   = (m_buttons == Buttons::MinMaxClose) ? 3 : (m_buttons == Buttons::CloseOnly ? 1 : 0);
+    buttonCount   = (m_minBtn ? 1 : 0) + (m_maxBtn ? 1 : 0) + (m_closeBtn ? 1 : 0);
     buttonCount  += (m_accessory != nullptr && m_accessory->IsVisible()) ? 1 : 0;
     buttonStripPx = (float) buttonCount * m_scaler.ToPxf ((float) kButtonWidthDip);
 

@@ -117,6 +117,7 @@ enum class DxuiCaptionStyle
     None,
     Standard,
     CloseOnly,
+    MaxClose,       // maximize + close: a resizable dialog that is never minimized alone
 };
 
 

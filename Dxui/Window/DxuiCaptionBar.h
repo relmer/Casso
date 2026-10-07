@@ -47,6 +47,7 @@ public:
         None,
         CloseOnly,
         MinMaxClose,
+        MaxClose,
     };
 
     DxuiCaptionBar  ();

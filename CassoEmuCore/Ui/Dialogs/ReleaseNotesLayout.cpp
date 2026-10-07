@@ -378,3 +378,32 @@ const PlacedNotesRun * ReleaseNotesLayout::FindLinkAt (const std::vector<PlacedN
 
     return found;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseNotesLayout::ScaleScrollPos
+//
+//  Where to scroll after the notes reflowed to a new height: the same
+//  fraction of the way down, so a resize keeps the reader near what they
+//  were reading. With no old height there is nothing to keep, and the top
+//  is right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ReleaseNotesLayout::ScaleScrollPos (int oldPosPx, int oldHeightPx, int newHeightPx)
+{
+    int  pos = 0;
+
+
+
+    if (oldHeightPx > 0 && newHeightPx > 0 && oldPosPx > 0)
+    {
+        pos = (int) std::lround ((double) oldPosPx * (double) newHeightPx / (double) oldHeightPx);
+    }
+
+    return pos;
+}

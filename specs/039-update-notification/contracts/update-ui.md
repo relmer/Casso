@@ -17,6 +17,12 @@
 ## Update dialog
 
 - Title: "Casso update".
+- Resizable, with maximize and close on the caption; double-clicking the
+  caption maximizes and restores. Default size 600 x 560, minimum 480 x 420
+  (opener, wrapped header, a few lines of notes, the link and the button row
+  still fit). On a resize the header and notes rewrap, images rescale to the
+  new width (never past their own size), the notes keep the same fraction of
+  the way down, and the buttons stay pinned bottom-left and bottom-right.
 - Opener, above the header in a larger bold face: one excited line picked at
   random per dialog ("Ooh ooh, new toys, new toys!!", "ZOMG! Fresh Casso
   available!!", "I love it when a plan comes together.", "I love the smell of

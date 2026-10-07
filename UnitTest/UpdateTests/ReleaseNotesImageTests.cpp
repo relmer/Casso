@@ -326,6 +326,51 @@ public:
 
 
 
+    //  Resizing
+
+    TEST_METHOD (Reflow_TextRewrapsAndImagesRescaleWithTheWidth)
+    {
+        NotesLayoutMetrics             metrics;
+        std::vector<PlacedNotesRun>    runs;
+        std::vector<PlacedNotesImage>  images;
+        std::vector<FormattedLine>     lines;
+        FormattedLine                  text;
+        auto                           big    = [] (const std::string &) { return NotesImageState { true, false, 1000, 500 }; };
+        float                          narrow = 0.0f;
+        float                          wide   = 0.0f;
+
+
+
+        text.kind = FormattedLineKind::Paragraph;
+        text.runs = { { "one two three four five six" } };
+        lines     = { text, MakeImageLine (0, "") };
+
+        narrow = ReleaseNotesLayout::Flow (lines, 120.0f, metrics, Measure, big, runs, images);
+        Assert::AreEqual (120.0f, images[0].width, L"the image follows the narrow body");
+        Assert::AreEqual (60.0f,  images[0].height);
+        Assert::AreEqual (metrics.lineHeightPx * 3.0f, images[0].y - metrics.imageGapPx, L"three lines of text at 120");
+
+        wide = ReleaseNotesLayout::Flow (lines, 900.0f, metrics, Measure, big, runs, images);
+        Assert::AreEqual (900.0f, images[0].width, L"and the wide one");
+        Assert::AreEqual (450.0f, images[0].height);
+        Assert::AreEqual (metrics.lineHeightPx, images[0].y - metrics.imageGapPx, L"one line of text at 900");
+        Assert::IsTrue   (wide != narrow);
+
+        ReleaseNotesLayout::Flow (lines, 1500.0f, metrics, Measure, big, runs, images);
+        Assert::AreEqual (1000.0f, images[0].width, L"but never past its own size");
+    }
+
+
+
+    TEST_METHOD (ScaleScrollPos_KeepsTheFractionDown)
+    {
+        Assert::AreEqual (500, ReleaseNotesLayout::ScaleScrollPos (250, 1000, 2000));
+        Assert::AreEqual (100, ReleaseNotesLayout::ScaleScrollPos (200, 2000, 1000));
+        Assert::AreEqual (0,   ReleaseNotesLayout::ScaleScrollPos (0,   1000, 2000), L"the top stays the top");
+        Assert::AreEqual (0,   ReleaseNotesLayout::ScaleScrollPos (300, 0,    2000), L"no old height, no position to keep");
+    }
+
+
     //  Fetching
 
     struct Rig
