@@ -60,11 +60,19 @@ HRESULT MsixPackageDeployer::DeployBundle (const std::wstring & bundlePath)
     hr = CreateUri (MakeFileUri (bundlePath), &uri);
     CHR (hr);
 
-    hr = packageManager->AddPackageAsync (uri.Get(),
-                                          nullptr,
-                                          AbiDeployment::DeploymentOptions_ForceTargetApplicationShutdown,
-                                          &operation);
-    CHR (hr);
+    if (m_isUnsignedAllowed)
+    {
+        hr = AddUnsigned (inspectable.Get(), uri.Get(), &operation);
+        CHR (hr);
+    }
+    else
+    {
+        hr = packageManager->AddPackageAsync (uri.Get(),
+                                              nullptr,
+                                              AbiDeployment::DeploymentOptions_ForceTargetApplicationShutdown,
+                                              &operation);
+        CHR (hr);
+    }
 
     hr = WaitForDeploy (operation.Get());
     CHR (hr);
@@ -237,3 +245,67 @@ HRESULT MsixPackageDeployer::WaitForDeploy (DeployOperation * operation)
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MsixPackageDeployer::AddUnsigned
+//
+//  UPDATE TEST BYPASS (Debug only). AddPackageByUriAsync with AllowUnsigned,
+//  Windows 11's support for an unsigned package whose Publisher holds the
+//  unsigned-namespace OID, and the same forced shutdown as the signed path.
+//  A Release build has no unsigned path and fails here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MsixPackageDeployer::AddUnsigned (
+    IInspectable                     * packageManager,
+    AbiFoundation::IUriRuntimeClass  * uri,
+    DeployOperation                 ** ppOperation)
+{
+#ifdef _DEBUG
+    HRESULT                                    hr = S_OK;
+    ComPtr<IInspectable>                       inspectable;
+    ComPtr<AbiDeployment::IPackageManager9>    manager9;
+    ComPtr<AbiDeployment::IAddPackageOptions>  options;
+
+
+
+    OutputDebugStringW (L"Casso: UPDATE TEST BYPASS -- deploying an unsigned bundle (CASSO_UPDATE_TEST_UNSIGNED)\n");
+
+    hr = packageManager->QueryInterface (IID_PPV_ARGS (&manager9));
+    CHR (hr);
+
+    hr = RoActivateInstance (HStringReference (RuntimeClass_Windows_Management_Deployment_AddPackageOptions).Get(), &inspectable);
+    CHR (hr);
+
+    hr = inspectable.As (&options);
+    CHRA (hr);
+
+    hr = options->put_AllowUnsigned (TRUE);
+    CHR (hr);
+
+    hr = options->put_ForceTargetAppShutdown (TRUE);
+    CHR (hr);
+
+    hr = manager9->AddPackageByUriAsync (uri, options.Get(), ppOperation);
+    CHR (hr);
+
+Error:
+    return hr;
+#else
+    UNREFERENCED_PARAMETER (packageManager);
+    UNREFERENCED_PARAMETER (uri);
+    UNREFERENCED_PARAMETER (ppOperation);
+
+    return E_NOTIMPL;
+#endif
+}
+
+
+
+
+

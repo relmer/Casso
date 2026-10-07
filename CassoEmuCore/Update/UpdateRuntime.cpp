@@ -15,12 +15,35 @@
 UpdateRuntime::UpdateRuntime (HWND hwnd, UINT message) :
     m_poster (hwnd, message)
 {
-    UpdateServiceDeps  deps;
+    UpdateServiceDeps            deps;
+    std::wstring                 variable = ReadVariable (LocalFeedHttpClient::kpszFeedVariable);
+    std::optional<std::wstring>  feedPath = LocalFeedHttpClient::SelectFeedPath (variable.c_str());
 
 
 
-    deps.http        = &m_http;
+    // A test of a signed update reads the release from a JSON on disk;
+    // every other run asks GitHub.
+    if (feedPath.has_value())
+    {
+        m_localFeed = std::make_unique<LocalFeedHttpClient> (*feedPath, m_feedReader, &m_http);
+    }
+
+    deps.http        = m_localFeed ? static_cast<IHttpClient *> (m_localFeed.get()) : &m_http;
     deps.verifier    = &m_verifier;
+
+#ifdef _DEBUG
+    // Update test bypass: an unsigned build takes the whole in-place update
+    // path. Debug builds only; Release has no bypass.
+    if (UpdateTestBypass::IsRequested (ReadVariable (UpdateTestBypass::kpszVariable).c_str()))
+    {
+        OutputDebugStringW (L"Casso: UPDATE TEST BYPASS active (CASSO_UPDATE_TEST_UNSIGNED)\n");
+
+        m_testVerifier = std::make_unique<UnsignedTestVerifier> (m_verifier);
+        deps.verifier  = m_testVerifier.get();
+        m_deployer.SetAllowUnsigned (true);
+    }
+#endif
+
     deps.environment = &m_environment;
     deps.fileSystem  = &m_fileSystem;
     deps.deployer    = &m_deployer;
@@ -66,4 +89,33 @@ ReleaseArch UpdateRuntime::GetRunningArch()
 #else
     return ReleaseArch::X64;
 #endif
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateRuntime::ReadVariable
+//
+//  An environment variable's value, empty when it is not set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateRuntime::ReadVariable (LPCWSTR name)
+{
+    std::wstring  value;
+    DWORD         length = GetEnvironmentVariableW (name, nullptr, 0);
+
+
+
+    if (length > 1)
+    {
+        value.resize (length);
+        length = GetEnvironmentVariableW (name, value.data(), length);
+        value.resize (length);
+    }
+
+    return value;
 }

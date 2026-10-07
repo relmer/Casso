@@ -28,6 +28,9 @@ public:
 
     static std::wstring  MakeFileUri   (const std::wstring & path);
 
+    // Update test bypass (Debug only): deploy an unsigned test bundle.
+    void                 SetAllowUnsigned (bool isAllowed) { m_isUnsignedAllowed = isAllowed; }
+
 private:
     using DeployResult     = ABI::Windows::Management::Deployment::DeploymentResult;
     using DeployProgress   = ABI::Windows::Management::Deployment::DeploymentProgress;
@@ -36,4 +39,9 @@ private:
 
     static HRESULT       CreateUri     (const std::wstring & uriText, ABI::Windows::Foundation::IUriRuntimeClass ** ppUri);
     static HRESULT       WaitForDeploy (DeployOperation * operation);
+    static HRESULT       AddUnsigned   (IInspectable                                 * packageManager,
+                                        ABI::Windows::Foundation::IUriRuntimeClass   * uri,
+                                        DeployOperation                             ** ppOperation);
+
+    bool  m_isUnsignedAllowed = false;
 };

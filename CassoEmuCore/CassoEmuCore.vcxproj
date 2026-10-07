@@ -222,9 +222,11 @@
     <ClCompile Include="Update\UpdateService.cpp" />
     <ClCompile Include="Update\UpdateDialogModel.cpp" />
     <ClCompile Include="Update\UpdateRuntime.cpp" />
+    <ClCompile Include="Update\UpdateTestBypass.cpp" />
     <ClCompile Include="Update\Win32UpdateHost.cpp" />
     <ClCompile Include="Update\WindowUpdateResultPoster.cpp" />
     <ClCompile Include="Update\Win32InstallEnvironment.cpp" />
+    <ClCompile Include="Update\LocalFeedHttpClient.cpp" />
     <ClCompile Include="Update\Win32UpdateFileSystem.cpp" />
     <ClCompile Include="Update\ZipArchive.cpp" />
     <ClCompile Include="Update\ZipUpdateInstaller.cpp" />
@@ -571,12 +573,14 @@
     <ClInclude Include="Update\UpdateService.h" />
     <ClInclude Include="Update\UpdateDialogModel.h" />
     <ClInclude Include="Update\UpdateRuntime.h" />
+    <ClInclude Include="Update\UpdateTestBypass.h" />
     <ClInclude Include="Update\Win32UpdateHost.h" />
     <ClInclude Include="Update\WindowUpdateResultPoster.h" />
     <ClInclude Include="Update\UpdateResult.h" />
     <ClInclude Include="Update\IUpdateHost.h" />
     <ClInclude Include="Update\IUpdateResultPoster.h" />
     <ClInclude Include="Update\Win32InstallEnvironment.h" />
+    <ClInclude Include="Update\LocalFeedHttpClient.h" />
     <ClInclude Include="Update\Win32UpdateFileSystem.h" />
     <ClInclude Include="Update\ZipArchive.h" />
     <ClInclude Include="Update\ZipUpdateInstaller.h" />

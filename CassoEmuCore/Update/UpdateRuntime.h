@@ -3,9 +3,11 @@
 #include "Pch.h"
 
 #include "Net/WinHttpClient.h"
+#include "Update/LocalFeedHttpClient.h"
 #include "Update/AuthenticodeVerifier.h"
 #include "Update/MsixPackageDeployer.h"
 #include "Update/UpdateService.h"
+#include "Update/UpdateTestBypass.h"
 #include "Update/Win32InstallEnvironment.h"
 #include "Update/Win32UpdateFileSystem.h"
 #include "Update/Win32UpdateHost.h"
@@ -40,12 +42,19 @@ public:
     static ReleaseArch   GetRunningArch();
 
 private:
-    WinHttpClient                   m_http;
-    AuthenticodeVerifier            m_verifier;
-    Win32InstallEnvironment         m_environment;
-    Win32UpdateFileSystem           m_fileSystem;
-    MsixPackageDeployer             m_deployer;
-    Win32UpdateHost                 m_host;
-    WindowUpdateResultPoster        m_poster;
-    std::unique_ptr<UpdateService>  m_service;
+    static std::wstring  ReadVariable (LPCWSTR name);
+
+    WinHttpClient                          m_http;
+    Win32FeedFileReader                    m_feedReader;
+    std::unique_ptr<LocalFeedHttpClient>   m_localFeed;
+    AuthenticodeVerifier                   m_verifier;
+#ifdef _DEBUG
+    std::unique_ptr<UnsignedTestVerifier>  m_testVerifier;
+#endif
+    Win32InstallEnvironment                m_environment;
+    Win32UpdateFileSystem                  m_fileSystem;
+    MsixPackageDeployer                    m_deployer;
+    Win32UpdateHost                        m_host;
+    WindowUpdateResultPoster               m_poster;
+    std::unique_ptr<UpdateService>         m_service;
 };
