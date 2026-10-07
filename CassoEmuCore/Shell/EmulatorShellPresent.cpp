@@ -902,8 +902,8 @@ bool EmulatorShell::TryPresentUiFrame()
                     // windowed drive band reserves it: the disk's name and its
                     // padlock belong under the drive here too, and a row composed
                     // into the whole band would put them off the screen's edge.
-                    // The recorder hangs a second row, its counter, under its
-                    // tape name, so it takes one more strip.
+                    // The recorder has a second row, its counter, under its
+                    // tape name, so it needs one more strip.
                     driveRow         = m_stripRectPx;
                     driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
 

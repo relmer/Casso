@@ -51,9 +51,9 @@ struct TapeEncodeOptions
 //  cycle. Written for this project with Egan Ford's c2t
 //  (https://github.com/datajerk/c2t, BSD-3-Clause) as the timing reference.
 //
-//  The emulator's load path only ever hands the guest transitions. The one
-//  other place that knows the byte format is TapeRecordScanner, which the
-//  decoder uses to check its own work, never to feed the guest.
+//  The emulator's load path only ever gives the guest transitions. The only
+//  other code that decodes the byte format is TapeRecordScanner, which the
+//  decoder uses to check its own output, never to feed the guest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

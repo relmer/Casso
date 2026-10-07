@@ -151,7 +151,7 @@ public:
 
     TEST_METHOD (StereoWithInvertedChannelUsesLouderChannel)
     {
-        // Left carries the signal, right carries it inverted at a slightly
+        // Left holds the signal, right holds it inverted at a slightly
         // lower level; the plain average would nearly cancel.
         std::vector<Byte>  bytes   = {
             'R','I','F','F', 44,0,0,0, 'W','A','V','E',

@@ -180,8 +180,8 @@ public:
 
 
             Assert::IsTrue  (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,   view));
-            // Play from a wind stops the wind and plays, as the real keys do;
-            // while playing it has nothing to do.
+            // Play during fast-forward or rewind stops that and plays, as the
+            // real keys do; while playing it has no effect.
             Assert::AreEqual (transport != TapeTransport::Playing, TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play, view));
             Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Record, view));
         }

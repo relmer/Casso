@@ -12,7 +12,7 @@
 //  TapeImageLoader
 //
 //  Builds a TapeImage from a file's bytes. The format comes from the content,
-//  never the extension. The caller reads the file and says whether it is
+//  never the extension. The caller reads the file and passes whether it is
 //  read-only.
 //
 ////////////////////////////////////////////////////////////////////////////////

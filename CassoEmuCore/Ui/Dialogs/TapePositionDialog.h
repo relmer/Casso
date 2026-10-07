@@ -10,11 +10,11 @@
 //
 //  TapePositionDialog
 //
-//  Asks where to wind the tape: one field taking a time as a counter shows it
-//  ("1:30", or plain seconds), starting at the current position, and the
-//  tape's length beside it. OK winds there; a time that cannot be read is
-//  said so under the field and the dialog stays open. A time past the end
-//  winds to the end.
+//  Prompts for a tape position: one field that takes a time in the counter's
+//  format ("1:30", or plain seconds), starting at the current position, with
+//  the tape's length beside it. OK moves the tape there; for a time that
+//  cannot be parsed, an error shows under the field and the dialog stays
+//  open. A time past the end moves the tape to the end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

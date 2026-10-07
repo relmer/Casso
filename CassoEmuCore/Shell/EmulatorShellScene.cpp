@@ -211,7 +211,7 @@ HRESULT EmulatorShell::InitializeDeskScene()
     hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
     CHRA (hr);
 
-    // Whether the recorder is attached decides whether its model loads, and
+    // Whether the recorder is attached controls whether its model loads, and
     // the scene is built before the rest of the saved preferences are read --
     // so that one setting is read here, ahead of them.
     {
@@ -1117,7 +1117,7 @@ void EmulatorShell::LayoutSceneCompass()
     hint.top    = rc.bottom;
     hint.bottom = rc.bottom + hintH;
 
-    m_compassHint.SetText        (L"Hold CTRL to pan");
+    m_compassHint.SetText        (L"Hold Ctrl to pan");
     m_compassHint.SetFontSizeDip (DxuiShadowedText::kFontDip);
     m_compassHint.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     m_compassHint.SetDpi         (m_scaler.GetDpi());
@@ -1385,8 +1385,8 @@ void EmulatorShell::SyncSceneDriveLabels()
         m_sceneDriveLabelRect[i] = name.empty() ? RECT{} : rc;
     }
 
-    // THE RECORDER'S LABELS ARE THE DRIVES' LABELS: the same bake, the same
-    // halo, the same quads, the same scroll under the pointer -- its tape name,
+    // The recorder's labels work like the drives' labels: the same bake, the
+    // same halo, quads and scroll under the pointer -- its tape name,
     // the counter under it, and the name of the key under the pointer.
     if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && IsTapeRecorderShown())
     {
@@ -1628,10 +1628,10 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 //
 //  EmulatorShell::SyncRecorderKeys
 //
-//  Stands the desk recorder's keys as they are latched (LatchRecorderKeys):
-//  RECORD, REW, FF and PLAY stay down from the press until STOP, EJECT or a
-//  reset, whatever the tape does meanwhile. STOP and EJECT dip for a moment
-//  when clicked. Returns whether a key is still moving.
+//  Positions the desk recorder's keys as they are latched (LatchRecorderKeys):
+//  Record, Rewind, Fast-forward and Play stay down from the press until Stop,
+//  Eject or a reset, whatever the tape does meanwhile. Stop and Eject dip for
+//  a moment when clicked. Returns whether a key is still moving.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1647,8 +1647,8 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
 
 
-    // A reset, a power cycle or an empty deck lets every key back up, and so
-    // does a STOP or EJECT once it has reached the bottom of its stroke.
+    // A reset, a power cycle or an empty deck releases every key, and so does
+    // a Stop or Eject press once the key has reached the bottom of its stroke.
     if (m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty ||
         (m_recorderReleaseAtMs != 0 && nowMs >= m_recorderReleaseAtMs))
     {
@@ -1657,8 +1657,8 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         m_recorderKeyLatched.fill (false);
     }
 
-    // A key lets go when the deck stops by itself -- auto stop, or the end of
-    // a load -- as the mechanism releases it. A press of STOP or EJECT is
+    // A key is released when the deck stops by itself -- auto stop, or the
+    // end of a load -- as the real mechanism does. A press of Stop or Eject is
     // handled above, after its own stroke.
     {
         bool  wasMoving = m_seenTransport != TapeTransport::Empty && m_seenTransport != TapeTransport::Stopped;
@@ -1671,8 +1671,8 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         m_seenTransport = transport;
     }
 
-    // A wind key lets go by itself once the deck has wound to the end it was
-    // winding toward and stopped there.
+    // The Rewind or Fast-forward key is released once the tape has reached
+    // the end it was moving toward and stopped there.
     if (m_recorderKeyLatched[kRewind] && transport != TapeTransport::Rewinding && view.positionSeconds <= 0.0)
     {
         m_recorderKeyLatched[kRewind] = false;
@@ -1702,7 +1702,7 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         }
     }
 
-    // A KEY IS PUSHED DOWN AND SPRINGS BACK. Going down it starts slow and
+    // A key is pushed down and springs back. Going down it starts slow and
     // speeds up to the bottom, as under a finger; coming up it returns fast
     // and at an even speed, as a spring sends it.
     {
@@ -1740,7 +1740,7 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         }
     }
 
-    // THE DOOR stands open with no tape in -- after Eject, or before the
+    // The door stands open with no tape in -- after Eject, or before the
     // first tape -- and closes over one. It eases both ways, and the cassette
     // behind it goes and comes with the tape.
     {
@@ -1758,8 +1758,9 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
         m_deskScene.SetRecorderLid (kOpenRad * p, !isEmpty);
     }
 
-    // THE SPINDLES TURN while the tape moves: clockwise from above to play,
-    // record or wind forward, the other way to rewind, and faster winding.
+    // The spindles turn while the tape moves: clockwise from above to play,
+    // record or fast-forward, the other way to rewind, and faster for
+    // fast-forward or rewind.
     {
         constexpr float  kPlayRadPerMs = 2.0f * 3.14159265f * 0.75f / 1000.0f;   // three quarters of a turn a second
         constexpr float  kWindRadPerMs = 2.0f * 3.14159265f * 5.0f  / 1000.0f;   // five turns a second
@@ -2007,7 +2008,7 @@ bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, in
 //
 //  The cassette's title lies flat on its label, in the recorder's own frame,
 //  so it turns and foreshortens with the cassette as anything written on it
-//  would. The cell's shape is kept: as tall as the writing area, unless that
+//  would. The cell's aspect ratio is kept: as tall as the writing area, unless that
 //  would run it past the area's ends, centered either way. Top-left,
 //  top-right, bottom-left, bottom-right as seen from the keys, where the
 //  label's top is the far edge.
@@ -2058,7 +2059,7 @@ bool EmulatorShell::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp,
 //
 //  Puts both names in the scene: one baked texture, two camera-facing quads.
 //
-//  THE TEXTURE IS BAKED ON A CHANGE, THE QUADS ARE SOLVED EVERY PASS. A name
+//  The texture is baked on a change; the quads are solved every pass. A name
 //  changes when a disk is mounted; the quad changes whenever the camera
 //  moves, because holding a constant pixel size at a moving distance is
 //  exactly what it is for.
@@ -2116,7 +2117,7 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kS
             continue;
         }
 
-        // Against the texture's REAL size, not the size the bake asked for.
+        // Against the texture's actual size, not the size the bake requested.
         // The renderer grows that texture and never shrinks it, so the cells
         // usually cover only part of it and a 0..1 mapping would stretch
         // whatever else is still in there across the name.
@@ -2516,7 +2517,7 @@ LONG EmulatorShell::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
 //
 //  EmulatorShell::GetSceneLabelCellWidthPx
 //
-//  The cassette's title cell takes the writing area's own shape, its height
+//  The cassette's title cell takes the writing area's aspect ratio, its height
 //  times the area's width over its depth, so the quad laid over the area
 //  fills it exactly and each row lands on its ruled line. The other cells
 //  are a name strip wide.
@@ -2550,7 +2551,7 @@ LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) con
 //
 //  Draws every label into one off-screen texture, stacked, and keeps the view.
 //
-//  ONE TEXTURE FOR THE PAIR because the text renderer owns exactly one: its
+//  One texture for the pair, because the text renderer has exactly one: its
 //  view is replaced by the next BeginDrawToTexture, so baking a label per
 //  drive leaves the first drive pointing at the second drive's name. Stacking
 //  the cells is what makes a single bake serve both.
@@ -2558,7 +2559,7 @@ LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) con
 //  Painted with the same static, color and glow reach the chrome label uses,
 //  so moving a name into the scene does not restyle it.
 //
-//  THE SHADOW IS BAKED IN, not painted over the scene afterwards. The name is
+//  The shadow is baked in, not painted over the scene afterwards. The name is
 //  geometry now and can be occluded; a halo laid on in screen space would
 //  stay flat on the glass while the text it belongs to went behind the case.
 //
@@ -2586,7 +2587,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
     // The same DIP-to-pixel the chrome label paints at.
     fontPx = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
 
-    // A NAME TOO LONG FOR ITS CELL IS BAKED WHOLE, TWICE, a gap apart, so the
+    // A name too long for its cell is baked whole, twice, a gap apart, so the
     // quad can slide its window along it and come back to the start without a
     // seam -- the flat widget's marquee, done in texture coordinates so
     // scrolling never re-bakes. The texture widens to hold it.
@@ -2673,7 +2674,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
     m_sceneDiskLabelCell = cellPx;
 
     // Redrawn into the same texture, so the scene's cached picture has to be
-    // told -- or the counter only moves when something else, such as the
+    // invalidated, or the counter only moves when something else, such as the
     // camera, redraws the scene.
     m_deskScene.OnLabelsRebaked();
 

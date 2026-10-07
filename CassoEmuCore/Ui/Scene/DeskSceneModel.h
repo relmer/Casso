@@ -152,7 +152,7 @@ class DeskSceneModel
 public:
     // Parses and splits the OBJ/MTL text. Monitor2c must carry exactly one
     // valid spherical-sag glass sheet; DiskII must carry its activity lamp.
-    // CassetteRecorder carries none of those and needs only geometry.
+    // CassetteRecorder has none of those and needs only geometry.
     HRESULT  Load (DeskDeviceKind kind, std::span<const uint8_t> meshBlob);
 
     DeskDeviceKind                                Kind         () const { return m_kind; }
@@ -168,7 +168,8 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   DoorVerts    () const { return m_door; }
 
     // The recorder's keys, each its own geometry so it can go down by itself,
-    // left to right as the deck has them: RECORD, REW, FF, PLAY, STOP, EJECT.
+    // left to right as the deck has them: Record, Rewind, Fast-forward, Play,
+    // Stop, Eject.
     // KeyBoxes holds each key's model-space box as lo xyz then hi xyz.
     static constexpr size_t  kRecorderKeyCount = 6;
 

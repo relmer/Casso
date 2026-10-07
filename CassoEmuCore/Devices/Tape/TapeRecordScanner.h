@@ -38,8 +38,8 @@ struct TapeRecord
 //  about 2 kHz -- ending in an XOR checksum seeded with $FF. The Monitor's
 //  READ, and BASIC's LOAD through it, write and read every record this way.
 //
-//  THE ONLY PLACE OUTSIDE THE ROM THAT KNOWS THE FORMAT. The decoder uses it
-//  to judge its own work -- a record whose checksum fails is decoded again
+//  The only code outside the ROM that decodes this format. The decoder uses
+//  it to check its own output -- a record whose checksum fails is decoded again
 //  with other settings -- and never to supply what the guest reads, which is
 //  still only the transitions.
 //

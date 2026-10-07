@@ -576,9 +576,9 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         }
     }
 
-    // WHAT A MIRROR SHOWS: the scene captured around the recorder's handle,
-    // whose directions are the world's, and the real eye, in this device's
-    // own space, to bounce off it. The fixed eye direction above is a
+    // A mirror needs two inputs: the scene captured around the recorder's
+    // handle, whose directions are the world's, and the real eye position,
+    // in this device's own space, to reflect off it. The fixed eye direction above is a
     // shading convention and no use to a mirror, which shows whatever lies
     // along the actual line of sight.
     if (m_envReady && !m_inEnvCapture)
@@ -2642,7 +2642,7 @@ void DeskScene::GetEyeWorld (const float view[16], float out[3])
 //
 //  DeskScene::RenderEnvironment
 //
-//  WHAT THE CHROME REFLECTS IS THE SCENE: the monitor, the drives and the
+//  The chrome reflects the scene itself: the monitor, the drives and the
 //  rest of the recorder, drawn six times from the middle of the handle, once
 //  down each axis, into the faces of a cube map. The shader then looks up the
 //  eye's ray, bounced off the surface, in that cube.
@@ -2650,7 +2650,7 @@ void DeskScene::GetEyeWorld (const float view[16], float out[3])
 //  Captured whenever the plate is redrawn, which is whenever anything in the
 //  scene moves, and not otherwise: a still scene costs nothing more.
 //
-//  Each face is a 90 degree view down its axis, MIRRORED left to right. The
+//  Each face is a 90 degree view down its axis, mirrored left to right. The
 //  scene's cameras are right-handed and D3D's cube faces are laid out
 //  left-handed, so an unmirrored face would show the room backwards. Nothing
 //  in the color pass culls by winding, so the mirror costs nothing else.
@@ -2689,9 +2689,9 @@ HRESULT DeskScene::RenderEnvironment (const DeskSceneComposition & comp)
         lo[2] = std::min (lo[2], v.z);  hi[2] = std::max (hi[2], v.z);
     }
 
-    // The middle of the bar across the FRONT, not of the whole handle: its
+    // The middle of the bar across the front, not of the whole handle: its
     // arms run back into the case, and the box around them has its middle
-    // inside the body, which is all a camera there would see.
+    // inside the body, so a capture from there would show only the body.
     mid[0] = (lo[0] + hi[0]) * 0.5f;
     mid[1] = lo[1] + kEnvFrontInsetMm;
     mid[2] = (lo[2] + hi[2]) * 0.5f;
@@ -2742,7 +2742,7 @@ Error:
 //
 //  DeskScene::BuildEnvironmentRoom
 //
-//  THE ROOM THE DESK STANDS IN, for the chrome to reflect and for nothing
+//  Builds the room the desk stands in, for the chrome to reflect and for nothing
 //  else: the scene draws no room of its own, the host's backdrop shows
 //  through instead, and a mirror of a backdrop color is a black bar. So the
 //  capture gets the room the scene's lighting already assumes -- a desk at
@@ -3165,9 +3165,9 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
 //  matrix in first; this one must not, or the name would turn with the drive
 //  and the constant pixel size the layout solved for would be undone.
 //
-//  Depth TESTED, never WRITTEN, except the key tip, which is not tested
-//  either: it floats over the recorder rather than sitting on it. A name is a transparent decal, and writing
-//  its rectangle into the buffer would let the blank corners occlude the lamp
+//  Depth tested, never written, except the key tip, which is not tested
+//  either: it floats over the recorder rather than sitting on it. A name is
+//  a transparent decal, and writing its rectangle into the buffer would let the blank corners occlude the lamp
 //  glows that come after it.
 //
 ////////////////////////////////////////////////////////////////////////////////

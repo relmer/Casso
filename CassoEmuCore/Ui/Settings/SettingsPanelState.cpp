@@ -1098,7 +1098,7 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
 
     m_mergedJson = CloneJson (mergedJson);
 
-    // THE SECOND DRIVE IS TAKEN FROM DISK TOO. No page edits it -- it is
+    // The second drive is taken from disk too. No page edits it -- it is
     // connected from the Storage menu and the drives' right-click menus,
     // which save it the moment it changes -- so the copy read when the sheet
     // opened is the stale one, and BuildJson writes it out on OK.

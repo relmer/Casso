@@ -103,7 +103,7 @@ void TapeDeck::TakeRecording (RecordingCapture & capture)
 //
 //  TapeDeck::Eject
 //
-//  Any recording must be committed by the owner before this; the capture is
+//  Any recording must be committed by the caller before this; the capture is
 //  discarded with the tape.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,8 +188,8 @@ void TapeDeck::Stop (uint64_t nowCycle)
 //
 //  TapeDeck::Rewind
 //
-//  Winds back toward the start, as the key does: stopping whatever the tape
-//  was doing first, and stopping again at the start or when Stop is pressed.
+//  Rewinds toward the start, as the key does: first stops whatever the tape
+//  was doing, then stops again at the start or when Stop is pressed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,7 +206,7 @@ void TapeDeck::Rewind (uint64_t nowCycle)
 //
 //  TapeDeck::FastForward
 //
-//  Winds on toward the end, stopping there or when Stop is pressed.
+//  Fast-forwards toward the end, stopping there or when Stop is pressed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,8 +248,8 @@ void TapeDeck::Record (uint64_t nowCycle)
 //
 //  TapeDeck::StartWinding
 //
-//  A wind with nowhere to go -- rewinding at the start, winding on at the end
-//  -- leaves the tape stopped.
+//  Rewinding at the start or fast-forwarding at the end leaves the tape
+//  stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,9 +287,9 @@ void TapeDeck::StartWinding (uint64_t nowCycle, TapeTransport direction)
 //
 //  TapeDeck::Seek
 //
-//  Winds to a position, in seconds from the start, and stops there, as
+//  Moves to a position, in seconds from the start, and stops there, as
 //  fast-forward or rewind to a counter reading would. A position past the end
-//  stops at the end. With no tape there is nothing to wind.
+//  stops at the end. With no tape inserted this does nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -348,7 +348,7 @@ void TapeDeck::SetRecordArmed (bool isArmed)
 //  TapeDeck::Update
 //
 //  Called once per emulation slice: stops playback that has run off the end
-//  and refreshes what the UI sees. A recording may run past the end; the tape
+//  and refreshes the snapshot the UI reads. A recording may run past the end; the tape
 //  is extended when it is committed.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -523,9 +523,9 @@ bool TapeDeck::IsOnLeader (uint64_t nowCycle) const
 //
 //  TapeDeck::FindLeaders
 //
-//  Where the inserted tape's leaders are, found once per image by the same
-//  scan the decoder checks its records with. Nonstandard records have none,
-//  and are simply never sped through.
+//  Finds the inserted tape's leaders, once per image, with the same scan the
+//  decoder uses to check records. Nonstandard records have no leader and are
+//  never sped through.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -628,7 +628,8 @@ double TapeDeck::GetSampleAtCycle (uint64_t cycle) const
     elapsedCycles = (double) (cycle - m_startCycle);
     travel        = elapsedCycles * m_image.signal.sampleRate / m_cpuClockHz;
 
-    // Winding runs at many times the playing speed and cannot leave the tape.
+    // Fast-forward and rewind run at many times the playing speed and are
+    // clamped to the tape's length.
     if (IsWinding())
     {
         travel *= (m_transport == TapeTransport::Rewinding) ? -kWindSpeed : kWindSpeed;
@@ -661,7 +662,7 @@ void TapeDeck::Halt (uint64_t nowCycle)
 
     m_startSample = GetSampleAtCycle (nowCycle);
 
-    // Recording ends with the record key back up, as Stop leaves it.
+    // Recording ends with the record key released, as Stop leaves it.
     if (m_transport == TapeTransport::Recording)
     {
         m_capture.endCycle    = nowCycle;

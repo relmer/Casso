@@ -105,7 +105,7 @@ Error:
 //  AiffCodec::ReadComm
 //
 //  AIFF-C adds a compression type after the sample rate. Only "NONE"
-//  (big-endian) and "sowt" (little-endian) carry plain PCM.
+//  (big-endian) and "sowt" (little-endian) hold plain PCM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,7 +183,7 @@ Error:
 //
 //  AiffCodec::ReadSamples
 //
-//  The frame count in COMM wins over the SSND length when it is smaller.
+//  The frame count in COMM is used over the SSND length when it is smaller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

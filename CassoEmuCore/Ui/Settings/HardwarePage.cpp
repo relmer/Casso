@@ -451,7 +451,7 @@ void HardwarePage::Rebuild()
 
     {
         // The //c is the machine with a mouse port; supportsExternalDrive is
-        // the flag that tells it apart.
+        // the flag that distinguishes it.
         bool  supportsMouse  = (info != nullptr) && info->supportsExternalDrive;
         bool  mouseConnected = (state == nullptr) || state->GetPrefs().mouseConnected;
 

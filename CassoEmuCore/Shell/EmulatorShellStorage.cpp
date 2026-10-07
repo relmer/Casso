@@ -51,9 +51,9 @@ bool EmulatorShell::IsSecondDriveOffered() const
 //
 //  EmulatorShell::SetSecondDriveConnected
 //
-//  The same live change Settings makes -- the command ejects a disk from a
-//  drive being taken away and relays the chrome -- and then saved, since no
-//  sheet's OK is coming to save it.
+//  Makes the same live change Settings makes (the command ejects a disk from
+//  a drive being removed and lays out the chrome again), then saves it, since
+//  no Settings OK will follow to save it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,9 +77,9 @@ void EmulatorShell::SetSecondDriveConnected (bool connected)
 //  EmulatorShell::SetTapeRecorderConnected
 //
 //  Disconnecting ejects the tape first, which writes back anything recorded
-//  onto it: a recorder that is not there cannot be holding one. The recorder
-//  goes from the drive band, the fullscreen strip and the desk scene alike,
-//  which all ask IsTapeRecorderShown.
+//  onto it, since a disconnected recorder has no tape. The recorder is
+//  removed from the drive band, the fullscreen strip and the desk scene
+//  alike, which all check IsTapeRecorderShown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,12 +180,12 @@ Error:
 //
 //  EmulatorShell::ShowStorageContextMenu
 //
-//  A device's own menu, from a right-click on it: the switch that connects
-//  it, then what the Storage menu does for that device. Drive 1 has
-//  no such switch; the machine's first drive is always there.
+//  Shows a device's own menu on a right-click: the switch that connects it,
+//  then the Storage menu's commands for that device. Drive 1 has no such
+//  switch; the machine's first drive is always present.
 //
-//  The rows are the Storage menu's own commands, so they read, enable and
-//  check exactly as the menu's do.
+//  The rows are the Storage menu's own commands, so their text, enabled
+//  state and check marks match the menu's exactly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

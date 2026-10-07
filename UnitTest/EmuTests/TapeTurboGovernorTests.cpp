@@ -272,8 +272,8 @@ public:
     }
 
 
-    //  SC-004: a 16 KB load through the Monitor's R takes under ten seconds
-    //  of host time with fast loading on. The stretches the governor runs at
+    //  A 16 KB load through the Monitor's R takes under ten seconds of
+    //  host time with fast loading on. The stretches the governor runs at
     //  Maximum are timed as this machine actually runs them; the rest count
     //  at the machine's real speed, as the shell would pace them. The real-
     //  time length of the same load is reported beside it.

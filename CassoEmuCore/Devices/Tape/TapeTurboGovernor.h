@@ -11,7 +11,7 @@
 //  TapeTurboGovernor
 //
 //  Whether a tape load should run at Maximum speed right now. Only while the
-//  deck is moving AND the guest has touched the cassette port within the last
+//  deck is moving and the guest has touched the cassette port within the last
 //  tenth of a second of emulated time. Reading $C060 alone is not enough: on
 //  the //e it is also how a game reads a fourth button, and a game polling it
 //  with no tape moving must keep its normal speed.

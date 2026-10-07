@@ -405,11 +405,11 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // monitor's top, looking at the middle of the screen. Every perspective
     // in the frame follows from that one position.
     //
-    // ALL OF IT, NOT THE MONITOR. The eye, the gaze and the orbit pivot sit
-    // over the middle of everything on the desk, so a scene with the recorder
-    // beside the stack is framed and turned as one group rather than about the
-    // monitor with the recorder hanging off one side. Without the recorder the
-    // stack is symmetric and this is the monitor's center, as before.
+    // Center on everything on the desk, not on the monitor. The eye, the gaze
+    // and the orbit pivot sit over the middle of all the devices, so a scene
+    // with the recorder beside the stack is framed and turned as one group
+    // rather than about the monitor with the recorder off to one side. Without
+    // the recorder the stack is symmetric and this is the monitor's center.
     {
         float   midX      = (deviceMin[0] + deviceMax[0]) * 0.5f;
         float   midZ      = (deviceMin[2] + deviceMax[2]) * 0.5f;
@@ -538,7 +538,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             float  sp = std::sin (view.orbitPitchRad);
 
             // RotY(-yaw) * RotX(+pitch), row-vector convention, then the
-            // pivot carried through and put back: p' = (p - pivot) * R + pivot.
+            // pivot subtracted and added back: p' = (p - pivot) * R + pivot.
             // The pivot is the gaze target pushed back to the middle of the
             // devices' depth, so a turn spins the group about its own center.
             float  pivot[3] = { at[0], at[1], midZ };
@@ -1085,10 +1085,10 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
         }
     }
 
-    // THE RECORDER RIDES WITH THE DRIVES, beside them as it sits on the desk,
-    // so the strip that brings the drives back brings it back too. The row
-    // is then moved sideways to center the whole group, since the camera
-    // solve below looks straight down the middle.
+    // The recorder is placed beside the drives, as on the desk, so the strip
+    // that shows the drives shows it too. The row is then shifted sideways to
+    // center the whole group, since the camera solve below points straight
+    // down the middle.
     if (metrics.hasRecorder)
     {
         PlaceRecorder (metrics, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);

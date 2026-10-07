@@ -19,10 +19,10 @@ class ITapeDeckPort;
 //  back panel. Any access to $C020-$C02F toggles the output flip-flop that
 //  drives the cassette-out jack. Bit 7 of $C060 (and its mirror $C068) is the
 //  comparator on the cassette-in jack; the game port (][, ][+) or the keyboard
-//  (//e) decodes those addresses and asks this device for the level.
+//  (//e) decodes those addresses and reads the level from this device.
 //
-//  The port carries signal only. Whatever is plugged in sees edges at the bus
-//  cycle they happen, and the guest's own code decides what they mean.
+//  The port passes signal only. A device plugged in receives edges at the bus
+//  cycle they happen, and the guest program's code interprets them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

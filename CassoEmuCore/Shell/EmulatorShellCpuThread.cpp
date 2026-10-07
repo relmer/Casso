@@ -671,8 +671,8 @@ Error:
 //
 //  ApplyTapeTurbo
 //
-//  Runs a tape load at Maximum speed while the governor says so, and hands
-//  the user's own speed back the moment it does not. Only a change is
+//  Runs a tape load at Maximum speed while the governor returns true, and
+//  restores the user's own speed as soon as it returns false. Only a change is
 //  written.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -687,7 +687,7 @@ void EmulatorShell::ApplyTapeTurbo()
 
 
 
-    // NOT SILENCED. At Maximum speed the audio path keeps only what fits in
+    // Not silenced. At Maximum speed the audio path keeps only what fits in
     // real time and drops the rest, faded at each cut, so the load plays as
     // slices of the tape at its true pitch -- the data's rasp, not a chirp.
     if (isFast != m_cpuManager.IsMaximumOverride())

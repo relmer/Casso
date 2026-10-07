@@ -1025,7 +1025,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             }
         }
 
-        // No lens, no anchor: a lampless device reports an empty list rather
+        // No lens, no anchor: a lampless device returns an empty list rather
         // than one zero-sized lamp at its origin.
         if (!m_lamp.empty())
         {
@@ -2789,7 +2789,7 @@ void DeskSceneModel::SmoothChromeNormals()
         float                           vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
         std::array<float, 3>            n  = { uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx };
 
-        // Outward as the baked normal says, whichever way the corners wind.
+        // Outward along the baked normal, whichever way the corners are wound.
         if (n[0] * a.nx + n[1] * a.ny + n[2] * a.nz < 0.0f)
         {
             n = { -n[0], -n[1], -n[2] };

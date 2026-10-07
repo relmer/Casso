@@ -50,8 +50,8 @@ HRESULT TapeImageLoader::Load (
     }
     else
     {
-        // MP3 and FLAC both go to the platform decoder, which tells them apart
-        // by their own headers.
+        // MP3 and FLAC both go to the platform decoder, which distinguishes
+        // them by their headers.
         loaded.format = isFlac ? TapeFormat::Flac : TapeFormat::Mp3;
         hr = compressedDecoder.Decode (bytes, audio, error);
     }

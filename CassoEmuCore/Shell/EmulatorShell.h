@@ -432,7 +432,7 @@ private:
     // marshaled via IDM_AUDIO_DRIVE_TEST.
     void PlayDriveTestSound (int drive, int kind);
 
-    // Carries out one tape-deck command. CPU-thread only, marshaled through
+    // Runs one tape-deck command. CPU-thread only, marshaled through
     // the IDM_TAPE_* commands.
     void ControlTape (TapeCommand command);
 
@@ -1112,7 +1112,7 @@ private:
     void    SyncSceneDriveChrome ();
 
     // The cassette recorder's flat widget and what its controls do. Shown
-    // when the machine has a cassette port AND the recorder is connected.
+    // when the machine has a cassette port and the recorder is connected.
     bool          MachineHasCassettePort () const;
     bool          IsTapeRecorderShown    () const { return MachineHasCassettePort() && m_tapeRecorderConnected; }
     TapeDeckView  GetTapeView            () const;
@@ -1826,7 +1826,7 @@ private:
 
     // Where the desk recorder's tape name and counter are, for clicks.
     RECT                      m_sceneTapeNameRect    = {};
-    std::wstring              m_sceneTapeLabelShown;   // what the baked recorder labels last said
+    std::wstring              m_sceneTapeLabelShown;   // what the baked recorder labels last showed
     RECT                      m_sceneTapeCounterRect = {};
 
     // What the in-scene quads currently say and the cell they were baked at,
@@ -1868,12 +1868,12 @@ private:
     int                       m_recorderHeldKey       = -1;   // the key the left button is holding down
 
     // Which of the desk recorder's keys are locked down. They latch as the
-    // RQ-309DS's do -- RECORD, REW, FF and PLAY stay down once pressed -- and
-    // only STOP, EJECT or a reset lets them back up.
+    // RQ-309DS's do: Record, Rewind, Fast-forward and Play stay down once
+    // pressed, and only Stop, Eject or a reset releases them.
     std::array<bool, 6>       m_recorderKeyLatched    = {};
     uint32_t                  m_seenTapeResets        = 0;
     TapeTransport             m_seenTransport         = TapeTransport::Empty;  // as of the last frame
-    int64_t                   m_recorderReleaseAtMs   = 0;    // when a pressed STOP or EJECT bottoms out
+    int64_t                   m_recorderReleaseAtMs   = 0;    // when a pressed Stop or Eject bottoms out
 
     // How long a key takes to go all the way down.
     static constexpr int64_t  s_kRecorderKeyDownMs    = 120;

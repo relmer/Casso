@@ -127,8 +127,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     visibleCount = std::clamp (visibleCount, 1, static_cast<int> (driveChrome.size()));
     x            = DriveRowLayout::ComputeRowOriginX (clientW, widgetW, gap, visibleCount);
 
-    // THE RECORDER JOINS THE ROW, to the right of the drives, and the row
-    // centers as one unit with it. Measured at this DPI like the drives.
+    // The recorder is added to the row, to the right of the drives, and the
+    // row is centered as one unit with it. Measured at this DPI like the drives.
     showTape = IsTapeRecorderShown();
 
     if (showTape)
@@ -1133,10 +1133,10 @@ void EmulatorShell::ReflowChromeForMachineChange()
 
     // The desk wears what the machine wore, so crossing the //c boundary
     // swaps both models. Reloading rebuilds every cached mesh, so the
-    // scene's own state is pushed again right after. Gaining or losing
-    // cassette jacks adds or removes the recorder, which is a reload too.
-    // Attaching or detaching the recorder is NOT: its model stays loaded
-    // while the machine has the jacks, and is only shown or hidden.
+    // scene's own state is pushed again right after. Switching to or from a
+    // machine with cassette jacks adds or removes the recorder, which is a
+    // reload too. Attaching or detaching the recorder is not: its model stays
+    // loaded while the machine has the jacks, and is only shown or hidden.
     if (m_deskSceneReady &&
         (MachineHasCaseSwitches() != m_deskSceneMachineIsC ||
          MachineHasCassettePort() != m_deskScene.IsRecorderLoaded()))

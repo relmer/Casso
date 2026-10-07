@@ -40,7 +40,7 @@ void TapeDeckWidget::Hide()
 //
 //  Returns whether anything drawn changed -- the hovered region, or the
 //  controls' magnification, which follows every move near them -- so the
-//  caller knows to repaint.
+//  caller repaints.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -273,7 +273,7 @@ bool TapeDeckWidget::IsRegionEnabled (TapeDeckRegion region, const TapeDeckView 
         case TapeDeckRegion::Name:        return true;
         case TapeDeckRegion::Rewind:      return hasTape && !isRecording;
         case TapeDeckRegion::FastForward: return hasTape && !isRecording;
-        case TapeDeckRegion::Play:        return hasTape && !isRecording && view.transport != TapeTransport::Playing;   // from a wind too
+        case TapeDeckRegion::Play:        return hasTape && !isRecording && view.transport != TapeTransport::Playing;   // from fast-forward or rewind too
         case TapeDeckRegion::Stop:        return isMoving;
         case TapeDeckRegion::Record:      return hasTape && view.isWritable && (isRecording || view.transport == TapeTransport::Stopped);
         case TapeDeckRegion::Eject:       return true;   // with no tape it just opens the picker
@@ -312,8 +312,8 @@ std::wstring TapeDeckWidget::FormatTime (double seconds)
 //
 //  FormatCounter
 //
-//  The position, as a deck's counter shows it. Empty with no tape, so the
-//  counter does not claim a place on nothing.
+//  The position, as a deck's counter shows it. Empty with no tape, so no
+//  counter shows without one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -491,7 +491,7 @@ float TapeDeckWidget::GetMagnification (float distance, float reach)
 
 
 
-    // Either side alike, and nothing past the reach on EITHER side: comparing
+    // Either side alike, and nothing past the reach on either side: comparing
     // the signed distance let every control to the right of the pointer
     // through, where the cosine comes back up to full size two reaches out.
     t = (reach > 0.0f) ? fabsf (distance) / reach : 1.0f;
@@ -598,7 +598,7 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
 //  rather than overlap, the row centered where it stands and every control
 //  standing on the row's bottom edge. At rest this is exactly the layout.
 //
-//  THE ROW STAYS WHERE IT IS as the pointer moves along it. The reach is
+//  The row stays where it is as the pointer moves along it. The reach is
 //  exactly two pitches, and raised cosines that far apart at that spacing add
 //  up to the same total wherever the pointer stands -- so the row's width,
 //  and with it a centered row's position, does not change; only the controls
@@ -716,9 +716,9 @@ void TapeDeckWidget::PaintName (IDxuiTextRenderer & text, const std::wstring & n
         BAIL_OUT_IF (true, S_OK);
     }
 
-    // ONLY UNDER THE POINTER. A name scrolling on its own pulls the eye to
-    // the band for no reason; at rest it shows its head, and hovering it is
-    // what asks to read the rest.
+    // Only under the pointer. A name scrolling on its own pulls the eye to
+    // the band for no reason; at rest it shows its head, and the user hovers
+    // it to read the rest.
     if (name != m_marqueeName)
     {
         m_marqueeName    = name;
@@ -810,7 +810,7 @@ void TapeDeckWidget::Paint (
 
     PaintName (text, name, hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel);
 
-    // THE CONTROLS GO LAST, IN FRONT. A magnified control stands up over the
+    // The controls go last, in front. A magnified control stands up over the
     // rail and the name, and stands on the band's own color so what it covers
     // does not show through its mark.
     for (size_t i = 0; i <= kButtonCount; i++)
@@ -838,8 +838,8 @@ void TapeDeckWidget::Paint (
                           DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    // THE NEAREST CONTROL SAYS WHAT IT IS, under itself, while the pointer is
-    // near the row. One label only: under a magnified row, several at once
+    // The nearest control's label shows under it while the pointer is near
+    // the row. One label only: under a magnified row, several at once
     // would run into each other.
     if (m_isNear)
     {

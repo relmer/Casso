@@ -338,7 +338,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     m_shell.m_mouseConnected = mouseConn;
 
                     // The cassette recorder: the switched-to machine's own
-                    // answer, connected unless it was disconnected.
+                    // setting, connected unless it was disconnected.
                     {
                         bool  recorder = true;
 
@@ -509,7 +509,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         m_shell.m_machine.GetInterruptController().ResetSources();
 
         // The recorder outlives the machine; stop it while the old CPU's
-        // cycle count still means something. The tape stays inserted.
+        // cycle count is still valid. The tape stays inserted.
         m_shell.m_machine.StopTape();
 
         m_shell.m_machine.SetCpu (nullptr);

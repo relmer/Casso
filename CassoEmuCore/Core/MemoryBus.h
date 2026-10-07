@@ -79,7 +79,7 @@ public:
 
     const vector<BusEntry> & GetEntries () const { return m_entries; }
 
-    // The last byte the bus carried: what an address nothing drives reads as.
+    // The last byte on the bus: what an address nothing drives reads as.
     Byte GetFloatingBusValue () const { return m_floatingBusValue; }
 
     // Page table for fast $0000-$BFFF access. Each page (256 bytes) maps to

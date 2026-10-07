@@ -81,7 +81,7 @@ public:
     // The transport keys left to right, as the RQ-309DS has them.
     static TapeDeckRegion  GetButtonRegion (size_t index);
 
-    // What the control at `index` does, as its label says it -- the buttons
+    // What the control at `index` does, as its label shows -- the buttons
     // left to right, then the counter.
     static const wchar_t * GetControlLabel (size_t index);
 

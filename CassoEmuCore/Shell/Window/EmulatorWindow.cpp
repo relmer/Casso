@@ -838,7 +838,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             // The action the click takes: attach what is not there, detach
             // what is. The //c's second drive is an external unit on its
-            // disk port, and says so.
+            // disk port, and its menu item shows that.
             case IDM_STORAGE_DRIVE2:
             {
                 bool  isC = m_machine.GetConfig().systemRom.romBankSize != 0;
@@ -1056,7 +1056,7 @@ SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int f
     {
         client = GetClientSizeForCenterPx (framebufferWpx, framebufferHpx);
 
-        // NEVER NARROWER THAN THE DRIVE ROW. With the recorder beside the
+        // Never narrower than the drive row. With the recorder beside the
         // drives the row outgrows a 100% screen, and a window wrapped tightly
         // around the screen cut the recorder off at its right edge.
         client.cx = max (client.cx, (LONG) GetDriveRowWidthPx());

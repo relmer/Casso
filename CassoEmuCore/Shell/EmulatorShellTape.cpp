@@ -83,9 +83,9 @@ TapeDeckView EmulatorShell::GetTapeView() const
 //  SyncTapeChrome
 //
 //  Once a frame: refreshes the flat recorder and lays it out where the drive
-//  row put it, right of the drives. It is hidden on a machine without
+//  row placed it, right of the drives. It is hidden on a machine without
 //  cassette jacks, when the desk scene draws the recorder instead, and when
-//  the band holds no drives to line up with.
+//  the band has no drives to line up with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,12 +102,12 @@ void EmulatorShell::SyncTapeChrome()
     m_tapeChrome.SyncFromView (view);
     SyncSceneTapeLabel();
 
-    // A STATIC GUEST SCREEN PRESENTS NO FRAMES, and a program loading from
+    // A static guest screen presents no frames, and a program loading from
     // tape is exactly that: so while the tape moves, and while a long name may
-    // be scrolling under the pointer, ask for one every UI frame or the
-    // counter stands still.
-    // A transport change repaints too -- above all a STOP, after which nothing
-    // moves to ask for a frame and the desk's PLAY key would stay drawn down.
+    // be scrolling under the pointer, request a redraw every UI frame or the
+    // counter does not update.
+    // A transport change repaints too, above all a Stop: after it nothing
+    // moves to request a frame, and the desk's Play key would stay drawn down.
     if (view.transport != m_shownTapeTransport)
     {
         m_shownTapeTransport = view.transport;
@@ -224,7 +224,7 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
 
 
 
-    // STOP AND EJECT ALWAYS LET THE KEYS UP, even with the tape already
+    // Stop and Eject always release the keys, even with the tape already
     // stopped -- at its end, or after a load -- when Stop itself has nothing
     // to stop. Otherwise a latched key could never be released.
     if (region == TapeDeckRegion::Stop || region == TapeDeckRegion::Eject)
@@ -232,9 +232,9 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         LatchRecorderKeys (region);
     }
 
-    // A TRANSPORT KEY THAT CANNOT ACT STILL KNOCKS THE OTHERS UP, as the real
-    // mechanism does: pressing it releases whatever key was holding the tape
-    // moving, and with nothing holding it the tape stops.
+    // A transport key that cannot act still releases the others, as on the
+    // real mechanism: pressing it releases whichever key kept the tape
+    // moving, and with no key latched the tape stops.
     if (!TapeDeckWidget::IsRegionEnabled (region, view) && m_tapeManager != nullptr &&
         ReleaseOtherRecorderKeys (region) &&
         view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped)
@@ -255,8 +255,8 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         case TapeDeckRegion::Name:        PickTape();                                                                 break;
         case TapeDeckRegion::Rewind:      m_tapeManager->Rewind();                                                    break;
         case TapeDeckRegion::FastForward: m_tapeManager->FastForward();                                               break;
-        // Play over a wind lets the wind key up first; the deck plays only
-        // from a stop, and the two go to the CPU thread in this order.
+        // Play during fast-forward or rewind stops the tape first; the deck
+        // plays only from a stop, and the two go to the CPU thread in order.
         case TapeDeckRegion::Play:
             if (view.transport == TapeTransport::FastForwarding || view.transport == TapeTransport::Rewinding)
             {
@@ -283,7 +283,8 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
 //
 //  PromptTapePosition
 //
-//  Asks where to wind the tape, starting from where it is, and winds there.
+//  Prompts the user for a tape position, starting from the current one, and
+//  seeks the tape there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,9 +331,9 @@ Error:
 //
 //  ReleaseOtherRecorderKeys
 //
-//  Lets up every latched key but the one a transport key press went to.
-//  Returns whether any was down. Only RECORD, REWIND, FAST-FORWARD and PLAY
-//  knock the others up this way; STOP and EJECT release everything through
+//  Releases every latched key except the transport key just pressed.
+//  Returns whether any was down. Only Record, Rewind, Fast-forward and Play
+//  release the others this way; Stop and Eject release everything through
 //  LatchRecorderKeys.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,10 +380,10 @@ bool EmulatorShell::ReleaseOtherRecorderKeys (TapeDeckRegion region)
 //
 //  LatchRecorderKeys
 //
-//  The RQ-309DS's key mechanism, for the desk recorder: RECORD takes PLAY
-//  down with it, a wind key or PLAY knocks the others up, and STOP or EJECT
-//  releases everything. A latched key stays down even after the tape stops by
-//  itself -- at the end, or after a load -- as the real keys do.
+//  The RQ-309DS's key mechanism, for the desk recorder: Record latches Play
+//  down with it, Fast-forward, Rewind or Play releases the others, and Stop
+//  or Eject releases everything. A latched key stays down even after the tape
+//  stops by itself -- at the end, or after a load -- as the real keys do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -405,12 +406,12 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
         case TapeDeckRegion::Rewind:
         case TapeDeckRegion::FastForward:
         case TapeDeckRegion::Play:
-            // Any of these knocks every other key up, whether or not it then
+            // Any of these releases every other key, whether or not it then
             // stays down itself.
             m_recorderKeyLatched.fill (false);
 
-            // Winding toward the end the tape is already at goes nowhere, so
-            // the key does not stay down; it only dips.
+            // Rewinding at the start or fast-forwarding at the end moves
+            // nothing, so the key does not stay down; it only dips.
             if ((region == TapeDeckRegion::Rewind && view.positionSeconds <= 0.0) ||
                 (region == TapeDeckRegion::FastForward && view.positionSeconds >= view.lengthSeconds))
             {
@@ -421,8 +422,8 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
                                  region == TapeDeckRegion::FastForward ? kForward : kPlay] = true;
             break;
 
-        // The held keys let go when the STOP or EJECT key reaches the bottom
-        // of its stroke -- it is that key going down that trips the latch --
+        // The latched keys are released when the Stop or Eject key reaches
+        // the bottom of its stroke -- that key going down trips the latch --
         // not the moment it is clicked.
         case TapeDeckRegion::Stop:
         case TapeDeckRegion::Eject:
@@ -446,8 +447,8 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
 //
 //  EjectAndPickTape
 //
-//  Eject takes the tape out and offers the picker for the next one, as a
-//  drive's slot does, so with no tape in it is the way to put one in.
+//  Eject removes the tape and opens the picker for the next one, as a
+//  drive's slot does, so with no tape in it is the way to insert one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -470,7 +471,7 @@ void EmulatorShell::EjectAndPickTape()
 //  BrowseForTape
 //
 //  Opens the file picker on the folder of the tape in the deck, if any. A
-//  tape that cannot be read is reported and the deck keeps what it had.
+//  tape that cannot be read is reported and the deck's tape is unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -508,7 +509,7 @@ Error:
 //
 //  CreateBlankTape
 //
-//  Asks where the new tape goes, writes it empty and inserts it, ready to
+//  Prompts for the new tape's path, writes it empty and inserts it, ready to
 //  record on.
 //
 ////////////////////////////////////////////////////////////////////////////////

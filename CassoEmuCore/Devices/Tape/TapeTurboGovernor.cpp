@@ -14,7 +14,7 @@
 //  moving), and once the guest goes a tenth of a second without touching the
 //  port.
 //
-//  EXCEPT OVER A LEADER. The Monitor's READ finds the tape and then waits
+//  Except over a leader. The Monitor's READ finds the tape and then waits
 //  three and a half seconds without touching it, the head over the leader
 //  all the while, before it reads the record. That wait is dead time, so a
 //  guest that read the tape within the last few seconds keeps the speed for

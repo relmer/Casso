@@ -12,11 +12,11 @@
 //
 //  DxuiInfoTip
 //
-//  A small "i" in a ring beside a setting, whose tooltip says what the
+//  A small "i" in a ring beside a setting, whose tooltip shows what the
 //  setting's own label has no room for. It is a tab stop: Enter, Space or a
-//  click opens the tip at once, as hovering does after a dwell. It watches
+//  click opens the tip at once, as hovering does after a dwell. It tracks
 //  the pointer without consuming any move, so it can sit beside a control
-//  without stealing from it.
+//  without taking input from it.
 //
 //  The tip shows through a popup host when one is set, as a dropdown's menu
 //  does, so it can extend past the page it sits on.

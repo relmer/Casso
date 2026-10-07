@@ -1340,7 +1340,7 @@ Error:
 //  GetRecentMedia
 //
 //  The picker's list for one kind of media: the recent entries of that kind
-//  that still exist, then the files of that kind in the folders of EVERY
+//  that still exist, then the files of that kind in the folders of every
 //  recent entry, then the bundled demos. Disks and tapes share the recent list
 //  and the folders; the filter is the only difference.
 //

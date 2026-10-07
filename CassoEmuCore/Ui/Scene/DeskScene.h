@@ -47,7 +47,7 @@ public:
     // where its brand stamp lands -- the //c wears it on the chin, the
     // Monitor II on its divided right strip.
     // An empty `recorderMesh` leaves the cassette recorder off the desk,
-    // which is what a machine with no cassette jacks wants.
+    // as for a machine with no cassette jacks.
     HRESULT  LoadModels (DeskDeviceKind             monitorKind,
                          std::span<const uint8_t>   monitorMesh,
                          std::span<const uint8_t>   driveMesh,
@@ -167,7 +167,7 @@ public:
     // write-protect padlock. Only an actual change dirties geometry.
     void  SetDriveVisuals  (int drive, bool lampOn, float doorProgress, bool writeProtected);
 
-    // How far down the FRONT of each of the recorder's keys stands, in
+    // How far down the front of each of the recorder's keys stands, in
     // millimeters, left to right; each key pivots on the hinge at its back.
     // The keys are re-posed only when one of these changes.
     void  SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kRecorderKeyCount> & depthsMm);
@@ -183,7 +183,7 @@ public:
     void  SetRecorderReelTurn   (float turnRad);
 
     // The baked label texture was redrawn in place. The view and the quads
-    // are the same objects, so nothing else says the picture changed.
+    // are the same objects, so nothing else signals that the picture changed.
     void  OnLabelsRebaked      () { InvalidatePlate(); }
 
     // The door's hinge pin is at the struts' rear end: the back of the door's

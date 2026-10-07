@@ -12,8 +12,8 @@
 //
 //  TapeCommand
 //
-//  What the tape deck can be asked to do on the CPU thread. Insert takes the
-//  tape the UI thread has already read and decoded.
+//  The tape-deck operations run on the CPU thread. Insert takes the tape the
+//  UI thread has already read and decoded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

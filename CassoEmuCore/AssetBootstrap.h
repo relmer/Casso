@@ -14,7 +14,7 @@
 //
 //  What the insert picker is choosing. Disks and tapes share one picker, one
 //  recent list and one set of scanned folders; the filter keeps each picker to
-//  its own kind of file, and the kind carries the words and the stock-download
+//  its own kind of file, and the kind holds the wording and the stock-download
 //  rows, which only disks have.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -512,8 +512,9 @@ public:
     }
 
 
-    // The whole round trip the bug ran through: open a machine that has never    // saved a color, change something unrelated, hit OK. What the sheet
-    // applies and writes must be the monitor's green, not the struct's color.
+    // The full round trip that exposed the bug: open a machine that has never
+    // saved a color, change something unrelated, and press OK. The sheet must
+    // apply and write the monitor's green, not the struct's default color.
     TEST_METHOD (Apply_WithNoSavedColor_KeepsTheMonitorsPhosphor)
     {
         SettingsPanelState  st;
@@ -985,7 +986,7 @@ public:
 
     // The Storage menu saves the second drive and the recorder while a sheet
     // may be open. The sheet's OK re-reads the document first, and that has to
-    // carry those two, or OK writes the copy read at open and undoes them.
+    // include those two, or OK writes the copy read at open and undoes them.
     TEST_METHOD (Refresh_TakesTheSecondDriveAndRecorderFromDisk)
     {
         SettingsPanelState  st;

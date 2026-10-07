@@ -1345,7 +1345,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    // Ctrl turns the press into a pan, the mouse's road to what the touchpad
+    // Ctrl turns the press into a pan, the mouse's way to do what the touchpad
     // does with a two-finger slide. Beside the Shift orbit, for the same
     // reasons, and like it never in fullscreen. Not on the compass, which
     // has its own Ctrl gestures and is handled below.
@@ -1361,8 +1361,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    // Taking hold of the recorder's volume wheel starts its drag, which owns
-    // the gesture to the release: no orbit, no click.
+    // Pressing on the recorder's volume wheel starts its drag, which handles
+    // every move until the release: no orbit, no click.
     if (DeskSceneActive() && !m_mainMenu.IsOpen() && !IsGuestMouseLive())
     {
         float  span  = 0.0f;
@@ -1383,9 +1383,9 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // A desk recorder key starts down the moment it is pressed, as under a
     // finger, and stays down while the button is held; what it does still
-    // waits for the release, like any button. STOP is the exception: it is
-    // the key reaching the bottom that trips the latch, so the held keys let
-    // go then, with the button still down.
+    // waits for the release, like any button. Stop is the exception: it is
+    // the key reaching the bottom that trips the latch, so the held keys are
+    // released then, with the button still down.
     if (DeskSceneActive() && !m_mainMenu.IsOpen())
     {
         SceneHitResult  keyHit = RecorderHit (x, y);
@@ -1977,8 +1977,8 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
             return sceneHit.driveIndex;
         }
 
-        // The recorder answers to its own test, which knows whether it is on
-        // the strip or the desk; the drives' test does not look for it.
+        // The recorder has its own hit test, which checks whether it is on
+        // the strip or the desk; the drives' test does not include it.
         if (RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
             PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
         {

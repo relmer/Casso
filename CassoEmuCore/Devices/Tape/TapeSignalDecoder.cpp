@@ -12,7 +12,7 @@
 //
 //  TapeSignalDecoder::Decode
 //
-//  FILTERING ONLY WHAT NEEDS IT. A clean recording is decoded as the Apple's
+//  Filtering only what needs it. A clean recording is decoded as the Apple's
 //  own input would: DC removed, then a comparator switching close to zero.
 //  That is the reading that survives the uneven half-cycles real transfers
 //  have. But it is also the reading hiss flips at random, so the result is
@@ -60,7 +60,7 @@ void TapeSignalDecoder::Decode (const TapeAudio & audio, TapeSignal & signal)
 //
 //  TapeSignalDecoder::RescueRecords
 //
-//  A SECOND CHANCE FOR A RECORD THAT FAILS ITS CHECKSUM. One setting cannot
+//  A second chance for a record that fails its checksum. One setting cannot
 //  read every damaged stretch of every real recording: a floor high enough
 //  to keep hiss out of the gaps loses the tiny swings near zero one tape's
 //  damaged stretch is made of, and a floor low enough for those lets hiss

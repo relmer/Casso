@@ -209,7 +209,7 @@ void TapeTestEncoder::MakeWav (const std::vector<std::vector<Byte>> & records, c
 //  TapeTestEncoder::EncodeWav
 //
 //  Any depth and channel count, so the reader's whole format matrix can be
-//  exercised. Every channel carries the same samples.
+//  exercised. Every channel holds the same samples.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

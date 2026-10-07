@@ -10,9 +10,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiInfoTipTests
 //
-//  The info tip watches the pointer without ever taking it: a move over the
-//  glyph asks for its tooltip, a move off it or a leave lets it go, and no
-//  event is consumed, so the control beside it still gets every one.
+//  The info tip tracks the pointer without capturing it: a move over the
+//  glyph shows its tooltip, a move off it or a leave hides it, and no event
+//  is consumed, so the control beside it still receives every one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

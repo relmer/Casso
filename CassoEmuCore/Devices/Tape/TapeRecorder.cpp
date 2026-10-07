@@ -17,7 +17,7 @@
 //  output level at its own time: low to start, flipped at every toggle. The
 //  tape grows if the recording runs past its end.
 //
-//  A HELD LEVEL IS NOT RECORDED. A recorder's input is AC-coupled, so while
+//  A held level is not recorded. A recorder's input is AC-coupled, so while
 //  the computer leaves its output alone -- before the first toggle, after
 //  the last, between records -- the tape settles back to the center line and
 //  takes only the deck's own faint hiss. That is what every real recording

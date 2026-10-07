@@ -101,7 +101,7 @@ private:
                              float       & outTNear);
 
     // The recorder is one target, its whole bounds box, tested through
-    // comp.recorderWorld. It joins the nearest-wins contest the drives use,
+    // comp.recorderWorld. It is in the same nearest-hit test the drives use,
     // and occluderT is the nearest entry of any other device's body.
     static void  ClassifyRecorder (const DeskSceneComposition & comp,
                                    const float                  origin[3],
@@ -115,6 +115,6 @@ private:
                                    size_t                       keyCount);
 
     // A key is a small target on a big case, so its box reaches a little above
-    // the key for the hand that aims at its top.
+    // the key, so a click aimed at its top still hits it.
     static constexpr float  kKeyHitPadMm = 2.0f;
 };

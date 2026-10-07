@@ -29,7 +29,7 @@ void DxuiInfoTip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  The glyph in the theme's muted text color, full strength under the
 //  pointer, centered in the bounds: present, but quieter than the label it
-//  explains. A ring around it once the keyboard has focused it.
+//  sits beside. A ring around it once the keyboard has focused it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -85,7 +85,7 @@ void TapeManager::Insert (const std::string & path)
 //  LoadAndPost
 //
 //  On the background thread: reads and decodes the tape, then hands it to
-//  the CPU thread. A newer insert or an eject asked for meanwhile wins, and
+//  the CPU thread. If a newer insert or an eject was requested meanwhile,
 //  this tape is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,8 +184,8 @@ void TapeManager::CreateBlank (const std::string & path)
 //
 //  WriteBlank
 //
-//  A zero-length 44.1 kHz mono WAV, 8-bit or 16-bit as set, written whole before it replaces
-//  anything.
+//  A zero-length 44.1 kHz mono WAV, 8-bit or 16-bit as set, written whole
+//  before it replaces anything.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -346,8 +346,8 @@ void TapeManager::FastForward()
 //
 //  Seek
 //
-//  Winds the tape to a position, in seconds from the start. The position
-//  waits here for the CPU thread, which owns the deck.
+//  Moves the tape to a position, in seconds from the start. The position is
+//  stored here until the CPU thread, which owns the deck, reads it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -381,7 +381,7 @@ void TapeManager::SetRecordArmed (bool isArmed)
 //  RestoreSavedTape
 //
 //  Puts back the tape this machine had at the end of the last session, stopped
-//  at its start. A remembered file that has since gone is forgotten, and the
+//  at its start. A saved path whose file has since gone is cleared, and the
 //  deck stays empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -415,8 +415,8 @@ Error:
 //
 //  RestoreTape
 //
-//  Inserts the remembered tape when the file is still there, and forgets it
-//  when it is not. Nothing remembered leaves the deck as it is.
+//  Inserts the saved tape when the file is still there, and clears the saved
+//  path when it is not. An empty saved path leaves the deck as it is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -449,7 +449,7 @@ Error:
 //
 //  OnMachineSwitched
 //
-//  Takes the outgoing machine's tape out without forgetting it, then puts in
+//  Takes the outgoing machine's tape out, keeping its saved path, then puts in
 //  whatever the incoming machine had. The commands queue in that order, so
 //  the deck never holds both. A machine with no cassette port has nothing
 //  saved, so its deck stays empty.
@@ -484,7 +484,7 @@ void TapeManager::OnMachineSwitched()
 //
 //  Execute
 //
-//  On the CPU thread: carries out one posted command against the deck.
+//  On the CPU thread: runs one posted command against the deck.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -512,8 +512,8 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
             IGNORE_RETURN_VALUE (hr, S_OK);
             deck.Eject (nowCycle);
 
-            // An eject forgets the tape; a machine switch unloads it and keeps
-            // it remembered for that machine.
+            // An eject clears the saved path; a machine switch unloads the
+            // tape and keeps its path saved for that machine.
             if (command == TapeCommand::Eject)
             {
                 hr = SaveTapePath ({});
@@ -524,7 +524,7 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
 
         case TapeCommand::Play:          deck.Play   (nowCycle);         break;
 
-        // Every key that ends a recording keeps it: Stop, either wind, and
+        // Every key that ends a recording keeps it: Stop, FF, REW, and
         // releasing Record.
         case TapeCommand::Stop:
         case TapeCommand::Rewind:
@@ -545,7 +545,7 @@ void TapeManager::Execute (TapeCommand command, TapeDeck & deck, uint64_t nowCyc
 
             break;
 
-        // Winding stops the deck and keeps whatever it recorded, as rewind does.
+        // A seek stops the deck and keeps whatever was recorded, as REW does.
         case TapeCommand::Seek:
             deck.Stop (nowCycle);
             hr = CommitPendingRecording (deck);

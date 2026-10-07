@@ -67,7 +67,7 @@ public:
     //  no annunciator lines.
     virtual bool  HasAnnunciators () const = 0;
 
-    //  Whether the motherboard carries the cassette-in and cassette-out jacks.
+    //  Whether the motherboard has the cassette-in and cassette-out jacks.
     //  True on the ][, ][+ and //e; the //c dropped them.
     virtual bool  HasCassettePort () const = 0;
 

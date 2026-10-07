@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  FakeTapeDeckPort
 //
 //  A recorder whose input level the test sets, counting output toggles and
-//  remembering the cycle of the last access.
+//  recording the cycle of the last access.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

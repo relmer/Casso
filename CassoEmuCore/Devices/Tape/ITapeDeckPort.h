@@ -8,8 +8,8 @@
 //
 //  ITapeDeckPort
 //
-//  What the cassette port on the motherboard sees of the recorder plugged into
-//  it: the level on the input line at a bus cycle, and each toggle of the
+//  The interface between the cassette port on the motherboard and the
+//  recorder plugged into it: the level on the input line at a bus cycle, and each toggle of the
 //  output line.
 //
 ////////////////////////////////////////////////////////////////////////////////

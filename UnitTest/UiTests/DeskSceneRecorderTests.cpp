@@ -258,8 +258,8 @@ public:
 
     //
     //  The recorder has no lamp, no door and no glass, and must load anyway:
-    //  the drive and monitor guards that reject a model missing those parts
-    //  are about those devices, not this one.
+    //  the checks that fail a model missing those parts apply to the drive
+    //  and monitor only.
     //
     TEST_METHOD (Recorder_Keys_Are_Kept_Apart_With_Their_Boxes)
     {
@@ -394,8 +394,8 @@ public:
 
     //
     //  None of the recorder's colors may be read as a finish marker: within
-    //  the loader's tolerance of the pebbled or recessed plate, a part loses
-    //  its own color and turns black.
+    //  the loader's tolerance of the pebbled or recessed plate, a part's own
+    //  color is replaced with black.
     //
     TEST_METHOD (Recorder_Keeps_Its_Own_Colors)
     {
@@ -422,9 +422,9 @@ public:
     }
 
     //
-    //  BESIDE THE STACK, NOT IN IT. The recorder's world box starts to the
-    //  right of every drive and of the monitor, rests on the desk, and stays
-    //  inside the projected scene the camera was fitted to.
+    //  The recorder sits beside the stack, not in it. Its world box starts
+    //  to the right of every drive and of the monitor, rests on the desk, and
+    //  stays inside the projected scene the camera was fitted to.
     //
     TEST_METHOD (Layout_Places_Recorder_Beside_The_Stack)
     {
@@ -464,7 +464,7 @@ public:
         Assert::IsTrue (comp.recorderRectPx.bottom <= vp.bottom);
         Assert::IsTrue (comp.recorderRectPx.right  <= comp.sceneRectPx.right);
 
-        // On screen it reads to the right of the right-hand drive. Not by
+        // On screen its center is to the right of the right-hand drive. Not by
         // bounds: the recorder is deeper than a drive and its far corner
         // projects in toward the center past the drive's near edge.
         Assert::IsTrue (comp.recorderRectPx.left + comp.recorderRectPx.right >
@@ -472,9 +472,9 @@ public:
     }
 
     //
-    //  THE FULLSCREEN STRIP BRINGS THE RECORDER BACK WITH THE DRIVES: it sits
+    //  The fullscreen strip shows the recorder along with the drives: it sits
     //  to the right of them, inside the band, and the row is centered as a
-    //  whole. Without one the strip is the drives alone, as before.
+    //  whole. Without a recorder the strip shows the drives alone.
     //
     TEST_METHOD (Strip_Carries_The_Recorder_Beside_The_Drives)
     {
@@ -576,9 +576,9 @@ public:
     }
 
     //
-    //  NO JACKS, NO RECORDER. A scene loaded without the recorder's mesh --
-    //  what the shell does for the //c -- reports none, hands the layout
-    //  none, and the composition places none.
+    //  No cassette jacks, no recorder. A scene loaded without the recorder's
+    //  mesh, as the shell loads it for the //c, reports no recorder, passes
+    //  none to the layout, and the composition places none.
     //
     TEST_METHOD (No_Recorder_Without_A_Cassette_Port)
     {

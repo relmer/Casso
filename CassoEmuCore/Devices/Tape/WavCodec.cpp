@@ -29,7 +29,7 @@ bool WavCodec::IsWav (std::span<const Byte> bytes)
 //  WavCodec::Decode
 //
 //  Walks the chunk list for "fmt " and "data", skipping everything else. The
-//  fmt chunk must be whole. A data chunk that claims more bytes than the file
+//  fmt chunk must be whole. A data chunk whose size exceeds what the file
 //  holds is read to the end of the file, since recorders that were stopped
 //  without finishing the header leave exactly that.
 //
@@ -155,7 +155,7 @@ void WavCodec::Encode (const TapeAudio & audio, std::vector<Byte> & bytes)
 //
 //  WavCodec::ReadFormat
 //
-//  WAVE_FORMAT_EXTENSIBLE carries the real format tag in the first two bytes
+//  WAVE_FORMAT_EXTENSIBLE stores the real format tag in the first two bytes
 //  of its sub-format GUID.
 //
 ////////////////////////////////////////////////////////////////////////////////

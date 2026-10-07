@@ -9,7 +9,7 @@
 //  TapeChannelMixer
 //
 //  Folds interleaved one- or two-channel samples down to the single channel a
-//  cassette input sees.
+//  cassette input receives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,8 +22,8 @@ class UserConfigStore;
 //  which the CPU thread runs through Execute. Inserting saves the path from the
 //  CPU thread, as a disk mount does.
 //
-//  It also remembers the inserted tape per machine and puts it back, rewound,
-//  at the next launch.
+//  It also saves the inserted tape's path per machine and reinserts the tape,
+//  rewound, at the next launch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +79,7 @@ public:
 private:
     HRESULT  SaveTapePath    (const std::string & path);
 
-    std::atomic<double>  m_seekSeconds   { 0.0 };     // where the next Seek command winds to
+    std::atomic<double>  m_seekSeconds   { 0.0 };     // where the next Seek command moves to
     std::atomic<bool>    m_blankEightBit { false };   // new blank tapes are 8-bit
     HRESULT  LoadAndPost     (const std::string & path, uint64_t request);
     HRESULT  WriteBlank      (const std::string & path);

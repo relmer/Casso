@@ -81,8 +81,8 @@ Error:
 //
 //  A source reader over an in-memory copy of the bytes. The content type is
 //  stated rather than left for Media Foundation to guess: with no file name
-//  to go by, a byte stream that does not say what it holds may not find its
-//  decoder.
+//  to go by, Media Foundation may not find a decoder for a byte stream with
+//  no content type set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

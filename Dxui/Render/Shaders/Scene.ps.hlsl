@@ -261,10 +261,10 @@ float4 main (PSIn input) : SV_TARGET
         float3 amb = lerp (ambDown.rgb, ambUp.rgb, saturate (n.z * 0.5f + 0.5f));
         float  ramp = parm.y * (1.0f - exp (-diff * parm.z));
         lit = base.rgb * (amb + ramp) + spec * parm.w;
-// POLISHED CHROME, flagged by a NEGATIVE pebble value, is a mirror: it shows
+// Polished chrome, flagged by a negative pebble value, is a mirror: it shows
 // the scene around it, captured into a cube map from where it stands, along
 // the eye's ray bounced off the surface -- per pixel, since a mirror shows the
-// curvature of its normals directly. The cube holds WORLD directions, so the
+// curvature of its normals directly. The cube holds world directions, so the
 // ray is turned out of this draw's model space first. Slightly dimmed and
 // cooled, as chrome is; no shading of its own, and no specular term, which a
 // hard point light on a thin rounded edge aliases into glitter.
@@ -275,7 +275,7 @@ float4 main (PSIn input) : SV_TARGET
 // (world Y is up), and the Fresnel brightening at grazing angles that
 // outlines a tube's silhouette.
 //
-// AND IT IS OLD CHROME, not a mirror: lightly hazed, so what it shows is
+// And it is old chrome, not a clean mirror: lightly hazed, so what it shows is
 // soft -- the reflection is averaged over a small cone of directions around
 // the true one -- with a faint milky veil over it, and fine scratches that
 // catch the light. The scratches are fixed in the handle's own space, so

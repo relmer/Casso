@@ -398,7 +398,7 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  A move is reported handled only when it changes which tab is hovered or
 //  armed, as DxuiButton does: that is what makes the window repaint at once
 //  rather than on its half-second tick, and a move that changes nothing still
-//  passes through to the widgets that want it.
+//  passes through to the widgets that handle it.
 //
 //  Only the left button acts; a right-click belongs to the host.
 //

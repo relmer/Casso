@@ -377,7 +377,7 @@ public:
     // A real recording's half-cycles are not all one height: on the Internet
     // Archive's Little Brick Out some reach barely a fifth of their
     // neighbors' peak, which a comparator switching at a quarter of the
-    // envelope never saw, and the load failed its checksum.
+    // envelope never detected, and the load failed its checksum.
     TEST_METHOD (LoadsWithWeakHalfCycles) { TapeEncodeOptions o; o.weakHalfEvery = 7; o.weakHalfGain = 0.2; LoadThroughMonitor ("Apple2Plus", o, L"weak half-cycles"); }
 
     // Clicks too sparse to mark the tape noisy, so it is first decoded
@@ -387,7 +387,7 @@ public:
 
 
     //  A tape cut short mid-load: what hardware gives, a stall or a checksum
-    //  error, and the emulator carries on.
+    //  error, and the emulator keeps running.
     TEST_METHOD (TapeEndingMidLoadDoesNotCrash)
     {
         TestMachine        machine ("Apple2Plus", TestMachine::Slots::Empty);

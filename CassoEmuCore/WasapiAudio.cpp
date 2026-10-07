@@ -547,7 +547,7 @@ HRESULT WasapiAudio::SubmitFrame (
         prevFrames = m_pendingSamples.size() / 2;
     }
 
-    // A SLICE DROPPED IS A SPLICE. At Maximum speed most slices are, and what
+    // A dropped slice is a splice. At Maximum speed most slices are, and what
     // plays is short stretches of real-time sound butted together -- the right
     // pitch, but with a click at every cut. So the sound already queued fades
     // out where the first slice is dropped, and the next one kept fades in.

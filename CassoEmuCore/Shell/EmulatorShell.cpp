@@ -607,7 +607,7 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
-    // A tape named on the command line goes in instead of the remembered one,
+    // A tape given on the command line goes in instead of the remembered one,
     // and is remembered in its place, as --disk1 is.
     if (tapePath.empty())
     {

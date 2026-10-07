@@ -738,8 +738,8 @@ void DriveWidget::PaintBasenameLabel (
     imagePath = std::filesystem::path (m_state.mountedImagePath);
     basename  = imagePath.filename().wstring();
 
-    // A fresh mount resets the schedule; the scroll itself waits for the
-    // pointer, whose arrival sets it to "now" (UpdateMarqueeHover).
+    // A fresh mount resets the schedule; the scroll does not start until the
+    // pointer arrives, which sets it to "now" (UpdateMarqueeHover).
     if (m_state.mountedImagePath != m_marqueePath)
     {
         m_marqueePath    = m_state.mountedImagePath;
@@ -866,8 +866,8 @@ void DriveWidget::PaintBasenameLabel (
                         : 0;
         scrollEnd = m_marqueeStartMs + scrollMs;
 
-        // ONLY UNDER THE POINTER: at rest a long name shows its head, and
-        // hovering it is what asks to read the rest.
+        // Only under the pointer: at rest a long name shows its head, and the
+        // rest scrolls into view only while the user hovers over it.
         if (scrollMs <= 0 || nowMs < m_marqueeStartMs || !m_marqueeHovered)
         {
             offset = 0.0f;                                        // pre-scroll or not hovered, at head

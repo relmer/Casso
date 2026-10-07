@@ -74,8 +74,8 @@ public:
     void       SetSpeedMode  (SpeedMode mode) noexcept;
 
     //  The speed the emulator actually runs at: Maximum while a fast tape load
-    //  holds the override, the user's choice otherwise. The user's choice is
-    //  never written, so it returns by itself when the override ends.
+    //  has the override set, the user's choice otherwise. The user's choice
+    //  is never overwritten, so it applies again when the override ends.
     SpeedMode  GetEffectiveSpeedMode () const noexcept;
     void       SetMaximumOverride    (bool isOn) noexcept { m_maximumOverride.store (isOn, std::memory_order_release); }
     bool       IsMaximumOverride     () const noexcept   { return m_maximumOverride.load (std::memory_order_acquire); }

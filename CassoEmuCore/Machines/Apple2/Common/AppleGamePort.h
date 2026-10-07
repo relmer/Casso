@@ -18,7 +18,7 @@ class SiriusJoyport;
 //  AppleGamePort
 //
 //  Apple ][/][+ game-I/O strip: the cassette input ($C060 and its mirror
-//  $C068, answered by the cassette port), pushbuttons PB0-PB2 ($C061-$C063, bit 7 =
+//  $C068, read from the cassette port), pushbuttons PB0-PB2 ($C061-$C063, bit 7 =
 //  pressed), analog paddles PDL0-PDL3 ($C064-$C067) and the PTRIG strobe
 //  ($C070). The original Apple ][/][+ has no game port in its soft-switch
 //  bank (unlike the //e, whose Apple2eSoftSwitchBank owns the paddles and
@@ -59,7 +59,7 @@ public:
     // The game-port adapter, asked first for every button and paddle read.
     void SetJoyport (const SiriusJoyport * joyport) { m_joyport = joyport; }
 
-    // The cassette port that answers $C060 and $C068.
+    // The cassette port that supplies reads of $C060 and $C068.
     void SetCassettePort (CassettePort * port) { m_cassettePort = port; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);

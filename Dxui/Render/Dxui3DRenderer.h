@@ -194,11 +194,11 @@ public:
         // the whole cue. Zero leaves the finish shading-only.
         float  pebbleCavity  = 0.55f;
 
-        // THE ENVIRONMENT a mirror finish reflects: a cube map of the scene,
-        // captured by BeginEnvironmentFace. Its directions are WORLD ones,
+        // The environment a mirror finish reflects: a cube map of the scene,
+        // captured by BeginEnvironmentFace. Its directions are world ones,
         // and this draw's normals are in its own model space, so this takes
         // the model's directions to the world's (row-vector: w = m * M, the
-        // translation ignored). Off unless set: a draw that never names an
+        // translation ignored). Off unless set: a draw that never sets an
         // environment gets none, and its mirrors fall back to plain shading.
         float  envMatrix[16]  = {};
         float  envEye[3]      = { 0.0f, 0.0f, 0.0f };   // the eye, in this draw's model space

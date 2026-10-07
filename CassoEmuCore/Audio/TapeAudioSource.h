@@ -12,13 +12,12 @@ class TapeDeck;
 //
 //  TapeAudioSource
 //
-//  The sound of the tape playing, as a recorder's own speaker would give it.
+//  The sound of the tape playing, as a recorder's own speaker would play it.
 //  It is synthesized from the decoded transitions rather than played from the
 //  recording: the signal is nothing but tones, so a square wave at the same
 //  edges sounds the same and nothing large has to stay in memory. Silent
 //  unless the tape is playing. During a fast load the audio path keeps only
-//  slices of it, at their true pitch, so this source needs no knowledge of
-//  it.
+//  slices of it, at their true pitch, so this source has no fast-load code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

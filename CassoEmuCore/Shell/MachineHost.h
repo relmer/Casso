@@ -230,7 +230,7 @@ public:
     void  StopTape();
 
     // How many times a reset, power cycle or rebuild has stopped the tape, so
-    // the UI can see one happened and let the recorder's keys back up.
+    // the UI can detect one and release the recorder's keys.
     uint32_t  GetTapeResetCount() const { return m_tapeResetCount.load (std::memory_order_acquire); }
 
     //  Where this machine's pending printer strip persists across a switch
