@@ -95,7 +95,7 @@ startup, and a link to the settings folder.
   <td valign="top" width="100%" align="center"><img src="Assets/update-1-32-indicator.png" alt="The right end of Casso's title bar: a download arrow and the words 1.32.0 is calling, in blue, beside the minimize, maximize and close buttons" width="790" /><br /><sub>The title bar when a new release is out</sub></td>
 </tr>
 <tr>
-  <td valign="top" width="100%" align="center"><img src="Assets/update-1-32-dialog.png" alt="The Casso update dialog on its What's new tab: the heading Everything's shiny, Cap'n. A new Casso's in the black, the line Casso 1.32.0 (released 2026-10-07) is available, and the 1.32 highlight, with a link to the release on GitHub" width="600" /><br /><sub>What's new since the version running</sub></td>
+  <td valign="top" width="100%" align="center"><img src="Assets/update-1-32-dialog.png" alt="The Casso update dialog on its What's new tab: the heading Everything's shiny, Cap'n. A new Casso's in the black, the line Casso 1.32.0 (released 2026-10-07) is available, and the 1.32 highlight, with a link to the release on GitHub and the Skip this version, Update when closed and Update now buttons" width="600" /><br /><sub>What's new since the version running</sub></td>
 </tr>
 </table>
 
