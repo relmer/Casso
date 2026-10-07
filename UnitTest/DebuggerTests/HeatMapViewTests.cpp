@@ -815,10 +815,12 @@ namespace DebuggerTests
             write[0x2012]   = 1;
             view.SetLevels (execute, none, write);
 
-            Assert::AreEqual (std::wstring (L"$2010  executed 120/s, written 3.4/s"), view.GetTipText (0x2010));
             Assert::AreEqual (std::wstring (L"$2011  executed 50,000+/s"),            view.GetTipText (0x2011), L"the top level is the top or more");
             Assert::AreEqual (std::wstring (L"$2012  written under 0.1/s"),           view.GetTipText (0x2012));
             Assert::AreEqual (std::wstring (L"$0300  untouched"),                     view.GetTipText (0x0300));
+
+            //  Run as code and written too, so called out as self-modifying.
+            Assert::AreEqual (std::wstring (L"$2010  executed 120/s, written 3.4/s\nSelf-modifying: run as code and written"), view.GetTipText (0x2010));
         }
 
 

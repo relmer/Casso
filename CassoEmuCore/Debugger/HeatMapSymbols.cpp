@@ -68,6 +68,11 @@ void HeatMapSymbols::Add (const std::string & name, Word address, Word size, boo
 
     (void) m_symbols.try_emplace (SymbolTable::ToUpper (name), Entry { address, size });
 
+    if (!isConstant)
+    {
+        (void) m_names.try_emplace (address, name);
+    }
+
     if (!isLoaded || isConstant)
     {
         return;
@@ -178,5 +183,30 @@ bool HeatMapSymbols::TryGetProgramSpan (Word & first, Word & last) const
 
     first = *m_programFirst;
     last  = (Word) m_programLast;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapSymbols::TryGetNameAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapSymbols::TryGetNameAt (Word address, std::string & name) const
+{
+    auto  found = m_names.find (address);
+
+
+
+    if (found == m_names.end())
+    {
+        return false;
+    }
+
+    name = found->second;
     return true;
 }

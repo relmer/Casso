@@ -237,10 +237,11 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 //  and carries what it has counted, as fading heat or as totals, in the bank
 //  chosen when the machine has it and in the CPU's otherwise. A language
 //  card's view shows its 16 KB alone. With the mouse over a cell, the cell's
-//  last writer and reader go with it. The map stays on while BRKUNINIT is,
-//  pane or no pane, since only it sees a read before written; those in the
-//  ranges left out are not carried, and with same-value writes left out the
-//  writes carried are the changes alone.
+//  last writer and reader go with it. So do the bank's bytes, the opcodes
+//  fetched, and where the PC and stack pointer are, for the overlays. The map
+//  stays on while BRKUNINIT is, pane or no pane, since only it sees a read
+//  before written; those in the ranges left out are not carried, and with
+//  same-value writes left out the writes carried are the changes alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,6 +303,8 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
         state.write = state.changed;
     }
 
+    map->GetOpcodeMarks (space, state.opcodes);
+
     for (size_t address = 0; address < state.execute.size(); address++)
     {
         if (!HeatMapOptions::IsShown (state.bank, (Word) address))
@@ -320,6 +323,10 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
     }
 
     state.unwrittenStatus = map->GetUnwrittenStatus();
+    ReadHeatValues (target, *map, state.bank, state.values);
+    FindHeatMarks  (target, *map, state);
+
+    state.opcodeForms = GetOpcodeForms (target.GetInstructionSet());
 
     if (m_heatMapHover.has_value() && HeatMapOptions::IsShown (state.bank, *m_heatMapHover))
     {
@@ -328,6 +335,205 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
                                                                                  GetHeatAccess (session, space, true,  *m_heatMapHover),
                                                                                  GetHeatAccess (session, space, false, *m_heatMapHover) });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ReadHeatValues
+//
+//  The bank's bytes as they stand, for the cells large enough to show them.
+//  The CPU's are what it would read, I/O left unread since reading it
+//  changes the machine; ROM's only where a read reaches ROM now; a RAM
+//  bank's straight from its buffer, whatever is banked in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::ReadHeatValues (
+    IDebugTarget              & target,
+    const AccessHeatMap       & map,
+    HeatMapOptions::Bank        bank,
+    std::vector<int16_t>      & values)
+{
+    constexpr int16_t     kUnknown = -1;
+    HeatSpace             space    = HeatMapOptions::GetSpace (bank);
+    const HeatBankMap   & bankMap  = map.GetBankMap();
+    HeatLocation          location;
+    Byte                  value    = 0;
+    bool                  isRead   = false;
+
+
+
+    values.assign (AccessHeatMap::kAddressCount, kUnknown);
+
+    for (size_t index = 0; index < AccessHeatMap::kAddressCount; index++)
+    {
+        Word  address = (Word) index;
+
+
+
+        if (!HeatMapOptions::IsShown (bank, address))
+        {
+            continue;
+        }
+
+        switch (space)
+        {
+        case HeatSpace::Cpu:
+            isRead = target.TryPeek (address, value);
+            break;
+
+        case HeatSpace::Rom:
+            isRead = bankMap.TryResolve (address, false, location) && location.space == HeatSpace::Rom && target.TryPeek (address, value);
+            break;
+
+        default:
+            isRead = bankMap.TryPeek (space, address, value);
+            break;
+        }
+
+        if (isRead)
+        {
+            values[index] = (int16_t) value;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::FindHeatMarks
+//
+//  The PC and the stack pointer's byte on page 1, where in the bank shown a
+//  read of each lands now: the CPU's own addresses in its view, and in a
+//  bank's only when that bank holds them, so aux RAM's view marks the stack
+//  only while the zero page and stack are switched to aux.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::FindHeatMarks (
+    IDebugTarget                          & target,
+    const AccessHeatMap                   & map,
+    DebuggerViewSnapshot::HeatMapState    & state)
+{
+    constexpr Word     kStackPage = 0x0100;
+    Cpu6502Registers   registers  = target.GetRegisters();
+    HeatSpace          space      = HeatMapOptions::GetSpace (state.bank);
+    Word               stack      = (Word) (kStackPage | registers.sp);
+    HeatLocation       location;
+
+
+
+    if (space == HeatSpace::Cpu)
+    {
+        state.pc    = registers.pc;
+        state.stack = stack;
+        return;
+    }
+
+    if (map.GetBankMap().TryResolve (registers.pc, false, location) && location.space == space && HeatMapOptions::IsShown (state.bank, location.index))
+    {
+        state.pc = location.index;
+    }
+
+    if (map.GetBankMap().TryResolve (stack, false, location) && location.space == space && HeatMapOptions::IsShown (state.bank, location.index))
+    {
+        state.stack = location.index;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetOpcodeForm
+//
+//  The instruction the opcode starts, decoded over zero operand bytes, with
+//  each run of hex digits after a $ put down as that many dots: the form
+//  reads the same whatever the operand holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetOpcodeForm (const Microcode * instructionSet, Byte opcode)
+{
+    HRESULT                                                hr      = S_OK;
+    std::array<Byte, Disassembler::kMaxInstructionBytes>   bytes   = { opcode };
+    DisassembledInstruction                                instruction;
+    std::string                                            form;
+    bool                                                   isDigit = false;
+
+
+
+    CBRAEx (instructionSet != nullptr, E_INVALIDARG);
+
+    hr = Disassembler (instructionSet).DisassembleOne (0, bytes, instruction);
+    CHRA (hr);
+
+    BAIL_OUT_IF (!instruction.isDefined, S_OK);
+
+    form = instruction.mnemonic;
+
+    if (!instruction.operand.empty())
+    {
+        form += ' ';
+    }
+
+    for (char ch : instruction.operand)
+    {
+        if (ch == '$')
+        {
+            isDigit = true;
+            continue;
+        }
+
+        isDigit = isDigit && std::isxdigit ((unsigned char) ch) != 0;
+        form   += isDigit ? '.' : ch;
+    }
+
+Error:
+    return form;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetOpcodeForms
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms> DebuggerViewState::GetOpcodeForms (const Microcode * instructionSet) const
+{
+    constexpr size_t                                    kOpcodeCount = 256;
+    std::shared_ptr<DebuggerViewSnapshot::OpcodeForms>  forms;
+
+
+
+    if (m_opcodeForms != nullptr && m_opcodeFormsSet == instructionSet)
+    {
+        return m_opcodeForms;
+    }
+
+    forms = std::make_shared<DebuggerViewSnapshot::OpcodeForms> (kOpcodeCount);
+
+    for (size_t opcode = 0; opcode < kOpcodeCount && instructionSet != nullptr; opcode++)
+    {
+        (*forms)[opcode] = GetOpcodeForm (instructionSet, (Byte) opcode);
+    }
+
+    m_opcodeForms    = forms;
+    m_opcodeFormsSet = instructionSet;
+    return m_opcodeForms;
 }
 
 

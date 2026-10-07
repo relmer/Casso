@@ -2668,10 +2668,11 @@ namespace DebuggerViewStateTests
         //  pending scroll included.
         TEST_METHOD (DotFollowsThePcAsTheFollowControlDoes)
         {
-            MachineRig            rig;
-            DebuggerViewState     other;
-            DebuggerViewSnapshot  dot;
-            DebuggerViewSnapshot  follow;
+            std::unique_ptr<MachineRig>   held   = std::make_unique<MachineRig>();
+            MachineRig                  & rig    = *held;
+            DebuggerViewState             other;
+            DebuggerViewSnapshot          dot;
+            DebuggerViewSnapshot          follow;
 
 
 

@@ -744,6 +744,46 @@ cell shows its address in a memory window: the one last used if it is in
 view, otherwise the first one that is, otherwise Memory 1, whose tab comes
 forward.
 
+Over the heat the map marks where the machine stands and what will stop it.
+The cell at the PC is outlined in the disassembly's PC yellow, and the stack
+pointer's byte on page $01 in cyan; in a bank's view each is outlined only
+when that bank holds it, so aux RAM's view marks the stack only while the
+zero page and stack are switched to aux. Every enabled breakpoint is
+outlined: one on an address in the disassembly's breakpoint red, a read
+watchpoint in green and a write watchpoint in orange, a watchpoint on both
+with both rings. An address with a symbol is tinted toward the symbol color.
+Each outline lies around the cell like the hover frame, and a second one on
+the same cell sits inside the first. The tip lists what marks the cell: "PC",
+"Stack pointer", "Breakpoint #2", "Read watchpoint #3", "Write watchpoint
+#4", "Read and write watchpoint #5" and "Symbol COUT". Breakpoints and
+symbols are on the CPU's addresses, so in a RAM bank's view a breakpoint at
+$D100 marks both language card banks.
+
+Code is drawn two ways. A byte fetched as an instruction's opcode takes the
+full code color, and a byte only ever run as an operand is drawn part of the
+way to the gray, so each instruction's start stands out and code entered at
+an odd offset shows as a dim byte drawn bright. The tip says "executed as an
+operand" for such a byte.
+
+Zoomed in far enough, a cell shows what it holds. Once the text fits at a
+size of 9 pixels or more at 100% scaling (cells about 15 pixels), the cell shows its
+value in hex; once two lines fit with ten characters across (about 26
+pixels tall and 58 wide), a second line shows the instruction's mnemonic
+with its operand's form, such as "LDA (..),Y", for a byte fetched as an
+opcode, and the byte's bits otherwise. The text is the theme's text color
+or its page color, whichever stands out more from the cell. The values are
+the bank's as they stand: the CPU's view reads what the CPU would, leaving
+I/O unread; ROM's view only where a read reaches ROM now; a RAM bank's
+straight from that bank. A set of a few small ranges is the easy way to see
+this, since a set starts at the largest zoom that fits.
+
+**Blend** on the bar mixes the colors of an address touched more than one
+way, each weighted by how hot it is, instead of showing the hottest kind. An
+address both run as code and written, self-modifying code, takes a magenta
+of its own, which the key lists while Blend is on. Blend is off by default
+and is kept between sessions. Whether or not Blend is on, the tip of such an
+address says "Self-modifying: run as code and written".
+
 #### Ranges
 
 The map can be focused on the regions a program uses rather than all 64 KB.
@@ -881,7 +921,7 @@ For every byte of main and aux RAM, the Language Card's banks among them,
 the heat map knows whether the CPU has written it since power-on. A read of
 a byte nothing has written is a **read before written**: the program is
 reading whatever power-on left there. In **All** and **Data** such reads
-are drawn in magenta over whatever else the cell shows, as hot as they
+are drawn in violet over whatever else the cell shows, as hot as they
 were, and the tip adds "read before written" with how often. An instruction
 fetched from RAM nothing wrote is code, not a read, and is not counted. A
 byte written from the debugger (a memory window's edit, a poke, a binary
@@ -916,7 +956,7 @@ deleted leaves nothing out until it is chosen again.
 A write that stores the value a byte already holds changes nothing. **Ignore
 writes that don't change the value** on the bar leaves such writes out of the
 writes shown, in every view, fading or cumulative; the **Changed** view
-shows only the writes that changed a value, in amber. A write to I/O, or to
+shows only the writes that changed a value, in rose. A write to I/O, or to
 an address no memory takes, cannot be read back first, and always counts as
 a change.
 
@@ -1000,8 +1040,13 @@ and addresses) mean what the text says and are not listed.
   banks and aux RAM.
 - **Memory map**: main RAM, aux RAM, each Language Card bank, ROM, slot ROM and
   I/O, each in a color of the theme's, with a key below the map.
-- **Heat map**: a read before written, in magenta, and a write that changed a
-  value, in amber in the **Changed** view.
+- **Heat map**: code in the disassembly's instruction color, an operand byte
+  dimmer, reads in green and writes in red; with Blend on, magenta for
+  self-modifying code; a cell tinted toward the symbol color for an address
+  with a symbol; outlines in the PC's yellow for the PC, cyan for the stack
+  pointer, the breakpoint red for a breakpoint, green for a read watchpoint
+  and orange for a write watchpoint; violet for a read before written, and
+  rose for a write that changed a value in the **Changed** view.
 - **Disk head**: the head muted while the motor is off, flashing as it steps,
   and settling to the accent on its track; a lamp lit while its phase magnet
   or the motor is on.

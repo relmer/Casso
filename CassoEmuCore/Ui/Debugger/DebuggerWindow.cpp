@@ -6938,36 +6938,64 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 //
 //  Code in the disassembly's instruction color, reads in the annotation
 //  green and writes in the changed red, from the theme's cold gray, over the
-//  page the panes are drawn on; reads before written and changed values in
-//  the heat map's own magenta and amber.
+//  page the panes are drawn on. The PC is outlined in the disassembly's PC
+//  yellow and a breakpoint in its breakpoint red, and a symbol tints toward
+//  the symbol color; the rest of the overlays take the theme's heat colors.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyHeatMap()
 {
-    DebuggerTextColors::Set  colors     = GetTextColors();
-    HeatMapView::Palette     palette;
-    bool                     isNewHover = false;
+    const DebuggerViewSnapshot::HeatMapState  & state      = m_snapshot->heatMap;
+    DebuggerTextColors::Set                     colors     = GetTextColors();
+    HeatMapView::Palette                        palette;
+    std::vector<HeatMapView::Breakpoint>        breakpoints;
+    bool                                        isNewHover = false;
 
 
 
-    palette.background = (m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000;
-    palette.cold       = colors.heatCold;
-    palette.execute    = colors.syntax.mnemonic;
-    palette.read       = colors.annotation;
-    palette.write      = colors.changed;
-    palette.unwritten  = colors.heatUnwritten;
-    palette.changed    = colors.heatChanged;
+    palette.background    = (m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000;
+    palette.cold          = colors.heatCold;
+    palette.execute       = colors.syntax.mnemonic;
+    palette.read          = colors.annotation;
+    palette.write         = colors.changed;
+    palette.pc            = GetPcMarkerArgb();
+    palette.stack         = colors.heatStack;
+    palette.breakpoint    = GetBreakpointArgb();
+    palette.readWatch     = colors.heatReadWatch;
+    palette.writeWatch    = colors.heatWriteWatch;
+    palette.symbol        = colors.syntax.symbol;
+    palette.selfModifying = colors.heatSelfModifying;
+    palette.unwritten     = colors.heatUnwritten;
+    palette.changed       = colors.heatChanged;
 
-    isNewHover = m_snapshot->heatMap.hover != nullptr;
+    for (const DebuggerViewSnapshot::BreakpointLine & line : m_snapshot->breakpoints)
+    {
+        std::optional<HeatMapView::BreakKind>  kind = HeatMapView::GetBreakKind (line.info);
 
-    m_heatMapView->SetPalette     (palette);
-    m_heatMapView->SetTop         (m_snapshot->heatMap.top);
-    m_heatMapView->SetShownBank   (m_snapshot->heatMap.bank, m_snapshot->heatMap.hasAux);
-    m_heatMapView->SetChannelLevels (m_snapshot->heatMap.unwritten, m_snapshot->heatMap.changed);
-    m_heatMapView->SetLevels      (m_snapshot->heatMap.execute, m_snapshot->heatMap.read, m_snapshot->heatMap.write);
-    m_heatMapView->SetRebuilding  (m_snapshot->heatMap.isRebuilding);
-    m_heatMapView->SetHoverAccess (m_snapshot->heatMap.hover);
+
+
+        if (kind.has_value())
+        {
+            breakpoints.push_back ({ line.id, line.info.address, std::max (line.info.address, line.info.last), *kind });
+        }
+    }
+
+    isNewHover = state.hover != nullptr;
+
+    m_heatMapView->SetPalette      (palette);
+    m_heatMapView->SetTop          (state.top);
+    m_heatMapView->SetShownBank    (state.bank, state.hasAux);
+    m_heatMapView->SetSymbols      (m_snapshot->heatMapSymbols);
+    m_heatMapView->SetOpcodes      (state.opcodes);
+    m_heatMapView->SetValues       (state.values);
+    m_heatMapView->SetOpcodeForms  (state.opcodeForms);
+    m_heatMapView->SetCpuMarks     (state.pc, state.stack);
+    m_heatMapView->SetBreakpoints  (std::move (breakpoints));
+    m_heatMapView->SetChannelLevels (state.unwritten, state.changed);
+    m_heatMapView->SetLevels       (state.execute, state.read, state.write);
+    m_heatMapView->SetRebuilding   (state.isRebuilding);
+    m_heatMapView->SetHoverAccess  (state.hover);
 
     //  The ranges read again only when the symbols they read against change.
     if (m_snapshot->heatMapSymbols != m_heatRangeSymbols)

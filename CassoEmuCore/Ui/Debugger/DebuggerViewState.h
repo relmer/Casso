@@ -14,6 +14,9 @@
 
 class SymbolTable;
 class HeatMapSymbols;
+class AccessHeatMap;
+class IDebugTarget;
+class Microcode;
 
 class DebugSession;
 class IDiagnosticsProvider;
@@ -246,12 +249,23 @@ struct DebuggerViewSnapshot
     //  address's count while cumulative. While fading, after a move through
     //  history, isRebuilding until the heat at the landing is rebuilt. The
     //  levels are of one bank, of those the machine has; with the mouse over
-    //  a cell, its last writer and reader in that bank.
+    //  a cell, its last writer and reader in that bank. Beside the levels:
+    //  which addresses were fetched as opcodes, the bank's bytes as they
+    //  stand (-1 where one cannot be read without changing the machine), each
+    //  opcode's mnemonic with its operand's form ("LDA (..),Y"), and where in
+    //  the bank the PC and the stack pointer are, when they are in it.
+    using OpcodeForms = std::vector<std::string>;
+
     struct HeatMapState
     {
         std::vector<Byte>                       execute;
         std::vector<Byte>                       read;
         std::vector<Byte>                       write;
+        std::vector<Byte>                       opcodes;
+        std::vector<int16_t>                    values;
+        std::shared_ptr<const OpcodeForms>      opcodeForms;
+        std::optional<Word>                     pc;
+        std::optional<Word>                     stack;
         double                                  top          = 0.0;
         bool                                    isRebuilding = false;
         HeatMapOptions::Bank                    bank         = HeatMapOptions::Bank::Cpu;
@@ -444,6 +458,11 @@ public:
     //  The cell the mouse is over on the heat map, whose last writer and
     //  reader each snapshot carries; none when it is over none.
     void                    SetHeatMapHover   (std::optional<Word> address)    { m_heatMapHover = address; }
+
+    //  An opcode's mnemonic with its operand's form, each operand byte a
+    //  dot: "LDA (..),Y", "JMP ....", "INX"; empty for an opcode the
+    //  instruction set does not define.
+    static std::string      GetOpcodeForm     (const Microcode * instructionSet, Byte opcode);
 
     //  Device panels by provider id. A panel stays open until closed or until
     //  its device leaves the machine; only open panels cost the devices
@@ -658,6 +677,12 @@ private:
     void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildHeatMap   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
+    static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values);
+    static void            FindHeatMarks  (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);
+
+    //  Every opcode's form for the instruction set, made again only when the
+    //  machine brings another.
+    std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>  GetOpcodeForms (const Microcode * instructionSet) const;
 
     //  The heat map ranges' copy of the symbols, taken again only when they
     //  have changed since the last.
@@ -739,6 +764,11 @@ private:
     mutable std::shared_ptr<const HeatMapSymbols>  m_heatMapSymbols;
     mutable uint64_t                               m_heatMapSymbolsRevision = 0;
     std::optional<Word>                            m_heatMapHover;
+
+    //  Every opcode's form, and the instruction set they were made for.
+    mutable std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>    m_opcodeForms;
+    mutable const Microcode                                           * m_opcodeFormsSet = nullptr;
+
     std::optional<DebuggerViewSnapshot::GoTo>  m_goTo;
     std::wstring  m_showPane;
     uint32_t      m_showPaneSerial   = 0;

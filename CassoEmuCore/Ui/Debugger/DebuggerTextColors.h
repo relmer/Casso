@@ -77,9 +77,19 @@ public:
         //  page between them.
         uint32_t              heatCold       = 0;
 
-        //  The heat map's reads before written, a magenta apart from every
-        //  other kind's color, and its writes that changed their byte, an
-        //  amber apart from the writes' red.
+        //  The heat map's outlines around the stack pointer's byte and the
+        //  bytes a read or a write watchpoint covers, and its blend's color
+        //  for a byte both run as code and written: cyan, green, orange and
+        //  magenta, apart from code's blue, reads' green, writes' red, the
+        //  PC's yellow and a breakpoint's red.
+        uint32_t              heatStack         = 0;
+        uint32_t              heatReadWatch     = 0;
+        uint32_t              heatWriteWatch    = 0;
+        uint32_t              heatSelfModifying = 0;
+
+        //  The heat map's reads before written, a violet apart from every
+        //  other kind's color and overlay, and its writes that changed their
+        //  byte, a rose.
         uint32_t              heatUnwritten  = 0;
         uint32_t              heatChanged    = 0;
     };

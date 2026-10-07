@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/ColorLegend.h"
+#include "Ui/Debugger/Panes/HeatMapView.h"
 
 
 
@@ -60,6 +61,17 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { s_kpszMemoryMap,   Meaning::MapRom,             Swatch::Fill    },
         { s_kpszMemoryMap,   Meaning::MapSlotRom,         Swatch::Fill    },
         { s_kpszMemoryMap,   Meaning::MapIo,              Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatCode,           Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatOperand,        Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatRead,           Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatWrite,          Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatSelfModifying,  Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatSymbol,         Swatch::Fill    },
+        { s_kpszHeatMap,     Meaning::HeatPc,             Swatch::Outline },
+        { s_kpszHeatMap,     Meaning::HeatStack,          Swatch::Outline },
+        { s_kpszHeatMap,     Meaning::HeatBreakpoint,     Swatch::Outline },
+        { s_kpszHeatMap,     Meaning::HeatReadWatch,      Swatch::Outline },
+        { s_kpszHeatMap,     Meaning::HeatWriteWatch,     Swatch::Outline },
         { s_kpszHeatMap,     Meaning::HeatUnwritten,      Swatch::Fill    },
         { s_kpszHeatMap,     Meaning::HeatChanged,        Swatch::Fill    },
         { s_kpszDiskHead,    Meaning::HeadMotorOff,       Swatch::Fill    },
@@ -117,6 +129,17 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     case Meaning::MapRom:             return L"ROM";
     case Meaning::MapSlotRom:         return L"Slot ROM";
     case Meaning::MapIo:              return L"I/O";
+    case Meaning::HeatCode:           return L"Run as code";
+    case Meaning::HeatOperand:        return L"Run as code, but only ever as an instruction's operand";
+    case Meaning::HeatRead:           return L"Read";
+    case Meaning::HeatWrite:          return L"Written";
+    case Meaning::HeatSelfModifying:  return L"Self-modifying: run as code and written, with Blend on";
+    case Meaning::HeatSymbol:         return L"Has a symbol";
+    case Meaning::HeatPc:             return L"PC";
+    case Meaning::HeatStack:          return L"Stack pointer";
+    case Meaning::HeatBreakpoint:     return L"Breakpoint";
+    case Meaning::HeatReadWatch:      return L"Read watchpoint, or the read half of a read and write one";
+    case Meaning::HeatWriteWatch:     return L"Write watchpoint, or the write half of a read and write one";
     case Meaning::HeadMotorOff:       return L"Head, with the motor off";
     case Meaning::HeadMoving:         return L"Head stepping to a track";
     case Meaning::HeadSettled:        return L"Head settled on its track";
@@ -173,6 +196,17 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::MapRom:             return palette.text.mapRom;
     case Meaning::MapSlotRom:         return palette.text.mapSlotRom;
     case Meaning::MapIo:              return palette.text.mapIo;
+    case Meaning::HeatCode:           return palette.text.syntax.mnemonic;
+    case Meaning::HeatOperand:        return DxuiColor::Mix (palette.text.syntax.mnemonic | 0xFF000000u, palette.text.heatCold | 0xFF000000u, HeatMapView::kOperandDim);
+    case Meaning::HeatRead:           return palette.text.annotation;
+    case Meaning::HeatWrite:          return palette.text.changed;
+    case Meaning::HeatSelfModifying:  return palette.text.heatSelfModifying;
+    case Meaning::HeatSymbol:         return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, palette.text.syntax.symbol | 0xFF000000u, HeatMapView::kSymbolTint);
+    case Meaning::HeatPc:             return palette.pcMarker;
+    case Meaning::HeatStack:          return palette.text.heatStack;
+    case Meaning::HeatBreakpoint:     return palette.breakpoint;
+    case Meaning::HeatReadWatch:      return palette.text.heatReadWatch;
+    case Meaning::HeatWriteWatch:     return palette.text.heatWriteWatch;
     case Meaning::HeadMotorOff:       return palette.muted;
     case Meaning::HeadMoving:         return palette.flash;
     case Meaning::HeadSettled:        return palette.accent;

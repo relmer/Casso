@@ -465,6 +465,33 @@ namespace HeatMapPaneWindowTests
 
 
 
+        TEST_METHOD (BlendOnTheBarTurnsOnAndOffAndIsKept)
+        {
+            CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost    host;
+            HeatMapWindow  window (theme, host);
+            DxuiDpiScaler  scaler;
+
+
+
+            BuildShown (window);
+            Assert::IsFalse (window.IsHeatMapBarChecked (HeatMapBarCommands::kBlend), L"off by default");
+
+            //  Wide enough for the bar to hold Blend rather than its "..." menu.
+            scaler.SetDpi (96);
+            window.Layout (RECT { 0, 0, 3000, 900 }, scaler);
+
+            ClickBarEntry (window, HeatMapBarCommands::kBlend);
+            Assert::IsTrue   (window.GetHeatMapView()->GetOptions().blend, L"on");
+            Assert::IsTrue   (window.IsHeatMapBarChecked (HeatMapBarCommands::kBlend), L"checked");
+            Assert::AreEqual (std::string ("fade=10 view=all blend"), host.heatMapOptions, L"kept");
+
+            ClickBarEntry (window, HeatMapBarCommands::kBlend);
+            Assert::IsFalse  (window.GetHeatMapView()->GetOptions().blend);
+        }
+
+
+
         TEST_METHOD (TheZoomButtonsZoomTheMap)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();

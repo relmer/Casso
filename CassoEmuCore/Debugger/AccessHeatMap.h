@@ -166,6 +166,11 @@ public:
 
     const std::vector<float> &  GetHeatTable () const { return m_heat; }
 
+    //  One mark per address of a space, nonzero where an opcode was fetched
+    //  since the map was started or reset: the bytes executed that are not
+    //  marked were only ever an instruction's operands. Empty while off.
+    void   GetOpcodeMarks (HeatSpace space, std::vector<Byte> & marks) const;
+
     //  How long, in seconds of machine time, a single access stays on the
     //  map before it fades to cold.
     void   SetFadeSeconds  (double seconds);
@@ -275,6 +280,7 @@ private:
 
     static bool    IsBitSet         (const std::vector<uint64_t> & bits, size_t bit) { return (bits[bit / kBitsPerWord] & (1ull << (bit % kBitsPerWord))) != 0; }
     static void    SetBit           (std::vector<uint64_t> & bits, size_t bit)       { bits[bit / kBitsPerWord] |= 1ull << (bit % kBitsPerWord); }
+    void           MarkOpcode       (Word pc, const Landing & landing);
 
     const Microcode                    * m_instructionSet = nullptr;
     const uint64_t                     * m_position       = nullptr;
@@ -285,6 +291,7 @@ private:
     std::vector<float>                   m_heat;
     std::vector<int64_t>                 m_totals;
     std::vector<HeatLastAccess>          m_last;
+    std::vector<Byte>                    m_opcodes;
     std::array<uint64_t, kSpaceCount>    m_mostTotal      = {};
     uint64_t                             m_foldedAt       = 0;
     double                               m_fadeSeconds    = HeatMapOptions::kDefaultFadeSeconds;

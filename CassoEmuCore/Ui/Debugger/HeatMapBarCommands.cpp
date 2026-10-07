@@ -18,8 +18,9 @@ static constexpr const wchar_t *  s_kGlyphZoomOut = s_kpszMdl2ZoomOut;   // magn
 //
 //  HeatMapBarCommands::GetRows
 //
-//  How the map counts, which ranges and which bank it shows, which writes and
-//  reads before written it leaves out, then the zoom at the far end.
+//  How the map counts and how it mixes colors, which ranges and which bank
+//  it shows, which writes and reads before written it leaves out, then the
+//  zoom at the far end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,11 +32,12 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
         { kCumulative,  L"Cumulative",     nullptr,         L"Show each address's total since the counts were reset",    DxuiToolbar::Kind::Toggle,   0, false, false },
         { kFade,        L"Fade",           nullptr,         L"How long a single access stays on the map",                DxuiToolbar::Kind::DropDown, 1, false, false },
         { kResetCounts, L"Reset counts",   nullptr,         L"Start the totals over",                                    DxuiToolbar::Kind::Command,  1, false, false },
+        { kBlend,       L"Blend",          nullptr,         L"Mix the colors of an address touched more than one way",  DxuiToolbar::Kind::Toggle,   4, false, false },
         { kRangeSet,    L"All memory",     nullptr,         L"Show all of memory, or only the ranges of a set",          DxuiToolbar::Kind::DropDown, 3, false, false },
         { kEditRanges,  L"Edit ranges...", nullptr,         L"Make and change the sets of ranges the map can show",      DxuiToolbar::Kind::Command,  3, false, false },
         { kBank,        L"Bank",           nullptr,         L"Show what the CPU addresses, or one bank as it is stored",  DxuiToolbar::Kind::DropDown, 3, false, false },
-        { kIgnoreSame,  L"Ignore writes that don't change the value", nullptr, L"Show only the writes that stored a different value", DxuiToolbar::Kind::Toggle, 4, false, false },
-        { kIgnoreSet,   L"Leave out: None", nullptr,        L"Leave a set's ranges out of the reads before written",       DxuiToolbar::Kind::DropDown, 4, false, false },
+        { kIgnoreSame,  L"Ignore writes that don't change the value", nullptr, L"Show only the writes that stored a different value", DxuiToolbar::Kind::Toggle, 5, false, false },
+        { kIgnoreSet,   L"Leave out: None", nullptr,        L"Leave a set's ranges out of the reads before written",       DxuiToolbar::Kind::DropDown, 5, false, false },
         { kZoomIn,      L"Zoom in",        s_kGlyphZoomIn,  L"Zoom in (Ctrl+wheel over the map)",                        DxuiToolbar::Kind::Command,  2, true,  true  },
         { kZoomOut,     L"Zoom out",       s_kGlyphZoomOut, L"Zoom out (Ctrl+wheel over the map)",                       DxuiToolbar::Kind::Command,  2, true,  true  },
         { kResetZoom,   L"Reset zoom",     nullptr,         L"Go back to the starting size, with $0000 at the top left", DxuiToolbar::Kind::Command,  2, false, true  },

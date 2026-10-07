@@ -49,6 +49,11 @@ std::string HeatMapOptions::ToText() const
         text += " cumulative";
     }
 
+    if (blend)
+    {
+        text += " blend";
+    }
+
     for (const auto & [each, word] : s_kBankWords)
     {
         if (each == bank && bank != Bank::Cpu)
@@ -103,6 +108,7 @@ HeatMapOptions HeatMapOptions::FromText (const std::string & text)
     while (words >> word)
     {
         if (word == "cumulative")       { options.cumulative = true;       }
+        else if (word == "blend")       { options.blend      = true;       }
         else if (word == "view=code")   { options.view       = View::Code; }
         else if (word == "view=data")   { options.view       = View::Data; }
         else if (word == "view=all")    { options.view       = View::All;  }
@@ -205,8 +211,8 @@ bool HeatMapOptions::IsShown (Bank bank, Word address)
 //
 //  HeatMapOptions::GetCpuAddress
 //
-//  In a RAM bank's space, bank 1 of the language card is kept at $C000 and
-//  reached at $D000; every other cell is at the address the CPU uses.
+//  The CPU's and ROM's addresses are the CPU's own. A RAM space holds the
+//  language card's bank 1 at $C000-$CFFF, which the CPU reaches at $D000.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
