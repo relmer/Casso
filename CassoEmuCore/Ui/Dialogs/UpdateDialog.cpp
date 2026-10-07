@@ -53,21 +53,27 @@ void UpdateDialog::Configure (
     UpdateButtonSet         buttons,
     const std::wstring    & opener,
     const std::wstring    & header,
-    const std::wstring    & updateLabel,
     const std::wstring    & developerNudge,
     const std::wstring    & pageUrl,
+    bool                    isPending,
     Callbacks               callbacks)
 {
     m_buttons     = buttons;
     m_pageUrl     = pageUrl;
-    m_updateLabel = updateLabel;
     m_nudge       = developerNudge;
+    m_isPending   = isPending;
     m_callbacks   = std::move (callbacks);
 
     m_pendingContent->SetOpener       (opener);
     m_pendingContent->SetHeader       (header);
     m_pendingContent->SetPageUrl      (pageUrl);
     m_pendingContent->SetNotesMessage (UpdateDialogModel::kpszNotesLoading);
+
+    if (isPending)
+    {
+        m_pendingContent->SetStatus (UpdateDialogModel::kpszPendingStatus, false);
+    }
+
     m_pendingContent->SetOnOpenUrl    ([this] (const std::wstring & url)
     {
         if (m_callbacks.onOpenUrl)
@@ -85,8 +91,9 @@ void UpdateDialog::Configure (
 //
 //  UpdateDialog::OnCreate
 //
-//  Skip this version goes bottom-left, the primary bottom-right. A developer
-//  build gets no primary; its pull-and-rebuild nudge takes that place.
+//  Skip this version goes bottom-left, the update buttons bottom-right with
+//  Update now last, as the default. A developer build gets no update
+//  buttons; its pull-and-rebuild nudge takes their place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,7 +116,13 @@ void UpdateDialog::OnCreate()
     }
     else
     {
-        m_primaryBtn = AddDialogButton (m_updateLabel, kIdPrimary);
+        if (m_buttons == UpdateButtonSet::UpdateNow)
+        {
+            m_closedBtn = AddDialogButton (UpdateDialogModel::kpszUpdateClosed, kIdClosed);
+            m_closedBtn->SetOnClick ([this] () { OnClosedClick(); });
+        }
+
+        m_primaryBtn = AddDialogButton (UpdateDialogModel::kpszUpdateNow, kIdPrimary);
         m_primaryBtn->SetOnClick ([this] () { OnPrimaryClick(); });
     }
 
@@ -208,7 +221,8 @@ void UpdateDialog::Relayout()
 //  UpdateDialog::ApplyButtonLabels
 //
 //  The primary button says what it will do now: start the update, cancel
-//  the download in flight, or open the release page.
+//  the download in flight, or open the release page. Update when closed is
+//  off while anything runs, and once the update is already waiting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,7 +243,7 @@ void UpdateDialog::ApplyButtonLabels()
     }
     else if (m_buttons != UpdateButtonSet::ReleasePage)
     {
-        label = m_updateLabel.c_str();
+        label = UpdateDialogModel::kpszUpdateNow;
     }
 
     m_primaryBtn->SetLabel   (label);
@@ -238,6 +252,11 @@ void UpdateDialog::ApplyButtonLabels()
     if (m_skipBtn != nullptr)
     {
         m_skipBtn->SetEnabled (!m_isBusy);
+    }
+
+    if (m_closedBtn != nullptr)
+    {
+        m_closedBtn->SetEnabled (!m_isBusy && !m_isPending);
     }
 }
 
@@ -269,7 +288,8 @@ void UpdateDialog::SetBusy (bool isBusy, bool canCancel)
 //  UpdateDialog::OnPrimaryClick
 //
 //  The release page closes the dialog once it is open; the update and
-//  Cancel keep it open, since the result arrives later.
+//  Cancel keep it open, since the result arrives later. An update already
+//  waiting for Casso to close is applied without downloading again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,8 +307,8 @@ void UpdateDialog::OnPrimaryClick()
 
     if (m_buttons == UpdateButtonSet::UpdateNow)
     {
-        m_content->SetStatus (UpdateDialogModel::MakeProgressText (0, 0), false);
-        SetBusy (true, true);
+        m_content->SetStatus (m_isPending ? UpdateDialogModel::kpszInstalling : UpdateDialogModel::MakeProgressText (0, 0), false);
+        SetBusy (true, !m_isPending);
 
         if (m_callbacks.onUpdateNow)
         {
@@ -506,4 +526,53 @@ void UpdateDialog::ShowImage (const std::string & src, std::shared_ptr<const Not
 std::vector<std::string> UpdateDialog::GetImageSources() const
 {
     return (m_content != nullptr) ? m_content->GetImageSources() : std::vector<std::string>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialog::OnClosedClick
+//
+//  Downloads and checks the update now, so a problem shows here, and leaves
+//  applying it to the moment Casso closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialog::OnClosedClick()
+{
+    if (m_isBusy || m_isPending)
+    {
+        return;
+    }
+
+    m_content->SetStatus (UpdateDialogModel::MakeProgressText (0, 0), false);
+    SetBusy (true, true);
+
+    if (m_callbacks.onUpdateWhenClosed)
+    {
+        m_callbacks.onUpdateWhenClosed();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialog::ShowPending
+//
+//  The update is downloaded, checked and waiting for Casso to close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateDialog::ShowPending()
+{
+    m_isPending = true;
+
+    m_content->SetStatus (UpdateDialogModel::kpszPendingStatus, false);
+    SetBusy (false, false);
 }

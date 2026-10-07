@@ -95,7 +95,7 @@ public:
         Assert::AreEqual (std::wstring (L"Casso 1.31.0 is available. Sadly, you're still using 1.30.0") + s_kchEmDash + L"how quaint.",
                           UpdateDialogModel::MakeHeader ({ 1, 31, 0 }, "", { 1, 30, 0 }, L"how quaint"),
                           L"no date, no parenthesis");
-        Assert::AreEqual (std::wstring (L"Update to 1.30.0"), UpdateDialogModel::MakeUpdateLabel ({ 1, 30, 0 }));
+        Assert::AreEqual (std::wstring (L"Casso was updated to version 1.30.0."), UpdateDialogModel::MakeUpdatedNotice ("1.30.0"));
         Assert::AreEqual (std::wstring (L"Downloading: 1.0 of 4.0 MB"),
                           UpdateDialogModel::MakeProgressText (1024 * 1024, 4 * 1024 * 1024));
         Assert::AreEqual (std::wstring (L"Downloading: 0.5 MB"), UpdateDialogModel::MakeProgressText (512 * 1024, 0));

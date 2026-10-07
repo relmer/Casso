@@ -147,7 +147,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT UpdateService::StartApply (const ReleaseInfo & release, InstallType installType, ReleaseArch arch)
+HRESULT UpdateService::StartApply (const ReleaseInfo & release, InstallType installType, ReleaseArch arch, DeployTiming timing)
 {
     HRESULT   hr  = S_OK;
     ApplyJob  job;
@@ -162,6 +162,7 @@ HRESULT UpdateService::StartApply (const ReleaseInfo & release, InstallType inst
     job.release     = release;
     job.installType = installType;
     job.arch        = arch;
+    job.timing      = timing;
 
     m_cancel      = false;
     m_bytesDone   = 0;
@@ -239,6 +240,40 @@ HRESULT UpdateService::StartCleanup (DWORD oldProcessId)
     m_cleanupThread = std::thread ([this, oldProcessId]
     {
         RunCleanup (oldProcessId);
+    });
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::StartCommitPending
+//
+//  Update now, for an update already staged to apply when Casso closes:
+//  swaps the staged files in and relaunches, as a zip update does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UpdateService::StartCommitPending (const std::wstring & installDir, const std::vector<std::string> & paths)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    ReapIfIdle (m_applyThread, m_isApplyBusy);
+
+    BAIL_OUT_IF (m_stopping,    E_ABORT);
+    BAIL_OUT_IF (m_isApplyBusy, E_PENDING);
+
+    m_isApplyBusy = true;
+    m_applyThread = std::thread ([this, installDir, paths]
+    {
+        RunCommitPending (installDir, paths);
     });
 
 Error:
@@ -436,11 +471,92 @@ bool UpdateService::TrySplitUrl (const std::wstring & url, std::wstring & outHos
 //
 //  UpdateService::MakeRelaunchArgs
 //
+//  What a finished zip update starts the new Casso with: the update's own
+//  flags, then the options this process was started with that a relaunch
+//  repeats.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UpdateService::MakeRelaunchArgs (DWORD oldProcessId)
+std::wstring UpdateService::MakeRelaunchArgs (DWORD oldProcessId, const std::vector<std::wstring> & repeated)
 {
-    return std::format (L"{} {} {}", kpszUpdatedArg, kpszCleanupOldArg, oldProcessId);
+    std::wstring  args = std::format (L"{} {} {}", kpszUpdatedArg, kpszCleanupOldArg, oldProcessId);
+
+
+
+    for (const std::wstring & argument : repeated)
+    {
+        args += L" " + QuoteArgument (argument);
+    }
+
+    return args;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::MakeRestartArgs
+//
+//  What Windows restarts a packaged Casso with after an MSIX update: the
+//  same as a zip relaunch, without an old process to clean up after.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateService::MakeRestartArgs (const std::vector<std::wstring> & repeated)
+{
+    std::wstring  args = kpszUpdatedArg;
+
+
+
+    for (const std::wstring & argument : repeated)
+    {
+        args += L" " + QuoteArgument (argument);
+    }
+
+    return args;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::QuoteArgument
+//
+//  One argument as CommandLineToArgvW reads it back: bare when it has no
+//  space, tab or quote, otherwise quoted, with each quote escaped and the
+//  backslashes before a quote (or before the closing quote) doubled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateService::QuoteArgument (const std::wstring & argument)
+{
+    std::wstring  quoted  = L"\"";
+    size_t        slashes = 0;
+    bool          isBare  = !argument.empty() && argument.find_first_of (L" \t\"") == std::wstring::npos;
+
+
+
+    for (wchar_t ch : argument)
+    {
+        if (ch == L'\\')
+        {
+            slashes++;
+            continue;
+        }
+
+        quoted.append (ch == L'"' ? slashes * 2 + 1 : slashes, L'\\');
+        quoted += ch;
+        slashes = 0;
+    }
+
+    quoted.append (slashes * 2, L'\\');
+    quoted += L"\"";
+
+    return isBare ? argument : quoted;
 }
 
 
@@ -800,7 +916,9 @@ Error:
 //
 //  Swaps the release's files in, then starts the new Casso with the old
 //  process's id so it can remove the set-aside files once this one exits.
-//  The owner closes this window when the result arrives.
+//  The owner closes this window when the result arrives. Applied when Casso
+//  closes, only the checks and the staging run now; the result carries the
+//  staged files for the swap at exit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -821,11 +939,22 @@ HRESULT UpdateService::InstallZip (
     hr = GetInstallDir (installDir, exePath);
     CHRF (hr, result.failure = UpdateFailure::InstallFailed);
 
-    hr = installer.Install (installDir, bytes, asset, job.release.version, failure);
-    CHRF (hr, result.failure = (failure == UpdateFailure::None) ? UpdateFailure::InstallFailed : failure);
+    if (job.timing == DeployTiming::WhenClosed)
+    {
+        hr = installer.Prepare (installDir, bytes, asset, job.release.version, result.stagedPaths, failure);
+        CHRF (hr, result.failure = (failure == UpdateFailure::None) ? UpdateFailure::InstallFailed : failure);
 
-    hr = m_deps.host->LaunchProcess (exePath, MakeRelaunchArgs (m_deps.host->GetCurrentPid()));
-    CHRF (hr, result.failure = UpdateFailure::InstallFailed);
+        result.isPending  = true;
+        result.installDir = installDir;
+    }
+    else
+    {
+        hr = installer.Install (installDir, bytes, asset, job.release.version, failure);
+        CHRF (hr, result.failure = (failure == UpdateFailure::None) ? UpdateFailure::InstallFailed : failure);
+
+        hr = m_deps.host->LaunchProcess (exePath, MakeRelaunchArgs (m_deps.host->GetCurrentPid(), m_relaunchArgs));
+        CHRF (hr, result.failure = UpdateFailure::InstallFailed);
+    }
 
 Error:
     return hr;
@@ -924,6 +1053,17 @@ void UpdateService::RunApply (ApplyJob job)
     {
         hr = StageBundle (*asset, bytes, *result);
         CHR (hr);
+
+        // When closed, Windows takes the bundle now and registers it once
+        // Casso has exited; nothing here needs the UI thread's flush first.
+        if (job.timing == DeployTiming::WhenClosed)
+        {
+            hr = m_deps.deployer->DeployBundle (result->bundlePath, DeployTiming::WhenClosed, L"");
+            CHRF (hr, result->failure = UpdateFailure::InstallFailed);
+
+            result->kind      = UpdateResultKind::Applied;
+            result->isPending = true;
+        }
     }
 
 Error:
@@ -955,7 +1095,7 @@ void UpdateService::RunDeploy (std::wstring bundlePath)
     result->installType = InstallType::Msix;
     result->bundlePath  = bundlePath;
 
-    hr = m_deps.deployer->DeployBundle (bundlePath);
+    hr = m_deps.deployer->DeployBundle (bundlePath, DeployTiming::Now, MakeRestartArgs (m_relaunchArgs));
     CHRF (hr, result->failure = UpdateFailure::InstallFailed);
 
 Error:
@@ -997,6 +1137,50 @@ void UpdateService::RunCleanup (DWORD oldProcessId)
 
 Error:
     m_isCleanupBusy = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateService::RunCommitPending
+//
+//  The swap a pending update was waiting for, then the relaunch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateService::RunCommitPending (std::wstring installDir, std::vector<std::string> paths)
+{
+    HRESULT                        hr          = S_OK;
+    std::unique_ptr<UpdateResult>  result      = std::make_unique<UpdateResult>();
+    UpdateFailure                  failure     = UpdateFailure::None;
+    std::wstring                   dir;
+    std::wstring                   exePath;
+    ZipUpdateInstaller             installer (*m_deps.fileSystem, *m_deps.verifier);
+    bool                           isOtherOpen = false;
+
+
+
+    result->kind        = UpdateResultKind::Applied;
+    result->installType = InstallType::Zip;
+
+    isOtherOpen = m_deps.host->IsOtherInstanceRunning();
+    CBRF (!isOtherOpen, result->failure = UpdateFailure::OtherInstanceRunning);
+
+    hr = GetInstallDir (dir, exePath);
+    CHRF (hr, result->failure = UpdateFailure::InstallFailed);
+
+    hr = installer.Commit (installDir, paths, failure);
+    CHRF (hr, result->failure = (failure == UpdateFailure::None) ? UpdateFailure::InstallFailed : failure);
+
+    hr = m_deps.host->LaunchProcess (exePath, MakeRelaunchArgs (m_deps.host->GetCurrentPid(), m_relaunchArgs));
+    CHRF (hr, result->failure = UpdateFailure::InstallFailed);
+
+Error:
+    m_isApplyBusy = false;
+    Post (std::move (result));
 }
 
 

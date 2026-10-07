@@ -28,9 +28,9 @@ ZipUpdateInstaller::ZipUpdateInstaller (IUpdateFileSystem & fileSystem, ISignatu
 //
 //  ZipUpdateInstaller::Install
 //
-//  The whole sequence described on the class. `outFailure` gives the step
-//  that failed; on RestoreFailed the old copy could not be fully put back.
-//  The staging folder is removed whatever the outcome, once it exists.
+//  The whole sequence described on the class: Prepare, then Commit.
+//  `outFailure` gives the step that failed; on RestoreFailed the old copy
+//  could not be fully put back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,18 +41,53 @@ HRESULT ZipUpdateInstaller::Install (
     const ReleaseVersion   & version,
     UpdateFailure          & outFailure)
 {
-    HRESULT                   hr          = S_OK;
-    HRESULT                   hrRestore   = S_OK;
-    HRESULT                   hrCleanup   = S_OK;
-    std::wstring              stagingDir  = installDir + L"\\" + kpszStagingFolder;
-    std::wstring              oldDir      = installDir + L"\\" + kpszOldFolder;
-    std::vector<ZipEntry>     entries;
-    std::vector<SwappedFile>  swapped;
-    bool                      isStaging   = false;
+    HRESULT                   hr = S_OK;
+    std::vector<std::string>  paths;
+
+
+
+    hr = Prepare (installDir, zipBytes, asset, version, paths, outFailure);
+    CHR (hr);
+
+    hr = Commit (installDir, paths, outFailure);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipUpdateInstaller::Prepare
+//
+//  Steps 1 to 5: everything up to the swap, which touches no installed file.
+//  On success the payload waits in .update-new and `outPaths` lists its
+//  files for Commit; on failure the staging folder is removed again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ZipUpdateInstaller::Prepare (
+    const std::wstring          & installDir,
+    std::span<const Byte>         zipBytes,
+    const ReleaseAsset          & asset,
+    const ReleaseVersion        & version,
+    std::vector<std::string>    & outPaths,
+    UpdateFailure               & outFailure)
+{
+    HRESULT                hr          = S_OK;
+    HRESULT                hrCleanup   = S_OK;
+    std::wstring           stagingDir  = installDir + L"\\" + kpszStagingFolder;
+    std::vector<ZipEntry>  entries;
+    bool                   isStaging   = false;
 
 
 
     outFailure = UpdateFailure::None;
+    outPaths.clear();
 
     hr = VerifyDownload (zipBytes, asset);
     CHRF (hr, outFailure = UpdateFailure::DigestMismatch);
@@ -77,10 +112,56 @@ HRESULT ZipUpdateInstaller::Install (
     hr = VerifyStaged (stagingDir, version, outFailure);
     CHR (hr);
 
+    for (const ZipEntry & entry : entries)
+    {
+        if (!entry.isDirectory)
+        {
+            outPaths.push_back (entry.path);
+        }
+    }
+
+Error:
+    if (FAILED (hr) && isStaging)
+    {
+        hrCleanup = m_fileSystem.RemoveDirectoryTree (stagingDir);
+        IGNORE_RETURN_VALUE (hrCleanup, S_OK);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipUpdateInstaller::Commit
+//
+//  Step 6: swaps the files Prepare staged into place, putting every one back
+//  if any swap fails. The staging folder is removed whatever the outcome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ZipUpdateInstaller::Commit (
+    const std::wstring               & installDir,
+    const std::vector<std::string>   & paths,
+    UpdateFailure                    & outFailure)
+{
+    HRESULT                   hr          = S_OK;
+    HRESULT                   hrRestore   = S_OK;
+    HRESULT                   hrCleanup   = S_OK;
+    std::wstring              oldDir      = installDir + L"\\" + kpszOldFolder;
+    std::vector<SwappedFile>  swapped;
+
+
+
+    outFailure = UpdateFailure::None;
+
     hr = m_fileSystem.RemoveDirectoryTree (oldDir);
     CHRF (hr, outFailure = UpdateFailure::InstallFailed);
 
-    hr = Swap (installDir, entries, swapped);
+    hr = Swap (installDir, paths, swapped);
 
     if (FAILED (hr))
     {
@@ -91,12 +172,35 @@ HRESULT ZipUpdateInstaller::Install (
     CHR (hr);
 
 Error:
-    if (isStaging)
-    {
-        hrCleanup = m_fileSystem.RemoveDirectoryTree (stagingDir);
-        IGNORE_RETURN_VALUE (hrCleanup, S_OK);
-    }
+    hrCleanup = DiscardStaged (m_fileSystem, installDir);
+    IGNORE_RETURN_VALUE (hrCleanup, S_OK);
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipUpdateInstaller::DiscardStaged
+//
+//  Removes a staged payload that will not be committed, such as one left
+//  by a Casso that ended before its update when closed could be applied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ZipUpdateInstaller::DiscardStaged (IUpdateFileSystem & fileSystem, const std::wstring & installDir)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = fileSystem.RemoveDirectoryTree (installDir + L"\\" + kpszStagingFolder);
+    CHR (hr);
+
+Error:
     return hr;
 }
 
@@ -350,15 +454,15 @@ Error:
 //
 //  ZipUpdateInstaller::Swap
 //
-//  Swaps every file entry in. `swapped` records each file as far as it got,
+//  Swaps every staged file in. `swapped` records each file as far as it got,
 //  including the one that failed, which is what Restore walks back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ZipUpdateInstaller::Swap (
-    const std::wstring           & installDir,
-    const std::vector<ZipEntry>  & entries,
-    std::vector<SwappedFile>     & swapped)
+    const std::wstring               & installDir,
+    const std::vector<std::string>   & paths,
+    std::vector<SwappedFile>         & swapped)
 {
     HRESULT  hr = S_OK;
 
@@ -366,16 +470,11 @@ HRESULT ZipUpdateInstaller::Swap (
 
     swapped.clear();
 
-    for (const ZipEntry & entry : entries)
+    for (const std::string & path : paths)
     {
-        if (entry.isDirectory)
-        {
-            continue;
-        }
-
         swapped.emplace_back();
 
-        hr = SwapOne (installDir, entry.path, swapped.back());
+        hr = SwapOne (installDir, path, swapped.back());
         CHR (hr);
     }
 

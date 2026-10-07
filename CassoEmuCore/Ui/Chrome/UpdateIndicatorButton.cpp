@@ -366,7 +366,7 @@ bool UpdateIndicatorButton::TickShimmer (int64_t nowMs)
 
 
 
-    if (m_isAnimated && m_showsText && m_visible)
+    if (m_isAnimated && !m_isQuiet && m_showsText && m_visible)
     {
         sweep = UpdateIndicatorModel::GetSweepProgress (nowMs - m_shownAtMs);
     }
@@ -402,7 +402,7 @@ std::optional<int64_t> UpdateIndicatorButton::GetMsUntilShimmer (int64_t nowMs) 
 
 
 
-    if (m_isAnimated && m_showsText && m_visible)
+    if (m_isAnimated && !m_isQuiet && m_showsText && m_visible)
     {
         until = UpdateIndicatorModel::GetMsUntilSweep (nowMs - m_shownAtMs);
     }
@@ -472,7 +472,7 @@ UpdateIndicatorButton::PointerResult UpdateIndicatorButton::OnPointer (bool isIn
     result.showTip = result.repaint && isInside;
     result.hideTip = result.repaint && !isInside;
 
-    if (result.showTip && m_isAnimated && m_showsText && m_visible)
+    if (result.showTip && m_isAnimated && !m_isQuiet && m_showsText && m_visible)
     {
         isSweeping = UpdateIndicatorModel::GetSweepProgress (nowMs - m_shownAtMs).has_value();
 

@@ -297,6 +297,10 @@ EmulatorShell::~EmulatorShell()
     // quitting right after a volume nudge would otherwise lose it.
     FlushDeferredGlobalPrefs();
 
+    // An update applied when Casso closes, now that the disks and the
+    // preferences are written.
+    CommitPendingUpdateAtExit();
+
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
     m_dragDropTarget.Shutdown();

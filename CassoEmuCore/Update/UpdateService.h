@@ -82,9 +82,14 @@ public:
                               const ReleaseVersion  & running,
                               const std::string     & skippedVersion);
     HRESULT  StartFetchNotes (const ReleaseInfo & release, const ReleaseVersion & running);
-    HRESULT  StartApply      (const ReleaseInfo & release, InstallType installType, ReleaseArch arch);
+    HRESULT  StartApply      (const ReleaseInfo & release, InstallType installType, ReleaseArch arch, DeployTiming timing = DeployTiming::Now);
     HRESULT  StartDeploy     (const std::wstring & bundlePath);
     HRESULT  StartCleanup    (DWORD oldProcessId);
+    HRESULT  StartCommitPending (const std::wstring & installDir, const std::vector<std::string> & paths);
+
+    //  The options from this process's command line that a relaunch repeats,
+    //  as CommandLineParser::SelectRelaunchArguments picks them.
+    void     SetRelaunchArguments (std::vector<std::wstring> arguments) { m_relaunchArgs = std::move (arguments); }
     HRESULT  StartFetchImages (const std::string & tag, const std::vector<std::string> & sources);
 
     void     CancelApply     ();
@@ -98,7 +103,9 @@ public:
     static UpdateFailure  MapCheckResponse (HRESULT hrGet, DWORD statusCode);
     static std::wstring   MakeNotesPath    (const std::string & tag, LPCWSTR fileName);
     static bool           TrySplitUrl      (const std::wstring & url, std::wstring & outHost, std::wstring & outPath);
-    static std::wstring   MakeRelaunchArgs (DWORD oldProcessId);
+    static std::wstring   MakeRelaunchArgs (DWORD oldProcessId, const std::vector<std::wstring> & repeated);
+    static std::wstring   MakeRestartArgs  (const std::vector<std::wstring> & repeated);
+    static std::wstring   QuoteArgument    (const std::wstring & argument);
     static bool           TryResolveImageUrl (const std::string & src, const std::string & tag, std::wstring & outUrl);
     static HRESULT        DecodeImage      (std::span<const Byte> bytes, NotesImage & outImage);
 
@@ -114,6 +121,7 @@ private:
         ReleaseInfo     release;
         InstallType     installType = InstallType::Unknown;
         ReleaseArch     arch        = ReleaseArch::X64;
+        DeployTiming    timing      = DeployTiming::Now;
     };
 
     void     RunCheck        (UpdateCheckTrigger trigger, ReleaseVersion running, std::string skippedVersion);
@@ -121,6 +129,7 @@ private:
     void     RunApply        (ApplyJob job);
     void     RunDeploy       (std::wstring bundlePath);
     void     RunCleanup      (DWORD oldProcessId);
+    void     RunCommitPending (std::wstring installDir, std::vector<std::string> paths);
     void     RunFetchImages  (std::string tag, std::vector<std::string> sources);
     HRESULT  FetchImage      (const std::wstring & url, std::shared_ptr<const NotesImage> & outImage, UpdateResult & result);
 
@@ -137,6 +146,7 @@ private:
     static void                  ReapIfIdle (std::thread & worker, const std::atomic<bool> & isBusy);
 
     UpdateServiceDeps                        m_deps;
+    std::vector<std::wstring>                m_relaunchArgs;
     std::atomic<bool>                        m_isCheckBusy   = false;
     std::atomic<bool>                        m_isNotesBusy   = false;
     std::atomic<bool>                        m_isApplyBusy   = false;

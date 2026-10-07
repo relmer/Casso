@@ -19,8 +19,8 @@
 //  The actions the update dialog offers. Skip this version is always there,
 //  bottom-left; the set decides the primary button, bottom-right:
 //
-//    UpdateNow    Update to <version>: an official copy with a download
-//                 for it
+//    UpdateNow    Update now (the default) and Update when closed: an
+//                 official copy with a download for it
 //    ReleasePage  Open release page: no download for this copy, or a
 //                 folder Casso cannot write to
 //    Developer    no primary: a pull-and-rebuild nudge in its place
@@ -79,6 +79,10 @@ public:
     static constexpr LPCWSTR  kpszInstalling     = L"Installing the update...";
     static constexpr LPCWSTR  kpszRestarting     = L"Restarting Casso...";
     static constexpr LPCWSTR  kpszUpToDate       = L"Casso is up to date.";
+    static constexpr LPCWSTR  kpszUpdateNow      = L"Update now";
+    static constexpr LPCWSTR  kpszUpdateClosed   = L"Update when closed";
+    static constexpr LPCWSTR  kpszPendingStatus  = L"Casso will update when you close it. Update now restarts it on the new version.";
+    static constexpr LPCWSTR  kpszPendingLine    = L"Updates when you close Casso";
     static constexpr LPCWSTR  kpszWhatsNewTab    = L"What's new";
     static constexpr LPCWSTR  kpszChangelogTab   = L"Changelog";
 
@@ -102,7 +106,6 @@ public:
                                                   const ReleaseVersion  & running,
                                                   std::optional<int>      ageDays,
                                                   const RandomIndexFn   & randomIndex);
-    static std::wstring     MakeUpdateLabel      (const ReleaseVersion & newer);
     static JudgementList    GetJudgements        ();
     static std::wstring     PickJudgement        (const RandomIndexFn & randomIndex);
     static std::vector<std::wstring>  GetOpeners ();
@@ -113,6 +116,7 @@ public:
     static std::wstring     MakeAgeRemark        (size_t index, int days, const ReleaseVersion & running);
     static bool             TryGetDaysSince      (std::string_view date, std::int64_t nowUtc, int & outDays);
     static std::wstring     MakeUpToDateText     (const ReleaseVersion & running);
+    static std::wstring     MakeUpdatedNotice    (const std::string & version);
     static std::wstring     MakeProgressText     (std::uint64_t bytesDone, std::uint64_t bytesTotal);
     static std::wstring     DescribeFailure      (UpdateFailure failure);
     static std::wstring     MakeCheckFailedText  (UpdateFailure failure);

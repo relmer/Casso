@@ -316,6 +316,28 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 };
 
 
+//  What a relaunch after a self-update does with each option above. EVERY
+//  OPTION NEEDS A ROW: a sweep fails on one without, so a new switch cannot be
+//  added without deciding whether a relaunch repeats it.
+//
+//  The machine, the disks and the tape are saved in the preferences already,
+//  so repeating them would undo a change made during the session. A seed is
+//  for reproducing one startup, not every startup after it.
+static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRules[] =
+{
+    { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "disk1",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "disk2",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "tape",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "trace",          CommandLineParser::OptionValue::OptionalSize, CommandLineParser::RelaunchRule::Repeat },
+    { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "no-image-watch", CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Repeat },
+    { "title",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Repeat },
+    { "updated",        CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
+    { "cleanup-old",    CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+};
+
+
 //  The emulator GUI's documented options, as data, so the usage text is
 //  composed from the grammar rather than written beside it. The table above is
 //  what canonicalizes a `/` form; this one is what the reader is shown, and a
@@ -4490,6 +4512,86 @@ std::span<const CommandLineParser::EmulatorFlag> CommandLineParser::GetEmulatorF
 std::span<const char * const> CommandLineParser::GetEmulatorLongOptions()
 {
     return std::span<const char * const> (s_kpszEmulatorOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetEmulatorRelaunchRules
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::EmulatorRelaunchRule> CommandLineParser::GetEmulatorRelaunchRules()
+{
+    return std::span<const EmulatorRelaunchRule> (s_kEmulatorRelaunchRules);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::SelectRelaunchArguments
+//
+//  Walks the command line the way ParseEmulator does, so a value is taken
+//  with its option exactly when the parser took it, and keeps the options
+//  whose rule is Repeat. An option without a rule is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandLineParser::SelectRelaunchArguments (int argc, char * argv[])
+{
+    std::vector<std::string>      kept;
+    std::string                   arg;
+    std::string                   name;
+    const EmulatorRelaunchRule  * rule     = nullptr;
+    bool                          hasEqual = false;
+    bool                          hasValue = false;
+    bool                          takes    = false;
+    int                           i        = 0;
+
+
+
+    for (i = 0; i < argc; i++)
+    {
+        arg      = GetCanonicalLongFlag (argv[i], std::span<const char * const> (s_kpszEmulatorOptions));
+        hasEqual = arg.find ('=') != std::string::npos;
+        name     = arg.starts_with ("--") ? arg.substr (2, arg.find ('=') - 2) : std::string();
+        rule     = nullptr;
+
+        for (const EmulatorRelaunchRule & candidate : s_kEmulatorRelaunchRules)
+        {
+            rule = (rule == nullptr && name == candidate.option) ? &candidate : rule;
+        }
+
+        if (rule == nullptr)
+        {
+            continue;
+        }
+
+        hasValue = (i + 1) < argc;
+        takes    = !hasEqual && hasValue &&
+                   (rule->value == OptionValue::Required ||
+                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])));
+
+        if (rule->rule == RelaunchRule::Repeat)
+        {
+            kept.push_back (arg);
+
+            if (takes)
+            {
+                kept.push_back (argv[i + 1]);
+            }
+        }
+
+        i += takes ? 1 : 0;
+    }
+
+    return kept;
 }
 
 

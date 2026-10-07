@@ -19,19 +19,34 @@ scripts/RunTests.ps1 -Build
 ## Unsigned local build
 
 The same build is unsigned, so the dialog must show a pull-and-rebuild nudge
-bottom-right where **Update to <version>** would be, and no update button.
+bottom-right where **Update now** would be, and no update button.
 
 ## Signed build
 
 Sign a copy of the old-versioned build with a test certificate whose subject
 matches the publisher constant only for the duration of the check (or use a
 released build with its version resource unchanged and a newer release
-present). Expect **Update to <version>** for the zip install type. Do not run the update
+present). Expect **Update now** for the zip install type. Do not run the update
 against a real install folder without a backup.
 
 ## Failure checks
 
 - Offline: the startup check shows nothing; **Check for updates** reports the
   failure.
-- Read-only folder: **Update to <version>** is replaced by **Open release page**.
+- Read-only folder: **Update now** is replaced by **Open release page**.
 - Settings off: no request at startup (confirm with a proxy or the log).
+
+## Update when closed (zip, local feed)
+
+With the local feed and the Debug test bypass set up as above:
+
+1. Launch the 1.31.90 copy with `--title 039-update-notification`, choose
+   Help > Check for updates..., then **Update when closed**.
+2. Expect the status line "Casso will update when you close it..." and
+   `.update-new` beside Casso.exe; Casso.exe is still 1.31.90.
+3. Close Casso normally. Nothing relaunches; Casso.exe is now 1.31.91 and
+   `.update-old` holds the old files.
+4. Launch again: the title shows v1.31.91, the notice says "Casso was
+   updated to version 1.31.91.", and `.update-old` is gone.
+5. **Update now** instead relaunches at once, and the new title still
+   carries `039-update-notification`.

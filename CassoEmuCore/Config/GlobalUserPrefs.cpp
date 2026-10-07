@@ -87,6 +87,9 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "lastUpdateCheckUtc",
     "latestKnownVersion",
     "skippedVersion",
+    "pendingUpdateVersion",
+    "pendingUpdateKind",
+    "pendingUpdateFailure",
     "screenshotMode",
     "screenshotSaveFile",
     "screenshotFolder"
@@ -1163,6 +1166,9 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("lastUpdateCheckUtc", JsonValue ((double) lastUpdateCheckUtc));
     root.emplace_back ("latestKnownVersion", JsonValue (latestKnownVersion));
     root.emplace_back ("skippedVersion",     JsonValue (skippedVersion));
+    root.emplace_back ("pendingUpdateVersion", JsonValue (pendingUpdateVersion));
+    root.emplace_back ("pendingUpdateKind",    JsonValue (pendingUpdateKind));
+    root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
 
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
@@ -1389,6 +1395,10 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     lastUpdateCheckUtc = (std::int64_t) GetNumberOpt (v, "lastUpdateCheckUtc", (double) lastUpdateCheckUtc);
     latestKnownVersion = GetStringOpt  (v, "latestKnownVersion", latestKnownVersion);
     skippedVersion     = GetStringOpt  (v, "skippedVersion",     skippedVersion);
+
+    pendingUpdateVersion = GetStringOpt (v, "pendingUpdateVersion", pendingUpdateVersion);
+    pendingUpdateKind    = GetStringOpt (v, "pendingUpdateKind",    pendingUpdateKind);
+    pendingUpdateFailure = (int) GetNumberOpt (v, "pendingUpdateFailure", (double) pendingUpdateFailure);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

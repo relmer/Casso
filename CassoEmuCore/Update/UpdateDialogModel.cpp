@@ -169,25 +169,6 @@ std::wstring UpdateDialogModel::MakeHeader (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateDialogModel::MakeUpdateLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring UpdateDialogModel::MakeUpdateLabel (const ReleaseVersion & newer)
-{
-    std::string  newerText = newer.ToString();
-
-
-
-    return L"Update to " + std::wstring (newerText.begin(), newerText.end());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  UpdateDialogModel::GetJudgements
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,7 +314,7 @@ std::wstring UpdateDialogModel::PickOpener (const RandomIndexFn & randomIndex)
 //
 //  s_kDeveloperNudges
 //
-//  What a developer build shows where Update to <version> would be: a copy
+//  What a developer build shows where the update buttons would be: a copy
 //  built from source updates by pulling and rebuilding, never in place.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -965,4 +946,21 @@ int UpdateDialogModel::CountWrappedLines (std::wstring_view text, float widthPx,
     }
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDialogModel::MakeUpdatedNotice
+//
+//  What the first launch after an update says.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UpdateDialogModel::MakeUpdatedNotice (const std::string & version)
+{
+    return L"Casso was updated to version " + std::wstring (version.begin(), version.end()) + L".";
 }

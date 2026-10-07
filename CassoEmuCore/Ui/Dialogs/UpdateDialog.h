@@ -20,12 +20,14 @@ class SizeGrip;
 //
 //  "Casso update": the versions and release date, the release notes, and the
 //  actions UpdateDialogModel selects for this copy. Skip this version sits
-//  bottom-left and closes with kIdSkip. The primary button, bottom-right,
-//  keeps the dialog open: Update to <version> starts the update and turns
-//  into Cancel while the download runs; Open release page opens the page and
-//  closes. A developer build has no primary button: a nudge to pull and
-//  rebuild sits in its place. Closing the window any other way returns
-//  IDCANCEL.
+//  bottom-left and closes with kIdSkip. Bottom-right, an official copy with
+//  a download gets Update when closed and Update now (the default): both
+//  keep the dialog open, and Update now turns into Cancel while a download
+//  runs. Update when closed leaves the update waiting for Casso to close and
+//  says so; Update now from there applies it at once. Without a usable
+//  download, Open release page opens the page and closes. A developer build
+//  has no update buttons: a nudge to pull and rebuild sits in their place.
+//  Closing the window any other way returns IDCANCEL.
 //
 //  The owner feeds progress and results in through the Show calls; the
 //  dialog itself starts nothing.
@@ -37,10 +39,12 @@ class UpdateDialog : public DxuiDialogWindow
 public:
     static constexpr int  kIdPrimary = 100;
     static constexpr int  kIdSkip    = 101;
+    static constexpr int  kIdClosed  = 102;
 
     struct Callbacks
     {
         std::function<void ()>                       onUpdateNow;
+        std::function<void ()>                       onUpdateWhenClosed;
         std::function<void ()>                       onCancelUpdate;
         std::function<void (const std::wstring &)>   onOpenUrl;
         std::function<void ()>                       onTick;
@@ -52,9 +56,9 @@ public:
     void  Configure          (UpdateButtonSet         buttons,
                               const std::wstring    & opener,
                               const std::wstring    & header,
-                              const std::wstring    & updateLabel,
                               const std::wstring    & developerNudge,
                               const std::wstring    & pageUrl,
+                              bool                    isPending,
                               Callbacks               callbacks);
 
     void  ShowNotes          (const ReleaseNotes & notes);
@@ -67,6 +71,7 @@ public:
     void  ShowRestarting     ();
     void  ShowFailure        (UpdateFailure failure);
     void  ShowCanceled       ();
+    void  ShowPending        ();
 
     bool  IsBusy             () const { return m_isBusy; }
     int   GetDefaultCommandId() const;
@@ -79,6 +84,7 @@ protected:
 
 private:
     void  OnPrimaryClick     ();
+    void  OnClosedClick      ();
     void  SetBusy            (bool isBusy, bool canCancel);
     void  ApplyButtonLabels  ();
     void  Relayout           ();
@@ -87,9 +93,9 @@ private:
     UpdateDialogContent                 * m_content      = nullptr;
     DxuiButton                          * m_primaryBtn   = nullptr;
     DxuiButton                          * m_skipBtn      = nullptr;
+    DxuiButton                          * m_closedBtn    = nullptr;
     UpdateButtonSet                       m_buttons      = UpdateButtonSet::ReleasePage;
     std::wstring                          m_pageUrl;
-    std::wstring                          m_updateLabel;
     std::wstring                          m_nudge;
     DxuiLabel                           * m_nudgeLabel   = nullptr;
     SizeGrip                            * m_grip         = nullptr;
@@ -99,4 +105,5 @@ private:
     bool                                  m_hasLayout    = false;
     bool                                  m_isBusy       = false;
     bool                                  m_canCancel    = false;
+    bool                                  m_isPending    = false;
 };

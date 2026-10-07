@@ -249,6 +249,14 @@ struct GlobalUserPrefs
     std::string   latestKnownVersion;
     std::string   skippedVersion;
 
+    // AN UPDATE APPLIED WHEN CASSO CLOSES. The version it installs and how
+    // ("zip" or "msix"), empty when none is waiting, and the failure of a zip
+    // swap at exit as an UpdateFailure value (0 == none), for the next launch
+    // to report.
+    std::string   pendingUpdateVersion;
+    std::string   pendingUpdateKind;
+    int           pendingUpdateFailure     = 0;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 

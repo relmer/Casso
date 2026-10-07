@@ -33,6 +33,9 @@
 //  stay in .update-old after success, because the running Casso.exe is one
 //  of them; the new process removes them once this one has exited.
 //
+//  Prepare runs steps 1 to 5 and Commit step 6, so an update applied when
+//  Casso closes can be checked now and swapped in at exit.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ZipUpdateInstaller
@@ -51,7 +54,18 @@ public:
                                      const ReleaseVersion   & version,
                                      UpdateFailure          & outFailure);
 
+    HRESULT         Prepare         (const std::wstring          & installDir,
+                                     std::span<const Byte>         zipBytes,
+                                     const ReleaseAsset          & asset,
+                                     const ReleaseVersion        & version,
+                                     std::vector<std::string>    & outPaths,
+                                     UpdateFailure               & outFailure);
+    HRESULT         Commit          (const std::wstring              & installDir,
+                                     const std::vector<std::string>  & paths,
+                                     UpdateFailure                   & outFailure);
+
     static HRESULT  RemoveOldFiles  (IUpdateFileSystem & fileSystem, const std::wstring & installDir);
+    static HRESULT  DiscardStaged   (IUpdateFileSystem & fileSystem, const std::wstring & installDir);
 
     static HRESULT  VerifyDownload  (std::span<const Byte> bytes, const ReleaseAsset & asset);
     static HRESULT  GetPayload      (std::vector<ZipEntry> & entries);
@@ -70,9 +84,9 @@ private:
     HRESULT         VerifyStaged    (const std::wstring     & stagingDir,
                                      const ReleaseVersion   & version,
                                      UpdateFailure          & outFailure);
-    HRESULT         Swap            (const std::wstring           & installDir,
-                                     const std::vector<ZipEntry>  & entries,
-                                     std::vector<SwappedFile>     & swapped);
+    HRESULT         Swap            (const std::wstring               & installDir,
+                                     const std::vector<std::string>   & paths,
+                                     std::vector<SwappedFile>         & swapped);
     HRESULT         SwapOne         (const std::wstring & installDir,
                                      const std::string  & path,
                                      SwappedFile        & swapped);

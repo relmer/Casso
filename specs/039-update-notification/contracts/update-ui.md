@@ -77,8 +77,24 @@
   caption centered beneath in a smaller muted face. Until an image loads, a
   box of placeholder height shows its alt text; a failed image keeps it.
 - Buttons: **Skip this version** bottom-left; the primary bottom-right.
-  - Msix / Zip with an asset: **Update to <version>** (default), for example
-    "Update to 1.30.0".
+  - Msix / Zip with an asset: **Update when closed** and **Update now**
+    (default), side by side, no version in either label.
+    - Update now: download, check, install, and restart Casso. The restart
+      repeats --title, --trace and --no-image-watch from the original
+      command line and nothing else (the machine, disks, tape and seed are
+      already in the preferences, or are for one run only).
+    - Update when closed: download and check now (a zip copy is also
+      extracted and its Casso.exe checked, so errors show in the dialog).
+      The dialog then says "Casso will update when you close it. Update now
+      restarts it on the new version.", the indicator reads "Updates when
+      you close Casso" with no shimmer, and Update now applies it at once.
+      A zip copy swaps its files in after the normal exit flush and does not
+      relaunch; an MSIX copy is registered by Windows once Casso exits. The
+      next launch on the new version says "Casso was updated to version X."
+      and removes .update-old. A swap that fails at exit puts the old files
+      back and is reported at the next launch; if Casso ends without closing
+      normally, nothing is swapped and the staged files are removed at the
+      next launch.
   - Developer: no update button. In its place, bottom-right, a nudge picked
     at random: "Psst... you should probably pull and rebuild." or one of a
     few others in the same voice. A release page link shows above. No

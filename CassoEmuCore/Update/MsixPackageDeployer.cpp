@@ -22,14 +22,19 @@ namespace AbiDeployment = ABI::Windows::Management::Deployment;
 //
 //  MsixPackageDeployer::DeployBundle
 //
-//  PackageManager.AddPackageAsync with ForceTargetApplicationShutdown, from
-//  a file:// URI to the bundle already downloaded and verified. The restart
-//  registration is withdrawn again if the deployment fails, so a later
-//  crash does not relaunch Casso with --updated.
+//  From a file:// URI to the bundle already downloaded and verified. Now is
+//  PackageManager.AddPackageAsync with ForceTargetApplicationShutdown, after
+//  registering Casso to restart with `restartArgs`; the registration is
+//  withdrawn again if the deployment fails, so a later crash does not
+//  relaunch Casso with --updated. WhenClosed defers the registration until
+//  Casso is no longer running and registers no restart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MsixPackageDeployer::DeployBundle (const std::wstring & bundlePath)
+HRESULT MsixPackageDeployer::DeployBundle (
+    const std::wstring  & bundlePath,
+    DeployTiming          timing,
+    const std::wstring  & restartArgs)
 {
     HRESULT                                  hr             = S_OK;
     HRESULT                                  hrUnregister   = S_OK;
@@ -45,10 +50,13 @@ HRESULT MsixPackageDeployer::DeployBundle (const std::wstring & bundlePath)
     hr = roInit;
     CHR (hr);
 
-    hr = RegisterApplicationRestart (kpszRestartArgs, 0);
-    CHR (hr);
+    if (timing == DeployTiming::Now)
+    {
+        hr = RegisterApplicationRestart (restartArgs.c_str(), 0);
+        CHR (hr);
 
-    isRegistered = true;
+        isRegistered = true;
+    }
 
     hr = RoActivateInstance (HStringReference (RuntimeClass_Windows_Management_Deployment_PackageManager).Get(),
                              &inspectable);
@@ -60,7 +68,12 @@ HRESULT MsixPackageDeployer::DeployBundle (const std::wstring & bundlePath)
     hr = CreateUri (MakeFileUri (bundlePath), &uri);
     CHR (hr);
 
-    if (m_isUnsignedAllowed)
+    if (timing == DeployTiming::WhenClosed)
+    {
+        hr = AddWhenClosed (inspectable.Get(), uri.Get(), &operation);
+        CHR (hr);
+    }
+    else if (m_isUnsignedAllowed)
     {
         hr = AddUnsigned (inspectable.Get(), uri.Get(), &operation);
         CHR (hr);
@@ -309,3 +322,43 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MsixPackageDeployer::AddWhenClosed
+//
+//  AddPackageByUriAsync with DeferRegistrationWhenPackagesAreInUse: the new
+//  version is staged now and registered by Windows once Casso has exited,
+//  without shutting the running copy down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MsixPackageDeployer::AddWhenClosed (
+    IInspectable                     * packageManager,
+    AbiFoundation::IUriRuntimeClass  * uri,
+    DeployOperation                 ** ppOperation)
+{
+    HRESULT                                    hr = S_OK;
+    ComPtr<IInspectable>                       inspectable;
+    ComPtr<AbiDeployment::IPackageManager9>    manager9;
+    ComPtr<AbiDeployment::IAddPackageOptions>  options;
+
+
+
+    hr = packageManager->QueryInterface (IID_PPV_ARGS (&manager9));
+    CHR (hr);
+
+    hr = RoActivateInstance (HStringReference (RuntimeClass_Windows_Management_Deployment_AddPackageOptions).Get(), &inspectable);
+    CHR (hr);
+
+    hr = inspectable.As (&options);
+    CHRA (hr);
+
+    hr = options->put_DeferRegistrationWhenPackagesAreInUse (TRUE);
+    CHR (hr);
+
+    hr = manager9->AddPackageByUriAsync (uri, options.Get(), ppOperation);
+    CHR (hr);
+
+Error:
+    return hr;
+}

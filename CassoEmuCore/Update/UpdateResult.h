@@ -23,7 +23,8 @@
 //    ReadyToDeploy  an MSIX bundle is downloaded and verified; the UI thread
 //                   flushes disks and settings, then starts the deploy
 //    Applied        an update finished: the zip copy was replaced and the
-//                   new Casso was launched, or the MSIX deploy returned
+//                   new Casso was launched, or the MSIX deploy returned;
+//                   or, with isPending, it waits for Casso to close
 //    Image          one release-notes image was fetched and decoded, or not
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,6 +89,12 @@ struct UpdateResult
 
     ReleaseNotes        notes;
     std::wstring        bundlePath;
+
+    //  An update to apply when Casso closes: a zip copy's staged files, or a
+    //  bundle Windows registers once Casso exits.
+    bool                      isPending    = false;
+    std::wstring              installDir;
+    std::vector<std::string>  stagedPaths;
 
     std::string                         imageSrc;
     std::shared_ptr<const NotesImage>   image;

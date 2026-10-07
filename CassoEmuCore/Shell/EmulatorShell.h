@@ -1558,6 +1558,13 @@ private:
     static ReleaseVersion  GetRunningVersion           ();
     static size_t          GetRandomIndex              (size_t count);
     std::wstring           MakeUpdateHeader            (const std::string & runningReleaseDate);
+    void                   HandlePendingUpdateAtLaunch ();
+    void                   SetUpdatePending            (const UpdateResult & result);
+    void                   ClearPendingUpdatePrefs     ();
+    void                   CommitPendingUpdateAtExit   ();
+    void                   ApplyPendingUpdateNow       ();
+    static std::vector<std::wstring>  GetRelaunchArguments ();
+    static std::wstring    GetInstallDirectory         ();
 
     std::unique_ptr<UpdateRuntime>  m_updateRuntime;
     UpdateIndicatorButton           m_updateIndicator;
@@ -1572,6 +1579,14 @@ private:
     std::wstring                    m_updateIndicatorLine;
     int                             m_indicatorClientPx     = -1;
     int                             m_indicatorWidthDip     = 0;
+
+    // An update applied when Casso closes: the zip copy's staged files, or
+    // the bundle Windows registers once Casso exits.
+    bool                            m_isUpdatePending       = false;
+    InstallType                     m_pendingInstallType    = InstallType::Unknown;
+    std::wstring                    m_pendingInstallDir;
+    std::vector<std::string>        m_pendingPaths;
+    std::wstring                    m_pendingBundlePath;
 
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend

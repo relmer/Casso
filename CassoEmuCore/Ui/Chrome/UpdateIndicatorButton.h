@@ -55,6 +55,7 @@ public:
     const std::wstring  & GetText           () const { return m_text; }
     void                  SetShowsText      (bool showsText) { m_showsText = showsText; }
     void                  SetAnimationsEnabled (bool isEnabled) { m_isAnimated = isEnabled; }
+    void                  SetQuiet          (bool isQuiet) { m_isQuiet = isQuiet; }
     void                  StartShimmerClock (int64_t nowMs) { m_shownAtMs = nowMs; }
     void                  SetRandomSource   (UpdateIndicatorModel::RandomIndexFn randomIndex) { m_random = std::move (randomIndex); }
     const SweepGlints   & GetSweepGlints    () const { return m_sweepGlints; }
@@ -75,6 +76,7 @@ private:
     std::wstring                         m_text;
     bool                                 m_showsText   = false;
     bool                                 m_isAnimated  = false;
+    bool                                 m_isQuiet     = false;   // no shimmer: the update is already waiting
     int64_t                              m_shownAtMs   = 0;
     std::optional<float>                 m_sweep;
     SweepGlints                          m_sweepGlints = UpdateIndicatorModel::MakeEvenSweepGlints();

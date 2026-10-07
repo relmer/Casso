@@ -22,9 +22,9 @@
 class MsixPackageDeployer : public IPackageDeployer
 {
 public:
-    static constexpr LPCWSTR  kpszRestartArgs = L"--updated";
-
-    HRESULT              DeployBundle  (const std::wstring & bundlePath) override;
+    HRESULT              DeployBundle  (const std::wstring  & bundlePath,
+                                        DeployTiming          timing,
+                                        const std::wstring  & restartArgs) override;
 
     static std::wstring  MakeFileUri   (const std::wstring & path);
 
@@ -39,6 +39,7 @@ private:
 
     static HRESULT       CreateUri     (const std::wstring & uriText, ABI::Windows::Foundation::IUriRuntimeClass ** ppUri);
     static HRESULT       WaitForDeploy (DeployOperation * operation);
+    static HRESULT       AddWhenClosed (IInspectable * packageManager, ABI::Windows::Foundation::IUriRuntimeClass * uri, DeployOperation ** ppOperation);
     static HRESULT       AddUnsigned   (IInspectable                                 * packageManager,
                                         ABI::Windows::Foundation::IUriRuntimeClass   * uri,
                                         DeployOperation                             ** ppOperation);

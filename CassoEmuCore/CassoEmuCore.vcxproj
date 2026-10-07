@@ -227,6 +227,7 @@
     <ClCompile Include="Update\WindowUpdateResultPoster.cpp" />
     <ClCompile Include="Update\Win32InstallEnvironment.cpp" />
     <ClCompile Include="Update\LocalFeedHttpClient.cpp" />
+    <ClCompile Include="Update\PendingUpdateModel.cpp" />
     <ClCompile Include="Update\Win32UpdateFileSystem.cpp" />
     <ClCompile Include="Update\ZipArchive.cpp" />
     <ClCompile Include="Update\ZipUpdateInstaller.cpp" />
@@ -581,6 +582,7 @@
     <ClInclude Include="Update\IUpdateResultPoster.h" />
     <ClInclude Include="Update\Win32InstallEnvironment.h" />
     <ClInclude Include="Update\LocalFeedHttpClient.h" />
+    <ClInclude Include="Update\PendingUpdateModel.h" />
     <ClInclude Include="Update\Win32UpdateFileSystem.h" />
     <ClInclude Include="Update\ZipArchive.h" />
     <ClInclude Include="Update\ZipUpdateInstaller.h" />

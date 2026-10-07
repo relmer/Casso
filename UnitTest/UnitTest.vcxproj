@@ -488,6 +488,7 @@
     <ClCompile Include="UpdateTests\ReleaseNotesFormatterTests.cpp" />
     <ClCompile Include="UpdateTests\ReleaseVersionTests.cpp" />
     <ClCompile Include="UpdateTests\LocalFeedHttpClientTests.cpp" />
+    <ClCompile Include="UpdateTests\RelaunchAndPendingTests.cpp" />
     <ClCompile Include="UpdateTests\UpdateScheduleTests.cpp" />
     <ClCompile Include="UpdateTests\UpdateServiceTests.cpp" />
     <ClCompile Include="UpdateTests\UpdateDialogModelTests.cpp" />

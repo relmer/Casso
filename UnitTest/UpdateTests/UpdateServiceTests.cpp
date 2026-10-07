@@ -545,6 +545,60 @@ public:
 
 
 
+    TEST_METHOD (Apply_ZipWhenClosed_StagesWithoutSwappingOrRelaunching)
+    {
+        Rig                rig;
+        std::vector<Byte>  zip     = MakeReleaseZip();
+        ReleaseInfo        release = ParseRelease (MakeReleaseJson (zip, { 2 }));
+
+
+
+        rig.fileSystem.Put (L"C:\\Apps\\Casso\\Casso.exe", "old exe");
+        rig.http.SetBytes (kpszGitHub, kpszZipPath, zip);
+
+        AssertSucceeded (rig.service->StartApply (release, InstallType::Zip, ReleaseArch::X64, DeployTiming::WhenClosed));
+        rig.service->Wait();
+
+        Assert::IsTrue   (rig.Only().failure == UpdateFailure::None);
+        Assert::IsTrue   (rig.Only().isPending, L"waiting for Casso to close");
+        Assert::AreEqual (std::wstring (L"C:\\Apps\\Casso"), rig.Only().installDir);
+        Assert::IsFalse  (rig.Only().stagedPaths.empty());
+        Assert::AreEqual (std::string ("old exe"), rig.fileSystem.Get (L"C:\\Apps\\Casso\\Casso.exe"), L"nothing swapped yet");
+        Assert::AreEqual (std::string ("new exe"), rig.fileSystem.Get (L"C:\\Apps\\Casso\\.update-new\\Casso.exe"), L"checked and staged");
+        Assert::AreEqual (0, rig.host.launches);
+    }
+
+
+
+    TEST_METHOD (CommitPending_SwapsAndRelaunchesWithTheRepeatedOptions)
+    {
+        Rig                rig;
+        std::vector<Byte>  zip     = MakeReleaseZip();
+        ReleaseInfo        release = ParseRelease (MakeReleaseJson (zip, { 2 }));
+        UpdateResult       pending;
+
+
+
+        rig.fileSystem.Put (L"C:\\Apps\\Casso\\Casso.exe", "old exe");
+        rig.http.SetBytes (kpszGitHub, kpszZipPath, zip);
+        rig.service->SetRelaunchArguments ({ L"--title", L"my box" });
+
+        AssertSucceeded (rig.service->StartApply (release, InstallType::Zip, ReleaseArch::X64, DeployTiming::WhenClosed));
+        rig.service->Wait();
+
+        pending = *rig.poster.results.back();
+
+        AssertSucceeded (rig.service->StartCommitPending (pending.installDir, pending.stagedPaths));
+        rig.service->Wait();
+
+        Assert::IsTrue   (rig.poster.results.back()->failure == UpdateFailure::None);
+        Assert::IsFalse  (rig.poster.results.back()->isPending);
+        Assert::AreEqual (std::string ("new exe"), rig.fileSystem.Get (L"C:\\Apps\\Casso\\Casso.exe"));
+        Assert::AreEqual (std::wstring (L"--updated --cleanup-old 4242 --title \"my box\""), rig.host.launchedArgs);
+    }
+
+
+
     //  the MSIX update
 
     TEST_METHOD (Apply_Msix_StagesTheBundleThenDeploysOnRequest)
@@ -573,6 +627,45 @@ public:
         Assert::AreEqual (staged, rig.deployer.deployedPath);
         Assert::IsTrue   (rig.poster.results.back()->kind == UpdateResultKind::Applied);
         Assert::IsTrue   (rig.poster.results.back()->failure == UpdateFailure::None);
+    }
+
+
+
+    TEST_METHOD (Apply_MsixWhenClosed_DeploysDeferredWithoutARestart)
+    {
+        Rig                rig;
+        std::vector<Byte>  bundle  = { 'b', 'u', 'n', 'd', 'l', 'e' };
+        ReleaseInfo        release = ParseRelease (MakeReleaseJson ({ 1 }, bundle));
+
+
+
+        rig.http.SetBytes (kpszGitHub, kpszBndlPath, bundle);
+
+        AssertSucceeded (rig.service->StartApply (release, InstallType::Msix, ReleaseArch::X64, DeployTiming::WhenClosed));
+        rig.service->Wait();
+
+        Assert::IsTrue   (rig.Only().kind == UpdateResultKind::Applied);
+        Assert::IsTrue   (rig.Only().isPending);
+        Assert::AreEqual (1, rig.deployer.deploys);
+        Assert::IsTrue   (rig.deployer.timing == DeployTiming::WhenClosed, L"Windows applies it once Casso exits");
+        Assert::AreEqual (std::wstring(), rig.deployer.restartArgs, L"and nothing restarts Casso");
+    }
+
+
+
+    TEST_METHOD (Deploy_Now_RestartsWithTheRepeatedOptions)
+    {
+        Rig  rig;
+
+
+
+        rig.service->SetRelaunchArguments ({ L"--trace", L"50M", L"--no-image-watch" });
+
+        AssertSucceeded (rig.service->StartDeploy (L"C:\\x.msixbundle"));
+        rig.service->Wait();
+
+        Assert::IsTrue   (rig.deployer.timing == DeployTiming::Now);
+        Assert::AreEqual (std::wstring (L"--updated --trace 50M --no-image-watch"), rig.deployer.restartArgs);
     }
 
 

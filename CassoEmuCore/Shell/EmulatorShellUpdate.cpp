@@ -6,6 +6,13 @@
 #include "Update/UpdateDialogModel.h"
 #include "Update/UpdateSchedule.h"
 #include "Ui/Chrome/UpdateIndicatorModel.h"
+#include "Update/AuthenticodeVerifier.h"
+#include "Update/PendingUpdateModel.h"
+#include "Update/Win32UpdateFileSystem.h"
+#include "Update/Win32UpdateHost.h"
+#include "Update/ZipUpdateInstaller.h"
+#include "Core/TextEncoding.h"
+#include "CommandLineParser.h"
 #include "Version.h"
 
 
@@ -152,6 +159,8 @@ void EmulatorShell::StartAutomaticUpdateCheck()
         m_host->SetCaptionAccessory (&m_updateIndicator);
     }
 
+    service->SetRelaunchArguments (GetRelaunchArguments());
+
     if (m_cleanupOldPid != 0)
     {
         hr = service->StartCleanup (m_cleanupOldPid);
@@ -160,7 +169,11 @@ void EmulatorShell::StartAutomaticUpdateCheck()
 
     if (m_wasLaunchedByUpdate)
     {
-        ShowNotice (L"Casso was updated to version " _CRT_WIDE (VERSION_STRING) L".");
+        ShowNotice (UpdateDialogModel::MakeUpdatedNotice (VERSION_STRING));
+    }
+    else
+    {
+        HandlePendingUpdateAtLaunch();
     }
 
     isDue = UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic,
@@ -412,6 +425,16 @@ void EmulatorShell::HandleUpdateApplyResult (UpdateResult & result)
         return;
     }
 
+    if (result.isPending)
+    {
+        SetUpdatePending (result);
+        return;
+    }
+
+    // Applied now: nothing is left waiting for the exit.
+    m_isUpdatePending = false;
+    ClearPendingUpdatePrefs();
+
     if (m_updateDialog != nullptr)
     {
         m_updateDialog->ShowRestarting();
@@ -459,8 +482,20 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
         m_updateIndicator.StartShimmerClock ((int64_t) GetTickCount64());
     }
 
-    m_updateIndicator.SetToolTipText (L"Update available: Casso " + std::wstring (version.begin(), version.end()));
-    m_updateIndicator.SetText        (m_updateIndicatorLine);
+    // An update waiting for Casso to close says so, and does not shimmer:
+    // there is nothing left to draw the eye to.
+    if (m_isUpdatePending)
+    {
+        m_updateIndicator.SetToolTipText (L"Casso " + std::wstring (version.begin(), version.end()) + L" installs when you close Casso");
+        m_updateIndicator.SetText        (UpdateDialogModel::kpszPendingLine);
+    }
+    else
+    {
+        m_updateIndicator.SetToolTipText (L"Update available: Casso " + std::wstring (version.begin(), version.end()));
+        m_updateIndicator.SetText        (m_updateIndicatorLine);
+    }
+
+    m_updateIndicator.SetQuiet (m_isUpdatePending);
     m_updateIndicator.SetVisible     (isShown);
     RefitUpdateIndicator (true);
 
@@ -522,7 +557,25 @@ void EmulatorShell::OpenUpdateDialog()
 
     callbacks.onUpdateNow = [this, service, &dlg, arch] ()
     {
-        HRESULT  hrApply = service->StartApply (m_updateRelease, m_updateInstallType, arch);
+        HRESULT  hrApply = S_OK;
+
+        if (m_isUpdatePending)
+        {
+            ApplyPendingUpdateNow();
+            return;
+        }
+
+        hrApply = service->StartApply (m_updateRelease, m_updateInstallType, arch);
+
+        if (FAILED (hrApply))
+        {
+            dlg.ShowFailure (UpdateFailure::InstallFailed);
+        }
+    };
+
+    callbacks.onUpdateWhenClosed = [this, service, &dlg, arch] ()
+    {
+        HRESULT  hrApply = service->StartApply (m_updateRelease, m_updateInstallType, arch, DeployTiming::WhenClosed);
 
         if (FAILED (hrApply))
         {
@@ -555,9 +608,9 @@ void EmulatorShell::OpenUpdateDialog()
     dlg.Configure (buttons,
                    UpdateDialogModel::PickOpener (&EmulatorShell::GetRandomIndex),
                    UpdateDialogModel::MakeAgeHeader (m_updateRelease.version, m_updateRelease.publishedDate, running, L""),
-                   UpdateDialogModel::MakeUpdateLabel (m_updateRelease.version),
                    UpdateDialogModel::PickDeveloperNudge (&EmulatorShell::GetRandomIndex),
                    pageUrl,
+                   m_isUpdatePending,
                    std::move (callbacks));
 
     params.title                    = UpdateDialogModel::kpszTitle;
@@ -909,4 +962,303 @@ bool EmulatorShell::TickUpdateIndicator (int64_t nowMs)
     m_updateIndicator.SetAnimationsEnabled (DxuiSystemSettings::Instance().AreAnimationsEnabled());
 
     return m_updateIndicator.TickShimmer (nowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetRelaunchArguments
+//
+//  The options this process was started with that a relaunch after an
+//  update repeats, as CommandLineParser decides them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> EmulatorShell::GetRelaunchArguments()
+{
+    int                        argc  = 0;
+    LPWSTR                   * argvW = CommandLineToArgvW (GetCommandLineW(), &argc);
+    std::vector<std::string>   narrow;
+    std::vector<char *>        argv;
+    std::vector<std::string>   kept;
+    std::vector<std::wstring>  wide;
+
+
+
+    // argv[0] is the program itself.
+    for (int i = 1; argvW != nullptr && i < argc; i++)
+    {
+        narrow.push_back (TextEncoding::WideToUtf8 (argvW[i]));
+    }
+
+    if (argvW != nullptr)
+    {
+        LocalFree (argvW);
+    }
+
+    for (std::string & arg : narrow)
+    {
+        argv.push_back (arg.data());
+    }
+
+    kept = CommandLineParser::SelectRelaunchArguments ((int) argv.size(), argv.data());
+
+    for (const std::string & arg : kept)
+    {
+        wide.push_back (TextEncoding::Utf8ToWide (arg));
+    }
+
+    return wide;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetInstallDirectory
+//
+//  The folder Casso.exe runs from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::GetInstallDirectory()
+{
+    wchar_t       path[MAX_PATH] = {};
+    DWORD         length         = GetModuleFileNameW (nullptr, path, MAX_PATH);
+    std::wstring  dir (path, length);
+    size_t        separator      = dir.find_last_of (L"\\/");
+
+
+
+    return (separator == std::wstring::npos) ? std::wstring() : dir.substr (0, separator);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::HandlePendingUpdateAtLaunch
+//
+//  Carries out what PendingUpdateModel decides about an update that was
+//  left to apply when Casso closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HandlePendingUpdateAtLaunch()
+{
+    PendingUpdate          pending;
+    PendingLaunchAction    action;
+    Win32UpdateFileSystem  fileSystem;
+    UpdateService        * service = GetUpdateService();
+    HRESULT                hr      = S_OK;
+
+
+
+    pending.version = m_globalPrefs.pendingUpdateVersion;
+    pending.kind    = m_globalPrefs.pendingUpdateKind;
+    pending.failure = (UpdateFailure) m_globalPrefs.pendingUpdateFailure;
+
+    action = PendingUpdateModel::DecideAtLaunch (pending, GetRunningVersion());
+
+    if (action.showUpdated)
+    {
+        ShowNotice (UpdateDialogModel::MakeUpdatedNotice (pending.version));
+    }
+
+    if (action.failure != UpdateFailure::None)
+    {
+        ShowNotification (UpdateDialogModel::MakeUpdateFailedText (action.failure));
+    }
+
+    // The process that ran the old files exited before this one started.
+    if (action.removeOldFiles && service != nullptr)
+    {
+        hr = service->StartCleanup (0);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (action.discardStaged)
+    {
+        hr = ZipUpdateInstaller::DiscardStaged (fileSystem, GetInstallDirectory());
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (action.clearPending)
+    {
+        ClearPendingUpdatePrefs();
+    }
+    else if (!pending.version.empty())
+    {
+        m_isUpdatePending   = true;
+        m_pendingInstallType = InstallType::Msix;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetUpdatePending
+//
+//  Update when closed finished its download and checks: remember what to
+//  apply, in the preferences too so the next launch can tell what happened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetUpdatePending (const UpdateResult & result)
+{
+    bool  isZip = result.installType == InstallType::Zip;
+
+
+
+    m_isUpdatePending    = true;
+    m_pendingInstallType = result.installType;
+    m_pendingInstallDir  = result.installDir;
+    m_pendingPaths       = result.stagedPaths;
+    m_pendingBundlePath  = result.bundlePath;
+
+    m_globalPrefs.pendingUpdateVersion = m_updateRelease.version.ToString();
+    m_globalPrefs.pendingUpdateKind    = isZip ? PendingUpdate::kpszZip : PendingUpdate::kpszMsix;
+    m_globalPrefs.pendingUpdateFailure = 0;
+    SaveGlobalPrefs();
+
+    if (m_updateDialog != nullptr)
+    {
+        m_updateDialog->ShowPending();
+    }
+
+    ShowUpdateIndicator (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClearPendingUpdatePrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ClearPendingUpdatePrefs()
+{
+    bool  isSet = !m_globalPrefs.pendingUpdateVersion.empty() || m_globalPrefs.pendingUpdateFailure != 0;
+
+
+
+    m_globalPrefs.pendingUpdateVersion.clear();
+    m_globalPrefs.pendingUpdateKind.clear();
+    m_globalPrefs.pendingUpdateFailure = 0;
+
+    if (isSet)
+    {
+        SaveGlobalPrefs();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyPendingUpdateNow
+//
+//  Update now, for an update already waiting: a zip copy swaps its staged
+//  files in and relaunches; a packaged one deploys the bundle at once, after
+//  the same flush as any MSIX update.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyPendingUpdateNow()
+{
+    UpdateService  * service = GetUpdateService();
+    HRESULT          hr      = S_OK;
+    UpdateResult     ready;
+
+
+
+    CBRA (service != nullptr);
+
+    if (m_pendingInstallType == InstallType::Zip)
+    {
+        hr = service->StartCommitPending (m_pendingInstallDir, m_pendingPaths);
+    }
+    else if (!m_pendingBundlePath.empty())
+    {
+        ready.kind        = UpdateResultKind::ReadyToDeploy;
+        ready.installType = InstallType::Msix;
+        ready.bundlePath  = m_pendingBundlePath;
+        HandleUpdateApplyResult (ready);
+    }
+    else
+    {
+        hr = E_UNEXPECTED;
+    }
+
+    if (FAILED (hr) && m_updateDialog != nullptr)
+    {
+        m_updateDialog->ShowFailure (UpdateFailure::InstallFailed);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::CommitPendingUpdateAtExit
+//
+//  The swap an update applied when Casso closes was waiting for, run as the
+//  shell shuts down, after the disks and the preferences are flushed. No
+//  new Casso is started. A failure puts the old files back, and is saved
+//  for the next launch to report; that launch also tells a success apart.
+//  An MSIX update needs nothing here: Windows registers it once Casso exits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CommitPendingUpdateAtExit()
+{
+    HRESULT                hr          = S_OK;
+    UpdateFailure          failure     = UpdateFailure::None;
+    Win32UpdateFileSystem  fileSystem;
+    AuthenticodeVerifier   verifier;
+    Win32UpdateHost        host;
+    ZipUpdateInstaller     installer (fileSystem, verifier);
+    bool                   isOtherOpen = false;
+
+
+
+    BAIL_OUT_IF (!m_isUpdatePending || m_pendingInstallType != InstallType::Zip || m_pendingPaths.empty(), S_OK);
+
+    isOtherOpen = host.IsOtherInstanceRunning();
+    CBRF (!isOtherOpen, failure = UpdateFailure::OtherInstanceRunning);
+
+    hr = installer.Commit (m_pendingInstallDir, m_pendingPaths, failure);
+    CHRF (hr, failure = (failure == UpdateFailure::None) ? UpdateFailure::InstallFailed : failure);
+
+Error:
+    if (failure != UpdateFailure::None)
+    {
+        hr = ZipUpdateInstaller::DiscardStaged (fileSystem, m_pendingInstallDir);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_globalPrefs.pendingUpdateFailure = (int) failure;
+        SaveGlobalPrefs();
+    }
+
+    m_isUpdatePending = false;
 }
