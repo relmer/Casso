@@ -87,7 +87,7 @@ struct GlobalUserPrefs
     std::string  audioDownloadConsent  = "ask";
 
     // Whether to offer a replacement for a ROM Casso itself installed and
-    // has since corrected. The machine boots on the old file, so the offer
+    // has since updated. The machine boots on the old file, so the offer
     // is optional: "ask" until the user skips it, then "decline".
     // AssetBootstrap::RunStartupDownloader reads + writes this.
     std::string  romRefreshConsent     = "ask";

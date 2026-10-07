@@ -80,13 +80,13 @@ struct RomSpec
     string_view  altUrlPath  = {};
     string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
 
-    // SHA-256 of a file Casso used to install under this name and no longer
-    // wants. A ROM already on disk is otherwise taken as satisfied whatever
+    // SHA-256 of a file Casso used to install under this name and has since
+    // updated. A ROM already on disk is otherwise taken as satisfied whatever
     // it contains -- the size is checked on download, not on what is already
-    // there -- so a machine provisioned with the wrong part would keep it
-    // forever. An on-disk file matching this hash is treated as absent and
-    // re-fetched; anything else, including a regional variant the user chose,
-    // is left alone.
+    // there -- so a machine provisioned with the earlier file would keep it
+    // forever. An on-disk file matching this hash is offered the updated ROM
+    // in its place; anything else, including a regional variant the user
+    // chose, is left alone.
     string_view  supersededSha256 = {};
 };
 
@@ -3408,7 +3408,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         found   = PathResolver::FindFile (searchPaths, relPath);
 
         // A ROM already on disk is satisfied -- unless it is a file Casso
-        // itself installed here and has since corrected, in which case a
+        // itself installed here and has since updated, in which case a
         // replacement is offered. The machine boots on the old file, so
         // the offer can be skipped, and once skipped it is not repeated.
         if (!found.empty())
