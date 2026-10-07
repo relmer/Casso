@@ -123,7 +123,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"$C033"), tip);
 
             Assert::IsTrue   (model.TryGetByteTip (0x0400, tip));
-            Assert::AreEqual (std::wstring (L"$0400"), tip, L"outside the read");
+            Assert::AreEqual (std::wstring (L"$0400  not read yet"), tip, L"outside every read, which the window has not reached");
         }
 
 
