@@ -445,7 +445,6 @@ public:
     //  the end when top is empty: the window ends at the newest entry at the
     //  latest, so a pane at the end never reads past it.
     static uint64_t     GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows);
-    static std::string  GetHistoryLine      (uint64_t first, int rows);
     static std::string  GetTraceToggleLine  (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
 
     //  Behind live, the trace pane lists the instructions that led to the

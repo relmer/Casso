@@ -265,12 +265,8 @@ void DataDirectiveHandlers::List (DebugSession & session, const DebugCommand & c
         last = command.a2;
     }
 
-    next = Disassemble (session, first, last, last.has_value() ? kMaxLines : kDefaultLines, data);
-
-    if (!session.IsViewQuery())
-    {
-        m_nextList = next;
-    }
+    next       = Disassemble (session, first, last, last.has_value() ? kMaxLines : kDefaultLines, data);
+    m_nextList = next;
 
     reply.data = data;
 }

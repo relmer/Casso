@@ -28,7 +28,10 @@ public:
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
     //  Fills each entry's instruction text and symbols.
-    static void  Describe (DebugSession & session, std::vector<TraceRecord> & entries);
+    static void       Describe   (DebugSession & session, std::vector<TraceRecord> & entries);
+
+    //  The window HISTORY first count reports, without the command.
+    static TraceData  MakeWindow (DebugSession & session, size_t first, size_t count);
 
 private:
     static void  Show   (DebugSession & session, const DebugCommand & command, Reply & reply);

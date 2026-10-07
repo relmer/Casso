@@ -18,7 +18,11 @@
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/SymbolDescriptions.h"
 #include "Debugger/ReplyJson.h"
+#include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/DataDirectiveHandlers.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
+#include "Debugger/Handlers/RegisterHandlers.h"
+#include "Debugger/Handlers/WatchHandlers.h"
 #include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/TraceLookahead.h"
 
@@ -80,14 +84,14 @@ bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused,
 DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPaused) const
 {
     static constexpr uint32_t  kPaneDumpBytes = 64;
+    static constexpr char      kFlagNames[]   = "NV-BDIZC";
     DebuggerViewSnapshot       snapshot;
-    Reply                 registers   = session.ExecuteViewLine ("R",     CommandMode::AppleWin);
-    Reply                 breakpoints = session.ExecuteViewLine ("BPL",   CommandMode::AppleWin);
-    Reply                 stack       = session.ExecuteViewLine ("STACK", CommandMode::AppleWin);
-    Reply                 watches     = session.ExecuteViewLine ("WL",    CommandMode::AppleWin);
-    Reply                 calls       = session.ExecuteViewLine ("CALLS", CommandMode::AppleWin);
-    Reply                 video       = session.ExecuteViewLine ("VIDEOINFO", CommandMode::AppleWin);
-    MemoryData            memory;
+    const Cpu6502Registers     r              = session.GetTarget().GetRegisters();
+    const VideoPosition        video          = session.GetTarget().GetVideoPosition();
+    const StackData            stack          = RegisterHandlers::MakeStackData (session.GetTarget());
+    const WatchListData        watches        = WatchHandlers::MakeList (session, WatchListKind::Watch);
+    BreakpointListData         breakpoints;
+    MemoryData                 memory;
 
 
 
@@ -105,48 +109,38 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
     snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
     snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());
 
-    if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
+    snapshot.pc        = r.pc;
+    snapshot.registers = { { "A",  std::format ("{:02X}", r.a) },
+                           { "X",  std::format ("{:02X}", r.x) },
+                           { "Y",  std::format ("{:02X}", r.y) },
+                           { "P",  std::format ("{:02X}", r.p) },
+                           { "S",  std::format ("{:02X}", r.sp) },
+                           { "PC", std::format ("{:04X}", r.pc) } };
+
+    //  The CPU cycles since power-on, as other emulators' register views
+    //  show them; a replay or a seek restores the count with the machine.
+    snapshot.registers.push_back ({ std::string (kCyclesRegister), std::format ("{}", session.GetTarget().GetCycleCount()) });
+
+    for (int bit = 7; bit >= 0; bit--)
     {
-        const Cpu6502Registers & r = data->registers;
-        static const char        kFlagNames[] = "NV-BDIZC";
-
-        snapshot.pc        = r.pc;
-        snapshot.registers = { { "A",  std::format ("{:02X}", r.a) },
-                               { "X",  std::format ("{:02X}", r.x) },
-                               { "Y",  std::format ("{:02X}", r.y) },
-                               { "P",  std::format ("{:02X}", r.p) },
-                               { "S",  std::format ("{:02X}", r.sp) },
-                               { "PC", std::format ("{:04X}", r.pc) } };
-
-        //  The CPU cycles since power-on, as other emulators' register views
-        //  show them; a replay or a seek restores the count with the machine.
-        snapshot.registers.push_back ({ std::string (kCyclesRegister), std::format ("{}", session.GetTarget().GetCycleCount()) });
-
-        for (int bit = 7; bit >= 0; bit--)
-        {
-            snapshot.flags += ((r.p >> bit) & 1) ? kFlagNames[7 - bit] : '.';
-        }
+        snapshot.flags += ((r.p >> bit) & 1) ? kFlagNames[7 - bit] : '.';
     }
 
-    if (const VideoInfoData * data = std::get_if<VideoInfoData> (&video.data))
+    snapshot.beam = DebuggerViewSnapshot::BeamState { video.scanline, video.cycleInLine };
+
+    BreakpointHandlers::ListAll (session, breakpoints);
+
+    for (const BreakpointInfo & info : breakpoints.breakpoints)
     {
-        snapshot.beam = DebuggerViewSnapshot::BeamState { data->scanline, data->cycleInLine };
-    }
-
-    if (const BreakpointListData * data = std::get_if<BreakpointListData> (&breakpoints.data))
-    {
-        for (const BreakpointInfo & info : data->breakpoints)
-        {
-            SymbolTableId  table = SymbolTableId::Main;
+        SymbolTableId  table = SymbolTableId::Main;
 
 
 
-            snapshot.breakpoints.push_back ({ info.id, info.address,
-                                              std::format ("#{} ${:04X}{}", info.id, info.address, info.enabled ? "" : " (off)"),
-                                              info.enabled, info });
+        snapshot.breakpoints.push_back ({ info.id, info.address,
+                                          std::format ("#{} ${:04X}{}", info.id, info.address, info.enabled ? "" : " (off)"),
+                                          info.enabled, info });
 
-            session.GetSymbols().TryFindName (info.address, snapshot.breakpoints.back().label, table);
-        }
+        session.GetSymbols().TryFindName (info.address, snapshot.breakpoints.back().label, table);
     }
 
     //  Each disassembly view open, the first always; one of them follows the
@@ -207,27 +201,18 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
         }
     }
 
-    if (const StackData * data = std::get_if<StackData> (&stack.data))
+    for (const StackEntry & entry : stack.entries)
     {
-        for (const StackEntry & entry : data->entries)
-        {
-            snapshot.stack.push_back ({ entry.address, entry.value });
-        }
+        snapshot.stack.push_back ({ entry.address, entry.value });
     }
 
-    if (const CallStackData * data = std::get_if<CallStackData> (&calls.data))
-    {
-        snapshot.callStack = *data;
-    }
+    snapshot.callStack = session.GetCallStack();
 
-    if (const WatchListData * data = std::get_if<WatchListData> (&watches.data))
+    for (const WatchEntry & entry : watches.entries)
     {
-        for (const WatchEntry & entry : data->entries)
-        {
-            snapshot.watches.push_back ({ entry.id, entry.address,
-                                          entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
-                                          entry.enabled });
-        }
+        snapshot.watches.push_back ({ entry.id, entry.address,
+                                      entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
+                                      entry.enabled });
     }
 
     if (isPaused)
@@ -701,17 +686,11 @@ std::shared_ptr<const HeatMapSymbols> DebuggerViewState::GetHeatMapSymbols (cons
 
 void DebuggerViewState::BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
-    const Cpu6502Registers  & now    = session.GetTarget().GetRegisters();
-    Reply                     code   = session.ExecuteViewLine (std::format ("U {:04X}", now.pc), CommandMode::AppleWin);
-    Word                        length  = 1;
-    InstructionTouches::Result  current;
+    const Cpu6502Registers      & now    = session.GetTarget().GetRegisters();
+    Word                          length = GetInstructionLength (session, now.pc);
+    InstructionTouches::Result    current;
 
 
-
-    if (const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data); data != nullptr && !data->lines.empty())
-    {
-        length = (Word) data->lines[0].instruction.bytes.size();
-    }
 
     current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
 
@@ -863,26 +842,23 @@ void DebuggerViewState::AddAutoWatches (DebugSession & session, const Instructio
 //
 //  DebuggerViewState::BuildTrace
 //
-//  The trace pane is HISTORY first count, for the window around where the
-//  pane is scrolled; the trace size only says where that window starts.
+//  The trace pane is the window HISTORY first count would report, around
+//  where the pane is scrolled; the trace size only says where it starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
-    uint64_t  total = session.GetTarget().GetTraceSize();
-    uint64_t  first = GetTraceWindowFirst (total, m_traceTop, kTraceRows);
-    Reply     reply = session.ExecuteViewLine (GetHistoryLine (first, kTraceRows), CommandMode::AppleWin);
+    uint64_t   total = session.GetTarget().GetTraceSize();
+    uint64_t   first = GetTraceWindowFirst (total, m_traceTop, kTraceRows);
+    TraceData  data  = TraceHandlers::MakeWindow (session, (size_t) first, kTraceRows);
 
 
 
-    if (TraceData * data = std::get_if<TraceData> (&reply.data))
-    {
-        snapshot.trace.isOn    = data->isOn;
-        snapshot.trace.total   = data->total;
-        snapshot.trace.first   = first;
-        snapshot.trace.entries = std::move (data->entries);
-    }
+    snapshot.trace.isOn    = data.isOn;
+    snapshot.trace.total   = data.total;
+    snapshot.trace.first   = first;
+    snapshot.trace.entries = std::move (data.entries);
 
     if (snapshot.isPaused)
     {
@@ -975,21 +951,6 @@ uint64_t DebuggerViewState::GetTraceWindowFirst (uint64_t total, std::optional<u
 
 
     return top.has_value() ? std::min (*top, last) : last;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerViewState::GetHistoryLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerViewState::GetHistoryLine (uint64_t first, int rows)
-{
-    return std::format ("HISTORY {} {}", first, rows);
 }
 
 
@@ -2861,40 +2822,14 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 {
     CodeView                                     & v         = m_code[(size_t) view];
     std::vector<DebuggerViewSnapshot::CodeLine>    lines;
-    std::vector<DisassemblyLine>                   listed;
-    Reply                                          code;
-    uint32_t                                       next      = 0;
-    Word                                           codeEnd   = 0;
+    DisassemblyData                                code;
+    std::vector<DisassemblyLine>                 & listed    = code.lines;
 
 
 
-    next = ChooseCodeStart (session, snapshot.pc, view);
-
-    //  Ranges, so the count is ours rather than the command's default: the
-    //  pane holds as many lines as it has room for. Three bytes a line covers
-    //  the longest instruction, but a data block's line is longer, so the
-    //  listing goes on from where the last range ended until the pane is
-    //  full. A range stops at $FFFF: one that ran past it wrapped to below
-    //  its own start and listed nothing, which emptied any view within a
-    //  screenful of the vectors.
-    while ((int) listed.size() < v.lines && next <= 0xFFFF)
-    {
-        const DisassemblyData * data = nullptr;
-
-
-
-        codeEnd = (Word) (std::min) (0xFFFFu, next + (uint32_t) (v.lines - (int) listed.size()) * 3);
-        code    = session.ExecuteViewLine (std::format ("U {:04X}:{:04X}", next, codeEnd), CommandMode::AppleWin);
-        data    = std::get_if<DisassemblyData> (&code.data);
-
-        if (data == nullptr || data->lines.empty())
-        {
-            break;
-        }
-
-        listed.insert (listed.end(), data->lines.begin(), data->lines.end());
-        next = (uint32_t) data->lines.back().instruction.address + (uint32_t) (std::max) ((size_t) 1, data->lines.back().instruction.bytes.size());
-    }
+    //  As many lines as the pane has room for, stopping at $FFFF rather than
+    //  wrapping below the start.
+    (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view), std::nullopt, v.lines, code);
 
     v.shown.clear();
 
@@ -3283,9 +3218,9 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
 
 Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int before)
 {
-    Word   first   = 0;
-    Reply  reply;
-    int    index   = 0;
+    Word             first = 0;
+    DisassemblyData  data;
+    int              index = 0;
 
 
 
@@ -3295,17 +3230,14 @@ Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int bef
     }
 
     first = (Word) (pc - (Word) (before * 3));
-    reply = session.ExecuteViewLine (std::format ("U {:04X}:{:04X}", first, pc), CommandMode::AppleWin);
+    (void) DataDirectiveHandlers::Disassemble (session, first, pc, before * 3 + 1, data);
 
-    if (const DisassemblyData * data = std::get_if<DisassemblyData> (&reply.data))
+    for (index = 0; index < (int) data.lines.size(); index++)
     {
-        for (index = 0; index < (int) data->lines.size(); index++)
+        if (data.lines[(size_t) index].instruction.address == pc)
         {
-            if (data->lines[(size_t) index].instruction.address == pc)
-            {
-                //  `before` lines above the PC, or as many as were found.
-                return data->lines[(size_t) (std::max) (0, index - before)].instruction.address;
-            }
+            //  `before` lines above the PC, or as many as were found.
+            return data.lines[(size_t) (std::max) (0, index - before)].instruction.address;
         }
     }
 
@@ -3467,8 +3399,7 @@ void DebuggerViewState::GoToMemory (int window, Word address)
 
 std::optional<DisassemblyLine> DebuggerViewState::GetInstructionAt (DebugSession & session, Word address)
 {
-    Reply                   code;
-    const DisassemblyData * data = nullptr;
+    DisassemblyData  data;
 
 
 
@@ -3477,15 +3408,14 @@ std::optional<DisassemblyLine> DebuggerViewState::GetInstructionAt (DebugSession
         return std::nullopt;
     }
 
-    code = session.ExecuteViewLine (std::format ("U {0:04X}:{0:04X}", address), CommandMode::AppleWin);
-    data = std::get_if<DisassemblyData> (&code.data);
+    (void) DataDirectiveHandlers::Disassemble (session, address, address, 1, data);
 
-    if (data == nullptr || data->lines.empty() || data->lines.front().instruction.address != address)
+    if (data.lines.empty() || data.lines.front().instruction.address != address)
     {
         return std::nullopt;
     }
 
-    return data->lines.front();
+    return data.lines.front();
 }
 
 
@@ -3500,17 +3430,18 @@ std::optional<DisassemblyLine> DebuggerViewState::GetInstructionAt (DebugSession
 
 Word DebuggerViewState::GetInstructionLength (DebugSession & session, Word address)
 {
-    Reply                   code = session.ExecuteViewLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
-    const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data);
+    DisassemblyData  data;
 
 
 
-    if (data == nullptr || data->lines.empty() || data->lines[0].instruction.bytes.empty())
+    (void) DataDirectiveHandlers::Disassemble (session, address, std::nullopt, 1, data);
+
+    if (data.lines.empty() || data.lines[0].instruction.bytes.empty())
     {
         return 1;
     }
 
-    return (Word) data->lines[0].instruction.bytes.size();
+    return (Word) data.lines[0].instruction.bytes.size();
 }
 
 
@@ -3761,24 +3692,25 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
 
 std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session, Word address)
 {
-    Reply                   code    = session.ExecuteViewLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
-    const DisassemblyData * data    = std::get_if<DisassemblyData> (&code.data);
-    size_t                  dollar  = std::string::npos;
-    unsigned                operand = 0;
+    DisassemblyData  data;
+    size_t           dollar  = std::string::npos;
+    unsigned         operand = 0;
 
 
 
-    if (data == nullptr || data->lines.empty())
+    (void) DataDirectiveHandlers::Disassemble (session, address, std::nullopt, 1, data);
+
+    if (data.lines.empty())
     {
         return std::nullopt;
     }
 
-    if (data->lines[0].instruction.hasTarget)
+    if (data.lines[0].instruction.hasTarget)
     {
-        return data->lines[0].instruction.target;
+        return data.lines[0].instruction.target;
     }
 
-    const std::string & text = data->lines[0].instruction.operand;
+    const std::string & text = data.lines[0].instruction.operand;
 
     dollar = text.find ('$');
 

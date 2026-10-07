@@ -104,12 +104,6 @@ public:
     // assembler waits for the user's next line.
     Reply  ExecutePaneLine       (const std::string & line, CommandMode mode);
 
-    // A line the debugger window runs to fill a pane. It never goes to the
-    // line assembler, and IsViewQuery tells a handler not to move where the
-    // user's bare U or D continues.
-    Reply  ExecuteViewLine       (const std::string & line, CommandMode mode);
-    bool   IsViewQuery           () const { return m_isViewQuery; }
-
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
 
@@ -424,7 +418,6 @@ private:
 
     std::optional<Word>           m_assemblyAddress;
     std::unique_ptr<OpcodeTable>  m_assemblyOpcodes;
-    bool                          m_isViewQuery        = false;
     ScriptLineRunner              m_scriptLineRunner;
     ReverseRequester              m_reverseRequester;
     StateFileRequester            m_stateFileRequester;

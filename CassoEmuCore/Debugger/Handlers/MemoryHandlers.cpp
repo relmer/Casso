@@ -109,11 +109,7 @@ void MemoryHandlers::Dump (DebugSession & session, const DebugCommand & command,
 
 
     reply.data = MakeRows (session.GetTarget(), first, last);
-
-    if (!session.IsViewQuery())
-    {
-        m_nextDump = (Word) (last + 1);
-    }
+    m_nextDump = (Word) (last + 1);
 }
 
 

@@ -95,11 +95,9 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
 
 void TraceHandlers::Show (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IDebugTarget  & target = session.GetTarget();
-    TraceData       data;
-    size_t          total  = target.GetTraceSize();
-    size_t          count  = (command.count != 0) ? command.count : kDefaultCount;
-    size_t          first  = 0;
+    size_t  total = session.GetTarget().GetTraceSize();
+    size_t  count = (command.count != 0) ? command.count : kDefaultCount;
+    size_t  first = 0;
 
 
 
@@ -112,12 +110,34 @@ void TraceHandlers::Show (DebugSession & session, const DebugCommand & command, 
         first = (total > count) ? total - count : 0;
     }
 
+    reply.data = MakeWindow (session, first, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceHandlers::MakeWindow
+//
+//  The count entries from first, cut at the end, each described.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TraceData TraceHandlers::MakeWindow (DebugSession & session, size_t first, size_t count)
+{
+    IDebugTarget  & target = session.GetTarget();
+    TraceData       data;
+
+
+
     data.isOn  = target.IsTraceOn();
-    data.total = total;
-    target.GetTraceWindow (first, count, data.entries);
+    data.total = target.GetTraceSize();
+    target.GetTraceWindow ((std::min) (first, (size_t) data.total), count, data.entries);
     Describe (session, data.entries);
 
-    reply.data = std::move (data);
+    return data;
 }
 
 

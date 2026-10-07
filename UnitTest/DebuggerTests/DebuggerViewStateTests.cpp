@@ -1603,7 +1603,6 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, std::nullopt, kRows));
             Assert::AreEqual ((uint64_t) 500, DebuggerViewState::GetTraceWindowFirst (1000, 500,          kRows));
             Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, 990,          kRows), L"never past the newest");
-            Assert::AreEqual (std::string ("HISTORY 500 128"), DebuggerViewState::GetHistoryLine (500, kRows));
         }
 
 
