@@ -56,7 +56,7 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
                               IDxuiTextRenderer & text,
                               const IDxuiTheme  & theme)
 {
-    const wchar_t *  face   = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::kBodyFace;
+    const wchar_t *  face   = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::GetUiFace();
     RECT             bounds = GetBounds();
 
 
@@ -104,7 +104,7 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
                                       DxuiTextVAlign      vAlign,
                                       int                 reachPx)
 {
-    const wchar_t *  useFace = (face != nullptr) ? face : DxuiTheme::kBodyFace;
+    const wchar_t *  useFace = (face != nullptr) ? face : DxuiTheme::GetUiFace();
     HRESULT          hr      = S_OK;
 
 

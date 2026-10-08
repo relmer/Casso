@@ -1,7 +1,10 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "AssetBootstrap.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/Win32FileSystem.h"
 
@@ -57,6 +60,9 @@ extern "C" int WINAPI wCassoExplorerMain (
 
 
 
+    hr = ThreadName::SetForCurrentThread (L"Casso Explorer UI");
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     (void) SetProcessDpiAwarenessContext (DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     SetNotifyFunction (&CassoExplorerShell::NotifyUser);
@@ -94,9 +100,48 @@ extern "C" int WINAPI wCassoExplorerMain (
     if (existing != nullptr)
     {
         CassoExplorerShell::FrontWindow (existing);
+
+        //  The window open already takes the path; a full one, since its
+        //  process has its own current folder.
+        if (!options.openPath.empty())
+        {
+            std::wstring    full   (32768, L'\0');
+            DWORD           length = GetFullPathNameW (options.openPath.c_str(), (DWORD) full.size(), full.data(), nullptr);
+            COPYDATASTRUCT  copy   = {};
+            DWORD_PTR       result = 0;
+
+            full.resize (length < full.size() ? length : 0);
+
+            copy.dwData = CassoExplorerWindow::kOpenPathCopyId;
+            copy.cbData = (DWORD) (full.size() * sizeof (wchar_t));
+            copy.lpData = full.data();
+
+            if (!full.empty())
+            {
+                SendMessageTimeoutW (existing, WM_COPYDATA, 0, (LPARAM) &copy, SMTO_ABORTIFHUNG, 5000, &result);
+            }
+        }
     }
 
     BAIL_OUT_IF (existing != nullptr, S_OK);
+
+    //  The shell's own dialogs this process opens -- a copy's conflicts and
+    //  progress -- follow the system's dark mode, as Explorer's do. Windows
+    //  exports the switch by ordinal only (uxtheme 135, SetPreferredAppMode);
+    //  missing, the dialogs stay light, as before.
+    {
+        using SetPreferredAppModeFn = int (WINAPI *) (int);
+
+        constexpr int  kAllowDark = 1;
+
+        HMODULE                uxtheme = LoadLibraryExW (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        SetPreferredAppModeFn  setMode = (uxtheme != nullptr) ? (SetPreferredAppModeFn) GetProcAddress (uxtheme, MAKEINTRESOURCEA (135)) : nullptr;
+
+        if (setMode != nullptr)
+        {
+            setMode (kAllowDark);
+        }
+    }
 
     hrOptional = AssetBootstrap::EnsureThemes (hInstance);
     IGNORE_RETURN_VALUE (hrOptional, S_OK);

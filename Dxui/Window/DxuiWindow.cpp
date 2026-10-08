@@ -586,6 +586,30 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnRButtonUp
+//
+//  The release too, for a context menu that opens as the button comes up, as
+//  Explorer's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+
+    return DispatchMouse (DxuiMouseEventKind::Up,
+                          DxuiMouseButton::Right,
+                          (int) (short) LOWORD (lParam),
+                          (int) (short) HIWORD (lParam),
+                          0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnXButtonUp
 //
 //  A five-button mouse's back and forward buttons, delivered on release,

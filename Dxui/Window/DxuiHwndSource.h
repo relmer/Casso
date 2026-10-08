@@ -316,6 +316,10 @@ public:
     //  tree. Tests may pass nullptr for existingHwnd to drive the
     //  classifier without standing up a real top-level window.
     //
+    //  The source a window belongs to, for a widget that holds only its
+    //  window's handle; null for a window this class does not run.
+    static DxuiHwndSource *  FromHwnd (HWND hwnd);
+
     static HRESULT  CreateInAdoptMode  (HWND                              existingHwnd,
                                         const CreateParams              & params,
                                         std::unique_ptr<DxuiHwndSource> & outHost);
@@ -797,6 +801,10 @@ private:
     DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
     bool                              m_captionVisible     = true;
+
+    //  The last Alt key-down was a shortcut the client took, so the character
+    //  that follows it is not a mnemonic.
+    bool                              m_sysKeyClaimed      = false;
     std::unique_ptr<DxuiTooltip>      m_captionTip;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;

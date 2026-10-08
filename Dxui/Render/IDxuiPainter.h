@@ -112,4 +112,10 @@ public:
     // mock or a simple painter compiles unchanged.
     virtual void   SetOrigin (float xPx, float yPx)                           { (void) xPx; (void) yPx; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
+
+    // Clips everything drawn until the matching pop to a rect, in the same
+    // coordinates as the drawing, intersected with any clip already pushed.
+    // Defaulted to no-ops so a mock or a simple painter compiles unchanged.
+    virtual void   PushClipRect (float xPx, float yPx, float widthPx, float heightPx) { (void) xPx; (void) yPx; (void) widthPx; (void) heightPx; }
+    virtual void   PopClipRect  ()                                                       {}
 };

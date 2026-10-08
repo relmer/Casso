@@ -78,19 +78,33 @@ public:
 
 
 
-    TEST_METHOD (Roots_CassoAndThisPc)
+    TEST_METHOD (Roots_CassoThisPcAndRecycleBin)
     {
         InMemoryFileSystem     fs;
         TreeModel              model (fs);
-        std::vector<TreeNode>  roots;
+        std::vector<TreeNode>      roots;
+        std::vector<TreeNode>      binChildren;
+        TreeModel::NavPaneOptions  options;
 
+        //  Explorer's pane shows the bin only with all folders shown.
+        model.GetRoots (roots);
+        Assert::AreEqual ((size_t) 2, roots.size());
+
+        options.showAllFolders = true;
+        model.SetNavPaneOptions (options);
         model.GetRoots (roots);
 
-        Assert::AreEqual ((size_t) 2, roots.size());
+        Assert::AreEqual ((size_t) 3, roots.size());
         Assert::IsTrue   (roots[0].kind == TreeNode::Kind::CassoRoot);
         Assert::IsTrue   (roots[1].kind == TreeNode::Kind::ThisPcRoot);
+        Assert::IsTrue   (roots[2].kind == TreeNode::Kind::RecycleBinRoot);
         Assert::AreEqual (std::wstring (TreeModel::kCassoRootId),  roots[0].id);
         Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), roots[1].id);
+        Assert::IsTrue   (roots[2].location == Location::MakeRecycleBin());
+        Assert::IsFalse  (roots[2].canExpand, L"The Recycle Bin has no folders under it in the tree");
+
+        AssertSucceeded (model.GetChildren (roots[2].id, binChildren));
+        Assert::IsTrue  (binChildren.empty());
     }
 
 
@@ -216,6 +230,36 @@ public:
 
 
 
+    //  A damaged directory holding two entries of the same name gives the
+    //  second its own id, which still reaches the directory by that name.
+    TEST_METHOD (ProDosDirectory_ADuplicateNameStillReachesTheDirectory)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  folder;
+        std::vector<TreeNode>  image;
+        std::vector<TreeNode>  plain;
+        std::vector<TreeNode>  second;
+        std::wstring           path = L"C:\\Disks\\merlin.dsk";
+        std::string            inner;
+
+        AssertSucceeded (fs.WriteAllText (path, FixtureContent ("Disks/Merlin-proProdos2.33-a.dsk")));
+        Configure (model);
+
+        AssertSucceeded (model.GetChildren (TreeModel::MakeFolderId (true, kDisks), folder));
+        AssertSucceeded (model.GetChildren (FindNode (folder, L"merlin.dsk").id, image));
+        Assert::IsFalse (image.empty(), L"this disk must have subdirectories");
+
+        inner = image[0].location.innerPath;
+
+        Assert::AreNotEqual (TreeModel::MakeDirectoryId (true, path, inner), TreeModel::MakeDirectoryId (true, path, inner, 1));
+
+        AssertSucceeded  (model.GetChildren (TreeModel::MakeDirectoryId (true, path, inner),    plain));
+        AssertSucceeded  (model.GetChildren (TreeModel::MakeDirectoryId (true, path, inner, 1), second));
+        Assert::AreEqual (plain.size(), second.size());
+    }
+
+
     TEST_METHOD (Children_AreFetchedOnceUntilInvalidated)
     {
         InMemoryFileSystem     fs;
@@ -274,5 +318,17 @@ public:
         Assert::IsTrue      (TreeModel::IsSupportedImage (L"disk.po"));
         Assert::IsFalse     (TreeModel::IsSupportedImage (L"notes.txt"));
         Assert::IsFalse     (TreeModel::IsSupportedImage (L"noext"));
+    }
+
+
+
+    TEST_METHOD (KnownFolderLabels_SameNamesShowTheirFullPaths)
+    {
+        std::vector<std::wstring>  labels = TreeModel::GetKnownFolderLabels ({ L"C:\\Apple\\Disks", L"D:\\Backup\\disks", L"C:\\Games", L"C:\\" });
+
+        Assert::AreEqual (std::wstring (L"C:\\Apple\\Disks"),   labels[0]);
+        Assert::AreEqual (std::wstring (L"D:\\Backup\\disks"),  labels[1]);
+        Assert::AreEqual (std::wstring (L"Games"),              labels[2]);
+        Assert::AreEqual (std::wstring (L"C:\\"),               labels[3]);
     }
 };

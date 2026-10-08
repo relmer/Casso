@@ -122,6 +122,7 @@ public:
     // PopClipRect. Used by single-line text inputs to clip their
     // scrolling text content to the visible inner rect.
     HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip) override;
+    HRESULT  EraseRoundedRect (float xDip, float yDip, float widthDip, float heightDip, float radiusDip);
     HRESULT  PopClipRect      () override;
 
     void     PushTextSkew     (float tanX, float yPivotDip) override;
@@ -182,6 +183,21 @@ public:
                                    float         & outWidthDip,
                                    float         & outHeightDip) override;
 
+    HRESULT  MeasureStringGdi (const wchar_t * text, float fontSizePx, const wchar_t * fontFamily, float & outWidthPx) override;
+    HRESULT  GetLineHeightGdi (float fontSizePx, const wchar_t * fontFamily, float & outHeightPx) override;
+    bool     SetGdiClassicText (bool on) override  { bool was = m_gdiClassic; m_gdiClassic = on; return was; }
+    HRESULT  SelectGdiFont    (float fontSizePx, const wchar_t * fontFamily);
+
+    HRESULT  DrawSvgIcon       (const std::string & svg, float xDip, float yDip, float sizeDip) override;
+
+    HRESULT  HitTestText       (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily,
+                                float widthDip, float heightDip, DxuiTextHAlign hAlign, DxuiTextVAlign vAlign,
+                                float xDip, float yDip, size_t & outIndex) override;
+
+    HRESULT  GetTextRangeRects (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily,
+                                float widthDip, float heightDip, DxuiTextHAlign hAlign, DxuiTextVAlign vAlign,
+                                size_t start, size_t length, std::vector<TextRangeRect> & outRects) override;
+
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);
 
@@ -197,6 +213,11 @@ public:
 
 private:
     static D2D1_COLOR_F  ColorFromArgb (uint32_t argbColor);
+
+    //  GDI's own fonts for MeasureStringGdi, one a face and pixel height,
+    //  and the memory DC they are measured in.
+    HDC                                            m_gdiDc    = nullptr;
+    std::map<std::pair<std::wstring, int>, HFONT>  m_gdiFonts;
 
     struct TextFormatKey
     {
@@ -228,9 +249,11 @@ private:
         bool                wrap    = false;
         float               maxW    = 0.0f;
         float               maxH    = 0.0f;
+        bool                gdi     = false;
 
         bool operator < (const LayoutCacheKey & o) const
         {
+            if (gdi     != o.gdi)     { return gdi     < o.gdi;     }
             if (text    != o.text)    { return text    < o.text;    }
             if (family  != o.family)  { return family  < o.family;  }
             if (sizeDip != o.sizeDip) { return sizeDip < o.sizeDip; }
@@ -286,9 +309,20 @@ private:
     HRESULT  GetIconLayerGeometry (const DxuiVectorIcon & icon, const DxuiVectorIconLayer & layer, ID2D1PathGeometry ** outGeometry);
     ComPtr<ID2D1Device>         m_d2dDevice;
     ComPtr<ID2D1DeviceContext>  m_d2dContext;
-    D2D1_MATRIX_3X2_F           m_savedTransform     = D2D1::Matrix3x2F::Identity();
-    ComPtr<ID2D1Bitmap1>        m_target;
-    ComPtr<ID2D1Bitmap1>        m_offscreen;
+
+    //  Parsed SVG icons, by their text and the size they were parsed at.
+    struct SvgIcon
+    {
+        size_t                      key  = 0;
+        float                       size = 0.0f;
+        ComPtr<ID2D1SvgDocument>    document;
+    };
+
+    std::vector<SvgIcon>     m_svgIcons;
+    static constexpr size_t  kMaxSvgIcons     = 64;
+    D2D1_MATRIX_3X2_F        m_savedTransform = D2D1::Matrix3x2F::Identity();
+    ComPtr<ID2D1Bitmap1>     m_target;
+    ComPtr<ID2D1Bitmap1>     m_offscreen;
 
     // The page pass's recording, live only between BeginDrawDeferred and
     // EndDrawDeferred. A command list cannot be reopened once closed, so this
@@ -355,6 +389,9 @@ private:
 
     std::map<LayoutCacheKey,
              ComPtr<IDWriteTextLayout>>     m_layoutCache;
+
+    //  Laid out and drawn by GDI's whole-pixel advances while set.
+    bool                              m_gdiClassic = false;
 
     //  Pushes the stored origin into the D2D transform. Called on BeginDraw
     //  and on a SetOrigin made while drawing.

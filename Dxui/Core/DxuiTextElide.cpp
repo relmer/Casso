@@ -31,7 +31,8 @@ bool DxuiTextElide::Fits (IDxuiTextRenderer  & text,
                           const std::wstring & candidate,
                           float                fontDip,
                           const wchar_t      * fontFamily,
-                          float                maxWidthDip)
+                          float                maxWidthDip,
+                          bool                 gdiWidths)
 {
     HRESULT   hr = S_OK;
     float     w  = 0.0f;
@@ -39,7 +40,8 @@ bool DxuiTextElide::Fits (IDxuiTextRenderer  & text,
 
 
 
-    hr = text.MeasureString (candidate.c_str(), fontDip, fontFamily, w, h);
+    hr = gdiWidths ? text.MeasureStringGdi (candidate.c_str(), fontDip, fontFamily, w)
+                   : text.MeasureString    (candidate.c_str(), fontDip, fontFamily, w, h);
 
     if (FAILED (hr))
     {
@@ -65,7 +67,8 @@ std::wstring DxuiTextElide::ElideTail (IDxuiTextRenderer  & text,
                                        const std::wstring & value,
                                        float                fontDip,
                                        const wchar_t      * fontFamily,
-                                       float                maxWidthDip)
+                                       float                maxWidthDip,
+                                       bool                 gdiWidths)
 {
     size_t   lo  = 0;
     size_t   hi  = value.size();
@@ -77,7 +80,7 @@ std::wstring DxuiTextElide::ElideTail (IDxuiTextRenderer  & text,
     {
         mid = (lo + hi + 1) / 2;
 
-        if (Fits (text, value.substr (0, mid) + s_kEllipsis, fontDip, fontFamily, maxWidthDip))
+        if (Fits (text, value.substr (0, mid) + s_kEllipsis, fontDip, fontFamily, maxWidthDip, gdiWidths))
         {
             lo = mid;
         }
@@ -91,6 +94,85 @@ std::wstring DxuiTextElide::ElideTail (IDxuiTextRenderer  & text,
     // says "there is more here", where an empty box says the value is unset.
     return (lo == 0) ? std::wstring (s_kEllipsis)
                      : value.substr (0, lo) + s_kEllipsis;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WrapToLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DxuiTextElide::WrapToLines (IDxuiTextRenderer  & text,
+                                                      const std::wstring & value,
+                                                      float                fontDip,
+                                                      const wchar_t      * fontFamily,
+                                                      float                maxWidthDip,
+                                                      int                  maxLines,
+                                                      bool                 ellipsis,
+                                                      bool                 gdiWidths)
+{
+    std::vector<std::wstring>  lines;
+    std::wstring               rest = value;
+
+
+
+    while (!rest.empty() && (int) lines.size() < maxLines)
+    {
+        size_t  lo    = 1;
+        size_t  hi    = rest.size();
+        size_t  mid   = 0;
+        size_t  cut   = 0;
+
+        if ((int) lines.size() == maxLines - 1 || Fits (text, rest, fontDip, fontFamily, maxWidthDip, gdiWidths))
+        {
+            //  A rest that fits by the measure the breaks use is kept whole.
+            bool  whole = gdiWidths && Fits (text, rest, fontDip, fontFamily, maxWidthDip, true);
+
+            lines.push_back (whole ? rest : ToWidth (text, rest, fontDip, fontFamily, maxWidthDip, ellipsis ? DxuiElide::Tail : DxuiElide::None, gdiWidths));
+            break;
+        }
+
+        //  The longest start of what is left that fits the width.
+        while (lo < hi)
+        {
+            mid = (lo + hi + 1) / 2;
+
+            if (Fits (text, rest.substr (0, mid), fontDip, fontFamily, maxWidthDip, gdiWidths))
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        //  Back to the last space, as Explorer breaks its names; a word with
+        //  no space in reach fills the line and goes on in the next,
+        //  periods, hyphens and underscores included. A word that fits up to
+        //  the space after it stays: the space may hang past the edge.
+        cut = (lo < rest.size() && rest[lo] == L' ') ? lo : rest.find_last_of (L' ', lo - 1);
+        cut = (cut != std::wstring::npos && cut > 0) ? cut + 1 : lo;
+
+        lines.push_back (rest.substr (0, cut));
+        rest = rest.substr (cut);
+
+        while (!lines.back().empty() && lines.back().back() == L' ')
+        {
+            lines.back().pop_back();
+        }
+
+        while (!rest.empty() && rest.front() == L' ')
+        {
+            rest.erase (rest.begin());
+        }
+    }
+
+    return lines;
 }
 
 
@@ -173,7 +255,8 @@ std::wstring DxuiTextElide::ToWidth (IDxuiTextRenderer  & text,
                                      float                fontDip,
                                      const wchar_t      * fontFamily,
                                      float                maxWidthDip,
-                                     DxuiElide            mode)
+                                     DxuiElide            mode,
+                                     bool                 gdiWidths)
 {
     std::wstring   result = value;
     bool           search = false;
@@ -183,13 +266,13 @@ std::wstring DxuiTextElide::ToWidth (IDxuiTextRenderer  & text,
     search = (mode != DxuiElide::None)
           && !value.empty()
           && (maxWidthDip > 0.0f)
-          && !Fits (text, value, fontDip, fontFamily, maxWidthDip);
+          && !Fits (text, value, fontDip, fontFamily, maxWidthDip, gdiWidths);
 
     if (search)
     {
         result = (mode == DxuiElide::PathHead)
                ? ElidePathHead (text, value, fontDip, fontFamily, maxWidthDip)
-               : ElideTail     (text, value, fontDip, fontFamily, maxWidthDip);
+               : ElideTail     (text, value, fontDip, fontFamily, maxWidthDip, gdiWidths);
     }
 
     return result;

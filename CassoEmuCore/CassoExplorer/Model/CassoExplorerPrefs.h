@@ -55,6 +55,15 @@ struct CassoExplorerPrefs
     //  Whether a BASIC listing shows where each line starts in memory.
     bool                   lineAddresses   = false;
 
+    //  The navigation pane's options, from the menu below its last node.
+    //  Each is empty, following File Explorer's own setting, until the user
+    //  sets it here; then it holds Casso Explorer's value alone.
+    std::optional<bool>    navShowThisPc;
+    std::optional<bool>    navShowNetwork;
+    std::optional<bool>    navShowLibraries;
+    std::optional<bool>    navShowAllFolders;
+    std::optional<bool>    navExpandToCurrent;
+
     //  How a hex preview reads: values in each row, 0 to fit the width;
     //  whether the values show at all; and their format.
     int                    hexColumns      = 0;
@@ -78,6 +87,10 @@ struct CassoExplorerPrefs
     //  column indexes; empty for their own order.
     std::vector<int>           columnOrder;
 
+    //  The columns last hidden from the header's menu, which a folder with no
+    //  choice of its own follows. Stored as listHiddenColumns.
+    std::vector<int>           hiddenColumns;
+
     //  Absent file: defaults, with the theme seeded from the emulator's
     //  preferences when they can be read. Reports the read's own result for
     //  a file that exists and will not parse.
@@ -95,6 +108,10 @@ struct CassoExplorerPrefs
     static std::string  ReadCassoTheme (const std::wstring & baseDir, IFileSystem & fs);
 
     static bool  IsKnownTheme (const std::string & theme);
+
+    //  The navigation pane's options with the key each is kept under.
+    using NavOption = std::optional<bool> CassoExplorerPrefs::*;
+    static std::array<std::pair<const char *, NavOption>, 5>  GetNavOptions ();
 
     //  1, 2, 4 and 8 are the groupings a hex view offers; anything else in
     //  the file is a hand edit and falls back to the default.
@@ -127,5 +144,10 @@ struct CassoExplorerPrefs
 
 private:
     static JsonValue  LocationToJson (const Location & location);
+
+    //  A list of column indexes, and the one under a key; an entry that is
+    //  not a number reads as -1, which nothing applies.
+    static JsonValue         MakeIntArray (const std::vector<int> & values);
+    static std::vector<int>  ReadIntArray (const JsonValue & object, const char * key);
     static bool       TryLocationFromJson (const JsonValue & value, Location & outLocation);
 };

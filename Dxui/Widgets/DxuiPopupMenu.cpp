@@ -1,4 +1,6 @@
 #include "Pch.h"
+#include "Core/DxuiIconImage.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiPopupMenu.h"
@@ -170,6 +172,24 @@ void DxuiPopupMenu::RefreshMetrics()
     }
 
     m_metrics = DxuiMenuMetrics::FromSystem (m_scaler.GetDpi());
+    m_cardPadPx = 0;
+
+    //  Explorer's separators are 10 dip tall: 15 px at 150%.
+    m_metrics.separatorHeightPx = (int) std::lround (m_scaler.ToPxf (s_kSeparatorDip));
+
+    //  A command bar's drop-down is half a dip tighter a row than a context
+    //  menu, as Explorer's are: 47 px against 48 at 150%. It also keeps
+    //  3 dip above its first row and below its last, and its separators are
+    //  3 dip tall: 4 px, and 5 px, at 150%. Its separators run from border to
+    //  border, and it is 8 dip narrower on the right.
+    if (m_compactRows)
+    {
+        m_metrics.rowHeightPx       -= (int) std::lround (m_scaler.ToPxf (0.5f));
+        m_metrics.separatorHeightPx  = (int) std::lround (m_scaler.ToPxf (s_kCompactSeparatorDip));
+        m_metrics.separatorInsetPx   = (int) kBorderDip;
+        m_metrics.rightPadPx        -= m_scaler.ToPx (s_kCompactRightTrimDip);
+        m_cardPadPx                  = (int) m_scaler.ToPxf (s_kCompactCardPadDip);
+    }
 }
 
 
@@ -469,6 +489,10 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
         return;
     }
 
+    //  Explorer's menus are acrylic: the card tints a blurred view of what is
+    //  behind it, unless the system's transparency effects are off.
+    m_acrylic = DxuiPopupHost::IsAcrylicAvailable();
+
     params.ownerHwnd        = owner;
     params.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
     params.flipIfOffscreen  = true;
@@ -479,13 +503,22 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     params.sizeDip.cx       = MulDiv (width,  DxuiDpiScaler::kBaseDpi, (int) dpi);
     params.sizeDip.cy       = MulDiv (height, DxuiDpiScaler::kBaseDpi, (int) dpi);
     params.backgroundArgb   = bgArgb;
+    params.acrylic          = m_acrylic;
 
-    // The open animation. Menus and submenus unfold; the system's animation
-    // switch, and the accessibility master switch behind it, turn it off.
+    //  The host sizes its card from those dips, which can round back a pixel
+    //  wider or taller; the menu takes that size, so its border rings the
+    //  whole card rather than leaving a strip of the card outside it.
+    m_boundsDip.right  = m_boundsDip.left + MulDiv (params.sizeDip.cx, (int) dpi, DxuiDpiScaler::kBaseDpi);
+    m_boundsDip.bottom = m_boundsDip.top  + MulDiv (params.sizeDip.cy, (int) dpi, DxuiDpiScaler::kBaseDpi);
+
+    // The open animation. A menu dropped from a bar, and a submenu, unfold;
+    // a context menu, opened at a point, fades in quickly, as Explorer's do.
+    // The system's animation switch, and the accessibility master switch
+    // behind it, turn either off.
+    params.revealFade       = anchoring == Anchoring::AtPoint;
     params.revealMs         = (!m_revealSuppressed &&
                                DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
-                                  ? kRevealMs : 0;
-    params.revealFade       = false;
+                                  ? (params.revealFade ? kFadeMs : kRevealMs) : 0;
     params.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
     params.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
     params.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
@@ -583,6 +616,7 @@ void DxuiPopupMenu::Hide()
 
 
     CloseChild();
+    SetIconHover (-1);
 
     m_visible     = false;
     m_hover       = -1;
@@ -671,7 +705,7 @@ bool DxuiPopupMenu::HitTest (int x, int y) const
 
 int DxuiPopupMenu::GetRowAtOffset (int relY) const
 {
-    int  y = 0;
+    int  y = m_cardPadPx;
 
 
 
@@ -742,7 +776,7 @@ int DxuiPopupMenu::GetRowHeightPx (int index) const
 
     if (kind == DxuiPopupMenuItem::Kind::IconRow)
     {
-        return GetIconButtonPx();
+        return (int) m_scaler.ToPxf (s_kIconRowDip);
     }
 
     return (kind == DxuiPopupMenuItem::Kind::Separator) ? m_metrics.separatorHeightPx : m_metrics.rowHeightPx;
@@ -760,7 +794,81 @@ int DxuiPopupMenu::GetRowHeightPx (int index) const
 
 int DxuiPopupMenu::GetIconButtonPx() const
 {
-    return m_metrics.rowHeightPx * s_kIconRowScalePct / 100;
+    return m_scaler.ToPx (s_kIconButtonDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::GetIconDividerPx
+//
+//  The rule between two buttons: a dip, in whole pixels, which Explorer
+//  gives its own place rather than drawing over a button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPopupMenu::GetIconDividerPx() const
+{
+    return (int) std::ceil (m_scaler.ToPxf (1.0f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::GetIconRowLeftPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPopupMenu::GetIconRowLeftPx() const
+{
+    return (int) m_scaler.ToPxf (s_kIconRowLeftDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::SetIconHover
+//
+//  The icon row is the only row with buttons, so a button index is enough to
+//  find its command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::SetIconHover (int button)
+{
+    const DxuiCommand  * command = nullptr;
+
+
+
+    if (button == m_iconHover)
+    {
+        return;
+    }
+
+    m_iconHover = button;
+
+    for (const DxuiPopupMenuItem & row : m_rows)
+    {
+        if (button >= 0 && row.kind == DxuiPopupMenuItem::Kind::IconRow && button < (int) row.children.size())
+        {
+            command = row.children[(size_t) button].command.get();
+            break;
+        }
+    }
+
+    if (m_onIconHover)
+    {
+        m_onIconHover (command);
+    }
 }
 
 
@@ -777,8 +885,8 @@ int DxuiPopupMenu::GetIconButtonPx() const
 
 int DxuiPopupMenu::GetIconButtonAt (int index, int localX) const
 {
-    int  size   = GetIconButtonPx();
-    int  offset = localX - m_metrics.leftPadPx;
+    int  size   = GetIconButtonPx() + GetIconDividerPx();
+    int  offset = localX - GetIconRowLeftPx();
     int  button = 0;
 
 
@@ -882,8 +990,11 @@ void DxuiPopupMenu::DropStraySeparators()
 //
 //  DxuiPopupMenu::OpensUpward
 //
-//  A menu raised at the pointer rises when it would run off the bottom of
-//  the monitor, as the popup host places it.
+//  Whether the pointer ends up nearer the menu's bottom than its top. A menu
+//  raised at the pointer hangs down from it, and one that would run off the
+//  monitor is slid back up onto it rather than flipped, as the popup host
+//  places it -- so it can end up over the pointer, and which end is nearer
+//  depends on how far it moved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -903,7 +1014,11 @@ bool DxuiPopupMenu::OpensUpward (int originX, int originY, int heightPx, Anchori
 
     if (owner == nullptr)
     {
-        return originY + heightPx > m_hostClient.bottom;
+        {
+        int  top = (std::max) ((int) m_hostClient.top, (std::min) (originY, (int) m_hostClient.bottom - heightPx));
+
+        return (top + heightPx - originY) < (originY - top);
+    }
     }
 
     ClientToScreen (owner, &origin);
@@ -914,7 +1029,12 @@ bool DxuiPopupMenu::OpensUpward (int originX, int originY, int heightPx, Anchori
         return false;
     }
 
-    return origin.y + heightPx > info.rcWork.bottom;
+    {
+        LONG  top    = (std::max) (info.rcWork.top, (std::min) (origin.y, info.rcWork.bottom - (LONG) heightPx));
+        LONG  bottom = top + heightPx;
+
+        return (bottom - origin.y) < (origin.y - top);
+    }
 }
 
 
@@ -1009,7 +1129,7 @@ void DxuiPopupMenu::PlaceIconRow (bool atBottom)
 
 int DxuiPopupMenu::GetRowTopPx (int index) const
 {
-    int  y = 0;
+    int  y = m_cardPadPx;
 
 
 
@@ -1033,7 +1153,7 @@ int DxuiPopupMenu::GetRowTopPx (int index) const
 
 int DxuiPopupMenu::GetContentHeightPx() const
 {
-    return GetRowTopPx ((int) m_rows.size());
+    return GetRowTopPx ((int) m_rows.size()) + m_cardPadPx;
 }
 
 
@@ -1048,7 +1168,7 @@ int DxuiPopupMenu::GetContentHeightPx() const
 
 int DxuiPopupMenu::GetScrollPx() const
 {
-    return (m_viewportPx > 0) ? GetRowTopPx (m_scrollRow) : 0;
+    return (m_viewportPx > 0) ? GetRowTopPx (m_scrollRow) - m_cardPadPx : 0;
 }
 
 
@@ -1238,7 +1358,7 @@ int DxuiPopupMenu::MeasureRunPx (const std::wstring & run, float fontDip, IDxuiT
 
 
 
-    hr = text.MeasureString (run.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+    hr = text.MeasureString (run.c_str(), fontDip, DxuiTheme::GetUiFace(), w, h);
 
     if (FAILED (hr) || w <= 0.0f)
     {
@@ -1292,7 +1412,7 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
             m_hasGutter = true;
         }
 
-        if (row.command != nullptr && row.command->vectorIcon != nullptr)
+        if (row.command != nullptr && (row.command->vectorIcon != nullptr || row.command->menuGlyph != nullptr || row.command->menuSvg != nullptr || row.command->menuImage != nullptr))
         {
             m_hasIcons = true;
         }
@@ -1301,6 +1421,16 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
     m_labelLeftPx = m_metrics.leftPadPx + m_metrics.gutterGapPx
                         + (m_hasGutter ? m_metrics.checkGutterPx : 0)
                         + (m_hasIcons  ? m_scaler.ToPx (s_kRowIconDip) + m_metrics.gutterGapPx : 0);
+
+    //  A menu of icons with no check column sits them as Explorer does.
+    if (m_hasIcons && !m_hasGutter)
+    {
+        m_labelLeftPx = m_scaler.ToPx (s_kRowIconLeftDip + s_kRowIconDip + s_kRowIconGapDip);
+    }
+    else if (m_hasIcons)
+    {
+        m_labelLeftPx += m_scaler.ToPx (s_kGutterIconTextShiftDip);
+    }
 
     for (const DxuiPopupMenuItem & row : m_rows)
     {
@@ -1353,7 +1483,7 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
     {
         if (row.kind == DxuiPopupMenuItem::Kind::IconRow)
         {
-            width = (std::max) (width, m_metrics.leftPadPx + (int) row.children.size() * GetIconButtonPx() + m_metrics.rightPadPx);
+            width = (std::max) (width, GetIconRowLeftPx() * 2 + (int) row.children.size() * (GetIconButtonPx() + GetIconDividerPx()) - GetIconDividerPx());
         }
     }
 
@@ -1873,8 +2003,8 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
         return;
     }
 
-    idx         = HitTestIndex (x, y);
-    m_iconHover = GetIconButtonAt (idx, x - m_boundsDip.left);
+    idx = HitTestIndex (x, y);
+    SetIconHover (GetIconButtonAt (idx, x - m_boundsDip.left));
 
     if (idx >= 0 && idx != m_hover)
     {
@@ -2110,11 +2240,11 @@ DxuiPopupMenu::Palette DxuiPopupMenu::ResolvePalette() const
 
 
     pal.bg       = m_colorsSet ? m_colors.bg      : m_theme->BackgroundElevated();
-    pal.hover    = m_colorsSet ? m_colors.hover   : m_theme->HoverBackground();
+    pal.hover    = m_colorsSet ? m_colors.hover   : m_theme->MenuHover();
     pal.text     = m_colorsSet ? m_colors.text    : m_theme->Foreground();
     pal.accel    = m_colorsSet ? m_colors.accel   : m_theme->ForegroundMuted();
     pal.border   = m_colorsSet ? m_colors.border  : m_theme->Border();
-    pal.divider  = m_colorsSet ? m_colors.divider : m_theme->Divider();
+    pal.divider  = m_colorsSet ? m_colors.divider : m_theme->MenuSeparator();
     pal.disabled = m_theme->ForegroundDisabled();
 
     return pal;
@@ -2185,8 +2315,34 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
     // Rounded at the overlay radius. A hosted menu's card is also drawn by
     // its popup host at this same radius and rect; a square fill here would
     // paint the host's rounded corners back to square.
-    painter.FillRoundedRect    (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
-    painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
+    //
+    //  The border is a ring: the card filled in its color, then the inside
+    //  in the background. A dip of border lands on whole pixels as Explorer
+    //  lays it out: rounded down on the left, up on the other three sides,
+    //  so 1 px and 2 px at 150%. A command bar's drop-down has a dark border,
+    //  the background at 60%, where a context menu's is light.
+    {
+        float     radius  = m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip);
+        float     edgePx  = m_scaler.ToPxf ((float) kBorderDip);
+        float     leftPx  = std::floor (edgePx);
+        float     otherPx = std::ceil  (edgePx);
+        uint32_t  border  = m_compactRows ? DxuiColor::Mix (pal.bg, 0xFF000000u, s_kCompactBorderDarken) : pal.border;
+
+        //  Over acrylic the card is translucent, so the border is drawn as a
+        //  ring over it rather than filled beneath it.
+        if (m_acrylic)
+        {
+            float  opacity = DxuiColor::ComputeRelativeLuminance (pal.bg) < 0.5f ? s_kAcrylicDarkOpacity : s_kAcrylicLightOpacity;
+
+            painter.FillRoundedRect    (left, top, width, height, radius, DxuiColor::ScaleAlpha (pal.bg, opacity));
+            painter.OutlineRoundedRect (left, top, width, height, radius, otherPx, border);
+        }
+        else
+        {
+            painter.FillRoundedRect (left, top, width, height, radius, border);
+            painter.FillRoundedRect (left + leftPx, top + otherPx, width - leftPx - otherPx, height - otherPx * 2.0f, radius - otherPx, pal.bg);
+        }
+    }
 
     //  Only the rows in view. Scrolling moves by whole rows, so none is cut.
     for (int i = m_scrollRow; i < (int) m_rows.size(); i++)
@@ -2271,10 +2427,13 @@ void DxuiPopupMenu::PaintRow (
 
     if (row.kind == DxuiPopupMenuItem::Kind::Separator)
     {
+        //  A dip, in whole pixels: two at 150%, as Explorer draws it.
+        float  thick = std::ceil (m_scaler.ToPxf (1.0f));
+
         painter.FillRect (left + (float) inset,
-                          top + (float) (rowTopPx + rowH / 2),
+                          std::ceil (y + ((float) rowH - thick) * 0.5f),
                           width - (float) inset - (float) inset,
-                          kUnderlineThicknessDip,
+                          thick,
                           pal.divider);
         return;
     }
@@ -2301,7 +2460,7 @@ void DxuiPopupMenu::PaintRow (
                               (float) rowH,
                               pal.accel,
                               fontDip,
-                              DxuiTheme::kBodyFace);
+                              DxuiTheme::GetUiFace());
         IGNORE_RETURN_VALUE (hr, S_OK);
         return;
     }
@@ -2332,10 +2491,19 @@ void DxuiPopupMenu::PaintRow (
                           (float) rowH,
                           labelArgb,
                           fontDip,
-                          DxuiTheme::kBodyFace);
+                          DxuiTheme::GetUiFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (row.command->IsChecked())
+    //  Explorer's radio mark is a dot, not the bullet glyph: 7 px across at
+    //  150%, on the row's middle, in the secondary text color.
+    if (row.command->IsChecked() && row.command->radio)
+    {
+        painter.FillCircle (left + m_scaler.ToPxf (s_kRadioCenterXDip),
+                            std::floor (y + (float) rowH * 0.5f),
+                            m_scaler.ToPxf (s_kRadioRadiusDip),
+                            (labelArgb & 0x00FFFFFFu) | ((uint32_t) (((labelArgb >> 24) * s_kRadioAlpha) / 255u) << 24));
+    }
+    else if (row.command->IsChecked())
     {
         hr = text.DrawString (s_kpszCheckMark,
                               left + (float) pad,
@@ -2344,19 +2512,59 @@ void DxuiPopupMenu::PaintRow (
                               (float) rowH,
                               labelArgb,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Top);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (row.command->vectorIcon != nullptr)
+    //  An SVG, when the host has one, is drawn in place of the vector icon.
+    if (row.command->vectorIcon != nullptr && row.command->menuSvg == nullptr)
     {
         float  iconDip  = (float) m_scaler.ToPx (s_kRowIconDip);
-        float  iconLeft = left + (float) (pad + (m_hasGutter ? gutter : 0) + m_metrics.gutterGapPx);
+        float  iconLeft = m_hasGutter ? left + (float) (pad + gutter + m_metrics.gutterGapPx + m_scaler.ToPx (s_kGutterIconShiftDip)) : left + (float) m_scaler.ToPx (s_kRowIconLeftDip);
 
         hr = text.FillVectorIcon (*row.command->vectorIcon, iconLeft, y + ((float) rowH - iconDip) * 0.5f, iconDip, labelArgb, labelArgb);
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else if (row.command->menuGlyph != nullptr || row.command->menuSvg != nullptr || row.command->vectorIcon != nullptr || row.command->menuImage != nullptr)
+    {
+        float  iconDip  = (float) m_scaler.ToPx (s_kRowIconDip);
+        float  iconLeft = m_hasGutter ? left + (float) (pad + gutter + m_metrics.gutterGapPx + m_scaler.ToPx (s_kGutterIconShiftDip)) : left + (float) m_scaler.ToPx (s_kRowIconLeftDip);
+        float  alpha    = text.GetGlobalAlpha();
+
+        hr = E_NOTIMPL;
+
+        if (row.command->menuImage != nullptr && !row.command->menuImage->bgraPremul.empty())
+        {
+            const DxuiIconImage &  image = *row.command->menuImage;
+
+            text.SetGlobalAlpha (enabled ? alpha : alpha * s_kDisabledIconAlpha);
+            hr = text.DrawIconBitmap (image.bgraPremul.data(), image.width, image.height,
+                                      iconLeft, std::floor (y + ((float) rowH - iconDip) * 0.5f), iconDip, iconDip);
+            text.SetGlobalAlpha (alpha);
+        }
+
+        if (FAILED (hr) && row.command->menuSvg != nullptr)
+        {
+            text.SetGlobalAlpha (enabled ? alpha : alpha * s_kDisabledIconAlpha);
+            //  On a whole pixel, as Explorer's are, where an odd row height
+            //  would leave its strokes smeared across two.
+            hr = text.DrawSvgIcon (*row.command->menuSvg, iconLeft, std::floor (y + ((float) rowH - iconDip) * 0.5f), iconDip);
+            text.SetGlobalAlpha (alpha);
+        }
+
+        if (FAILED (hr) && row.command->vectorIcon != nullptr)
+        {
+            hr = text.FillVectorIcon (*row.command->vectorIcon, iconLeft, y + ((float) rowH - iconDip) * 0.5f, iconDip, labelArgb, labelArgb);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else if (FAILED (hr) && row.command->menuGlyph != nullptr)
+        {
+            hr = text.DrawString (row.command->menuGlyph, iconLeft, y, iconDip, (float) rowH, labelArgb, iconDip, s_kIconFace,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 
     if (m_showCues && mnIdx >= 0 && !stripped.empty() && enabled)
@@ -2391,7 +2599,7 @@ void DxuiPopupMenu::PaintRow (
                               (float) rowH,
                               accelArgb,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Top);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -2413,14 +2621,17 @@ void DxuiPopupMenu::PaintIconRow (IDxuiPainter & painter, IDxuiTextRenderer & te
 {
     const DxuiPopupMenuItem &  row    = m_rows[(size_t) index];
     float                      size   = (float) GetIconButtonPx();
+    float                      rowH   = (float) GetRowHeightPx (index);
+    float                      rule   = (float) GetIconDividerPx();
     float                      insetX = m_scaler.ToPxf ((float) kHoverInsetYDip);
-    float                      x      = left + (float) m_metrics.leftPadPx;
+    float                      x      = left + (float) GetIconRowLeftPx();
     HRESULT                    hr     = S_OK;
     size_t                     i      = 0;
+    std::wstring               label;
 
 
 
-    for (i = 0; i < row.children.size(); i++, x += size)
+    for (i = 0; i < row.children.size(); i++, x += size + rule)
     {
         const DxuiCommand  * cmd     = row.children[i].command.get();
         bool                 enabled = cmd != nullptr && cmd->IsEnabled();
@@ -2432,16 +2643,58 @@ void DxuiPopupMenu::PaintIconRow (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         if (index == m_hover && (int) i == m_iconHover && enabled)
         {
-            painter.FillRoundedRect (x + insetX, top + insetX, size - insetX * 2.0f, size - insetX * 2.0f,
+            painter.FillRoundedRect (x + insetX, top + insetX, size - insetX * 2.0f, rowH - insetX * 2.0f,
                                      m_scaler.ToPxf (kHoverRadiusDip), pal.hover);
         }
 
-        hr = text.DrawString (cmd->glyph, x, top, size, size,
+        //  Explorer's: the icon over a small label, and a thin rule between
+        //  one button and the next.
+        if (i > 0)
+        {
+            painter.FillRect (x - rule, std::floor (top + m_scaler.ToPxf (s_kIconRuleTopDip)), rule, m_scaler.ToPxf (s_kIconRuleDip), pal.divider);
+        }
+
+        hr = E_NOTIMPL;
+
+        if (cmd->menuSvg != nullptr)
+        {
+            float  iconPx = m_scaler.ToPxf (s_kIconGlyphDip);
+            float  alpha  = text.GetGlobalAlpha();
+
+            text.SetGlobalAlpha (enabled ? alpha : alpha * s_kDisabledIconAlpha);
+            hr = text.DrawSvgIcon (*cmd->menuSvg, std::floor (x + (size - iconPx) * 0.5f), std::floor (top + m_scaler.ToPxf (s_kIconTopDip)), iconPx);
+            text.SetGlobalAlpha (alpha);
+        }
+
+        if (FAILED (hr))
+        {
+            hr = text.DrawString (cmd->glyph, x, top + m_scaler.ToPxf (s_kIconTopDip), size, m_scaler.ToPxf (s_kIconGlyphDip),
+                                  enabled ? pal.text : pal.disabled,
+                                  m_scaler.ToPxf (s_kIconGlyphDip),
+                                  s_kIconFace,
+                                  DxuiTextHAlign::Center,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        //  The row's own label, less its mnemonic mark and the dots that say a
+        //  dialog follows: a button under an icon is a single word.
+        label = cmd->GetLabelText();
+        label.erase (std::remove (label.begin(), label.end(), L'&'), label.end());
+
+        while (!label.empty() && (label.back() == L'.' || label.back() == L'\x2026'))
+        {
+            label.pop_back();
+        }
+
+        hr = text.DrawString (label.c_str(), x, top + m_scaler.ToPxf (s_kIconLabelTopDip), size, m_scaler.ToPxf (s_kIconLabelBoxDip),
                               enabled ? pal.text : pal.disabled,
-                              m_scaler.ToPxf (s_kIconGlyphDip),
-                              s_kIconFace,
+                              m_scaler.ToPxf (s_kIconLabelDip),
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Center,
-                              DxuiTextVAlign::Center);
+                              DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal,
+                              false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -2483,19 +2736,19 @@ void DxuiPopupMenu::PaintUnderline (
 
     if (!prefix.empty())
     {
-        hr = text.MeasureString (prefix.c_str(), fontDip, DxuiTheme::kBodyFace, prefixW, fullH);
+        hr = text.MeasureString (prefix.c_str(), fontDip, DxuiTheme::GetUiFace(), prefixW, fullH);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
     else
     {
         std::wstring  oneCh (1, stripped[(size_t) mnIdx]);
 
-        hr = text.MeasureString (oneCh.c_str(), fontDip, DxuiTheme::kBodyFace, prefixW, fullH);
+        hr = text.MeasureString (oneCh.c_str(), fontDip, DxuiTheme::GetUiFace(), prefixW, fullH);
         IGNORE_RETURN_VALUE (hr, S_OK);
         prefixW = 0.0f;
     }
 
-    hr = text.MeasureString (prefixCh.c_str(), fontDip, DxuiTheme::kBodyFace, withChW, ignoredH);
+    hr = text.MeasureString (prefixCh.c_str(), fontDip, DxuiTheme::GetUiFace(), withChW, ignoredH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     painter.FillRect (labelX + prefixW, labelY + fullH, withChW - prefixW, kUnderlineThicknessDip, ink);
@@ -2542,7 +2795,7 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
 
     if (button != m_iconHover)
     {
-        m_iconHover = button;
+        SetIconHover (button);
 
         if (m_activePopup != nullptr)
         {

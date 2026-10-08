@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Config/IFileSystem.h"
 
+#include "CassoExplorer/Model/RowGrouping.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/Location.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
@@ -39,10 +40,12 @@ public:
         std::vector<Location>      back;
         std::vector<Location>      forward;
         std::vector<std::wstring>  selection;
-        CatalogModel::Column       sortColumn     = CatalogModel::Column::Name;
-        bool                       sortDescending = false;
-        int                        previewScroll  = 0;
-        bool                       disassemble    = false;
+        CatalogModel::Column       sortColumn      = CatalogModel::Column::Name;
+        bool                       sortDescending  = false;
+        RowGrouping::Field         groupBy         = RowGrouping::Field::None;
+        bool                       groupDescending = false;
+        int                        previewScroll   = 0;
+        bool                       disassemble     = false;
 
         //  The cached catalog and the image it belongs to.
         bool                       hasCatalog     = false;
@@ -89,6 +92,7 @@ public:
     //  Selection and sort within the active tab.
     void  SetSelection (std::vector<std::wstring> ids);
     void  SetSort      (CatalogModel::Column column, bool descending);
+    void  SetGroup     (RowGrouping::Field field, bool descending);
 
     //  The catalog cache.
     bool  TryGetCachedCatalog  (const std::wstring & imagePath, VolumeListing & outListing, VolumeKind & outKind) const;

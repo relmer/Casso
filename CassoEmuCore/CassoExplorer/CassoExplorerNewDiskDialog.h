@@ -61,6 +61,13 @@ public:
     //  The file name with the container's extension, added when it has none.
     static std::wstring  ApplyExtension (const std::wstring & name, int containerIndex);
 
+    //  The container, and the format where the extension implies one, that a
+    //  typed extension asks for: .po a ProDOS-order ProDOS disk, .dsk and .do
+    //  a DOS-order DOS 3.3 disk, .nib a nibble DOS 3.3 disk, .woz a WOZ image
+    //  of either. False, both left alone, for any other extension or none;
+    //  `outFormat` is -1 where the extension implies no format.
+    static bool          GetChoicesForExtension (const std::wstring & name, int & outContainer, int & outFormat);
+
     //  Why a field's value cannot be used, or empty when it can. The file name
     //  is also refused when `exists` reports the name, extension added, as
     //  taken.
@@ -110,6 +117,10 @@ public:
         DxuiTextInput   * volume         = nullptr;
         DxuiFieldError  * volumeError    = nullptr;
         DxuiCheckbox    * bootable       = nullptr;
+
+        //  Format mode's first row: the image being formatted, not editable.
+        DxuiLabel       * fileLabel      = nullptr;
+        DxuiLabel       * fileName       = nullptr;
     };
 
     using TipFn = std::function<std::wstring (IDxuiControl * field)>;
@@ -135,6 +146,7 @@ public:
     static constexpr int  kRowGapDip         = 8;
     static constexpr int  kLabelWidthDip     = 110;
     static constexpr int  kFallbackErrorDip  = 20;
+    static constexpr int  kErrorTopDip       = 4;    // between a box and the message under it
 
 private:
     //  Places the rows down from the top of `bounds`, or only measures them,
@@ -163,7 +175,8 @@ private:
 //
 //  Collects what a new disk image or a format needs, checking each field as it
 //  changes and confirming only when every field passes. In format mode there
-//  is no file to name, so only the format, volume and bootable rows show.
+//  is no file to name: the image's own name shows, not editable, above the
+//  format, volume and bootable rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,8 +194,10 @@ public:
     //  as the name is typed. None skips the check.
     using ExistsFn = std::function<bool (const std::wstring & fileName)>;
 
-    //  Runs the dialog modally over `owner`.
-    static Outcome  Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists = {});
+    //  Runs the dialog modally over `owner`, the format list starting at
+    //  `formatIndex`.
+    static Outcome  Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists = {},
+                         int formatIndex = CassoExplorerNewDiskChoices::kFormatDos33, const std::wstring & target = {});
 
 protected:
     void  OnCreate     () override;
@@ -193,28 +208,38 @@ private:
     //  to the rows the errors leave.
     void  Revalidate   ();
 
+    //  Sets the container and format to what the name's extension asks for,
+    //  when the extension typed has just changed to one that asks.
+    void  FollowTypedExtension (const std::wstring & name);
+
     //  Grows or shrinks the window by the difference between the room the rows
     //  have and the room they need.
     void  FitToContent ();
+    void  FitBeforeShowing ();
 
-    const IDxuiTheme       * m_theme      = nullptr;
-    bool                     m_formatMode = false;
-    bool                     m_fitted     = false;
-    ExistsFn                 m_exists;
-    DxuiButton             * m_ok         = nullptr;
-    DxuiFieldValidator       m_validator;
-    DxuiTooltip              m_tooltip;
-    Outcome                  m_outcome;
-    DxuiLabel                m_nameLabel;
-    DxuiTextInput            m_name;
-    DxuiFieldError           m_nameError;
-    DxuiLabel                m_containerLabel;
-    DxuiComboBox             m_container;
-    DxuiLabel                m_formatLabel;
-    DxuiComboBox             m_format;
-    DxuiLabel                m_volumeLabel;
-    DxuiTextInput            m_volume;
-    DxuiFieldError           m_volumeError;
+    const IDxuiTheme    * m_theme          = nullptr;
+    bool                  m_formatMode     = false;
+    int                   m_formatIndex    = CassoExplorerNewDiskChoices::kFormatDos33;
+    std::wstring          m_target;
+    bool                  m_fitted         = false;
+    ExistsFn              m_exists;
+    std::wstring          m_typedExtension;
+    DxuiButton          * m_ok             = nullptr;
+    DxuiFieldValidator    m_validator;
+    DxuiTooltip           m_tooltip;
+    Outcome               m_outcome;
+    DxuiLabel             m_nameLabel;
+    DxuiTextInput         m_name;
+    DxuiFieldError        m_nameError;
+    DxuiLabel             m_containerLabel;
+    DxuiComboBox          m_container;
+    DxuiLabel             m_formatLabel;
+    DxuiComboBox          m_format;
+    DxuiLabel             m_volumeLabel;
+    DxuiLabel             m_fileLabel;
+    DxuiLabel             m_fileName;
+    DxuiTextInput         m_volume;
+    DxuiFieldError        m_volumeError;
     DxuiCheckbox             m_bootable { L"Bootable (copies the stock system files)" };
     CassoExplorerNewDiskPanel    * m_body       = nullptr;
 };

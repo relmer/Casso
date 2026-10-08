@@ -628,7 +628,7 @@ void DialogBodyContent::PlaceLinkRows (IDxuiTextRenderer & text)
 
 
 
-    hr = text.MeasureString (L"|", fontPx, DxuiTheme::kBodyFace, barW, h);
+    hr = text.MeasureString (L"|", fontPx, DxuiTheme::GetUiFace(), barW, h);
 
     if (FAILED (hr))
     {
@@ -646,7 +646,7 @@ void DialogBodyContent::PlaceLinkRows (IDxuiTextRenderer & text)
 
         if (item.linkBefore != nullptr)
         {
-            hr = text.MeasureString ((item.beforeText + L"|").c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+            hr = text.MeasureString ((item.beforeText + L"|").c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
 
             if (SUCCEEDED (hr))
             {
@@ -655,7 +655,7 @@ void DialogBodyContent::PlaceLinkRows (IDxuiTextRenderer & text)
             }
         }
 
-        hr = text.MeasureString (item.linkText.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        hr = text.MeasureString (item.linkText.c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
 
         if (SUCCEEDED (hr))
         {

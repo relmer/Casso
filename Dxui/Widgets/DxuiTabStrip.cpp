@@ -5,6 +5,7 @@
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiTextElide.h"
 #include "Core/UnicodeSymbols.h"
+#include "Render/DxuiTextRenderer.h"
 
 
 
@@ -708,7 +709,7 @@ void DxuiTabStrip::PaintArrow (IDxuiPainter & painter, IDxuiTextRenderer & text,
                           left, top, (float) arrow, height,
                           color,
                           m_scaler.ToPxf (s_kArrowFontDip),
-                          DxuiTheme::kBodyFace,
+                          DxuiTheme::GetUiFace(),
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
@@ -765,7 +766,9 @@ RECT DxuiTabStrip::GetNewTabRect() const
             left = m_tabs.back().rect.right;
         }
 
-        rc = RECT { left, m_boundsDip.top, left + width, m_boundsDip.bottom };
+        //  Over the tabs' own span rather than the whole strip, which reaches
+        //  above them into the caption.
+        rc = RECT { left, m_tabs.empty() ? m_boundsDip.top : m_tabs.front().rect.top, left + width, m_boundsDip.bottom };
     }
 
     return rc;
@@ -802,27 +805,33 @@ bool DxuiTabStrip::IsOverNewTab (int x, int y) const
 
 void DxuiTabStrip::PaintNewTab (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const
 {
-    constexpr float  s_kGlyphDip     = 16.0f;
+    constexpr float  s_kGlyphDip     = 12.0f;
+    constexpr float  s_kHoverInset   = 4.0f;
     constexpr float  s_kPressedScale = 0.82f;
 
 
 
-    HRESULT  hr = S_OK;
-    RECT     rc = GetNewTabRect();
+    HRESULT  hr    = S_OK;
+    RECT     rc    = GetNewTabRect();
+    float    inset = m_scaler.ToPxf (s_kHoverInset);
 
 
 
+    //  Explorer's: a rounded box inside the button's span, and the icon font's
+    //  thin Add glyph rather than a heavy text plus.
     if (m_hoverNewTab)
     {
-        painter.FillRect ((float) rc.left, (float) rc.top, (float) (rc.right - rc.left), (float) (rc.bottom - rc.top),
-                          m_pressedNewTab ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
+        painter.FillRoundedRect ((float) rc.left + inset, (float) rc.top + inset,
+                                 (float) (rc.right - rc.left) - inset * 2.0f, (float) (rc.bottom - rc.top) - inset * 2.0f,
+                                 m_scaler.ToPxf ((float) s_kCornerDip),
+                                 m_pressedNewTab ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
     }
 
-    hr = text.DrawString (L"+",
+    hr = text.DrawString (s_kpszMdl2Add,
                           (float) rc.left, (float) rc.top, (float) (rc.right - rc.left), (float) (rc.bottom - rc.top),
                           textArgb,
                           m_scaler.ToPxf (s_kGlyphDip),
-                          DxuiTheme::kBodyFace,
+                          DxuiTextRenderer::IsFontFamilyInstalled (L"Segoe Fluent Icons") ? L"Segoe Fluent Icons" : L"Segoe MDL2 Assets",
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
@@ -969,6 +978,53 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabStrip::GetHoverFill
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTabStrip::GetHoverFill (int index, uint32_t hoverArgb) const
+{
+    constexpr float  s_kPressedScale = 0.82f;   // armed-tab tint, a touch darker than hover
+
+
+
+    return (index == m_pressed && index == m_hover) ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabStrip::GetBesideFill
+//
+//  The hover is translucent over the strip, so it is mixed onto it here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTabStrip::GetBesideFill (int index, uint32_t stripArgb, uint32_t hoverArgb) const
+{
+    uint32_t  hover = 0;
+
+
+
+    if (index < 0 || index >= (int) m_tabs.size() || index != m_hover)
+    {
+        return stripArgb;
+    }
+
+    hover = GetHoverFill (index, hoverArgb);
+
+    return DxuiColor::Mix (stripArgb, hover | 0xFF000000u, (float) (hover >> 24) / 255.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabStrip::PaintInternal
 //
 //  Renders the tab row with caller-supplied colors so the themed and
@@ -985,8 +1041,9 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     constexpr float  s_kFocusInsetDip  = 1.0f;
     constexpr float  s_kPadXDp         = 8.0f;
     constexpr float  s_kDividerDip     = 16.0f;
-    constexpr float  s_kPressedScale   = 0.82f;   // armed-tab tint, a touch darker than hover
     constexpr float  s_kMutedTextScale = 0.8f;    // Explorer's #CCCCCC on an unselected tab
+    constexpr float  s_kBaseLineDip    = 1.0f;    // Explorer's 2 px at 150%
+    constexpr float  s_kBaseLineScale  = 0.9f;    // Explorer's #1D1D1D under #202020
 
 
 
@@ -1000,6 +1057,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     float     corner     = m_scaler.ToPxf ((float) s_kCornerDip);
     float     iconPx     = m_scaler.ToPxf ((float) s_kIconDip);
     float     dividerH   = m_scaler.ToPxf (s_kDividerDip);
+    float     baseLine   = (std::max) (1.0f, std::round (m_scaler.ToPxf (s_kBaseLineDip)));
     uint32_t  mutedText  = DxuiColor::Scale (textArgb, s_kMutedTextScale);
     uint32_t  closeHover = (textArgb & 0x00FFFFFFu) | 0x1F000000u;
     uint32_t  closePress = (textArgb & 0x00FFFFFFu) | 0x33000000u;
@@ -1014,6 +1072,52 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
         hr = text.PushClipRect ((float) GetViewLeft(), (float) m_boundsDip.top,
                                 (float) (GetViewRight() - GetViewLeft()), (float) (m_boundsDip.bottom - m_boundsDip.top));
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    //  Explorer's strip ends in a darker line the selected tab breaks, and
+    //  which a hovered tab stops short of.
+    if (HasBounds())
+    {
+        painter.FillRect ((float) GetViewLeft(), (float) m_boundsDip.bottom - baseLine,
+                          (float) (GetViewRight() - GetViewLeft()), baseLine, DxuiColor::Darken (stripArgb, s_kBaseLineScale));
+    }
+
+    //  Fills first, so no fill covers another tab's label or close button;
+    //  the selected tab last.
+    for (i = 0; i < (int) n; ++i)
+    {
+        RECT  r = GetTabScreenRect (i);
+
+        //  Explorer's hovered tab: rounded at the top, square where it meets
+        //  the row below, with a 1 px edge halfway between it and the strip
+        //  along its top and sides.
+        if (i != m_selected && i == m_hover)
+        {
+            float     left   = (float) r.left;
+            float     top    = (float) r.top;
+            float     width  = (float) (r.right - r.left);
+            float     height = (float) (r.bottom - r.top) - baseLine;
+            uint32_t  fill   = GetBesideFill (i, stripArgb, fillArgb);
+            uint32_t  edge   = DxuiColor::Mix (stripArgb, fill, 0.5f);
+
+            painter.FillRoundedRect (left, top, width, height, corner, edge);
+            painter.FillRect        (left, top + height - corner, width, corner, edge);
+            painter.FillRoundedRect (left + 1.0f, top + 1.0f, width - 2.0f, height - 1.0f, (std::max) (corner - 1.0f, 0.0f), fill);
+            painter.FillRect        (left + 1.0f, top + height - corner, width - 2.0f, corner, fill);
+        }
+    }
+
+    if (m_selected >= 0 && m_selected < (int) n)
+    {
+        RECT   r      = GetTabScreenRect (m_selected);
+        float  left   = (float) r.left;
+        float  top    = (float) r.top;
+        float  width  = (float) (r.right - r.left);
+        float  height = (float) (r.bottom - r.top);
+        float  bottom = top + height;
+
+        painter.FillRoundedRect (left, top, width, height, corner, fillArgb);
+        painter.FillRect        (left, bottom - corner, width, corner, fillArgb);
     }
 
     for (i = 0; i < (int) n; ++i)
@@ -1033,24 +1137,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
         float        labelR  = (float) r.right - padX;
         std::wstring shown;
 
-        if (isSel)
-        {
-            painter.FillRoundedRect (left, top, width, height, corner, fillArgb);
-            painter.FillRect        (left, bottom - corner, width, corner, fillArgb);
-
-            //  The flare: a square of fill beside each bottom corner with a
-            //  quarter circle of the strip cut out of it.
-            painter.FillRect         (left - corner,          bottom - corner, corner, corner, fillArgb);
-            painter.FillCircle (left - corner,          bottom - corner, corner, stripArgb);
-            painter.FillRect         (left + width,           bottom - corner, corner, corner, fillArgb);
-            painter.FillCircle (left + width + corner,  bottom - corner, corner, stripArgb);
-        }
-        else if (isHover || isArmed)
-        {
-            painter.FillRoundedRect (left, top, width, height, corner,
-                                     isArmed ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
-        }
-        else if (!nextLit && i + 1 < (int) n)
+        if (!isSel && !isHover && !isArmed && !nextLit && i + 1 < (int) n)
         {
             painter.FillRect (left + width - 1.0f, top + (height - dividerH) * 0.5f, 1.0f, dividerH, dividerArgb);
         }
@@ -1096,13 +1183,13 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
         }
 
         //  A label wider than its room is cut off with an ellipsis, never wrapped.
-        shown = DxuiTextElide::ToWidth (text, t.label, fontDip, DxuiTheme::kBodyFace, (std::max) (labelR - labelX, 0.0f), DxuiElide::Tail);
+        shown = DxuiTextElide::ToWidth (text, t.label, fontDip, DxuiTheme::GetUiFace(), (std::max) (labelR - labelX, 0.0f), DxuiElide::Tail);
 
         hr = text.DrawString (shown.c_str(),
                               labelX, top, (std::max) (labelR - labelX, 0.0f), height,
                               isSel ? textArgb : mutedText,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
                               isSel ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal,

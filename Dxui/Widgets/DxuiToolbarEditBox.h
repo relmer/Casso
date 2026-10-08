@@ -60,6 +60,7 @@ public:
     void                  SetText (const std::wstring & text) { m_input.SetText (text); }
 
     bool  IsFocused  () const { return m_focused; }
+    bool  IsCaretOn  () const { return m_input.IsCaretOn(); }
     void  SetFocused (bool focused);
 
     //  Key and character events while the field has focus. Tab, and keys the

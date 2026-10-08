@@ -314,7 +314,10 @@
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPrefsTests.cpp" />
+    <ClCompile Include="CassoExplorer\FileAssociationsTests.cpp" />
+    <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderViewsTests.cpp" />
+    <ClCompile Include="CassoExplorer\RowGroupingTests.cpp" />
     <ClCompile Include="CassoExplorer\TypedPathHistoryTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderWatchTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
@@ -501,6 +504,7 @@
     <ClCompile Include="Dxui\DxuiRowLookTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnOrderTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />
     <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />

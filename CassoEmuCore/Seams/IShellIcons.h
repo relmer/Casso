@@ -25,8 +25,15 @@ class IShellIcons
 {
 public:
     //  Icons for things with no path of their own: an entry inside a disk
-    //  image, the This PC root, and the emulator the browser belongs to.
-    enum class Kind { ThisPc, Folder, File, Casso };
+    //  image, the This PC root, the emulator the browser belongs to, and a
+    //  disk image, which has Casso's floppy wherever it shows. An
+    //  entry of a known Apple file type has its type's icon: text, Applesoft,
+    //  Integer BASIC, binary, system or relocatable.
+    enum class Kind
+    {
+        ThisPc, Folder, File, Casso, RecycleBin, DiskImage,
+        AppleText, AppleApplesoft, AppleInteger, AppleBinary, AppleSystem, AppleRelocatable,
+    };
 
     virtual ~IShellIcons () = default;
 

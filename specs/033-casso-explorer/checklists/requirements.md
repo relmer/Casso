@@ -35,3 +35,7 @@
   they are the user-facing rule, not an implementation choice.
 - Dependence on the preceding feature's command widgets is recorded in
   Assumptions rather than restated as requirements.
+
+- 2026-10-03: User Story 7, FR-053 to FR-060, SC-016, SC-017 and three assumptions added (navigation pane sections, shell folders, network images, the pane's menu, the address bar's drop-down, search). Checked against every item above: all pass, no clarification markers. The Windows search index and File Explorer's query syntax are named because the owner asked for parity with them; they are the behavior asked for, not a design choice.
+
+- 2026-10-04: User Story 8 added (FR-061 to FR-066, SC-018, SC-019): disk image registration, navigation pane options following File Explorer's, Apple file-type icons. Rechecked against every item above; all still pass, with no clarification markers.

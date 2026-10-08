@@ -1054,7 +1054,7 @@ void EmulatorShell::SyncSceneDriveLabels()
                     float    w  = 0.0f;
                     float    h  = 0.0f;
                     HRESULT  hr = text->MeasureString (std::wstring (run).c_str(), px,
-                                                       DxuiTheme::kBodyFace, w, h);
+                                                       DxuiTheme::GetUiFace(), w, h);
 
                     return SUCCEEDED (hr) ? w : 0.0f;
                 });
@@ -1228,7 +1228,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & 
         DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
                                          0.0f, (float) (i * cellPx.cy),
                                          (float) cellPx.cx, (float) cellPx.cy,
-                                         kLabelArgb, fontPx, DxuiTheme::kBodyFace,
+                                         kLabelArgb, fontPx, DxuiTheme::GetUiFace(),
                                          DxuiTextHAlign::Center, DxuiTextVAlign::Center,
                                          DxuiShadowedText::kGlowReachPx);
     }

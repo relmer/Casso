@@ -55,9 +55,20 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
 
         m_browser.GetSelectedEntries (entries);
 
+        //  A file opens in the program Windows has for it, from a copy, as
+        //  Explorer opens a file inside a zip; a folder opens here.
+        if (std::any_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return !entry.isDirectory; }))
+        {
+            verbs.push_back (Verb::Open);
+        }
+
         if (!entries.empty())
         {
             verbs.push_back (Verb::Get);
+
+            //  The clipboard row's Copy, as for a real file: the entries go on
+            //  as the files a paste would write.
+            verbs.push_back (Verb::Copy);
 
             if (writable)
             {
@@ -65,10 +76,14 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
             }
         }
 
-        if (entries.size() == 1 && writable)
+        //  Rename takes the focused entry, so any selection offers it.
+        if (!entries.empty() && writable)
         {
             verbs.push_back (Verb::Rename);
+        }
 
+        if (entries.size() == 1 && writable)
+        {
             //  A boot file is found in the volume directory, so one in a
             //  subdirectory would never be run.
             if (!entries[0].isDirectory && !nested)
@@ -109,6 +124,11 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
             verbs.push_back (Verb::Open);
             verbs.push_back (Verb::OpenWith);
         }
+        else if (selected > 1)
+        {
+            //  Several open each on its own, as Explorer's Open does.
+            verbs.push_back (Verb::Open);
+        }
 
         verbs.push_back (Verb::Cut);
         verbs.push_back (Verb::Copy);
@@ -121,10 +141,8 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
 
         verbs.push_back (Verb::Delete);
 
-        if (selected == 1)
-        {
-            verbs.push_back (Verb::Rename);
-        }
+        //  Rename takes the focused item, so any selection offers it.
+        verbs.push_back (Verb::Rename);
 
         //  The share sheet takes files, not folders.
         if (!row.isDirectory)
@@ -157,6 +175,22 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
     else if (m_browser.IsImageLocation() && selected == 0)
     {
         verbs.push_back (Verb::NewFolder);
+    }
+
+    //  The Recycle Bin's items go back or go for good, and the shell's menu
+    //  has the rest; its background empties it.
+    if (location.kind == Location::Kind::RecycleBin)
+    {
+        if (selected > 0)
+        {
+            verbs.push_back (Verb::Restore);
+            verbs.push_back (Verb::Delete);
+            verbs.push_back (Verb::MoreOptions);
+        }
+        else if (!m_browser.GetRows().empty())
+        {
+            verbs.push_back (Verb::EmptyRecycleBin);
+        }
     }
 
     verbs.push_back (Verb::Refresh);
@@ -661,7 +695,7 @@ void CassoExplorerActions::Append (Outcome & inOutOutcome, const DiskOperations:
             inOutOutcome.message += L"\n";
         }
 
-        inOutOutcome.message += TextEncoding::NarrowToWide (result.message);
+        inOutOutcome.message += CassoExplorerBrowser::ShortenPaths (TextEncoding::NarrowToWide (result.message));
     }
 
     if (!result.Succeeded())
@@ -841,6 +875,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::PutInto (
 
 
     PutItems (TextEncoding::WideToNarrow (imagePath), kind, directory, hostPaths, askAddress, conversion, outcome);
+    KeepCreatedIn (outcome, directory);
 
     if (outcome.written > 0)
     {
@@ -921,19 +956,67 @@ void CassoExplorerActions::PutItems (
             continue;
         }
 
-        //  Into the directory named, which is the volume's own when empty.
+        //  Into the directory named, which is the volume's own when empty,
+        //  under a name no entry there has.
+        plan.catalogName = MakeFreeEntryName (plan.catalogName, GetEntryNames (image, directory), kind, false);
         plan.catalogName = directory.empty() ? plan.catalogName : directory + "/" + plan.catalogName;
 
         if (plan.usePayload)
         {
-            Append (inOutOutcome, m_browser.GetOperations().WritePayload (image, plan.catalogName, plan.payload));
+            Record (inOutOutcome, m_browser.GetOperations().WritePayload (image, plan.catalogName, plan.payload), plan.catalogName);
         }
         else
         {
-            Append (inOutOutcome, m_browser.GetOperations().Put (image, TextEncoding::WideToNarrow (hostPath), plan.catalogName,
-                                                                 plan.typeName, plan.hasLoadAddress, plan.loadAddress, plan.encoding));
+            Record (inOutOutcome, m_browser.GetOperations().Put (image, TextEncoding::WideToNarrow (hostPath), plan.catalogName,
+                                                                 plan.typeName, plan.hasLoadAddress, plan.loadAddress, plan.encoding),
+                    plan.catalogName);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::Record
+//
+//  Appends the write's result and, when it made the entry, the entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::Record (Outcome & inOutOutcome, const DiskOperations::Result & result, const std::string & catalogPath)
+{
+    Append (inOutOutcome, result);
+
+    if (result.Succeeded())
+    {
+        inOutOutcome.created.push_back (catalogPath);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::KeepCreatedIn
+//
+//  The entries made directly in the directory, without those made inside a
+//  directory that was made too, which go with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::KeepCreatedIn (Outcome & inOutOutcome, const std::string & directory)
+{
+    std::erase_if (inOutOutcome.created, [&directory] (const std::string & path)
+    {
+        size_t  slash = path.find_last_of ('/');
+
+        return ((slash == std::string::npos) ? std::string() : path.substr (0, slash)) != directory;
+    });
 }
 
 
@@ -1003,6 +1086,8 @@ CassoExplorerActions::Outcome CassoExplorerActions::CopyEntriesInto (
         CopyEntry (sourceImage, sourceKind, path, target, targetKind, directory, 0, outcome);
     }
 
+    KeepCreatedIn (outcome, directory);
+
     if (outcome.written > 0)
     {
         FinishWrite (targetImage);
@@ -1034,8 +1119,14 @@ void CassoExplorerActions::CopyEntry (
     Outcome              & inOutOutcome)
 {
     size_t                  slash   = catalogPath.find_last_of ('/');
+    std::string             parent  = (slash == std::string::npos) ? std::string() : catalogPath.substr (0, slash);
+    //  A copy beside its original is named as Explorer's is; anything else
+    //  that collides takes the next free number. Below the top, the entries
+    //  go into a directory just made, where nothing collides.
+    bool                    beside  = sourceImage == targetImage && _stricmp (parent.c_str(), directory.c_str()) == 0;
     std::string             leaf    = (slash == std::string::npos) ? catalogPath : catalogPath.substr (slash + 1);
-    std::string             target  = directory.empty() ? leaf : directory + "/" + leaf;
+    std::string             name    = (depth == 0) ? MakeFreeEntryName (leaf, GetEntryNames (targetImage, directory), targetKind, beside) : leaf;
+    std::string             target  = directory.empty() ? name : directory + "/" + name;
     VolumeListing           listing;
     VolumeKind              listed  = VolumeKind::Unknown;
     DiskOperations::Result  result;
@@ -1057,7 +1148,7 @@ void CassoExplorerActions::CopyEntry (
             return;
         }
 
-        Append (inOutOutcome, m_browser.GetOperations().Mkdir (targetImage, target));
+        Record (inOutOutcome, m_browser.GetOperations().Mkdir (targetImage, target), target);
 
         for (const FileEntry & entry : listing.entries)
         {
@@ -1085,7 +1176,7 @@ void CassoExplorerActions::CopyEntry (
         payload.type = HostFileNaming::TryMapProDosToDos33 (payload.type, mapped) ? mapped : Dos33Volume::kTypeBinary;
     }
 
-    Append (inOutOutcome, m_browser.GetOperations().WritePayload (targetImage, target, payload));
+    Record (inOutOutcome, m_browser.GetOperations().WritePayload (targetImage, target, payload), target);
 }
 
 
@@ -1129,7 +1220,7 @@ void CassoExplorerActions::PutFolder (
 {
     std::vector<FileSystemEntry>  entries;
     std::vector<std::wstring>     children;
-    std::string                   name   = MakeCatalogName (GetLeafName (hostFolder), kind);
+    std::string                   name   = MakeFreeEntryName (MakeCatalogName (GetLeafName (hostFolder), kind), GetEntryNames (image, directory), kind, false);
     std::string                   target = directory.empty() ? name : directory + "/" + name;
     HRESULT                       hr     = S_OK;
 
@@ -1149,7 +1240,7 @@ void CassoExplorerActions::PutFolder (
         return;
     }
 
-    Append (inOutOutcome, m_browser.GetOperations().Mkdir (image, target));
+    Record (inOutOutcome, m_browser.GetOperations().Mkdir (image, target), target);
 
     for (const FileSystemEntry & entry : entries)
     {
@@ -1343,6 +1434,87 @@ std::wstring CassoExplorerActions::MakeUnusedName (const std::wstring & base, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerActions::MakeFreeEntryName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoExplorerActions::MakeFreeEntryName (const std::string & desired, const std::vector<std::string> & taken, VolumeKind kind, bool copy)
+{
+    bool         proDos    = kind == VolumeKind::ProDos;
+    size_t       maxLength = proDos ? kProDosNameMax : kDos33NameMax;
+    std::string  base      = desired;
+    std::string  candidate;
+    int          n         = 1;
+
+
+
+    auto  isTaken = [&taken] (const std::string & name)
+    {
+        return std::any_of (taken.begin(), taken.end(), [&name] (const std::string & one) { return _stricmp (one.c_str(), name.c_str()) == 0; });
+    };
+
+    if (!isTaken (desired))
+    {
+        return desired;
+    }
+
+    if (copy)
+    {
+        std::string  suffix = proDos ? ".COPY" : " - COPY";
+
+        base = desired.substr (0, (std::min) (desired.size(), maxLength - suffix.size())) + suffix;
+    }
+
+    candidate = base;
+
+    while (isTaken (candidate))
+    {
+        std::string  suffix = proDos ? std::format (".{}", ++n) : std::format (" ({})", ++n);
+
+        candidate = base.substr (0, (std::min) (base.size(), maxLength - suffix.size())) + suffix;
+    }
+
+    return candidate;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::GetEntryNames
+//
+//  The names already in an image's directory, which an entry going in must
+//  not take; none when the directory cannot be listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CassoExplorerActions::GetEntryNames (const std::string & image, const std::string & directory) const
+{
+    std::vector<std::string>  names;
+    VolumeListing             listing;
+    VolumeKind                kind = VolumeKind::Unknown;
+
+
+
+    if (m_browser.GetOperations().List (image, directory, listing, kind).Succeeded())
+    {
+        for (const FileEntry & entry : listing.entries)
+        {
+            names.push_back (entry.name);
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerActions::GetNewFolderName
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1401,6 +1573,44 @@ CassoExplorerActions::Outcome CassoExplorerActions::DeleteSelected()
     if (outcome.written > 0)
     {
         FinishWrite (imagePath);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::DeleteEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::DeleteEntries (const std::string & image, const std::vector<std::string> & catalogPaths)
+{
+    Outcome        outcome;
+    VolumeListing  listing;
+    VolumeKind     kind = VolumeKind::Unknown;
+
+
+
+    for (const std::string & path : catalogPaths)
+    {
+        if (m_browser.GetOperations().List (image, path, listing, kind).Succeeded())
+        {
+            Append (outcome, m_browser.GetOperations().Rmdir (image, path, true));
+        }
+        else
+        {
+            Append (outcome, m_browser.GetOperations().Delete (image, path));
+        }
+    }
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (TextEncoding::NarrowToWide (image));
     }
 
     return outcome;
@@ -2182,13 +2392,13 @@ bool CassoExplorerActions::TryParseNumbers (const std::wstring & text, size_t re
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerActions::Outcome CassoExplorerActions::ReadSectors (int track, int sector, int count, const std::wstring & hostPath)
+CassoExplorerActions::Outcome CassoExplorerActions::ReadSectors (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering)
 {
     Outcome  outcome;
 
 
 
-    Append (outcome, m_browser.GetOperations().SectorRead (TextEncoding::WideToNarrow (GetFormatTarget()), DiskOperations::Numbering::Logical,
+    Append (outcome, m_browser.GetOperations().SectorRead (TextEncoding::WideToNarrow (GetFormatTarget()), numbering,
                                                           track, sector, count, TextEncoding::WideToNarrow (hostPath)));
 
     return outcome;
@@ -2204,7 +2414,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::ReadSectors (int track, int 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerActions::Outcome CassoExplorerActions::WriteSectors (int track, int sector, const std::wstring & hostPath)
+CassoExplorerActions::Outcome CassoExplorerActions::WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering)
 {
     Outcome       outcome;
     std::wstring  target = GetFormatTarget();
@@ -2212,7 +2422,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteSectors (int track, int
 
 
     Append (outcome, m_browser.GetOperations().SectorWrite (TextEncoding::WideToNarrow (target), TextEncoding::WideToNarrow (hostPath),
-                                                           DiskOperations::Numbering::Logical, track, sector));
+                                                           numbering, track, sector));
 
     if (outcome.written > 0)
     {

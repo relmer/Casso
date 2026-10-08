@@ -839,10 +839,10 @@ void DisplayPage::SetFadeState (int   focusedControlId,
 void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          const IDxuiTheme & theme)
 {
-    constexpr uint32_t         s_kFocusedBackingArgb = 0xFF202830;   // dark gray, near-opaque
-    constexpr int              s_kIndicatorFontDp    = 12;
-    constexpr int              s_kIndicatorWidthDp   = 140;
-    constexpr const wchar_t  * s_kFont               = DxuiTheme::kBodyFace;
+    constexpr uint32_t    s_kFocusedBackingArgb = 0xFF202830;   // dark gray, near-opaque
+    constexpr int         s_kIndicatorFontDp    = 12;
+    constexpr int         s_kIndicatorWidthDp   = 140;
+    const wchar_t       * s_kFont               = DxuiTheme::GetUiFace();
 
 
 

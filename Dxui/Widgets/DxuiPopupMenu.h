@@ -133,7 +133,16 @@ public:
 
     //  A command row's own icon, between the check and the label. Its box is
     //  a Fluent icon's 20 units, whose ink is Explorer's 16.
-    static constexpr int  s_kRowIconDip = 20;
+    //  Explorer's menu icons: 16 dip, 13 from the menu's edge, their text 11
+    //  past them -- measured from its context menu at 150%.
+    static constexpr int  s_kRowIconDip      = 16;
+    static constexpr int  s_kRowIconLeftDip  = 13;
+    static constexpr int  s_kRowIconGapDip   = 11;
+
+    //  With a check column as well, Explorer's icon and text sit this much
+    //  further right than the column arithmetic puts them: 8 and 2 px at 150%.
+    static constexpr int  s_kGutterIconShiftDip     = 5;
+    static constexpr int  s_kGutterIconTextShiftDip = 1;
 
     DxuiPopupMenu  ();
     ~DxuiPopupMenu () override;
@@ -144,6 +153,12 @@ public:
 
     void  SetOnHighlightChange (SelectFn fn)    { m_onHighlight = std::move (fn); }
     void  SetOnClosed          (ClosedFn fn)    { m_onClosed = std::move (fn); }
+
+    //  Told which button of the icon row the pointer is over, as it moves on
+    //  and off them and as the menu closes, for the host's tooltip; null
+    //  when it is over none.
+    using IconHoverFn = std::function<void (const DxuiCommand * command)>;
+    void  SetOnIconHover       (IconHoverFn fn) { m_onIconHover = std::move (fn); }
 
     // Where a click that dismissed this menu landed, in screen pixels. See
     // DxuiPopupHost::Params::onClickOutside.
@@ -199,6 +214,10 @@ public:
     //  Whether a hosted popup takes mouse capture. A menu bar turns this off
     //  so the strip still sees the pointer and can swap titles on hover.
     void  SetGrabsCapture (bool grabs)          { m_grabsCapture = grabs; }
+
+    //  Rows half a dip shorter, as a command bar's drop-down is beside a
+    //  context menu.
+    void  SetCompactRows  (bool compact)        { m_compactRows = compact; RefreshMetrics(); }
 
     //  The narrowest the next show may be, in pixels, so a menu hung from a
     //  wide control -- an address bar's history -- can match its width. Zero
@@ -299,7 +318,8 @@ private:
     static constexpr int       kFallbackGlyphWidthDip  = 8;
     static constexpr float     kUnderlineThicknessDip  = 1.0f;
     static constexpr uint64_t  kReopenGuardMs          = 250;
-    static constexpr int       kRevealMs               = 150;
+    static constexpr int       kRevealMs               = 250;   // WinUI's menu opening, fitted to Explorer's
+    static constexpr int       kFadeMs                 = 100;
 
     //  Fewer rows than this fit below the anchor, and a hosted menu flips
     //  above it rather than scroll in a sliver.
@@ -309,8 +329,30 @@ private:
 
     //  An icon row's buttons are square, a half again as tall as a command
     //  row, with their glyph at the toolbar's size.
-    static constexpr int       s_kIconRowScalePct      = 150;
+    //  Explorer's icon strip, measured at 150%: 64 dip buttons from 4 px in,
+    //  82 px tall, the icon 21 px down, the label's box 53 px down, and the
+    //  rule between buttons 19 px down and 54 px long.
+    static constexpr int       s_kIconButtonDip        = 64;
+    static constexpr float     s_kIconRowDip           = 164.0f / 3.0f;
+    static constexpr float     s_kIconRowLeftDip       = 3.0f;
+    static constexpr float     s_kIconTopDip           = 14.0f;
+    static constexpr float     s_kIconLabelTopDip      = 106.0f / 3.0f;
+    static constexpr float     s_kIconLabelBoxDip      = 16.32f;
+    static constexpr float     s_kIconRuleTopDip       = 13.0f;
+    static constexpr float     s_kIconRuleDip          = 36.0f;
+    static constexpr float     s_kSeparatorDip         = 10.0f;
     static constexpr float     s_kIconGlyphDip         = 16.0f;
+    static constexpr float     s_kIconLabelDip         = 11.0f;
+    static constexpr float     s_kDisabledIconAlpha    = 0.4f;
+    static constexpr float     s_kCompactCardPadDip    = 3.0f;
+    static constexpr float     s_kCompactSeparatorDip  = 3.0f;
+    static constexpr int       s_kCompactRightTrimDip  = 8;
+    static constexpr float     s_kCompactBorderDarken  = 0.4f;
+    static constexpr float     s_kAcrylicDarkOpacity   = 0.90f;          // the card's tint over the blurred backdrop
+    static constexpr float     s_kAcrylicLightOpacity  = 0.60f;
+    static constexpr float     s_kRadioCenterXDip      = 22.0f;          // 33 px from the card edge at 150%
+    static constexpr float     s_kRadioRadiusDip       = 7.0f / 3.0f;    // 3.5 px at 150%
+    static constexpr uint32_t  s_kRadioAlpha           = 0xC5;           // Windows' secondary text fill
     static constexpr const wchar_t *  s_kIconFace      = L"Segoe Fluent Icons";
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded
@@ -358,6 +400,9 @@ private:
 
     int   GetRowHeightPx     (int index) const;
     int   GetIconButtonPx    () const;
+    void  SetIconHover       (int button);
+    int   GetIconDividerPx   () const;
+    int   GetIconRowLeftPx   () const;
     int   GetIconButtonAt    (int index, int localX) const;
     void  CommitIcon         (int index, int button);
     void  PlaceIconRow       (bool atBottom);
@@ -413,6 +458,7 @@ private:
     SelectFn             m_onSelect;
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
+    IconHoverFn          m_onIconHover;
     std::function<void (POINT)>  m_onClickOutside;
     ClockFn              m_clock;
     bool                 m_committing       = false;
@@ -443,6 +489,9 @@ private:
     DxuiHwndSource     * m_popupHost        = nullptr;
     DxuiPopupHost      * m_activePopup      = nullptr;
     bool                 m_grabsCapture     = true;
+    bool                 m_compactRows      = false;
+    bool                 m_acrylic          = false;   // shown with a blurred backdrop under a translucent card
+    int                  m_cardPadPx        = 0;
     int                  m_minWidthPx       = 0;
     int                  m_maxHeightPx      = 0;
     int                  m_viewportPx       = 0;

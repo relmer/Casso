@@ -32,6 +32,7 @@
 
 
 struct DxuiVectorIcon;
+struct DxuiIconImage;
 
 
 
@@ -51,6 +52,25 @@ struct DxuiCommand
     //  Drawn beside the label in a menu, as Explorer's View menu draws each
     //  view's icon. Absent for most rows, and then no column is kept for it.
     const DxuiVectorIcon         * vectorIcon   = nullptr;
+
+    //  An icon font glyph drawn beside the label in a menu, as Explorer's
+    //  context menu draws its rows' icons, for a row with no vector icon.
+    //  Separate from `glyph`, which a toolbar draws, so a command a toolbar
+    //  shows does not gain an icon in every menu too.
+    const wchar_t                * menuGlyph    = nullptr;
+
+    //  An SVG icon drawn in that place instead, when the renderer can draw
+    //  one; the glyph stands in when it cannot. The text is the host's, and
+    //  must outlive the command.
+    const std::string            * menuSvg      = nullptr;
+
+    //  A full-color image drawn there in place of either, as Explorer draws
+    //  the icon of the program that opens an item beside its Open row.
+    std::shared_ptr<const DxuiIconImage>  menuImage;
+
+    //  One of a group where one is chosen, as Explorer's Sort menu's rows are:
+    //  checked, it is marked with a dot rather than a check.
+    bool                           radio        = false;
 
     //  Absent means never checked.
     bool          IsChecked    () const { return isChecked ? isChecked() : false; }

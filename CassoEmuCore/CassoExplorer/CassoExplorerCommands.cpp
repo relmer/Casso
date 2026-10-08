@@ -36,6 +36,12 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         command->accelerator = (row.accelerator != nullptr) ? row.accelerator : L"";
         command->vectorIcon  = GetMenuIcon (row.id);
 
+        //  A choice of one among several -- a sort, a view, a theme -- is marked
+        //  with a dot, as Explorer marks it.
+        command->radio       = (row.id >= kSortByColumn) || (row.id >= kSortAscending && row.id <= kSortDescending)
+                            || (row.id >= kGroupAscending && row.id <= kGroupDescending)
+                            || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal);
+
         command->dispatch = [this, id]()
         {
             if (m_handlers.dispatch)
@@ -48,6 +54,16 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         {
             return m_handlers.isEnabled ? m_handlers.isEnabled (id) : true;
         };
+
+        if (id == kRestoreItems)
+        {
+            command->labelText = [this, id, label = command->label]()
+            {
+                std::wstring  text = m_handlers.getLabel ? m_handlers.getLabel (id) : std::wstring();
+
+                return text.empty() ? label : text;
+            };
+        }
 
         if (row.checkable)
         {
@@ -64,6 +80,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
     //  short label and tip the strip draws.
     ApplyToolbarRows (kToolbarRows);
     ApplyToolbarRows (kCommandBarRows);
+    ApplyToolbarRows (kRecycleBinRows);
     ApplyToolbarRows (kPreviewToolbarRows);
 }
 
@@ -175,6 +192,27 @@ int CassoExplorerCommands::GetToolbarCommandId (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerCommands::SetMenuSvg
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCommands::SetMenuSvg (int id, const std::string * svg)
+{
+    for (std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        if (command->id == id)
+        {
+            command->menuSvg = svg;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerCommands::Find
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +228,27 @@ std::shared_ptr<const DxuiCommand> CassoExplorerCommands::Find (int id) const
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCommands::SetSvg
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCommands::SetSvg (int id, const std::string * svg)
+{
+    for (const std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        if (command->id == id)
+        {
+            command->menuSvg = svg;
+        }
+    }
 }
 
 
@@ -286,11 +345,26 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildToolbarEntries() con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries() const
+std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (bool recycleBin) const
 {
     std::vector<DxuiToolbar::Entry>  entries = BuildEntries (kCommandBarRows);
+    std::vector<DxuiToolbar::Entry>  bin;
+    auto                             after   = entries.end();
 
 
+
+    //  The bin's buttons follow View, ahead of what lives in See more.
+    if (recycleBin)
+    {
+        bin   = BuildEntries (kRecycleBinRows);
+        after = std::find_if (entries.begin(), entries.end(), [] (const DxuiToolbar::Entry & entry)
+        {
+            return entry.command != nullptr && entry.command->id == kView;
+        });
+
+        after = (after == entries.end()) ? after : after + 1;
+        entries.insert (after, bin.begin(), bin.end());
+    }
 
     for (DxuiToolbar::Entry & entry : entries)
     {

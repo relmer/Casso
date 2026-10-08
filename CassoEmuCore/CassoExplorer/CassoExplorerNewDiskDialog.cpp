@@ -116,6 +116,56 @@ std::wstring CassoExplorerNewDiskChoices::ApplyExtension (const std::wstring & n
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerNewDiskChoices::GetChoicesForExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerNewDiskChoices::GetChoicesForExtension (const std::wstring & name, int & outContainer, int & outFormat)
+{
+    struct Rule
+    {
+        const wchar_t  * extension;
+        int              container;
+        int              format;
+    };
+
+    static constexpr Rule  kRules[] =
+    {
+        { L".woz", 0, -1            },
+        { L".dsk", 1, kFormatDos33  },
+        { L".do",  1, kFormatDos33  },
+        { L".po",  2, kFormatProDos },
+        { L".nib", 3, kFormatDos33  },
+    };
+
+    size_t  dot = name.rfind (L'.');
+
+
+
+    if (dot == std::wstring::npos)
+    {
+        return false;
+    }
+
+    for (const Rule & rule : kRules)
+    {
+        if (_wcsicmp (name.c_str() + dot, rule.extension) == 0)
+        {
+            outContainer = rule.container;
+            outFormat    = rule.format;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerNewDiskChoices::ValidateFileName
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,6 +279,12 @@ void CassoExplorerNewDiskPanel::Init (const Children & children, bool showNameRo
     m_kids         = children;
     m_showNameRows = showNameRows;
 
+    if (children.fileLabel != nullptr && children.fileName != nullptr && !showNameRows)
+    {
+        Adopt (*children.fileLabel);
+        Adopt (*children.fileName);
+    }
+
     Adopt (*children.nameLabel);
     Adopt (*children.name);
     Adopt (*children.nameError);
@@ -294,8 +350,20 @@ int CassoExplorerNewDiskPanel::ArrangeRows (const RECT & bounds, const DxuiDpiSc
     int  fieldX = bounds.left + label;
     int  fieldW = (std::max) ((int) bounds.right - fieldX, 1);
     int  err    = 0;
+    int  errTop = scaler.ToPx (kErrorTopDip);
 
 
+
+    if (!m_showNameRows && m_kids.fileLabel != nullptr && m_kids.fileName != nullptr)
+    {
+        if (place)
+        {
+            m_kids.fileLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+            m_kids.fileName->Layout  (RECT { fieldX, y, bounds.right, y + row }, scaler);
+        }
+
+        y += row + gap;
+    }
 
     if (m_showNameRows)
     {
@@ -307,6 +375,7 @@ int CassoExplorerNewDiskPanel::ArrangeRows (const RECT & bounds, const DxuiDpiSc
 
         y  += row;
         err = GetErrorHeightPx (*m_kids.nameError, fieldW, scaler);
+        y  += (err > 0) ? errTop : 0;
 
         if (place)
         {
@@ -340,6 +409,7 @@ int CassoExplorerNewDiskPanel::ArrangeRows (const RECT & bounds, const DxuiDpiSc
 
     y  += row;
     err = GetErrorHeightPx (*m_kids.volumeError, fieldW, scaler);
+    y  += (err > 0) ? errTop : 0;
 
     if (place)
     {
@@ -492,7 +562,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_volumeLabel })
+    for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_volumeLabel, &m_fileLabel, &m_fileName })
     {
         label->SetTextRole  (DxuiTextRole::Body);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -502,6 +572,8 @@ void CassoExplorerNewDiskDialog::OnCreate()
     m_containerLabel.SetText (L"Image type:");
     m_formatLabel.SetText    (L"Format:");
     m_volumeLabel.SetText    (L"Volume:");
+    m_fileLabel.SetText      (L"File:");
+    m_fileName.SetText       (m_target);
 
     for (DxuiTextInput * input : { &m_name, &m_volume })
     {
@@ -511,9 +583,16 @@ void CassoExplorerNewDiskDialog::OnCreate()
         input->SetOnChange     ([this] (const std::wstring &) { Revalidate(); });
     }
 
+    //  An extension typed on the name picks the container and format to match.
+    m_name.SetOnChange ([this] (const std::wstring & text)
+    {
+        FollowTypedExtension (text);
+        Revalidate();
+    });
+
     //  Typing stops at each field's limit rather than being refused afterward.
     m_name.SetMaxLength   (CassoExplorerNewDiskChoices::kMaxFileNameLength);
-    m_volume.SetMaxLength (CassoExplorerNewDiskChoices::GetVolumeMaxLength (CassoExplorerNewDiskChoices::kFormatDos33));
+    m_volume.SetMaxLength (CassoExplorerNewDiskChoices::GetVolumeMaxLength (m_formatIndex));
 
     //  The default name starts selected, so typing replaces it.
     m_name.SetText   (L"New Disk");
@@ -526,7 +605,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
     m_format.SetPopupHost (GetPopupHost());
     m_format.SetItems     (CassoExplorerNewDiskChoices::GetFormatLabels());
-    m_format.SetSelected  (0);
+    m_format.SetSelected  (m_formatIndex);
     m_format.SetSelect    ([this] (int index)
     {
         size_t  limit = CassoExplorerNewDiskChoices::GetVolumeMaxLength (index);
@@ -554,6 +633,8 @@ void CassoExplorerNewDiskDialog::OnCreate()
     kids.volume         = &m_volume;
     kids.volumeError    = &m_volumeError;
     kids.bootable       = &m_bootable;
+    kids.fileLabel      = &m_fileLabel;
+    kids.fileName       = &m_fileName;
 
     m_body = CreateDialogContent<CassoExplorerNewDiskPanel>();
     m_body->Init (kids, !m_formatMode);
@@ -629,20 +710,23 @@ void CassoExplorerNewDiskDialog::OnCreate()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists)
+CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists,
+                                                                     int formatIndex, const std::wstring & target)
 {
     HRESULT                     hr     = S_OK;
     CassoExplorerNewDiskDialog  dialog;
     DxuiWindow::CreateParams    params;
-    int                         rows   = formatMode ? 3 : 5;
+    int                         rows   = formatMode ? 4 : 5;
 
 
 
     dialog.m_theme      = theme;
     dialog.m_formatMode = formatMode;
     dialog.m_exists     = exists;
+    dialog.m_formatIndex = formatIndex;
+    dialog.m_target      = target;
 
-    params.title                    = formatMode ? L"Format Disk Image" : L"New Disk Image";
+    params.title                    = formatMode ? L"Format disk image" : L"New disk image";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { 460, 130 + rows * (CassoExplorerNewDiskPanel::kRowHeightDip + CassoExplorerNewDiskPanel::kRowGapDip) };
@@ -659,6 +743,7 @@ CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner,
     }
 
     dialog.SetTheme (theme);
+    dialog.FitBeforeShowing();
     dialog.ShowModalDialog (IDOK);
 
     //  Its popup goes back to this dialog's pool before the dialog closes it.
@@ -707,6 +792,57 @@ void CassoExplorerNewDiskDialog::Revalidate()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerNewDiskDialog::FollowTypedExtension
+//
+//  Only a change of extension moves the lists, so a container or format the
+//  user picks afterward stays picked while the rest of the name is typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerNewDiskDialog::FollowTypedExtension (const std::wstring & name)
+{
+    size_t        dot       = name.rfind (L'.');
+    std::wstring  extension = (dot == std::wstring::npos) ? std::wstring() : name.substr (dot);
+    int           container = 0;
+    int           format    = -1;
+    size_t        limit     = 0;
+
+
+
+    if (_wcsicmp (extension.c_str(), m_typedExtension.c_str()) == 0)
+    {
+        return;
+    }
+
+    m_typedExtension = extension;
+
+    if (!CassoExplorerNewDiskChoices::GetChoicesForExtension (name, container, format))
+    {
+        return;
+    }
+
+    m_container.SetSelected (container);
+
+    if (format >= 0)
+    {
+        m_format.SetSelected (format);
+
+        limit = CassoExplorerNewDiskChoices::GetVolumeMaxLength (format);
+        m_volume.SetMaxLength (limit);
+
+        if (m_volume.GetText().size() > limit)
+        {
+            m_volume.SetText (m_volume.GetText().substr (0, limit));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerNewDiskDialog::FitToContent
 //
 //  The buttons are anchored to the window's bottom, so the window itself grows
@@ -741,6 +877,46 @@ void CassoExplorerNewDiskDialog::FitToContent()
     {
         SetWindowPos (GetHwnd(), nullptr, 0, 0, window.right - window.left, window.bottom - window.top + delta,
                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerNewDiskDialog::FitBeforeShowing
+//
+//  The rows are laid out and the window fitted to them while it is still
+//  hidden, so it opens at its size rather than jumping to it once shown. The
+//  window was centered on its owner at the size it was made, so it moves by
+//  half the change to stay centered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerNewDiskDialog::FitBeforeShowing()
+{
+    RECT  client = {};
+    RECT  before = {};
+    RECT  after  = {};
+    int   grown  = 0;
+
+
+
+    if (GetHwnd() == nullptr || !GetClientRect (GetHwnd(), &client) || !GetWindowRect (GetHwnd(), &before))
+    {
+        return;
+    }
+
+    SendMessageW (GetHwnd(), WM_SIZE, SIZE_RESTORED, MAKELPARAM (client.right, client.bottom));
+    FitToContent();
+
+    if (GetWindowRect (GetHwnd(), &after))
+    {
+        grown = (after.bottom - after.top) - (before.bottom - before.top);
+
+        SetWindowPos (GetHwnd(), nullptr, after.left, after.top - grown / 2, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
 }
 

@@ -103,6 +103,107 @@ public:
 
 
 
+    //  A folder keeps its sort and grouping with its view; a folder never
+    //  given one opens by name, up, ungrouped, in its type's view.
+    TEST_METHOD (FolderViews_KeepSortAndGroupPerFolder)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+        FolderViewEntry     entry;
+
+        entry                 = saved.folderViews.GetEntry (L"C:\\Disks", FolderViews::FolderType::Generic);
+        entry.sortColumn      = 3;
+        entry.sortDescending  = true;
+        entry.groupBy         = 2;
+        entry.groupDescending = true;
+        saved.folderViews.Remember (entry);
+
+        //  A later view change keeps the rest.
+        saved.folderViews.Remember (L"c:\\disks", DxuiListView::View::Tiles);
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        entry = loaded.folderViews.GetEntry (L"C:\\Disks\\", FolderViews::FolderType::Generic);
+        Assert::IsTrue   (entry.view == DxuiListView::View::Tiles);
+        Assert::AreEqual (3, entry.sortColumn);
+        Assert::IsTrue   (entry.sortDescending);
+        Assert::AreEqual (2, entry.groupBy);
+        Assert::IsTrue   (entry.groupDescending);
+
+        entry = loaded.folderViews.GetEntry (L"C:\\Other", FolderViews::FolderType::Pictures);
+        Assert::IsTrue   (entry.view == FolderViews::GetDefaultView (FolderViews::FolderType::Pictures));
+        Assert::AreEqual (0, entry.sortColumn);
+        Assert::IsFalse  (entry.sortDescending);
+        Assert::AreEqual (0, entry.groupBy);
+    }
+
+
+
+    //  A folder's own column widths come back with it; another folder has none.
+    TEST_METHOD (FolderViews_KeepColumnWidthsPerFolder)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+        FolderViewEntry     entry;
+
+        entry                 = saved.folderViews.GetEntry (L"C:\\Disks", FolderViews::FolderType::Generic);
+        entry.columnWidthsDip = { 300, 0, 120 };
+        saved.folderViews.Remember (entry);
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        entry = loaded.folderViews.GetEntry (L"c:\\disks", FolderViews::FolderType::Generic);
+        Assert::AreEqual ((size_t) 3, entry.columnWidthsDip.size());
+        Assert::AreEqual (300, entry.columnWidthsDip[0]);
+        Assert::AreEqual (0,   entry.columnWidthsDip[1]);
+        Assert::AreEqual (120, entry.columnWidthsDip[2]);
+
+        Assert::IsTrue (loaded.folderViews.GetEntry (L"C:\\Other", FolderViews::FolderType::Generic).columnWidthsDip.empty());
+    }
+
+
+    //  A folder's column order and choice of columns come back with it, an
+    //  empty choice included; a folder that made none follows the latest.
+    TEST_METHOD (FolderViews_KeepColumnOrderAndChoicePerFolder)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+        FolderViewEntry     entry;
+
+        entry               = saved.folderViews.GetEntry (L"C:\\Disks", FolderViews::FolderType::Generic);
+        entry.columnOrder   = { 0, 2, 1 };
+        entry.columnsChosen = true;
+        entry.hiddenColumns = { 3 };
+        saved.folderViews.Remember (entry);
+
+        entry               = saved.folderViews.GetEntry (L"C:\\All", FolderViews::FolderType::Generic);
+        entry.columnsChosen = true;
+        saved.folderViews.Remember (entry);
+
+        saved.hiddenColumns = { 4, 5 };
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        entry = loaded.folderViews.GetEntry (L"c:\\disks", FolderViews::FolderType::Generic);
+        Assert::IsTrue   (entry.columnOrder == std::vector<int> ({ 0, 2, 1 }));
+        Assert::IsTrue   (entry.columnsChosen);
+        Assert::IsTrue   (entry.hiddenColumns == std::vector<int> ({ 3 }));
+
+        entry = loaded.folderViews.GetEntry (L"C:\\All", FolderViews::FolderType::Generic);
+        Assert::IsTrue   (entry.columnsChosen, L"Every column shown is a choice of its own");
+        Assert::IsTrue   (entry.hiddenColumns.empty());
+
+        Assert::IsFalse  (loaded.folderViews.GetEntry (L"C:\\Other", FolderViews::FolderType::Generic).columnsChosen);
+        Assert::IsTrue   (loaded.hiddenColumns == std::vector<int> ({ 4, 5 }));
+    }
+
+
     TEST_METHOD (Theme_SeededFromCassoOnFirstRunOnly)
     {
         InMemoryFileSystem  fs;
@@ -154,5 +255,25 @@ public:
         hr = prefs.Load (kBase, fs);
 
         Assert::IsTrue (FAILED (hr));
+    }
+
+
+
+    TEST_METHOD (NavPaneOptions_FollowExplorerUntilSet)
+    {
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+
+        //  Only the option set here is kept; the rest stay unset and keep
+        //  following File Explorer's.
+        saved.navShowNetwork = false;
+        AssertSucceeded (loaded.FromJson (saved.ToJson()));
+
+        Assert::IsTrue  (loaded.navShowNetwork.has_value());
+        Assert::IsFalse (*loaded.navShowNetwork);
+        Assert::IsFalse (loaded.navShowThisPc.has_value());
+        Assert::IsFalse (loaded.navShowLibraries.has_value());
+        Assert::IsFalse (loaded.navShowAllFolders.has_value());
+        Assert::IsFalse (loaded.navExpandToCurrent.has_value());
     }
 };

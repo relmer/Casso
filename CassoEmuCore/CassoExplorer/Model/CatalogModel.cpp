@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#pragma comment(lib, "shlwapi.lib")
+
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -257,9 +259,10 @@ void CatalogModel::FromListing (const VolumeListing & listing, VolumeKind kind, 
 bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column column)
 {
     //  Drives go by their letter, as Explorer orders them, whatever their
-    //  volume names.
+    //  volume names. Names go as Explorer's do, numbers by their value: f2
+    //  before f10.
     bool  drives = a.isDrive && b.isDrive;
-    int   byName = drives ? _wcsicmp (a.hostPath.c_str(), b.hostPath.c_str()) : _wcsicmp (a.name.c_str(), b.name.c_str());
+    int   byName = drives ? _wcsicmp (a.hostPath.c_str(), b.hostPath.c_str()) : StrCmpLogicalW (a.name.c_str(), b.name.c_str());
 
 
 
@@ -284,6 +287,19 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
         case Column::Modified:
             if (a.hasModified != b.hasModified) { return !a.hasModified; }
             if (a.modifiedUnix != b.modifiedUnix) { return a.modifiedUnix < b.modifiedUnix; }
+            break;
+
+        case Column::OriginalLocation:
+            if (_wcsicmp (a.originalFolder.c_str(), b.originalFolder.c_str()) != 0) { return _wcsicmp (a.originalFolder.c_str(), b.originalFolder.c_str()) < 0; }
+            break;
+
+        case Column::DateDeleted:
+            if (a.hasDeleted != b.hasDeleted) { return !a.hasDeleted; }
+            if (a.deletedUnix != b.deletedUnix) { return a.deletedUnix < b.deletedUnix; }
+            break;
+
+        case Column::Folder:
+            if (_wcsicmp (a.folderPath.c_str(), b.folderPath.c_str()) != 0) { return _wcsicmp (a.folderPath.c_str(), b.folderPath.c_str()) < 0; }
             break;
 
         case Column::Name:

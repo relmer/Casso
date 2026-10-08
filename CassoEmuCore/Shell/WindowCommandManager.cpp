@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "WindowCommandManager.h"
 
 #include "../AssetBootstrap.h"
@@ -190,6 +192,9 @@ void  WindowCommandManager::PrimeDefaultPrinterDriver()
 
         std::thread ([driver, device] ()
         {
+            HRESULT  hrName = ThreadName::SetForCurrentThread (L"Casso printer probe");
+
+            IGNORE_RETURN_VALUE (hrName, S_OK);
             HDC  h = CreateDCW (driver.c_str(), device.c_str(), nullptr, nullptr);
             if (h != nullptr) { DeleteDC (h); }
         }).join();
@@ -263,7 +268,10 @@ HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
     {
         std::thread ([&] ()
         {
-            const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
+            const DEVMODEW *  dmp    = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
+            HRESULT           hrName = ThreadName::SetForCurrentThread (L"Casso printer probe");
+
+            IGNORE_RETURN_VALUE (hrName, S_OK);
 
             hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
         }).join();

@@ -38,7 +38,14 @@ public:
 
     const std::vector<std::wstring> &  GetEntries () const { return m_entries; }
 
-    static constexpr size_t  kMaxEntries = 10;
+    //  Explorer's own list, newest first, with this list's entries it lacks --
+    //  paths into disk images, which Explorer cannot open -- placed just after
+    //  the nearest newer entry the two share, or first when none is newer. At
+    //  most kMaxEntries, matched without regard to case.
+    static std::vector<std::wstring>  Merge (const std::vector<std::wstring> & explorer, const std::vector<std::wstring> & ours);
+
+    //  Explorer's own TypedPaths list keeps as many.
+    static constexpr size_t  kMaxEntries = 25;
 
 private:
 

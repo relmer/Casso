@@ -233,4 +233,40 @@ public:
 
         AssertSelection (f.input, 0, 18);
     }
+
+
+    TEST_METHOD (Undo_TakesBackARunOfTypingThenTheDeletes_AndRedoPutsThemBack)
+    {
+        DxuiTextInput  input;
+
+        input.SetText    (L"C:\\");
+        input.SetFocused (true);
+        input.SetSelection (3, 3);
+
+        for (wchar_t ch : std::wstring (L"Disks"))
+        {
+            input.OnChar (ch);
+        }
+
+        input.OnKey ((WPARAM) VK_BACK);
+        input.OnKey ((WPARAM) VK_BACK);
+
+        Assert::AreEqual (std::wstring (L"C:\\Dis"), input.GetText());
+
+        Assert::IsTrue   (input.InvokeCommand (DxuiStandardCommand::Undo));
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), input.GetText(), L"The run of Backspaces is one step");
+
+        Assert::IsTrue   (input.InvokeCommand (DxuiStandardCommand::Undo));
+        Assert::AreEqual (std::wstring (L"C:\\"), input.GetText(), L"and so is the run of typing");
+
+        Assert::IsTrue   (input.InvokeCommand (DxuiStandardCommand::Redo));
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), input.GetText(), L"Redo puts the typing back");
+
+        input.SetText (L"new");
+
+        bool  enabled = true;
+
+        Assert::IsTrue  (input.QueryCommand (DxuiStandardCommand::Undo, enabled));
+        Assert::IsFalse (enabled, L"New text starts a new history");
+    }
 };

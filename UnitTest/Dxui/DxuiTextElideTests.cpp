@@ -156,4 +156,35 @@ public:
         Assert::AreEqual (std::wstring (L"text"), Elide (r, L"text", 0.0f,  DxuiElide::Tail));
         Assert::AreEqual (std::wstring (L"text"), Elide (r, L"text", -5.0f, DxuiElide::PathHead));
     }
+
+
+    //  10 characters to a line: a break at the last space, a word with none
+    //  filling the line, and a name running past the last line ending in an
+    //  ellipsis.
+    TEST_METHOD (WrapToLines_BreaksAtSpacesFillsWordsAndElidesTheLast)
+    {
+        MockDxuiTextRenderer       r;
+        std::vector<std::wstring>  two  = DxuiTextElide::WrapToLines (r, L"about_tab.0.png", kFont, L"Segoe UI", 70.0f, 2);
+        std::vector<std::wstring>  word = DxuiTextElide::WrapToLines (r, L"short name.txt",  kFont, L"Segoe UI", 70.0f, 2);
+        std::vector<std::wstring>  fill = DxuiTextElide::WrapToLines (r, L"dot.ted.name.x",  kFont, L"Segoe UI", 70.0f, 2);
+        std::vector<std::wstring>  cut  = DxuiTextElide::WrapToLines (r, L"averyveryverylongname.txt", kFont, L"Segoe UI", 70.0f, 2);
+        std::vector<std::wstring>  one  = DxuiTextElide::WrapToLines (r, L"short", kFont, L"Segoe UI", 70.0f, 2);
+
+        Assert::AreEqual ((size_t) 2, two.size());
+        Assert::AreEqual (std::wstring (L"about_tab."), two[0]);
+        Assert::AreEqual (std::wstring (L"0.png"),      two[1]);
+
+        Assert::AreEqual ((size_t) 2, cut.size());
+        Assert::AreEqual (std::wstring (L"averyveryv"), cut[0], L"no break: cut inside the word");
+        Assert::IsTrue   (cut[1].back() == L'\x2026', L"the last line ends in an ellipsis");
+
+        Assert::AreEqual ((size_t) 1, one.size());
+        Assert::AreEqual (std::wstring (L"short"), one[0]);
+
+        Assert::AreEqual (std::wstring (L"short"),    word[0], L"the break is at the space");
+        Assert::AreEqual (std::wstring (L"name.txt"), word[1], L"never after the period");
+
+        Assert::AreEqual (std::wstring (L"dot.ted.na"), fill[0], L"no space: the line fills");
+        Assert::AreEqual (std::wstring (L"me.x"),       fill[1]);
+    }
 };

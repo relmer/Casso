@@ -69,8 +69,8 @@ string MountDiagnosis::Describe() const
             else
             {
                 snprintf (note, sizeof (note),
-                          "is %s but should be %s, so it is not a valid %s image",
-                          observed.c_str(), required.c_str(), GetPrimaryExtension (format));
+                          "is not a valid %s image. File size is %s but should be %s",
+                          GetPrimaryExtension (format), observed.c_str(), required.c_str());
             }
 
             text = note;
@@ -92,8 +92,8 @@ string MountDiagnosis::Describe() const
             second   = FormatByteCount (NibbleImageCodec::kNb2ImageSize);
 
             snprintf (note, sizeof (note),
-                      "is %s but should be %s or %s, so it is not a valid nibble "
-                      "image",
+                      "is not a valid nibble image. File size is %s but should be "
+                      "%s or %s",
                       observed.c_str(), required.c_str(), second.c_str());
 
             text = note;

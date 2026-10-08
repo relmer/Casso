@@ -219,6 +219,73 @@ public:
     // wrapping DrawString of the same text needs. The default forwards to
     // the single-line measure so implementations without wrapping keep
     // their existing behavior.
+    //  An SVG document drawn into a square, scaled from its viewBox, under
+    //  the renderer's global alpha. A renderer that cannot draw SVG says so,
+    //  and the caller draws something else.
+    virtual HRESULT  DrawSvgIcon (const std::string & svg, float xDip, float yDip, float sizeDip)
+    {
+        UNREFERENCED_PARAMETER (svg);  UNREFERENCED_PARAMETER (xDip);
+        UNREFERENCED_PARAMETER (yDip); UNREFERENCED_PARAMETER (sizeDip);
+
+        return E_NOTIMPL;
+    }
+
+    //  Where a point falls in text laid out in a box as DrawString lays it,
+    //  wrapped: the index of the character boundary nearest it. The point is
+    //  relative to the box's top left. A renderer that cannot lay text out
+    //  says so.
+    virtual HRESULT  HitTestText (const wchar_t  * text,
+                                  float            fontSizeDip,
+                                  const wchar_t  * fontFamily,
+                                  float            widthDip,
+                                  float            heightDip,
+                                  DxuiTextHAlign   hAlign,
+                                  DxuiTextVAlign   vAlign,
+                                  float            xDip,
+                                  float            yDip,
+                                  size_t         & outIndex)
+    {
+        UNREFERENCED_PARAMETER (text);        UNREFERENCED_PARAMETER (fontSizeDip);
+        UNREFERENCED_PARAMETER (fontFamily);  UNREFERENCED_PARAMETER (widthDip);
+        UNREFERENCED_PARAMETER (heightDip);   UNREFERENCED_PARAMETER (hAlign);
+        UNREFERENCED_PARAMETER (vAlign);      UNREFERENCED_PARAMETER (xDip);
+        UNREFERENCED_PARAMETER (yDip);
+
+        outIndex = 0;
+        return E_NOTIMPL;
+    }
+
+    //  The boxes a run of characters covers in the same layout, one per line
+    //  it touches, relative to the box's top left.
+    struct TextRangeRect
+    {
+        float  x      = 0.0f;
+        float  y      = 0.0f;
+        float  width  = 0.0f;
+        float  height = 0.0f;
+    };
+
+    virtual HRESULT  GetTextRangeRects (const wchar_t                * text,
+                                        float                          fontSizeDip,
+                                        const wchar_t                * fontFamily,
+                                        float                          widthDip,
+                                        float                          heightDip,
+                                        DxuiTextHAlign                 hAlign,
+                                        DxuiTextVAlign                 vAlign,
+                                        size_t                         start,
+                                        size_t                         length,
+                                        std::vector<TextRangeRect>   & outRects)
+    {
+        UNREFERENCED_PARAMETER (text);        UNREFERENCED_PARAMETER (fontSizeDip);
+        UNREFERENCED_PARAMETER (fontFamily);  UNREFERENCED_PARAMETER (widthDip);
+        UNREFERENCED_PARAMETER (heightDip);   UNREFERENCED_PARAMETER (hAlign);
+        UNREFERENCED_PARAMETER (vAlign);      UNREFERENCED_PARAMETER (start);
+        UNREFERENCED_PARAMETER (length);
+
+        outRects.clear();
+        return E_NOTIMPL;
+    }
+
     virtual HRESULT  MeasureStringWrapped (const wchar_t  * text,
                                            float            fontSizeDip,
                                            const wchar_t  * fontFamily,
@@ -229,6 +296,36 @@ public:
         UNREFERENCED_PARAMETER (maxWidthDip);
 
         return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+    }
+
+    // A string's width by GDI's whole-pixel advances, as the shell's own
+    // list view measures a caption it wraps. Where GDI is not at hand, the
+    // renderer's own measure.
+    virtual HRESULT  MeasureStringGdi (const wchar_t  * text,
+                                       float            fontSizePx,
+                                       const wchar_t  * fontFamily,
+                                       float          & outWidthPx)
+    {
+        float  height = 0.0f;
+
+        return MeasureString (text, fontSizePx, fontFamily, outWidthPx, height);
+    }
+
+    // Lays out and draws text by GDI's whole-pixel advances while on, as the
+    // shell's list view draws its names, rather than DirectWrite's own. Returns
+    // the setting it replaced, for the caller to put back.
+    virtual bool     SetGdiClassicText (bool on)                               { (void) on; return false; }
+
+    // The distance from one line to the next in GDI's measure, as the shell's
+    // list view stacks a caption's lines. Where GDI is not at hand, the
+    // renderer's own line height.
+    virtual HRESULT  GetLineHeightGdi (float            fontSizePx,
+                                       const wchar_t  * fontFamily,
+                                       float          & outHeightPx)
+    {
+        float  width = 0.0f;
+
+        return MeasureString (L"Ag", fontSizePx, fontFamily, width, outHeightPx);
     }
 
     // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested

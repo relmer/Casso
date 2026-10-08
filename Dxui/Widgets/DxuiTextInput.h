@@ -46,7 +46,8 @@ public:
     ~DxuiTextInput() override = default;
 
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
-    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
+    //  New text is a new start: what came before it cannot be undone into.
+    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undo.clear(); m_redo.clear(); m_lastEdit = EditKind::None; }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
 
     //  Selects every character, so a default value is replaced by the first
@@ -113,11 +114,16 @@ public:
     void  SetMouseHover (int x, int y);
     bool  OnLButtonDown (int x, int y);
     bool  OnLButtonUp   (int x, int y);
+
+    //  The edit menu every text box has, as Windows' do: Undo, Cut, Copy,
+    //  Paste, Delete and Select all, each enabled when it would do something.
+    bool  ShowContextMenu (int x, int y);
     void  OnMouseMove   (int x, int y);
     bool  OnKey         (WPARAM vk);
     bool  OnChar        (wchar_t ch);
 
     void  Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    bool  IsCaretOn     () const;
 
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
@@ -170,21 +176,44 @@ private:
     std::wstring         m_placeholder;
     size_t               m_maxLen            = 64;
     size_t               m_caret             = 0;
-    size_t               m_anchor            = 0;
-    bool                 m_focused           = false;
-    bool                 m_enabled           = true;
-    bool                 m_hover             = false;
-    bool                 m_dragging          = false;
-    bool                 m_chromeless        = false;
-    bool                 m_overText          = false;
-    bool                 m_placeholderItalic = false;
-    const wchar_t      * m_face              = nullptr;   // null: the theme's body face
-    float                m_fontDip           = 13.0f;
-    const IDxuiTheme   * m_theme             = nullptr;
-    HWND                 m_hwnd              = nullptr;
-    IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
-    ChangeFn             m_change;
-    DxuiDpiScaler        m_scaler;
+
+    //  Undo and redo, as an edit box has them: each step the text and the
+    //  selection before it. A run of typing is one step, and so is a run of
+    //  Backspace or Delete, as long as the caret has not moved away from where
+    //  the run left it; anything else is a step of its own.
+    enum class EditKind { None, Typing, Deleting, Other };
+
+    struct EditState
+    {
+        std::wstring  text;
+        size_t        anchor = 0;
+        size_t        caret  = 0;
+    };
+
+    void  RecordEdit (EditKind kind);
+    void  Restore    (std::vector<EditState> & from, std::vector<EditState> & to);
+
+    static constexpr size_t  kMaxUndo = 100;
+
+    std::vector<EditState>    m_undo;
+    std::vector<EditState>    m_redo;
+    EditKind                  m_lastEdit          = EditKind::None;
+    size_t                    m_runCaret          = 0;
+    size_t                    m_anchor            = 0;
+    bool                      m_focused           = false;
+    bool                      m_enabled           = true;
+    bool                      m_hover             = false;
+    bool                      m_dragging          = false;
+    bool                      m_chromeless        = false;
+    bool                      m_overText          = false;
+    bool                      m_placeholderItalic = false;
+    const wchar_t           * m_face              = nullptr;   // null: the theme's body face
+    float                     m_fontDip           = 13.0f;
+    const IDxuiTheme        * m_theme             = nullptr;
+    HWND                      m_hwnd              = nullptr;
+    IDxuiTextRenderer       * m_renderer          = nullptr;   // non-owning
+    ChangeFn                  m_change;
+    DxuiDpiScaler             m_scaler;
 
     // Click counting and word-drag state. The word anchor is the span of the
     // double-clicked word, which a word drag always keeps selected.

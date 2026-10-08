@@ -337,6 +337,26 @@ void BrowserModel::SetSort (CatalogModel::Column column, bool descending)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserModel::SetGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserModel::SetGroup (RowGrouping::Field field, bool descending)
+{
+    Tab &  tab = GetActiveTab();
+
+
+
+    tab.groupBy         = field;
+    tab.groupDescending = descending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserModel::TryGetCachedCatalog
 //
 //  Any tab's cache answers, since a catalog is a fact about the image and
@@ -480,7 +500,12 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
             break;
 
         case Location::Kind::Root:
+        case Location::Kind::RecycleBin:
             segments.push_back (AddressSegment { TreeModel::GetRootLabel (location.path), location });
+            break;
+
+        case Location::Kind::ShellFolder:
+            segments.push_back (AddressSegment { location.label.empty() ? location.path : location.label, location });
             break;
 
         default:
@@ -594,9 +619,16 @@ std::wstring BrowserModel::FormatAddress (const Location & location)
 
 
     //  A root's address is its label, as Explorer's This PC is "This PC".
-    if (location.kind == Location::Kind::Root)
+    if (location.kind == Location::Kind::Root || location.kind == Location::Kind::RecycleBin)
     {
         return TreeModel::GetRootLabel (location.path);
+    }
+
+    //  A shell folder's address is what it shows, as Explorer's Gallery is
+    //  "Gallery".
+    if (location.kind == Location::Kind::ShellFolder)
+    {
+        return location.label.empty() ? location.path : location.label;
     }
 
     if (location.kind != Location::Kind::None)
@@ -631,7 +663,8 @@ std::wstring BrowserModel::FormatAddress (const Location & location)
 
 bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Location & outLocation)
 {
-    constexpr const wchar_t *  s_kpszTrimmed = L" \t\"";
+    constexpr const wchar_t *  s_kpszTrimmed            = L" \t\"";
+    constexpr const wchar_t *  s_kpszRecycleBinShellName = L"shell:RecycleBinFolder";
 
 
 
@@ -662,6 +695,21 @@ bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Lo
             outLocation = Location::MakeRoot (id);
             return true;
         }
+    }
+
+    //  So does the Recycle Bin's, and the shell's own name for it.
+    if (_wcsicmp (path.c_str(), TreeModel::GetRootLabel (Location::kRecycleBinId).c_str()) == 0 || _wcsicmp (path.c_str(), s_kpszRecycleBinShellName) == 0)
+    {
+        outLocation = Location::MakeRecycleBin();
+        return true;
+    }
+
+    //  Any other folder by the shell's own name for it; what it shows is
+    //  asked of the shell when it opens.
+    if (Location::IsShellName (path))
+    {
+        outLocation = Location::MakeShellFolder (path, std::wstring());
+        return true;
     }
 
     if (path.size() == 2 && path[1] == L':')

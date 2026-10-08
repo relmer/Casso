@@ -6,6 +6,108 @@
 #include "Theme/DxuiColor.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Core/DxuiClipboard.h"
+#include "Widgets/DxuiContextMenu.h"
+#include "Window/DxuiHwndSource.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::ShowContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::ShowContextMenu (POINT atDip)
+{
+    DxuiHwndSource *                host = DxuiHwndSource::FromHwnd (m_hwnd);
+    std::vector<DxuiPopupMenuItem>  items;
+    std::vector<DxuiPopupMenuItem>  columns;
+    std::shared_ptr<DxuiCommand>    parent;
+
+
+
+    //  A choice, checked when the view is set to it, applying and reporting.
+    auto  choice = [this] (const wchar_t * label, std::function<bool()> checked, std::function<void()> apply)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->label     = label;
+        command->radio     = true;
+        command->isChecked = std::move (checked);
+        command->dispatch  = [this, apply = std::move (apply)]()
+        {
+            apply();
+
+            if (m_onSettings)
+            {
+                m_onSettings();
+            }
+        };
+
+        return DxuiPopupMenuItem::ForCommand (command);
+    };
+
+    if (host == nullptr)
+    {
+        return;
+    }
+
+    items.push_back (choice (L"Show &text only", [this]() { return !m_showValues; },
+                                                 [this]() { SetShowValues (!m_showValues); }));
+
+    for (int bytes : { 1, 2, 4 })
+    {
+        static constexpr const wchar_t *  s_kLabels[] = { L"&1-byte integer", L"&2-byte integer", nullptr, L"&4-byte integer" };
+
+        items.push_back (choice (s_kLabels[bytes - 1], [this, bytes]() { return m_showValues && m_grouping == bytes; },
+                                                       [this, bytes]() { if (SetGrouping (bytes)) { SetShowValues (true); } }));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    for (ValueFormat format : { ValueFormat::Hex, ValueFormat::Signed, ValueFormat::Unsigned })
+    {
+        const wchar_t *  label = (format == ValueFormat::Hex) ? L"&Hexadecimal" : (format == ValueFormat::Signed) ? L"&Signed" : L"&Unsigned";
+
+        items.push_back (choice (label, [this, format]() { return m_format == format; },
+                                        [this, format]() { SetShowValues (true); SetValueFormat (format); }));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    for (int count : { 0, 1, 2, 4, 8, 16 })
+    {
+        static constexpr const wchar_t *  s_kCounts[] = { L"&Auto", L"&1", L"&2", L"&4", L"&8", L"1&6" };
+        int                               index       = (count == 0) ? 0 : (count == 1) ? 1 : (count == 2) ? 2 : (count == 4) ? 3 : (count == 8) ? 4 : 5;
+
+        columns.push_back (choice (s_kCounts[index], [this, count]() { return m_columns == count; },
+                                                     [this, count]() { SetColumns (count); }));
+    }
+
+    parent        = std::make_shared<DxuiCommand>();
+    parent->label = L"Columns";
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (columns)));
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    {
+        std::shared_ptr<DxuiCommand>  copy = std::make_shared<DxuiCommand>();
+
+        copy->label       = L"&Copy";
+        copy->accelerator = L"Ctrl+C";
+        copy->isEnabled   = [this]() { return m_hasSelection; };
+        copy->dispatch    = [this]() { CopySelection(); };
+        items.push_back (DxuiPopupMenuItem::ForCommand (copy));
+    }
+
+    if (m_onBuildMenu)
+    {
+        m_onBuildMenu (items);
+    }
+
+    DxuiContextMenu::Show (*host, atDip.x, atDip.y, std::move (items));
+}
 
 
 
@@ -2041,6 +2143,10 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
             if (m_onContextMenu)
             {
                 m_onContextMenu (ev.positionDip);
+            }
+            else
+            {
+                ShowContextMenu (ev.positionDip);
             }
 
             return true;

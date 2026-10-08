@@ -9,6 +9,106 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerDragOut::WriteToTempFolder
+//
+//  From the very formats a drag offers, so a file opened is the file a drag
+//  would give: the descriptor names each, and its contents are read in turn.
+//  A folder in the selection is left out; Explorer opens those as folders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerDragOut::WriteToTempFolder (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::vector<std::wstring> & outPaths)
+{
+    HRESULT                                    hr             = S_OK;
+    std::vector<DxuiDragDropSource::Format>    formats        = BuildFormats (browser, style);
+    CLIPFORMAT                                 descriptor     = (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW);
+    CLIPFORMAT                                 contents       = (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS);
+    const DxuiDragDropSource::Format         * names          = nullptr;
+    const DxuiDragDropSource::Format         * bodies         = nullptr;
+    std::vector<uint8_t>                       group;
+    wchar_t                                    temp[MAX_PATH] = {};
+    wchar_t                                    unique[64]     = {};
+    GUID                                       id             = {};
+    std::wstring                               folder;
+    UINT                                       count          = 0;
+    int                                        made           = 0;
+    size_t                                     groupBytes     = 0;
+    DWORD                                      tempChars      = 0;
+    int                                        created        = 0;
+
+
+
+    outPaths.clear();
+
+    for (const DxuiDragDropSource::Format & format : formats)
+    {
+        names  = (format.format == descriptor) ? &format : names;
+        bodies = (format.format == contents)   ? &format : bodies;
+    }
+
+    CBR (names != nullptr && bodies != nullptr);
+
+    hr = names->render (0, group);
+    CHR (hr);
+
+    groupBytes = group.size();
+    CBR (groupBytes >= sizeof (UINT));
+
+    count = reinterpret_cast<const FILEGROUPDESCRIPTORW *> (group.data())->cItems;
+    CBR (groupBytes >= sizeof (UINT) + (size_t) count * sizeof (FILEDESCRIPTORW));
+
+    //  A folder of its own each time, so two files of one name never meet.
+    hr = CoCreateGuid (&id);
+    CHR (hr);
+
+    made      = StringFromGUID2 (id, unique, (int) std::size (unique));
+    tempChars = GetTempPathW (MAX_PATH, temp);
+    CBR (made > 0 && tempChars > 0);
+
+    folder  = std::wstring (temp) + L"Casso Explorer\\" + unique;
+    created = SHCreateDirectoryExW (nullptr, folder.c_str(), nullptr);
+    CBR (created == ERROR_SUCCESS);
+
+    for (UINT index = 0; index < count; index++)
+    {
+        const FILEDESCRIPTORW &  file    = reinterpret_cast<const FILEGROUPDESCRIPTORW *> (group.data())->fgd[index];
+        std::vector<uint8_t>     bytes;
+        std::wstring             path    = folder + L"\\" + file.cFileName;
+        HANDLE                   handle  = INVALID_HANDLE_VALUE;
+        DWORD                    written = 0;
+        BOOL                     wrote   = FALSE;
+        size_t                   length  = 0;
+
+        if ((file.dwFlags & FD_ATTRIBUTES) != 0 && (file.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+        {
+            continue;
+        }
+
+        hr = bodies->render ((int) index, bytes);
+        CHR (hr);
+
+        length = bytes.size();
+
+        handle = CreateFileW (path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CBREx (handle != INVALID_HANDLE_VALUE, HRESULT_FROM_WIN32 (GetLastError()));
+
+        wrote = WriteFile (handle, bytes.data(), (DWORD) length, &written, nullptr);
+        CloseHandle (handle);
+        CBREx (wrote && written == length, HRESULT_FROM_WIN32 (GetLastError()));
+
+        outPaths.push_back (path);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerDragOut::GetEncoding
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -232,6 +232,14 @@ public:
 
     //  As the menu bar's: the open picker's submenu delay needs a heartbeat.
     bool  WantsTick () const { return m_dropdown.WantsTick(); }
+
+    //  Explorer's command bar look: a button shows only a faint fill on hover
+    //  and press, with no border, and its text dims while pressed. Its menus
+    //  leave the mouse with the window, so the bar keeps its hover and tips
+    //  while one is open; the host closes an open menu with CloseMenu on a
+    //  press anywhere else.
+    void  SetFlatStyle (bool flat) { m_flat = flat; m_dropdown.SetGrabsCapture (!flat); m_dropdown.SetCompactRows (flat); }
+    void  CloseMenu    ()          { m_dropdown.Hide(); }
     void  TickMenus (int64_t nowMs) { m_dropdown.Tick (nowMs); }
 
     void  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
@@ -377,10 +385,15 @@ private:
     void  PaintFlyout    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
 
-    std::vector<Slot>        m_slots;
-    std::map<int, Picker>    m_pickers;
-    DxuiPopupMenu            m_dropdown;
-    int                      m_openPicker     = -1;
+    std::vector<Slot>      m_slots;
+    std::map<int, Picker>  m_pickers;
+    DxuiPopupMenu          m_dropdown;
+    int                    m_openPicker  = -1;
+    bool                   m_flat        = false;
+
+    //  WinUI's TextFillColorSecondary alphas, on dark ink and on light.
+    static constexpr uint32_t  kPressedInkAlphaDark  = 0xC5000000u;
+    static constexpr uint32_t  kPressedInkAlphaLight = 0x9E000000u;
 
     IDxuiControl           * m_flyoutControl  = nullptr;
     SIZE                     m_flyoutPanelDp  = {};

@@ -31,6 +31,10 @@ class IDxuiTheme;
 //    Returns:
 //        IDOK / IDCANCEL / IDYES / IDNO / IDRETRY (IDCANCEL on Escape / close).
 //
+//  `buttonLabels`, when given, relabels the set's buttons in order -- an
+//  "Overwrite" and "Cancel" for MB_OKCANCEL, say -- and each still returns
+//  the id its place in the set does.
+//
 //  The one departure from MessageBox is the required `theme`: a Dxui window
 //  needs a theme to render. `owner` supplies the modal parent (disabled while
 //  the box is up) and the HINSTANCE (falling back to the process module when
@@ -38,8 +42,9 @@ class IDxuiTheme;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int  DxuiMessageBox (HWND               owner,
-                     const IDxuiTheme * theme,
-                     const wchar_t    * text,
-                     const wchar_t    * caption,
-                     UINT               uType);
+int  DxuiMessageBox (HWND                                 owner,
+                     const IDxuiTheme                   * theme,
+                     const wchar_t                      * text,
+                     const wchar_t                      * caption,
+                     UINT                                 uType,
+                     const std::vector<const wchar_t *> & buttonLabels = {});

@@ -12,6 +12,8 @@ static constexpr const char *  s_kpszKindHostFolder    = "hostFolder";
 static constexpr const char *  s_kpszKindDiskImage     = "diskImage";
 static constexpr const char *  s_kpszKindDiskDirectory = "diskDirectory";
 static constexpr const char *  s_kpszKindRoot          = "root";
+static constexpr const char *  s_kpszKindRecycleBin    = "recycleBin";
+static constexpr const char *  s_kpszKindShellFolder   = "shellFolder";
 
 
 
@@ -35,6 +37,28 @@ std::wstring CassoExplorerPrefs::GetFilePath (const std::wstring & baseDir)
     }
 
     return path + kFileName;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::GetNavOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::array<std::pair<const char *, CassoExplorerPrefs::NavOption>, 5> CassoExplorerPrefs::GetNavOptions()
+{
+    return
+    {{
+        { "navShowThisPc",      &CassoExplorerPrefs::navShowThisPc      },
+        { "navShowNetwork",     &CassoExplorerPrefs::navShowNetwork     },
+        { "navShowLibraries",   &CassoExplorerPrefs::navShowLibraries   },
+        { "navShowAllFolders",  &CassoExplorerPrefs::navShowAllFolders  },
+        { "navExpandToCurrent", &CassoExplorerPrefs::navExpandToCurrent },
+    }};
 }
 
 
@@ -151,12 +175,19 @@ JsonValue CassoExplorerPrefs::LocationToJson (const Location & location)
         case Location::Kind::DiskImage:     kind = s_kpszKindDiskImage;     break;
         case Location::Kind::DiskDirectory: kind = s_kpszKindDiskDirectory; break;
         case Location::Kind::Root:          kind = s_kpszKindRoot;          break;
+        case Location::Kind::RecycleBin:    kind = s_kpszKindRecycleBin;    break;
+        case Location::Kind::ShellFolder:   kind = s_kpszKindShellFolder;   break;
         default:                            break;
     }
 
     fields.emplace_back ("kind",  JsonValue (std::string (kind)));
     fields.emplace_back ("path",  JsonValue (TextEncoding::WideToNarrow (location.path)));
     fields.emplace_back ("inner", JsonValue (location.innerPath));
+
+    if (!location.label.empty())
+    {
+        fields.emplace_back ("label", JsonValue (TextEncoding::WideToNarrow (location.label)));
+    }
 
     return JsonValue (std::move (fields));
 }
@@ -176,6 +207,7 @@ bool CassoExplorerPrefs::TryLocationFromJson (const JsonValue & value, Location 
     std::string  kind;
     std::string  path;
     std::string  inner;
+    std::string  label;
 
 
 
@@ -187,14 +219,18 @@ bool CassoExplorerPrefs::TryLocationFromJson (const JsonValue & value, Location 
     }
 
     value.HasString ("inner", inner);
+    value.HasString ("label", label);
 
     outLocation.path      = TextEncoding::NarrowToWide (path);
     outLocation.innerPath = inner;
+    outLocation.label     = TextEncoding::NarrowToWide (label);
 
     if (kind == s_kpszKindDiskImage)          { outLocation.kind = Location::Kind::DiskImage; }
     else if (kind == s_kpszKindDiskDirectory) { outLocation.kind = Location::Kind::DiskDirectory; }
     else if (kind == s_kpszKindHostFolder)    { outLocation.kind = Location::Kind::HostFolder; }
     else if (kind == s_kpszKindRoot)          { outLocation.kind = Location::Kind::Root; }
+    else if (kind == s_kpszKindRecycleBin)    { outLocation.kind = Location::Kind::RecycleBin; }
+    else if (kind == s_kpszKindShellFolder)   { outLocation.kind = Location::Kind::ShellFolder; }
     else                                      { return false; }
 
     return true;
@@ -227,8 +263,36 @@ JsonValue CassoExplorerPrefs::ToJson() const
     {
         std::vector<std::pair<std::string, JsonValue>>  fields;
 
-        fields.emplace_back ("key",  JsonValue (TextEncoding::WideToNarrow (entry.key)));
-        fields.emplace_back ("view", JsonValue ((double) (int) entry.view));
+        fields.emplace_back ("key",             JsonValue (TextEncoding::WideToNarrow (entry.key)));
+        fields.emplace_back ("view",            JsonValue ((double) (int) entry.view));
+        fields.emplace_back ("sortColumn",      JsonValue ((double) entry.sortColumn));
+        fields.emplace_back ("sortDescending",  JsonValue (entry.sortDescending));
+        fields.emplace_back ("groupBy",         JsonValue ((double) entry.groupBy));
+        fields.emplace_back ("groupDescending", JsonValue (entry.groupDescending));
+
+        if (!entry.columnWidthsDip.empty())
+        {
+            std::vector<JsonValue>  widths;
+
+            for (int width : entry.columnWidthsDip)
+            {
+                widths.push_back (JsonValue ((double) width));
+            }
+
+            fields.emplace_back ("columnWidths", JsonValue (std::move (widths)));
+        }
+
+        if (!entry.columnOrder.empty())
+        {
+            fields.emplace_back ("columnOrder", MakeIntArray (entry.columnOrder));
+        }
+
+        //  Present, even empty, only for a folder with a choice of its own.
+        if (entry.columnsChosen)
+        {
+            fields.emplace_back ("hiddenColumns", MakeIntArray (entry.hiddenColumns));
+        }
+
         viewValues.push_back (JsonValue (std::move (fields)));
     }
 
@@ -270,6 +334,17 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
     root.emplace_back ("hexFormat",      JsonValue (hexFormat));
+
+    //  An option the user never set is left out, so it keeps following
+    //  File Explorer.
+    for (const auto & [key, option] : GetNavOptions())
+    {
+        if (this->*option)
+        {
+            root.emplace_back (key, JsonValue (*(this->*option)));
+        }
+    }
+
     root.emplace_back ("previewZoom",    JsonValue ((double) previewZoom));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
@@ -277,9 +352,66 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
+    root.emplace_back ("listHiddenColumns", MakeIntArray (hiddenColumns));
     root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
 
     return JsonValue (std::move (root));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::MakeIntArray
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue CassoExplorerPrefs::MakeIntArray (const std::vector<int> & values)
+{
+    std::vector<JsonValue>  elements;
+
+
+
+    for (int value : values)
+    {
+        elements.push_back (JsonValue ((double) value));
+    }
+
+    return JsonValue (std::move (elements));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::ReadIntArray
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> CassoExplorerPrefs::ReadIntArray (const JsonValue & object, const char * key)
+{
+    const JsonValue  * array = nullptr;
+    std::vector<int>   values;
+
+
+
+    if (!object.HasArray (key, array))
+    {
+        return values;
+    }
+
+    for (size_t i = 0; i < array->GetArraySize(); i++)
+    {
+        const JsonValue &  value = array->GetArrayElement (i);
+
+        values.push_back ((value.GetType() == JsonType::Number) ? (int) value.GetNumber() : -1);
+    }
+
+    return values;
 }
 
 
@@ -325,6 +457,15 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("previewVisible", previewVisible);
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("hexShowValues",  hexShowValues);
+    for (const auto & [key, option] : GetNavOptions())
+    {
+        bool  value = false;
+
+        if (root.HasBool (key, value))
+        {
+            this->*option = value;
+        }
+    }
 
     if (root.HasInt ("previewZoom", zoom) && zoom >= kMinPreviewZoom && zoom <= kMaxPreviewZoom)
     {
@@ -425,6 +566,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         }
     }
 
+    if (root.HasArray ("listHiddenColumns", orderArray))
+    {
+        hiddenColumns = ReadIntArray (root, "listHiddenColumns");
+    }
+
     if (root.HasArray ("folderViews", viewArray))
     {
         std::vector<FolderViewEntry>  entries;
@@ -436,7 +582,36 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
 
             if (value.GetType() == JsonType::Object && value.HasString ("key", key) && value.HasInt ("view", view) && view >= 0 && view < kViewCount)
             {
-                entries.push_back (FolderViewEntry { TextEncoding::NarrowToWide (key), (DxuiListView::View) view });
+                FolderViewEntry    entry;
+                int                number = 0;
+                bool               flag   = false;
+                const JsonValue *  widths = nullptr;
+
+                entry.key  = TextEncoding::NarrowToWide (key);
+                entry.view = (DxuiListView::View) view;
+
+                //  Each kept only when present, so a file from before them
+                //  reads with the defaults.
+                if (value.HasInt ("sortColumn", number) && number >= 0)       { entry.sortColumn      = number; }
+                if (value.HasBool ("sortDescending", flag))                   { entry.sortDescending  = flag;   }
+                if (value.HasInt ("groupBy", number) && number >= 0)          { entry.groupBy         = number; }
+                if (value.HasBool ("groupDescending", flag))                  { entry.groupDescending = flag;   }
+
+                if (value.HasArray ("columnWidths", widths))
+                {
+                    for (size_t w = 0; w < widths->GetArraySize(); w++)
+                    {
+                        const JsonValue &  width = widths->GetArrayElement (w);
+
+                        entry.columnWidthsDip.push_back ((width.GetType() == JsonType::Number) ? (std::max) (0, (int) width.GetNumber()) : 0);
+                    }
+                }
+
+                entry.columnOrder   = ReadIntArray (value, "columnOrder");
+                entry.columnsChosen = value.HasArray ("hiddenColumns", widths);
+                entry.hiddenColumns = ReadIntArray (value, "hiddenColumns");
+
+                entries.push_back (entry);
             }
         }
 

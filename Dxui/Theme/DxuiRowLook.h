@@ -33,6 +33,11 @@ struct DxuiRowLook
     uint32_t  fill = 0;
     uint32_t  edge = 0;
 
+    //  The outline's thickness: one DIP in whole pixels, as Explorer draws it. A
+    //  fraction, at 150% one and a half pixels, is smeared across two and reads
+    //  as heavier than Explorer's.
+    static float  GetOutlinePx (float oneDipPx) { return (std::max) (1.0f, std::floor (oneDipPx)); }
+
     static DxuiRowLook  Resolve (const IDxuiTheme & theme, bool selected, bool keyboardRow, bool hovered, bool paneFocused)
     {
         DxuiRowLook  look;

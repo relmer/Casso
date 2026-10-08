@@ -408,7 +408,121 @@ bytes, change the grouping, and copy the selection both ways.
 
 ---
 
+### User Story 7 - Find anything as File Explorer finds it (Priority: P3)
+
+A user who knows File Explorer reaches the same places from Casso Explorer's
+navigation pane, its address bar and its search box: Home, Gallery, OneDrive,
+Quick access, cloud drives, This PC, Libraries, Network and Linux, and the
+shell's other folders through the address bar's drop-down; and a search
+finds files by File Explorer's query syntax, including files inside disk
+images.
+
+**Why this priority**: Casso Explorer stands in for File Explorer when
+browsing disks; a user who cannot reach a folder the way File Explorer
+reaches it goes back to File Explorer for that part of the job.
+
+**Independent Test**: With File Explorer open beside Casso Explorer on the
+same machine, the navigation pane's sections match in order and content;
+pinning a folder in either shows it in both; the address bar's drop-down
+lists the same entries; a query typed in each search box over the same
+folder returns the same host files, and Casso Explorer adds the matching
+files inside the disk images there.
+
+**Acceptance Scenarios**:
+
+1. **Given** File Explorer's navigation pane shows Home, Gallery, OneDrive,
+   Quick access, iCloud Drive, This PC, Libraries, Network and Linux,
+   **When** Casso Explorer opens, **Then** its navigation pane shows the
+   same sections in the same order, Casso's own above them, each opening
+   to what File Explorer shows for it.
+2. **Given** a folder in the list, **When** the user chooses Pin to Quick
+   access, **Then** it appears under Quick access in both Casso Explorer
+   and File Explorer, and Unpin from Quick access removes it from both.
+3. **Given** a disk image on a network share, reached by a UNC path or a
+   mapped drive, **When** the user opens it, **Then** it lists, previews,
+   copies and inserts as one on a local disk does.
+4. **Given** the navigation pane, **When** the user right-clicks its empty
+   area, **Then** Show This PC, Show Network, Show libraries, Show all
+   folders and Expand to current folder are offered, each showing whether
+   it is on, and each choice holds after a restart.
+5. **Given** any location, **When** the user opens the address bar's
+   chevron at its left, **Then** the shell's desktop roots are listed,
+   then the folders on the user's desktop, each with its icon, and
+   choosing one goes there; the address bar shows the location's own icon.
+6. **Given** a folder holding host files and disk images, **When** the user
+   types `kind:document modified:this week` or a plain word in the search
+   box, **Then** the matching files from the folder and its subfolders
+   list with the folder each is in, as File Explorer lists them, and files
+   inside the disk images there that match by name are listed too.
+
+### User Story 8 - Disk images belong to Casso on the desktop (Priority: P3)
+
+A user who registers Casso with Windows sees Casso's icons on disk images in
+File Explorer, opens one there to boot it in Casso, and reaches Casso
+Explorer from Open with. Inside Casso Explorer, each file in an image shows
+an icon for its Apple file type, and the navigation pane matches File
+Explorer's own options until the user sets one differently.
+
+**Why this priority**: A disk image is a document like any other on the
+host; a user who has to start Casso and browse to it every time has a
+worse path than double-clicking it, and a file type nobody can see at a
+glance makes a long catalog slow to read.
+
+**Independent Test**: Register from Casso; File Explorer shows a Casso icon
+on each of the six formats, Open boots the image in Casso, and Open with
+lists Casso Explorer. Unregister; the icons and verbs are gone and nothing
+Casso wrote is left. Separately, a ProDOS disk with system, BASIC, binary
+and text files shows four different icons in every view.
+
+**Acceptance Scenarios**:
+
+1. **Given** Casso is not registered, **When** the user chooses to register
+   it, **Then** files ending in .dsk, .do, .po, .woz, .nib and .nb2 show
+   Casso's disk image icon in File Explorer, for this user alone, with no
+   administrator rights asked for.
+2. **Given** Casso is registered, **When** the user opens a disk image from
+   File Explorer, **Then** Casso starts with that image in its first drive
+   and boots it; **When** the user picks Open with, **Then** Casso Explorer
+   is offered and opens the image as a location.
+3. **Given** Casso is registered, **When** the user chooses to unregister,
+   **Then** every association Casso wrote is removed, and a format another
+   program owned before Casso was registered returns to that program.
+4. **Given** File Explorer shows libraries and hides Network, **When** Casso
+   Explorer opens with no navigation pane option set in it, **Then** its
+   pane shows libraries and hides Network; **When** the user turns Network
+   on in Casso Explorer, **Then** Network shows in Casso Explorer alone,
+   File Explorer is unchanged, and Casso Explorer keeps following File
+   Explorer's other four options.
+5. **Given** a disk image holding files of several DOS 3.3 and ProDOS
+   types, **When** it is listed in any view, **Then** each file shows the
+   icon for its type, and a type with no icon of its own shows the generic
+   file icon.
+
 ### Edge Cases
+
+- **Registration is never silent**: installing, starting or updating Casso
+  writes no association; only the user's own choice in Casso does.
+- **A format another program already owns**: registering takes it for
+  Casso and remembers the program it had, so unregistering gives it back.
+- **Casso moved or reinstalled after registering**: the associations point
+  at the old location; registering again repairs them, and Casso offers to
+  when it finds them stale.
+- **File Explorer's options change while Casso Explorer is open**: an
+  option Casso Explorer still follows changes with them at the next
+  refresh of the pane.
+
+- A navigation pane section whose provider is absent (no OneDrive signed
+  in, no iCloud, no WSL distribution) does not show, as File Explorer
+  leaves it out.
+- A shell folder that is not a disk folder (Gallery, Network, a library)
+  lists what the shell lists in it; the disk-image verbs are not offered
+  on items that are not files.
+- A network share that cannot be reached says so in the list, as a folder
+  that cannot be read does, rather than hanging the window.
+- A search over a folder the index does not cover still finds its files,
+  by walking the folders, and says it is searching until done; a search
+  can be stopped by clearing the box or leaving the location.
+- A search finds nothing: the list says so, as File Explorer's does.
 
 - **A disk image that fails to parse**: it appears in the tree with no
   expand affordance and a tooltip carrying the error; selecting it shows
@@ -795,6 +909,62 @@ bytes, change the grouping, and copy the selection both ways.
   regrouping does to it, and what a copy yields -- MUST be driven by unit
   tests with no window.
 
+- **FR-053**: The navigation pane MUST show File Explorer's sections in
+  File Explorer's order, below Casso's own root: Home, Gallery, the
+  OneDrive root, a divider, Quick access, the cloud provider roots the
+  shell lists in its navigation pane, This PC, Libraries, Network and the
+  Linux root, each present only where File Explorer shows it, and each
+  opening to what File Explorer lists for it.
+- **FR-054**: A location MUST be able to be any shell folder, not only a
+  folder on a disk: its items list, sort, group and preview as File
+  Explorer shows them, and the address bar, tabs, history and the tree
+  follow it as they follow a disk folder.
+- **FR-055**: Quick access MUST list the pinned folders first, then the
+  frequent folders, as File Explorer's does, from the list File Explorer
+  keeps; Pin to Quick access and Unpin from Quick access MUST be offered in
+  Casso Explorer's menus for a folder, and a change made in either program
+  MUST show in the other.
+- **FR-056**: Every disk-image verb MUST work on an image reached through a
+  network path, by UNC path or by mapped drive letter, as on one on a local
+  disk.
+- **FR-057**: The navigation pane's empty-area menu MUST offer File
+  Explorer's Show This PC, Show Network, Show libraries, Show all folders
+  and Expand to current folder; the four shows MUST be checked when on and
+  MUST hold across runs.
+- **FR-058**: The address bar MUST show the current location's icon at its
+  left, and a chevron there MUST drop a list of the shell's desktop roots
+  followed by the folders on the user's desktop, each with its icon, as
+  File Explorer's does; choosing one MUST go there.
+- **FR-059**: The search box MUST take File Explorer's query syntax and
+  search the current location and everything below it, answering from the
+  Windows search index where the location is indexed and by walking the
+  folders where it is not; results MUST list in the file list with the
+  folder each is in, sortable and groupable as any listing, and the search
+  MUST be able to be stopped.
+- **FR-060**: A search MUST also match files inside the disk images in the
+  searched location by name, and the files in Casso's own folders when the
+  search starts from Casso's root; each such result MUST open, preview and
+  copy as it does in its image.
+- **FR-061**: Casso MUST offer to register itself, for the current user,
+  as the program for .dsk, .do, .po, .woz, .nib and .nb2 files, and to
+  unregister; nothing MUST be registered except by that choice, and no
+  administrator rights MUST be needed.
+- **FR-062**: A registered format MUST show Casso's disk image icon in File
+  Explorer, MUST open in Casso with the image in its first drive, and MUST
+  list Casso Explorer under Open with.
+- **FR-063**: Unregistering MUST remove everything registering wrote and
+  MUST give each format back to the program that had it before.
+- **FR-064**: Each of the navigation pane's five options MUST follow File
+  Explorer's own setting until the user sets it in Casso Explorer, and
+  from then MUST keep Casso Explorer's value for that option alone; Casso
+  Explorer MUST NOT change File Explorer's settings.
+- **FR-065**: A file inside a disk image MUST show an icon for its DOS 3.3
+  or ProDOS file type in every view, drawn for Casso, at least for text,
+  Applesoft, Integer BASIC, binary, system, directory and relocatable
+  files; any other type MUST show the generic file icon.
+- **FR-066**: Automated tests that register Casso MUST remove what they
+  wrote, leaving the user's associations as they found them.
+
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -818,6 +988,12 @@ bytes, change the grouping, and copy the selection both ways.
   address bar, most recent first, with no duplicates; persisted.
 - **List view mode**: how the file list draws its entries, one of the
   views FR-044 names; persisted.
+- **Registration**: the formats Casso is the program for, and for each the
+  program that had it before; written and removed only by the user's
+  choice.
+- **Navigation pane option**: one of the pane's five options, either
+  following File Explorer's setting or holding Casso Explorer's own value;
+  persisted.
 
 ## Success Criteria *(mandatory)*
 
@@ -868,6 +1044,20 @@ bytes, change the grouping, and copy the selection both ways.
   and no pause a user can see when scrolling through it.
 - **SC-008**: A hex row, a disassembly line and a text file's columns all
   line up down the pane at every window width and scale.
+
+- **SC-016**: Side by side with File Explorer on the same machine, the
+  navigation pane's sections match File Explorer's in order and in content
+  for every section present, and a pin made in either program shows in
+  the other within one refresh.
+- **SC-017**: A search for a word over a folder of 1,000 indexed files
+  shows its first results within 2 seconds, and returns the same host
+  files File Explorer's search returns for the same query.
+- **SC-018**: After registering, all six formats show Casso's icon in File
+  Explorer and open in Casso with one double-click; after unregistering,
+  a comparison of the user's associations before and after shows no
+  difference.
+- **SC-019**: In a catalog of 50 files of mixed types, a user tells system,
+  BASIC, binary and text files apart by icon alone, in every view.
 
 ## Assumptions
 
@@ -921,3 +1111,17 @@ bytes, change the grouping, and copy the selection both ways.
   walk of the existing control tree plus a few patterns, serves Casso's
   chrome as well, and is its own follow-on feature. Casso Explorer sets names
   and roles now so that provider needs no per-control work here.
+- Registration covers the six formats Casso reads today. 3.5-inch,
+  hard-disk and DOS 3.2 images are tracked separately (GitHub issues 163
+  and 164) and join the list when Casso can open them.
+- Apple file-type icons are drawn for Casso, not taken from Apple's or any
+  other program's artwork, and are used inside Casso Explorer only.
+
+- File Explorer parity for the navigation pane, the address bar's drop-down
+  and search means what File Explorer shows on the same machine at the
+  same time; a section, root or result File Explorer does not show is not
+  expected of Casso Explorer either.
+- Quick access is read from and written through the shell, not kept by
+  Casso Explorer, so the two programs share one list.
+- Search inside disk images matches by entry name only; the files' contents
+  are not indexed.

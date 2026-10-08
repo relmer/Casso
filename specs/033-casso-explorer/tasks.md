@@ -325,3 +325,31 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - The 032 merge is T065, not earlier; everything before it must build against master alone.
 - T083 and T084 execute inside Phase 2 alongside T004 through T007 despite their numbers.
 - Casso is the one writer of hand-offs to `KnownFolders.json` (T036); Casso Explorer appends only for Open in new Casso and Add to Casso.
+
+## Phase 10: Convergence
+
+- [x] T132 Add a shell-folder `Location` kind (parsing name plus display path) that lists any shell folder's items through the shell namespace in `CassoExplorerBrowser`, with address, tabs, history and prefs following it, and the disk-image verbs offered only on file items, per FR-054 (missing)
+- [x] T133 Build File Explorer's navigation sections under Casso's root in `TreeModel` and the tree: Home, Gallery, the OneDrive root, divider, Quick access, the shell's cloud roots, This PC, Libraries, Network, Linux, each only where present, per FR-053 and US7/AC1 (missing)
+- [x] T134 List Quick access from the shell (pinned, then frequent) and add Pin to Quick access and Unpin from Quick access to the list's and tree's menus through the shell's own verbs, per FR-055 and US7/AC2 (missing)
+- [x] T135 Make every disk-image verb work on UNC and mapped-drive paths (address parsing, tree reveal, watchers, writes), and show a share that cannot be reached as an error in the list without blocking the window, per FR-056, US7/AC3 and Edge Cases (partial)
+- [x] T136 Search box per File Explorer: query syntax over the location and below, from the Windows search index where indexed and a background folder walk where not, results with their folders in the list, sortable and groupable, stoppable, and an empty-result message, per FR-059, US7/AC6 and Edge Cases (missing)
+- [x] T137 Add the navigation pane's empty-area menu: Show This PC, Show Network, Show libraries, Show all folders (checked, kept in prefs) and Expand to current folder, per FR-057 and US7/AC4 (missing)
+- [x] T138 Show the current location's icon at the address bar's left with a chevron that drops the shell's desktop roots, then the user's desktop folders, each with its icon, navigating on choice, per FR-058 and US7/AC5 (missing)
+- [ ] T139 Extend search results with name matches inside disk images in the searched location, and in Casso's own folders from Casso's root, each opening, previewing and copying as in its image, per FR-060 (missing)
+- [ ] T140 Record SC-016 (navigation sections and pins side by side with File Explorer) and SC-017 (first results within 2 s over 1,000 indexed files, same host files as File Explorer) in `validation.md`, per SC-016 and SC-017 (missing)
+
+
+## Phase 11: Convergence
+
+- [x] T141 Offer Register and Unregister in Casso for .dsk, .do, .po, .woz, .nib and .nb2, per user with no administrator rights, writing Casso's icon, Open in Casso with the image in its first drive, and Casso Explorer under Open with, and recording each format's previous program so Unregister gives it back, per FR-061, FR-062, FR-063 and US8/AC1-3 (missing)
+- [x] T142 Make each of the navigation pane's five options follow File Explorer's own setting until it is set in Casso Explorer, then keep Casso Explorer's value for that option alone, never writing File Explorer's settings, per FR-064 and US8/AC4 (missing)
+- [x] T143 Draw a sample set of Apple file-type icons (text, Applesoft, Integer BASIC, binary, system, directory, relocatable, generic) and show them for entries inside images in every view, per FR-065, US8/AC5 and SC-019 (missing)
+- [x] T144 Test registration against a scratch registry root, or remove everything the test wrote and compare associations before and after, per FR-066 (missing)
+- [ ] T145 Read disk folders on a network path off the UI thread so that an unreachable share never hangs the window, per FR-056 and Edge Cases (partial)
+- [ ] T146 Complete Show all folders: show the Desktop root holding the pane's other roots, and Control Panel, as File Explorer does, per FR-057 (partial)
+- [ ] T147 Show the OneDrive root with the shell's cloud icon, per FR-053 (partial)
+- [ ] T148 Show the pin icon on pinned folders in the navigation pane, per FR-055 (partial)
+- [ ] T149 Match File Explorer's Content view type line and right column position, per FR-044 and SC-009 (partial)
+- [ ] T150 Match File Explorer's wrap width for names without spaces in Medium icons, per SC-009 (partial)
+- [ ] T151 Record SC-018 and SC-019 in `validation.md`, per SC-018 and SC-019 (missing)
+- [x] T152 Give the drop-down and context menus File Explorer's acrylic backdrop (blurred, tinted desktop behind the card; the popup sized to the card with the system's own rounded corners and shadow), and any other surface where File Explorer uses acrylic, matched by capture in light and dark, per SC-009 (missing)

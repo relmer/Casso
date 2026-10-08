@@ -169,6 +169,12 @@ public:
     // The lines between a list header's columns.
     virtual uint32_t  ContentHeaderDivider () const { return ContentEdge(); }
 
+    // The line between a menu's groups.
+    virtual uint32_t  MenuSeparator () const { return Divider(); }
+
+    // The fill under a menu item the pointer is over.
+    virtual uint32_t  MenuHover () const { return HoverBackground(); }
+
     // The line along the bottom of a tab strip, broken under the selected tab
     // where it joins the row below; none by default.
     virtual uint32_t  TabStripEdge () const { return 0; }

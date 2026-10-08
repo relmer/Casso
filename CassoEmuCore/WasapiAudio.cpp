@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "WasapiAudio.h"
 #include "Audio/AudioGenerator.h"
 #include "Audio/DriveAudioMixer.h"
@@ -210,7 +212,7 @@ HRESULT WasapiAudio::Initialize()
     CHRA (hr);
 
     m_renderStop.store (false, std::memory_order_relaxed);
-    m_renderThread = std::thread (&WasapiAudio::RenderPump, this);
+    m_renderThread = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso audio"); IGNORE_RETURN_VALUE (hrName, S_OK); RenderPump(); });
 
     m_initialized = true;
 

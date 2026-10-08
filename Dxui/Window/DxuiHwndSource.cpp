@@ -2350,6 +2350,29 @@ void DxuiHwndSource::ApplyDwmConfiguration()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FromHwnd
+//
+//  Trusted only for a window whose procedure is this class's, since another
+//  class may keep something else in its user data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHwndSource * DxuiHwndSource::FromHwnd (HWND hwnd)
+{
+    if (hwnd == nullptr || (WNDPROC) GetWindowLongPtr (hwnd, GWLP_WNDPROC) != &DxuiHwndSource::s_WndProcThunk)
+    {
+        return nullptr;
+    }
+
+    return reinterpret_cast<DxuiHwndSource *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  s_WndProcThunk
 //
 //  Forwards Win32 messages to the per-instance WndProc. Stashes
@@ -2408,6 +2431,7 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
     DXUI_ASSERT_UI_THREAD();
 
+
     isHandled = DispatchHostMessage (msg, wp, lp, result);
 
     if (!isHandled && m_client != nullptr)
@@ -2419,6 +2443,7 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
     {
         result = DefaultProc (msg, wp, lp);
     }
+
 
     return result;
 }
@@ -2775,7 +2800,18 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         // -- claim and repaint --
         case WM_CHAR:          isHandled = IsClaimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
         case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:    isHandled = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes); break;
+        case WM_SYSKEYDOWN:
+            isHandled         = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes);
+            m_sysKeyClaimed   = msg == WM_SYSKEYDOWN && isHandled;
+            break;
+
+        //  An Alt shortcut the client took on its key-down is not a menu
+        //  mnemonic as well: DefWindowProc would look for one, find none, and
+        //  beep.
+        case WM_SYSCHAR:
+            isHandled         = m_sysKeyClaimed;
+            m_sysKeyClaimed   = false;
+            break;
         case WM_TIMER:         isHandled = IsClaimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
                                                       RepaintOnClaim::Yes); break;
 

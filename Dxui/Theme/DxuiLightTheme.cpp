@@ -44,7 +44,7 @@ DxuiLightTheme::DxuiLightTheme()
     navStrip                 = 0xFFF8F8F8;
     navHover                 = 0xFFCCE4F7;
     navItemText              = 0xFF1A1A1A;
-    dropdownBg               = 0xFFF9F9F9;
+    dropdownBg               = 0xFFFCFCFC;
     dropdownItemText         = 0xFF1A1A1A;
     dropdownAccel            = 0xFF5D5D5D;
     dropdownHover            = 0xFFEAEAEA;

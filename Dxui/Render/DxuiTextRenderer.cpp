@@ -56,6 +56,16 @@ D2D1_COLOR_F  DxuiTextRenderer::ColorFromArgb (uint32_t argbColor)
 DxuiTextRenderer::~DxuiTextRenderer()
 {
     Shutdown();
+
+    for (const auto & [key, font] : m_gdiFonts)
+    {
+        DeleteObject (font);
+    }
+
+    if (m_gdiDc != nullptr)
+    {
+        DeleteDC (m_gdiDc);
+    }
 }
 
 
@@ -1212,6 +1222,7 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     key.wrap    = wrap;
     key.maxW    = maxWidthDip;
     key.maxH    = maxHeightDip;
+    key.gdi     = m_gdiClassic;
 
     {
         auto  it = m_layoutCache.find (key);
@@ -1229,12 +1240,28 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     CHRA (hr);
     format.Attach (rawFmt);
 
-    hr = m_dwriteFactory->CreateTextLayout (text,
-                                            (UINT32) wcslen (text),
-                                            format.Get(),
-                                            maxWidthDip,
-                                            maxHeightDip,
-                                            &layout);
+    if (m_gdiClassic)
+    {
+        hr = m_dwriteFactory->CreateGdiCompatibleTextLayout (text,
+                                                             (UINT32) wcslen (text),
+                                                             format.Get(),
+                                                             maxWidthDip,
+                                                             maxHeightDip,
+                                                             1.0f,
+                                                             nullptr,
+                                                             FALSE,
+                                                             &layout);
+    }
+    else
+    {
+        hr = m_dwriteFactory->CreateTextLayout (text,
+                                                (UINT32) wcslen (text),
+                                                format.Get(),
+                                                maxWidthDip,
+                                                maxHeightDip,
+                                                &layout);
+    }
+
     CHRA (hr);
 
     switch (hAlign)
@@ -1973,6 +2000,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EraseRoundedRect
+//
+//  Clears a rounded rect of the target to transparent, edges antialiased:
+//  a copy, not a blend, so what was drawn there is gone rather than covered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::EraseRoundedRect (float xDip, float yDip, float widthDip, float heightDip, float radiusDip)
+{
+    HRESULT                        hr      = S_OK;
+    ComPtr<ID2D1SolidColorBrush>   brush;
+    D2D1_ROUNDED_RECT              rounded = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    hr = m_d2dContext->CreateSolidColorBrush (D2D1::ColorF (0.0f, 0.0f, 0.0f, 0.0f), &brush);
+    CHRA (hr);
+
+    rounded.rect    = D2D1::RectF (xDip, yDip, xDip + widthDip, yDip + heightDip);
+    rounded.radiusX = radiusDip;
+    rounded.radiusY = radiusDip;
+
+    m_d2dContext->SetPrimitiveBlend    (D2D1_PRIMITIVE_BLEND_COPY);
+    m_d2dContext->FillRoundedRectangle (&rounded, brush.Get());
+    m_d2dContext->SetPrimitiveBlend    (D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PushClipRect / PopClipRect
 //
 //  Forwards directly to ID2D1DeviceContext's clip stack. All drawing
@@ -2248,6 +2316,114 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DrawSvgIcon
+//
+//  Direct2D lays the document out at a viewport size, so one is kept per
+//  icon and size, the oldest going when the cache fills. The document is
+//  drawn at the origin, so the transform moves it to its place for the call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::DrawSvgIcon (const std::string & svg, float xDip, float yDip, float sizeDip)
+{
+    HRESULT                      hr       = S_OK;
+    ComPtr<ID2D1DeviceContext5>  context;
+    ComPtr<IStream>              stream;
+    ID2D1SvgDocument           * document = nullptr;
+    size_t                       key      = std::hash<std::string>{} (svg);
+    HGLOBAL                      global   = nullptr;
+    void                       * bytes    = nullptr;
+    D2D1_MATRIX_3X2_F            saved    = {};
+    bool                         layered  = false;
+    bool                         drawable = !svg.empty() && sizeDip > 0.0f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+    CBREx (drawable, E_INVALIDARG);
+
+    hr = m_d2dContext.As (&context);
+    BAIL_OUT_IF (FAILED (hr), E_NOTIMPL);
+
+    for (const SvgIcon & cached : m_svgIcons)
+    {
+        if (cached.key == key && cached.size == sizeDip)
+        {
+            document = cached.document.Get();
+            break;
+        }
+    }
+
+    if (document == nullptr)
+    {
+        SvgIcon  added;
+
+        global = GlobalAlloc (GMEM_MOVEABLE, svg.size());
+        CWR (global);
+
+        bytes = GlobalLock (global);
+        CWR (bytes);
+
+        memcpy (bytes, svg.data(), svg.size());
+        GlobalUnlock (global);
+
+        //  The stream owns the memory from here.
+        hr = CreateStreamOnHGlobal (global, TRUE, &stream);
+        CHR (hr);
+
+        global = nullptr;
+
+        hr = context->CreateSvgDocument (stream.Get(), D2D1::SizeF (sizeDip, sizeDip), &added.document);
+        CHR (hr);
+
+        added.key  = key;
+        added.size = sizeDip;
+
+        if (m_svgIcons.size() >= kMaxSvgIcons)
+        {
+            m_svgIcons.erase (m_svgIcons.begin());
+        }
+
+        m_svgIcons.push_back (std::move (added));
+        document = m_svgIcons.back().document.Get();
+    }
+
+    if (m_globalAlpha < 1.0f)
+    {
+        context->PushLayer (D2D1::LayerParameters1 (D2D1::InfiniteRect(), nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+                                                    D2D1::IdentityMatrix(), m_globalAlpha),
+                            nullptr);
+        layered = true;
+    }
+
+    context->GetTransform (&saved);
+    context->SetTransform (D2D1::Matrix3x2F::Translation (xDip, yDip) * saved);
+    context->DrawSvgDocument (document);
+    context->SetTransform (saved);
+
+    if (layered)
+    {
+        context->PopLayer();
+    }
+
+Error:
+    if (global != nullptr)
+    {
+        GlobalFree (global);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AddIconBitmap
 //
 //  The oldest entry goes when the cache is full. D2D holds its own reference
@@ -2391,6 +2567,238 @@ HRESULT DxuiTextRenderer::MeasureString (
 
     outWidthDip  = metrics.widthIncludingTrailingWhitespace;
     outHeightDip = metrics.height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestText
+//
+//  The same cached, shaped layout a wrapping DrawString of this box uses, so
+//  a point lands on the character drawn under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::HitTestText (
+    const wchar_t  * text,
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    float            widthDip,
+    float            heightDip,
+    DxuiTextHAlign   hAlign,
+    DxuiTextVAlign   vAlign,
+    float            xDip,
+    float            yDip,
+    size_t         & outIndex)
+{
+    HRESULT                    hr        = S_OK;
+    ComPtr<IDWriteTextLayout>  layout;
+    IDWriteTextLayout        * rawLayout = nullptr;
+    BOOL                       trailing  = FALSE;
+    BOOL                       inside    = FALSE;
+    DWRITE_HIT_TEST_METRICS    metrics   = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    outIndex = 0;
+
+    CBRAEx (text, E_INVALIDARG);
+    CBR (m_dwriteFactory);
+
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal, hAlign, vAlign, true,
+                       widthDip, heightDip, &rawLayout);
+    CHRA (hr);
+
+    layout.Attach (rawLayout);
+
+    hr = layout->HitTestPoint (xDip, yDip, &trailing, &inside, &metrics);
+    CHRA (hr);
+
+    outIndex = (size_t) metrics.textPosition + (trailing ? metrics.length : 0);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTextRangeRects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::GetTextRangeRects (
+    const wchar_t                * text,
+    float                          fontSizeDip,
+    const wchar_t                * fontFamily,
+    float                          widthDip,
+    float                          heightDip,
+    DxuiTextHAlign                 hAlign,
+    DxuiTextVAlign                 vAlign,
+    size_t                         start,
+    size_t                         length,
+    std::vector<TextRangeRect>   & outRects)
+{
+    HRESULT                               hr        = S_OK;
+    ComPtr<IDWriteTextLayout>             layout;
+    IDWriteTextLayout                   * rawLayout = nullptr;
+    UINT32                                count     = 0;
+    std::vector<DWRITE_HIT_TEST_METRICS>  metrics;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    outRects.clear();
+
+    CBRAEx (text, E_INVALIDARG);
+    CBR (m_dwriteFactory);
+    BAIL_OUT_IF (length == 0, S_OK);
+
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal, hAlign, vAlign, true,
+                       widthDip, heightDip, &rawLayout);
+    CHRA (hr);
+
+    layout.Attach (rawLayout);
+
+    //  Asked once for the count, then for the boxes.
+    hr = layout->HitTestTextRange ((UINT32) start, (UINT32) length, 0.0f, 0.0f, nullptr, 0, &count);
+    BAIL_OUT_IF (hr != E_NOT_SUFFICIENT_BUFFER && FAILED (hr), hr);
+
+    metrics.resize (count);
+
+    hr = layout->HitTestTextRange ((UINT32) start, (UINT32) length, 0.0f, 0.0f, metrics.data(), count, &count);
+    CHRA (hr);
+
+    for (UINT32 i = 0; i < count; i++)
+    {
+        outRects.push_back (TextRangeRect { metrics[i].left, metrics[i].top, metrics[i].width, metrics[i].height });
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectGdiFont
+//
+//  The face at a whole pixel height into the measuring DC; each face and
+//  height is made once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::SelectGdiFont (float fontSizePx, const wchar_t * fontFamily)
+{
+    HRESULT                         hr     = S_OK;
+    int                             height = -(int) std::lround (fontSizePx);
+    std::pair<std::wstring, int>    key    = { (fontFamily != nullptr) ? fontFamily : L"Segoe UI", height };
+    HFONT                           font   = nullptr;
+
+
+
+    if (m_gdiDc == nullptr)
+    {
+        m_gdiDc = CreateCompatibleDC (nullptr);
+        CWR (m_gdiDc != nullptr);
+    }
+
+    if (!m_gdiFonts.contains (key))
+    {
+        font = CreateFontW (height, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                            CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, key.first.c_str());
+        CWR (font != nullptr);
+        m_gdiFonts[key] = font;
+    }
+
+    SelectObject (m_gdiDc, m_gdiFonts[key]);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLineHeightGdi
+//
+//  The font's height in GDI's measure, ascent and descent each rounded:
+//  25 px for Segoe UI at 150%, where its own metrics give 23.9.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::GetLineHeightGdi (float fontSizePx, const wchar_t * fontFamily, float & outHeightPx)
+{
+    HRESULT     hr      = S_OK;
+    TEXTMETRICW metrics = {};
+    BOOL        gotIt   = FALSE;
+
+
+
+    outHeightPx = 0.0f;
+
+    hr = SelectGdiFont (fontSizePx, fontFamily);
+    CHR (hr);
+
+    gotIt = GetTextMetricsW (m_gdiDc, &metrics);
+    CWR (gotIt);
+
+    outHeightPx = (float) metrics.tmHeight;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureStringGdi
+//
+//  The face at a whole pixel height, measured by DrawText with its kerning,
+//  as the shell's list view lays out a caption; each face and height is made
+//  once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::MeasureStringGdi (const wchar_t * text, float fontSizePx, const wchar_t * fontFamily, float & outWidthPx)
+{
+    HRESULT  hr     = S_OK;
+    RECT     box    = {};
+    int      drawn  = 0;
+
+
+
+    outWidthPx = 0.0f;
+
+    hr = SelectGdiFont (fontSizePx, fontFamily);
+    CHR (hr);
+
+    //  DrawText's measure, kerning pairs included, as the shell's own.
+    drawn = DrawTextW (m_gdiDc, text, -1, &box, DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX);
+    CWR (drawn != 0 || text[0] == L'\0');
+
+    outWidthPx = (float) (box.right - box.left);
 
 Error:
     return hr;

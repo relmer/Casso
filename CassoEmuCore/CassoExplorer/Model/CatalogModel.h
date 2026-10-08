@@ -53,6 +53,22 @@ struct CatalogRow
     //  A root's row: the folder or drive it opens, whose icon it shows.
     std::wstring  hostPath;
 
+    //  A Recycle Bin row: the shell's id for the item, the folder it was
+    //  deleted from, and when.
+    std::wstring  recycledId;
+    std::wstring  originalFolder;
+
+    //  A search result's folder, and for a file inside a disk image, the
+    //  image it is in.
+    std::wstring  folderPath;
+    std::wstring  imagePath;
+    int64_t       deletedUnix  = 0;
+    bool          hasDeleted   = false;
+
+    //  A shell folder's row: the shell's own name for the item, which opens it
+    //  whether or not it is a file; hostPath holds its path when it has one.
+    std::wstring  shellId;
+
     //  Where the row came from in the listing it was built from, so a sort
     //  can be undone by the consumer and a selection can find its entry.
     size_t        sourceIndex  = 0;
@@ -82,7 +98,8 @@ class CatalogModel
 public:
     //  In File Explorer's order: Name, Date modified, Type, Size, then the
     //  two only a disk catalog has.
-    enum class Column { Name, Modified, Type, Size, Address, Locked };
+    //  The last two are the Recycle Bin's, shown only there.
+    enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder };
 
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);

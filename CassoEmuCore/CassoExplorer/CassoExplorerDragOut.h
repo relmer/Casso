@@ -40,6 +40,11 @@ public:
     //  moved, so every file is read before the clipboard is set.
     static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style);
 
+    //  The selected files written to a folder of their own under the user's
+    //  temporary folder, as Explorer opens a file inside a zip: each by the
+    //  name a copy out would give it.
+    static HRESULT  WriteToTempFolder (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::vector<std::wstring> & outPaths);
+
     //  A FILEGROUPDESCRIPTORW holding one descriptor per entry.
     static std::vector<uint8_t>  MakeFileGroupDescriptor (const std::vector<DragPayload::Descriptor> & descriptors);
 

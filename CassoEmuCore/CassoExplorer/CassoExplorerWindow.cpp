@@ -5,12 +5,23 @@
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/CassoExplorerProperties.h"
+#include "CassoExplorer/CassoExplorerRawDialog.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/Model/CassoTargeting.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "AssetBootstrap.h"
+#include "CassoExplorer/Model/SearchQuery.h"
+#include "Config/FileAssociations.h"
+#include "Config/GlobalUserPrefs.h"
+#include "Seams/Win32UserClasses.h"
+#include "Config/Win32FileSystem.h"
+#include "Core/MachineConfig.h"
+#include "Core/MachineScanner.h"
+#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Core/DxuiClipboard.h"
@@ -19,6 +30,21 @@
 #include "Theme/DxuiWindowsThemeColors.h"
 #include "Window/DxuiMessageBox.h"
 #include "resource.h"
+
+
+
+
+
+//  The Theme menu's rows, in order, by the theme each one selects.
+static constexpr const char *  s_kpszThemeRows[] =
+{
+    CassoExplorerPrefs::kThemeLight,
+    CassoExplorerPrefs::kThemeDark,
+    CassoExplorerPrefs::kThemeFollowSystem,
+    CassoExplorerPrefs::kThemeSkeuomorphic,
+    CassoExplorerPrefs::kThemeDarkModern,
+    CassoExplorerPrefs::kThemeRetroTerminal,
+};
 
 
 
@@ -38,7 +64,8 @@ CassoExplorerWindow::CassoExplorerWindow (CassoExplorerBrowser & browser, CassoE
       m_commands (CassoExplorerCommands::Handlers {
                       [this] (int id)       { Dispatch (id); },
                       [this] (int id)       { return IsEnabled (id); },
-                      [this] (int id)       { return IsChecked (id); } })
+                      [this] (int id)       { return IsChecked (id); },
+                      [this] (int id)       { return GetCommandLabel (id); } })
 {
 }
 
@@ -54,7 +81,9 @@ CassoExplorerWindow::CassoExplorerWindow (CassoExplorerBrowser & browser, CassoE
 
 CassoExplorerWindow::~CassoExplorerWindow()
 {
+    m_shellVerbs.UnwatchRecycleBin();
     m_dropTarget.Shutdown();
+    m_labelTip.Hide();
     DestroyBackend();
 }
 
@@ -130,8 +159,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
 
     ApplyTheme();
 
-    //  The tooltip's dwell runs on a timer: nothing else ticks this window.
-    SetTimer (GetHwnd(), kTooltipTimerId, kTooltipTickMs, nullptr);
+    //  The animation tick starts with the first input; see ArmTick.
 
     //  Files and folders dropped on the list or the tree go into the image or
     //  directory under the pointer, and entries dragged out of another image
@@ -157,6 +185,13 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
         {
             place.rcNormalPosition = rect;
             place.showCmd          = SW_HIDE;
+
+            //  Twice. Windows counts a window as on the monitor that holds most
+            //  of it, and placing it can change which one that is, and so its
+            //  DPI -- which scales it by the ratio of the two. The second time
+            //  its DPI is already the saved one, so the size is kept as saved.
+            result = SetWindowPlacement (GetHwnd(), &place);
+            IGNORE_RETURN_VALUE (result, TRUE);
             result = SetWindowPlacement (GetHwnd(), &place);
             IGNORE_RETURN_VALUE (result, TRUE);
 
@@ -169,6 +204,8 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
 
     result = ShowWindow (GetHwnd(), showCommand);
     IGNORE_RETURN_VALUE (result, FALSE);
+
+    m_opened = true;
 
 Error:
     return hr;
@@ -193,6 +230,22 @@ void CassoExplorerWindow::StorePlacement()
     if (GetHwnd() == nullptr || !GetWindowPlacement (GetHwnd(), &place))
     {
         return;
+    }
+
+    //  A snapped window's normal position is where it was before the snap,
+    //  which is not where it was left. Its own rectangle is, moved into the
+    //  work-area terms the normal position uses.
+    if (IsWindowArranged (GetHwnd()) && !IsZoomed (GetHwnd()))
+    {
+        MONITORINFO  monitor = { sizeof (monitor) };
+        RECT         window  = {};
+
+        if (GetWindowRect (GetHwnd(), &window)
+            && GetMonitorInfoW (MonitorFromWindow (GetHwnd(), MONITOR_DEFAULTTONEAREST), &monitor))
+        {
+            OffsetRect (&window, monitor.rcMonitor.left - monitor.rcWork.left, monitor.rcMonitor.top - monitor.rcWork.top);
+            place.rcNormalPosition = window;
+        }
     }
 
     m_prefs.placement.x         = place.rcNormalPosition.left;
@@ -238,7 +291,9 @@ void CassoExplorerWindow::OnCreate()
     picture           = CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
     hexView           = CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
     m_textView        = CreateChild<DxuiTextView>();
-    m_previewMessage  = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_previewMessage  = CreateChild<DxuiSelectableText>();
+    m_previewMessage->SetTextRole (DxuiTextRole::Muted);
+    m_previewMessage->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     treeSplitter      = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter   = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
 
@@ -257,6 +312,7 @@ void CassoExplorerWindow::OnCreate()
     m_tabs            = CreateChild<DxuiTabStrip>();
     m_toolbar         = CreateChild<DxuiToolbar>();
     m_address         = CreateChild<DxuiAddressBar>();
+    m_findBox         = CreateChild<DxuiTextInput>();
     m_menuBar         = CreateChild<DxuiMenuBar>();
 
     //  Explorer's status bar runs on from the list above it, with no lines.
@@ -276,7 +332,7 @@ void CassoExplorerWindow::OnCreate()
                                 : DxuiToolbar::kMdl2IconFace);
     m_address->SetFont         (DxuiTextRenderer::IsFontFamilyInstalled (DxuiAddressBar::kVariableTextFace)
                                 ? DxuiAddressBar::kVariableTextFace
-                                : DxuiTheme::kBodyFace,
+                                : DxuiTheme::GetUiFace(),
                                 DxuiAddressBar::kFontDip);
     m_toolbar->SetPopupHost    (GetPopupHost());
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
@@ -284,6 +340,11 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar = CreateChild<DxuiToolbar>();
     m_commandBar->SetTextRenderer (GetTextRenderer());
     m_commandBar->SetPopupHost    (GetPopupHost());
+
+    //  Explorer's flat buttons, on this bar and the others.
+    m_toolbar->SetFlatStyle    (true);
+    m_commandBar->SetFlatStyle (true);
+
     m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more", &CassoExplorerIcons::s_kMore);
     m_commandBar->SetEntries      (m_commands.BuildCommandBarEntries());
     m_commandBar->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
@@ -298,6 +359,25 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar->SetBarPadDp        (kCommandBarPadXDp);
     SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
+    m_labelTip.SetPopupHost    (GetPopupHost());
+    m_tooltip.SetFollowPointer (true);
+
+    //  The buttons along a context menu's edge have only a word under their
+    //  icons, so each has a tip, as Explorer's do.
+    GetPopupHost()->GetContextMenu().SetOnIconHover ([this] (const DxuiCommand * command)
+    {
+        POINT  pointer = {};
+        RECT   anchor  = {};
+
+        if (command == nullptr || !GetCursorPos (&pointer) || !ScreenToClient (GetHwnd(), &pointer))
+        {
+            HideHoverTip (TipOwner::Menu);
+            return;
+        }
+
+        anchor = { pointer.x, pointer.y, pointer.x + 1, pointer.y + 1 };
+        ShowHoverTip (TipOwner::Menu, anchor, GetIconButtonTip (*command));
+    });
 
     //  Explorer's navigation glyphs are in Windows 11's Segoe Fluent Icons.
     //  Without that font, use MDL2, which has the same code points; text in a
@@ -308,6 +388,7 @@ void CassoExplorerWindow::OnCreate()
     m_toolbar->SetIconDip  (kNavIconDip);
 
     m_previewToolbar = CreateChild<DxuiToolbar>();
+    m_previewToolbar->SetFlatStyle (true);
     m_previewToolbar->SetTextRenderer (GetTextRenderer());
     m_previewToolbar->SetPopupHost    (GetPopupHost());
     m_previewToolbar->SetIconDip      (kNavIconDip);
@@ -361,8 +442,13 @@ void CassoExplorerWindow::OnCreate()
     //  handed to the browser before the first nodes and rows are built.
     m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
-    m_browser.SetFolderOptions (FolderOptions::ReadFromShell());
+    m_browser.SetShellVerbs (&m_shellVerbs);
+    m_explorerOptions = FolderOptions::ReadFromShell();
+    m_browser.SetFolderOptions (m_explorerOptions);
+    ApplyNavPaneOptions();
     SizeListIcons();
+    m_listIcons.LoadInBackground (GetHwnd(), kIconsLoadedMessage);
+    m_infoTips.Start (GetHwnd(), kInfoTipMessage);
 
     ConfigureWidgets();
 }
@@ -380,7 +466,6 @@ void CassoExplorerWindow::OnCreate()
 void CassoExplorerWindow::ConfigureWidgets()
 {
     std::vector<DxuiTreeNode>  roots;
-    std::vector<std::wstring>  rootIds;
     bool                       grouped = false;
     bool                       opened  = false;
 
@@ -393,11 +478,6 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_addressRoot = GetProfileRoot();
 
     m_browser.GetTreeRoots (roots);
-
-    for (const DxuiTreeNode & root : roots)
-    {
-        rootIds.push_back (root.id);
-    }
 
     m_tree->SetShowCheckboxes (false);
     m_tree->SetFontDip (kProseFontDip);
@@ -417,17 +497,13 @@ void CassoExplorerWindow::ConfigureWidgets()
     //  Opening or closing a folder changes which folders are on screen.
     m_tree->SetOnExpand ([this] (const std::wstring &, bool)
     {
-        //  A refresh re-opens folders one at a time; it updates the watches
-        //  once when it is done instead.
-        if (!m_refreshingTree)
-        {
-            UpdateWatchedFolders();
-        }
+        UpdateWatchedFolders();
     });
 
-    //  Explorer opens with its navigation pane's top level open, so the Casso
-    //  places and This PC each show their first level.
-    for (const std::wstring & id : rootIds)
+    //  The Casso places and This PC open on their first level; the shell's
+    //  other roots stay closed, as Explorer's do. Network in particular takes
+    //  as long as the network takes to answer.
+    for (const std::wstring & id : { std::wstring (TreeModel::kCassoRootId), std::wstring (TreeModel::kThisPcRootId) })
     {
         opened = m_tree->SetRowExpanded (m_tree->FindRowById (id), true);
         IGNORE_RETURN_VALUE (opened, true);
@@ -435,26 +511,25 @@ void CassoExplorerWindow::ConfigureWidgets()
 
 
     m_list->SetShowHeader (true);
+    m_list->SetIconColumn (0);
+    m_list->SetExplorerDetails (true);
     m_list->SetFontDip (kProseFontDip);
     m_list->SetRowHeightPxFn (&CassoExplorerWindow::GetListRowHeightPx);
     m_list->SetColumns (CassoExplorerBrowser::GetColumns());
     m_listColumnChosen.assign (CassoExplorerBrowser::GetColumns().size(), true);
 
     //  A header dragged into a new place stays there for the next run.
-    if (!m_prefs.columnOrder.empty())
-    {
-        std::vector<size_t>  order;
-
-        for (int column : m_prefs.columnOrder)
-        {
-            order.push_back ((column >= 0) ? (size_t) column : SIZE_MAX);
-        }
-
-        m_list->SetColumnOrder (order);
-    }
+    ApplyColumnOrder();
 
     m_list->SetOnColumnsReordered ([this] (const std::vector<size_t> & order)
     {
+        //  The Recycle Bin's order is its own, as Explorer's is.
+        if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        {
+            Invalidate();
+            return;
+        }
+
         m_prefs.columnOrder.clear();
 
         for (size_t column : order)
@@ -462,6 +537,9 @@ void CassoExplorerWindow::ConfigureWidgets()
             m_prefs.columnOrder.push_back ((int) column);
         }
 
+        //  The folder keeps its own, and the latest is what others follow.
+        m_folderColumnOrder = m_prefs.columnOrder;
+        RememberFolderColumns();
         Invalidate();
     });
     m_list->SetPreciseAutoFit (true);
@@ -487,6 +565,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_list->SetOnSortColumn ([this] (int column)
     {
         m_browser.SortByColumn (column);
+        RememberFolderSort();
         FillList();
     });
 
@@ -504,14 +583,43 @@ void CassoExplorerWindow::ConfigureWidgets()
             m_prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
         }
 
-        m_prefs.columnWidthsDip[(size_t) column] = MulDiv (widthPx, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi());
+        //  Rounded up, so the width read back is never narrower than the one
+        //  the text was fitted to. The latest is the default for folders with
+        //  none of their own, and this folder keeps its own, as Explorer's do.
+        m_prefs.columnWidthsDip[(size_t) column] = (widthPx * (int) DxuiDpiScaler::kBaseDpi + (int) m_list->GetDpi() - 1) / (int) m_list->GetDpi();
+        RememberFolderColumnWidths (column, m_prefs.columnWidthsDip[(size_t) column]);
     });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
-        if (m_browser.OpenRow (row))
+        //  A deleted item opens its properties, as Explorer's does.
+        if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        {
+            RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
+        }
+        else if (m_browser.GetSelectedRows().size() > 1)
+        {
+            //  Enter on several opens each, as Explorer's does.
+            OpenEachSelected();
+        }
+        else if (m_browser.OpenRow (row))
         {
             FillList();
+        }
+        else if (m_browser.IsImageLocation())
+        {
+            //  A file in an image opens in its own program, from a copy.
+            OpenSelectedEntries();
+        }
+        else if (m_browser.GetLocation().kind == Location::Kind::ShellFolder && row >= 0 && (size_t) row < m_browser.GetRows().size())
+        {
+            //  Anything else a shell folder holds does what Explorer's
+            //  double-click does with it.
+            const CatalogRow &  item = m_browser.GetRows()[(size_t) row];
+            HRESULT             hr   = item.hostPath.empty() ? m_shellVerbs.OpenShellItem (GetHwnd(), item.shellId)
+                                                             : m_shellVerbs.Open (GetHwnd(), item.hostPath);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     });
 
@@ -555,9 +663,27 @@ void CassoExplorerWindow::ConfigureWidgets()
 
     m_hexView->SetOnSelectionChanged ([this] () { FillStatus(); });
 
-    m_hexView->SetOnContextMenu ([this] (POINT atDip)
+    //  The hex view's menu is its own; Go to is the browser's, added to it,
+    //  and the view's choices are kept for the next run.
+    m_hexView->SetOnBuildContextMenu ([this] (std::vector<DxuiPopupMenuItem> & items)
     {
-        ShowHexContextMenu (atDip.x, atDip.y);
+        std::shared_ptr<const DxuiCommand>  goTo = m_commands.Find (CassoExplorerCommands::kGoToOffset);
+
+        if (goTo != nullptr)
+        {
+            items.push_back (DxuiPopupMenuItem::ForCommand (goTo));
+        }
+    });
+
+    m_hexView->SetOnSettingsChanged ([this]()
+    {
+        m_prefs.hexShowValues = m_hexView->IsShowingValues();
+        m_prefs.hexGrouping   = m_hexView->GetGrouping();
+        m_prefs.hexColumns    = m_hexView->GetColumns();
+        m_prefs.hexFormat     = (m_hexView->GetValueFormat() == DxuiHexView::ValueFormat::Signed)   ? CassoExplorerPrefs::kHexFormatSigned
+                              : (m_hexView->GetValueFormat() == DxuiHexView::ValueFormat::Unsigned) ? CassoExplorerPrefs::kHexFormatUnsigned
+                                                                                                     : CassoExplorerPrefs::kHexFormatHex;
+        Invalidate();
     });
 
     m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
@@ -616,7 +742,39 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_address->SetOnSubmit ([this] (const std::wstring & text) { SubmitAddress (text); });
     m_address->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowAddressMenu (index, anchor); });
     m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
+    m_address->SetOnRoots     ([this] (const RECT & anchor) { ShowAddressRootsMenu (anchor); });
+
+    m_findBox->SetTextRenderer (GetTextRenderer());
+    m_findBox->SetHwnd         (GetHwnd());
+    m_findBox->SetFont         (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
     m_address->SetOnHistory   ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
+    m_address->SetHistoryChevron (false);
+
+    //  Explorer drops its history as the address opens for editing, and
+    //  turns it into completions as a path is typed.
+    m_suggest.SetPopupHost (GetPopupHost());
+    m_previewMessage->SetTextRenderer (GetTextRenderer());
+    m_previewMessage->SetOwnerWindow  (GetHwnd());
+    m_suggest.SetOnPick    ([this] (const std::wstring & text) { SubmitAddress (text); });
+    m_address->SetOnEditState ([this] (bool editing)
+    {
+        m_addressTyped.clear();
+
+        if (editing)
+        {
+            ShowAddressSuggestions (std::wstring());
+        }
+        else
+        {
+            m_suggest.Close();
+        }
+    });
+    m_address->SetOnEditText ([this] (const std::wstring & text)
+    {
+        m_addressTyped = text;
+        ShowAddressSuggestions (text);
+    });
+    m_address->SetOnEditKey ([this] (WPARAM vk) { return OnAddressKey (vk); });
 
     m_browser.GetTypedPaths().Reset (m_prefs.typedPaths);
     ApplyStoredColumnWidths();
@@ -633,9 +791,22 @@ void CassoExplorerWindow::ConfigureWidgets()
         });
     }
 
+    //  Deletions made anywhere reach the bin, so its list follows them.
+    m_shellVerbs.WatchRecycleBin (GetHwnd(), kRecycleBinMessage);
+
+    //  Slow shell folders read on threads of their own and say when done.
+    m_browser.GetShellListings().SetTarget (GetHwnd(), kShellListedMessage);
+
     m_browser.RestoreTabs (m_prefs.tabs);
+    m_browser.LeaveMissingLocation();
 
     m_tree->OnFocusChanged (true);
+
+    if (!m_context.openPath.empty())
+    {
+        OpenPathInNewTab (m_context.openPath);
+    }
+
     FillList();
 }
 
@@ -687,6 +858,9 @@ void CassoExplorerWindow::ApplyTheme()
         m_theme      = &m_cassoTheme;
     }
 
+    //  The menus' icons come in a set per theme.
+    ApplyMenuSvgs();
+
     SetTheme (m_theme);
 
     if (m_menuBar != nullptr)
@@ -710,6 +884,7 @@ void CassoExplorerWindow::ApplyTheme()
         }
 
         m_tooltip.SetTheme (*m_theme);
+        m_suggest.SetTheme (m_theme);
     }
 
     //  The tabs sit on the caption's color, as Explorer's do, and the selected
@@ -769,13 +944,16 @@ void CassoExplorerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
 void CassoExplorerWindow::RecomputeLayout()
 {
-    IDxuiControl *  bands[]  = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_bodyBand };
-    RECT            body     = {};
-    RECT            right    = {};
-    RECT            sashRect = {};
-    int             rightDip = 0;
-    bool            preview  = m_prefs.previewVisible;
+    IDxuiControl  * bands[]     = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_bodyBand };
+    RECT            body        = {};
+    RECT            right       = {};
+    RECT            sashRect    = {};
+    int             rightDip    = 0;
+    bool            preview     = m_prefs.previewVisible;
     PaneWidths      panes;
+    RECT            addressRect = {};
+    RECT            findRect    = {};
+    int             findWidth   = 0;
 
 
 
@@ -811,7 +989,15 @@ void CassoExplorerWindow::RecomputeLayout()
 
     m_toolbar->SetHostClientRect (m_client);
     m_toolbar->Layout (m_toolbarBand.GetBounds(), m_scaler);
-    m_address->Layout (GetAddressRect (m_toolbar->GetFreeRect(), m_toolbarBand.GetBounds(), m_scaler), m_scaler);
+    //  The search box takes the row's right end, a quarter of it within
+    //  Explorer's bounds, and the address the rest.
+    addressRect = GetAddressRect (m_toolbar->GetFreeRect(), m_toolbarBand.GetBounds(), m_scaler);
+    findWidth   = std::clamp ((int) (addressRect.right - addressRect.left) / 4, m_scaler.ToPx (kFindBoxMinDip), m_scaler.ToPx (kFindBoxMaxDip));
+    findRect    = RECT { addressRect.right - findWidth, addressRect.top, addressRect.right, addressRect.bottom };
+
+    addressRect.right = findRect.left - m_scaler.ToPx (kFindBoxGapDip);
+    m_address->Layout (addressRect, m_scaler);
+    m_findBox->Layout (findRect, m_scaler);
 
     m_tooltip.SetDpi (m_scaler.GetDpi());
     m_tooltip.SetViewportSize (m_client.right - m_client.left, m_client.bottom - m_client.top);
@@ -831,10 +1017,11 @@ void CassoExplorerWindow::RecomputeLayout()
     m_tree->Layout (RECT { body.left, body.top, sashRect.left, body.bottom }, m_scaler);
 
     //  The tree has no height until its first layout, so the node revealed at
-    //  startup is scrolled into view here.
+    //  startup is scrolled into view here: to the middle, since the layouts
+    //  that follow as the window settles can make the tree shorter.
     if (m_treeRevealPending && m_tree->GetRowCap() > 0)
     {
-        m_tree->EnsureRowVisible (m_tree->GetHighlight());
+        m_tree->SetTopRow (m_tree->GetHighlight() - m_tree->GetRowCap() / 2);
         m_treeRevealPending = false;
     }
 
@@ -894,6 +1081,7 @@ void CassoExplorerWindow::RecomputeLayout()
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_list->GetBounds(), DxuiHitSlot::Custom, kDropTagList });
     m_dropHits.Register (DxuiHitRect { m_tree->GetBounds(), DxuiHitSlot::Custom, kDropTagTree });
+    m_dropHits.Register (DxuiHitRect { m_tabs->GetBounds(), DxuiHitSlot::Custom, kDropTagTabs });
 
     Invalidate();
 }
@@ -1008,9 +1196,10 @@ void CassoExplorerWindow::RevealLocationInTree()
     }
 
     //  A node the user clicked already shows the location, possibly under the
-    //  Casso root rather than This PC, so it stays highlighted.
+    //  Casso root rather than This PC, so it stays highlighted, and in view.
     if (current.size() >= path.size() && _wcsicmp (current.c_str() + current.size() - path.size(), path.c_str()) == 0)
     {
+        ScrollTreeToRow (m_tree->GetHighlight());
         return;
     }
 
@@ -1055,7 +1244,32 @@ void CassoExplorerWindow::RevealLocationInTree()
     }
 
     m_tree->HighlightRow (row);
-    m_treeRevealPending = true;
+    ScrollTreeToRow (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ScrollTreeToRow
+//
+//  Into view now, or at the first layout when the tree has no height yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ScrollTreeToRow (int row)
+{
+
+    if (m_tree->GetRowCap() > 0)
+    {
+        m_tree->EnsureRowVisible (row);
+    }
+    else
+    {
+        m_treeRevealPending = true;
+    }
 }
 
 
@@ -1136,11 +1350,9 @@ int CassoExplorerWindow::WalkTreeLabels (int row, const std::wstring & path)
 
 void CassoExplorerWindow::FillList()
 {
-    std::vector<std::vector<DxuiListView::Cell>>    rows;
     const BrowserModel                            & model    = m_browser.GetBrowserModel();
     std::wstring                                    message  = m_browser.GetListError();
-    Location                                        location = m_browser.GetLocation();
-    bool                                            dark     = DxuiColor::ComputeRelativeLuminance (m_theme->Background()) < 0.5f;
+    size_t                                          count    = m_browser.GetRows().size();
 
 
 
@@ -1154,32 +1366,82 @@ void CassoExplorerWindow::FillList()
     //  view's size.
     ApplyFolderView();
 
-    for (const CatalogRow & row : m_browser.GetRows())
+    //  The Recycle Bin has buttons of its own on the command bar.
+    if ((m_browser.GetLocation().kind == Location::Kind::RecycleBin) != m_commandBarForBin)
     {
-        rows.push_back (CassoExplorerBrowser::ToCells (row, location, &m_listIcons));
-        rows.back()[0].argb = CassoExplorerBrowser::GetNameArgb (row, m_browser.GetFolderOptions(), dark);
+        m_commandBarForBin = !m_commandBarForBin;
+
+        //  Explorer's own icons for the bin's two buttons, in the theme's set.
+        m_commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, GetMenuSvg (L"windows.recyclebin.empty"));
+        m_commands.SetSvg (CassoExplorerCommands::kRestoreItems,    GetMenuSvg (L"windows.recyclebin.restoreall"));
+        m_commandBar->SetEntries (m_commands.BuildCommandBarEntries (m_commandBarForBin));
+        m_commandBar->Layout     (m_menuBand.GetBounds(), m_scaler);
     }
 
-    m_list->SetRows (std::move (rows));
+    //  A file's size or date may have changed with the listing.
+    m_infoTips.Clear();
 
-    //  A new location opens at its first row, as Explorer's does, rather than
-    //  wherever the list was scrolled for the last one. THE COLUMNS STAY AS
+    //  The rows' cells are built as the list first asks for each, so a folder
+    //  of thousands shows as fast as one of ten.
+    m_rowCells.assign    (count, {});
+    m_rowBuilt.assign    (count, false);
+    m_rowProblems.assign (count, std::wstring());
+    m_rowLocation = m_browser.GetLocation();
+    m_rowDark     = DxuiColor::ComputeRelativeLuminance (m_theme->Background()) < 0.5f;
+
+    m_list->SetRowSource ((int) count, [this] (int row) -> const std::vector<DxuiListView::Cell> & { return GetListRowCells (row); });
+
+    //  Small icons and List measure every name; this reads them without
+    //  building the rows' cells.
+    m_list->SetRowNameSource ([this] (int row)
+    {
+        return (row >= 0 && (size_t) row < m_browser.GetRows().size()) ? m_browser.GetRows()[(size_t) row].name : std::wstring();
+    });
+    m_list->SetGroups    (m_browser.GetListGroups());
+
+    //  A new location opens at its top-left corner, as Explorer's does, rather
+    //  than wherever the list was scrolled for the last one. THE COLUMNS STAY AS
     //  THEY ARE: their widths belong to the view rather than to the folder, so
     //  they neither twitch from one folder to the next nor pay to re-measure
     //  every cell of every row on each navigation.
     if (m_browser.GetLocation() != m_listLocation)
     {
         m_listLocation = m_browser.GetLocation();
+        m_address->SetLeadIcon (CassoExplorerBrowser::GetLocationIcon (m_listLocation, m_shellIcons));
+        SetCommandBarDropDowns();
+
+        //  Explorer's box says what it will search, and empties on leaving
+        //  a search's results.
+        if (!SearchQuery::IsId (m_listLocation.path))
+        {
+            std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (m_listLocation, m_addressRoot);
+
+            m_findBox->SetText        (L"");
+            m_findBox->SetPlaceholder (L"Search " + (segments.empty() ? std::wstring() : segments.back().label));
+        }
+
         m_list->SetTopRow (0);
-        RevealLocationInTree();
+        m_list->SetLeftPx (0);
+
+        if (IsNavOptionOn (&CassoExplorerPrefs::navExpandToCurrent))
+        {
+            RevealLocationInTree();
+        }
+
         UpdateWatchedFolders();
     }
 
     //  Address and Locked are a disk catalog's; a host folder has neither, so
-    //  its list shows only Explorer's four columns.
+    //  its list shows only Explorer's four columns. The Recycle Bin adds its
+    //  own two.
+    ApplyColumnOrder();
+
+    //  Explorer's Recycle Bin titles the type column Item type.
+    m_list->SetColumnTitle ((size_t) CatalogModel::Column::Type, (m_browser.GetLocation().kind == Location::Kind::RecycleBin) ? L"Item type" : L"Type");
+
     for (size_t c = 0; c < m_listColumnChosen.size(); c++)
     {
-        m_list->SetColumnVisible (c, IsListColumnShown (c, m_listColumnChosen[c], m_browser.IsImageLocation()));
+        m_list->SetColumnVisible (c, IsListColumnShown (c, m_listColumnChosen[c], m_browser.GetLocation().kind, SearchQuery::IsId (m_browser.GetLocation().path)));
     }
 
     m_list->UpdateAutoFitFromRows();
@@ -1205,6 +1467,88 @@ void CassoExplorerWindow::FillList()
     FillAddress();
     FillPreview();
     FillStatus();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetListRowCells
+//
+//  A row's cells, built the first time the list asks for them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<DxuiListView::Cell> & CassoExplorerWindow::GetListRowCells (int row)
+{
+    static const std::vector<DxuiListView::Cell>  s_kNone;
+    const std::vector<CatalogRow>               & rows = m_browser.GetRows();
+    std::wstring                                  path;
+
+
+
+    if (row < 0 || (size_t) row >= m_rowCells.size() || (size_t) row >= rows.size())
+    {
+        return s_kNone;
+    }
+
+    if (!m_rowBuilt[(size_t) row])
+    {
+        std::vector<DxuiListView::Cell> & cells = m_rowCells[(size_t) row];
+
+        cells         = CassoExplorerBrowser::ToCells (rows[(size_t) row], m_rowLocation, &m_listIcons);
+        cells[0].argb = CassoExplorerBrowser::GetNameArgb (rows[(size_t) row], m_browser.GetFolderOptions(), m_rowDark);
+
+        //  Cut and not yet pasted, it draws dimmed, as Explorer's does.
+        if (!m_cutPaths.empty() && m_browser.TryGetRowPath (row, path) &&
+            std::any_of (m_cutPaths.begin(), m_cutPaths.end(), [&] (const std::wstring & cut) { return IsSameFolder (cut, path); }))
+        {
+            cells[0].iconGhosted = true;
+        }
+
+        //  A disk image that is not one says so on its icon.
+        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && m_browser.TryGetRowPath (row, path))
+        {
+            m_rowProblems[(size_t) row] = m_browser.GetImageProblem (path);
+            cells[0].iconBroken         = !m_rowProblems[(size_t) row].empty();
+        }
+
+        m_rowBuilt[(size_t) row] = true;
+    }
+
+    return m_rowCells[(size_t) row];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RefreshListIcons
+//
+//  The rows' icons again, now that more have loaded; nothing else about the
+//  rows changes, so a rename in progress carries on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RefreshListIcons()
+{
+    const std::vector<CatalogRow> & rows = m_browser.GetRows();
+
+
+
+    for (size_t at = 0; at < m_rowCells.size() && at < rows.size(); at++)
+    {
+        if (m_rowBuilt[at] && !m_rowCells[at].empty())
+        {
+            m_rowCells[at][0].icon = CassoExplorerBrowser::GetRowIcon (rows[at], m_rowLocation, m_listIcons);
+        }
+    }
+
     Invalidate();
 }
 
@@ -1613,6 +1957,7 @@ void CassoExplorerWindow::SetFocusPane (Pane pane)
     m_hexView->OnFocusChanged     (pane == Pane::Preview);
     m_tabs->OnFocusChanged        (pane == Pane::Tabs);
     m_address->OnFocusChanged     (pane == Pane::Address);
+    m_findBox->SetFocused         (pane == Pane::LocationSearch);
     m_toolbar->SetFocusIndex      (pane == Pane::Toolbar ? m_toolbarFocus : -1);
     m_commandBar->SetFocusIndex   (pane == Pane::CommandBar ? m_commandBarFocus : -1);
     m_previewToolbar->SetFocusIndex (pane == Pane::PreviewToolbar ? m_previewBarFocus : -1);
@@ -1978,6 +2323,84 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    ArmTick();
+
+    //  A tree name cut off by the splitter shows whole as the pointer reaches
+    //  it, and goes when the pointer leaves it or does anything else.
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        UpdateLabelTip (point);
+    }
+    else
+    {
+        m_labelTip.Hide();
+    }
+
+    //  A pointer leaving the strip by any edge, or the window, takes the
+    //  tab's hover with it.
+    if (m_tabs->GetHoverIndex() >= 0 &&
+        ((ev.kind == DxuiMouseEventKind::Move && !Contains (m_tabs->GetBounds(), point)) || ev.kind == DxuiMouseEventKind::Leave))
+    {
+        DxuiMouseEvent  away = ev;
+
+        away.kind        = DxuiMouseEventKind::Move;
+        away.positionDip = { -1, -1 };
+
+        m_tabs->OnMouse (away);
+        Invalidate();
+    }
+
+    //  The address's suggestions hold no capture, so a press anywhere else in
+    //  the window is what closes them; the address bar's own presses edit
+    //  the path or, on the caret, close them there.
+    if (ev.kind == DxuiMouseEventKind::Down && m_suggest.IsOpen() && !Contains (m_address->GetBounds(), point))
+    {
+        m_suggest.Close();
+    }
+
+    //  A preview's message selects with the mouse, as text does, and has the
+    //  text's own menu.
+    if (m_previewMessage->IsVisible() && (m_previewMessage->IsInteracting() || Contains (m_previewMessage->GetBounds(), point)))
+    {
+        if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
+        {
+            std::vector<DxuiPopupMenuItem>  items;
+
+            SetFocusPane (Pane::Preview);
+            m_menuCommands.clear();
+            AddMenuCommand (items, L"&Copy",       [this]() { m_previewMessage->Copy(); });
+            AddMenuCommand (items, L"Select &all", [this]() { m_previewMessage->SelectAll(); Invalidate(); });
+            DxuiContextMenu::Show (*GetPopupHost(), point.x, point.y, std::move (items));
+            return true;
+        }
+
+        if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+        {
+            SetFocusPane (Pane::Preview);
+        }
+
+        if (m_previewMessage->OnMouse (ev))
+        {
+            Invalidate();
+            return true;
+        }
+    }
+
+    //  A command bar menu leaves the mouse with the window, so a press
+    //  anywhere but the bar that opened it closes it here, as a click outside
+    //  a menu does.
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        for (DxuiToolbar * bar : { m_commandBar, m_toolbar, m_previewToolbar })
+        {
+            if (bar->IsMenuOpen() && !Contains (bar->GetBounds(), point))
+            {
+                bar->CloseMenu();
+                Invalidate();
+            }
+        }
+    }
+
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
     if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2))
@@ -2043,6 +2466,14 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A right-click on the address, not while it is being edited, gives
+    //  Explorer's address menu.
+    if (press && ev.button == DxuiMouseButton::Right && !m_address->IsEditing() && Contains (m_address->GetBounds(), point))
+    {
+        ShowAddressContextMenu (point.x, point.y);
+        return true;
+    }
+
     //  The address bar sits in the toolbar's row, so it answers first. Moves
     //  reach it wherever the pointer is, so its hover clears on the way out.
     if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting() && m_address->OnMouse (ev))
@@ -2052,6 +2483,18 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind != DxuiMouseEventKind::Move || m_address->IsInteracting())
     {
+        if (Contains (m_findBox->GetBounds(), point))
+        {
+            if (press)
+            {
+                SetFocusPane (Pane::LocationSearch);
+            }
+
+            m_findBox->OnMouse (ev);
+            Invalidate();
+            return true;
+        }
+
         if (m_address->IsInteracting() || Contains (m_address->GetBounds(), point))
         {
             if (press)
@@ -2127,6 +2570,50 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A right press waits for its release to open the menu, or drags the
+    //  selection when it moves far enough first.
+    if (m_rightPress.active)
+    {
+        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Right)
+        {
+            m_rightPress.active = false;
+            ShowListContextMenu (point.x, point.y, m_rightPress.group);
+            return true;
+        }
+
+        if (ev.kind == DxuiMouseEventKind::Move && m_rightPress.canDrag
+            && (abs (point.x - m_rightPress.start.x) > GetSystemMetrics (SM_CXDRAG)
+             || abs (point.y - m_rightPress.start.y) > GetSystemMetrics (SM_CYDRAG)))
+        {
+            m_rightPress.active = false;
+            BeginDragOut();
+            Invalidate();
+            return true;
+        }
+    }
+
+    //  A press on a list row that moves past the drag distance drags the
+    //  selection out. This comes ahead of the list's own handling, which would
+    //  otherwise take the move as extending the selection. The list never sees
+    //  the release, which the drag loop takes, so its drag ends here.
+    if (m_dragArmed)
+    {
+        if (ev.kind == DxuiMouseEventKind::Up || ev.kind == DxuiMouseEventKind::Leave)
+        {
+            m_dragArmed = false;
+        }
+        else if (ev.kind == DxuiMouseEventKind::Move
+              && (abs (point.x - m_dragStart.x) > GetSystemMetrics (SM_CXDRAG)
+               || abs (point.y - m_dragStart.y) > GetSystemMetrics (SM_CYDRAG)))
+        {
+            m_dragArmed = false;
+            m_list->EndDragSelect();
+            BeginDragOut();
+            Invalidate();
+            return true;
+        }
+    }
+
     //  Mouse input goes to a widget mid-drag until the button is released,
     //  wherever the pointer is. Otherwise a scrollbar thumb dragged out of its
     //  pane transfers the drag to the pane under the pointer.
@@ -2153,11 +2640,22 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         Invalidate();
     }
 
+    UpdateTreeTip   (ev, point);
+    UpdateStatusTip (ev, point);
+    UpdateListTip   (ev, point);
+
     if (Contains (m_tree->GetBounds(), point))
     {
         if (press)
         {
             SetFocusPane (Pane::Tree);
+        }
+
+        //  Below the last node: the pane's own options, as Explorer's has.
+        if (press && ev.button == DxuiMouseButton::Right && m_tree->HitTestRow (point.x, point.y) < 0)
+        {
+            ShowTreeEmptyMenu (point.x, point.y);
+            return true;
         }
 
         if (press && ev.button == DxuiMouseButton::Right)
@@ -2179,13 +2677,28 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  An empty image or folder shows a message in the list's place; a right-
+    //  click there still opens the menu the list's empty space has.
+    if (!m_list->IsVisible() && m_listMessage->IsVisible() && press && ev.button == DxuiMouseButton::Right &&
+        Contains (m_list->GetBounds(), point))
+    {
+        SetFocusPane (Pane::List);
+        m_list->ClearSelection();
+        ShowListContextMenu (point.x, point.y);
+        return true;
+    }
+
     if (m_list->IsVisible() && Contains (m_list->GetBounds(), point))
     {
         DxuiMouseEvent  local = ToLocal (ev, m_list->GetBounds());
 
+        //  A click gives the list focus without the row a Tab in would pick:
+        //  on empty space it selects nothing, and on a row the press picks.
         if (press)
         {
+            m_list->SetSeedRowOnFocus (false);
             SetFocusPane (Pane::List);
+            m_list->SetSeedRowOnFocus (true);
         }
 
         //  The header has a menu of its own, for its columns.
@@ -2197,11 +2710,24 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
         if (press && ev.button == DxuiMouseButton::Right)
         {
-            int  row = m_list->HitTestRow (local.positionDip.x, local.positionDip.y);
+            int  row   = m_list->HitTestRow         (local.positionDip.x, local.positionDip.y);
+            int  group = m_list->HitTestGroupHeader (local.positionDip.x, local.positionDip.y);
 
-            if (row >= 0 && !m_list->IsRowSelected (row))
+            //  A group's header selects its rows and adds the group's own
+            //  commands to the menu for them, as Explorer's does.
+            if (group >= 0)
+            {
+                m_list->SelectGroup (group);
+            }
+            else if (row >= 0 && !m_list->IsRowSelected (row))
             {
                 m_list->ClickRow (row, false, false);
+            }
+            else if (row >= 0)
+            {
+                //  A row already selected keeps the selection and takes the
+                //  focus, so Rename acts on it, as Explorer's does.
+                m_list->SetFocusedRow (row);
             }
             else if (row < 0)
             {
@@ -2210,26 +2736,19 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
                 m_list->ClearSelection();
             }
 
-            ShowListContextMenu (point.x, point.y);
+            //  The menu opens as the button comes up, as Explorer's does; a
+            //  press on a row that moves first drags the selection instead.
+            m_rightPress = RightPress { true, group < 0 && row >= 0, group, point };
+            Invalidate();
             return true;
         }
 
+        //  A press on a row may start a drag of the selection; one on the
+        //  space between rows starts a rubber band instead, as in Explorer.
         if (press && ev.button == DxuiMouseButton::Left)
         {
-            m_dragArmed = true;
+            m_dragArmed = m_list->HitTestRow (local.positionDip.x, local.positionDip.y) >= 0;
             m_dragStart = point;
-        }
-        else if (ev.kind == DxuiMouseEventKind::Up)
-        {
-            m_dragArmed = false;
-        }
-        else if (ev.kind == DxuiMouseEventKind::Move && m_dragArmed
-              && (abs (point.x - m_dragStart.x) > GetSystemMetrics (SM_CXDRAG)
-               || abs (point.y - m_dragStart.y) > GetSystemMetrics (SM_CYDRAG)))
-        {
-            m_dragArmed = false;
-            BeginDragOut();
-            return true;
         }
 
         m_list->OnMouse (local);
@@ -2340,6 +2859,38 @@ LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
 
 
 
+    //  The preview's text -- a listing, a catalog, a hex dump -- selects as
+    //  text does, so it takes the I-beam, except over its scrollbars.
+    for (IDxuiControl * view : { (IDxuiControl *) m_textView, (IDxuiControl *) m_hexView })
+    {
+        if (cursor == nullptr && view->IsVisible() && Contains (view->GetBounds(), clientPx) && !view->IsOverScrollbar (clientPx))
+        {
+            cursor = IDC_IBEAM;
+        }
+    }
+
+    //  The list tests points in its own terms.
+    if (cursor == nullptr && m_previewList->IsVisible() && Contains (m_previewList->GetBounds(), clientPx))
+    {
+        RECT    list  = m_previewList->GetBounds();
+        POINT   local = { clientPx.x - list.left, clientPx.y - list.top };
+
+        cursor = m_previewList->GetCursorForPoint (local);
+        cursor = (cursor != nullptr || m_previewList->IsOverScrollbar (local)) ? cursor : IDC_IBEAM;
+    }
+
+    if (cursor == nullptr && m_previewMessage->IsVisible())
+    {
+        cursor = m_previewMessage->GetCursorForPoint (clientPx);
+    }
+
+    //  The address being edited is text, and takes the I-beam over it; its
+    //  clear and history buttons keep the arrow.
+    if (cursor == nullptr && m_address->IsEditing() && m_address->HitTest (clientPx.x, clientPx.y).part == DxuiAddressBar::Part::Blank)
+    {
+        cursor = IDC_IBEAM;
+    }
+
     if (cursor == nullptr && m_previewSplitter->IsVisible())
     {
         cursor = m_previewSplitter->GetCursorForPoint (clientPx);
@@ -2378,6 +2929,8 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 
 
 
+    ArmTick();
+
     //  A rename in place takes every key: Enter keeps the name, Escape puts
     //  the old one back.
     if (m_renameRow >= 0)
@@ -2397,6 +2950,17 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 
     //  The search box takes keys and characters first while it has focus;
     //  Tab and the keys it has no use for continue as usual.
+    if (m_focus == Pane::LocationSearch)
+    {
+        handled = OnFindBoxKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            Invalidate();
+            return handled;
+        }
+    }
+
     if (m_focus == Pane::Search || m_focus == Pane::GoTo)
     {
         handled = (m_focus == Pane::Search) ? m_searchBox.OnKey (ev) : m_goToBox.OnKey (ev);
@@ -2422,6 +2986,15 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  A preview that is only a message selects and copies as text does.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && (ev.vk == 'C' || ev.vk == 'A')
+        && m_focus == Pane::Preview && m_previewMessage->IsVisible())
+    {
+        m_previewMessage->InvokeCommand ((ev.vk == 'C') ? DxuiStandardCommand::Copy : DxuiStandardCommand::SelectAll);
+        Invalidate();
+        return true;
+    }
+
     //  A character typed at the file list jumps to a row. It has to reach the
     //  list before characters are turned away below.
     if (ev.kind == DxuiKeyEventKind::Char && m_focus == Pane::List)
@@ -2439,6 +3012,14 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind != DxuiKeyEventKind::Down)
     {
         return false;
+    }
+
+    //  Ctrl+Z on the files undoes the last file operation; in a text box it is
+    //  the box's own, which has the keys before this.
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == Pane::List || m_focus == Pane::Tree) && m_renameRow < 0)
+    {
+        UndoLast();
+        return true;
     }
 
     command = CassoExplorerCommands::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift);
@@ -2492,7 +3073,7 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    if (ev.vk == VK_F2 && m_focus == Pane::List && m_browser.GetSelectedRows().size() == 1)
+    if (ev.vk == VK_F2 && m_focus == Pane::List && IsListVerbOffered (CassoExplorerActions::Verb::Rename))
     {
         RunVerb (CassoExplorerActions::Verb::Rename);
         return true;
@@ -2541,6 +3122,7 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         case Pane::Search:                                               break;
         case Pane::GoTo:                                                 break;
         case Pane::Address: handled = m_address->OnKey (ev);     break;
+        case Pane::LocationSearch: handled = OnFindBoxKey (ev);  break;
         case Pane::Tabs:    handled = m_tabs->OnKey (ev);        break;
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
         case Pane::List:    handled = m_list->OnKey (ev);        break;
@@ -2615,12 +3197,15 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kCloseTab:
         case CassoExplorerCommands::kNextTab:
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
+        case CassoExplorerCommands::kUndo:              return !m_undo.empty();
         case CassoExplorerCommands::kCutItems:          return IsListVerbOffered (CassoExplorerActions::Verb::Cut);
         case CassoExplorerCommands::kCopyItems:         return IsListVerbOffered (CassoExplorerActions::Verb::Copy) || IsListVerbOffered (CassoExplorerActions::Verb::Get);
         case CassoExplorerCommands::kPasteItems:        return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder
                                                          && m_shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kDeleteItems:       return IsListVerbOffered (CassoExplorerActions::Verb::Delete);
+        case CassoExplorerCommands::kEmptyRecycleBin:
+        case CassoExplorerCommands::kRestoreItems:      return m_browser.GetLocation().kind == Location::Kind::RecycleBin && !m_browser.GetRows().empty();
         case CassoExplorerCommands::kNew:               return !m_browser.IsImageLocation() ? m_browser.GetLocation().kind == Location::Kind::HostFolder
                                                                                       : (m_browser.GetVolumeKind() == VolumeKind::ProDos && !m_browser.IsWriteProtected());
         case CassoExplorerCommands::kNewFolder:         return !m_browser.IsImageLocation() ? true
@@ -2646,6 +3231,11 @@ bool CassoExplorerWindow::IsChecked (int id) const
 
 
 
+    if (id >= CassoExplorerCommands::kGroupByField && id <= CassoExplorerCommands::kGroupByField + (int) RowGrouping::Field::Size)
+    {
+        return model.HasTabs() && (int) model.GetActiveTab().groupBy == id - CassoExplorerCommands::kGroupByField;
+    }
+
     if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) CassoExplorerBrowser::GetColumns().size())
     {
         return model.HasTabs() && (int) model.GetActiveTab().sortColumn == id - CassoExplorerCommands::kSortByColumn;
@@ -2661,6 +3251,8 @@ bool CassoExplorerWindow::IsChecked (int id) const
         case CassoExplorerCommands::kTogglePreview:     return m_prefs.previewVisible;
         case CassoExplorerCommands::kSortAscending:     return model.HasTabs() && !model.GetActiveTab().sortDescending;
         case CassoExplorerCommands::kSortDescending:    return model.HasTabs() && model.GetActiveTab().sortDescending;
+        case CassoExplorerCommands::kGroupAscending:    return model.HasTabs() && !model.GetActiveTab().groupDescending;
+        case CassoExplorerCommands::kGroupDescending:   return model.HasTabs() && model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kLineAddresses:     return m_prefs.lineAddresses;
         case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
         case CassoExplorerCommands::kThemeLight:        return m_prefs.theme == CassoExplorerPrefs::kThemeLight;
@@ -3289,71 +3881,6 @@ void CassoExplorerWindow::FindNext (bool incremental)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerWindow::ShowHexContextMenu
-//
-//  Copy, Select all and Go to offset, the commands that apply to a run of
-//  bytes. Each item uses the same command object as the Edit menu, so the two
-//  menus stay consistent.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerWindow::ShowHexContextMenu (int x, int y)
-{
-    std::vector<DxuiPopupMenuItem>  items;
-
-
-
-    static constexpr int  kIds[] = { (int) CassoExplorerCommands::kNoData,
-                                     (int) CassoExplorerCommands::kGroup1,
-                                     (int) CassoExplorerCommands::kGroup2,
-                                     (int) CassoExplorerCommands::kGroup4,
-                                     kSeparatorId,
-                                     (int) CassoExplorerCommands::kFormatHex,
-                                     (int) CassoExplorerCommands::kFormatSigned,
-                                     (int) CassoExplorerCommands::kFormatUnsigned,
-                                     kSeparatorId,
-                                     (int) CassoExplorerCommands::kColumns,
-                                     kSeparatorId,
-                                     (int) CassoExplorerCommands::kCopy,
-                                     (int) CassoExplorerCommands::kGoToOffset };
-
-    static constexpr int  kColumnIds[] = { (int) CassoExplorerCommands::kColumnsAuto,
-                                           (int) CassoExplorerCommands::kColumns1,
-                                           (int) CassoExplorerCommands::kColumns2,
-                                           (int) CassoExplorerCommands::kColumns4,
-                                           (int) CassoExplorerCommands::kColumns8,
-                                           (int) CassoExplorerCommands::kColumns16 };
-
-    for (int id : kIds)
-    {
-        std::shared_ptr<const DxuiCommand>  command = (id == kSeparatorId) ? nullptr : m_commands.Find (id);
-        std::vector<DxuiPopupMenuItem>      columns;
-
-        if (id == CassoExplorerCommands::kColumns)
-        {
-            for (int columnId : kColumnIds)
-            {
-                columns.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (columnId)));
-            }
-
-            items.push_back (DxuiPopupMenuItem::ForSubmenu (command, std::move (columns)));
-        }
-        else
-        {
-            items.push_back ((command != nullptr) ? DxuiPopupMenuItem::ForCommand (command)
-                                                  : DxuiPopupMenuItem::ForSeparator());
-        }
-    }
-
-    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerWindow::ShowTextContextMenu
 //
 //  Copy and Select all, which reach the text view as the focused control.
@@ -3420,6 +3947,22 @@ void CassoExplorerWindow::Dispatch (int id)
         return;
     }
 
+    //  A field groups dates newest first, as Explorer does, and the others
+    //  from the start of the alphabet or the smallest.
+    if (id >= CassoExplorerCommands::kGroupByField && id <= CassoExplorerCommands::kGroupByField + (int) RowGrouping::Field::Size)
+    {
+        RowGrouping::Field  field = (RowGrouping::Field) (id - CassoExplorerCommands::kGroupByField);
+
+        if (!IsChecked (id))
+        {
+            m_browser.SetGroupBy (field, field == RowGrouping::Field::DateModified);
+            RememberFolderSort();
+            FillList();
+        }
+
+        return;
+    }
+
     if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) CassoExplorerBrowser::GetColumns().size())
     {
         //  A new column sorts ascending; the column already in use keeps its
@@ -3433,6 +3976,7 @@ void CassoExplorerWindow::Dispatch (int id)
                 m_browser.SortByColumn (id - CassoExplorerCommands::kSortByColumn);
             }
 
+            RememberFolderSort();
             FillList();
         }
 
@@ -3445,10 +3989,20 @@ void CassoExplorerWindow::Dispatch (int id)
             OnWindowClose();
             break;
 
+        case CassoExplorerCommands::kUndo:         UndoLast();                                   break;
         case CassoExplorerCommands::kCutItems:     RunVerb (CassoExplorerActions::Verb::Cut);    break;
-        case CassoExplorerCommands::kPasteItems:   RunVerb (CassoExplorerActions::Verb::Paste);  break;
+        //  Ctrl+V and the command bar paste into the folder shown, whatever is
+        //  selected, as Explorer's do; a folder's own menu pastes into it.
+        case CassoExplorerCommands::kPasteItems:
+        {
+            PasteHere (m_browser.GetLocation().path);
+            break;
+        }
+
         case CassoExplorerCommands::kRenameItem:   RunVerb (CassoExplorerActions::Verb::Rename); break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
+        case CassoExplorerCommands::kEmptyRecycleBin: RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
+        case CassoExplorerCommands::kRestoreItems:    RunRecycleBinVerb (CassoExplorerActions::Verb::Restore); break;
         case CassoExplorerCommands::kNewFolder:    RunVerb (CassoExplorerActions::Verb::NewFolder); break;
         case CassoExplorerCommands::kNewDisk:      RunVerb (CassoExplorerActions::Verb::NewDisk);   break;
 
@@ -3472,6 +4026,18 @@ void CassoExplorerWindow::Dispatch (int id)
             if (!IsChecked (id) && m_browser.GetBrowserModel().HasTabs())
             {
                 m_browser.SortByColumn ((int) m_browser.GetBrowserModel().GetActiveTab().sortColumn);
+                RememberFolderSort();
+                FillList();
+            }
+
+            break;
+
+        case CassoExplorerCommands::kGroupAscending:
+        case CassoExplorerCommands::kGroupDescending:
+            if (!IsChecked (id) && m_browser.GetBrowserModel().HasTabs())
+            {
+                m_browser.SetGroupBy (m_browser.GetBrowserModel().GetActiveTab().groupBy, id == CassoExplorerCommands::kGroupDescending);
+                RememberFolderSort();
                 FillList();
             }
 
@@ -3651,6 +4217,101 @@ void CassoExplorerWindow::OnWindowClose()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::SaveSession
+//
+//  Saved as each change is made, so a window that never closes cleanly -- a
+//  crash, a process ended from outside, Windows signing out -- still opens
+//  where it was left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SaveSession()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_context.fs == nullptr)
+    {
+        return;
+    }
+
+    m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
+    m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
+    StorePlacement();
+
+    hr = m_prefs.Save (m_context.baseDir, *m_context.fs);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnEnterSizeMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnEnterSizeMove()
+{
+    m_inSizeMove = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnExitSizeMove
+//
+//  The end of a move or resize the user dragged. A drag that snaps the window
+//  resizes it after this, and OnSize saves that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnExitSizeMove()
+{
+    m_inSizeMove = false;
+    SaveSession();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnSize
+//
+//  A resize outside a drag: maximizing, restoring, or a snap, whether from
+//  the keyboard or at the end of a drag. One during a drag waits for its end,
+//  and one while the window opens is where it was saved already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnSize (UINT widthPx, UINT heightPx)
+{
+    UNREFERENCED_PARAMETER (widthPx);
+    UNREFERENCED_PARAMETER (heightPx);
+
+    //  Minimizing is no place to reopen at.
+    if (m_opened && !m_inSizeMove && !IsIconic (GetHwnd()))
+    {
+        SaveSession();
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::GetVerbLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3682,8 +4343,291 @@ const wchar_t * CassoExplorerWindow::GetVerbLabel (CassoExplorerActions::Verb ve
         case CassoExplorerActions::Verb::Copy:           return L"&Copy";
         case CassoExplorerActions::Verb::Paste:          return L"&Paste";
         case CassoExplorerActions::Verb::Share:          return L"&Share";
+        case CassoExplorerActions::Verb::Restore:        return L"&Restore";
+        case CassoExplorerActions::Verb::EmptyRecycleBin: return L"Empty Recycle &Bin";
         default:                                   return L"";
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetVerbMenuGlyph
+//
+//  The icon beside a verb's row in a context menu: Explorer's own for the
+//  verbs it has, and for Casso's, the nearest in the same icon font.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassoExplorerWindow::GetVerbMenuGlyph (CassoExplorerActions::Verb verb)
+{
+    switch (verb)
+    {
+        case CassoExplorerActions::Verb::Open:           return s_kpszMdl2OpenFile;
+        case CassoExplorerActions::Verb::OpenWith:       return s_kpszMdl2OpenWith;
+        case CassoExplorerActions::Verb::InsertDrive1:   return s_kpszMdl2Save;
+        case CassoExplorerActions::Verb::InsertDrive2:   return s_kpszMdl2Save;
+        case CassoExplorerActions::Verb::OpenInNewCasso: return s_kpszMdl2Play;
+        case CassoExplorerActions::Verb::Format:         return s_kpszMdl2HardDrive;
+        case CassoExplorerActions::Verb::Refresh:        return s_kpszMdl2Refresh;
+        case CassoExplorerActions::Verb::MoreOptions:    return s_kpszMdl2OpenInNewWindow;
+        default:                                         return nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ApplyMenuSvgs
+//
+//  The commands the menus share -- the views, the preview pane -- take File
+//  Explorer's icons for the theme in use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ApplyMenuSvgs()
+{
+    static constexpr std::pair<DxuiListView::View, const wchar_t *>  kViews[] =
+    {
+        { DxuiListView::View::ExtraLargeIcons, L"windows.iconsize.extralarge" },
+        { DxuiListView::View::LargeIcons,      L"windows.iconsize.large"      },
+        { DxuiListView::View::MediumIcons,     L"windows.iconsize.medium"     },
+        { DxuiListView::View::SmallIcons,      L"windows.iconsize.smallicon"  },
+        { DxuiListView::View::List,            L"windows.iconsize.list"       },
+        { DxuiListView::View::Details,         L"windows.iconsize.details"    },
+        { DxuiListView::View::Tiles,           L"windows.iconsize.tile"       },
+        { DxuiListView::View::Content,         L"windows.iconsize.content"    },
+    };
+
+
+
+    for (const auto & [view, name] : kViews)
+    {
+        m_commands.SetMenuSvg (CassoExplorerCommands::kViewFirst + (int) view, GetMenuSvg (name));
+    }
+
+    m_commands.SetMenuSvg (CassoExplorerCommands::kTogglePreview, GetMenuSvg (L"windows.previewpane"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetVerbMenuSvgName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassoExplorerWindow::GetVerbMenuSvgName (CassoExplorerActions::Verb verb)
+{
+    switch (verb)
+    {
+        case CassoExplorerActions::Verb::Open:         return L"windows.openfolder";
+        case CassoExplorerActions::Verb::OpenWith:     return L"windows.openwith";
+        case CassoExplorerActions::Verb::InsertDrive1: return L"casso.floppy525";
+        case CassoExplorerActions::Verb::InsertDrive2: return L"casso.floppy525";
+        case CassoExplorerActions::Verb::Format:       return L"windows.diskformat";
+        case CassoExplorerActions::Verb::Refresh:      return L"windows.refresh";
+        case CassoExplorerActions::Verb::MoreOptions:  return L"expandtoclassic";
+        case CassoExplorerActions::Verb::Cut:          return L"windows.cut";
+        case CassoExplorerActions::Verb::Copy:         return L"windows.copy";
+        case CassoExplorerActions::Verb::Paste:        return L"windows.paste";
+        case CassoExplorerActions::Verb::Rename:       return L"windows.rename";
+        case CassoExplorerActions::Verb::Delete:       return L"windows.ribbondelete";
+        case CassoExplorerActions::Verb::Share:        return L"Windows.ModernShare";
+        case CassoExplorerActions::Verb::Restore:      return L"windows.recyclebin.restoreitems";
+        case CassoExplorerActions::Verb::EmptyRecycleBin: return L"windows.recyclebin.empty";
+        default:                                       return nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetOpenMenuImage
+//
+//  Explorer's Open row carries the icon of the program that will open the
+//  item -- its own yellow folder for a folder -- so a folder or disk image,
+//  which opens here, carries Casso Explorer's, and any other file the icon
+//  of the program Windows opens it in. Drawn at the menu's icon size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> CassoExplorerWindow::GetOpenMenuImage (bool browsable, const std::wstring & path)
+{
+    int                                   sizePx  = m_scaler.ToPx (kMenuIconDip);
+    std::wstring                          program;
+    std::wstring                          key;
+    HICON                                 icon    = nullptr;
+    HRESULT                               hr      = S_OK;
+    auto                                  image   = std::make_shared<DxuiIconImage>();
+    std::shared_ptr<const DxuiIconImage>  found;
+
+
+
+    if (!browsable)
+    {
+        std::wstring  extension     = std::filesystem::path (path).extension().wstring();
+        wchar_t       exe[MAX_PATH] = {};
+        DWORD         length        = MAX_PATH;
+        HRESULT       hrAssoc       = extension.empty() ? E_FAIL
+                                                        : AssocQueryStringW (ASSOCF_NOTRUNCATE | ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_EXECUTABLE, extension.c_str(), L"open", exe, &length);
+
+        if (FAILED (hrAssoc))
+        {
+            return nullptr;
+        }
+
+        program = exe;
+    }
+
+    key = std::to_wstring (sizePx) + L":" + program;
+
+    if (m_openMenuImages.count (key) != 0)
+    {
+        return m_openMenuImages[key];
+    }
+
+    if (browsable)
+    {
+        icon = (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (IDI_CASSO_EXPLORER), IMAGE_ICON, sizePx, sizePx, LR_DEFAULTCOLOR);
+    }
+    else
+    {
+        hr = SHDefExtractIconW (program.c_str(), 0, 0, &icon, nullptr, (UINT) sizePx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (icon != nullptr)
+    {
+        hr = DxuiIconImage::FromHicon (icon, sizePx, *image);
+        DestroyIcon (icon);
+
+        if (SUCCEEDED (hr))
+        {
+            found = image;
+        }
+    }
+
+    m_openMenuImages[key] = found;
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetIconButtonTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetIconButtonTip (const DxuiCommand & command)
+{
+    std::wstring     tip   = command.GetLabelText();
+    const wchar_t *  keys  = nullptr;
+
+
+
+    tip.erase (std::remove (tip.begin(), tip.end(), L'&'), tip.end());
+
+    switch ((CassoExplorerActions::Verb) command.id)
+    {
+        case CassoExplorerActions::Verb::Cut:    keys = L"Ctrl+X"; break;
+        case CassoExplorerActions::Verb::Copy:   keys = L"Ctrl+C"; break;
+        case CassoExplorerActions::Verb::Paste:  keys = L"Ctrl+V"; break;
+        case CassoExplorerActions::Verb::Rename: keys = L"F2";     break;
+        case CassoExplorerActions::Verb::Delete: keys = L"Delete"; break;
+        default:                                                   break;
+    }
+
+    return (keys != nullptr) ? tip + L" (" + keys + L")" : tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetMenuSvg
+//
+//  THE ICONS ARE READ, NOT SHIPPED: they are Microsoft's, in File Explorer's
+//  own package, so Casso Explorer draws them from the copy on this machine and
+//  a missing one falls back to the icon font. Each theme has its set -- the
+//  light one fills its outlines, the dark one does not -- so a file is read
+//  once per theme. Casso's own art, the 5.25-inch floppy, is drawn in the same
+//  hand and the same three colors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string * CassoExplorerWindow::GetMenuSvg (const wchar_t * name)
+{
+    bool          dark   = DxuiColor::ComputeRelativeLuminance (m_theme->Background()) < 0.5f;
+    std::wstring  key    = std::wstring (dark ? L"dark:" : L"light:") + ((name != nullptr) ? name : L"");
+    auto          found  = m_menuSvgs.find (key);
+    std::string   svg;
+
+
+
+    if (name == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (found != m_menuSvgs.end())
+    {
+        return found->second ? found->second.get() : nullptr;
+    }
+
+    if (wcsncmp (name, L"casso.", 6) == 0)
+    {
+        svg = kFloppy525Svg;
+
+        for (auto [from, to] : { std::pair<const char *, const char *> { "{INK}",  dark ? "#E0DFDF" : "#555" },
+                                 std::pair<const char *, const char *> { "{ACC}",  dark ? "#4CC2FF" : "#0078D4" },
+                                 std::pair<const char *, const char *> { "{BODY}", dark ? "none"    : "#FAFAFA" } })
+        {
+            for (size_t at = svg.find (from); at != std::string::npos; at = svg.find (from, at))
+            {
+                svg.replace (at, strlen (from), to);
+            }
+        }
+    }
+    else
+    {
+        wchar_t          windows[MAX_PATH] = {};
+        UINT             length            = GetWindowsDirectoryW (windows, MAX_PATH);
+        std::wstring     path              = std::wstring (windows, length) + kExplorerIconFolder + (dark ? L"theme-dark\\" : L"theme-light\\") + name + L".svg";
+        std::ifstream    file              (path, std::ios::binary);
+
+        //  A few are kept at the top of the folder rather than in a theme's.
+        if (!file)
+        {
+            file.open (std::wstring (windows, length) + kExplorerIconFolder + name + L".svg", std::ios::binary);
+        }
+
+        if (file)
+        {
+            svg.assign (std::istreambuf_iterator<char> (file), std::istreambuf_iterator<char>());
+        }
+    }
+
+    m_menuSvgs[key] = svg.empty() ? nullptr : std::make_unique<std::string> (std::move (svg));
+
+    return m_menuSvgs[key] ? m_menuSvgs[key].get() : nullptr;
 }
 
 
@@ -3784,6 +4728,19 @@ void CassoExplorerWindow::ShowListHeaderMenu (int x, int y, int column)
         command->dispatch  = [this, c]()
         {
             m_listColumnChosen[c] = !m_listColumnChosen[c];
+
+            //  This folder's choice, and the one others without their own follow.
+            m_prefs.hiddenColumns.clear();
+
+            for (size_t each = 0; each < m_listColumnChosen.size(); each++)
+            {
+                if (!m_listColumnChosen[each])
+                {
+                    m_prefs.hiddenColumns.push_back ((int) each);
+                }
+            }
+
+            RememberFolderColumns();
             FillList();
         };
 
@@ -3804,9 +4761,12 @@ void CassoExplorerWindow::ShowListHeaderMenu (int x, int y, int column)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerWindow::IsListColumnShown (size_t column, bool chosen, bool insideImage)
+bool CassoExplorerWindow::IsListColumnShown (size_t column, bool chosen, Location::Kind kind, bool searching)
 {
-    bool  catalog = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
+    bool  catalog     = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
+    bool  recycled    = column == (size_t) CatalogModel::Column::OriginalLocation || column == (size_t) CatalogModel::Column::DateDeleted;
+    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory;
+    bool  inBin       = kind == Location::Kind::RecycleBin;
 
 
 
@@ -3815,7 +4775,69 @@ bool CassoExplorerWindow::IsListColumnShown (size_t column, bool chosen, bool in
         return true;
     }
 
+    if (recycled)
+    {
+        return inBin;
+    }
+
+    //  Search results show the folder each is in, as Explorer's do.
+    if (column == (size_t) CatalogModel::Column::Folder)
+    {
+        return searching;
+    }
+
     return chosen && (insideImage || !catalog);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ApplyColumnOrder
+//
+//  The order the user dragged the headers into, with any column it predates
+//  at the end; in the Recycle Bin, Explorer's order for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ApplyColumnOrder()
+{
+    using Column = CatalogModel::Column;
+
+    std::vector<size_t>  order;
+    size_t               count = CassoExplorerBrowser::GetColumns().size();
+
+
+
+    if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+    {
+        for (Column column : { Column::Name, Column::OriginalLocation, Column::DateDeleted, Column::Size, Column::Type, Column::Modified, Column::Address, Column::Locked, Column::Folder })
+        {
+            order.push_back ((size_t) column);
+        }
+    }
+    else
+    {
+        for (int column : m_folderColumnOrder)
+        {
+            if (column >= 0 && (size_t) column < count && std::find (order.begin(), order.end(), (size_t) column) == order.end())
+            {
+                order.push_back ((size_t) column);
+            }
+        }
+
+        for (size_t column = 0; column < count; column++)
+        {
+            if (std::find (order.begin(), order.end(), column) == order.end())
+            {
+                order.push_back (column);
+            }
+        }
+    }
+
+    m_list->SetColumnOrder (order);
 }
 
 
@@ -3830,13 +4852,15 @@ bool CassoExplorerWindow::IsListColumnShown (size_t column, bool chosen, bool in
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::ShowListContextMenu (int x, int y)
+void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
 {
     std::vector<DxuiPopupMenuItem>                   items;
     Location                                         location;
     std::wstring                                     folderForCasso;
     bool                                             known          = false;
     bool                                             moreOptions    = false;
+    bool                                             listFocused    = false;
+    bool                                             browsable      = false;
     std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
     std::vector<DxuiPopupMenuItem>                   newChoices;
 
@@ -3845,14 +4869,48 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
     m_menuCommands.clear();
     AskCassoToDescribe();
 
+    //  Explorer's Undo, naming what it undoes, while there is one.
+    if (!m_undo.empty())
+    {
+        AddMenuCommand (items, GetUndoLabel (m_undo.back().kind), [this]() { UndoLast(); }, L"Ctrl+Z");
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.undo");
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    //  From a group's header: open or close it, and all of them, with the
+    //  keys that do the same on a focused header.
+    if (group >= 0 && m_listView != DxuiListView::View::List)
+    {
+        bool  collapsed = m_list->IsGroupCollapsed (group);
+
+        AddMenuCommand (items, collapsed ? L"E&xpand group" : L"C&ollapse group", [this, group, collapsed]()
+        {
+            m_list->SetGroupCollapsed (group, !collapsed);
+            Invalidate();
+        }, collapsed ? L"Right" : L"Left");
+        AddMenuCommand (items, L"&Expand all groups",   [this]() { m_list->SetAllGroupsCollapsed (false); Invalidate(); });
+        AddMenuCommand (items, L"Co&llapse all groups", [this]() { m_list->SetAllGroupsCollapsed (true);  Invalidate(); });
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
     //  A folder or a disk image opens in a new tab, as Explorer's items do.
     if (m_browser.GetSelectedRows().size() == 1 && m_browser.TryGetRowLocation (m_browser.GetSelectedRows()[0], location))
     {
+        browsable = true;
+
         AddMenuCommand (items, L"Open in new &tab", [this, location]()
         {
             m_browser.OpenInNewTab (location);
             FillList();
         });
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.opennewtab");
+
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            AddPinMenuCommand (items, location.path);
+        }
+
         items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
@@ -3866,20 +4924,23 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
             continue;
         }
 
-        //  A real file's clipboard, rename and delete are Explorer's buttons
-        //  along the menu's edge rather than rows.
-        if (!m_browser.IsImageLocation() && GetVerbGlyph (verb) != nullptr)
+        //  The clipboard, rename and delete are Explorer's buttons along the
+        //  menu's edge rather than rows, for a file and for an image's entry.
+        //  Paste shows only with files to paste, so a menu with nothing to cut
+        //  or copy and nothing to paste has no button row at all.
+        if (verb == CassoExplorerActions::Verb::Paste && !m_shellVerbs.ClipboardHasFiles())
+        {
+            continue;
+        }
+
+        if (GetVerbGlyph (verb) != nullptr)
         {
             command           = std::make_shared<DxuiCommand>();
             command->id       = (int) verb;
             command->label    = GetVerbLabel (verb);
             command->glyph    = GetVerbGlyph (verb);
+            command->menuSvg  = GetMenuSvg (GetVerbMenuSvgName (verb));
             command->dispatch = [this, verb]() { RunVerb (verb); };
-
-            if (verb == CassoExplorerActions::Verb::Paste)
-            {
-                command->isEnabled = [this]() { return m_shellVerbs.ClipboardHasFiles(); };
-            }
 
             iconCommands.push_back (command);
             m_menuCommands.push_back (std::move (command));
@@ -3916,6 +4977,8 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
             bool                          dos33  = m_browser.IsImageLocation() && m_browser.GetVolumeKind() != VolumeKind::ProDos;
 
             parent->label     = L"Ne&w";
+            parent->menuGlyph = s_kpszMdl2Add;
+            parent->menuSvg   = GetMenuSvg (L"windows.newitem");
             parent->isEnabled = [dos33]() { return !dos33; };
 
             if (!items.empty())
@@ -3928,15 +4991,23 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
             newChoices.clear();
         }
 
-        if (verb == CassoExplorerActions::Verb::Refresh && !items.empty())
+        //  Refresh only places New; Explorer's menus leave it to F5.
+        if (verb == CassoExplorerActions::Verb::Refresh)
         {
-            items.push_back (DxuiPopupMenuItem::ForSeparator());
+            continue;
         }
 
-        command           = std::make_shared<DxuiCommand>();
-        command->id       = (int) verb;
-        command->label    = GetVerbLabel (verb);
-        command->dispatch = [this, verb]() { RunVerb (verb); };
+        command            = std::make_shared<DxuiCommand>();
+        command->id        = (int) verb;
+        command->label     = GetVerbLabel (verb);
+        command->menuGlyph = GetVerbMenuGlyph (verb);
+        command->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (verb));
+        command->dispatch  = [this, verb]() { RunVerb (verb); };
+
+        if (verb == CassoExplorerActions::Verb::Open)
+        {
+            command->menuImage = GetOpenMenuImage (browsable, GetSelectedImagePath());
+        }
 
         //  A machine known to have one drive cannot take drive 2; one not
         //  described yet is given the benefit of the doubt.
@@ -3950,13 +5021,17 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
             command->isEnabled = [this]() { return m_shellVerbs.ClipboardHasFiles(); };
         }
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_menuCommands.push_back (std::move (command));
-
+        //  Copying out of an image goes by the clipboard or a drag, as in
+        //  Explorer, which has no Copy to folder: the Copy verb is the button
+        //  row's, and this one stands for the forms Copy as offers.
         if (verb == CassoExplorerActions::Verb::Get)
         {
             AddCopyAsMenu (items);
+            continue;
         }
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+        m_menuCommands.push_back (std::move (command));
 
         if (verb == CassoExplorerActions::Verb::Format)
         {
@@ -3977,6 +5052,7 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
             }
 
             parent->label = L"&Advanced";
+            parent->menuGlyph = s_kpszMdl2Setting;
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (advanced)));
             m_menuCommands.push_back (std::move (parent));
         }
@@ -4004,10 +5080,19 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
         });
     }
 
-    if (!m_browser.GetSelectedRows().empty())
+    //  A deleted item has no path to copy, and the bin itself describes it.
+    if (!m_browser.GetSelectedRows().empty() && m_browser.GetLocation().kind == Location::Kind::RecycleBin)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        AddMenuCommand (items, L"Copy as &path", [this]() { CopySelectedPaths(); });
+        AddMenuCommand (items, L"P&roperties", [this]() { RunRecycleBinVerb (CassoExplorerActions::Verb::Open); });
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.properties");
+    }
+    else if (!m_browser.GetSelectedRows().empty())
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, L"Copy as &path", [this]() { CopySelectedPaths(); }, L"", s_kpszMdl2CopyPath);
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.copyaspath");
 
         if (m_browser.GetSelectedRows().size() == 1)
         {
@@ -4018,6 +5103,8 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
                     ShowRowProperties (m_browser.GetSelectedRows()[0]);
                 }
             });
+            m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
+            m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.properties");
         }
     }
 
@@ -4047,14 +5134,42 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y)
             std::vector<std::wstring>  paths;
             HRESULT                    hr = S_OK;
 
-            m_browser.GetSelectedHostPaths (paths);
+            if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+            {
+                m_browser.GetSelectedRecycledIds (paths);
+                hr = m_shellVerbs.ShowRecycledMenu (GetHwnd(), paths, screen);
+                RefreshAfterHostChange();
+            }
+            else
+            {
+                m_browser.GetSelectedHostPaths (paths);
+                hr = m_shellVerbs.ShowShellMenu (GetHwnd(), paths, screen);
+            }
 
-            hr = m_shellVerbs.ShowShellMenu (GetHwnd(), paths, screen);
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
     }
 
-    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+    //  The menu takes the focus look from the list while it is open, as
+    //  Explorer's does: the item keeps its selection, drawn unfocused, and
+    //  loses its focus border until the menu goes.
+    listFocused = m_list->IsListFocused();
+
+    if (listFocused)
+    {
+        m_list->SetListFocused (false);
+        Invalidate();
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items), [this, listFocused] (bool)
+    {
+        if (listFocused && m_focus == Pane::List)
+        {
+            m_list->SetListFocused (true);
+            Invalidate();
+        }
+    });
 }
 
 
@@ -4112,6 +5227,8 @@ void CassoExplorerWindow::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & item
     });
 
     parent->label = GetVerbLabel (CassoExplorerActions::Verb::OpenWith);
+    parent->menuGlyph = s_kpszMdl2OpenWith;
+    parent->menuSvg   = GetMenuSvg (L"windows.openwith");
     items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (children)));
     m_menuCommands.push_back (std::move (parent));
 }
@@ -4140,12 +5257,20 @@ void CassoExplorerWindow::BeginRename()
 
 
 
-    if (m_browser.GetSelectedRows().size() != 1)
+    //  The focused item, as Explorer renames, even with others selected
+    //  around it.
+    row = m_list->GetSelectedRow();
+
+    if (row < 0 || std::find (m_browser.GetSelectedRows().begin(), m_browser.GetSelectedRows().end(), row) == m_browser.GetSelectedRows().end())
+    {
+        row = m_browser.GetSelectedRows().empty() ? -1 : m_browser.GetSelectedRows()[0];
+    }
+
+    if (row < 0 || row >= (int) m_browser.GetRows().size())
     {
         return;
     }
 
-    row = m_browser.GetSelectedRows()[0];
     m_list->EnsureVisible (row);
 
     if (!m_list->GetCellTextRectPx (row, 0, cell))
@@ -4156,6 +5281,12 @@ void CassoExplorerWindow::BeginRename()
     name = m_browser.GetRows()[(size_t) row].name;
 
     OffsetRect (&cell, list.left, list.top);
+
+    //  Inside the row, as the selection box is, not over the whole of it.
+    if (m_listView == DxuiListView::View::Details)
+    {
+        InflateRect (&cell, 0, -m_scaler.ToPx (DxuiListView::s_kRowBoxInsetYDip));
+    }
 
     m_renameBox->SetMaxLength (host ? MAX_PATH : kMaxCatalogName);
     m_renameBox->SetText      (name);
@@ -4220,14 +5351,33 @@ void CassoExplorerWindow::EndRename (bool commit)
         if (m_browser.TryGetRowPath (row, path))
         {
             hr = m_shellVerbs.RenameItem (GetHwnd(), path, newName);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (SUCCEEDED (hr))
+            {
+                PushUndo (UndoStep { UndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
+            }
         }
 
         RefreshAfterHostChange();
         return;
     }
 
-    ReportOutcome (m_actions.RenameSelected (newName), L"Rename");
+    {
+        CassoExplorerActions::Outcome  renamed;
+
+        //  The row renamed is the one the box was over, whatever else is
+        //  selected.
+        m_browser.SetSelectedRows ({ row });
+        renamed = m_actions.RenameSelected (newName);
+
+        if (renamed.Succeeded())
+        {
+            PushUndo (UndoStep { UndoStep::Kind::ImageRename, m_browser.GetLocation(), {}, oldName, newName });
+        }
+
+        ReportOutcome (renamed, L"Rename");
+    }
+
     FillList();
 }
 
@@ -4340,50 +5490,380 @@ bool CassoExplorerWindow::TryGetDropLocation (int tag, POINT screen, Location & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::TryGetHostDropFolder
+//
+//  A folder row or tree node on the host, or, on the list's empty space, the
+//  host folder the list shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::TryGetHostDropFolder (int tag, POINT screen, std::wstring & outFolder)
+{
+    POINT                 client = screen;
+    int                   row    = -1;
+    RECT                  list   = m_list->GetBounds();
+    const DxuiTreeNode  * node   = nullptr;
+    Location              location;
+
+
+
+    ScreenToClient (GetHwnd(), &client);
+
+    if (tag == kDropTagTree)
+    {
+        row  = m_tree->HitTestRow (client.x, client.y);
+        node = (row >= 0) ? m_tree->GetNodeAt (row) : nullptr;
+
+        if (node == nullptr || !m_browser.TryGetNodeLocation (node->id, location))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        row = m_list->IsVisible() ? m_list->HitTestRow (client.x - list.left, client.y - list.top) : -1;
+
+        if (row < 0 || !m_browser.TryGetRowLocation (row, location) || location.kind != Location::Kind::HostFolder)
+        {
+            location = m_browser.GetLocation();
+        }
+    }
+
+    //  The Recycle Bin's own target recycles what is dropped on it, as a drop
+    //  on Explorer's Recycle Bin does.
+    if (location.kind == Location::Kind::RecycleBin)
+    {
+        outFolder = L"shell:RecycleBinFolder";
+        return true;
+    }
+
+    if (location.kind != Location::Kind::HostFolder || location.path.empty())
+    {
+        return false;
+    }
+
+    outFolder = location.path;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ForwardHostDrag
+//
+//  Enters the folder's target when the drag first reaches it, leaving the
+//  one before; over it after that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD CassoExplorerWindow::ForwardHostDrag (IDataObject * data, const std::wstring & folder, POINT screen)
+{
+    HRESULT             hr     = S_OK;
+    ComPtr<IShellItem>  item;
+    DWORD               effect = m_dropTarget.GetAllowedEffects();
+    POINTL              at     = { screen.x, screen.y };
+
+
+
+    if (m_hostDrop != nullptr && IsSameFolder (folder, m_hostDropFolder))
+    {
+        hr = m_hostDrop->DragOver (m_dropTarget.GetDragKeyState(), at, &effect);
+
+        return SUCCEEDED (hr) ? effect : DROPEFFECT_NONE;
+    }
+
+    LeaveHostDrop();
+
+    hr = SHCreateItemFromParsingName (folder.c_str(), nullptr, IID_PPV_ARGS (&item));
+
+    if (SUCCEEDED (hr))
+    {
+        hr = item->BindToHandler (nullptr, BHID_SFUIObject, IID_PPV_ARGS (&m_hostDrop));
+    }
+
+    if (FAILED (hr) || m_hostDrop == nullptr)
+    {
+        m_hostDrop.Reset();
+        return DROPEFFECT_NONE;
+    }
+
+    m_hostDropFolder = folder;
+
+    hr = m_hostDrop->DragEnter (data, m_dropTarget.GetDragKeyState(), at, &effect);
+
+    return SUCCEEDED (hr) ? effect : DROPEFFECT_NONE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::LeaveHostDrop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::LeaveHostDrop()
+{
+    if (m_hostDrop != nullptr)
+    {
+        HRESULT  hr = m_hostDrop->DragLeave();
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    m_hostDrop.Reset();
+    m_hostDropFolder.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::GetDropEffect
 //
-//  A copy where the drag holds files or another image's entries and the
-//  image under the pointer can be written; nothing otherwise, so the pointer
-//  says so before the button is let go.
+//  What a drop at this point would do, so the pointer and the words under the
+//  drag image say so before the button is let go. A tab takes no drop, but
+//  one the drag rests on opens, so the drop can go into its list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT screen)
 {
-    Location   location;
-    bool       readOnly = false;
-    HRESULT    hr       = S_OK;
-    FORMATETC  hdrop    = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    FORMATETC  entries  = { (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    HRESULT    hasFiles = S_OK;
-    HRESULT    hasEntry = S_OK;
-    DWORD      effect   = DROPEFFECT_NONE;
+    Location      location;
+    DropSource    source;
+    std::wstring  hostFolder;
+    bool          readOnly = false;
+    HRESULT       hr       = S_OK;
+    DWORD         effect   = DROPEFFECT_NONE;
 
 
 
-    if (data == nullptr || !TryGetDropLocation (tag, screen, location))
+    if (tag == kDropTagTabs)
     {
+        HoverDropTab (screen);
         ShowDropTarget (tag, screen, false);
+        DescribeDrop (data, DROPEFFECT_NONE, location);
         return DROPEFFECT_NONE;
     }
 
-    if (m_context.fs != nullptr)
+    if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder))
     {
-        hr = m_context.fs->GetReadOnlyAttribute (location.path, readOnly);
+        effect = ForwardHostDrag (data, hostFolder, screen);
+        ShowDropTarget (tag, screen, effect != DROPEFFECT_NONE);
 
-        if (SUCCEEDED (hr) && readOnly)
+        return effect;
+    }
+
+    LeaveHostDrop();
+
+    if (data != nullptr && TryGetDropLocation (tag, screen, location) && ReadDropSource (data, source))
+    {
+        if (m_context.fs != nullptr)
         {
-            ShowDropTarget (tag, screen, false);
+            hr = m_context.fs->GetReadOnlyAttribute (location.path, readOnly);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        effect = readOnly ? DROPEFFECT_NONE : ChooseDropEffect (source, location);
+    }
+
+    DescribeDrop   (data, effect, location);
+    ShowDropTarget (tag, screen, effect != DROPEFFECT_NONE);
+
+    return effect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ReadDropSource
+//
+//  Another image's entries when the drag holds them, host files otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::ReadDropSource (IDataObject * data, DropSource & outSource)
+{
+    FORMATETC  entries = { (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium  = {};
+    HRESULT    hr      = S_OK;
+
+
+
+    outSource = DropSource();
+
+    if (data == nullptr)
+    {
+        return false;
+    }
+
+    hr = data->GetData (&entries, &medium);
+
+    if (SUCCEEDED (hr))
+    {
+        const char  * bytes = (const char *) GlobalLock (medium.hGlobal);
+        size_t        size  = GlobalSize (medium.hGlobal);
+
+        if (bytes != nullptr)
+        {
+            outSource.fromImage = DragPayload::DecodeCatalogEntries (std::string (bytes, strnlen (bytes, size)),
+                                                                     outSource.image, outSource.kind, outSource.catalogPaths);
+            GlobalUnlock (medium.hGlobal);
+        }
+
+        ReleaseStgMedium (&medium);
+    }
+
+    if (outSource.fromImage)
+    {
+        return true;
+    }
+
+    hr = DxuiDragDropTarget::ExtractHDropPaths (data, outSource.hostPaths);
+
+    return SUCCEEDED (hr) && !outSource.hostPaths.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ChooseDropEffect
+//
+//  A disk image is a volume of its own, so entries moved within one image
+//  move, and anything coming from elsewhere is copied, unless Ctrl or Shift
+//  says otherwise. A drop that would go nowhere is none: an image onto
+//  itself, or entries moved into the directory they are already in or into
+//  one of themselves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD CassoExplorerWindow::ChooseDropEffect (const DropSource & source, const Location & target) const
+{
+    bool         same   = source.fromImage && IsSameFolder (TextEncoding::NarrowToWide (source.image), target.path);
+    std::string  into   = (target.kind == Location::Kind::DiskDirectory) ? target.innerPath : std::string();
+    DWORD        effect = DragPayload::ChooseDropEffect (same, m_dropTarget.GetDragKeyState(), m_dropTarget.GetAllowedEffects());
+
+
+
+    for (const std::wstring & path : source.hostPaths)
+    {
+        if (IsSameFolder (path, target.path))
+        {
             return DROPEFFECT_NONE;
         }
     }
 
-    hasFiles = data->QueryGetData (&hdrop);
-    hasEntry = data->QueryGetData (&entries);
-    effect   = (hasFiles == S_OK || hasEntry == S_OK) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+    for (const std::string & path : (same ? source.catalogPaths : std::vector<std::string>()))
+    {
+        size_t       slash  = path.find_last_of ('/');
+        std::string  parent = (slash == std::string::npos) ? std::string() : path.substr (0, slash);
 
-    ShowDropTarget (tag, screen, effect != DROPEFFECT_NONE);
+        if (into == path || into.rfind (path + "/", 0) == 0)
+        {
+            return DROPEFFECT_NONE;
+        }
+
+        if (effect == DROPEFFECT_MOVE && parent == into)
+        {
+            return DROPEFFECT_NONE;
+        }
+    }
+
     return effect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::DescribeDrop
+//
+//  The words under the drag image, as Explorer's: "Move to Disks", "Copy to
+//  GAMES". None where the drop would do nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::DescribeDrop (IDataObject * data, DWORD effect, const Location & target)
+{
+    HRESULT       hr    = S_OK;
+    std::wstring  place;
+    size_t        slash = 0;
+
+
+
+    if (data == nullptr)
+    {
+        return;
+    }
+
+    if (effect == DROPEFFECT_NONE)
+    {
+        hr = DxuiDragDropTarget::SetDropDescription (data, DROPIMAGE_INVALID, L"", L"");
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    if (target.kind == Location::Kind::DiskDirectory && !target.innerPath.empty())
+    {
+        slash = target.innerPath.find_last_of ('/');
+        place = TextEncoding::NarrowToWide ((slash == std::string::npos) ? target.innerPath : target.innerPath.substr (slash + 1));
+    }
+    else
+    {
+        slash = target.path.find_last_of (L"\\/");
+        place = (slash == std::wstring::npos) ? target.path : target.path.substr (slash + 1);
+    }
+
+    hr = DxuiDragDropTarget::SetDropDescription (data,
+                                                 (effect == DROPEFFECT_MOVE) ? DROPIMAGE_MOVE : DROPIMAGE_COPY,
+                                                 (effect == DROPEFFECT_MOVE) ? L"Move to %1" : L"Copy to %1",
+                                                 place.c_str());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::HoverDropTab
+//
+//  The tab under the drag opens at once, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::HoverDropTab (POINT screen)
+{
+    POINT  client = screen;
+    int    index  = -1;
+
+
+
+    ScreenToClient (GetHwnd(), &client);
+    index = m_tabs->HitTest (client.x, client.y);
+
+    if (index >= 0 && (size_t) index != m_browser.GetBrowserModel().GetActiveIndex())
+    {
+        SwitchToTab ((size_t) index);
+        Invalidate();
+    }
 }
 
 
@@ -4396,41 +5876,47 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
 //
 //  The row or tree node a drop would land on is lit as the pointer moves, as
 //  Explorer lights its drop target. A drop on the list's empty space goes to
-//  the location shown, so nothing is lit there.
+//  the location shown, so nothing is lit there. Nothing is redrawn while the
+//  target stays the same, since OLE asks many times a second.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::ShowDropTarget (int tag, POINT screen, bool accepted)
 {
-    POINT     client = screen;
-    RECT      list   = m_list->GetBounds();
+    POINT     client  = screen;
+    RECT      list    = m_list->GetBounds();
     Location  location;
-    int       row    = -1;
+    int       listRow = -1;
+    int       treeRow = -1;
+    int       row     = -1;
 
 
 
     ScreenToClient (GetHwnd(), &client);
-    ClearDropTarget();
 
-    if (!accepted)
+    if (accepted && tag == kDropTagTree)
     {
-        return;
+        treeRow = m_tree->HitTestRow (client.x, client.y);
     }
-
-    if (tag == kDropTagTree)
-    {
-        m_tree->SetHoverRow (m_tree->HitTestRow (client.x, client.y));
-    }
-    else
+    else if (accepted && tag == kDropTagList)
     {
         row = m_list->HitTestRow (client.x - list.left, client.y - list.top);
 
         if (row >= 0 && m_browser.TryGetRowLocation (row, location) &&
             (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::DiskImage))
         {
-            m_list->SetHoveredRow (row);
+            listRow = row;
         }
     }
+
+    if (listRow == m_list->GetDropRow() && treeRow == m_treeDropRow)
+    {
+        return;
+    }
+
+    m_list->SetDropRow (listRow);
+    m_treeDropRow = treeRow;
+    m_tree->SetHoverRow (treeRow);
 
     Invalidate();
 }
@@ -4447,8 +5933,17 @@ void CassoExplorerWindow::ShowDropTarget (int tag, POINT screen, bool accepted)
 
 void CassoExplorerWindow::ClearDropTarget()
 {
-    m_tree->SetHoverRow   (-1);
-    m_list->SetHoveredRow (-1);
+    LeaveHostDrop();
+
+    if (m_list->GetDropRow() < 0 && m_treeDropRow < 0)
+    {
+        return;
+    }
+
+    m_list->SetDropRow  (-1);
+    m_tree->SetHoverRow (-1);
+    m_treeDropRow = -1;
+
     Invalidate();
 }
 
@@ -4461,33 +5956,57 @@ void CassoExplorerWindow::ClearDropTarget()
 //  CassoExplorerWindow::OnDrop
 //
 //  Another image's entries are copied byte for byte when the drag holds
-//  them; otherwise the host files go in by Put's rules.
+//  them; otherwise the host files go in by Put's rules. A move removes what
+//  it copied once everything has landed: entries from their image, and host
+//  files to the Recycle Bin. The whole move happens here, so the source is
+//  told of a copy and removes nothing itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
 {
     Location                       location;
-    FORMATETC                      entries      = { (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM                      medium       = {};
-    HRESULT                        hr           = S_OK;
-    std::vector<std::wstring>      paths;
-    std::string                    source;
-    VolumeKind                     sourceKind   = VolumeKind::Unknown;
-    VolumeKind                     targetKind   = VolumeKind::Unknown;
-    std::vector<std::string>       catalogPaths;
+    DropSource                     source;
+    VolumeKind                     targetKind = VolumeKind::Unknown;
     std::string                    inner;
     VolumeListing                  listing;
     CassoExplorerActions::Outcome  outcome;
-    bool                           decoded      = false;
-    BOOL                           posted       = FALSE;
+    CassoExplorerActions::Outcome  removed;
+    DWORD                          effect     = DROPEFFECT_NONE;
+    BOOL                           posted     = FALSE;
+    std::wstring                   hostFolder;
+    POINTL                         at         = { screen.x, screen.y };
 
 
 
-    if (!TryGetDropLocation (tag, screen, location))
+    //  Onto a host folder, the folder's own target does the drop.
+    if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsSameFolder (hostFolder, m_hostDropFolder))
+    {
+        effect = m_dropTarget.GetAllowedEffects();
+
+        HRESULT  hr = m_hostDrop->Drop (data, m_dropTarget.GetDragKeyState(), at, &effect);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_dropTarget.SetDropResult (effect);
+
+        m_hostDrop.Reset();
+        m_hostDropFolder.clear();
+        return;
+    }
+
+    if (!TryGetDropLocation (tag, screen, location) || !ReadDropSource (data, source))
     {
         return;
     }
+
+    effect = ChooseDropEffect (source, location);
+
+    if (effect == DROPEFFECT_NONE)
+    {
+        return;
+    }
+
+    m_dropTarget.SetDropResult (DROPEFFECT_COPY);
 
     inner = (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string();
 
@@ -4496,32 +6015,6 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
     {
         ShowMessage (L"The disk image could not be read.", MB_ICONWARNING);
         return;
-    }
-
-    hr = data->GetData (&entries, &medium);
-
-    if (SUCCEEDED (hr))
-    {
-        const char  * bytes = (const char *) GlobalLock (medium.hGlobal);
-        size_t        size  = GlobalSize (medium.hGlobal);
-
-        if (bytes != nullptr)
-        {
-            decoded = DragPayload::DecodeCatalogEntries (std::string (bytes, strnlen (bytes, size)), source, sourceKind, catalogPaths);
-            GlobalUnlock (medium.hGlobal);
-        }
-
-        ReleaseStgMedium (&medium);
-    }
-
-    if (!decoded)
-    {
-        hr = DxuiDragDropTarget::ExtractHDropPaths (data, paths);
-
-        if (FAILED (hr) || paths.empty())
-        {
-            return;
-        }
     }
 
     //  A right-drag asks what the drop means, once this call has returned and
@@ -4534,28 +6027,88 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         m_pendingDrop.targetKind   = targetKind;
         m_pendingDrop.inner        = inner;
         m_pendingDrop.screen       = screen;
-        m_pendingDrop.hostPaths    = paths;
-        m_pendingDrop.fromImage    = decoded;
-        m_pendingDrop.sourceImage  = source;
-        m_pendingDrop.sourceKind   = sourceKind;
-        m_pendingDrop.catalogPaths = catalogPaths;
+        m_pendingDrop.hostPaths    = source.hostPaths;
+        m_pendingDrop.fromImage    = source.fromImage;
+        m_pendingDrop.sourceImage  = source.image;
+        m_pendingDrop.sourceKind   = source.kind;
+        m_pendingDrop.catalogPaths = source.catalogPaths;
 
         posted = PostMessageW (GetHwnd(), kDropMenuMessage, 0, 0);
         IGNORE_RETURN_VALUE (posted, TRUE);
         return;
     }
 
-    if (decoded)
+    if (source.fromImage)
     {
-        outcome = m_actions.CopyEntriesInto (source, sourceKind, catalogPaths, location.path, targetKind, inner);
+        outcome = m_actions.CopyEntriesInto (source.image, source.kind, source.catalogPaths, location.path, targetKind, inner);
     }
     else
     {
-        outcome = m_actions.PutInto (location.path, targetKind, inner, paths, MakeAddressPrompt());
+        outcome = m_actions.PutInto (location.path, targetKind, inner, source.hostPaths, MakeAddressPrompt());
     }
 
-    ReportOutcome (outcome, L"Put");
+    //  Only a copy that landed whole is taken from where it came.
+    if (effect == DROPEFFECT_MOVE && outcome.Succeeded())
+    {
+        if (source.fromImage)
+        {
+            removed = m_actions.DeleteEntries (source.image, source.catalogPaths);
+
+            if (!removed.Succeeded())
+            {
+                outcome = removed;
+            }
+        }
+        else
+        {
+            RecycleHostFiles (source.hostPaths);
+        }
+    }
+
+    if (effect != DROPEFFECT_MOVE)
+    {
+        PushPutUndo (outcome, location.path, inner);
+    }
+
+    ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
     RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RecycleHostFiles
+//
+//  To the Recycle Bin rather than gone, so a move whose files a disk image
+//  holds in another form can still be undone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RecycleHostFiles (const std::vector<std::wstring> & paths)
+{
+    std::wstring     list;
+    SHFILEOPSTRUCTW  operation = {};
+    int              result    = 0;
+
+
+
+    for (const std::wstring & path : paths)
+    {
+        list += path;
+        list += L'\0';
+    }
+
+    list += L'\0';
+
+    operation.wFunc  = FO_DELETE;
+    operation.pFrom  = list.c_str();
+    operation.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI;
+
+    result = SHFileOperationW (&operation);
+    IGNORE_RETURN_VALUE (result, 0);
 }
 
 
@@ -4596,6 +6149,7 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     std::vector<DxuiPopupMenuItem>  sortItems;
     std::vector<DxuiPopupMenuItem>  viewItems;
     std::vector<DxuiPopupMenuItem>  themeItems;
+    std::vector<DxuiPopupMenuItem>  groupItems;
     size_t                          column = 0;
 
 
@@ -4603,14 +6157,35 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     newItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kNewFolder)));
     newItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kNewDisk)));
 
+    //  The columns the list shows here, as Explorer's menu lists them.
     for (column = 0; column < CassoExplorerBrowser::GetColumns().size(); column++)
     {
+        bool  chosen = column >= m_listColumnChosen.size() || m_listColumnChosen[column];
+
+        if (!IsListColumnShown (column, chosen, m_browser.GetLocation().kind, SearchQuery::IsId (m_browser.GetLocation().path)))
+        {
+            continue;
+        }
+
         sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortByColumn + (int) column)));
     }
 
     sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
     sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortAscending)));
     sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortDescending)));
+
+    //  Explorer keeps Group by at the foot of its Sort menu.
+    for (int field : { 1, 2, 3, 4, 0 })
+    {
+        groupItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupByField + field)));
+    }
+
+    groupItems.push_back (DxuiPopupMenuItem::ForSeparator());
+    groupItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupAscending)));
+    groupItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupDescending)));
+
+    sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
+    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_commands.Find (CassoExplorerCommands::kGroupBy), std::move (groupItems)));
 
     //  In Explorer's order.
     for (int view : { 1, 2, 3, 4, 5, 0, 6, 7 })
@@ -4631,6 +6206,10 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kSort,  std::move (sortItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kView,  std::move (viewItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kTheme, std::move (themeItems));
+
+    //  Each theme is shown as the pointer passes over its row; leaving the
+    //  menu without a choice puts back the one it opened on.
+    m_commandBar->SetDropDownSinks (CassoExplorerCommands::kTheme, [this] (int index) { PreviewTheme (index); }, nullptr);
 }
 
 
@@ -4648,12 +6227,13 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
 
 void CassoExplorerWindow::SizeListIcons()
 {
-    DxuiListView::ItemMetrics  metrics = DxuiListView::GetItemMetrics (m_listView);
-    int                        dip     = (m_listView == DxuiListView::View::Details) ? DxuiTreeView::s_kIconDip : metrics.iconDip;
+    UINT  dpi = GetDpiForWindow (GetHwnd());
 
 
 
-    m_listIcons.SetSizePx (MulDiv (dip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
+    m_listIcons.SetDpi    (dpi);
+    m_listIcons.SetSizePx ((m_listView == DxuiListView::View::Details) ? MulDiv (DxuiTreeView::s_kIconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi)
+                                                                        : DxuiListView::GetItemIconPx (m_listView, dpi));
 }
 
 
@@ -4673,11 +6253,41 @@ void CassoExplorerWindow::ShowOptions()
 
 
 
-    choices.hostNaming = (int) GetNamingStyle();
+    Win32UserClasses  classes;
+    bool              wasRegistered    = FileAssociations::IsRegistered (classes);
+    wchar_t           module[MAX_PATH] = {};
+    std::wstring      folder;
+    HRESULT           hr               = S_OK;
 
-    if (CassoExplorerOptionsDialog::Ask (GetHwnd(), m_theme, choices) && choices.hostNaming >= 0 && choices.hostNaming < (int) std::size (kNamings))
+
+
+    choices.hostNaming = (int) GetNamingStyle();
+    choices.registered = wasRegistered;
+
+    if (!CassoExplorerOptionsDialog::Ask (GetHwnd(), m_theme, choices))
+    {
+        return;
+    }
+
+    if (choices.hostNaming >= 0 && choices.hostNaming < (int) std::size (kNamings))
     {
         m_prefs.hostNaming = kNamings[choices.hostNaming];
+    }
+
+    //  The user's file types change only when the box was changed.
+    if (choices.registered != wasRegistered)
+    {
+        GetModuleFileNameW (nullptr, module, MAX_PATH);
+        folder = module;
+        folder.resize (folder.find_last_of (L"\\/"));
+
+        hr = choices.registered ? FileAssociations::Register (classes, LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe), module)
+                                : FileAssociations::Unregister (classes);
+
+        if (FAILED (hr))
+        {
+            ShowMessage (L"Windows did not take the change to the disk image types.", MB_ICONERROR);
+        }
     }
 }
 
@@ -4823,8 +6433,9 @@ std::wstring CassoExplorerWindow::GetFolderViewKey (FolderViews::FolderType * ou
 
 void CassoExplorerWindow::ApplyFolderView()
 {
-    FolderViews::FolderType  type = FolderViews::FolderType::Generic;
-    std::wstring             key  = GetFolderViewKey (nullptr);
+    FolderViews::FolderType  type  = FolderViews::FolderType::Generic;
+    std::wstring             key   = GetFolderViewKey (nullptr);
+    FolderViewEntry          entry;
 
 
 
@@ -4839,6 +6450,73 @@ void CassoExplorerWindow::ApplyFolderView()
     m_listView    = m_prefs.folderViews.GetView (key, type);
     m_list->SetView (m_listView);
     SizeListIcons();
+
+    //  Each folder keeps its own sort and grouping, as Explorer's do; one
+    //  never given either opens by name and ungrouped.
+    entry = m_prefs.folderViews.GetEntry (key, type);
+
+    if (entry.sortColumn > (int) CatalogModel::Column::DateDeleted)
+    {
+        entry.sortColumn = 0;
+    }
+
+    if (entry.groupBy > (int) RowGrouping::Field::Size)
+    {
+        entry.groupBy = 0;
+    }
+
+    m_browser.SetSortAndGroup ((CatalogModel::Column) entry.sortColumn, entry.sortDescending,
+                               (RowGrouping::Field) entry.groupBy, entry.groupDescending);
+
+    ApplyColumnWidths (entry.columnWidthsDip.empty() ? m_prefs.columnWidthsDip : entry.columnWidthsDip);
+
+    //  Its own column order and choice of columns, or the latest ones.
+    m_folderColumnOrder = entry.columnOrder.empty() ? m_prefs.columnOrder : entry.columnOrder;
+    m_listColumnChosen.assign (CassoExplorerBrowser::GetColumns().size(), true);
+
+    for (int hidden : (entry.columnsChosen ? entry.hiddenColumns : m_prefs.hiddenColumns))
+    {
+        if (hidden > (int) CatalogModel::Column::Name && (size_t) hidden < m_listColumnChosen.size())
+        {
+            m_listColumnChosen[(size_t) hidden] = false;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RememberFolderSort
+//
+//  Kept only when the user sorts or groups, so a folder merely visited keeps
+//  following the defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RememberFolderSort()
+{
+    FolderViewEntry  entry;
+
+
+
+    if (m_listViewKey.empty() || !m_browser.GetBrowserModel().HasTabs())
+    {
+        return;
+    }
+
+    const BrowserModel::Tab &  tab = m_browser.GetBrowserModel().GetActiveTab();
+
+    entry                 = m_prefs.folderViews.GetEntry (m_listViewKey, FolderViews::FolderType::Generic);
+    entry.view            = m_listView;
+    entry.sortColumn      = (int) tab.sortColumn;
+    entry.sortDescending  = tab.sortDescending;
+    entry.groupBy         = (int) tab.groupBy;
+    entry.groupDescending = tab.groupDescending;
+
+    m_prefs.folderViews.Remember (entry);
 }
 
 
@@ -4861,12 +6539,15 @@ bool CassoExplorerWindow::ReadFolderOptions()
 
 
 
-    if (options == m_browser.GetFolderOptions())
+    if (options == m_explorerOptions)
     {
         return false;
     }
 
+    //  The pane's options Casso Explorer still follows change with them.
+    m_explorerOptions = options;
     m_browser.SetFolderOptions (options);
+    ApplyNavPaneOptions();
     m_browser.GetTreeModel().InvalidateAll();
     RefreshTree();
 
@@ -4923,6 +6604,89 @@ std::wstring CassoExplorerWindow::GetSelectedImagePath() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::RunRecycleBinVerb
+//
+//  A verb on the Recycle Bin's items, carried out by the bin itself. Whether
+//  the verb was the bin's to carry out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
+{
+    using Verb = CassoExplorerActions::Verb;
+
+    HRESULT                    hr = S_OK;
+    std::vector<std::wstring>  ids;
+
+
+
+    m_browser.GetSelectedRecycledIds (ids);
+
+    switch (verb)
+    {
+        case Verb::Open:
+            BAIL_OUT_IF (ids.empty(), S_OK);
+            hr = m_shellVerbs.RunRecycledVerb (GetHwnd(), ids, IShellItemVerbs::RecycledVerb::Properties);
+            break;
+
+        case Verb::Restore:
+        case Verb::Delete:
+            //  Restore with nothing selected restores everything, as the
+            //  command bar's Restore all items does.
+            if (ids.empty() && verb == Verb::Restore)
+            {
+                m_browser.GetAllRecycledIds (ids);
+            }
+
+            BAIL_OUT_IF (ids.empty(), S_OK);
+            hr = m_shellVerbs.RunRecycledVerb (GetHwnd(), ids, (verb == Verb::Restore) ? IShellItemVerbs::RecycledVerb::Restore
+                                                                                       : IShellItemVerbs::RecycledVerb::Delete);
+            RefreshAfterHostChange();
+            break;
+
+        case Verb::EmptyRecycleBin:
+            hr = m_shellVerbs.EmptyRecycleBin (GetHwnd());
+            RefreshAfterHostChange();
+            break;
+
+        default:
+            return false;
+    }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetCommandLabel
+//
+//  The label of a command whose label follows the selection, or empty for
+//  the command's own: Restore restores the selected items, or all of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetCommandLabel (int id) const
+{
+    if (id == CassoExplorerCommands::kRestoreItems && !m_browser.GetSelectedRows().empty())
+    {
+        return L"Restore the selected items";
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::RunVerb
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -4943,10 +6707,29 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
 
 
 
+    //  The Recycle Bin's items are the shell's to restore, delete and
+    //  describe; opening one shows its properties, as Explorer's does.
+    if (m_browser.GetLocation().kind == Location::Kind::RecycleBin && RunRecycleBinVerb (verb))
+    {
+        return;
+    }
+
     switch (verb)
     {
         case CassoExplorerActions::Verb::Open:
-            if (!m_browser.GetSelectedRows().empty() && m_browser.OpenRow (m_browser.GetSelectedRows()[0]))
+            if (m_browser.IsImageLocation() && !(m_browser.GetSelectedRows().size() == 1 && m_browser.OpenRow (m_browser.GetSelectedRows()[0])))
+            {
+                OpenSelectedEntries();
+            }
+            else if (m_browser.IsImageLocation())
+            {
+                FillList();
+            }
+            else if (m_browser.GetSelectedRows().size() > 1)
+            {
+                OpenEachSelected();
+            }
+            else if (!m_browser.GetSelectedRows().empty() && m_browser.OpenRow (m_browser.GetSelectedRows()[0]))
             {
                 FillList();
             }
@@ -4974,6 +6757,7 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             if (SUCCEEDED (hr) && chosen)
             {
                 outcome = m_actions.PutFiles ({ picked.wstring() }, MakeAddressPrompt());
+                PushPutUndo   (outcome, m_browser.GetLocation().path, m_browser.GetLocation().innerPath);
                 ReportOutcome (outcome, L"Put");
                 FillList();
             }
@@ -4982,8 +6766,16 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::Cut:
         case CassoExplorerActions::Verb::Copy:
+            if (m_browser.IsImageLocation())
+            {
+                CopyEntriesToClipboard (GetNamingStyle());
+                break;
+            }
+
             m_browser.GetSelectedHostPaths (hostPaths);
             hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
+            m_cutPaths = (SUCCEEDED (hr) && verb == CassoExplorerActions::Verb::Cut) ? hostPaths : std::vector<std::wstring>();
+            FillList();
             break;
 
         case CassoExplorerActions::Verb::Share:
@@ -4992,8 +6784,7 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Paste:
-            hr = m_shellVerbs.PasteInto (GetHwnd(), GetPasteFolder());
-            RefreshAfterHostChange();
+            PasteHere (GetPasteFolder());
             break;
 
         case CassoExplorerActions::Verb::Delete:
@@ -5002,13 +6793,19 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                 //  Windows asks, and the Recycle Bin keeps it.
                 m_browser.GetSelectedHostPaths (hostPaths);
                 hr = m_shellVerbs.Recycle (GetHwnd(), hostPaths);
+
+                if (SUCCEEDED (hr) && !hostPaths.empty())
+                {
+                    PushUndo (UndoStep { UndoStep::Kind::Recycle, Location(), hostPaths });
+                }
+
                 RefreshAfterHostChange();
                 break;
             }
 
         {
             std::vector<std::wstring>  plan    = m_actions.DescribeDeletePlan();
-            std::wstring               message = std::format (L"Delete {} selected item(s) from this disk image? This cannot be undone.",
+            std::wstring               message = std::format (L"Delete {} selected item(s) from this disk image?",
                                                               m_browser.GetSelectedRows().size());
 
             //  A folder goes with everything below it, which the list cannot
@@ -5022,7 +6819,34 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
 
             if (answer == IDYES)
             {
-                ReportOutcome (m_actions.DeleteSelected(), L"Delete");
+                UndoStep  step { UndoStep::Kind::ImageDelete, m_browser.GetLocation() };
+                wchar_t   temp[MAX_PATH] = {};
+
+                //  An AppleSingle copy keeps each file's bytes, type and
+                //  address, so a put brings it back as it was. The copy holds
+                //  files only, so a deletion that takes a folder is not kept.
+                m_browser.GetSelectedEntries (entries);
+
+                if (std::none_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return entry.isDirectory; }) &&
+                    GetTempPathW (MAX_PATH, temp) != 0)
+                {
+                    step.savedDir = std::format (L"{}CassoExplorerUndo\\{}", temp, GetTickCount64());
+                    std::filesystem::create_directories (step.savedDir);
+                }
+
+                if (!step.savedDir.empty() && !m_actions.GetSelected (step.savedDir, HostFileNaming::Style::AppleSingle).Succeeded())
+                {
+                    step.savedDir.clear();
+                }
+
+                outcome = m_actions.DeleteSelected();
+
+                if (outcome.Succeeded() && !step.savedDir.empty())
+                {
+                    PushUndo (std::move (step));
+                }
+
+                ReportOutcome (outcome, L"Delete");
                 FillList();
             }
 
@@ -5067,11 +6891,24 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             if (!m_browser.IsImageLocation())
             {
                 hr = m_shellVerbs.CreateFolder (GetHwnd(), m_browser.GetLocation().path, newName);
+
+                if (SUCCEEDED (hr))
+                {
+                    PushUndo (UndoStep { UndoStep::Kind::HostNewFolder, Location(), { (std::filesystem::path (m_browser.GetLocation().path) / newName).wstring() } });
+                }
+
                 RefreshAfterHostChange();
             }
             else
             {
-                ReportOutcome (m_actions.CreateFolder (newName), L"New folder");
+                outcome = m_actions.CreateFolder (newName);
+
+                if (outcome.Succeeded())
+                {
+                    PushUndo (UndoStep { UndoStep::Kind::ImageNewFolder, m_browser.GetLocation(), {}, std::wstring(), newName });
+                }
+
+                ReportOutcome (outcome, L"New folder");
                 FillList();
             }
 
@@ -5080,7 +6917,8 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Format:
-            newDisk = CassoExplorerNewDiskDialog::Ask (GetHwnd(), m_theme, true);
+            newDisk = CassoExplorerNewDiskDialog::Ask (GetHwnd(), m_theme, true, {}, ChooseFormatDefault (m_actions.GetFormatTarget()),
+                                                       std::filesystem::path (m_actions.GetFormatTarget()).filename().wstring());
 
             if (newDisk.confirmed)
             {
@@ -5254,6 +7092,85 @@ void CassoExplorerWindow::OpenInNewCasso (const std::wstring & imagePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::OpenPathInNewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OpenPathInNewTab (const std::wstring & path)
+{
+    std::wstring  full       (MAX_PATH, L'\0');
+    DWORD         length     = GetFullPathNameW (path.c_str(), (DWORD) full.size(), full.data(), nullptr);
+    DWORD         attributes = INVALID_FILE_ATTRIBUTES;
+
+
+
+    //  The Recycle Bin, by its name or the shell's, in the tab that already
+    //  shows it if there is one.
+    if (_wcsicmp (path.c_str(), TreeModel::GetRootLabel (Location::kRecycleBinId).c_str()) == 0 || _wcsicmp (path.c_str(), L"shell:RecycleBinFolder") == 0)
+    {
+        for (size_t tab = 0; tab < m_browser.GetBrowserModel().GetTabCount(); tab++)
+        {
+            if (m_browser.GetBrowserModel().GetTab (tab).location.kind == Location::Kind::RecycleBin)
+            {
+                SwitchToTab (tab);
+                return;
+            }
+        }
+
+        m_browser.OpenInNewTab (Location::MakeRecycleBin());
+        return;
+    }
+
+    //  Any other folder by the shell's name for it, such as shell:Libraries.
+    if (Location::IsShellName (path))
+    {
+        Location  shellFolder = Location::MakeShellFolder (path, std::wstring());
+        HRESULT   hr          = m_shellVerbs.GetShellItemName (path, shellFolder.label);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_browser.OpenInNewTab (shellFolder);
+        return;
+    }
+
+    if (length >= full.size())
+    {
+        full.resize (length);
+        length = GetFullPathNameW (path.c_str(), (DWORD) full.size(), full.data(), nullptr);
+    }
+
+    if (length == 0 || length >= full.size())
+    {
+        return;
+    }
+
+    full.resize (length);
+    attributes = GetFileAttributesW (full.c_str());
+
+    if (attributes == INVALID_FILE_ATTRIBUTES)
+    {
+        return;
+    }
+
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+    {
+        m_browser.OpenInNewTab (Location::MakeHostFolder (full));
+    }
+    else if (TreeModel::IsSupportedImage (full))
+    {
+        m_browser.OpenInNewTab (Location::MakeDiskImage (full));
+    }
+    else
+    {
+        m_browser.OpenInNewTab (Location::MakeHostFolder (CassoExplorerBrowser::GetParentFolder (full)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::OnCopyData
 //
 //  A reply is queued and shown after the send returns: Casso is blocked in
@@ -5271,6 +7188,14 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
 
 
     UNREFERENCED_PARAMETER (sender);
+
+    if (copy != nullptr && copy->dwData == kOpenPathCopyId && copy->lpData != nullptr)
+    {
+        OpenPathInNewTab (std::wstring ((const wchar_t *) copy->lpData, copy->cbData / sizeof (wchar_t)));
+        FillList();
+
+        return DxuiMessageResult::Handled;
+    }
 
     if (!ours || !Win32IntentChannel::DecodeReply ((const Byte *) copy->lpData, copy->cbData, reply))
     {
@@ -5303,10 +7228,45 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
     //  A change arrived. Restarting the timer rather than re-reading now is
     //  what collapses a burst: a copy of a hundred files re-reads once, when
-    //  the copying stops.
+    //  the copying stops. Only for so long, though: a folder that never stops
+    //  changing (a log being written, say) would hold off every re-read.
     if (msg == kFolderChangedMessage)
     {
-        SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
+        ULONGLONG  now = GetTickCount64();
+
+        if (m_folderFirstChangeMs == 0)
+        {
+            m_folderFirstChangeMs = now;
+        }
+
+        if (now - m_folderFirstChangeMs < kFolderMaxSettleMs)
+        {
+            SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    //  The bin's changes come in bursts, as a folder's do, and matter only
+    //  while it is shown.
+    if (msg == kRecycleBinMessage)
+    {
+        if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        {
+            SetTimer (GetHwnd(), kRecycleBinTimerId, kFolderSettleMs, nullptr);
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    //  A shell folder's listing is in: the list shows it if it is still the
+    //  folder shown, and the tree fills the node that asked for it.
+    if (msg == kShellListedMessage)
+    {
+        for (const std::wstring & key : m_browser.GetShellListings().TakeArrivedKeys())
+        {
+            OnShellListed (key);
+        }
 
         return DxuiMessageResult::Handled;
     }
@@ -5314,6 +7274,23 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     if (msg == kDropMenuMessage)
     {
         ShowDropMenu();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kInfoTipMessage)
+    {
+        RefreshListTip();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kIconsLoadedMessage)
+    {
+        if (m_listIcons.TakeLoaded())
+        {
+            RefreshListIcons();
+        }
 
         return DxuiMessageResult::Handled;
     }
@@ -5397,6 +7374,12 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
             m_browser.OpenInNewTab (location);
             FillList();
         });
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            AddPinMenuCommand (items, location.path);
+        }
     }
 
     if (hasFolder && m_browser.CanRemoveFromCasso (id))
@@ -5408,7 +7391,19 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         AddMenuCommand (items, L"&Add to Casso", [this, folder]() { ChangeKnownFolder (folder, true); });
     }
 
-    if (hasLocation && location.kind != Location::Kind::Root)
+    //  The Recycle Bin's node empties it, as Explorer's does.
+    if (hasLocation && location.kind == Location::Kind::RecycleBin)
+    {
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::EmptyRecycleBin), [this]()
+        {
+            HRESULT  hr = m_shellVerbs.EmptyRecycleBin (GetHwnd());
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            RefreshAfterHostChange();
+        });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::EmptyRecycleBin));
+    }
+    else if (hasLocation && location.kind != Location::Kind::Root)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
         AddMenuCommand (items, L"Copy as &path", [this, location]()
@@ -5416,12 +7411,209 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
             DxuiClipboard::SetText (GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
         });
         AddMenuCommand (items, L"P&roperties", [this, location]() { ShowLocationProperties (location); });
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.properties");
     }
 
     if (!items.empty())
     {
         DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowTreeEmptyMenu
+//
+//  The pane's own options, as Explorer's menu below its last node has them,
+//  each kept across runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowTreeEmptyMenu (int x, int y)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    m_menuCommands.clear();
+
+    AddNavPaneToggle (items, L"Show This &PC",          &CassoExplorerPrefs::navShowThisPc);
+    AddNavPaneToggle (items, L"Show &Network",          &CassoExplorerPrefs::navShowNetwork);
+    AddNavPaneToggle (items, L"Show &libraries",        &CassoExplorerPrefs::navShowLibraries);
+    AddNavPaneToggle (items, L"Show &all folders",      &CassoExplorerPrefs::navShowAllFolders);
+    AddNavPaneToggle (items, L"&Expand to open folder", &CassoExplorerPrefs::navExpandToCurrent);
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddNavPaneToggle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddNavPaneToggle (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option)
+{
+    //  The first change parts this option from File Explorer's for good.
+    AddMenuCommand (items, label, [this, option]()
+    {
+        m_prefs.*option = !IsNavOptionOn (option);
+        ApplyNavPaneOptions();
+        RefreshTree();
+
+        if (IsNavOptionOn (&CassoExplorerPrefs::navExpandToCurrent))
+        {
+            RevealLocationInTree();
+        }
+    });
+    m_menuCommands.back()->isChecked = [this, option]() { return IsNavOptionOn (option); };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsNavOptionOn
+//
+//  Casso Explorer's own value where the user set one; otherwise File
+//  Explorer's, read from the shell for the roots and from its settings for
+//  the other two.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsNavOptionOn (CassoExplorerPrefs::NavOption option) const
+{
+    const TreeModel &  tree = m_browser.GetTreeModel();
+
+
+
+    if (option == &CassoExplorerPrefs::navShowThisPc)
+    {
+        return tree.IsNavRootShown (TreeModel::NavRoot::ThisPc);
+    }
+
+    if (option == &CassoExplorerPrefs::navShowNetwork)
+    {
+        return tree.IsNavRootShown (TreeModel::NavRoot::Network);
+    }
+
+    if (option == &CassoExplorerPrefs::navShowLibraries)
+    {
+        return tree.IsNavRootShown (TreeModel::NavRoot::Libraries);
+    }
+
+    if (option == &CassoExplorerPrefs::navShowAllFolders)
+    {
+        return m_prefs.navShowAllFolders.value_or (m_explorerOptions.paneShowsAllFolders);
+    }
+
+    return m_prefs.navExpandToCurrent.value_or (m_explorerOptions.paneExpandsToCurrent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ApplyNavPaneOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ApplyNavPaneOptions()
+{
+    TreeModel::NavPaneOptions  options;
+
+
+
+    options.showThisPc     = m_prefs.navShowThisPc;
+    options.showNetwork    = m_prefs.navShowNetwork;
+    options.showLibraries  = m_prefs.navShowLibraries;
+    options.showAllFolders = IsNavOptionOn (&CassoExplorerPrefs::navShowAllFolders);
+
+    m_browser.GetTreeModel().SetNavPaneOptions (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddPinMenuCommand
+//
+//  The shell carries the change out, so File Explorer's Quick access changes
+//  with Casso Explorer's, and the pane reads the list again after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder)
+{
+    bool  pinned = m_browser.IsPinnedToQuickAccess (folder);
+
+
+
+    AddMenuCommand (items, pinned ? L"Unpin from &Quick access" : L"Pin to &Quick access", [this, folder, pinned]()
+    {
+        HRESULT  hr = m_shellVerbs.SetPinnedToQuickAccess (GetHwnd(), folder, !pinned);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_browser.RefreshShellRoots();
+        RefreshTree();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnShellListed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnShellListed (const std::wstring & key)
+{
+    std::wstring  listKey = CassoExplorerBrowser::s_kListKey;
+    std::wstring  treeKey = CassoExplorerBrowser::s_kTreeKey;
+    std::wstring  nodeId;
+    HRESULT       hr      = S_OK;
+
+
+
+    if (key.starts_with (listKey))
+    {
+        if (m_browser.GetLocation().kind == Location::Kind::ShellFolder && m_browser.GetLocation().path == key.substr (listKey.size()))
+        {
+            hr = m_browser.Refresh();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            FillList();
+        }
+    }
+    else if (key.starts_with (treeKey))
+    {
+        nodeId = std::wstring (TreeModel::kShellRootTag) + key.substr (treeKey.size());
+
+        if (m_tree->FindRowById (nodeId) >= 0)
+        {
+            m_browser.GetTreeModel().Invalidate (nodeId);
+            m_tree->ReplaceChildren (nodeId, m_browser.GetTreeChildren (nodeId));
+        }
+    }
+
+    Invalidate();
 }
 
 
@@ -5496,7 +7688,8 @@ void CassoExplorerWindow::ShowTabContextMenu (int x, int y, int index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator)
+void CassoExplorerWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator,
+                                          const wchar_t * menuGlyph)
 {
     std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
@@ -5504,6 +7697,7 @@ void CassoExplorerWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items
 
     command->label       = label;
     command->accelerator = accelerator;
+    command->menuGlyph   = menuGlyph;
     command->dispatch    = std::move (dispatch);
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
@@ -5518,9 +7712,9 @@ void CassoExplorerWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items
 //
 //  CassoExplorerWindow::AddCopyAsMenu
 //
-//  Copy puts the selected files on the clipboard as real files, in the style
-//  the Options dialog sets, and Copy as offers the other two for this copy
-//  alone. A paste into Explorer then writes them.
+//  The button row's Copy puts the selected files on the clipboard as real
+//  files, in the style the Options dialog sets, and Copy as offers each style
+//  for this copy alone. A paste into Explorer then writes them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5537,8 +7731,6 @@ void CassoExplorerWindow::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
 
 
 
-    AddMenuCommand (items, L"&Copy", [this]() { CopyEntriesToClipboard (GetNamingStyle()); }, L"Ctrl+C");
-
     for (const auto & row : kStyles)
     {
         std::shared_ptr<DxuiCommand>  child = std::make_shared<DxuiCommand>();
@@ -5552,6 +7744,8 @@ void CassoExplorerWindow::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
     }
 
     parent->label = L"Cop&y as";
+    parent->menuGlyph = s_kpszMdl2Copy;
+    parent->menuSvg   = GetMenuSvg (L"windows.copy");
     items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
     m_menuCommands.push_back (std::move (parent));
 }
@@ -5624,6 +7818,92 @@ void CassoExplorerWindow::CopySelectedPaths()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::OpenSelectedEntries
+//
+//  Files inside an image open in the programs Windows has for them, from
+//  copies in a folder of their own, as Explorer opens a file inside a zip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OpenSelectedEntries()
+{
+    std::vector<std::wstring>  paths;
+    HRESULT                    hr    = CassoExplorerDragOut::WriteToTempFolder (m_browser, GetNamingStyle(), paths);
+
+
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"The files could not be read out of the image to open.", MB_ICONWARNING);
+        return;
+    }
+
+    for (const std::wstring & path : paths)
+    {
+        hr = m_shellVerbs.Open (GetHwnd(), path);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OpenEachSelected
+//
+//  Several items open each on its own, as Explorer's do: a folder or an image
+//  in a tab of its own, a file in its program. All are read before the first
+//  tab opens, since a new tab lists something else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OpenEachSelected()
+{
+    HRESULT                    hr = S_OK;
+    std::vector<Location>      places;
+    std::vector<std::wstring>  files;
+    Location                   place;
+    std::wstring               path;
+
+
+
+    for (int row : m_browser.GetSelectedRows())
+    {
+        if (m_browser.TryGetRowLocation (row, place))
+        {
+            places.push_back (place);
+        }
+        else if (!m_browser.IsImageLocation() && m_browser.TryGetRowPath (row, path))
+        {
+            files.push_back (path);
+        }
+    }
+
+    for (const std::wstring & file : files)
+    {
+        hr = m_shellVerbs.Open (GetHwnd(), file);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    for (const Location & each : places)
+    {
+        m_browser.OpenInNewTab (each);
+    }
+
+    if (!places.empty())
+    {
+        FillList();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::ShowRowProperties
 //
 //  A host item, a drive among them, has Windows' own Properties sheet. An
@@ -5639,6 +7919,7 @@ void CassoExplorerWindow::ShowRowProperties (int row)
     std::wstring                       path;
     std::wstring                       text;
     size_t                             i        = 0;
+    FileEntry                          entry;
 
 
 
@@ -5650,6 +7931,14 @@ void CassoExplorerWindow::ShowRowProperties (int row)
     if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::Root)
     {
         ShowHostProperties (path);
+        return;
+    }
+
+    //  An entry inside an image: Explorer's General tab, from its catalog.
+    if (m_browser.TryGetRowEntry (row, entry))
+    {
+        CassoExplorerPropertiesDialog::Show (GetHwnd(), m_theme, m_browser.GetRows()[(size_t) row].name,
+                                            CassoExplorerProperties::DescribeEntry (entry, m_browser.GetVolumeKind(), BrowserModel::FormatAddress (location)));
         return;
     }
 
@@ -5755,28 +8044,9 @@ void CassoExplorerWindow::ChangeKnownFolder (const std::wstring & folder, bool a
     folders = KnownFolderStore::ListRootFolders (*m_context.fs, m_context.baseDir, entries);
 
     m_browser.GetTreeModel().SetKnownFolders (folders);
-    RebuildTree();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::RebuildTree
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerWindow::RebuildTree()
-{
-    std::vector<DxuiTreeNode>  roots;
-
-
-
-    m_browser.GetTreeModel().InvalidateAll();
-    m_browser.GetTreeRoots (roots);
-    m_tree->SetNodes (std::move (roots));
+    m_browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
+    m_tree->ReplaceChildren (TreeModel::kCassoRootId, m_browser.GetTreeChildren (TreeModel::kCassoRootId));
+    UpdateWatchedFolders();
     Invalidate();
 }
 
@@ -5788,79 +8058,44 @@ void CassoExplorerWindow::RebuildTree()
 //
 //  CassoExplorerWindow::RefreshTree
 //
-//  Re-reads the tree without closing what was open. The open folders are
-//  opened again in row order, which puts every parent ahead of its children,
-//  so each child's row exists by the time it is looked for. The highlighted
-//  node and where the tree is looking follow RefreshAnchor, as the list's do.
+//  Reads the whole tree again in place, as Explorer's F5 does: the roots, then
+//  each open node in row order, which puts every parent ahead of its children.
+//  What is open, highlighted and on screen stays, by the tree's own merge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::RefreshTree()
 {
     std::vector<std::wstring>  open;
-    std::vector<std::wstring>  keys;
-    RefreshAnchor::Before      before;
-    RefreshAnchor::After       after;
-    std::wstring               highlighted = m_tree->GetHighlightedId();
-    int                        row         = 0;
+    std::vector<DxuiTreeNode>  roots;
+    int                        row = 0;
 
 
 
     for (row = 0; row < m_tree->GetVisibleCount(); row++)
     {
         const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
-        std::wstring          id   = (node != nullptr) ? node->id : std::wstring();
-
-        before.keys.push_back (id);
 
         if (node != nullptr && node->expanded)
         {
-            open.push_back (id);
+            open.push_back (node->id);
         }
     }
 
-    before.topRow   = m_tree->GetTopRow();
-    before.capacity = m_tree->GetRowCap();
-    before.focused  = m_tree->GetHighlight();
-
-    if (before.focused >= 0)
-    {
-        before.selected.push_back (before.focused);
-    }
-
-    m_refreshingTree = true;
-
-    RebuildTree();
+    m_browser.GetTreeModel().InvalidateAll();
+    m_browser.GetTreeRoots (roots);
+    m_tree->ReplaceRoots (std::move (roots));
 
     for (const std::wstring & id : open)
     {
-        int  found = m_tree->FindRowById (id);
-
-        if (found >= 0)
+        if (m_tree->FindRowById (id) >= 0)
         {
-            m_tree->SetRowExpanded (found, true);
+            m_tree->ReplaceChildren (id, m_browser.GetTreeChildren (id));
         }
     }
 
-    m_refreshingTree = false;
     UpdateWatchedFolders();
-
-    for (row = 0; row < m_tree->GetVisibleCount(); row++)
-    {
-        const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
-
-        keys.push_back ((node != nullptr) ? node->id : std::wstring());
-    }
-
-    after = RefreshAnchor::Compute (before, keys);
-
-    if (after.focused >= 0)
-    {
-        m_tree->HighlightRow (after.focused);
-    }
-
-    //  Last, since highlighting scrolls the node into view.
-    m_tree->SetTopRow (after.topRow);
+    Invalidate();
 }
 
 
@@ -5871,9 +8106,9 @@ void CassoExplorerWindow::RefreshTree()
 //
 //  CassoExplorerWindow::OnActivateApp
 //
-//  Coming back to the window rereads what it shows, since another window,
-//  Casso or Explorer may have changed it meanwhile. The selection is kept by
-//  name.
+//  Coming back to the window reads again the settings that change without a
+//  message to say so: the Windows colors, when the theme follows them, and
+//  Explorer's folder options. Each is applied only when it changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5883,12 +8118,32 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
 
 
 
-    //  Follow system has no settings-change message to wait for here, so the
-    //  Windows mode is read again whenever the window comes back.
+    //  The address's suggestions go when the app does; they hold no capture
+    //  to see the click that took it elsewhere.
+    if (!active)
+    {
+        m_suggest.Close();
+
+        for (DxuiToolbar * bar : { m_commandBar, m_toolbar, m_previewToolbar })
+        {
+            bar->CloseMenu();
+        }
+    }
+
+    //  Applying a theme repaints the whole window and its title bar, so it is
+    //  done only when the colors Windows reports are different.
     if (active && m_menuBar != nullptr && !IsChecked (CassoExplorerCommands::kThemeLight) && !IsChecked (CassoExplorerCommands::kThemeDark))
     {
-        DxuiWindowsThemeColors::Instance().Refresh();
-        ApplyTheme();
+        DxuiWindowsThemeColors &                    colors     = DxuiWindowsThemeColors::Instance();
+        bool                                        wasDark    = colors.IsDarkMode();
+        DxuiWindowsThemeColors::SystemColors        wasSystem  = colors.GetSystemColors();
+
+        colors.Refresh();
+
+        if (colors.IsDarkMode() != wasDark || colors.GetSystemColors() != wasSystem)
+        {
+            ApplyTheme();
+        }
     }
 
     //  Explorer's folder options send no message either, so they too are read
@@ -5966,6 +8221,16 @@ void CassoExplorerWindow::SubmitAddress (const std::wstring & text)
     {
         SetFocusPane (Pane::List);
         FillList();
+
+        //  The typed path joins the history now, not only at a clean exit, and
+        //  a folder joins Explorer's list too. A path into a disk image stays
+        //  in Casso Explorer's own: Explorer would open the image file.
+        SaveSession();
+
+        if (m_browser.GetLocation().kind == Location::Kind::HostFolder)
+        {
+            WriteExplorerTypedPath (CassoExplorerBrowser::RootOnSystemDrive (text));
+        }
     }
     else
     {
@@ -6056,9 +8321,15 @@ void CassoExplorerWindow::UpdateWatchedFolders()
         return;
     }
 
+    //  The shown folder's parent too: deleting the folder is a change there.
     if (showing.kind == Location::Kind::HostFolder && !showing.path.empty())
     {
         folders.push_back (showing.path);
+
+        if (showing.path.size() > 3)
+        {
+            folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+        }
     }
     else if (!showing.path.empty())
     {
@@ -6087,6 +8358,106 @@ void CassoExplorerWindow::UpdateWatchedFolders()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::IsSameFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsSameFolder (const std::wstring & a, const std::wstring & b)
+{
+    return CompareStringOrdinal (a.c_str(), (int) a.size(), b.c_str(), (int) b.size(), TRUE) == CSTR_EQUAL;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsShownFolderIn
+//
+//  Whether the list shows one of the folders: the folder itself, or, inside a
+//  disk image, the folder that holds the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsShownFolderIn (const std::vector<std::wstring> & folders) const
+{
+    Location      showing = m_browser.GetLocation();
+    std::wstring  shown;
+
+
+
+    if (showing.path.empty())
+    {
+        return false;
+    }
+
+    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : CassoExplorerBrowser::GetParentFolder (showing.path);
+
+    return std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, shown); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RefreshOpenTreeFolders
+//
+//  Reads again, in place, what the tree shows under each open node the changed
+//  folders hold: a folder's subfolders, or a disk image's. Returns whether any
+//  node was read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::RefreshOpenTreeFolders (const std::vector<std::wstring> & folders)
+{
+    std::vector<std::wstring>  stale;
+    int                        row = 0;
+
+
+
+    for (row = 0; row < m_tree->GetVisibleCount(); row++)
+    {
+        const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
+        Location              at;
+
+        //  A closed folder is read again too, so its first subfolder gives it
+        //  a chevron.
+        if (node != nullptr
+            && m_browser.TryGetNodeLocation (node->id, at) && !at.path.empty()
+            && (node->expanded || at.kind == Location::Kind::HostFolder))
+        {
+            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : CassoExplorerBrowser::GetParentFolder (at.path);
+
+            if (std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, holder); }))
+            {
+                stale.push_back (node->id);
+            }
+        }
+    }
+
+    //  In row order, so a parent goes first; a node its parent's change took
+    //  away has no row by the time its turn comes, and is passed over.
+    for (const std::wstring & id : stale)
+    {
+        if (m_tree->FindRowById (id) >= 0)
+        {
+            m_browser.GetTreeModel().Invalidate (id);
+            m_tree->ReplaceChildren (id, m_browser.GetTreeChildren (id));
+        }
+    }
+
+    return !stale.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::RefreshChangedFolders
 //
 //  Runs once a burst has settled. The same files stay selected, and the view
@@ -6106,14 +8477,41 @@ void CassoExplorerWindow::RefreshChangedFolders()
 
 
 
-    if (m_folderWatch == nullptr || !m_folderWatch->TakeChanged (changed))
+    if (m_folderWatch == nullptr)
     {
         return;
     }
 
-    RefreshTree();
+    //  Not while a rename is open or a button is down: the rows under either
+    //  would change. The changes wait, and the timer tries again.
+    if (m_renameRow >= 0 || m_dragArmed || m_list->IsInteracting() || m_tree->IsInteracting())
+    {
+        SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
+        return;
+    }
 
-    if (!m_browser.GetBrowserModel().HasTabs())
+    if (!m_folderWatch->TakeChanged (changed))
+    {
+        return;
+    }
+
+
+    //  A folder written to often -- a disk image Casso has mounted, say --
+    //  must not cost the tree or the list anything when neither shows it.
+    if (RefreshOpenTreeFolders (changed))
+    {
+        UpdateWatchedFolders();
+    }
+
+    //  The folder shown was deleted: the change is its parent's, so the list
+    //  moves up, as Explorer's does, rather than staying on what is gone.
+    if (m_browser.GetBrowserModel().HasTabs() && m_browser.LeaveMissingLocation())
+    {
+        FillList();
+        return;
+    }
+
+    if (!m_browser.GetBrowserModel().HasTabs() || !IsShownFolderIn (changed))
     {
         Invalidate();
         return;
@@ -6163,18 +8561,118 @@ void CassoExplorerWindow::RefreshChangedFolders()
 
 void CassoExplorerWindow::ApplyStoredColumnWidths()
 {
-    size_t  count = m_prefs.columnWidthsDip.size();
-    size_t  c     = 0;
+    ApplyColumnWidths (m_prefs.columnWidthsDip);
+}
 
 
 
-    for (c = 0; c < count; c++)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ApplyColumnWidths
+//
+//  A column with no width here goes back to fitting itself, so one folder's
+//  widths do not stay on in the next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ApplyColumnWidths (const std::vector<int> & widthsDip)
+{
+    size_t  c = 0;
+
+
+
+    for (c = 0; c < m_list->GetColumnCount(); c++)
     {
-        if (m_prefs.columnWidthsDip[c] > 0)
+        int  dip = (c < widthsDip.size()) ? widthsDip[c] : 0;
+
+        //  At the DPI the list holds now, which it rescales from when its
+        //  DPI changes; the window's may not have caught up yet.
+        m_list->SetColumnOverrideWidthPx (c, (dip > 0) ? MulDiv (dip, (int) m_list->GetDpi(), (int) DxuiDpiScaler::kBaseDpi) : -1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RememberFolderColumns
+//
+//  The order and the choice of columns the folder shows now, kept for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RememberFolderColumns()
+{
+    FolderViewEntry  entry;
+
+
+
+    if (m_listViewKey.empty())
+    {
+        return;
+    }
+
+    entry               = m_prefs.folderViews.GetEntry (m_listViewKey, FolderViews::FolderType::Generic);
+    entry.view          = m_listView;
+    entry.columnOrder   = m_folderColumnOrder;
+    entry.columnsChosen = true;
+    entry.hiddenColumns.clear();
+
+    for (size_t column = 0; column < m_listColumnChosen.size(); column++)
+    {
+        if (!m_listColumnChosen[column])
         {
-            m_list->SetColumnOverrideWidthPx (c, m_scaler.ToPx (m_prefs.columnWidthsDip[c]));
+            entry.hiddenColumns.push_back ((int) column);
         }
     }
+
+    m_prefs.folderViews.Remember (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RememberFolderColumnWidths
+//
+//  The folder starts from the widths it showed, so the columns the user did
+//  not touch keep what they had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RememberFolderColumnWidths (int column, int widthDip)
+{
+    FolderViewEntry  entry;
+
+
+
+    if (m_listViewKey.empty() || column < 0)
+    {
+        return;
+    }
+
+    entry      = m_prefs.folderViews.GetEntry (m_listViewKey, FolderViews::FolderType::Generic);
+    entry.view = m_listView;
+
+    if (entry.columnWidthsDip.empty())
+    {
+        entry.columnWidthsDip = m_prefs.columnWidthsDip;
+    }
+
+    if ((size_t) column >= entry.columnWidthsDip.size())
+    {
+        entry.columnWidthsDip.resize ((size_t) column + 1, 0);
+    }
+
+    entry.columnWidthsDip[(size_t) column] = widthDip;
+
+    m_prefs.folderViews.Remember (entry);
 }
 
 
@@ -6224,32 +8722,620 @@ std::wstring CassoExplorerWindow::GetEmptyLocationMessage (Location::Kind kind)
 
 void CassoExplorerWindow::ShowAddressHistoryMenu (const RECT & anchor)
 {
+    UNREFERENCED_PARAMETER (anchor);
+
+    //  The caret opens the history and, pressed again, closes it.
+    if (m_suggest.IsOpen())
+    {
+        m_suggest.Close();
+        return;
+    }
+
+    ShowAddressSuggestions (std::wstring());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ChooseFormatDefault
+//
+//  The file system the image holds now, when it holds one; otherwise what
+//  its size and kind allow. DOS 3.3 fits only a 140K floppy, so anything
+//  larger -- an 800K disk, a hard disk image -- starts at ProDOS, and so does
+//  a ProDOS-order image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerWindow::ChooseFormatDefault (const std::wstring & image)
+{
+    VolumeListing              listing;
+    VolumeKind                 kind      = VolumeKind::Unknown;
+    WIN32_FILE_ATTRIBUTE_DATA  data      = {};
+    std::wstring               extension = std::filesystem::path (image).extension().wstring();
+    uint64_t                   size      = 0;
+
+
+
+    if (m_browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded())
+    {
+        if (kind == VolumeKind::ProDos)
+        {
+            return CassoExplorerNewDiskChoices::kFormatProDos;
+        }
+
+        if (kind == VolumeKind::Dos33)
+        {
+            return CassoExplorerNewDiskChoices::kFormatDos33;
+        }
+    }
+
+    if (GetFileAttributesExW (image.c_str(), GetFileExInfoStandard, &data))
+    {
+        size = ((uint64_t) data.nFileSizeHigh << 32) | data.nFileSizeLow;
+    }
+
+    for (const wchar_t * prodos : { L".po", L".2mg", L".2img", L".hdv" })
+    {
+        if (_wcsicmp (extension.c_str(), prodos) == 0)
+        {
+            return CassoExplorerNewDiskChoices::kFormatProDos;
+        }
+    }
+
+    //  A nibble or WOZ image is larger than the sectors it holds; its size
+    //  says nothing about the disk.
+    if (size > kDos33ImageBytes && _wcsicmp (extension.c_str(), L".nib") != 0 && _wcsicmp (extension.c_str(), L".woz") != 0)
+    {
+        return CassoExplorerNewDiskChoices::kFormatProDos;
+    }
+
+    return CassoExplorerNewDiskChoices::kFormatDos33;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowAddressSuggestions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowAddressSuggestions (const std::wstring & typed)
+{
+    m_suggest.Show (m_address->GetBounds(), typed.empty() ? GetAddressHistory() : GetCompletions (typed));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnAddressKey
+//
+//  While the list shows, Up and Down walk it, the box showing the row walked
+//  to, or what was typed once the walk leaves the list; Escape closes it and
+//  leaves the edit open. Enter goes to whatever the box shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::OnAddressKey (WPARAM vk)
+{
+    std::wstring  shown;
+
+
+
+    if (!m_suggest.IsOpen())
+    {
+        return false;
+    }
+
+    if (vk == VK_DOWN || vk == VK_UP)
+    {
+        shown = m_suggest.MoveHighlight ((vk == VK_DOWN) ? 1 : -1);
+        m_address->SetEditText (shown.empty() ? m_addressTyped : shown);
+        Invalidate();
+        return true;
+    }
+
+    if (vk == VK_ESCAPE)
+    {
+        m_suggest.Close();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetAddressHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerWindow::GetAddressHistory() const
+{
+    return TypedPathHistory::Merge (ReadExplorerTypedPaths(), m_browser.GetTypedPaths().GetEntries());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetCompletions
+//
+//  What is in the folder the typed path has reached, whose names start with
+//  what follows its last backslash, as Explorer lists them: folders and
+//  files, hidden ones left out, sorted by name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerWindow::GetCompletions (const std::wstring & typed)
+{
+    std::vector<std::wstring>  out;
+    std::wstring               rooted = CassoExplorerBrowser::RootOnSystemDrive (typed);
+    size_t                     slash  = rooted.find_last_of (L'\\');
+    std::wstring               folder;
+    std::wstring               prefix;
+    std::wstring               shownFolder;
+    WIN32_FIND_DATAW           found  = {};
+    HANDLE                     search = INVALID_HANDLE_VALUE;
+
+
+
+    if (slash == std::wstring::npos)
+    {
+        return out;
+    }
+
+    folder      = rooted.substr (0, slash + 1);
+    prefix      = rooted.substr (slash + 1);
+    shownFolder = typed.substr (0, typed.find_last_of (L'\\') + 1);
+
+    search = FindFirstFileExW ((folder + L"*").c_str(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, FIND_FIRST_EX_LARGE_FETCH);
+
+    if (search == INVALID_HANDLE_VALUE)
+    {
+        return out;
+    }
+
+    do
+    {
+        std::wstring  name = found.cFileName;
+
+        if (name == L"." || name == L".." || (found.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0)
+        {
+            continue;
+        }
+
+        if (_wcsnicmp (name.c_str(), prefix.c_str(), prefix.size()) == 0)
+        {
+            out.push_back (shownFolder + name);
+        }
+    }
+    while (out.size() < kMaxCompletions && FindNextFileW (search, &found));
+
+    FindClose (search);
+
+    std::sort (out.begin(), out.end(), [] (const std::wstring & a, const std::wstring & b) { return _wcsicmp (a.c_str(), b.c_str()) < 0; });
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PushUndo
+//
+//  Kept to a few dozen steps, as an image deletion's copy is a folder on disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PushUndo (UndoStep step)
+{
+    static constexpr size_t  s_kMaxSteps = 50;
+
+
+
+    m_undo.push_back (std::move (step));
+
+    if (m_undo.size() > s_kMaxSteps)
+    {
+        std::error_code  ignored;
+
+        if (!m_undo.front().savedDir.empty())
+        {
+            std::filesystem::remove_all (m_undo.front().savedDir, ignored);
+        }
+
+        m_undo.erase (m_undo.begin());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetUndoLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassoExplorerWindow::GetUndoLabel (UndoStep::Kind kind)
+{
+    switch (kind)
+    {
+        case UndoStep::Kind::Recycle:
+        case UndoStep::Kind::ImageDelete:    return L"&Undo delete";
+        case UndoStep::Kind::HostRename:
+        case UndoStep::Kind::ImageRename:    return L"&Undo rename";
+        case UndoStep::Kind::HostNewFolder:
+        case UndoStep::Kind::ImageNewFolder: return L"&Undo new folder";
+        case UndoStep::Kind::HostCopy:
+        case UndoStep::Kind::ImagePut:       return L"&Undo copy";
+        case UndoStep::Kind::HostMove:       return L"&Undo move";
+        default:                             return L"&Undo";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UndoLast
+//
+//  An image step goes back to the image it was made in first, since what it
+//  puts back is selected by name in the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UndoLast()
+{
+    HRESULT                    hr = S_OK;
+    UndoStep                   step;
+    std::vector<std::wstring>  saved;
+    std::error_code            ignored;
+
+
+
+    if (m_undo.empty())
+    {
+        MessageBeep (MB_OK);
+        return;
+    }
+
+    step = std::move (m_undo.back());
+    m_undo.pop_back();
+
+    switch (step.kind)
+    {
+        case UndoStep::Kind::Recycle:
+            hr = m_shellVerbs.RestoreRecycled (GetHwnd(), step.paths);
+            m_restoreTicks = kRestoreRetries;
+            SetTimer (GetHwnd(), kRestoreTimerId, 1000, nullptr);
+            break;
+
+        case UndoStep::Kind::HostRename:
+            hr = m_shellVerbs.RenameItem (GetHwnd(), step.paths[0], step.oldName);
+            break;
+
+        case UndoStep::Kind::HostNewFolder:
+        case UndoStep::Kind::HostCopy:
+            hr = m_shellVerbs.Recycle (GetHwnd(), step.paths);
+            break;
+
+        case UndoStep::Kind::HostMove:
+            hr = m_shellVerbs.MoveItemsTo (GetHwnd(), step.paths, step.sources);
+            break;
+
+        default:
+            if (m_browser.GetLocation() != step.location)
+            {
+                m_browser.NavigateToLocation (step.location);
+                FillList();
+            }
+
+            if (step.kind == UndoStep::Kind::ImageRename)
+            {
+                SelectRowNamed (step.newName);
+                ReportOutcome (m_actions.RenameSelected (step.oldName), L"Undo rename");
+            }
+            else if (step.kind == UndoStep::Kind::ImageNewFolder)
+            {
+                SelectRowNamed (step.newName);
+                ReportOutcome (m_actions.DeleteSelected(), L"Undo new folder");
+            }
+            else if (step.kind == UndoStep::Kind::ImagePut)
+            {
+                ReportOutcome (m_actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
+            }
+            else
+            {
+                for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (step.savedDir, ignored))
+                {
+                    saved.push_back (entry.path().wstring());
+                }
+
+                ReportOutcome (m_actions.PutFiles (saved, MakeAddressPrompt()), L"Undo delete");
+                std::filesystem::remove_all (step.savedDir, ignored);
+            }
+
+            FillList();
+            return;
+    }
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"That could not be undone.", MB_ICONWARNING);
+    }
+
+    RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PasteHere
+//
+//  The clipboard's files into the folder, with an undo that takes back what
+//  the paste made: a copy goes to the Recycle Bin, a move goes back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PasteHere (const std::wstring & folder)
+{
+    IShellItemVerbs::PasteResult  pasted;
+    HRESULT                       hr     = m_shellVerbs.PasteInto (GetHwnd(), folder, pasted);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    m_cutPaths.clear();
+
+    if (!pasted.created.empty())
+    {
+        UndoStep  step;
+
+        step.kind    = pasted.moved ? UndoStep::Kind::HostMove : UndoStep::Kind::HostCopy;
+        step.paths   = pasted.created;
+        step.sources = pasted.sources;
+
+        PushUndo (std::move (step));
+    }
+
+    RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PushPutUndo
+//
+//  A put or a copy into an image is undone by deleting what it made, in the
+//  directory it went into.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PushPutUndo (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner)
+{
+    UndoStep  step;
+
+
+
+    if (outcome.created.empty())
+    {
+        return;
+    }
+
+    step.kind     = UndoStep::Kind::ImagePut;
+    step.location = inner.empty() ? Location::MakeDiskImage (image) : Location::MakeDiskDirectory (image, inner);
+    step.entries  = outcome.created;
+
+    PushUndo (std::move (step));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UpdateLabelTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateLabelTip (POINT point)
+{
+    int   row = -1;
+    RECT  box = {};
+
+
+
+    if (m_tree->IsVisible() && Contains (m_tree->GetBounds(), point))
+    {
+        row = m_tree->HitTestRow (point.x, point.y);
+    }
+
+    if (row < 0 || m_theme == nullptr || !m_tree->GetClippedLabelRect (row, box))
+    {
+        m_labelTip.Hide();
+        return;
+    }
+
+    m_labelTip.Show (box, m_tree->GetLabelFill (row, *m_theme), [this, row] (IDxuiPainter & painter, IDxuiTextRenderer & text)
+    {
+        m_tree->PaintLabel (row, painter, text, *m_theme);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowAddressContextMenu
+//
+//  Explorer's: the location as text (both copies), editing it, and clearing
+//  the typed history -- Explorer's own list too, since the two are shown as
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowAddressContextMenu (int x, int y)
+{
     std::vector<DxuiPopupMenuItem>  items;
+    Location                        location = m_browser.GetLocation();
+    std::wstring                    address  = BrowserModel::FormatAddress (location);
 
 
 
     m_menuCommands.clear();
 
-    for (const std::wstring & typed : m_browser.GetTypedPaths().GetEntries())
+    //  Explorer's two both put the path on as text; neither puts the folder.
+    AddMenuCommand (items, L"&Copy address", [this, address]() { DxuiClipboard::SetText (GetHwnd(), address); });
+
+    AddMenuCommand (items, L"Copy address as &text", [this, address]() { DxuiClipboard::SetText (GetHwnd(), address); });
+
+    AddMenuCommand (items, L"&Edit address", [this]()
     {
-        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
-        std::wstring                  text    = typed;
+        SetFocusPane (Pane::Address);
+        m_address->BeginEdit();
+        Invalidate();
+    });
 
-        command->label    = EscapeMnemonics (typed);
-        command->dispatch = [this, text]() { SubmitAddress (text); };
+    AddMenuCommand (items, L"&Delete history", [this]()
+    {
+        HKEY  key = nullptr;
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_menuCommands.push_back (std::move (command));
+        m_browser.GetTypedPaths().Clear();
+        m_prefs.typedPaths.clear();
+
+        if (RegOpenKeyExW (HKEY_CURRENT_USER, kExplorerTypedPathsKey, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
+        {
+            RegDeleteTreeW (key, nullptr);
+            RegCloseKey (key);
+        }
+    });
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ReadExplorerTypedPaths
+//
+//  Explorer's typed paths, url1 the newest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerWindow::ReadExplorerTypedPaths()
+{
+    std::vector<std::wstring>  out;
+    HKEY                       key    = nullptr;
+    LSTATUS                    status = RegOpenKeyExW (HKEY_CURRENT_USER, kExplorerTypedPathsKey, 0, KEY_READ, &key);
+    size_t                     i      = 0;
+
+
+
+    if (status != ERROR_SUCCESS)
+    {
+        return out;
     }
 
-    //  Under the whole bar and as wide as it, as Explorer's history list is,
-    //  rather than under the chevron that opened it.
-    UNREFERENCED_PARAMETER (anchor);
-
-    if (!items.empty())
+    for (i = 1; i <= TypedPathHistory::kMaxEntries; i++)
     {
-        DxuiContextMenu::ShowUnderMatchingWidth (*GetPopupHost(), m_address->GetBounds(), std::move (items));
+        wchar_t  value[MAX_PATH * 2] = {};
+        DWORD    bytes               = sizeof (value) - sizeof (wchar_t);
+        DWORD    type                = 0;
+
+        status = RegQueryValueExW (key, std::format (L"url{}", i).c_str(), nullptr, &type, (BYTE *) value, &bytes);
+
+        if (status == ERROR_SUCCESS && type == REG_SZ && value[0] != L'\0')
+        {
+            out.push_back (value);
+        }
     }
+
+    RegCloseKey (key);
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::WriteExplorerTypedPath
+//
+//  Puts a folder at the top of Explorer's typed paths, as Explorer does when
+//  one is typed there: a repeat moves up, and the oldest past the limit goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::WriteExplorerTypedPath (const std::wstring & path)
+{
+    std::vector<std::wstring>  paths  = ReadExplorerTypedPaths();
+    HKEY                       key    = nullptr;
+    LSTATUS                    status = ERROR_SUCCESS;
+    size_t                     i      = 0;
+
+
+
+    paths.erase (std::remove_if (paths.begin(), paths.end(),
+                                 [&path] (const std::wstring & held) { return _wcsicmp (held.c_str(), path.c_str()) == 0; }),
+                 paths.end());
+    paths.insert (paths.begin(), path);
+
+    if (paths.size() > TypedPathHistory::kMaxEntries)
+    {
+        paths.resize (TypedPathHistory::kMaxEntries);
+    }
+
+    status = RegCreateKeyExW (HKEY_CURRENT_USER, kExplorerTypedPathsKey, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr);
+
+    if (status != ERROR_SUCCESS)
+    {
+        return;
+    }
+
+    for (i = 0; i < paths.size(); i++)
+    {
+        status = RegSetValueExW (key, std::format (L"url{}", i + 1).c_str(), 0, REG_SZ,
+                                 (const BYTE *) paths[i].c_str(), (DWORD) ((paths[i].size() + 1) * sizeof (wchar_t)));
+        IGNORE_RETURN_VALUE (status, ERROR_SUCCESS);
+    }
+
+    RegCloseKey (key);
 }
 
 
@@ -6283,6 +9369,158 @@ void CassoExplorerWindow::ShowAddressOverflowMenu (const RECT & anchor)
         command->dispatch = [this, target]()
         {
             m_browser.NavigateToLocation (target);
+            FillList();
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    if (!items.empty())
+    {
+        DxuiContextMenu::ShowUnder (*GetPopupHost(), anchor, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnFindBoxKey
+//
+//  Enter searches, Escape empties the box and leaves a search's results, as
+//  Explorer's box does; every other key edits the query.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::OnFindBoxKey (const DxuiKeyEvent & ev)
+{
+    bool  down = ev.kind == DxuiKeyEventKind::Down;
+
+
+
+    if (down && ev.vk == VK_RETURN)
+    {
+        SearchLocation (m_findBox->GetText());
+        return true;
+    }
+
+    if (down && ev.vk == VK_ESCAPE)
+    {
+        m_findBox->SetText (L"");
+
+        if (SearchQuery::IsId (m_browser.GetLocation().path) && m_browser.GoBack())
+        {
+            FillList();
+        }
+
+        SetFocusPane (Pane::List);
+        return true;
+    }
+
+    return m_findBox->OnKey (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::SearchLocation
+//
+//  The folder shown and everything below it; a search from a search's
+//  results searches the same folder again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SearchLocation (const std::wstring & query)
+{
+    Location      at    = m_browser.GetLocation();
+    std::wstring  scope;
+    std::wstring  previous;
+
+
+
+    if (query.empty())
+    {
+        return;
+    }
+
+    if (at.kind == Location::Kind::HostFolder)
+    {
+        scope = at.path;
+    }
+    else if (SearchQuery::IsId (at.path))
+    {
+        SearchQuery::TryParseId (at.path, scope, previous);
+    }
+    else if (at.kind == Location::Kind::ShellFolder && !at.path.empty() && !Location::IsShellName (at.path))
+    {
+        scope = at.path;
+    }
+
+    if (scope.empty())
+    {
+        ShowMessage (L"Search covers folders on a disk; this location has none.", MB_ICONINFORMATION);
+        return;
+    }
+
+    m_browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query), SearchQuery::GetLabel (scope)));
+    FillList();
+    SetFocusPane (Pane::List);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowAddressRootsMenu
+//
+//  The chevron after the location's icon: the desktop's roots, then the
+//  folders on the user's desktop, each with its icon, as Explorer's has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowAddressRootsMenu (const RECT & anchor)
+{
+    std::vector<DxuiPopupMenuItem>                 items;
+    std::vector<IShellItemVerbs::ShellFolderItem>  folders;
+    HRESULT                                        hr = m_shellVerbs.ListDesktopFolders (folders);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    m_menuCommands.clear();
+
+    for (const IShellItemVerbs::ShellFolderItem & folder : folders)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        std::wstring                  target  = folder.path.empty() ? folder.id : folder.path;
+
+        //  This PC and the Recycle Bin open as Casso Explorer's own, with
+        //  their drives and their Restore.
+        Location  own = folder.isRecycleBin ? Location::MakeRecycleBin()
+                      : folder.isThisPc     ? Location::MakeRoot (TreeModel::kThisPcRootId)
+                                            : Location();
+
+        command->label     = EscapeMnemonics (folder.name);
+        command->menuImage = m_shellIcons.GetForPath (target, true);
+        command->dispatch  = [this, target, own]()
+        {
+            if (own.kind != Location::Kind::None)
+            {
+                m_browser.NavigateToLocation (own);
+            }
+            else
+            {
+                m_browser.NavigateToAddress (target);
+            }
+
             FillList();
         };
 
@@ -6477,6 +9715,7 @@ void CassoExplorerWindow::FillTabs()
         {
             case Location::Kind::None:          tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
             case Location::Kind::Root:          tab.icon = m_shellIcons.GetForKind ((location.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : IShellIcons::Kind::ThisPc); break;
+            case Location::Kind::RecycleBin:    tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::RecycleBin); break;
             case Location::Kind::DiskDirectory: tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
             case Location::Kind::DiskImage:     tab.icon = m_shellIcons.GetForPath (location.path, false);     break;
             default:                            tab.icon = m_shellIcons.GetForPath (location.path, true);      break;
@@ -6501,8 +9740,10 @@ void CassoExplorerWindow::FillTabs()
 
 void CassoExplorerWindow::SwitchToTab (size_t index)
 {
+    //  A tab left on a folder deleted since moves up as it is shown.
     if (m_browser.SwitchTab (index))
     {
+        m_browser.LeaveMissingLocation();
         FillList();
     }
 }
@@ -6528,6 +9769,13 @@ void CassoExplorerWindow::BeginDragOut()
     DxuiMouseEvent                           release;
     HostFileNaming::Style                    style   = GetNamingStyle();
     std::vector<DxuiDragDropSource::Format>  formats = CassoExplorerDragOut::BuildFormats (m_browser, style);
+    POINT                                    start   = {};
+    std::vector<FileEntry>                   entries;
+    std::vector<std::string>                 paths;
+    bool                                     inImage = m_browser.IsImageLocation();
+    std::string                              image   = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    CassoExplorerActions::Outcome            outcome;
+    BOOL                                     got     = FALSE;
 
 
 
@@ -6540,8 +9788,33 @@ void CassoExplorerWindow::BeginDragOut()
         return;
     }
 
-    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY, effect);
+    //  What a move would take away, read now: the drag may change the list.
+    if (inImage)
+    {
+        m_browser.GetSelectedEntries (entries);
+
+        for (const FileEntry & entry : entries)
+        {
+            paths.push_back (m_browser.GetEntryPath (entry));
+        }
+    }
+
+    got = GetCursorPos (&start);
+    IGNORE_RETURN_VALUE (got, TRUE);
+
+    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  A target that moved the entries by copying them leaves their removal
+    //  to the source, as Explorer does with files it cannot move itself. A
+    //  host file is Explorer's to move, and Casso Explorer's own drops report
+    //  a copy once they have finished a move themselves.
+    if (effect == DROPEFFECT_MOVE && inImage && !paths.empty())
+    {
+        outcome = m_actions.DeleteEntries (image, paths);
+        ReportOutcome (outcome, L"Move");
+        RefreshAfterHostChange();
+    }
 
     Invalidate();
 }
@@ -6642,7 +9915,8 @@ void CassoExplorerWindow::RunDrop (CassoExplorerActions::Conversion conversion)
                                      MakeAddressPrompt(), conversion);
     }
 
-    ReportOutcome (outcome, L"Put");
+    PushPutUndo    (outcome, drop.location.path, drop.inner);
+    ReportOutcome  (outcome, L"Put");
     RefreshAfterHostChange();
 }
 
@@ -6658,8 +9932,36 @@ void CassoExplorerWindow::RunDrop (CassoExplorerActions::Conversion conversion)
 
 void CassoExplorerWindow::OnDropFile (const std::wstring & path)
 {
-    ReportOutcome (m_actions.PutFiles ({ path }, MakeAddressPrompt()), L"Put");
+    CassoExplorerActions::Outcome  outcome = m_actions.PutFiles ({ path }, MakeAddressPrompt());
+
+
+
+    PushPutUndo   (outcome, m_browser.GetLocation().path, m_browser.GetLocation().innerPath);
+    ReportOutcome (outcome, L"Put");
     FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PreviewTheme
+//
+//  The theme on a row of the Theme menu, in the menu's order, applied while
+//  the pointer is over it. A row past the end, or none, changes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PreviewTheme (int index)
+{
+    if (index < 0 || index >= (int) std::size (s_kpszThemeRows) || m_prefs.theme == s_kpszThemeRows[index])
+    {
+        return;
+    }
+
+    SelectTheme (s_kpszThemeRows[index]);
 }
 
 
@@ -6772,11 +10074,77 @@ HWND CassoExplorerWindow::FindCassoTarget() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetDefaultMachineDriveCount
+//
+//  The drives of the machine a new Casso would start, chosen as Casso chooses
+//  it: the machine last selected, else the Apple //e. Read once, from its
+//  configuration alone; its ROMs are not needed to count its drives. Both
+//  drives when the configuration cannot be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerWindow::GetDefaultMachineDriveCount()
+{
+    constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
+    HRESULT                hr          = S_OK;
+    GlobalUserPrefs        prefs;
+    Win32FileSystem        files;
+    std::wstring           machine;
+    std::vector<fs::path>  searchPaths;
+    fs::path               configPath;
+    std::string            jsonText;
+    std::string            error;
+    MachineConfig          config;
+    int                    drives      = 0;
+
+
+
+    BAIL_OUT_IF (m_defaultDriveCount >= 0, S_OK);
+
+    m_defaultDriveCount = Win32IntentChannel::kMaxDriveCount;
+
+    hr = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), files);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
+    machine.assign (prefs.lastSelectedMachine.begin(), prefs.lastSelectedMachine.end());
+    machine     = MachineScanner::SelectCanonical (MachineScanner::Scan (searchPaths, &MachineScanner::ListDirectory, &MachineScanner::ReadFile),
+                                                   machine, s_kPreferredDefaultMachine);
+    configPath  = PathResolver::FindFile (searchPaths, fs::path ("Machines") / fs::path (machine) / (fs::path (machine).string() + ".json"));
+    BAIL_OUT_IF (configPath.empty(), S_OK);
+
+    hr = files.ReadAllText (configPath.wstring(), jsonText);
+    CHR (hr);
+
+    //  Every file found where it is named, so a missing ROM does not stop
+    //  the slots from being read.
+    hr = MachineConfigLoader::Load (jsonText, fs::path (machine).string(), searchPaths,
+                                    [] (const std::vector<fs::path> &, const fs::path & relative) { return relative; },
+                                    config, error);
+    CHR (hr);
+
+    drives = config.AttachedDiskIiDriveCount();
+
+    if (drives > 0)
+    {
+        m_defaultDriveCount = drives;
+    }
+
+Error:
+    return m_defaultDriveCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::AskCassoToDescribe
 //
 //  The answer arrives as a reply message and updates the drive count the
 //  menus read. With no Casso running, a new one opens with the default
-//  machine, which has two drives.
+//  machine, so its configuration says how many drives there are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6789,12 +10157,38 @@ void CassoExplorerWindow::AskCassoToDescribe()
 
     if (target == nullptr)
     {
-        m_cassoDriveCount = Win32IntentChannel::kMaxDriveCount;
+        m_cassoDriveCount = GetDefaultMachineDriveCount();
         return;
     }
 
     sent = Win32IntentChannel::SendTo (target, GetHwnd(), Win32IntentChannel::GetMessageId(), Win32IntentChannel::EncodeDescribe());
     IGNORE_RETURN_VALUE (sent, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetVerbTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetVerbTitle (CassoExplorerActions::Verb verb)
+{
+    std::wstring  title = GetVerbLabel (verb);
+
+
+
+    std::erase (title, L'&');
+
+    while (!title.empty() && title.back() == L'.')
+    {
+        title.pop_back();
+    }
+
+    return title;
 }
 
 
@@ -6813,17 +10207,16 @@ void CassoExplorerWindow::AskCassoToDescribe()
 
 void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
 {
-    HRESULT                  hr       = S_OK;
-    bool                     sectors  = verb == CassoExplorerActions::Verb::ReadSectors || verb == CassoExplorerActions::Verb::WriteSectors;
-    bool                     reading  = verb == CassoExplorerActions::Verb::ReadSectors || verb == CassoExplorerActions::Verb::ReadBlocks;
-    std::wstring             text     = sectors ? L"17 0 1" : L"2 1";
-    std::wstring                   prompt;
-    std::vector<int>               numbers;
-    std::filesystem::path          picked;
-    bool                           chosen  = false;
-    FileDialogSpec                 spec;
-    int                            answer  = 0;
-    CassoExplorerActions::Outcome  outcome;
+    HRESULT                          hr       = S_OK;
+    bool                             sectors  = verb == CassoExplorerActions::Verb::ReadSectors || verb == CassoExplorerActions::Verb::WriteSectors;
+    bool                             reading  = verb == CassoExplorerActions::Verb::ReadSectors || verb == CassoExplorerActions::Verb::ReadBlocks;
+    std::wstring                     title    = GetVerbTitle (verb);
+    std::filesystem::path            picked;
+    bool                             chosen   = false;
+    FileDialogSpec                   spec;
+    int                              answer   = 0;
+    CassoExplorerActions::Outcome    outcome;
+    CassoExplorerRawDialog::Outcome  where;
 
 
 
@@ -6832,62 +10225,75 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
         return;
     }
 
+    //  The raw files are bytes as they lie on the disk; the picker keeps its
+    //  own folder and names typed, apart from Casso's other pickers.
+    spec.filters    = { FileDialogFilter { sectors ? L"Sector dumps (*.bin)" : L"Block dumps (*.bin)", L"*.bin" },
+                        FileDialogFilter { L"All files (*.*)", L"*.*" } };
+    spec.clientGuid = s_kRawPickerGuid;
+
     if (!reading)
     {
-        hr = m_dialogs.PickFileToOpen (GetHwnd(), spec, picked, chosen);
+        spec.title = title;
+        hr         = m_dialogs.PickFileToOpen (GetHwnd(), spec, picked, chosen);
 
         if (FAILED (hr) || !chosen)
         {
             return;
         }
-
-        text = sectors ? L"17 0" : L"2";
     }
 
-    prompt = sectors ? (reading ? L"Track, sector and count:" : L"Track and sector to write at:")
-                     : (reading ? L"Block and count:"         : L"Block to write at:");
+    where = CassoExplorerRawDialog::Ask (GetHwnd(), m_theme, title, sectors, reading);
 
-    do
+    if (!where.confirmed)
     {
-        if (!CassoExplorerPromptDialog::Ask (GetHwnd(), m_theme, GetVerbLabel (verb), prompt, text, 16, text))
-        {
-            return;
-        }
+        return;
     }
-    while (!CassoExplorerActions::TryParseNumbers (text, sectors ? 2 : 1, numbers));
-
-    numbers.resize (3, 1);
 
     if (reading)
     {
         spec.defaultFileName  = sectors ? L"sectors.bin" : L"blocks.bin";
         spec.defaultExtension = L"bin";
+        spec.askToReplace     = false;
+        spec.title            = L"Save as";
 
-        hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, chosen);
-
-        if (FAILED (hr) || !chosen)
+        //  The picker's own replace prompt is Win32's; this one follows the
+        //  theme, and No goes back to the picker.
+        do
         {
-            return;
-        }
+            hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, chosen);
 
-        outcome = sectors ? m_actions.ReadSectors (numbers[0], numbers[1], numbers[2], picked.wstring())
-                          : m_actions.ReadBlocks  (numbers[0], numbers[1], picked.wstring());
+            if (FAILED (hr) || !chosen)
+            {
+                return;
+            }
+
+            spec.initialFolder   = picked.parent_path();
+            spec.defaultFileName = picked.filename().wstring();
+        }
+        while (GetFileAttributesW (picked.c_str()) != INVALID_FILE_ATTRIBUTES &&
+               DxuiMessageBox (GetHwnd(), m_theme,
+                               (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
+                               L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK);
+
+        outcome = sectors ? m_actions.ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering)
+                          : m_actions.ReadBlocks  (where.start, where.count, picked.wstring());
 
         ReportOutcome (outcome, reading ? L"Read" : L"Write");
         return;
     }
 
     answer = DxuiMessageBox (GetHwnd(), m_theme,
-                             L"Write the file's bytes straight onto the disk image? What is there now is overwritten.",
-                             GetVerbLabel (verb), MB_YESNO | MB_ICONWARNING);
+                             L"The file's bytes will be written straight onto the disk image, over what is there now.",
+                             title.c_str(),
+                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" });
 
-    if (answer != IDYES)
+    if (answer != IDOK)
     {
         return;
     }
 
-    outcome = sectors ? m_actions.WriteSectors (numbers[0], numbers[1], picked.wstring())
-                      : m_actions.WriteBlocks  (numbers[0], picked.wstring());
+    outcome = sectors ? m_actions.WriteSectors (where.start, where.sector, picked.wstring(), where.numbering)
+                      : m_actions.WriteBlocks  (where.start, picked.wstring());
 
     ReportOutcome (outcome, L"Write");
     FillList();
@@ -7035,6 +10441,240 @@ DxuiToolbar & CassoExplorerWindow::GetToolbarUnder (const RECT & commandBarBand,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::ShowHoverTip
+//
+//  One tooltip serves every part of the window. Each part hides only a tip it
+//  showed itself, so a move that one part has no tip for does not take down
+//  another's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowHoverTip (TipOwner owner, const RECT & anchor, const std::wstring & text)
+{
+    m_tipOwner = owner;
+    m_tooltip.RequestShow (anchor, text, GetNowMs());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::HideHoverTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::HideHoverTip (TipOwner owner)
+{
+    if (m_tipOwner == owner)
+    {
+        m_tooltip.RequestHide (GetNowMs());
+        m_tipOwner = TipOwner::None;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UpdateTreeTip
+//
+//  The Casso node says what the folders under it are, since nothing else on
+//  screen does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
+{
+    int                   row  = -1;
+    const DxuiTreeNode *  node = nullptr;
+    RECT                  tree = m_tree->GetBounds();
+    RECT                  anchor;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move && Contains (tree, point))
+    {
+        row  = m_tree->HitTestRow (point.x, point.y);
+        node = m_tree->GetNodeAt (row);
+    }
+
+    if (node == nullptr || node->id != TreeModel::kCassoRootId)
+    {
+        HideHoverTip (TipOwner::Tree);
+        return;
+    }
+
+    anchor.left   = tree.left;
+    anchor.right  = tree.right;
+    anchor.top    = tree.top + (row - m_tree->GetTopRow()) * m_tree->GetRowHeight();
+    anchor.bottom = anchor.top + m_tree->GetRowHeight();
+
+    ShowHoverTip (TipOwner::Tree, anchor, kCassoNodeTip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UpdateListTip
+//
+//  An item view's name cut short with an ellipsis shows whole in a tip, as
+//  Explorer's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateListTip (const DxuiMouseEvent & ev, POINT point)
+{
+    m_listTipPoint  = point;
+    m_listTipActive = ev.kind == DxuiMouseEventKind::Move;
+
+    RefreshListTip();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RefreshListTip
+//
+//  Explorer's tip for the item under the pointer: what the shell says of a
+//  real file or folder, read in the background, or the type, size and date of
+//  an entry inside an image; with the whole name first when the view cut it
+//  short. Over the whole row in Details, the icon alone in Content, and the
+//  icon and its name in the other views.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RefreshListTip()
+{
+    RECT                  list     = m_list->GetBounds();
+    POINT                 point    = m_listTipPoint;
+    RECT                  anchor   = {};
+    RECT                  text     = {};
+    int                   row      = -1;
+    std::wstring          path;
+    std::wstring          details;
+    std::wstring          tip;
+    bool                  overItem = false;
+
+
+
+    //  None while a menu is open over the list: the pointer is on the menu.
+    if (m_listTipActive && m_list->IsVisible() && Contains (list, point) && !GetPopupHost()->GetContextMenu().IsVisible())
+    {
+        row = m_list->HitTestRow (point.x - list.left, point.y - list.top);
+    }
+
+    if (row >= 0 && row < (int) m_browser.GetRows().size() && m_list->GetCellTextRectPx (row, 0, text))
+    {
+        OffsetRect (&text, list.left, list.top);
+
+        //  Content shows its tip over the icon only, left of the text.
+        overItem = m_listView != DxuiListView::View::Content || point.x < text.left;
+    }
+
+    if (!overItem)
+    {
+        HideHoverTip (TipOwner::List);
+        return;
+    }
+
+    {
+        const CatalogRow &  row0 = m_browser.GetRows()[(size_t) row];
+
+        if (m_browser.GetLocation().kind == Location::Kind::HostFolder && (size_t) row < m_rowProblems.size() && !m_rowProblems[(size_t) row].empty())
+        {
+            //  A broken image's tip says why it is broken.
+            details = m_rowProblems[(size_t) row];
+        }
+        else if (m_browser.GetLocation().kind == Location::Kind::HostFolder && m_browser.TryGetRowPath (row, path))
+        {
+            //  Not yet read: the tip comes when it is, by a posted message.
+            if (!m_infoTips.TryGet (path, details) && !m_list->IsItemNameCut (row))
+            {
+                HideHoverTip (TipOwner::List);
+                return;
+            }
+        }
+        else if (!row0.isDirectory || m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        {
+            details = L"Type: " + row0.typeText;
+
+            if (!row0.isDirectory)
+            {
+                details += L"\nSize: " + CassoExplorerBrowser::FormatSize (row0.sizeBytes);
+            }
+
+            if (row0.hasModified)
+            {
+                details += L"\nDate modified: " + CassoExplorerBrowser::FormatModified (row0.modifiedUnix, row0.modifiedIsWallClock);
+            }
+        }
+
+        tip = m_list->IsItemNameCut (row) ? row0.name : std::wstring();
+        tip += (!tip.empty() && !details.empty()) ? L"\n" + details : details;
+    }
+
+    if (tip.empty())
+    {
+        HideHoverTip (TipOwner::List);
+        return;
+    }
+
+    //  Details: the whole row; other views: the item's cell.
+    anchor = text;
+
+    if (m_listView == DxuiListView::View::Details)
+    {
+        anchor.left  = list.left;
+        anchor.right = list.right;
+    }
+
+    ShowHoverTip (TipOwner::List, anchor, tip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UpdateStatusTip
+//
+//  The free space of a disk image says which disk it counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateStatusTip (const DxuiMouseEvent & ev, POINT point)
+{
+    const std::wstring &  tip    = m_browser.GetStatus().freeSpaceTip;
+    RECT                  anchor = m_status->GetFieldRect (kStatusFree);
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Move || tip.empty() || !Contains (anchor, point))
+    {
+        HideHoverTip (TipOwner::Status);
+        return;
+    }
+
+    ShowHoverTip (TipOwner::Status, anchor, tip.c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::RouteToolbarMouse
 //
 //  The toolbar takes its pointer input through its own calls rather than
@@ -7060,13 +10700,25 @@ bool CassoExplorerWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMo
             took = toolbar.OnToolbarMouseMove (x, y);
             tip  = took ? toolbar.GetTooltipAt (x, y, anchor) : nullptr;
 
-            if (tip != nullptr && *tip != L'\0')
+            //  A button clicked stays quiet until the pointer has left it, as
+            //  Explorer's command bar does, rather than tipping again over the
+            //  menu it opened.
+            if (m_tipMuted && Contains (m_tipMuteRect, ev.positionDip))
             {
-                m_tooltip.RequestShow (anchor, tip, nowMs);
+                tip = nullptr;
             }
             else
             {
-                m_tooltip.RequestHide (nowMs);
+                m_tipMuted = false;
+            }
+
+            if (tip != nullptr && *tip != L'\0')
+            {
+                ShowHoverTip (TipOwner::Toolbar, anchor, tip);
+            }
+            else
+            {
+                HideHoverTip (TipOwner::Toolbar);
             }
 
             break;
@@ -7090,6 +10742,7 @@ bool CassoExplorerWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMo
             if (took)
             {
                 m_tooltip.HideImmediate();
+                m_tipMuted = toolbar.GetTooltipAt (x, y, m_tipMuteRect) != nullptr;
             }
 
             break;
@@ -7100,7 +10753,7 @@ bool CassoExplorerWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMo
 
         case DxuiMouseEventKind::Leave:
             toolbar.OnToolbarMouseLeave();
-            m_tooltip.RequestHide (nowMs);
+            HideHoverTip (TipOwner::Toolbar);
             break;
 
         default:
@@ -7122,9 +10775,40 @@ bool CassoExplorerWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMo
 
 DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 {
+    bool  barsMoved = false;
+
+
+
+    //  The Recycle Bin restores on its own time, so the folder is read again
+    //  each second for a while after an undo.
+    if (timerId == kRestoreTimerId)
+    {
+        if (--m_restoreTicks <= 0)
+        {
+            KillTimer (GetHwnd(), kRestoreTimerId);
+        }
+
+        RefreshAfterHostChange();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (timerId == kRecycleBinTimerId)
+    {
+        KillTimer (GetHwnd(), kRecycleBinTimerId);
+
+        if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        {
+            RefreshAfterHostChange();
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (timerId == kFolderTimerId)
     {
         KillTimer (GetHwnd(), kFolderTimerId);
+        m_folderFirstChangeMs = 0;
         RefreshChangedFolders();
 
         return DxuiMessageResult::Handled;
@@ -7161,21 +10845,82 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     //  Scrollbars widen and narrow over a few frames as the pointer comes and
     //  goes.
-    if (((int) m_hexView->TickScrollbars (GetNowMs())
-       | (int) m_textView->TickScrollbars (GetNowMs())
-       | (int) m_list->TickScrollbars (GetNowMs())
-       | (int) m_previewList->TickScrollbars (GetNowMs())
-       | (int) m_tree->TickScrollbars (GetNowMs())
-       | (int) m_picture->TickScrollbars (GetNowMs())) != 0)
+    barsMoved = ((int) m_hexView->TickScrollbars (GetNowMs())
+               | (int) m_textView->TickScrollbars (GetNowMs())
+               | (int) m_list->TickScrollbars (GetNowMs())
+               | (int) m_list->IsHeaderSliding ((int64_t) GetTickCount64())
+               | (int) m_list->IsGroupSliding()
+               | (int) m_previewList->TickScrollbars (GetNowMs())
+               | (int) m_tree->TickScrollbars (GetNowMs())
+               | (int) m_picture->TickScrollbars (GetNowMs())) != 0;
+
+    if (barsMoved)
     {
         Invalidate();
     }
 
-    //  The search box's caret blinks on the frames this asks for.
-    if (m_focus == Pane::Search || m_focus == Pane::GoTo)
+    //  The search box's caret blinks on the frames this asks for: one each
+    //  time it turns on or off, not one every tick.
+    if (m_focus == Pane::Search || m_focus == Pane::GoTo || m_focus == Pane::LocationSearch)
     {
-        Invalidate();
+        bool  caretOn = (m_focus == Pane::Search) ? m_searchBox.IsCaretOn() : (m_focus == Pane::GoTo) ? m_goToBox.IsCaretOn() : m_findBox->IsCaretOn();
+
+        if (caretOn != m_caretOn)
+        {
+            m_caretOn = caretOn;
+            Invalidate();
+        }
     }
 
-    return DxuiMessageResult::Handled;
+    //  Nothing left to animate: the tick stops until the next input.
+    if (!barsMoved && !IsTickWanted())
+    {
+        KillTimer (GetHwnd(), kTooltipTimerId);
+        m_tickArmed = false;
+    }
+
+    //  Not handled, so the host does not repaint after every tick: the work
+    //  above repaints only when something moved.
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ArmTick
+//
+//  Tooltips, menus, the address chevron, scrollbars and the search caret
+//  animate on a display-rate tick. Each animation starts from input, so input
+//  starts the tick, and the tick stops itself once nothing wants it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ArmTick()
+{
+    if (!m_tickArmed && GetHwnd() != nullptr)
+    {
+        m_tickArmed = SetTimer (GetHwnd(), kTooltipTimerId, kTooltipTickMs, nullptr) != 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsTickWanted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsTickWanted() const
+{
+    return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_address->WantsTick()
+        || m_menuBar->IsOpen() || m_toolbar->IsMenuOpen() || m_commandBar->IsMenuOpen() || m_previewToolbar->IsMenuOpen()
+        || m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewToolbar->WantsTick()
+        || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
+        || m_focus == Pane::Search || m_focus == Pane::GoTo || m_focus == Pane::LocationSearch;
 }

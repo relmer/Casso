@@ -80,6 +80,7 @@ struct DxuiTheme : public IDxuiTheme
     //  draws no outline and no strip line; a zero divider takes contentEdge.
     uint32_t  contentSelectionInactiveEdge = 0;
     uint32_t  contentHeaderDivider         = 0;
+    uint32_t  menuSeparator                = 0;
     uint32_t  tabStripEdge                 = 0;
     uint32_t  buttonIdle                   = 0;
     uint32_t  buttonHover                  = 0;
@@ -104,10 +105,12 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  ContentSelectionMulti    () const override { return (contentSelectionMulti    != 0) ? contentSelectionMulti    : ContentSelection(); }
     uint32_t  ContentSelectionInactiveEdge () const override { return contentSelectionInactiveEdge; }
     uint32_t  ContentHeaderDivider () const override { return (contentHeaderDivider != 0) ? contentHeaderDivider : ContentEdge(); }
+    uint32_t  MenuSeparator        () const override { return (menuSeparator != 0) ? menuSeparator : Divider(); }
     uint32_t  TabStripEdge         () const override { return tabStripEdge; }
     uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
     uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }
+    uint32_t  MenuHover           () const override { return (dropdownHover != 0) ? dropdownHover : navHover; }
     uint32_t  PressedBackground   () const override { return buttonPressed;      }
     uint32_t  SelectionBackground () const override { return navHover;           }
 
@@ -150,7 +153,15 @@ struct DxuiTheme : public IDxuiTheme
     // Typography. Faces and sizes are centralized here so widgets read
     // theme fonts instead of repeating literals. Icon-glyph faces (Segoe
     // MDL2 Assets / Symbol) stay at the use site -- they are not text.
+    //  kBodyFace is Segoe UI, which File Explorer's list and tree still use;
+    //  the rest of a modern window's text is in GetUiFace's face.
     static constexpr wchar_t       kBodyFace    [] = L"Segoe UI";
+    static constexpr wchar_t       kVariableFace[] = L"Segoe UI Variable Text";
+
+    //  Segoe UI Variable where Windows has it, as its own apps are set;
+    //  Segoe UI where it does not.
+    static const wchar_t *         GetUiFace ();
+
     static constexpr wchar_t       kMonoFace    [] = L"Cascadia Mono";
     static constexpr float         kBodySizeDip    = 13.0f;
     static constexpr float         kCaptionSizeDip = 12.0f;
@@ -168,10 +179,10 @@ struct DxuiTheme : public IDxuiTheme
     //  difference sit exactly concentric inside one.
     static constexpr float         kOverlayCornerRadiusDip = 8.0f;
 
-    DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
-    DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
-    DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DxuiFontWeight::Normal   }; }
-    DxuiFontHandle  HeadingFont   () const override { return { kBodyFace, kHeadingSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  BodyFont      () const override { return { GetUiFace(), kBodySizeDip,    DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  BodyBoldFont  () const override { return { GetUiFace(), kBodySizeDip,    DxuiFontWeight::SemiBold }; }
+    DxuiFontHandle  CaptionFont   () const override { return { GetUiFace(), kCaptionSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  HeadingFont   () const override { return { GetUiFace(), kHeadingSizeDip, DxuiFontWeight::Normal   }; }
     DxuiFontHandle  MonospaceFont () const override { return { kMonoFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
 
     float  BodyLineHeightDip () const override { return 18.0f; }

@@ -174,7 +174,7 @@ void SalvageDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
     // Match every other dialog: labels draw at the theme's body size, scaled
     // into pixels. Drawing at a raw DIP size renders correctly only at 100%.
     DxuiFontHandle    body       = theme.BodyFont();
-    const wchar_t   * face       = (body.face != nullptr) ? body.face : DxuiTheme::kBodyFace;
+    const wchar_t   * face       = (body.face != nullptr) ? body.face : DxuiTheme::GetUiFace();
     float             fontPx     = m_scaler.ToPxf (body.sizeDip);
     float             lineH      = static_cast<float> (m_scaler.ToPx (s_kLineDip));
     float             gap        = static_cast<float> (m_scaler.ToPx (s_kGapDip));

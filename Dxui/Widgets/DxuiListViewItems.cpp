@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiRowLook.h"
 #include "Widgets/DxuiListView.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -22,15 +24,33 @@ DxuiListView::ItemMetrics DxuiListView::GetItemMetrics (View view)
 {
     switch (view)
     {
-        case View::ExtraLargeIcons: return ItemMetrics { 280, 312, 256, false, true,  2 };
-        case View::LargeIcons:      return ItemMetrics { 128, 146,  96, false, true,  2 };
-        case View::MediumIcons:     return ItemMetrics {  88,  98,  48, false, true,  2 };
-        case View::SmallIcons:      return ItemMetrics { 240,  24,  16, false, false, 1 };
-        case View::List:            return ItemMetrics { 240,  24,  16, true,  false, 1 };
-        case View::Tiles:           return ItemMetrics { 254,  58,  48, false, false, 3, 17 };
-        case View::Content:         return ItemMetrics {   0,  56,  32, false, false, 2 };
+        //  Explorer's pitches, measured at 150%. Its icon views size a row to
+        //  the longest wrapped name in it, from one line, each name line 17
+        //  dip below the last.
+        case View::ExtraLargeIcons: return ItemMetrics { 191, 193, 256, false, true,  1, 17 };
+        case View::LargeIcons:      return ItemMetrics { 115, 118,  96, false, true,  1, 17 };
+        case View::MediumIcons:     return ItemMetrics {  76,  70,  48, false, true,  1, 17 };
+        case View::SmallIcons:      return ItemMetrics { 240,  34,  16, false, false, 1 };
+        case View::List:            return ItemMetrics { 240,  33,  16, true,  false, 1 };
+        case View::Tiles:           return ItemMetrics { 254,  56,  48, false, false, 3, 17 };
+        case View::Content:         return ItemMetrics {   0,  53,  32, false, false, 2 };
         default:                    return ItemMetrics {   0,  30,  16, false, false, 1 };
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemIconPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetItemIconPx (View view, UINT dpi)
+{
+    return (std::min) (MulDiv (GetItemMetrics (view).iconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi), s_kMaxItemIconPx);
 }
 
 
@@ -64,9 +84,10 @@ void DxuiListView::SetView (View view)
         m_showHeader = m_detailsHeader;
     }
 
-    m_view   = view;
-    m_topRow = 0;
-    m_leftPx = 0;
+    m_view      = view;
+    m_topRow    = 0;
+    m_leftPx    = 0;
+    m_pageSlide = {};
 
     EnsureVisible (m_selectedRow);
 }
@@ -97,22 +118,56 @@ DxuiListView::ItemGrid DxuiListView::GetItemGrid() const
 
 
 
-    grid.cellH = m_scaler.ToPx (metrics.cellHDip);
+    //  A big icon's row is its fixed part and one caption line, which is the
+    //  font's height in GDI's measure, as Explorer's rows are.
+    grid.cellH = metrics.labelBelow              ? GetItemIconPx (m_view, m_scaler.GetDpi()) + (int) std::lround (m_scaler.ToPxf (s_kItemBoxPadDip))
+                                                   + (int) std::lround (m_scaler.ToPxf (s_kItemRowGapDip)) + GetCaptionLinePx()
+               : (m_view == View::Tiles)      ? GetTileRowPx (0)
+               : (m_view == View::Content)    ? (int) std::lround (m_scaler.ToPxf ((m_scaler.GetDpi() >= 144) ? s_kContentRowDip : s_kContentRowLowDpiDip))
+               : (m_view == View::SmallIcons) ? GetSmallRowPx()
+               : (m_view == View::List)       ? (std::max) (GetSmallRowPx(), (int) std::lround (m_scaler.ToPxf ((float) metrics.cellHDip)))
+                                              : m_scaler.ToPx (metrics.cellHDip);
+
+    //  Once the names are measured, Small icons and List are as wide as they
+    //  need: List's widest column here, its others in GetListColumnLefts.
+    if ((m_view == View::SmallIcons || m_view == View::List) && !m_itemNameWPx.empty() && m_itemNameWPx.size() == (size_t) rows)
+    {
+        int  widest = GetNameCellWPx (m_itemNameWidestPx);
+
+        metrics.cellWDip = 0;
+        grid.cellW       = (m_view == View::SmallIcons) ? (std::min) (widest, m_scaler.ToPx (s_kSmallIconsMaxWDip)) : widest;
+        grid.boxW        = grid.cellW - (int) std::lround (m_scaler.ToPxf ((grid.cellW < widest) ? s_kSmallIconsGapDip : s_kNameColumnGapDip));
+    }
 
     if (metrics.columns)
     {
-        grid.cellW   = m_scaler.ToPx (metrics.cellWDip);
-        grid.perLine = (grid.cellH > 0) ? (std::max) (1, (fullH - barW) / grid.cellH) : 1;
+        grid.cellW   = (grid.cellW > 0) ? grid.cellW : m_scaler.ToPx (metrics.cellWDip);
+        grid.boxW    = (grid.boxW > 0) ? grid.boxW : grid.cellW;
+        //  Below the top margin, and above the horizontal scrollbar's row,
+        //  kept back as Explorer keeps it.
+        grid.perLine = (grid.cellH > 0) ? (std::max) (1, (fullH - m_scaler.ToPx (s_kItemsTopDip) - (int) std::lround (m_scaler.ToPxf (s_kItemsBarDip))) / grid.cellH) : 1;
         grid.lines   = (rows + grid.perLine - 1) / grid.perLine;
         grid.visible = (grid.cellW > 0) ? (std::max) (1, fullW / grid.cellW) : 1;
 
         return grid;
     }
 
-    grid.cellW   = (metrics.cellWDip > 0) ? m_scaler.ToPx (metrics.cellWDip) : (std::max) (1, fullW - barW);
-    grid.perLine = (grid.cellW > 0) ? (std::max) (1, (fullW - barW) / grid.cellW) : 1;
-    grid.lines   = (rows + grid.perLine - 1) / grid.perLine;
     grid.visible = (grid.cellH > 0) ? (std::max) (1, fullH / grid.cellH) : 1;
+
+    if (metrics.labelBelow)
+    {
+        SpreadItemBoxes (grid, fullW, fullH, rows);
+        return grid;
+    }
+
+    //  A row as wide as the pane allows: past the left margin, short of the
+    //  scrollbar's column and a little more.
+    grid.cellW   = (grid.cellW > 0) ? grid.cellW : (metrics.cellWDip > 0) ? m_scaler.ToPx (metrics.cellWDip)
+                 : (std::max) (1, fullW - GetItemsLeftPx() - (int) std::lround (m_scaler.ToPxf (s_kItemsBarDip + s_kContentEndGapDip)));
+    grid.boxW    = (m_view == View::Tiles) ? grid.cellW - (int) std::lround (m_scaler.ToPxf (s_kTileGapDip)) : grid.boxW;
+    grid.boxW    = (grid.boxW > 0) ? grid.boxW : grid.cellW;
+    grid.perLine = (grid.cellW > 0) ? (std::max) (1, (fullW - barW - GetItemsLeftPx()) / grid.cellW) : 1;
+    grid.lines   = (rows + grid.perLine - 1) / grid.perLine;
 
     return grid;
 }
@@ -143,11 +198,25 @@ DxuiListView::ScrollLayout DxuiListView::ComputeItemScrollLayout() const
 
     if (GetItemMetrics (m_view).columns)
     {
-        layout.contentW  = grid.lines * grid.cellW;
+        layout.contentW  = HasListGroups() ? GetListLayout().totalW : GetListColumnLefts().back();
         layout.hBar      = layout.contentW > fullW;
         layout.vBar      = false;
         layout.rowCap    = GetRowCount();
         layout.viewportW = fullW;
+
+        return layout;
+    }
+
+    //  Grouped, the view scrolls by lines, a header or a row of items each.
+    if (UsesItemLayout())
+    {
+        const ItemLayout & items = GetItemLayout();
+
+        layout.vBar      = items.totalH > m_boundsDip.bottom - m_boundsDip.top;
+        layout.hBar      = false;
+        layout.rowCap    = grid.visible;
+        layout.viewportW = fullW - (layout.vBar ? barW : 0);
+        layout.contentW  = layout.viewportW;
 
         return layout;
     }
@@ -159,6 +228,1426 @@ DxuiListView::ScrollLayout DxuiListView::ComputeItemScrollLayout() const
     layout.contentW  = layout.viewportW;
 
     return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HasItemGroups
+//
+//  Groups in an item view that scrolls down; List lays its groups out as
+//  columns of their own instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HasItemGroups() const
+{
+    return !m_groups.empty() && IsItemsView() && !GetItemMetrics (m_view).columns;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::UsesItemLayout
+//
+//  Every item view that scrolls down lays its items out as lines, grouped or
+//  not, so each row can be as tall as its tallest name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::UsesItemLayout() const
+{
+    return IsItemsView() && !GetItemMetrics (m_view).columns;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SyncItemTextLines
+//
+//  The measurements belong to one row set, view, width and font; any change
+//  drops them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SyncItemTextLines() const
+{
+    //  The box, not the pitch: names wrap to the box, and the pitch moves
+    //  with the scrollbar, which the measured lines decide.
+    ItemTextKey  key = { (int) m_view, GetItemGrid().boxW, GetRowCount(), m_rowsVersion, (int) (m_fontDip * 100.0f) };
+
+
+
+    if (key != m_itemTextKey)
+    {
+        m_itemTextKey = key;
+        m_itemTextLines.assign ((size_t) (std::max) (GetRowCount(), 0), 0);
+        m_itemTextVersion++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::MeasureItemTextLines
+//
+//  The lines each item on screen not yet measured wraps its name to. Whether
+//  any of them needs more than the two lines a cell has room for, which
+//  changes the layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::MeasureItemTextLines (IDxuiTextRenderer & text, const std::vector<std::pair<int, RECT>> & onScreen) const
+{
+    ItemMetrics  metrics = GetItemMetrics (m_view);
+    float        fontPx  = m_scaler.ToPxf (m_fontDip);
+    bool         taller  = false;
+
+
+
+    if (!metrics.labelBelow && m_view != View::Tiles)
+    {
+        return false;
+    }
+
+    SyncItemTextLines();
+
+    for (const std::pair<int, RECT> & place : onScreen)
+    {
+        RECT    label   = GetItemLabelRectPx (place.second);
+        size_t  lines   = 0;
+        size_t  details = 0;
+
+        if (place.first < 0 || (size_t) place.first >= m_itemTextLines.size() || m_itemTextLines[(size_t) place.first] != 0)
+        {
+            continue;
+        }
+
+        const std::vector<Cell> & cells = GetRowCells (place.first);
+
+        if (cells.empty())
+        {
+            continue;
+        }
+
+        lines = DxuiTextElide::WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace, (float) (label.right - label.left),
+                                            (m_view == View::Tiles) ? 2 : s_kItemNameMaxLines, true, true).size();
+        lines = std::clamp (lines, (size_t) 1, (size_t) s_kItemNameMaxLines);
+
+        //  A tile keeps its name's lines in the low bits and the details shown
+        //  under it in the high ones.
+        if (m_view == View::Tiles)
+        {
+            details = cells[0].tileNameOnly ? 0 : (std::min) (cells[0].tileLines.size(), (size_t) s_kTileMaxLines - lines);
+            lines   = lines | (details << 4);
+        }
+
+        m_itemTextLines[(size_t) place.first] = (uint8_t) lines;
+        taller = taller || (m_view == View::Tiles) || (int) lines > metrics.textLines;
+    }
+
+    if (taller)
+    {
+        m_itemTextVersion++;
+    }
+
+    return taller;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemExtraPx
+//
+//  How much taller than the grid's cell an item is, for the name lines past
+//  the two every cell has room for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetItemExtraPx (int item) const
+{
+    ItemMetrics  metrics = GetItemMetrics (m_view);
+    int          lines   = (item >= 0 && (size_t) item < m_itemTextLines.size()) ? m_itemTextLines[(size_t) item] : 0;
+
+
+
+    if (m_view == View::Tiles)
+    {
+        return (lines == 0) ? 0 : GetTileRowPx ((lines & 0x0F) + (lines >> 4)) - GetTileRowPx (0);
+    }
+
+    return (metrics.labelBelow && lines > metrics.textLines) ? (lines - metrics.textLines) * GetCaptionLinePx() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetSmallRowPx
+//
+//  A Small icons row: the captions' pitch and the icon, and two pixels more
+//  from 150% up, as Explorer's measure at 100, 125 and 150%. List's row is
+//  this or 33 dip, whichever is taller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetSmallRowPx() const
+{
+    int  icon = GetItemIconPx (View::SmallIcons, m_scaler.GetDpi());
+
+
+
+    return GetCaptionLinePx() + icon + ((m_scaler.GetDpi() >= 144) ? 2 : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetTileLinePx
+//
+//  A tile's text line, name or detail: one pixel more than the captions'.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetTileLinePx() const
+{
+    return GetCaptionLinePx() + 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetTileRowPx
+//
+//  A tile row with this many text lines: its icon or its text, whichever is
+//  taller, and the padding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetTileRowPx (int lines) const
+{
+    int  icon = GetItemIconPx (View::Tiles, m_scaler.GetDpi());
+    int  pad  = (int) std::floor (m_scaler.ToPxf (s_kTilePadDip)) - s_kTilePadTrimPx;
+
+
+
+    return (std::max) (icon, lines * GetTileLinePx()) + pad;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCaptionLinePx
+//
+//  How far apart a big icon's caption lines are: the font's height in GDI's
+//  measure, as Explorer stacks them, once a paint has measured it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetCaptionLinePx() const
+{
+    return (m_captionLinePx > 0) ? m_captionLinePx : m_scaler.ToPx (GetItemMetrics (m_view).lineDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::MeasureItemNames
+//
+//  Every item's name width, once for each row set and font, for the views
+//  whose columns follow the names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::MeasureItemNames (IDxuiTextRenderer & text) const
+{
+    HRESULT      hr     = S_OK;
+    int          rows   = GetRowCount();
+    float        fontPx = m_scaler.ToPxf (m_fontDip);
+    ItemTextKey  key    = { -1, 0, rows, m_rowsVersion, (int) (m_fontDip * 100.0f) };
+
+
+
+    if (key == m_itemNameKey && m_itemNameWPx.size() == (size_t) (std::max) (rows, 0))
+    {
+        return;
+    }
+
+    m_itemNameKey      = key;
+    m_itemNameWidestPx = 0;
+    m_itemNameWPx.assign ((size_t) (std::max) (rows, 0), 0);
+
+    for (int row = 0; row < rows; row++)
+    {
+        std::wstring  name;
+        float         w    = 0.0f;
+        float         h    = 0.0f;
+
+        if (m_rowNames)
+        {
+            name = m_rowNames (row);
+        }
+        else
+        {
+            const std::vector<Cell> & cells = GetRowCells (row);
+
+            name = cells.empty() ? std::wstring() : cells[0].text;
+        }
+
+        //  By GDI's advances, as Explorer sizes its columns and draws its names.
+        hr = name.empty() ? S_OK : text.MeasureStringGdi (name.c_str(), fontPx, DxuiTheme::kBodyFace, w);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_itemNameWPx[(size_t) row] = (int) std::ceil (w);
+        m_itemNameWidestPx          = (std::max) (m_itemNameWidestPx, m_itemNameWPx[(size_t) row]);
+    }
+
+    m_itemTextVersion++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetNameCellWPx
+//
+//  The width of a cell whose name is this wide: the icon, the name, and
+//  Explorer's gap after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetNameCellWPx (int textPx) const
+{
+    return GetItemIconLeftPx() + GetItemIconPx (m_view, m_scaler.GetDpi()) + GetNameTextGapPx() + textPx
+         + (int) std::lround (m_scaler.ToPxf (s_kNameRightPadDip)) + (int) std::lround (m_scaler.ToPxf (s_kNameColumnGapDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetListColumnLefts
+//
+//  Where each of List's columns starts, each as wide as the widest name in
+//  it, with one more entry for where the last ends. Uniform columns before
+//  the names are measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<int> & DxuiListView::GetListColumnLefts() const
+{
+    ItemGrid             grid    = GetItemGrid();
+    int                  rows    = GetRowCount();
+    bool                 sized   = m_itemNameWPx.size() == (size_t) rows && rows > 0;
+    std::pair<int, int>  key     = { grid.perLine, sized ? m_itemTextVersion : -1 };
+    int                  x       = 0;
+
+
+
+    if (key == m_listColumnsKey && !m_listColumnLefts.empty())
+    {
+        return m_listColumnLefts;
+    }
+
+    m_listColumnsKey = key;
+    x                = GetItemsLeftPx();
+    m_listColumnLefts.assign (1, x);
+
+    for (int first = 0; first < rows; first += grid.perLine)
+    {
+        int  widest = 0;
+
+        for (int item = first; sized && item < (std::min) (rows, first + grid.perLine); item++)
+        {
+            widest = (std::max) (widest, m_itemNameWPx[(size_t) item]);
+        }
+
+        x += sized ? GetNameCellWPx (widest) : grid.cellW;
+        m_listColumnLefts.push_back (x);
+    }
+
+    return m_listColumnLefts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::FindListColumn
+//
+//  List's column at a point in its content's own pixels, or -1 past them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::FindListColumn (int x) const
+{
+    const std::vector<int> & lefts = GetListColumnLefts();
+    auto                     after = std::upper_bound (lefts.begin(), lefts.end(), x);
+
+
+
+    if (x < 0 || after == lefts.begin() || after == lefts.end())
+    {
+        return -1;
+    }
+
+    return (int) (after - lefts.begin()) - 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetLayoutKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::LayoutKey DxuiListView::GetLayoutKey() const
+{
+    LayoutKey  key;
+    ItemGrid   grid = GetItemGrid();
+
+
+
+    SyncItemTextLines();
+
+    key.names   = m_itemTextVersion;
+    key.caption = GetCaptionLinePx();
+    key.cellW   = grid.cellW;
+    key.cellH   = grid.cellH;
+    key.perLine = grid.perLine;
+    key.fullH   = m_boundsDip.bottom - m_boundsDip.top;
+    key.barW    = GetScrollbarWidthPx();
+    key.headerH = GetRowHeightPx();
+    key.indent  = m_scaler.ToPx (s_kGroupLabelDip);
+    key.rows    = GetRowCount();
+
+    key.groups.reserve (m_groups.size());
+
+    for (const Group & group : m_groups)
+    {
+        key.groups.emplace_back (group.firstRow, group.collapsed);
+    }
+
+    return key;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemLayout
+//
+//  Built again only when what it is built from changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiListView::ItemLayout & DxuiListView::GetItemLayout() const
+{
+    LayoutKey  key = GetLayoutKey();
+
+
+
+    if (!m_itemLayoutBuilt || !(key == m_itemLayoutKey))
+    {
+        m_itemLayout      = BuildItemLayout();
+        m_itemLayoutKey   = std::move (key);
+        m_itemLayoutBuilt = true;
+    }
+
+    return m_itemLayout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::BuildItemLayout
+//
+//  A header line for each group, a row's height, then its items in rows of
+//  the grid's width, each group starting a row of its own; none under a
+//  collapsed header, other than openGroup's, which a slide draws open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::ItemLayout DxuiListView::BuildItemLayout (int openGroup) const
+{
+    ItemLayout  layout;
+    ItemGrid    grid    = GetItemGrid();
+    int         rows    = GetRowCount();
+    int         headerH = GetRowHeightPx();
+    int         y       = m_scaler.ToPx (s_kItemsTopDip);
+    bool        grouped = !m_groups.empty();
+    size_t      runs    = grouped ? m_groups.size() : 1;
+
+
+
+    layout.rowLine.assign ((size_t) (std::max) (rows, 0), -1);
+
+    //  Without groups the items are one run, with no header over it.
+    for (size_t g = 0; g < runs; g++)
+    {
+        int   start     = grouped ? std::clamp (m_groups[g].firstRow, 0, rows) : 0;
+        int   end       = (grouped && g + 1 < m_groups.size()) ? std::clamp (m_groups[g + 1].firstRow, start, rows) : rows;
+        bool  collapsed = grouped && m_groups[g].collapsed && (int) g != openGroup;
+
+        if (grouped)
+        {
+            layout.lines.push_back (ItemLine { (int) g, start, 0, y, headerH });
+            y += headerH;
+        }
+
+        for (int first = start; first < end && !collapsed; first += grid.perLine)
+        {
+            int  count  = (std::min) (grid.perLine, end - first);
+            int  height = grid.cellH;
+
+            for (int item = first; item < first + count; item++)
+            {
+                layout.rowLine[(size_t) item] = (int) layout.lines.size();
+                height = (std::max) (height, grid.cellH + GetItemExtraPx (item));
+            }
+
+            layout.lines.push_back (ItemLine { -1, first, count, y, height });
+            y += height;
+        }
+    }
+
+    layout.totalH = y;
+
+    return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::FindItemLine
+//
+//  The line at a height in the layout's own space, or -1 past its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::FindItemLine (const ItemLayout & layout, int y)
+{
+    for (size_t line = 0; line < layout.lines.size(); line++)
+    {
+        if (y >= layout.lines[line].top && y < layout.lines[line].top + layout.lines[line].height)
+        {
+            return (int) line;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::BeginPageSlide
+//
+//  Starts the slide from where the view was drawn to where it now rests;
+//  nothing when it did not move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::BeginPageSlide (int fromPx)
+{
+    if (!UsesItemLayout() || fromPx == GetItemTopPx (GetItemLayout()))
+    {
+        return;
+    }
+
+    m_pageSlide = { true, fromPx, GetClockMs() };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetPageSlidePx
+//
+//  How far from where it rests a sliding page is drawn, down positive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetPageSlidePx() const
+{
+    float  t      = 0.0f;
+    int    restPx = 0;
+
+
+
+    if (!m_pageSlide.active || !UsesItemLayout())
+    {
+        return 0;
+    }
+
+    t      = (float) (GetClockMs() - m_pageSlide.startMs) / (float) s_kPageSlideMs;
+    restPx = GetItemTopPx (GetItemLayout());
+
+    return (int) std::lround ((float) (restPx - m_pageSlide.fromPx) * (1.0f - EaseGroupSlide (t)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetShownItemTopPx
+//
+//  The scroll the view is drawn at, a sliding page's included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetShownItemTopPx() const
+{
+    return UsesItemLayout() ? GetItemTopPx (GetItemLayout()) - GetPageSlidePx() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemTopPx
+//
+//  How far the layout is scrolled: the top of the first line shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetItemTopPx (const ItemLayout & layout) const
+{
+    //  From the first line, so the margin above it stays when the list is at its top.
+    return (m_topRow >= 0 && m_topRow < (int) layout.lines.size()) ? layout.lines[(size_t) m_topRow].top - layout.lines[0].top : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetMaxItemTopLine
+//
+//  The first line that still leaves the view full to the end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetMaxItemTopLine (const ItemLayout & layout) const
+{
+    int  viewH = m_boundsDip.bottom - m_boundsDip.top;
+
+
+
+    for (size_t line = 0; line < layout.lines.size(); line++)
+    {
+        if (layout.totalH - layout.lines[line].top <= viewH)
+        {
+            return (int) line;
+        }
+    }
+
+    return (std::max) (0, (int) layout.lines.size() - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::EnsureItemLineVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::EnsureItemLineVisible (const ItemLayout & layout, int line)
+{
+    int  viewH  = m_boundsDip.bottom - m_boundsDip.top;
+    int  bottom = 0;
+    int  top    = m_topRow;
+
+
+
+    if (line < 0 || line >= (int) layout.lines.size())
+    {
+        return;
+    }
+
+    if (line < m_topRow)
+    {
+        SetTopRow (line);
+        return;
+    }
+
+    bottom = layout.lines[(size_t) line].top + layout.lines[(size_t) line].height;
+
+    while (top < line && bottom - layout.lines[(size_t) top].top > viewH)
+    {
+        top++;
+    }
+
+    SetTopRow (top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardGroupedItemNav
+//
+//  As the grid lies on screen, with each group's header a stop between its
+//  rows and the group above, as in Details. Left and Right step along the
+//  items in order, or close and open a focused header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardGroupedItemNav (WPARAM vk, bool shift, bool ctrl)
+{
+    ItemLayout  layout = GetItemLayout();
+    int         lines  = (int) layout.lines.size();
+    int         cur    = GetSelectedRow();
+    int         line   = -1;
+    int         slot   = 0;
+    int         next   = -1;
+    int         item   = -1;
+    int         grid   = (std::max) (1, (int) (m_boundsDip.bottom - m_boundsDip.top) / (std::max) (1, GetItemGrid().cellH));
+
+
+
+    if (lines <= 0)
+    {
+        return false;
+    }
+
+    if (m_focusGroup >= 0)
+    {
+        for (int l = 0; l < lines; l++)
+        {
+            if (layout.lines[(size_t) l].group == m_focusGroup)
+            {
+                line = l;
+            }
+        }
+    }
+    else if (cur >= 0 && cur < (int) layout.rowLine.size())
+    {
+        line = layout.rowLine[(size_t) cur];
+        slot = (line >= 0) ? cur - layout.lines[(size_t) line].first : 0;
+    }
+
+    if (m_focusGroup >= 0 && (vk == VK_LEFT || vk == VK_RIGHT))
+    {
+        SetGroupCollapsed (m_focusGroup, vk == VK_LEFT);
+        return true;
+    }
+
+    switch (vk)
+    {
+        case VK_UP:    next = (line < 0) ? 0 : line - 1; break;
+        case VK_DOWN:  next = (line < 0) ? 0 : line + 1; break;
+        case VK_HOME:  next = GetFirstItemLine (layout); slot = 0; break;
+        case VK_END:   next = lines - 1;                 break;
+        case VK_PRIOR: next = line - grid;               break;
+        case VK_NEXT:  next = line + grid;               break;
+
+        case VK_LEFT:
+        case VK_RIGHT:
+            //  Along the items in order, past a collapsed group's.
+            item = cur;
+
+            do
+            {
+                item += (vk == VK_RIGHT) ? 1 : -1;
+            }
+            while (item >= 0 && item < (int) layout.rowLine.size() && layout.rowLine[(size_t) item] < 0);
+
+            if (item < 0 || item >= (int) layout.rowLine.size())
+            {
+                return true;
+            }
+
+            next = layout.rowLine[(size_t) item];
+            slot = item - layout.lines[(size_t) next].first;
+            break;
+
+        default:
+            return false;
+    }
+
+    next = std::clamp (next, 0, lines - 1);
+
+    if (layout.lines[(size_t) next].group < 0)
+    {
+        item = layout.lines[(size_t) next].first + (std::min) (slot, layout.lines[(size_t) next].count - 1);
+    }
+
+    EnsureItemLineVisible (layout, next);
+
+    //  Ctrl moves the focus alone, leaving the selection for Space. Home does
+    //  too, to the first item past the headers, as Explorer's does.
+    if (m_multiSelect && ((ctrl && !shift) || (vk == VK_HOME && !shift)))
+    {
+        m_focusGroup  = (item < 0) ? layout.lines[(size_t) next].group : -1;
+        m_selectedRow = (item < 0) ? m_selectedRow : item;
+        return true;
+    }
+
+    if (item < 0)
+    {
+        SelectGroup (layout.lines[(size_t) next].group);
+        return true;
+    }
+
+    m_focusGroup = -1;
+
+    if (m_multiSelect && shift)
+    {
+        SelectRangeFromAnchor (item);
+    }
+    else
+    {
+        SetSelectedRow (item);
+    }
+
+    if (m_multiSelect && m_onSelectionChanged)
+    {
+        m_onSelectionChanged (item);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HasListGroups
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HasListGroups() const
+{
+    return !m_groups.empty() && IsItemsView() && GetItemMetrics (m_view).columns;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetListLayout
+//
+//  Built again only when what it is built from changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiListView::ListLayout & DxuiListView::GetListLayout() const
+{
+    LayoutKey  key = GetLayoutKey();
+
+
+
+    if (!m_listLayoutBuilt || !(key == m_listLayoutKey))
+    {
+        m_listLayout      = BuildListLayout();
+        m_listLayoutKey   = std::move (key);
+        m_listLayoutBuilt = true;
+    }
+
+    return m_listLayout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::BuildListLayout
+//
+//  Explorer's grouped List: each group a block of columns side by side, its
+//  label across the top and its items under it, indented from the label and
+//  running down each column before the next. A collapsed group keeps a
+//  column's width for its label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::ListLayout DxuiListView::BuildListLayout() const
+{
+    ListLayout  layout;
+    ItemGrid    grid   = GetItemGrid();
+    int         rows   = GetRowCount();
+    int         fullH  = m_boundsDip.bottom - m_boundsDip.top;
+    int         x      = 0;
+
+
+
+    layout.headerH = GetRowHeightPx();
+    layout.indent  = m_scaler.ToPx (s_kGroupLabelDip);
+    layout.perCol  = (grid.cellH > 0) ? (std::max) (1, (fullH - GetScrollbarWidthPx() - layout.headerH) / grid.cellH) : 1;
+    layout.blockOf.assign ((size_t) (std::max) (rows, 0), -1);
+
+    for (size_t g = 0; g < m_groups.size(); g++)
+    {
+        int        start = std::clamp (m_groups[g].firstRow, 0, rows);
+        int        end   = (g + 1 < m_groups.size()) ? std::clamp (m_groups[g + 1].firstRow, start, rows) : rows;
+        ListBlock  block;
+
+        block.group = (int) g;
+        block.first = start;
+        block.count = m_groups[g].collapsed ? 0 : end - start;
+        block.left  = x;
+        block.width = layout.indent + (std::max) (1, (block.count + layout.perCol - 1) / layout.perCol) * grid.cellW;
+
+        for (int item = start; item < start + block.count; item++)
+        {
+            layout.blockOf[(size_t) item] = (int) layout.blocks.size();
+        }
+
+        layout.blocks.push_back (block);
+        x += block.width;
+    }
+
+    layout.totalW = x;
+
+    return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetListItemRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetListItemRectPx (const ListLayout & layout, int item, RECT & outRect) const
+{
+    ItemGrid  grid = GetItemGrid();
+    int       at   = (item >= 0 && item < (int) layout.blockOf.size()) ? layout.blockOf[(size_t) item] : -1;
+    int       k    = 0;
+
+
+
+    if (at < 0)
+    {
+        return false;
+    }
+
+    k              = item - layout.blocks[(size_t) at].first;
+    outRect.left   = layout.blocks[(size_t) at].left + layout.indent + (k / layout.perCol) * grid.cellW - m_leftPx;
+    outRect.top    = layout.headerH + (k % layout.perCol) * grid.cellH;
+    outRect.right  = outRect.left + grid.boxW;
+    outRect.bottom = outRect.top  + grid.cellH;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::FindListBlock
+//
+//  The block at a distance from the content's left, or -1 past the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::FindListBlock (const ListLayout & layout, int x)
+{
+    for (size_t b = 0; b < layout.blocks.size(); b++)
+    {
+        if (x >= layout.blocks[b].left && x < layout.blocks[b].left + layout.blocks[b].width)
+        {
+            return (int) b;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HitTestListItem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::HitTestListItem (const ListLayout & layout, int xPx, int yPx) const
+{
+    ItemGrid  grid = GetItemGrid();
+    int       at   = FindListBlock (layout, xPx + m_leftPx);
+    int       col  = 0;
+    int       row  = 0;
+    int       k    = 0;
+
+
+
+    if (at < 0 || yPx < layout.headerH || grid.cellW <= 0 || grid.cellH <= 0)
+    {
+        return -1;
+    }
+
+    col = (xPx + m_leftPx - layout.blocks[(size_t) at].left - layout.indent);
+    row = (yPx - layout.headerH) / grid.cellH;
+
+    if (col < 0 || row >= layout.perCol)
+    {
+        return -1;
+    }
+
+    k = (col / grid.cellW) * layout.perCol + row;
+
+    return (k < layout.blocks[(size_t) at].count) ? layout.blocks[(size_t) at].first + k : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardListGroupNav
+//
+//  Up and Down step along the items in order, with each group's header a stop
+//  ahead of its first; Left and Right move a column, keeping the row, or
+//  close and open a focused header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardListGroupNav (WPARAM vk, bool shift, bool ctrl)
+{
+    ListLayout  layout = GetListLayout();
+    int         rows   = GetRowCount();
+    int         cur    = GetSelectedRow();
+    int         item   = -1;
+    int         group  = -1;
+    int         at     = (cur >= 0 && cur < rows) ? layout.blockOf[(size_t) cur] : -1;
+    int         k      = (at >= 0) ? cur - layout.blocks[(size_t) at].first : 0;
+
+
+
+    if (rows <= 0 || layout.blocks.empty())
+    {
+        return false;
+    }
+
+    if (m_focusGroup >= 0 && (vk == VK_LEFT || vk == VK_RIGHT))
+    {
+        return true;
+    }
+
+    switch (vk)
+    {
+        case VK_UP:
+            if (m_focusGroup >= 0)
+            {
+                //  From a header to the last item shown above it.
+                for (int b = m_focusGroup - 1; b >= 0 && item < 0; b--)
+                {
+                    item = (layout.blocks[(size_t) b].count > 0) ? layout.blocks[(size_t) b].first + layout.blocks[(size_t) b].count - 1 : -1;
+                    group = (item < 0) ? b : -1;
+
+                    if (group >= 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            else if (at >= 0 && k == 0)
+            {
+                group = layout.blocks[(size_t) at].group;
+            }
+            else
+            {
+                item = cur - 1;
+            }
+
+            break;
+
+        case VK_DOWN:
+            if (m_focusGroup >= 0)
+            {
+                item  = (layout.blocks[(size_t) m_focusGroup].count > 0) ? layout.blocks[(size_t) m_focusGroup].first : -1;
+                group = (item < 0 && m_focusGroup + 1 < (int) layout.blocks.size()) ? m_focusGroup + 1 : -1;
+            }
+            else if (at >= 0 && k + 1 >= layout.blocks[(size_t) at].count)
+            {
+                group = (at + 1 < (int) layout.blocks.size()) ? at + 1 : -1;
+                item  = (group < 0) ? cur : -1;
+            }
+            else
+            {
+                item = cur + 1;
+            }
+
+            break;
+
+        case VK_LEFT:
+        case VK_RIGHT:
+            if (at < 0)
+            {
+                return true;
+            }
+
+            k += (vk == VK_RIGHT) ? layout.perCol : -layout.perCol;
+            item = (k >= 0 && k < layout.blocks[(size_t) at].count) ? layout.blocks[(size_t) at].first + k : cur;
+            break;
+
+        case VK_HOME:
+            group = 0;
+            break;
+
+        case VK_END:
+            item = rows - 1;
+            break;
+
+        default:
+            return false;
+    }
+
+    if (group >= 0)
+    {
+        if (m_multiSelect && ctrl && !shift)
+        {
+            m_focusGroup = group;
+        }
+        else
+        {
+            SelectGroup (group);
+        }
+
+        SetLeftPx ((std::min) (m_leftPx, layout.blocks[(size_t) group].left));
+        return true;
+    }
+
+    if (item < 0 || item >= rows || layout.blockOf[(size_t) item] < 0)
+    {
+        return true;
+    }
+
+    m_focusGroup = -1;
+
+    if (m_multiSelect && ctrl && !shift)
+    {
+        m_selectedRow = item;
+    }
+    else if (m_multiSelect && shift)
+    {
+        SelectRangeFromAnchor (item);
+    }
+    else
+    {
+        SetSelectedRow (item);
+    }
+
+    EnsureItemVisible (item);
+
+    if (m_multiSelect && m_onSelectionChanged && !(ctrl && !shift))
+    {
+        m_onSelectionChanged (item);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::IsFirstOfGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsFirstOfGroup (int item) const
+{
+    return std::any_of (m_groups.begin(), m_groups.end(), [item] (const Group & group) { return group.firstRow == item; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemBoxPx
+//
+//  How wide a big icon's box is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetItemBoxPx() const
+{
+    if (m_view == View::ExtraLargeIcons)
+    {
+        return GetItemIconPx (m_view, m_scaler.GetDpi()) + s_kXLargeBoxPadPx + (int) std::lround (m_scaler.ToPxf (s_kXLargeBoxPadDip));
+    }
+
+    //  A part pixel is dropped, as Explorer drops it.
+    return (int) std::floor (m_scaler.ToPxf ((m_view == View::MediumIcons) ? s_kMediumBoxDip : (m_scaler.GetDpi() >= 144) ? s_kLargeBoxDip : s_kLargeBoxLowDpiDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SpreadItemBoxes
+//
+//  Explorer's big icon views, measured at 100, 125 and 150%: as many item
+//  boxes as fit the width past the left margin and the scrollbar's column,
+//  whether or not the rows overflow, and the width shared between them,
+//  each box at the start of its share. The scrollbar's column comes out of
+//  the shared width only while the rows overflow the pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SpreadItemBoxes (ItemGrid & grid, int fullW, int fullH, int rows) const
+{
+    int  bar   = (int) std::lround (m_scaler.ToPxf (s_kItemsBarDip));
+    int  top   = m_scaler.ToPx (s_kItemsTopDip);
+    int  space = fullW - GetItemsLeftPx();
+
+
+
+    grid.boxW    = (std::max) (1, GetItemBoxPx());
+    grid.perLine = (std::max) (1, (space - bar) / grid.boxW);
+
+    if (GetItemLinesHPx (grid, rows) + top > fullH)
+    {
+        space -= bar;
+    }
+
+    grid.cellW = (std::max) (grid.boxW, space / grid.perLine);
+    grid.lines = (rows + grid.perLine - 1) / grid.perLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::PaintSmallArtFrame
+//
+//  Explorer's frame around a big icon box whose art is smaller than it,
+//  measured at 150% in the dark theme: two pixels a shade darker than the
+//  background at the box's edge, then three pixels inside them that fade from
+//  well lighter than the background back to it. The light theme takes the
+//  same steps the other way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintSmallArtFrame (IDxuiPainter & painter, float x, float y, float sizePx, uint32_t bg)
+{
+    static constexpr int  kRing[] = { 69, 46, 23 };
+    int                   r       = (int) ((bg >> 16) & 0xFF);
+    int                   g       = (int) ((bg >>  8) & 0xFF);
+    int                   b       = (int) ( bg        & 0xFF);
+    bool                  dark    = (r * 299 + g * 587 + b * 114) / 1000 < 128;
+    int                   sign    = dark ? 1 : -1;
+    int                   inset   = 2;
+
+
+
+    painter.OutlineRect (x, y, sizePx, sizePx, 2.0f, ShiftGray (bg, -4 * sign));
+
+    for (int step : kRing)
+    {
+        painter.OutlineRect (x + (float) inset, y + (float) inset, sizePx - (float) (2 * inset), sizePx - (float) (2 * inset), 1.0f, ShiftGray (bg, step * sign));
+        inset++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ShiftGray
+//
+//  An opaque color this much lighter (or, negative, darker) in each channel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiListView::ShiftGray (uint32_t argb, int delta)
+{
+    int  r = std::clamp ((int) ((argb >> 16) & 0xFF) + delta, 0, 255);
+    int  g = std::clamp ((int) ((argb >>  8) & 0xFF) + delta, 0, 255);
+    int  b = std::clamp ((int) ( argb        & 0xFF) + delta, 0, 255);
+
+
+
+    return 0xFF000000u | ((uint32_t) r << 16) | ((uint32_t) g << 8) | (uint32_t) b;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetFirstItemLine
+//
+//  The first line of items in a grouped layout, past the headers above it;
+//  the first line when there are no items.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetFirstItemLine (const ItemLayout & layout)
+{
+    for (size_t at = 0; at < layout.lines.size(); at++)
+    {
+        if (layout.lines[at].group < 0 && layout.lines[at].count > 0)
+        {
+            return (int) at;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemLinesHPx
+//
+//  How tall the rows are at this many a line, each as tall as the longest
+//  name measured in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetItemLinesHPx (const ItemGrid & grid, int rows) const
+{
+    std::array<int, 5>  key   = { grid.perLine, grid.cellH, rows, m_rowsVersion, m_itemTextVersion };
+    int                 total = 0;
+
+
+
+    //  The grid is asked for many times a frame; the walk is over every item.
+    if (key == m_linesHKey)
+    {
+        return m_linesHPx;
+    }
+
+    for (int first = 0; first < rows; first += grid.perLine)
+    {
+        int  extra = 0;
+
+        for (int item = first; item < rows && item < first + grid.perLine; item++)
+        {
+            extra = (std::max) (extra, GetItemExtraPx (item));
+        }
+
+        total += grid.cellH + extra;
+    }
+
+    m_linesHKey = key;
+    m_linesHPx  = total;
+
+    return total;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetGroupedItemRectPx
+//
+//  An item's cell in a grouped item view, from a layout the caller built once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetGroupedItemRectPx (const ItemLayout & layout, int item, RECT & outRect) const
+{
+    ItemGrid  grid = GetItemGrid();
+    int       at   = (item >= 0 && item < (int) layout.rowLine.size()) ? layout.rowLine[(size_t) item] : -1;
+
+
+
+    if (at < 0)
+    {
+        return false;
+    }
+
+    outRect.left   = GetItemsLeftPx() + (item - layout.lines[(size_t) at].first) * grid.cellW;
+    outRect.top    = layout.lines[(size_t) at].top - GetItemTopPx (layout);
+    outRect.right  = outRect.left + grid.boxW;
+    outRect.bottom = outRect.top  + grid.cellH + GetItemExtraPx (item);
+
+    return true;
 }
 
 
@@ -186,21 +1675,35 @@ bool DxuiListView::GetItemRectPx (int item, RECT & outRect) const
         return false;
     }
 
+    if (HasListGroups())
+    {
+        return GetListItemRectPx (GetListLayout(), item, outRect);
+    }
+
+    if (UsesItemLayout())
+    {
+        return GetGroupedItemRectPx (GetItemLayout(), item, outRect);
+    }
+
     line = item / grid.perLine;
     slot = item % grid.perLine;
 
     if (GetItemMetrics (m_view).columns)
     {
-        outRect.left = line * grid.cellW - m_leftPx;
-        outRect.top  = slot * grid.cellH;
-    }
-    else
-    {
-        outRect.left = slot * grid.cellW;
-        outRect.top  = (line - m_topRow / grid.perLine) * grid.cellH;
+        const std::vector<int> & lefts = GetListColumnLefts();
+
+        outRect.left   = lefts[(size_t) line] - m_leftPx;
+        outRect.top    = m_scaler.ToPx (s_kItemsTopDip) + slot * grid.cellH;
+        outRect.right  = lefts[(size_t) line + 1] - (int) std::lround (m_scaler.ToPxf (s_kNameColumnGapDip)) - m_leftPx;
+        outRect.bottom = outRect.top + grid.cellH;
+
+        return true;
     }
 
-    outRect.right  = outRect.left + grid.cellW;
+    outRect.left = slot * grid.cellW;
+    outRect.top  = (line - m_topRow / grid.perLine) * grid.cellH;
+
+    outRect.right  = outRect.left + grid.boxW;
     outRect.bottom = outRect.top  + grid.cellH;
 
     return true;
@@ -234,6 +1737,15 @@ int DxuiListView::HitTestItem (int xPx, int yPx) const
         return -1;
     }
 
+    if (UsesItemLayout())
+    {
+        const ItemLayout  & items = GetItemLayout();
+        int                 at    = FindItemLine (items, yPx + GetItemTopPx (items));
+        int                 slot  = (xPx >= GetItemsLeftPx() && (xPx - GetItemsLeftPx()) % grid.cellW < grid.boxW) ? (xPx - GetItemsLeftPx()) / grid.cellW : -1;
+
+        return (at >= 0 && slot >= 0 && items.lines[(size_t) at].group < 0 && slot < items.lines[(size_t) at].count) ? items.lines[(size_t) at].first + slot : -1;
+    }
+
     if (GetItemMetrics (m_view).columns)
     {
         if (layout.hBar && yPx >= fullH - barW)
@@ -241,12 +1753,20 @@ int DxuiListView::HitTestItem (int xPx, int yPx) const
             return -1;
         }
 
-        if (yPx / grid.cellH >= grid.perLine)
+        if (HasListGroups())
+        {
+            return HitTestListItem (GetListLayout(), xPx, yPx);
+        }
+
+        yPx -= m_scaler.ToPx (s_kItemsTopDip);
+
+        if (yPx < 0 || yPx / grid.cellH >= grid.perLine)
         {
             return -1;
         }
 
-        item = ((xPx + m_leftPx) / grid.cellW) * grid.perLine + yPx / grid.cellH;
+        item = FindListColumn (xPx + m_leftPx);
+        item = (item < 0) ? GetRowCount() : item * grid.perLine + yPx / grid.cellH;
     }
     else
     {
@@ -284,20 +1804,50 @@ void DxuiListView::EnsureItemVisible (int item)
         return;
     }
 
+    if (UsesItemLayout())
+    {
+        const ItemLayout & layout = GetItemLayout();
+
+        EnsureItemLineVisible (layout, layout.rowLine[(size_t) item]);
+        return;
+    }
+
     line = item / grid.perLine;
+
+    if (HasListGroups())
+    {
+        RECT  cell  = {};
+        int   viewW = m_boundsDip.right - m_boundsDip.left;
+
+        if (GetListItemRectPx (GetListLayout(), item, cell))
+        {
+            if (cell.left < 0)
+            {
+                SetLeftPx (m_leftPx + cell.left);
+            }
+            else if (cell.right > viewW)
+            {
+                SetLeftPx (m_leftPx + cell.right - viewW);
+            }
+        }
+
+        return;
+    }
 
     if (GetItemMetrics (m_view).columns)
     {
-        int  viewW = m_boundsDip.right - m_boundsDip.left;
-        int  left  = line * grid.cellW;
+        const std::vector<int> & lefts = GetListColumnLefts();
+        int                      viewW = m_boundsDip.right - m_boundsDip.left;
+        int                      left  = lefts[(size_t) line];
+        int                      right = lefts[(size_t) line + 1];
 
         if (left < m_leftPx)
         {
             SetLeftPx (left);
         }
-        else if (left + grid.cellW > m_leftPx + viewW)
+        else if (right > m_leftPx + viewW)
         {
-            SetLeftPx (left + grid.cellW - viewW);
+            SetLeftPx (right - viewW);
         }
 
         return;
@@ -329,8 +1879,18 @@ void DxuiListView::EnsureItemVisible (int item)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::HandleKeyboardItemNav (WPARAM vk, bool shift)
+bool DxuiListView::HandleKeyboardItemNav (WPARAM vk, bool shift, bool ctrl)
 {
+    if (UsesItemLayout())
+    {
+        return HandleKeyboardGroupedItemNav (vk, shift, ctrl);
+    }
+
+    if (HasListGroups())
+    {
+        return HandleKeyboardListGroupNav (vk, shift, ctrl);
+    }
+
     ItemGrid  grid    = GetItemGrid();
     bool      columns = GetItemMetrics (m_view).columns;
     int       rows    = GetRowCount();
@@ -366,6 +1926,14 @@ bool DxuiListView::HandleKeyboardItemNav (WPARAM vk, bool shift)
     if (next < 0 || next >= rows)
     {
         next = (vk == VK_PRIOR || vk == VK_HOME) ? 0 : (vk == VK_NEXT || vk == VK_END) ? rows - 1 : cur;
+    }
+
+    //  Ctrl moves the focus alone, leaving the selection for Space.
+    if (m_multiSelect && ctrl && !shift)
+    {
+        m_selectedRow = next;
+        EnsureItemVisible (next);
+        return true;
     }
 
     if (m_multiSelect && shift)
@@ -404,18 +1972,145 @@ RECT DxuiListView::GetItemLabelRectPx (const RECT & cell) const
 {
     ItemMetrics  metrics = GetItemMetrics (m_view);
     int          pad     = m_scaler.ToPx (s_kItemPadDip);
-    int          iconPx  = m_scaler.ToPx (metrics.iconDip);
-    int          lineH   = m_scaler.ToPx (metrics.lineDip);
+    int          iconPx  = GetItemIconPx (m_view, m_scaler.GetDpi());
+    int          lineH   = metrics.labelBelow ? GetCaptionLinePx() : m_scaler.ToPx (metrics.lineDip);
+    int          gap     = pad;
+    int          right   = pad;
 
 
 
+    //  Explorer's names under a big icon are narrower than the cell: measured
+    //  from where its names wrap.
     if (metrics.labelBelow)
     {
-        return RECT { cell.left + pad, cell.top + pad + iconPx + pad, cell.right - pad, cell.top + pad + iconPx + pad + lineH * metrics.textLines };
+        int  inset = m_scaler.ToPx (s_kLargeLabelInsetDip);
+        int  width = (cell.right - cell.left) - inset * 2;
+
+        //  Medium's and Large's are widths in dip rather than insets, 91 and
+        //  138 px at 150% as measured where Explorer's names break; Extra
+        //  large's is its icon's width less 2 px at any scale. Centered.
+        if (m_view == View::MediumIcons || m_view == View::LargeIcons || m_view == View::ExtraLargeIcons)
+        {
+            width = (m_view == View::ExtraLargeIcons) ? iconPx - s_kXLargeLabelInsetPx
+                  : (int) std::lround (m_scaler.ToPxf ((m_view == View::MediumIcons) ? s_kMediumLabelWDip : s_kLargeLabelWDip));
+            inset = ((cell.right - cell.left) - width) / 2;
+        }
+
+        int  top   = cell.top + m_scaler.ToPx (GetIconTopDip (m_view)) + iconPx + m_scaler.ToPx (GetLabelGapDip (m_view));
+
+        return RECT { cell.left + inset, top, cell.left + inset + width, top + lineH * metrics.textLines };
     }
 
-    return RECT { cell.left + pad + iconPx + pad, cell.top + ((cell.bottom - cell.top) - lineH * metrics.textLines) / 2,
-                  cell.right - pad, cell.top + ((cell.bottom - cell.top) - lineH * metrics.textLines) / 2 + lineH };
+    //  Beside a small icon the name starts just past it and keeps clear of
+    //  the box's right edge; a tile's text starts further out.
+    if (m_view == View::SmallIcons || m_view == View::List)
+    {
+        gap   = GetNameTextGapPx();
+        right = (int) std::lround (m_scaler.ToPxf (s_kNameRightPadDip));
+    }
+    else if (m_view == View::Tiles)
+    {
+        gap = (int) std::lround (m_scaler.ToPxf (s_kTileTextGapDip));
+    }
+    else if (m_view == View::Content)
+    {
+        gap = (int) std::lround (m_scaler.ToPxf (s_kContentNameGapDip));
+    }
+
+    return RECT { cell.left + GetItemIconLeftPx() + iconPx + gap, cell.top + ((cell.bottom - cell.top) - lineH * metrics.textLines) / 2,
+                  cell.right - right, cell.top + ((cell.bottom - cell.top) - lineH * metrics.textLines) / 2 + lineH };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemIconLeftPx
+//
+//  How far into its cell an item's icon starts, in a view with the name
+//  beside it: Content's sits well in, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetItemIconLeftPx() const
+{
+    if (m_view == View::SmallIcons || m_view == View::List)
+    {
+        return (int) std::lround (m_scaler.ToPxf (s_kNameIconLeftDip));
+    }
+
+    if (m_view == View::Tiles)
+    {
+        return (int) std::lround (m_scaler.ToPxf (s_kTileIconLeftDip));
+    }
+
+    return (m_view == View::Content) ? (int) std::lround (m_scaler.ToPxf (s_kContentIconLeftDip)) : m_scaler.ToPx (s_kItemPadDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::PlaceItemSlide
+//
+//  Where a grouped item view's lines go while a group slides open or shut:
+//  the group's items come out from under its header, or go back under it,
+//  and the lines below follow their edge. Inactive when nothing slides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::ItemSlide DxuiListView::PlaceItemSlide() const
+{
+    ItemSlide  slide;
+    float      shown    = (UsesItemLayout() && !HasListGroups()) ? GetGroupSlideShown() : -1.0f;
+    int        topPx    = 0;
+    int        bodyTop  = 0;
+    int        bodyEnd  = 0;
+
+
+
+    if (shown < 0.0f)
+    {
+        return slide;
+    }
+
+    slide.layout = BuildItemLayout (m_groupSlide.group);
+    topPx        = GetItemTopPx (GetItemLayout());
+
+    for (size_t line = 0; line < slide.layout.lines.size(); line++)
+    {
+        if (slide.layout.lines[line].group == m_groupSlide.group)
+        {
+            slide.header = (int) line;
+        }
+        else if (slide.header >= 0 && slide.layout.lines[line].group >= 0)
+        {
+            bodyEnd = slide.layout.lines[line].top;
+            break;
+        }
+    }
+
+    if (slide.header < 0)
+    {
+        return slide;
+    }
+
+    bodyTop = slide.layout.lines[(size_t) slide.header].top + slide.layout.lines[(size_t) slide.header].height;
+    bodyEnd = (bodyEnd > 0) ? bodyEnd : slide.layout.totalH;
+
+    slide.clipH   = (int) ((float) (bodyEnd - bodyTop) * shown);
+    slide.lift    = (bodyEnd - bodyTop) - slide.clipH;
+    slide.clipTop = bodyTop - topPx;
+    slide.shift   = GetItemTopPx (slide.layout) - topPx;
+    slide.active  = true;
+
+    GetGroupRowSpan (m_groupSlide.group, slide.start, slide.end);
+
+    return slide;
 }
 
 
@@ -441,17 +2136,107 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
     int                first   = 0;
     int                last    = rows;
     int                pad     = m_scaler.ToPx (s_kItemPadDip);
-    int                iconPx  = m_scaler.ToPx (metrics.iconDip);
+    int                iconPx  = GetItemIconPx (m_view, m_scaler.GetDpi());
     int                lineH   = m_scaler.ToPx (metrics.lineDip);
     float              fontPx  = m_scaler.ToPxf (m_fontDip);
-    float              radius  = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
+    bool               listGrp = HasListGroups();
+    bool               itemGrp = !listGrp && UsesItemLayout();
+    //  Built once here: building either per item made a frame cost the square
+    //  of the item count.
+    const ListLayout & listLayout = listGrp ? GetListLayout() : s_kNoListLayout;
+    //  A group sliding open or shut paints from a layout that holds it open.
+    ItemSlide          slide      = itemGrp ? PlaceItemSlide() : ItemSlide {};
+    //  A page sliding into view draws everything this far from where it rests.
+    int                pageY      = itemGrp ? GetPageSlidePx() : 0;
+    bool               clipped    = false;
+    //  The items on screen and their cells, found before any row's cells are
+    //  asked for: a host that builds rows on demand builds only these.
+    std::vector<std::pair<int, RECT>>  onScreen;
 
 
 
-    if (metrics.columns)
+    m_nameCut.clear();
+
+    //  The captions' line pitch, which the layout's row heights are built from;
+    //  a change moves every row, so the layout is laid out again.
     {
-        first = (grid.cellW > 0) ? (m_leftPx / grid.cellW) * grid.perLine : 0;
-        last  = (std::min) (rows, first + (grid.visible + 1) * grid.perLine);
+        float  linePx   = 0.0f;
+        int    previous = m_captionLinePx;
+
+        hr = text.GetLineHeightGdi (fontPx, DxuiTheme::kBodyFace, linePx);
+        m_captionLinePx = (SUCCEEDED (hr) && linePx > 0.0f) ? (int) std::lround (linePx) : 0;
+
+        if (m_captionLinePx != previous)
+        {
+            m_itemTextVersion++;
+        }
+    }
+
+    //  Measured before anything is drawn: a name that wraps past two lines
+    //  makes its row taller and moves everything under it, headers included.
+    if (itemGrp)
+    {
+        for (int item = 0; item < rows; item++)
+        {
+            RECT  cell = {};
+
+            //  A short folder has every name measured, so whether its rows
+            //  overflow, which sets the columns, counts the ones a wrapped
+            //  name above has pushed out of sight.
+            if (GetGroupedItemRectPx (GetItemLayout(), item, cell) &&
+                (rows <= s_kMeasureAllItemsMax || (cell.bottom > 0 && cell.top < m_boundsDip.bottom - m_boundsDip.top)))
+            {
+                onScreen.emplace_back (item, cell);
+            }
+        }
+
+        MeasureItemTextLines (text, onScreen);
+    }
+
+    if (listGrp)
+    {
+        const ListLayout & layout = listLayout;
+
+        for (const ListBlock & block : layout.blocks)
+        {
+            float  left = x + (float) (block.left - m_leftPx);
+
+            if (left + (float) block.width > x && left < x + (float) (m_boundsDip.right - m_boundsDip.left))
+            {
+                PaintGroupHeader (painter, text, pal, block.group, left, left, y, (float) block.width);
+            }
+        }
+
+        first = 0;
+        last  = rows;
+    }
+    else if (metrics.columns)
+    {
+        int  firstColumn = (std::max) (0, FindListColumn (m_leftPx));
+        int  lastColumn  = FindListColumn (m_leftPx + (m_boundsDip.right - m_boundsDip.left));
+
+        first = firstColumn * grid.perLine;
+        last  = (lastColumn < 0) ? rows : (std::min) (rows, (lastColumn + 1) * grid.perLine);
+    }
+    else if (itemGrp)
+    {
+        const ItemLayout & layout = slide.active ? slide.layout : GetItemLayout();
+        int                topPx  = GetItemTopPx (GetItemLayout());
+        float              viewW  = (float) ComputeItemScrollLayout().viewportW;
+
+        for (size_t at = 0; at < layout.lines.size(); at++)
+        {
+            const ItemLine & line  = layout.lines[at];
+            int              lineY = line.top - topPx + pageY - ((slide.active && (int) at > slide.header) ? slide.lift : 0);
+
+            if (line.group >= 0 && lineY + line.height > 0 && lineY < m_boundsDip.bottom - m_boundsDip.top)
+            {
+                PaintGroupHeader (painter, text, pal, line.group, x, x, y + (float) lineY, viewW);
+            }
+        }
+
+        first = 0;
+        last  = rows;
     }
     else
     {
@@ -459,9 +2244,45 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
         last  = (std::min) (rows, first + (grid.visible + 1) * grid.perLine);
     }
 
+    onScreen.clear();
+
     for (int item = first; item < last; item++)
     {
-        RECT                        cell   = {};
+        RECT  cell   = {};
+        bool  placed = listGrp ? GetListItemRectPx    (listLayout, item, cell)
+                               : itemGrp ? GetGroupedItemRectPx (slide.active ? slide.layout : GetItemLayout(), item, cell)
+                                         : GetItemRectPx        (item, cell);
+
+        if (placed && slide.active)
+        {
+            OffsetRect (&cell, 0, slide.shift - ((slide.layout.rowLine[(size_t) item] > slide.header) ? slide.lift : 0));
+        }
+
+        if (placed && itemGrp)
+        {
+            OffsetRect (&cell, 0, pageY);
+        }
+
+        if (placed && cell.bottom > 0 && cell.top < m_boundsDip.bottom - m_boundsDip.top &&
+            cell.right > 0 && cell.left < m_boundsDip.right - m_boundsDip.left)
+        {
+            onScreen.emplace_back (item, cell);
+        }
+    }
+
+    //  The sliding group's items last, so its clip is pushed once.
+    if (slide.active)
+    {
+        std::stable_partition (onScreen.begin(), onScreen.end(), [&slide] (const std::pair<int, RECT> & place)
+        {
+            return place.first < slide.start || place.first >= slide.end;
+        });
+    }
+
+    for (const std::pair<int, RECT> & place : onScreen)
+    {
+        int                         item   = place.first;
+        RECT                        cell   = place.second;
         RECT                        label  = {};
         const std::vector<Cell> &   cells  = GetRowCells (item);
         bool                        isSel  = (m_listFocused || m_alwaysShowSelection) &&
@@ -469,28 +2290,81 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
         float                       iconX  = 0.0f;
         float                       iconY  = 0.0f;
 
-        if (!GetItemRectPx (item, cell) || cells.empty())
+        if (slide.active && !clipped && item >= slide.start && item < slide.end)
+        {
+            hr = text.PushClipRect (x, y + (float) slide.clipTop, (float) (m_boundsDip.right - m_boundsDip.left), (float) slide.clipH);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            painter.PushClipRect (x, y + (float) slide.clipTop, (float) (m_boundsDip.right - m_boundsDip.left), (float) slide.clipH);
+            clipped = true;
+        }
+
+        if (cells.empty())
         {
             continue;
         }
 
         OffsetRect (&cell, (int) x, (int) y);
 
-        if (isSel || item == m_hovered)
+        //  A tile's box, and a big icon's, stops short of its row.
+        if (m_view == View::Tiles)
         {
-            painter.FillRoundedRect ((float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top),
-                                     radius, isSel ? pal.bgSel : pal.bgHover);
+            cell.bottom -= (int) std::lround (m_scaler.ToPxf (s_kTileBoxShortDip));
+        }
+        else if (metrics.labelBelow)
+        {
+            cell.bottom -= (int) std::lround (m_scaler.ToPxf (s_kItemRowGapDip));
+        }
+
+        //  Square, and drawn as Details draws a row: the fill, and the outline
+        //  a focused or multiple selection takes.
+        if (m_theme != nullptr)
+        {
+            DxuiRowLook  look = DxuiRowLook::Resolve (*m_theme, isSel, item == m_selectedRow && m_focusGroup < 0, item == m_hovered, m_listFocused);
+
+            float  fillW = (float) (cell.right - cell.left);
+
+            if (look.fill != 0)
+            {
+                painter.FillRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), look.fill);
+            }
+
+            if (look.edge != 0)
+            {
+                painter.OutlineRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top),
+                                     DxuiRowLook::GetOutlinePx (m_scaler.ToPxf (1.0f)), look.edge);
+            }
+        }
+
+        //  Content's rule between items, though not under a group's header.
+        if (m_view == View::Content && m_theme != nullptr && item > 0 && (!HasItemGroups() || !IsFirstOfGroup (item)))
+        {
+            float  ruleLeft  = (float) cell.left  + m_scaler.ToPxf (s_kContentRuleInsetDip);
+            float  ruleRight = (float) cell.right - m_scaler.ToPxf (s_kContentRuleEndDip);
+
+            painter.FillRect (std::round (ruleLeft), (float) cell.top, std::round (ruleRight) - std::round (ruleLeft), 1.0f, m_theme->Divider());
+        }
+
+        if (item == m_dropRow && m_theme != nullptr)
+        {
+            painter.OutlineRect ((float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top),
+                                 DxuiRowLook::GetOutlinePx (m_scaler.ToPxf (1.0f)), m_theme->ContentSelectionMultiEdge());
         }
 
         if (metrics.labelBelow)
         {
-            iconX = (float) cell.left + ((float) (cell.right - cell.left) - (float) iconPx) * 0.5f;
-            iconY = (float) (cell.top + pad);
+            iconX = (float) (cell.left + ((cell.right - cell.left) - iconPx) / 2);
+            iconY = (float) (cell.top + m_scaler.ToPx (GetIconTopDip (m_view)));
         }
         else
         {
-            iconX = (float) (cell.left + pad);
+            iconX = (float) (cell.left + GetItemIconLeftPx());
             iconY = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) iconPx) * 0.5f;
+        }
+
+        //  Explorer frames a big icon whose art is smaller than its box.
+        if (GetItemMetrics (m_view).labelBelow && cells[0].icon && !cells[0].icon->bgraPremul.empty() && cells[0].icon->width < iconPx)
+        {
+            PaintSmallArtFrame (painter, iconX, iconY, (float) iconPx, pal.bgRow);
         }
 
         if (cells[0].icon && !cells[0].icon->bgraPremul.empty())
@@ -502,25 +2376,143 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
                 text.SetGlobalAlpha (alpha * s_kGhostedIconAlpha);
             }
 
+            //  An image smaller than the icon box, a type with no art at this
+            //  size, is drawn at its own size in the middle, as Explorer draws it.
+            float  drawPx = (float) (std::min) (iconPx, (std::max) (cells[0].icon->width, 1));
+            float  inset  = ((float) iconPx - drawPx) * 0.5f;
+
             hr = text.DrawIconBitmap (cells[0].icon->bgraPremul.data(), cells[0].icon->width, cells[0].icon->height,
-                                      iconX, iconY, (float) iconPx, (float) iconPx);
+                                      iconX + inset, iconY + inset, drawPx, drawPx);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             text.SetGlobalAlpha (alpha);
         }
 
+        if (cells[0].iconBroken)
+        {
+            PaintBrokenBadge (text, iconX, iconY, (float) iconPx, m_scaler.ToPxf (s_kBrokenBadgeMinDip));
+        }
+
         label = GetItemLabelRectPx (cell);
 
-        hr = text.DrawString (cells[0].text.c_str(), (float) label.left, (float) label.top,
-                              (float) (label.right - label.left), (float) (label.bottom - label.top),
-                              cells[0].dim ? pal.fgDim : (cells[0].argb != 0 ? cells[0].argb : pal.fg), fontPx, DxuiTheme::kBodyFace,
-                              metrics.labelBelow ? DxuiTextHAlign::Center : DxuiTextHAlign::Left, DxuiTextVAlign::Top,
-                              DxuiFontWeight::Normal, metrics.labelBelow);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        //  Explorer's Content: the name over its type, and to the right the
+        //  date over the size.
+        if (m_view == View::Content)
+        {
+            float         left   = (float) (cell.left - GetItemsLeftPx());
+            float         edge   = (float) cell.right + m_scaler.ToPxf (s_kContentEdgeDip) - left;
+            float         rightX = left + std::round ((std::min) (m_scaler.ToPxf (s_kContentRightMaxDip),
+                                                                  (std::max) (edge * s_kContentRightShare + m_scaler.ToPxf (s_kContentRightNudgeDip),
+                                                                              edge - m_scaler.ToPxf (s_kContentRightRoomDip))));
+            float         top    = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) (2 * lineH)) * 0.5f;
+            std::wstring  name   = DxuiTextElide::ToWidth (text, cells[0].text, fontPx * s_kContentNameScale, DxuiTheme::kBodyFace,
+                                                           rightX - (float) label.left, DxuiElide::Tail, true);
+
+            //  The name in Explorer's larger face, 11 points to the body's 9,
+            //  sitting on the same baseline as it would in the body face.
+            hr = text.DrawString (name.c_str(), (float) label.left, top - fontPx * (s_kContentNameScale - 1.0f), rightX - (float) label.left,
+                                  (float) lineH * s_kContentNameScale,
+                                  cells[0].dim ? pal.fgDim : (cells[0].argb != 0 ? cells[0].argb : pal.fg), fontPx * s_kContentNameScale, DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            for (size_t at = 0; at < cells[0].contentLeft.size(); at++)
+            {
+                hr = text.DrawString (cells[0].contentLeft[at].text.c_str(), (float) label.left, top + (float) ((at + 1) * lineH), rightX - (float) label.left, (float) lineH,
+                                      pal.fgDim, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+
+            for (size_t at = 0; at < cells[0].contentRight.size(); at++)
+            {
+                hr = text.DrawString (cells[0].contentRight[at].text.c_str(), rightX, top + (float) (at * lineH), (float) cell.right - rightX, (float) lineH,
+                                      pal.fgDim, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+
+            continue;
+        }
+
+        //  Explorer's tiles: the name on up to two lines, the second ending in
+        //  an ellipsis when it runs on, then the row's own lines (type and
+        //  size) while three lines last, the whole block centered in the box.
+        if (m_view == View::Tiles)
+        {
+            std::vector<std::wstring>  name     = DxuiTextElide::WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace,
+                                                                               (float) (label.right - label.left), 2, true, true);
+            std::vector<const Cell *>  details;
+            float                      top      = 0.0f;
+            int                        lineStep = GetTileLinePx();
+
+            for (size_t at = 0; !cells[0].tileNameOnly && at < cells[0].tileLines.size() && name.size() + details.size() < (size_t) s_kTileMaxLines; at++)
+            {
+                details.push_back (&cells[0].tileLines[at]);
+            }
+
+            //  The block is centered as at least two lines, as a name alone is.
+            top = (float) cell.top + (float) ((cell.bottom - cell.top) - (std::max) (2, (int) (name.size() + details.size())) * lineStep) * 0.5f;
+
+            hr = text.PushClipRect ((float) label.left, (float) cell.top, (float) (label.right - label.left), (float) (cell.bottom - cell.top));
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            for (const std::wstring & line : name)
+            {
+                hr = text.DrawString (line.c_str(), (float) label.left, top, (float) (cell.right - label.left), (float) lineH,
+                                      cells[0].dim ? pal.fgDim : (cells[0].argb != 0 ? cells[0].argb : pal.fg), fontPx, DxuiTheme::kBodyFace,
+                                      DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+                top += (float) lineStep;
+            }
+
+            for (const Cell * detail : details)
+            {
+                if (detail->meter >= 0.0f)
+                {
+                    PaintMeter (painter, (float) label.left, top, (float) (label.right - label.left), (float) lineH, detail->meter);
+                }
+                else
+                {
+                    hr = text.DrawString (detail->text.c_str(), (float) label.left, top, (float) (cell.right - label.left), (float) lineH,
+                                          pal.fgDim, fontPx, DxuiTheme::kBodyFace,
+                                          DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+                }
+
+                top += (float) lineStep;
+            }
+
+            hr = text.PopClipRect();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            continue;
+        }
+
+        //  Explorer's captions: under a big icon, wrapped to two lines, or one
+        //  for Extra large; beside a small one, one line. Either way a name
+        //  that runs on ends in an ellipsis inside its cell.
+        {
+            int                        lines = metrics.labelBelow ? s_kItemNameMaxLines : 1;
+            std::vector<std::wstring>  shown = DxuiTextElide::WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace,
+                                                                            (float) (label.right - label.left), lines, true, metrics.labelBelow);
+
+            if (!shown.empty() && shown.back().ends_with (L"\x2026") && !cells[0].text.ends_with (L"\x2026"))
+            {
+                m_nameCut.push_back (item);
+            }
+
+            for (size_t at = 0; at < shown.size(); at++)
+            {
+                hr = text.DrawString (shown[at].c_str(), (float) label.left, (float) label.top + (float) (at * GetCaptionLinePx()),
+                                      (float) (label.right - label.left), (float) lineH,
+                                      cells[0].dim ? pal.fgDim : (cells[0].argb != 0 ? cells[0].argb : pal.fg), fontPx, DxuiTheme::kBodyFace,
+                                      metrics.labelBelow ? DxuiTextHAlign::Center : DxuiTextHAlign::Left, DxuiTextVAlign::Top,
+                                      DxuiFontWeight::Normal, false);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+        }
 
         //  Tiles and Content show the other columns underneath, one a line,
         //  or the row's own tile lines when it has them.
-        for (int line = 1; !metrics.labelBelow && line < metrics.textLines; line++)
+        for (int line = 1; !metrics.labelBelow && !(m_view == View::Tiles && cells[0].tileNameOnly) && line < metrics.textLines; line++)
         {
             bool                        own    = !cells[0].tileLines.empty();
             const std::vector<Cell> &   source = own ? cells[0].tileLines : cells;
@@ -546,6 +2538,13 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
         }
     }
 
+    if (clipped)
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        painter.PopClipRect();
+    }
+
     //  The rubber band, over everything it selects.
     if (m_bandActive)
     {
@@ -558,6 +2557,41 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
         painter.OutlineRect ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
                              1.0f, pal.edgeSel != 0 ? pal.edgeSel : pal.fg);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::PaintBrokenBadge
+//
+//  A red disc with a white cross over the icon's lower-left corner, about
+//  half the icon across and never under the size given, so it reads on a
+//  16 dip icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintBrokenBadge (IDxuiTextRenderer & text, float iconX, float iconY, float iconPx, float minPx)
+{
+    HRESULT  hr    = S_OK;
+    float    d     = (std::max) (minPx, iconPx * 0.45f);
+    float    cx    = iconX + d * 0.5f;
+    float    cy    = iconY + iconPx - d * 0.5f;
+    float    arm   = d * 0.2f;
+    float    thick = (std::max) (1.0f, d * 0.12f);
+
+
+
+    hr = text.FillEllipse (cx, cy, d * 0.5f, d * 0.5f, s_kBrokenBadgeArgb);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawLine (cx - arm, cy - arm, cx + arm, cy + arm, thick, 0xFFFFFFFF);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawLine (cx - arm, cy + arm, cx + arm, cy - arm, thick, 0xFFFFFFFF);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -618,6 +2652,11 @@ POINT DxuiListView::GetItemScrollOffsetPx() const
         return POINT { m_leftPx, 0 };
     }
 
+    if (UsesItemLayout())
+    {
+        return POINT { 0, GetItemTopPx (GetItemLayout()) };
+    }
+
     return POINT { 0, (grid.perLine > 0) ? (m_topRow / grid.perLine) * grid.cellH : 0 };
 }
 
@@ -665,10 +2704,14 @@ void DxuiListView::BeginSelectionBand (int lx, int ly, bool ctrl)
 
 void DxuiListView::UpdateSelectionBand (int lx, int ly)
 {
-    POINT             offset = GetItemScrollOffsetPx();
-    RECT              band   = {};
-    std::vector<int>  rows   = m_bandBase;
-    int               last   = -1;
+    POINT               offset  = GetItemScrollOffsetPx();
+    RECT                band    = {};
+    std::vector<int>    rows    = m_bandBase;
+    int                 last    = -1;
+    bool                listGrp = HasListGroups();
+    bool                itemGrp = !listGrp && UsesItemLayout();
+    const ListLayout  & listLay = listGrp ? GetListLayout() : s_kNoListLayout;
+    const ItemLayout  & itemLay = itemGrp ? GetItemLayout() : s_kNoItemLayout;
 
 
 
@@ -679,10 +2722,13 @@ void DxuiListView::UpdateSelectionBand (int lx, int ly)
 
     for (int item = 0; item < GetRowCount(); item++)
     {
-        RECT  cell = {};
-        RECT  hit  = {};
+        RECT  cell   = {};
+        RECT  hit    = {};
+        bool  placed = listGrp ? GetListItemRectPx    (listLay, item, cell)
+                               : itemGrp ? GetGroupedItemRectPx (itemLay, item, cell)
+                                         : GetItemRectPx        (item, cell);
 
-        if (!GetItemRectPx (item, cell))
+        if (!placed)
         {
             continue;
         }

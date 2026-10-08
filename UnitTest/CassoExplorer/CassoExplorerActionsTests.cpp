@@ -355,6 +355,8 @@ public:
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (std::find (verbs.begin(), verbs.end(), CassoExplorerActions::Verb::Rename) != verbs.end());
         Assert::IsFalse (std::find (verbs.begin(), verbs.end(), CassoExplorerActions::Verb::InsertDrive1) != verbs.end());
+        Assert::IsTrue  (std::find (verbs.begin(), verbs.end(), CassoExplorerActions::Verb::Open) != verbs.end(),
+                         L"A file in an image opens in its own program, as one in a zip does");
     }
 
 
@@ -563,6 +565,30 @@ public:
     }
 
 
+    //  An undo takes out what a put made: the folder alone, since its file
+    //  goes with it, and the entry back out of the image.
+    TEST_METHOD (APut_ReportsTheEntriesItMade_AndTheyDeleteAgain)
+    {
+        Host                           host;
+        CassoExplorerActions::Outcome  outcome;
+        CassoExplorerActions::Outcome  undone;
+        VolumeListing                  listing;
+        VolumeKind                     kind = VolumeKind::Unknown;
+
+        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes   (Bytes ("10 PRINT \"IN\"\n20 END\n"), L"C:\\In\\Games\\inner.bas");
+
+        outcome = host.actions.PutInto (L"C:\\Disks\\prodos.po", VolumeKind::ProDos, "", { L"C:\\In\\Games" });
+        Assert::IsTrue   (outcome.Succeeded());
+        Assert::AreEqual ((size_t) 1, outcome.created.size(), L"The directory made, not the file inside it");
+        Assert::AreEqual (std::string ("GAMES"), outcome.created[0]);
+
+        undone = host.actions.DeleteEntries ("C:\\Disks\\prodos.po", outcome.created);
+        Assert::IsTrue  (undone.Succeeded());
+        Assert::IsFalse (host.browser.GetOperations().List ("C:\\Disks\\prodos.po", "GAMES", listing, kind).Succeeded(), L"and gone again");
+    }
+
+
     TEST_METHOD (EntriesDraggedBetweenImages_KeepTheirTypeAcrossFileSystems)
     {
         Host                           host;
@@ -611,6 +637,38 @@ public:
 
         Assert::AreEqual (std::wstring (L"Games.dsk"), CassoExplorerNewDiskChoices::ApplyExtension (L"Games", 1));
         Assert::AreEqual (std::wstring (L"Games.po"),  CassoExplorerNewDiskChoices::ApplyExtension (L"Games.po", 1));
+    }
+
+
+    //  An extension typed on the name picks the container, and the format
+    //  where the extension implies one.
+    TEST_METHOD (NewDiskChoices_TypedExtensionPicksContainerAndFormat)
+    {
+        int  container = 99;
+        int  format    = 99;
+
+        Assert::IsTrue (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Games.po", container, format));
+        Assert::AreEqual (2, container);
+        Assert::AreEqual (CassoExplorerNewDiskChoices::kFormatProDos, format);
+
+        Assert::IsTrue (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Games.DO", container, format));
+        Assert::AreEqual (1, container);
+        Assert::AreEqual (CassoExplorerNewDiskChoices::kFormatDos33, format);
+
+        Assert::IsTrue (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Games.dsk", container, format));
+        Assert::AreEqual (1, container);
+        Assert::AreEqual (CassoExplorerNewDiskChoices::kFormatDos33, format);
+
+        Assert::IsTrue (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Games.woz", container, format));
+        Assert::AreEqual (0, container);
+        Assert::AreEqual (-1, format);
+
+        container = 7;
+        format    = 7;
+        Assert::IsFalse (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Games", container, format));
+        Assert::IsFalse (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Games.txt", container, format));
+        Assert::AreEqual (7, container);
+        Assert::AreEqual (7, format);
     }
 
 
@@ -875,5 +933,25 @@ public:
         host.browser.GoUp();
 
         Assert::IsFalse (host.actions.PutFiles ({ L"C:\\In\\x.txt" }).Succeeded());
+    }
+
+    //
+    //  A collision inside an image takes Explorer's next free name, in each
+    //  file system's legal form, and a copy beside its original says so.
+    //
+    TEST_METHOD (MakeFreeEntryName_FollowsExplorerInEachFileSystemsForm)
+    {
+        using A = CassoExplorerActions;
+
+        Assert::AreEqual (std::string ("HELLO"),          A::MakeFreeEntryName ("HELLO", { "OTHER" },                     VolumeKind::Dos33,  false), L"a free name stays");
+        Assert::AreEqual (std::string ("HELLO (2)"),      A::MakeFreeEntryName ("HELLO", { "hello" },                     VolumeKind::Dos33,  false));
+        Assert::AreEqual (std::string ("HELLO (3)"),      A::MakeFreeEntryName ("HELLO", { "HELLO", "HELLO (2)" },        VolumeKind::Dos33,  false));
+        Assert::AreEqual (std::string ("HELLO - COPY"),   A::MakeFreeEntryName ("HELLO", { "HELLO" },                     VolumeKind::Dos33,  true));
+        Assert::AreEqual (std::string ("HELLO - COPY (2)"), A::MakeFreeEntryName ("HELLO", { "HELLO", "HELLO - COPY" },   VolumeKind::Dos33,  true));
+        Assert::AreEqual (std::string ("HELLO.2"),        A::MakeFreeEntryName ("HELLO", { "HELLO" },                     VolumeKind::ProDos, false));
+        Assert::AreEqual (std::string ("HELLO.COPY"),     A::MakeFreeEntryName ("HELLO", { "HELLO" },                     VolumeKind::ProDos, true));
+        Assert::AreEqual (std::string ("HELLO.COPY.2"),   A::MakeFreeEntryName ("HELLO", { "HELLO", "HELLO.COPY" },       VolumeKind::ProDos, true));
+        Assert::AreEqual (std::string ("ABCDEFGHIJKLM.2"), A::MakeFreeEntryName ("ABCDEFGHIJKLMNO", { "ABCDEFGHIJKLMNO" }, VolumeKind::ProDos, false), L"cut to fit 15");
+        Assert::AreEqual (std::string ("ABCDEFGHIJ.COPY"), A::MakeFreeEntryName ("ABCDEFGHIJKLMNO", { "ABCDEFGHIJKLMNO" }, VolumeKind::ProDos, true));
     }
 };

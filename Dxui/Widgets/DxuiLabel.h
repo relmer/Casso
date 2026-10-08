@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Theme/DxuiTheme.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -54,6 +55,10 @@ public:
     void  SetFontFace    (const std::wstring & face) { m_fontFace = face; }
     void  SetTextAlign   (DxuiTextHAlign h, DxuiTextVAlign v) { m_hAlign = h; m_vAlign = v; }
     void  SetFontWeight  (DxuiFontWeight w) { m_weight = w; }
+
+    //  One line, cut to the label's width as the elision says, rather than
+    //  wrapped onto lines below; None, the default, wraps.
+    void  SetElide       (DxuiElide elide) { m_elide = elide; }
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     //
@@ -121,6 +126,27 @@ private:
 
         UNREFERENCED_PARAMETER (painter);
 
+        if (m_elide != DxuiElide::None)
+        {
+            std::wstring  shown = DxuiTextElide::ToWidth (text, m_text, m_scaler.ToPxf (fontDip), m_fontFace.c_str(),
+                                                          (float) (m_boundsDip.right - m_boundsDip.left), m_elide);
+
+            hr = text.DrawString (shown.c_str(),
+                                  (float) m_boundsDip.left,
+                                  (float) m_boundsDip.top,
+                                  (float) (m_boundsDip.right  - m_boundsDip.left),
+                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                  argb,
+                                  m_scaler.ToPxf (fontDip),
+                                  m_fontFace.c_str(),
+                                  m_hAlign,
+                                  m_vAlign,
+                                  m_weight,
+                                  false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            return;
+        }
+
         hr = text.DrawString (m_text.c_str(),
                               (float) m_boundsDip.left,
                               (float) m_boundsDip.top,
@@ -139,7 +165,7 @@ private:
     static constexpr float  s_kFallbackFontDip = 13.0f;
 
     std::wstring    m_text;
-    std::wstring    m_fontFace     = DxuiTheme::kBodyFace;
+    std::wstring    m_fontFace     = DxuiTheme::GetUiFace();
     // Only reachable through SetColor or the theme-less Paint overload; a
     // themed paint resolves the role instead.
     uint32_t        m_argb         = 0xFFFFFFFF;
@@ -147,6 +173,7 @@ private:
     DxuiTextHAlign  m_hAlign       = DxuiTextHAlign::Left;
     DxuiTextVAlign  m_vAlign       = DxuiTextVAlign::Center;
     DxuiFontWeight  m_weight       = DxuiFontWeight::Normal;
+    DxuiElide       m_elide        = DxuiElide::None;
     DxuiTextRole    m_role         = DxuiTextRole::Body;
 
     // Theme resolution is the DEFAULT, including for the default-constructed

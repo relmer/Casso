@@ -94,6 +94,10 @@ private:
     static std::wstring  JoinBase (const std::wstring & baseDir, const std::wstring & name);
 
     HRESULT  ReadEntries  (std::vector<Entry> & outEntries) const;
+
+    //  A folder given relative, as Casso's disk paths can be, is under the
+    //  base folder those paths are relative to.
+    std::wstring  Resolve (const std::wstring & folder) const;
     HRESULT  WriteEntries (const std::vector<Entry> & entries) const;
 
     HANDLE   AcquireLock () const;
@@ -103,5 +107,6 @@ private:
 
     IFileSystem   & m_fs;
     std::wstring    m_filePath;
+    std::wstring    m_baseDir;
     bool            m_crossProcessLock;
 };

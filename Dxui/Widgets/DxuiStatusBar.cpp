@@ -181,7 +181,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         //  A flowing field follows the one before it, as wide as its text.
         if (m_fields[i].flow)
         {
-            hr = text.MeasureString (m_fields[i].text.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+            hr = text.MeasureString (m_fields[i].text.c_str(), fontPx, DxuiTheme::GetUiFace(), textW, textH);
 
             if (FAILED (hr))
             {
@@ -190,7 +190,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
             hr = text.DrawString (m_fields[i].text.c_str(), flowX, (float) r.top, textW + 1.0f,
                                   (float) (r.bottom - r.top), theme.ForegroundMuted(), fontPx,
-                                  DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                                  DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
                                   DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -206,11 +206,11 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             continue;
         }
 
-        shown = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::kBodyFace, boxW, DxuiElide::Tail);
+        shown = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::GetUiFace(), boxW, DxuiElide::Tail);
 
         hr = text.DrawString (shown.c_str(), (float) r.left + padPx, (float) r.top, boxW,
                               (float) (r.bottom - r.top), theme.ForegroundMuted(), fontPx,
-                              DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                              DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }

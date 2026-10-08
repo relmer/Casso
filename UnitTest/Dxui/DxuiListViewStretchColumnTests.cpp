@@ -1,5 +1,9 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -170,5 +174,92 @@ public:
 
         Assert::AreEqual ((size_t) 4, list.GetSelectedRows().size(), L"A drag from the first row to the fourth selects all four");
         Assert::IsFalse  (list.IsInteracting(), L"and releasing the button ends the drag");
+    }
+
+
+    TEST_METHOD (EndDragSelect_EndsTheDragWithoutARelease)
+    {
+        DxuiListView                                  list;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        DxuiDpiScaler                                 scaler;
+        DxuiMouseEvent                                ev;
+        int                                           rowH = 0;
+
+        for (int i = 0; i < 10; i++)
+        {
+            rows.push_back ({ DxuiListView::Cell { std::to_wstring (i), false } });
+        }
+
+        scaler.SetDpi (96);
+        list.SetColumns     ({ DxuiListView::Column { L"", 0, true } });
+        list.SetShowHeader  (false);
+        list.SetMultiSelect (true);
+        list.SetRows        (std::move (rows));
+        list.Layout         (RECT { 0, 0, 300, 600 }, scaler);
+
+        rowH           = list.GetRowHeightDip();
+        ev.button      = DxuiMouseButton::Left;
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.positionDip = POINT { 10, rowH / 2 };
+        list.OnMouse (ev);
+
+        Assert::IsTrue (list.IsInteracting(), L"A press on a row starts a drag that extends the selection");
+
+        list.EndDragSelect();
+
+        Assert::IsFalse  (list.IsInteracting(), L"which ends when the host takes the drag over");
+        Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size(), L"leaving the pressed row selected");
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.button      = DxuiMouseButton::None;
+        ev.positionDip = POINT { 10, rowH * 3 + rowH / 2 };
+        list.OnMouse (ev);
+
+        Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size(), L"so a later move selects nothing more");
+    }
+
+
+    TEST_METHOD (FitColumnToContent_WidensAFixedWidthColumnToItsLongestValue)
+    {
+        DxuiListView                                  list;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        DxuiDpiScaler                                 scaler;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+
+        rows.push_back ({ DxuiListView::Cell { L"short", false } });
+        rows.push_back ({ DxuiListView::Cell { L"a much longer name", false } });
+
+        text.SetCannedMetrics (L"short",              SIZE { 30, 16 });
+        text.SetCannedMetrics (L"a much longer name", SIZE { 240, 16 });
+
+        scaler.SetDpi (96);
+        list.SetColumns    ({ DxuiListView::Column { L"", 50, false } });
+        list.SetShowHeader (false);
+        list.SetRows       (std::move (rows));
+        list.Layout        (RECT { 0, 0, 600, 300 }, scaler);
+
+        list.FitColumnToContent (0);
+        list.Paint (painter, text, theme);
+
+        Assert::IsTrue (list.GetColumnEffectiveWidthPx (0) >= 240,
+                        L"A column declared at a fixed width fits its longest value, as Explorer's does");
+        Assert::IsTrue (list.GetColumnEffectiveWidthPx (0) < 280, L"and no wider than that and its padding");
+    }
+
+
+    TEST_METHOD (SetDpi_ScalesAWidthTheUserGaveAColumn)
+    {
+        DxuiListView  list;
+
+        list.SetDpi     (96);
+        list.SetColumns ({ DxuiListView::Column { L"Name", 250, false }, DxuiListView::Column { L"Size", 80, false } });
+        list.SetColumnOverrideWidthPx (0, 110);
+
+        list.SetDpi (144);
+
+        Assert::AreEqual (165, list.GetColumnOverrideWidthPx (0), L"A width set at 96 dpi is half again as wide at 144");
+        Assert::AreEqual (-1,  list.GetColumnOverrideWidthPx (1), L"and a column with none still has none");
     }
 };

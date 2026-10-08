@@ -390,12 +390,12 @@ float StartupDownloadDialog::MeasureSourceColumnPx (
     {
         // A measurement that fails leaves w at zero, which simply loses to
         // the floor below.
-        hr = ctx.text->MeasureString (entry.source.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        hr = ctx.text->MeasureString (entry.source.c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         sourcePx = std::max (sourcePx, std::ceil (w) + kGutterDp * ctx.dpiScale);
 
-        hr = ctx.text->MeasureString (entry.displayName.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        hr = ctx.text->MeasureString (entry.displayName.c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         namePx = std::max (namePx, std::ceil (w) + (kLabelInsetDp + kGutterDp) * ctx.dpiScale);

@@ -144,6 +144,33 @@ bool TreeModel::IsSupportedImage (const std::wstring & fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::BreakAfterFirstSentence
+//
+//  A message about an image leads with what is wrong and follows with the
+//  detail on a line of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::BreakAfterFirstSentence (std::wstring text)
+{
+    size_t  stop = text.find (L". ");
+
+
+
+    if (stop != std::wstring::npos)
+    {
+        text.replace (stop, 2, L".\n");
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::MakeFolderId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,10 +205,21 @@ std::wstring TreeModel::MakeImageId (bool underCasso, const std::wstring & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring TreeModel::MakeDirectoryId (bool underCasso, const std::wstring & path, const std::string & inner)
+std::wstring TreeModel::MakeDirectoryId (bool underCasso, const std::wstring & path, const std::string & inner, size_t occurrence)
 {
-    return std::wstring (kDirectoryPrefix) + (underCasso ? kCassoTag : kThisPcTag) + kSeparator + path
-         + kSeparator + std::wstring (inner.begin(), inner.end());
+    std::wstring  id = std::wstring (kDirectoryPrefix) + (underCasso ? kCassoTag : kThisPcTag) + kSeparator + path
+                     + kSeparator + std::wstring (inner.begin(), inner.end());
+
+
+
+    //  A damaged directory can hold two entries of the same name, which would
+    //  otherwise share an id. The first keeps the plain one.
+    if (occurrence > 0)
+    {
+        id += kSeparator + std::to_wstring (occurrence);
+    }
+
+    return id;
 }
 
 
@@ -241,7 +279,8 @@ bool TreeModel::TryParseImageOrDirectoryId (
     }
     else
     {
-        std::wstring  inner = id.substr (secondBar + 1);
+        size_t        thirdBar = id.find (kSeparator, secondBar + 1);
+        std::wstring  inner    = id.substr (secondBar + 1, (thirdBar == std::wstring::npos) ? std::wstring::npos : thirdBar - secondBar - 1);
 
         outPath = id.substr (firstBar + 1, secondBar - firstBar - 1);
         outInner.clear();
@@ -307,6 +346,43 @@ std::wstring TreeModel::GetLeaf (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::IsNavRootShown
+//
+//  Casso Explorer's own value where the user set one; otherwise what File
+//  Explorer's pane does. Without the shell's roots, This PC shows alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsNavRootShown (NavRoot root) const
+{
+    const std::optional<bool>  & chosen   = (root == NavRoot::ThisPc)  ? m_navOptions.showThisPc
+                                          : (root == NavRoot::Network) ? m_navOptions.showNetwork
+                                                                       : m_navOptions.showLibraries;
+    bool                         explorer = root == NavRoot::ThisPc;
+
+
+
+    for (const IShellItemVerbs::ShellFolderItem & item : m_navRoots)
+    {
+        bool  matches = (root == NavRoot::ThisPc  && item.isThisPc)
+                     || (root == NavRoot::Network && item.isNetwork)
+                     || (root == NavRoot::Libraries && item.isLibraries);
+
+        if (matches)
+        {
+            explorer = item.shownByShell;
+        }
+    }
+
+    return chosen.value_or (explorer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::GetRoots
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,6 +391,8 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 {
     TreeNode  casso;
     TreeNode  pc;
+    TreeNode  bin;
+    size_t    rest = 0;
 
 
 
@@ -330,9 +408,221 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
     pc.location  = Location::MakeRoot (kThisPcRootId);
     pc.canExpand = true;
 
+    //  Explorer's navigation pane shows the Recycle Bin beside This PC once
+    //  it shows all folders; it holds no folders to expand.
+    bin.id       = Location::kRecycleBinId;
+    bin.kind     = TreeNode::Kind::RecycleBinRoot;
+    bin.label    = GetRootLabel (Location::kRecycleBinId);
+    bin.location = Location::MakeRecycleBin();
+
     outNodes.clear();
     outNodes.push_back (casso);
-    outNodes.push_back (pc);
+
+    //  Without the shell's roots: This PC under its line, then the bin.
+    if (m_navRoots.empty())
+    {
+        if (IsNavRootShown (NavRoot::ThisPc))
+        {
+            outNodes.push_back (pc);
+        }
+
+        if (m_navOptions.showAllFolders)
+        {
+            outNodes.push_back (bin);
+        }
+
+        if (outNodes.size() > 1)
+        {
+            outNodes[1].dividerAbove = true;
+        }
+
+        return;
+    }
+
+    //  Explorer's order: Home, Gallery and OneDrive; a line; the pinned
+    //  folders; a line; the rest, with Casso's own This PC where the shell's
+    //  is; the Recycle Bin last, as with all folders shown.
+    for (const IShellItemVerbs::ShellFolderItem & root : m_navRoots)
+    {
+        if (root.leading)
+        {
+            outNodes.push_back (MakeShellNode (root));
+        }
+    }
+
+    for (size_t i = 0; i < m_pinned.size(); i++)
+    {
+        outNodes.push_back (MakeShellNode (m_pinned[i]));
+        outNodes.back().dividerAbove = i == 0;
+    }
+
+    rest = outNodes.size();
+
+    for (const IShellItemVerbs::ShellFolderItem & root : m_navRoots)
+    {
+        bool  hidden = (root.isThisPc    && !IsNavRootShown (NavRoot::ThisPc))
+                    || (root.isNetwork   && !IsNavRootShown (NavRoot::Network))
+                    || (root.isLibraries && !IsNavRootShown (NavRoot::Libraries));
+
+        if (root.leading || root.isRecycleBin || hidden)
+        {
+            continue;
+        }
+
+        outNodes.push_back (root.isThisPc ? pc : MakeShellNode (root));
+    }
+
+    if (m_navOptions.showAllFolders)
+    {
+        outNodes.push_back (bin);
+    }
+
+    if (rest < outNodes.size())
+    {
+        outNodes[rest].dividerAbove = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::RefreshShellRoots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::RefreshShellRoots()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_navRoots.clear();
+    m_pinned.clear();
+
+    if (m_shellVerbs == nullptr)
+    {
+        return;
+    }
+
+    hr = m_shellVerbs->ListNavigationRoots (m_navRoots);
+
+    if (FAILED (hr))
+    {
+        m_navRoots.clear();
+        return;
+    }
+
+    hr = m_shellVerbs->ListPinnedFolders (m_pinned);
+
+    if (FAILED (hr))
+    {
+        m_pinned.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::IsPinnedFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsPinnedFolder (const std::wstring & path) const
+{
+    return std::any_of (m_pinned.begin(), m_pinned.end(), [&path] (const IShellItemVerbs::ShellFolderItem & folder)
+    {
+        return _wcsicmp (folder.path.c_str(), path.c_str()) == 0;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::MakeShellNode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TreeNode TreeModel::MakeShellNode (const IShellItemVerbs::ShellFolderItem & item)
+{
+    TreeNode  node;
+
+
+
+    node.label  = item.name;
+    node.iconId = item.iconId;
+
+    if (!item.path.empty() && !item.isFile)
+    {
+        node.id        = MakeFolderId (false, item.path);
+        node.kind      = TreeNode::Kind::HostFolder;
+        node.location  = Location::MakeHostFolder (item.path);
+        node.canExpand = true;
+    }
+    else
+    {
+        node.id        = std::wstring (kShellRootTag) + item.id;
+        node.kind      = TreeNode::Kind::ShellRoot;
+        node.location  = Location::MakeShellFolder (item.id, item.name);
+        node.canExpand = item.hasSubfolders;
+    }
+
+    return node;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListShellFolders
+//
+//  The folders under a shell root, as Explorer's tree lists them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes)
+{
+    HRESULT                                        hr      = S_OK;
+    std::vector<IShellItemVerbs::ShellFolderItem>  items;
+    bool                                           fetched = false;
+
+
+
+    CBREx (m_shellVerbs != nullptr || m_shellFetch, E_NOTIMPL);
+
+    //  Still being read: nothing yet, and nothing kept, so the next ask
+    //  takes it.
+    if (m_shellFetch)
+    {
+        fetched = m_shellFetch (id, items);
+        CBREx (fetched, S_FALSE);   // EHM-ALLOW-SFALSE: still being read; GetChildren keeps nothing for it
+    }
+    else
+    {
+        hr = m_shellVerbs->ListShellFolder (id, items);
+        CHR (hr);
+    }
+
+    for (const IShellItemVerbs::ShellFolderItem & item : items)
+    {
+        if (item.isFolder && !(item.isFile && !item.path.empty() && IsSupportedImage (item.path)))
+        {
+            outNodes.push_back (MakeShellNode (item));
+        }
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -355,6 +645,11 @@ std::wstring TreeModel::GetRootLabel (const std::wstring & id)
     if (id == kThisPcRootId)
     {
         return L"This PC";
+    }
+
+    if (id == Location::kRecycleBinId)
+    {
+        return L"Recycle Bin";
     }
 
     return std::wstring();
@@ -396,6 +691,56 @@ void TreeModel::InvalidateAll()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::GetKnownFolderLabels
+//
+//  A folder shows its own name, or its full path where another known folder
+//  has the same name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> TreeModel::GetKnownFolderLabels (const std::vector<std::wstring> & paths)
+{
+    std::vector<std::wstring>  leaves (paths.size());
+    std::vector<std::wstring>  labels (paths.size());
+
+
+
+    for (size_t i = 0; i < paths.size(); i++)
+    {
+        std::wstring  rest  = paths[i];
+        size_t        slash = 0;
+
+        while (rest.size() > 3 && rest.back() == L'\\')
+        {
+            rest.pop_back();
+        }
+
+        slash     = rest.rfind (L'\\');
+        leaves[i] = (slash != std::wstring::npos && slash + 1 < rest.size()) ? rest.substr (slash + 1) : rest;
+        labels[i] = leaves[i];
+    }
+
+    for (size_t i = 0; i < paths.size(); i++)
+    {
+        for (size_t j = 0; j < paths.size(); j++)
+        {
+            if (i != j && _wcsicmp (leaves[i].c_str(), leaves[j].c_str()) == 0 && _wcsicmp (paths[i].c_str(), paths[j].c_str()) != 0)
+            {
+                labels[i] = paths[i];
+                break;
+            }
+        }
+    }
+
+    return labels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::ListRoot
 //
 //  Known folders under Casso, each probed for existence; drives under This
@@ -405,20 +750,23 @@ void TreeModel::InvalidateAll()
 
 HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
 {
-    const std::vector<std::wstring> & paths = underCasso ? m_knownFolders : m_drives;
+    const std::vector<std::wstring> & paths  = underCasso ? m_knownFolders : m_drives;
+    std::vector<std::wstring>         labels = underCasso ? GetKnownFolderLabels (paths) : paths;
+    size_t                            i      = 0;
 
 
 
     outNodes.clear();
 
-    for (const std::wstring & path : paths)
+    for (i = 0; i < paths.size(); i++)
     {
-        TreeNode  node;
-        bool      exists = !m_directoryProbe || m_directoryProbe (path);
+        const std::wstring &  path   = paths[i];
+        TreeNode              node;
+        bool                  exists = !m_directoryProbe || m_directoryProbe (path);
 
         node.id        = MakeFolderId (underCasso, path);
         node.kind      = underCasso ? TreeNode::Kind::KnownFolder : TreeNode::Kind::Drive;
-        node.label     = path;
+        node.label     = labels[i];
         node.location  = Location::MakeHostFolder (path);
         node.missing   = !exists;
         node.canExpand = exists;
@@ -459,6 +807,7 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
 
 
     inOutNode.canExpand = false;
+    inOutNode.broken    = false;
     inOutNode.loadError.clear();
 
     hr = m_fs.ReadAllText (path, content);
@@ -485,9 +834,10 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     {
         //  A file the loader refused says why, as the list does; one that
         //  loaded holds no file system this browser reads.
-        inOutNode.loadError = GetLeaf (path) + L" "
+        inOutNode.loadError = BreakAfterFirstSentence (GetLeaf (path) + L" "
                             + TextEncoding::NarrowToWide (loaded ? std::string (DiskImageSession::kNoFilesystemText) : diagnosis.Describe())
-                            + L".";
+                            + L".");
+        inOutNode.broken         = !loaded;
         m_children[inOutNode.id] = children;
 
         return S_OK;
@@ -525,10 +875,11 @@ void TreeModel::ListDirectories (
     const std::string       & inner,
     std::vector<TreeNode>   & outNodes)
 {
-    ProDosVolume   volume (sectors);
-    VolumeListing  listing;
-    VolumeListing  below;
-    HRESULT        hr     = volume.EnumerateDirectory (FilePath::Parse (inner), listing);
+    ProDosVolume                          volume (sectors);
+    VolumeListing                            listing;
+    VolumeListing                            below;
+    std::unordered_map<std::string, size_t>  seen;
+    HRESULT                                  hr      = volume.EnumerateDirectory (FilePath::Parse (inner), listing);
 
 
 
@@ -558,7 +909,7 @@ void TreeModel::ListDirectories (
             hasSubdir = hasSubdir || (SUCCEEDED (hr) && grandchild.isDirectory);
         }
 
-        child.id        = MakeDirectoryId (underCasso, path, childInner);
+        child.id        = MakeDirectoryId (underCasso, path, childInner, seen[entry.name]++);
         child.kind      = TreeNode::Kind::DiskDirectory;
         child.label     = std::wstring (entry.name.begin(), entry.name.end());
         child.location  = Location::MakeDiskDirectory (path, childInner);
@@ -671,9 +1022,9 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
     }
 
     std::sort (folders.begin(), folders.end(), [] (const TreeNode & a, const TreeNode & b)
-               { return _wcsicmp (a.label.c_str(), b.label.c_str()) < 0; });
+               { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
     std::sort (images.begin(), images.end(), [] (const TreeNode & a, const TreeNode & b)
-               { return _wcsicmp (a.label.c_str(), b.label.c_str()) < 0; });
+               { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
 
     outNodes.insert (outNodes.end(), folders.begin(), folders.end());
     outNodes.insert (outNodes.end(), images.begin(), images.end());
@@ -750,7 +1101,15 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
 
     m_fetchCount++;
 
-    if (id == kCassoRootId)
+    if (id == Location::kRecycleBinId)
+    {
+        //  Nothing under it in the tree: its items show in the list.
+    }
+    else if (id.rfind (kShellRootTag, 0) == 0)
+    {
+        hr = ListShellFolders (id.substr (wcslen (kShellRootTag)), outNodes);
+    }
+    else if (id == kCassoRootId)
     {
         hr = ListRoot (true, outNodes);
     }
@@ -786,7 +1145,10 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
 
     CHR (hr);
 
-    m_children[id] = outNodes;
+    if (hr != S_FALSE)
+    {
+        m_children[id] = outNodes;
+    }
 
 Error:
     return hr;

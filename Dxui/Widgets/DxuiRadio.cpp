@@ -312,7 +312,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                               labelH,
                               textColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -324,7 +324,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         //  three-option group is a block, not a mark.
         if (m_focused && m_focusCueVisible && m_selected == i)
         {
-            DxuiFocusRing::AroundRun (painter, text, opt.label, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, opt.label, fontDip, DxuiTheme::GetUiFace(),
                                       boxLeft,
                                       textLeft,
                                       (float) opt.rect.top,
@@ -348,7 +348,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                   rowHeight - labelH,
                                   descColor,
                                   fontDip,
-                                  DxuiTheme::kBodyFace,
+                                  DxuiTheme::GetUiFace(),
                                   DxuiTextHAlign::Left,
                                   DxuiTextVAlign::Top);
             IGNORE_RETURN_VALUE (hr, S_OK);

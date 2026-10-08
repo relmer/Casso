@@ -13,6 +13,10 @@ IDI_CASSO_SILHOUETTE_RAINBOW ICON "..\\Resources\\Icons\\Casso-1-silhouette-rain
 IDI_CASSO_FLAT_COLOR_HEAD    ICON "..\\Resources\\Icons\\Casso-2-flat-color-head.ico"
 IDI_CASSO_PHOTOREAL          ICON "..\\Resources\\Icons\\Casso-3-photoreal.ico"
 
+// What File Explorer shows on a disk image once the user registers Casso as
+// the program for its type.
+IDI_DISK_IMAGE               ICON "..\\Resources\\Icons\\Casso-disk-image.ico"
+
 // Embedded default machine configs (extracted to Machines/<name>/<name>.json
 // on first run by AssetBootstrap::EnsureMachineConfigs). Sources live under
 // Resources/ which is tracked; the runtime Machines/ tree is .gitignored

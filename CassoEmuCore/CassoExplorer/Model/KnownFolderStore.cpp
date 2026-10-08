@@ -18,6 +18,7 @@
 KnownFolderStore::KnownFolderStore (IFileSystem & fs, const std::wstring & baseDir, bool crossProcessLock)
     : m_fs               (fs),
       m_filePath         (GetFilePath (baseDir)),
+      m_baseDir          (baseDir),
       m_crossProcessLock (crossProcessLock)
 {
 }
@@ -371,14 +372,43 @@ HRESULT KnownFolderStore::ReadEntries (std::vector<Entry> & outEntries) const
                 entry.lastUsedUnix = (int64_t) when;
             }
 
-            entry.path = TextEncoding::NarrowToWide (path);
+            entry.path = Resolve (TextEncoding::NarrowToWide (path));
 
-            outEntries.push_back (entry);
+            //  A relative entry written by an older Casso can resolve to a
+            //  folder already listed, and it is listed once.
+            if (std::none_of (outEntries.begin(), outEntries.end(), [&] (const Entry & e) { return ArePathsEqual (e.path, entry.path); }))
+            {
+                outEntries.push_back (entry);
+            }
         }
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KnownFolderStore::Resolve
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring KnownFolderStore::Resolve (const std::wstring & folder) const
+{
+    std::filesystem::path  path (folder);
+
+
+
+    if (folder.empty() || !path.is_relative() || m_baseDir.empty())
+    {
+        return folder;
+    }
+
+    return (std::filesystem::path (m_baseDir) / path).lexically_normal().wstring();
 }
 
 
@@ -459,6 +489,7 @@ HRESULT KnownFolderStore::Append (const std::wstring & folder, int64_t nowUnix)
     HANDLE              lock      = nullptr;
     bool                found     = false;
     bool                hasFolder = !folder.empty();
+    std::wstring        resolved  = Resolve (folder);
     std::vector<Entry>  entries;
 
 
@@ -472,7 +503,7 @@ HRESULT KnownFolderStore::Append (const std::wstring & folder, int64_t nowUnix)
 
     for (Entry & entry : entries)
     {
-        if (ArePathsEqual (entry.path, folder))
+        if (ArePathsEqual (entry.path, resolved))
         {
             entry.lastUsedUnix = nowUnix;
             found              = true;
@@ -481,7 +512,7 @@ HRESULT KnownFolderStore::Append (const std::wstring & folder, int64_t nowUnix)
 
     if (!found)
     {
-        entries.push_back (Entry { folder, nowUnix });
+        entries.push_back (Entry { resolved, nowUnix });
     }
 
     hr = WriteEntries (entries);
@@ -505,8 +536,9 @@ Error:
 
 HRESULT KnownFolderStore::Remove (const std::wstring & folder)
 {
-    HRESULT             hr   = S_OK;
-    HANDLE              lock = nullptr;
+    HRESULT             hr       = S_OK;
+    HANDLE              lock     = nullptr;
+    std::wstring        resolved = Resolve (folder);
     std::vector<Entry>  entries;
     std::vector<Entry>  kept;
 
@@ -519,7 +551,7 @@ HRESULT KnownFolderStore::Remove (const std::wstring & folder)
 
     for (const Entry & entry : entries)
     {
-        if (!ArePathsEqual (entry.path, folder))
+        if (!ArePathsEqual (entry.path, resolved))
         {
             kept.push_back (entry);
         }

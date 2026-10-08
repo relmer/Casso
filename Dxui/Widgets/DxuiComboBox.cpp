@@ -35,7 +35,7 @@ static constexpr uint32_t  s_kEdgeDisabledArgb = 0xFF364252;
 static constexpr float     s_kEdgePx          = 1.0f;
 static constexpr float     s_kFontDip         = 13.0f;
 static constexpr float     s_kDisabledScale   = 0.7f;   // darken themed box fill for the disabled state
-static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
+static const wchar_t * const s_kFontFamily    = DxuiTheme::GetUiFace();
 
 
 

@@ -88,6 +88,19 @@ public:
     }
 
 
+    TEST_METHOD (Path_IsOpenedOnceAlongsideTheSwitches)
+    {
+        CassoExplorerLaunchOptions  options;
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"C:\\Disks\\a b", L"--owner", L"5" }, options));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\a b"), options.openPath);
+        Assert::IsTrue   (options.hasOwner);
+
+        Assert::AreEqual (E_INVALIDARG, CassoExplorerShell::ParseArguments ({ L"C:\\One", L"C:\\Two" }, options));
+        Assert::AreNotEqual (std::wstring::npos, options.refusal.find (L"C:\\Two"));
+    }
+
+
     TEST_METHOD (ChooseTheme_FollowsPreferenceThenSystem)
     {
         DxuiLightTheme  light;

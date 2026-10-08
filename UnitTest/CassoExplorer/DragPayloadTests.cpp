@@ -217,4 +217,21 @@ public:
         Assert::IsTrue  (paths.empty());
         Assert::IsTrue  (kind == VolumeKind::Dos33);
     }
+
+
+    TEST_METHOD (ChooseDropEffect_FollowsExplorersRules)
+    {
+        DWORD  both = DROPEFFECT_COPY | DROPEFFECT_MOVE;
+
+        Assert::AreEqual ((DWORD) DROPEFFECT_MOVE, DragPayload::ChooseDropEffect (true,  0, both), L"Within one volume, a move");
+        Assert::AreEqual ((DWORD) DROPEFFECT_COPY, DragPayload::ChooseDropEffect (false, 0, both), L"Onto another, a copy");
+        Assert::AreEqual ((DWORD) DROPEFFECT_COPY, DragPayload::ChooseDropEffect (true,  MK_CONTROL, both), L"Ctrl copies");
+        Assert::AreEqual ((DWORD) DROPEFFECT_MOVE, DragPayload::ChooseDropEffect (false, MK_SHIFT,   both), L"Shift moves");
+        Assert::AreEqual ((DWORD) DROPEFFECT_COPY, DragPayload::ChooseDropEffect (false, MK_CONTROL | MK_SHIFT, both),
+                          L"Both would link, which changes nothing");
+        Assert::AreEqual ((DWORD) DROPEFFECT_COPY, DragPayload::ChooseDropEffect (true,  0, DROPEFFECT_COPY),
+                          L"A source that allows no move gets a copy");
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, DragPayload::ChooseDropEffect (true,  0, DROPEFFECT_LINK),
+                          L"and one that allows neither gets nothing");
+    }
 };

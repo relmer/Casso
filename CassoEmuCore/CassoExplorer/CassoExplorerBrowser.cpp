@@ -44,7 +44,7 @@ DxuiTreeNode CassoExplorerBrowser::ToTreeNode (const TreeNode & node, IShellIcon
 
     out.id             = node.id;
     out.label          = node.label;
-    out.dividerAbove   = node.kind == TreeNode::Kind::ThisPcRoot;   // Explorer's line above This PC
+    out.dividerAbove   = node.dividerAbove;
 
     //  A drive under its name, as Explorer's tree shows it.
     if (node.kind == TreeNode::Kind::Drive && icons != nullptr)
@@ -57,32 +57,13 @@ DxuiTreeNode CassoExplorerBrowser::ToTreeNode (const TreeNode & node, IShellIcon
         }
     }
 
-    //  A known folder's label is its whole path, which a narrow tree cannot
-    //  hold; the folder's own name is what Explorer shows there too.
-    if (node.kind == TreeNode::Kind::KnownFolder)
-    {
-        std::wstring  trimmed = node.label;
-        size_t        slash   = std::wstring::npos;
-
-        while (trimmed.size() > 3 && trimmed.back() == L'\\')
-        {
-            trimmed.pop_back();
-        }
-
-        slash = trimmed.rfind (L'\\');
-
-        if (slash != std::wstring::npos && slash + 1 < trimmed.size())
-        {
-            out.label = trimmed.substr (slash + 1);
-        }
-    }
-
     out.expanded       = false;
     out.childrenLoaded = !node.canExpand;
     //  A known folder that is gone is dimmed. An image that will not open is
     //  not: the preview says why when it is chosen.
     out.dimmed         = node.missing;
     out.iconGhosted    = node.hidden;
+    out.iconBroken     = node.broken;
 
     if (icons != nullptr)
     {
@@ -263,6 +244,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     m_writeProtected = false;
     m_listError.clear();
     m_selectedRows.clear();
+    m_shellParent = Location();
 
     switch (location.kind)
     {
@@ -277,6 +259,14 @@ HRESULT CassoExplorerBrowser::Refresh()
 
         case Location::Kind::Root:
             hr = LoadRoot (location.path);
+            break;
+
+        case Location::Kind::RecycleBin:
+            hr = LoadRecycleBin();
+            break;
+
+        case Location::Kind::ShellFolder:
+            hr = LoadShellFolder (location.path);
             break;
 
         default:
@@ -356,6 +346,263 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::LoadShellFolder
+//
+//  What the shell lists in a folder that is not on a disk. An item that is a
+//  file or folder on one keeps its path, so it opens and previews as it does
+//  in its own folder, and a disk image among them opens as an image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
+{
+    HRESULT                                        hr = S_OK;
+    std::vector<IShellItemVerbs::ShellFolderItem>  items;
+
+
+
+    if (m_shellVerbs == nullptr)
+    {
+        m_listError = L"This folder could not be read.";
+        return E_NOTIMPL;
+    }
+
+    //  A slow folder, Network above all, reads on a thread of its own; the
+    //  list says so meanwhile, as Explorer's does, and fills when it arrives.
+    if (!m_shellListings.TryTake (s_kListKey + id, id, items, hr))
+    {
+        m_listError = L"Working on it...";
+        return S_OK;
+    }
+
+    if (FAILED (hr))
+    {
+        m_listError = L"This folder could not be read.";
+        return hr;
+    }
+
+    //  Where Up goes: a folder on a disk opens as one.
+    {
+        IShellItemVerbs::ShellFolderItem  parent;
+        HRESULT                           hrUp = m_shellVerbs->GetShellParent (id, parent);
+
+        if (hrUp == S_OK)
+        {
+            m_shellParent = parent.path.empty() ? Location::MakeShellFolder (parent.id, parent.name) : Location::MakeHostFolder (parent.path);
+        }
+    }
+
+    for (size_t index = 0; index < items.size(); index++)
+    {
+        CatalogRow  row;
+
+        row.name         = items[index].name;
+        row.typeText     = items[index].typeText;
+        row.sizeBytes    = items[index].sizeBytes;
+        row.modifiedUnix = items[index].modifiedUnix;
+        row.hasModified  = items[index].hasModified;
+        row.isDirectory  = items[index].isFolder;
+        //  A folder that is a file too has no folder on the disk to open as one.
+        row.hostPath     = (items[index].isFolder && items[index].isFile) ? std::wstring() : items[index].path;
+        row.shellId      = items[index].id;
+        row.folderPath   = items[index].folder;
+        row.imagePath    = items[index].imagePath;
+        row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
+        row.sourceIndex  = index;
+
+        m_rows.push_back (std::move (row));
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::SetShellVerbs
+//
+//  The tree reads shell folders through the same readers as the list, each
+//  under a key of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
+{
+    m_shellVerbs = verbs;
+    m_shellListings.SetLister ((verbs != nullptr) ? verbs->GetShellLister() : IShellItemVerbs::ShellLister());
+    m_tree.SetShellVerbs (verbs);
+
+    m_tree.SetShellFetch ([this] (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
+    {
+        HRESULT  hr = S_OK;
+
+        return m_shellListings.TryTake (s_kTreeKey + id, id, outItems, hr);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::LoadRecycleBin
+//
+//  What the Recycle Bin holds on every drive, with where each item was
+//  deleted from and when.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerBrowser::LoadRecycleBin()
+{
+    HRESULT                                     hr = S_OK;
+    std::vector<IShellItemVerbs::RecycledItem>  items;
+
+
+
+    BAIL_OUT_IF (m_shellVerbs == nullptr, S_OK);
+
+    hr = m_shellVerbs->ListRecycled (items);
+
+    if (FAILED (hr))
+    {
+        m_listError = L"The Recycle Bin could not be read.";
+        return hr;
+    }
+
+    for (size_t index = 0; index < items.size(); index++)
+    {
+        CatalogRow  row;
+
+        row.name           = items[index].name;
+        row.typeText       = items[index].typeText;
+        row.sizeBytes      = items[index].sizeBytes;
+        row.modifiedUnix   = items[index].modifiedUnix;
+        row.hasModified    = items[index].hasModified;
+        row.isDirectory    = items[index].isFolder;
+        row.recycledId     = items[index].id;
+        row.originalFolder = items[index].originalFolder;
+        row.deletedUnix    = items[index].deletedUnix;
+        row.hasDeleted     = items[index].hasDeleted;
+        row.sourceIndex    = index;
+
+        m_rows.push_back (std::move (row));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetSelectedRecycledIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::GetSelectedRecycledIds (std::vector<std::wstring> & outIds) const
+{
+    outIds.clear();
+
+    for (int row : m_selectedRows)
+    {
+        if (row >= 0 && (size_t) row < m_rows.size() && !m_rows[(size_t) row].recycledId.empty())
+        {
+            outIds.push_back (m_rows[(size_t) row].recycledId);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::TryGetRowEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::TryGetRowEntry (int row, FileEntry & outEntry) const
+{
+    if (!m_isImage || row < 0 || (size_t) row >= m_rows.size() || m_rows[(size_t) row].sourceIndex >= m_listing.entries.size())
+    {
+        return false;
+    }
+
+    outEntry = m_listing.entries[m_rows[(size_t) row].sourceIndex];
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetAllRecycledIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::GetAllRecycledIds (std::vector<std::wstring> & outIds) const
+{
+    outIds.clear();
+
+    for (const CatalogRow & row : m_rows)
+    {
+        if (!row.recycledId.empty())
+        {
+            outIds.push_back (row.recycledId);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetImageProblem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::GetImageProblem (const std::wstring & imagePath)
+{
+    VolumeListing           listing;
+    VolumeKind              kind = VolumeKind::Unknown;
+    DiskOperations::Result  result;
+
+
+
+    if (CanListImage (imagePath))
+    {
+        return std::wstring();
+    }
+
+    result = m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+
+    if (result.Succeeded() || result.message.find (s_kNoFileSystem) != std::string::npos)
+    {
+        return std::wstring();
+    }
+
+    return FormatImageError (imagePath, result.message);
 }
 
 
@@ -467,6 +714,59 @@ HRESULT CassoExplorerBrowser::LoadImage (const std::wstring & path, const std::s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::LeaveMissingLocation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::LeaveMissingLocation()
+{
+    Location      location = GetLocation();
+    std::wstring  path     = location.path;
+    size_t        slash    = 0;
+
+
+
+    if (location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::DiskImage &&
+        location.kind != Location::Kind::DiskDirectory)
+    {
+        return false;
+    }
+
+    if (path.empty() || m_fs.Exists (path) || GetTreeModel().IsDirectory (path))
+    {
+        return false;
+    }
+
+    do
+    {
+        slash = path.find_last_of (L'\\');
+
+        if (slash == std::wstring::npos)
+        {
+            return false;
+        }
+
+        //  A drive's root keeps its backslash.
+        path = (slash <= 2) ? path.substr (0, slash + 1) : path.substr (0, slash);
+    }
+    while (!GetTreeModel().IsDirectory (path) && path.size() > 3);
+
+    if (!GetTreeModel().IsDirectory (path))
+    {
+        return false;
+    }
+
+    NavigateToLocation (Location::MakeHostFolder (path));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::SortRows
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,6 +779,135 @@ void CassoExplorerBrowser::SortRows()
     }
 
     CatalogModel::Sort (m_rows, m_model.GetActiveTab().sortColumn, m_model.GetActiveTab().sortDescending);
+    GroupRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GroupRows
+//
+//  Grouping orders the groups and keeps the sort within each: a stable sort
+//  by group over rows already sorted by the column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::GroupRows()
+{
+    RowGrouping::Field                  field      = m_model.GetActiveTab().groupBy;
+    bool                                descending = m_model.GetActiveTab().groupDescending;
+    RowGrouping::Today                  today      = RowGrouping::GetToday();
+    std::vector<size_t>                 order;
+    std::vector<RowGrouping::Group>     groups;
+    std::vector<CatalogRow>             sorted;
+    std::vector<RowGrouping::Group>     sortedGroups;
+
+
+
+    m_rowGroups.clear();
+
+    if (field == RowGrouping::Field::None)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_rows.size(); i++)
+    {
+        order.push_back (i);
+        groups.push_back (RowGrouping::GetGroup (m_rows[i], field, today));
+    }
+
+    std::stable_sort (order.begin(), order.end(), [&] (size_t a, size_t b)
+    {
+        return RowGrouping::IsBefore (groups[a], groups[b], descending);
+    });
+
+    for (size_t i : order)
+    {
+        sorted.push_back (std::move (m_rows[i]));
+        sortedGroups.push_back (groups[i]);
+    }
+
+    m_rows      = std::move (sorted);
+    m_rowGroups = std::move (sortedGroups);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetListGroups
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Group> CassoExplorerBrowser::GetListGroups() const
+{
+    std::vector<DxuiListView::Group>  out;
+
+
+
+    for (size_t i = 0; i < m_rowGroups.size(); i++)
+    {
+        if (i == 0 || !(m_rowGroups[i] == m_rowGroups[i - 1]))
+        {
+            out.push_back ({ m_rowGroups[i].label, (int) i });
+        }
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::SetGroupBy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SetGroupBy (RowGrouping::Field field, bool descending)
+{
+    if (!m_model.HasTabs())
+    {
+        return;
+    }
+
+    m_model.SetGroup (field, descending);
+    ResortKeepingSelection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::SetSortAndGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending)
+{
+    const BrowserModel::Tab *  tab = m_model.HasTabs() ? &m_model.GetActiveTab() : nullptr;
+
+
+
+    if (tab == nullptr ||
+        (tab->sortColumn == column && tab->sortDescending == descending && tab->groupBy == group && tab->groupDescending == groupDescending))
+    {
+        return;
+    }
+
+    m_model.SetSort  (column, descending);
+    m_model.SetGroup (group, groupDescending);
+    ResortKeepingSelection();
 }
 
 
@@ -497,24 +926,44 @@ void CassoExplorerBrowser::SortRows()
 void CassoExplorerBrowser::SortByColumn (int column)
 {
     CatalogModel::Column  requested       = (CatalogModel::Column) column;
-    std::vector<size_t>   selectedSources;
     bool                  descending      = false;
 
 
 
-    if (!m_model.HasTabs() || column < 0 || column > (int) CatalogModel::Column::Locked)
+    if (!m_model.HasTabs() || column < 0 || column > (int) CatalogModel::Column::DateDeleted)
     {
         return;
     }
 
     descending = m_model.GetActiveTab().sortColumn == requested && !m_model.GetActiveTab().sortDescending;
 
+    m_model.SetSort (requested, descending);
+    ResortKeepingSelection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::ResortKeepingSelection
+//
+//  The selection follows its rows through the reorder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::ResortKeepingSelection()
+{
+    std::vector<size_t>   selectedSources;
+
+
+
     for (int row : m_selectedRows)
     {
         selectedSources.push_back (m_rows[row].sourceIndex);
     }
 
-    m_model.SetSort (requested, descending);
     SortRows();
 
     m_selectedRows.clear();
@@ -763,7 +1212,7 @@ void CassoExplorerBrowser::UpdatePreview()
         if (!result.Succeeded())
         {
             m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = TextEncoding::NarrowToWide (result.message);
+            m_preview.message = FormatImageError (location.path, result.message);
             return;
         }
 
@@ -830,7 +1279,7 @@ void CassoExplorerBrowser::UpdatePreview()
         if (!result.Succeeded())
         {
             m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = TextEncoding::NarrowToWide (result.message);
+            m_preview.message = FormatImageError (imagePath, result.message);
             return;
         }
 
@@ -944,9 +1393,52 @@ void CassoExplorerBrowser::UpdateStatus()
         }
     }
 
+    //  As Explorer words a drive's: what is free of the whole. For the image
+    //  open, or for one image selected in a folder.
     if (m_isImage)
     {
-        m_status.freeSpace = FormatSize ((uint64_t) m_listing.freeUnits * CatalogModel::GetUnitBytes (m_kind)) + L" free";
+        DescribeVolumeSpace (GetLocation().path, m_listing, m_kind, m_status);
+    }
+    else if (m_selectedRows.size() == 1)
+    {
+        Location       image;
+        VolumeListing  listing;
+        VolumeKind     kind = VolumeKind::Unknown;
+
+        if (TryGetRowLocation (m_selectedRows[0], image) && image.kind == Location::Kind::DiskImage &&
+            m_operations.List (TextEncoding::WideToNarrow (image.path), std::string(), listing, kind).Succeeded())
+        {
+            DescribeVolumeSpace (image.path, listing, kind, m_status);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::DescribeVolumeSpace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::DescribeVolumeSpace (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind, Status & outStatus)
+{
+    uint64_t  unit = CatalogModel::GetUnitBytes (kind);
+
+
+
+    outStatus.freeSpace    = FormatSize ((uint64_t) listing.freeUnits * unit) + L" free of " + FormatSize ((uint64_t) listing.totalUnits * unit);
+    outStatus.freeSpaceTip = std::filesystem::path (imagePath).filename().wstring();
+
+    if (kind == VolumeKind::Dos33)
+    {
+        outStatus.freeSpaceTip += std::format (L", DOS 3.3 volume {}", listing.volumeNumber);
+    }
+    else if (kind == VolumeKind::ProDos && !listing.volumeName.empty())
+    {
+        outStatus.freeSpaceTip += L", ProDOS volume /" + TextEncoding::NarrowToWide (listing.volumeName);
     }
 }
 
@@ -974,6 +1466,9 @@ std::vector<DxuiListView::Column> CassoExplorerBrowser::GetColumns()
     columns.push_back (DxuiListView::Column { L"Size",          kSizeColumnDip,     false, DxuiTextHAlign::Right });
     columns.push_back (DxuiListView::Column { L"Address",       kAddressColumnDip,  false, DxuiTextHAlign::Left  });
     columns.push_back (DxuiListView::Column { L"Locked",        kLockedColumnDip,   false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Original location", kOriginalColumnDip, false, DxuiTextHAlign::Left });
+    columns.push_back (DxuiListView::Column { L"Date deleted",  kDeletedColumnDip,  false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Folder",        kOriginalColumnDip, false, DxuiTextHAlign::Left  });
 
     return columns;
 }
@@ -1026,7 +1521,10 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCatalogPreviewCells (con
 
     cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.typeText, false });
-    cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    //  A folder has no size of its own, except in the Recycle Bin, which adds up
+    //  what each deleted folder held, as Explorer shows; nor does a shell item
+    //  that is not a file, such as a computer on the network.
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
 
     return cells;
 }
@@ -1056,16 +1554,42 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
     cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { row.typeText, false });
-    cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    //  A folder has no size of its own, except in the Recycle Bin, which adds up
+    //  what each deleted folder held, as Explorer shows; nor does a shell item
+    //  that is not a file, such as a computer on the network.
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
+    cells.push_back (DxuiListView::Cell { row.originalFolder, false });
+    cells.push_back (DxuiListView::Cell { row.hasDeleted ? FormatModified (row.deletedUnix, false) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.folderPath, false });
 
     if (icons != nullptr && !cells.empty())
     {
         cells[0].icon = GetRowIcon (row, at, *icons);
     }
 
-    cells[0].iconGhosted = row.isHidden;
+    cells[0].iconGhosted  = row.isHidden;
+
+    //  Explorer's Content row: a file's type under its name, and the date and
+    //  the size in the column beside them, each saying what it is. A folder
+    //  has its name alone.
+    if (!row.isDirectory || row.isDrive)
+    {
+        cells[0].contentLeft = { DxuiListView::Cell { L"Type: " + row.typeText, false } };
+    }
+
+    if (row.hasModified)
+    {
+        cells[0].contentRight.push_back (DxuiListView::Cell { L"Date modified: " + FormatModified (row.modifiedUnix, row.modifiedIsWallClock), false });
+    }
+
+    if (!row.isDirectory)
+    {
+        cells[0].contentRight.push_back (DxuiListView::Cell { L"Size: " + FormatSize (row.sizeBytes), false });
+    }
+
+    cells[0].tileNameOnly = row.isDirectory && !row.isDrive;
 
     //  Explorer's drive tile: a bar as full as the drive, then what is free.
     if (row.isDrive && row.sizeBytes > 0)
@@ -1077,6 +1601,11 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
         free.text   = std::format (L"{} free of {}", FormatSize (row.freeBytes), FormatSize (row.sizeBytes));
 
         cells[0].tileLines = { meter, free };
+    }
+    else if (!row.isDirectory)
+    {
+        //  Explorer's file tile: its type, then its size.
+        cells[0].tileLines = { DxuiListView::Cell { row.typeText, false }, DxuiListView::Cell { FormatSize (row.sizeBytes), false } };
     }
 
     return cells;
@@ -1124,6 +1653,67 @@ uint32_t CassoExplorerBrowser::GetNameArgb (const CatalogRow & row, const Folder
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::ShortenPaths
+//
+//  Each full path in a message cut to its last part, the file or folder's own
+//  name: the address bar and the tree already show where it is, and a whole
+//  path makes a message too long to read. A path runs from its drive to the
+//  colon, quote or line end that follows; a sentence's period after it is not
+//  part of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::ShortenPaths (const std::wstring & message)
+{
+    std::wstring  out;
+    size_t        i = 0;
+
+
+
+    while (i < message.size())
+    {
+        bool  isPath = i + 2 < message.size() && iswalpha (message[i]) && message[i + 1] == L':' && message[i + 2] == L'\\'
+                       && (i == 0 || !iswalnum (message[i - 1]));
+
+        if (!isPath)
+        {
+            out += message[i++];
+            continue;
+        }
+
+        size_t        end  = message.find_first_of (L":\r\n\"'", i + 2);
+        std::wstring  path  = message.substr (i, (end == std::wstring::npos) ? std::wstring::npos : end - i);
+        std::wstring  tail;
+        size_t        slash = 0;
+
+        while (!path.empty() && (path.back() == L' ' || path.back() == L'.' || path.back() == L','))
+        {
+            tail.insert (tail.begin(), path.back());
+            path.pop_back();
+        }
+
+        //  A file's extension ends in a letter, so a period only moved to the
+        //  tail when it closed the sentence -- unless the name itself ended
+        //  there, which the tail cannot tell apart and leaves as it was.
+        while (!path.empty() && path.back() == L'\\')
+        {
+            path.pop_back();
+        }
+
+        slash = path.find_last_of (L'\\');
+        out  += ((slash == std::wstring::npos) ? path : path.substr (slash + 1)) + tail;
+        i     = (end == std::wstring::npos) ? message.size() : end;
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::FormatImageError
 //
 //  The command line's refusal, "path: reason", as a sentence about the file
@@ -1149,12 +1739,15 @@ std::wstring CassoExplorerBrowser::FormatImageError (const std::wstring & imageP
         text = imagePath.substr ((slash == std::wstring::npos) ? 0 : slash + 1) + L" " + text.substr (prefix.size());
     }
 
+    //  The general part leads and the detail follows on a line of its own.
+    text = TreeModel::BreakAfterFirstSentence (text);
+
     if (!text.empty() && text.back() != L'.')
     {
         text += L'.';
     }
 
-    return text;
+    return ShortenPaths (text);
 }
 
 
@@ -1391,6 +1984,18 @@ bool CassoExplorerBrowser::OpenRow (int row)
 
 
 
+    //  A search's match inside a disk image opens the image with the file
+    //  selected, where it previews and copies as any of the image's files.
+    if (row >= 0 && (size_t) row < m_rows.size() && !m_rows[(size_t) row].imagePath.empty())
+    {
+        std::wstring  name = m_rows[(size_t) row].name;
+
+        m_model.NavigateTo (Location::MakeDiskImage (m_rows[(size_t) row].imagePath));
+        ReloadAfterNavigation();
+        SelectRowsByKeys ({ L"0:" + name });
+        return true;
+    }
+
     if (!TryGetRowLocation (row, target))
     {
         return false;
@@ -1462,6 +2067,25 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
         inner       += (inner.empty() ? "" : "/") + TextEncoding::WideToNarrow (m_rows[row].name);
         outLocation  = Location::MakeDiskDirectory (location.path, inner);
     }
+    else if (location.kind == Location::Kind::ShellFolder)
+    {
+        //  A folder on a disk opens as one, with everything a disk folder has;
+        //  any other folder opens through the shell.
+        const CatalogRow &  item = m_rows[row];
+
+        if (item.isDirectory)
+        {
+            outLocation = item.hostPath.empty() ? Location::MakeShellFolder (item.shellId, item.name) : Location::MakeHostFolder (item.hostPath);
+        }
+        else if (item.isDiskImage && CanListImage (item.hostPath))
+        {
+            outLocation = Location::MakeDiskImage (item.hostPath);
+        }
+        else
+        {
+            found = false;
+        }
+    }
     else if (location.kind != Location::Kind::HostFolder)
     {
         found = false;
@@ -1515,6 +2139,10 @@ bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
     {
         outPath = JoinPath (location.path, m_rows[row].name);
     }
+    else if (location.kind == Location::Kind::ShellFolder && !m_rows[row].hostPath.empty())
+    {
+        outPath = m_rows[row].hostPath;
+    }
     else if (location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory)
     {
         outPath = JoinPath (BrowserModel::FormatAddress (location), m_rows[row].name);
@@ -1552,6 +2180,9 @@ bool CassoExplorerBrowser::CanGoUp() const
         case Location::Kind::DiskDirectory:
             return true;
 
+        case Location::Kind::ShellFolder:
+            return m_shellParent.kind != Location::Kind::None;
+
         default:
             return false;
     }
@@ -1585,6 +2216,10 @@ bool CassoExplorerBrowser::GoUp()
     if (location.kind == Location::Kind::DiskDirectory)
     {
         target = Location::MakeDiskImage (location.path);
+    }
+    else if (location.kind == Location::Kind::ShellFolder)
+    {
+        target = m_shellParent;
     }
     else
     {
@@ -1887,6 +2522,12 @@ std::wstring CassoExplorerBrowser::GetLocationLabel (const Location & location)
         case Location::Kind::Root:
             return TreeModel::GetRootLabel (location.path);
 
+        case Location::Kind::RecycleBin:
+            return TreeModel::GetRootLabel (Location::kRecycleBinId);
+
+        case Location::Kind::ShellFolder:
+            return location.label.empty() ? location.path : location.label;
+
         case Location::Kind::DiskDirectory:
             slash = inner.find_last_of ("/:");
             return TextEncoding::NarrowToWide ((slash == std::string::npos) ? inner : inner.substr (slash + 1));
@@ -2170,14 +2811,19 @@ void CassoExplorerBrowser::RestoreTabs (const std::vector<Location> & locations)
 //  CassoExplorerBrowser::GetRowIcon
 //
 //  A host folder's rows are real files and folders, so each gets the shell's
-//  icon for its path, and a disk image gets the icon registered for its
-//  extension. A row inside an image has no host path, so it gets the generic
+//  icon for its path, except a disk image, which has Casso's floppy. A row inside an image has no host path, so it gets the generic
 //  folder or file icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const CatalogRow & row, const Location & at, IShellIcons & icons)
 {
+    //  A disk image has Casso's floppy wherever it is listed.
+    if (row.isDiskImage)
+    {
+        return icons.GetForKind (IShellIcons::Kind::DiskImage);
+    }
+
     if (at.kind == Location::Kind::HostFolder)
     {
         return icons.GetForPath (JoinPath (at.path, row.name), row.isDirectory);
@@ -2189,7 +2835,100 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
         return icons.GetForPath (row.hostPath, true);
     }
 
-    return icons.GetForKind (row.isDirectory ? IShellIcons::Kind::Folder : IShellIcons::Kind::File);
+    //  A search's match inside a disk image has its Apple type's icon.
+    if (!row.imagePath.empty())
+    {
+        return icons.GetForKind (GetAppleTypeIconKind (row.typeText));
+    }
+
+    //  A shell folder's item has the icon the shell draws for it, by its path
+    //  when it has one.
+    if (at.kind == Location::Kind::ShellFolder && !row.shellId.empty())
+    {
+        return icons.GetForPath (row.hostPath.empty() ? row.shellId : row.hostPath, row.isDirectory);
+    }
+
+    //  A deleted item still has its file, under the bin's own folder on its
+    //  drive, so it has the icon it had.
+    if (at.kind == Location::Kind::RecycleBin && row.recycledId.size() > 2 && row.recycledId[1] == L':')
+    {
+        return icons.GetForPath (row.recycledId, row.isDirectory);
+    }
+
+    return icons.GetForKind (row.isDirectory ? IShellIcons::Kind::Folder : GetAppleTypeIconKind (row.typeText));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetLocationIcon
+//
+//  The icon the address bar leads with, as Explorer's shows the folder's own:
+//  a host folder's or a shell folder's from the shell, a disk image's by its
+//  extension, and a directory inside an image the generic folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetLocationIcon (const Location & at, IShellIcons & icons)
+{
+    switch (at.kind)
+    {
+        case Location::Kind::HostFolder:    return icons.GetForPath (at.path, true);
+        case Location::Kind::ShellFolder:   return icons.GetForPath (at.path, true);
+        case Location::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);
+        case Location::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
+        case Location::Kind::RecycleBin:    return icons.GetForKind (IShellIcons::Kind::RecycleBin);
+        case Location::Kind::Root:
+            return icons.GetForKind ((at.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : IShellIcons::Kind::ThisPc);
+        default:                            return nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetAppleTypeIconKind
+//
+//  By the type a catalog shows: DOS 3.3's letter or ProDOS's mnemonic. Any
+//  other type has the generic file icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IShellIcons::Kind CassoExplorerBrowser::GetAppleTypeIconKind (const std::wstring & typeText)
+{
+    static constexpr std::pair<const wchar_t *, IShellIcons::Kind>  kTypes[] =
+    {
+        { L"T",   IShellIcons::Kind::AppleText        },
+        { L"TXT", IShellIcons::Kind::AppleText        },
+        { L"A",   IShellIcons::Kind::AppleApplesoft   },
+        { L"BAS", IShellIcons::Kind::AppleApplesoft   },
+        { L"I",   IShellIcons::Kind::AppleInteger     },
+        { L"INT", IShellIcons::Kind::AppleInteger     },
+        { L"B",   IShellIcons::Kind::AppleBinary      },
+        { L"BIN", IShellIcons::Kind::AppleBinary      },
+        { L"SYS", IShellIcons::Kind::AppleSystem      },
+        { L"S",   IShellIcons::Kind::AppleSystem      },
+        { L"R",   IShellIcons::Kind::AppleRelocatable },
+        { L"REL", IShellIcons::Kind::AppleRelocatable },
+    };
+
+
+
+    for (const auto & type : kTypes)
+    {
+        if (typeText == type.first)
+        {
+            return type.second;
+        }
+    }
+
+    return IShellIcons::Kind::File;
 }
 
 
@@ -2204,14 +2943,22 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
 
 std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const TreeNode & node, IShellIcons & icons)
 {
+    //  A root the desktop holds as an entry of its own, as OneDrive, has that
+    //  entry's icon, its cloud, rather than its folder's.
+    if (!node.iconId.empty())
+    {
+        return icons.GetForPath (node.iconId, true);
+    }
+
     switch (node.kind)
     {
         case TreeNode::Kind::CassoRoot:     return icons.GetForKind (IShellIcons::Kind::Casso);
         case TreeNode::Kind::ThisPcRoot:    return icons.GetForKind (IShellIcons::Kind::ThisPc);
+        case TreeNode::Kind::RecycleBinRoot: return icons.GetForKind (IShellIcons::Kind::RecycleBin);
         case TreeNode::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
-        //  Every remaining node is a drive or a host folder, and a disk image
-        //  node is a file with the icon its extension gives it.
-        case TreeNode::Kind::DiskImage:     return icons.GetForPath (node.location.path, false);
+        //  Every remaining node is a drive or a host folder; a disk image node
+        //  has Casso's floppy.
+        case TreeNode::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);
         default:                            return icons.GetForPath (node.location.path, true);
     }
 }
@@ -2253,9 +3000,17 @@ void CassoExplorerBrowser::NavigateToLocation (const Location & location)
 bool CassoExplorerBrowser::NavigateToAddress (const std::wstring & text)
 {
     Location  location;
-    bool      parsed = BrowserModel::ParseAddress (m_fs, text, location);
+    bool      parsed = BrowserModel::ParseAddress (m_fs, RootOnSystemDrive (text), location);
 
 
+
+    //  A shell folder typed by the shell's name for it shows the name it has.
+    if (parsed && location.kind == Location::Kind::ShellFolder && location.label.empty() && m_shellVerbs != nullptr)
+    {
+        HRESULT  hr = m_shellVerbs->GetShellItemName (location.path, location.label);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     if (parsed)
     {
@@ -2263,10 +3018,41 @@ bool CassoExplorerBrowser::NavigateToAddress (const std::wstring & text)
 
         //  After the navigation, so that a path going nowhere is never offered
         //  back.
-        m_typedPaths.Add (text);
+        m_typedPaths.Add (RootOnSystemDrive (text));
     }
 
     return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::RootOnSystemDrive
+//
+//  A path that starts at a root with no drive -- "\", "\Users" -- is on the
+//  system drive, the one Windows booted from, as Explorer reads it. A UNC path
+//  and anything else are kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::RootOnSystemDrive (const std::wstring & text)
+{
+    wchar_t  windows[MAX_PATH] = {};
+    UINT     length            = 0;
+
+
+
+    if (text.empty() || text[0] != L'\\' || (text.size() > 1 && text[1] == L'\\'))
+    {
+        return text;
+    }
+
+    length = GetWindowsDirectoryW (windows, MAX_PATH);
+
+    return (length >= 2) ? std::wstring (windows, 2) + text : L"C:" + text;
 }
 
 

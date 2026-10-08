@@ -60,6 +60,10 @@ public:
         //  The icon drawn at half opacity, as Explorer draws a hidden item's.
         bool          iconGhosted = false;
 
+        //  A red badge with a cross at the icon's lower left, for an item
+        //  that cannot be opened.
+        bool          iconBroken  = false;
+
         //  The text's color in place of the theme's; zero keeps the theme's.
         uint32_t      argb        = 0;
 
@@ -70,6 +74,15 @@ public:
         //  The lines Tiles and Content draw under the name in place of the
         //  other columns, for a row whose tile shows something else.
         std::vector<Cell>  tileLines;
+
+        //  Tiles shows the name alone, as Explorer's does for a folder; the
+        //  Content view still shows the other columns.
+        bool          tileNameOnly = false;
+
+        //  The Content view's lines: under the name (the type), and in the
+        //  column to its right (the date and the size). Empty draws none.
+        std::vector<Cell>  contentLeft;
+        std::vector<Cell>  contentRight;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -107,14 +120,70 @@ public:
     };
 
     // Configuration.
-    void  SetDpi          (UINT dpi)                       { m_scaler.SetDpi (dpi); }
+    void  SetDpi          (UINT dpi);
+    UINT  GetDpi          () const                         { return m_scaler.GetDpi(); }
     void  SetTheme        (const IDxuiTheme * theme)       { m_theme = theme; }
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
-    void  SetHoveredRow   (int row)                        { m_hovered = row; }
+
+    //  Lays Details out as File Explorer's: rows and header set in from the
+    //  left, the name's icon and each column's text where Explorer puts them,
+    //  and a slightly shorter header. Off by default.
+    void  SetExplorerDetails (bool on)                       { m_explorerDetails = on; }
+    void  SetHoveredRow   (int row)                        { m_hovered = row; if (row >= 0) { m_hoverGroup = -1; } }
+
+    //  The row a drag would drop on, drawn as Explorer draws its drop target: in
+    //  the hover fill, outlined in the accent. -1 draws none.
+    void  SetDropRow      (int row)                        { m_dropRow = row; }
+    int   GetDropRow      () const                         { return m_dropRow; }
+
+    //  A column whose cells leave room for an icon whether they have one or
+    //  not, so every name starts at the same place. -1 for none.
+    void  SetIconColumn   (int column)                     { m_iconColumn = column; }
+
+    //  Whether gaining focus with nothing selected selects the row in view, as
+    //  a Tab into the list does. A host giving focus for a click turns it off
+    //  for that call: a click on empty space selects nothing, as in Explorer.
+    void  SetSeedRowOnFocus (bool seed)                    { m_seedRowOnFocus = seed; }
     void  SetSortIndicator (int column, bool descending)   { m_sortColumn = column; m_sortDescending = descending; }
     void  SetRect         (const RECT & rect);
     void  SetColumns      (std::vector<Column> cols);
     void  SetRows         (std::vector<std::vector<Cell>> rows);
+    void  SetRowIcon      (int row, std::shared_ptr<const DxuiIconImage> icon);
+
+    //  Groups over the rows, as Explorer's Group by draws them: a header line
+    //  above each group's first row, which the rows must already be ordered
+    //  for. Row indices everywhere stay the rows' own; only the lines they
+    //  are drawn on move. Details view only; empty for none.
+    struct Group
+    {
+        std::wstring  label;
+        int           firstRow  = 0;
+        bool          collapsed = false;   // its rows hidden, the header kept
+    };
+
+    //  A group set again under the same label keeps whether it was collapsed.
+    void                        SetGroups          (std::vector<Group> groups);
+    const std::vector<Group> &  GetGroups          () const                    { return m_groups; }
+
+    //  Collapsing hides a group's rows under its header, as Explorer's do.
+    void                        SetGroupCollapsed      (int group, bool collapsed);
+    void                        SetAllGroupsCollapsed  (bool collapsed);
+    bool                        IsGroupCollapsed       (int group) const;
+
+    //  Whether a group opened or closed one at a time is still sliding, so the
+    //  host keeps painting; true once more after it settles, for its last frame.
+    bool                        IsGroupSliding         ();
+
+    //  The group whose header has the keyboard, or -1 when a row has it. A
+    //  header takes focus but never selection: selecting it selects its rows.
+    int                         GetFocusedGroup        () const { return m_focusGroup; }
+
+    //  Whether an item view cut the item's name short with an ellipsis when it
+    //  last drew it, so a host can show the whole of it in a tip.
+    bool                        IsItemNameCut          (int row) const { return std::find (m_nameCut.begin(), m_nameCut.end(), row) != m_nameCut.end(); }
+    //  The group whose header is under a point, in the same coordinates as
+    //  HitTestRow, or -1.
+    int                         HitTestGroupHeader (int xPx, int yPx) const;
     void  AppendRows      (std::vector<std::vector<Cell>> rows);
 
     // Virtual (provider) row model. Instead of materializing every row up
@@ -128,11 +197,25 @@ public:
     // read of host state valid for the ListView's lifetime.
     using RowProvider = std::function<void (int row, std::vector<Cell> & out)>;
     void  SetRowProvider     (int rowCount, RowProvider provider);
+
+    // A row source is a provider that hands back the host's own cells by
+    // reference, for a host that keeps them: nothing is copied per paint, and
+    // the host builds a row only when the list first asks for it. The
+    // reference must stay valid until the next call.
+    using RowSource = std::function<const std::vector<Cell> & (int row)>;
+    void  SetRowSource       (int rowCount, RowSource source);
+
+    // Each row's name alone, for a host that builds its rows' cells only as
+    // they show: Small icons and List measure every name to size their
+    // columns, and read it from here rather than building every row.
+    using RowNameSource = std::function<std::wstring (int row)>;
+    void  SetRowNameSource   (RowNameSource names)         { m_rowNames = std::move (names); }
     void  SetVirtualRowCount (int rowCount);
     bool  IsVirtual          () const                      { return m_virtual; }
 
     // Column visibility & widths.
     void  SetColumnVisible          (size_t idx, bool visible);
+    void  SetColumnTitle            (size_t idx, const std::wstring & title) { if (idx < m_columns.size()) { m_columns[idx].title = title; } }
     bool  IsColumnVisible           (size_t idx) const     { return (idx < m_columns.size()) && m_columns[idx].visible; }
     void  SetColumnOverrideWidthPx  (size_t idx, int px);
 
@@ -185,7 +268,7 @@ public:
 
     int   GetHoveredRow            () const                 { return m_hovered; }
     bool  IsHeaderShown            () const                 { return m_showHeader; }
-    int   GetHeaderHeightPx        () const                 { return m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0; }
+    int   GetHeaderHeightPx        () const                 { return m_showHeader ? GetHeaderBarPx() : 0; }
     int   GetVisibleColumnCount    () const;
     int   GetNthVisibleColumnIndex (int n) const;
     int   GetVisibleIndexOfColumn  (size_t absCol) const;
@@ -200,6 +283,7 @@ public:
     void  SetFocusedHeaderColumn  (int c)                  { m_focusedHeaderCol  = (c < 0) ? -1 : c; }
     void  SetFocusedDividerColumn (int c)                  { m_focusedDividerCol = (c < 0) ? -1 : c; }
     void  SetSelectedRow          (int r);
+    void  SetFocusedRow           (int r)                  { m_selectedRow = IsRowSelected (r) ? r : m_selectedRow; }
 
     // Multiple selection, off by default. With it on, a click selects one
     // row, Ctrl+click toggles a row, Shift+click and Shift+arrow extend from
@@ -218,6 +302,9 @@ public:
     // whether it replaces, toggles or extends the selection. Raises the
     // selection-changed callback with the row the click landed on.
     void                      ClickRow        (int row, bool ctrl, bool shift);
+
+    //  Selects every row of a group, as a click on its header does.
+    void                      SelectGroup     (int group);
 
     // Selects every row, when multiple selection is on.
     void                      SelectAllRows   ();
@@ -254,6 +341,10 @@ public:
     bool  IsOverScrollbar   (POINT pt) const override { return IsOverBar (m_vertScroll, pt) || IsOverBar (m_horzScroll, pt); }
     bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (IsOverBar (m_vertScroll, pt), GetBarPoint (m_vertScroll, pt)) | (int) m_horzScroll.SetHover (IsOverBar (m_horzScroll, pt), GetBarPoint (m_horzScroll, pt))) != 0; }
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
+
+    //  Whether a dragged header's neighbors are still sliding aside, so the
+    //  host keeps painting until they settle.
+    bool  IsHeaderSliding   (int64_t nowMs) const;
     bool  IsOverBar         (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
     POINT GetBarPoint       (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) ? pt : POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top }; }
     int   GetTopRow             () const                 { return m_topRow; }
@@ -385,6 +476,46 @@ public:
     void                SetView          (View view);
     View                GetView          () const    { return m_view; }
     static ItemMetrics  GetItemMetrics   (View view);
+
+    //  Under a big icon: how far into its cell the icon starts, and the gap
+    //  between it and the name, as Explorer's are measured.
+    static int          GetIconTopDip    (View view)  { return (view == View::MediumIcons || view == View::LargeIcons || view == View::ExtraLargeIcons) ? 2 : s_kItemPadDip; }
+    static int          GetLabelGapDip   (View view)  { return (view == View::MediumIcons || view == View::LargeIcons || view == View::ExtraLargeIcons) ? 1 : s_kItemPadDip; }
+
+    //  Explorer sets its icon views' items in from the pane's left edge and
+    //  below its top. Under a big icon each item is a box of a fixed width,
+    //  and a row spreads its boxes across the width left: as many as fit, the
+    //  spare shared between them, the scrollbar's column kept back only while
+    //  it shows.
+    static float        GetItemsLeftDip  (View view)  { return (view == View::Details) ? 0.0f : s_kItemsLeftDip; }
+    int                 GetItemsLeftPx   () const     { return (int) std::lround (m_scaler.ToPxf (GetItemsLeftDip (m_view))); }
+    int                 GetItemBoxPx     () const;
+    static constexpr float  s_kItemsLeftDip        = 14.0f;
+    static constexpr int    s_kItemsTopDip         = 6;
+    static constexpr float  s_kItemsBarDip         = 17.33f;
+    static constexpr int    s_kMeasureAllItemsMax  = 500;
+    //  Measured at 100%, 125% and 150%. Medium's and Large's boxes are widths
+    //  in dip, a part pixel dropped, and Large's is wider from 150% up; Extra large's is its icon, which stops at 256 px, and a margin
+    //  part pixels and part dip. A box is as tall as its icon, its caption
+    //  lines and 5.33 dip, and a row is a dip taller than its boxes.
+    static constexpr float  s_kMediumBoxDip        = 74.0f;
+    static constexpr float  s_kLargeBoxDip         = 107.33f;
+    static constexpr float  s_kLargeBoxLowDpiDip   = 105.0f;   // Large's box below 150%
+    static constexpr int    s_kXLargeBoxPadPx      = 9;
+    static constexpr float  s_kXLargeBoxPadDip     = 6.0f;
+    static constexpr float  s_kItemBoxPadDip       = 5.33f;
+    static constexpr float  s_kItemRowGapDip       = 1.0f;
+
+    //  The badge on an item that cannot be opened, over its icon's lower-left
+    //  corner, for the tree's icons as well as the list's. On the text layer,
+    //  which icons are drawn on, so it goes over its icon.
+    static void         PaintBrokenBadge (IDxuiTextRenderer & text, float iconX, float iconY, float iconPx, float minPx);
+    static constexpr float  s_kBrokenBadgeMinDip = 10.0f;
+
+    //  An item's icon in pixels: the view's size, scaled, but never past the
+    //  256 pixels of the shell's largest icon, as Explorer draws Extra large.
+    static constexpr int  s_kMaxItemIconPx = 256;
+    static int          GetItemIconPx    (View view, UINT dpi);
     bool                GetItemRectPx    (int item, RECT & outRect) const;
 
     //  Where a visible row's text sits in a column, after its icon, relative
@@ -437,6 +568,11 @@ public:
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
     bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive || m_headerPressCol >= 0; }
 
+    //  Ends a drag that is extending the selection, keeping what it selected,
+    //  for a host that turns the drag into something else, such as moving the
+    //  rows, and so never passes on the release.
+    void  EndDragSelect         ()        { m_dragSelecting = false; }
+
     //  The order the columns are shown in, left to right, as indexes into the
     //  columns; SetColumns starts it in their own order. A header dragged along
     //  the strip moves its column, as in Explorer, and reports the new order.
@@ -484,18 +620,56 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 
 private:
-    static constexpr int    s_kRowHeightDip      = 30;
-    static constexpr int    s_kHeaderHeightDip   = 32;
-    static constexpr int    s_kHeaderGapDip      = 2;
-    static constexpr int    s_kHeaderDragDip     = 5;    // how far a header moves before it is a drag
-    static constexpr int    s_kCellPadLeftDip    = 12;
-    static constexpr int    s_kCellPadRightDip   = 16;
-    static constexpr int    s_kSortGlyphWidthDip = 10;
-    static constexpr int    s_kScrollbarWidthDip = 10;
-    static constexpr int    s_kCellIconDip       = 16;
-    static constexpr int    s_kCellIconGapDip    = 6;
-    static constexpr int    s_kMinColWidthDip    = 48;
-    static constexpr int    s_kResizeGrabDip     = 4;
+    static constexpr int    s_kRowHeightDip          = 30;
+    static constexpr int    s_kHeaderHeightDip       = 32;
+    static constexpr int    s_kHeaderGapDip          = 2;
+
+    //  Explorer's Details, measured at 150%.
+    static constexpr int    s_kExplorerHeaderDip     = 31;
+    static constexpr int    s_kExplorerHeaderGapDip  = 1;
+    static constexpr float  s_kExplorerIconPadDip    = 4.67f;    // the name's icon, into its column
+    static constexpr float  s_kExplorerCellPadDip    = 6.67f;    // every other column's text
+    static constexpr float  s_kExplorerNameTitleDip  = 16.67f;   // the name column's title
+    static constexpr float  s_kExplorerIconGapDip    = 4.0f;     // from the icon to the name
+
+    int   GetHeaderBarPx      () const { return m_scaler.ToPx (m_explorerDetails ? s_kExplorerHeaderDip : s_kHeaderHeightDip); }
+    int   GetHeaderGapPx      () const { return m_scaler.ToPx (m_explorerDetails ? s_kExplorerHeaderGapDip : s_kHeaderGapDip); }
+    int   GetCellPadLeftPx    (size_t column) const;
+    int   GetHeaderTitlePadPx (size_t column) const;
+    int   GetCellIconGapPx    () const { return m_explorerDetails ? (int) std::lround (m_scaler.ToPxf (s_kExplorerIconGapDip)) : m_scaler.ToPx (s_kCellIconGapDip); }
+    int   GetDetailsLeftPx    () const { return m_explorerDetails ? (int) std::lround (m_scaler.ToPxf (s_kItemsLeftDip)) : 0; }
+    static constexpr int    s_kHeaderDragDip         = 5;   // how far a header moves before it is a drag
+    static constexpr int    s_kCellPadLeftDip        = 12;
+    static constexpr int    s_kGroupChevronCenterDip = 12;   // a group header's chevron, from the list's left, as Explorer's
+    static constexpr float  s_kGroupChevronArmDip    = 3.5f;   // half its height
+    static constexpr int    s_kGroupLabelDip         = 22;   // the header's label, from the list's left
+    static constexpr int    s_kListGroupLabelDip     = 8;    // List's, which has no chevron before it
+    //  Explorer's Content, measured at 100, 125 and 150% over a range of
+    //  widths: the icon 33.33 dip into the row and the name 8 past it. The
+    //  second column, from the list's left, is 60% of the way to the
+    //  scrollbar's column and 32.67 dip more, but never more than 303.33 dip
+    //  short of that column nor past 685 dip. Rows are 52.67 dip apart, and
+    //  the rule between them 4 dip in from the left and 6.67 short of the
+    //  right.
+    static constexpr float  s_kContentIconLeftDip    = 33.33f;
+    static constexpr float  s_kContentNameGapDip     = 8.0f;
+    static constexpr float  s_kContentRightShare     = 0.6f;
+    static constexpr float  s_kContentRightNudgeDip  = 32.67f;
+    static constexpr float  s_kContentRightRoomDip   = 303.33f;
+    static constexpr float  s_kContentRightMaxDip    = 685.0f;
+    static constexpr float  s_kContentEdgeDip        = 9.33f;   // from the row's end to where those widths are measured
+    static constexpr float  s_kContentRowDip         = 52.67f;
+    static constexpr float  s_kContentRowLowDpiDip   = 48.0f;   // the row below 150%
+    static constexpr float  s_kContentRuleInsetDip   = 4.0f;
+    static constexpr float  s_kContentRuleEndDip     = 6.67f;
+    static constexpr float  s_kContentEndGapDip      = 2.0f;
+    static constexpr int    s_kCellPadRightDip       = 16;
+    static constexpr int    s_kSortGlyphWidthDip     = 10;
+    static constexpr int    s_kScrollbarWidthDip     = 10;
+    static constexpr int    s_kCellIconDip           = 16;
+    static constexpr int    s_kCellIconGapDip        = 6;
+    static constexpr int    s_kMinColWidthDip        = 48;
+    static constexpr int    s_kResizeGrabDip         = 4;
 
     //  A pause this long between characters starts a new search.
     static constexpr int64_t  s_kTypeAheadResetMs = 1000;
@@ -557,7 +731,80 @@ private:
         int   rowCap    = 0;
         int   viewportW = 0;
         int   contentW  = 0;
+        int   partialPx = 0;   // the part of a row the body shows past its last whole one
     };
+
+    //  How far the rows are drawn above their places: at the end of the list,
+    //  far enough that its last row shows whole and the first one is cut off.
+    int   GetRowShiftPx () const;
+
+    //  Rows the body shows at least part of: the whole ones, and a cut one.
+    int   GetShownRowCount () const;
+
+    //  Lines are what Details view stacks and scrolls by: each row, and a
+    //  header above each group. Without groups a line is a row.
+    bool  HasGroupLines  () const { return !m_groups.empty() && !IsItemsView(); }
+    void  BuildLines     () const;
+    int   GetLineOfGroup (int group) const;
+    void  EnsureLineVisible (int line);
+    bool  HitTestGroupChevron (int xPx, int group) const;
+    bool  HandleKeyboardGroupedNav (WPARAM vk, bool shift, bool ctrl = false);
+
+    //  Space on the focused item, as in Explorer: Ctrl toggles it, alone it
+    //  becomes the selection; on a focused header, the group's rows do.
+    bool  SelectFocused (bool ctrl);
+    int   GetLineCount   () const;
+    int   GetLineOfRow   (int row) const;
+    int   GetRowOfLine   (int line) const;     // -1 on a header line
+    int   GetGroupOfLine (int line) const;     // the group whose header is on the line, or -1
+    int   HitTestLine    (int xPx, int yPx) const;
+
+    void  PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, int group, float x, float rowX, float ry, float layoutW) const;
+
+    //  A group opening or closing slides its rows out from under its header,
+    //  or back under it, and everything below moves with them, as Explorer's
+    //  do: an ease in and out over a quarter second.
+    struct GroupSlide
+    {
+        int      group      = -1;
+        int64_t  startMs    = 0;
+    };
+
+    //  Where Details draws a line: a row, or a group's header. A slid row is
+    //  one of the sliding group's, drawn inside the slide's clip.
+    struct LineSpot
+    {
+        int    row   = -1;
+        int    group = -1;
+        float  y     = 0.0f;
+        bool   slid  = false;
+    };
+
+    static constexpr int64_t  s_kGroupSlideMs = 250;
+
+    //  A page of an item view, by key or a click in the scrollbar's track,
+    //  slides into view from where the view was drawn, as Explorer's does:
+    //  the same ease over 185 ms, measured.
+    struct PageSlide
+    {
+        bool     active  = false;
+        int      fromPx  = 0;
+        int64_t  startMs = 0;
+    };
+
+    static constexpr int64_t  s_kPageSlideMs = 185;
+
+    void                    BeginPageSlide     (int fromPx);
+    int                     GetPageSlidePx     () const;
+    int                     GetShownItemTopPx  () const;
+
+    static float            EaseGroupSlide     (float t);
+    float                   GetGroupSlideShown () const;
+    void                    GetGroupRowSpan    (int group, int & start, int & end) const;
+    std::vector<LineSpot>   PlaceDataLines     (float top, int firstLine, int lastLine, float & clipTop, float & clipH) const;
+
+
+    static constexpr uint32_t  s_kBrokenBadgeArgb   = 0xFFD13438;   // Windows' error red
 
     // Fill `out` with row `r`'s cells: from the provider in virtual mode, or
     // a copy of m_rows[r] otherwise. Used by Paint's visible-window pull.
@@ -567,7 +814,8 @@ private:
     //  all, and lines in sight.
     struct ItemGrid
     {
-        int  cellW   = 0;
+        int  cellW   = 0;   // the pitch from one item to the next along a line
+        int  boxW    = 0;   // the item itself, narrower when a row is spread
         int  cellH   = 0;
         int  perLine = 1;
         int  lines   = 0;
@@ -580,13 +828,185 @@ private:
     bool          IsItemsView             () const { return m_view != View::Details; }
     ItemGrid      GetItemGrid             () const;
     ScrollLayout  ComputeItemScrollLayout () const;
+    void          SpreadItemBoxes         (ItemGrid & grid, int fullW, int fullH, int rows) const;
     int           HitTestItem             (int xPx, int yPx) const;
     void          EnsureItemVisible       (int item);
-    bool          HandleKeyboardItemNav   (WPARAM vk, bool shift);
+    bool          HandleKeyboardItemNav   (WPARAM vk, bool shift, bool ctrl = false);
+    int           GetItemIconLeftPx       () const;
     RECT          GetItemLabelRectPx      (const RECT & cell) const;
     void          PaintItems              (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, float x, float y) const;
     void          PaintMeter              (IDxuiPainter & painter, float x, float y, float w, float lineH, float fraction) const;
     POINT         GetItemScrollOffsetPx   () const;
+
+    //  Grouped item views: each line a group's header or a row of its items,
+    //  scrolled by lines, as Details is.
+    struct ItemLine
+    {
+        int  group  = -1;   // the header's group; -1 for a row of items
+        int  first  = 0;    // the row's first item
+        int  count  = 0;    // items on the row
+        int  top    = 0;    // in the layout's own pixels
+        int  height = 0;
+    };
+
+    struct ItemLayout
+    {
+        std::vector<ItemLine>  lines;
+        std::vector<int>       rowLine;   // each item's line; -1 under a collapsed header
+        int                    totalH  = 0;
+    };
+
+    //  A grouped item view mid-slide paints from a layout with the sliding
+    //  group open: the lines past its header lifted by `lift`, every line
+    //  moved by `shift` to the scroll of the layout the list keeps, and the
+    //  group's items clipped to [clipTop, clipTop + clipH).
+    struct ItemSlide
+    {
+        ItemLayout  layout;
+        bool        active  = false;
+        int         header  = -1;
+        int         lift    = 0;
+        int         shift   = 0;
+        int         clipTop = 0;
+        int         clipH   = 0;
+        int         start   = 0;
+        int         end     = 0;
+    };
+
+    ItemSlide     PlaceItemSlide          () const;
+    bool          HasItemGroups           () const;
+    bool          UsesItemLayout          () const;
+    bool          IsFirstOfGroup          (int item) const;
+    const ItemLayout &  GetItemLayout     () const;
+    ItemLayout    BuildItemLayout         (int openGroup = -1) const;
+    static int    FindItemLine            (const ItemLayout & layout, int y);
+    int           GetItemTopPx            (const ItemLayout & layout) const;
+    bool          GetGroupedItemRectPx    (const ItemLayout & layout, int item, RECT & outRect) const;
+    int           GetMaxItemTopLine       (const ItemLayout & layout) const;
+    void          EnsureItemLineVisible   (const ItemLayout & layout, int line);
+    bool          HandleKeyboardGroupedItemNav (WPARAM vk, bool shift, bool ctrl);
+
+    //  The big icon views wrap a name to as many as four lines, as Explorer's
+    //  do, and each row of items grows to fit its tallest name. A name is
+    //  measured the first time it is drawn; until then it takes the two lines
+    //  every cell has room for.
+    static constexpr int    s_kItemNameMaxLines    = 4;
+    static constexpr float  s_kContentNameScale    = 11.0f / 9.0f;
+    static constexpr float  s_kMediumLabelWDip     = 60.67f;
+    static constexpr float  s_kLargeLabelWDip      = 92.0f;
+    static constexpr int    s_kXLargeLabelInsetPx  = 1;   // Extra large's names, as wide as its icon less this, at any scale
+    static constexpr int    s_kLargeLabelInsetDip  = 18;
+
+    struct ItemTextKey
+    {
+        int  view         = -1;
+        int  cellW        = 0;
+        int  rows         = 0;
+        int  rowsVersion  = 0;
+        int  fontCentiDip = 0;
+
+        bool operator== (const ItemTextKey &) const = default;
+    };
+
+    void          SyncItemTextLines       () const;
+
+    //  Small icons and List size their columns to the names, as Explorer's
+    //  do: List each column to its own widest name, Small icons every column
+    //  to the widest of all, up to a cap past which a name is cut short. The
+    //  box around them Explorer's, measured at 150%: the icon well into the
+    //  box, the name just past it, a little room after the name, and a gap
+    //  between one box and the next.
+    static constexpr float  s_kNameIconLeftDip   = 32.67f;
+    static constexpr float  s_kNameTextGapDip    = 2.0f;
+    static constexpr float  s_kNameRightPadDip   = 5.33f;
+    static constexpr float  s_kNameColumnGapDip  = 11.33f;
+    static constexpr float  s_kSmallIconsGapDip  = 1.0f;   // between Small icons' boxes once a name reaches the cap
+
+    //  Explorer's tiles, measured at 100, 125 and 150%: a box 250 dip wide on
+    //  the pitch, the icon 4 dip into it and the text 5.33 past the icon. The
+    //  text is the name on one or two lines, then the details while the three
+    //  lines last, every line one pixel more than the captions' pitch. A row
+    //  is its icon or its text, whichever is taller, and 14 dip less 6 pixels
+    //  more, which no single unit gives at all three scales; the box is 6 dip
+    //  short of the row.
+    static constexpr float  s_kTileGapDip        = 4.0f;
+    static constexpr float  s_kTileIconLeftDip   = 4.0f;
+    static constexpr float  s_kTileTextGapDip    = 5.33f;
+    static constexpr float  s_kTilePadDip        = 14.0f;
+    static constexpr int    s_kTilePadTrimPx     = 6;
+    static constexpr float  s_kTileBoxShortDip   = 6.0f;
+    static constexpr int    s_kTileMaxLines      = 3;
+    int           GetSmallRowPx           () const;
+    int           GetItemLinesHPx         (const ItemGrid & grid, int rows) const;
+    static int    GetFirstItemLine        (const ItemLayout & layout);
+    static void   PaintSmallArtFrame      (IDxuiPainter & painter, float x, float y, float sizePx, uint32_t bg);
+    static uint32_t ShiftGray             (uint32_t argb, int delta);
+    int           GetTileLinePx           () const;
+    int           GetTileRowPx            (int lines) const;
+    static constexpr int  s_kSmallIconsMaxWDip = 309;
+
+    void          MeasureItemNames        (IDxuiTextRenderer & text) const;
+    int           GetNameCellWPx          (int textPx) const;
+    int           GetNameTextGapPx        () const { return (int) std::lround (m_scaler.ToPxf (s_kNameTextGapDip)); }
+    const std::vector<int> &  GetListColumnLefts () const;
+    int           FindListColumn          (int x) const;
+    bool          MeasureItemTextLines    (IDxuiTextRenderer & text, const std::vector<std::pair<int, RECT>> & onScreen) const;
+    int           GetItemExtraPx          (int item) const;
+    int           GetCaptionLinePx        () const;
+
+    //  Grouped List: a block of columns per group, side by side.
+    struct ListBlock
+    {
+        int  group = -1;
+        int  first = 0;
+        int  count = 0;    // items shown; none under a collapsed header
+        int  left  = 0;    // in the content's own pixels
+        int  width = 0;
+    };
+
+    struct ListLayout
+    {
+        std::vector<ListBlock>  blocks;
+        std::vector<int>        blockOf;   // each item's block; -1 under a collapsed header
+        int                     headerH = 0;
+        int                     indent  = 0;
+        int                     perCol  = 1;
+        int                     totalW  = 0;
+    };
+
+    bool          HasListGroups           () const;
+    const ListLayout &  GetListLayout     () const;
+    ListLayout    BuildListLayout         () const;
+    bool          GetListItemRectPx       (const ListLayout & layout, int item, RECT & outRect) const;
+    static int    FindListBlock           (const ListLayout & layout, int x);
+    int           HitTestListItem         (const ListLayout & layout, int xPx, int yPx) const;
+    bool          HandleKeyboardListGroupNav (WPARAM vk, bool shift, bool ctrl);
+
+    //  What a group layout is built from. The layouts are kept until one of
+    //  these changes, so a hit test or a paint reads them rather than
+    //  rebuilding them, which walks every item.
+    struct LayoutKey
+    {
+        int                               cellW   = 0;
+        int                               cellH   = 0;
+        int                               perLine = 0;
+        int                               fullH   = 0;
+        int                               barW    = 0;
+        int                               headerH = 0;
+        int                               indent  = 0;
+        int                               rows    = 0;
+        int                               names   = 0;   // the item name measurements' version
+        int                               caption = 0;   // the caption line pitch
+        std::vector<std::pair<int, bool>> groups;    // each group's first row and whether it is collapsed
+
+        bool operator== (const LayoutKey &) const = default;
+    };
+
+    LayoutKey     GetLayoutKey            () const;
+
+    static inline const ItemLayout  s_kNoItemLayout {};
+    static inline const ListLayout  s_kNoListLayout {};
+
     void          BeginSelectionBand      (int lx, int ly, bool ctrl);
     void          UpdateSelectionBand     (int lx, int ly);
     // Grow the monotonic auto-fit glyph counts from one row's cells (the
@@ -606,10 +1026,10 @@ private:
 
     //  What a column's content wants, ignoring any override already on it, so
     //  fitting a column that has been dragged still measures the content.
-    int          GetColumnContentWidthPx (size_t c) const;
+    int          GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c) const;
 
     //  Applies a width a fit asked for, once the paint pass has measured it.
-    void         ApplyPendingFit         ();
+    void         ApplyPendingFit         (IDxuiTextRenderer & text);
 
     //  Selects the next row whose first column starts with what has been
     //  typed, as Explorer's list does. True when the character was taken.
@@ -665,7 +1085,7 @@ private:
     void    ClearColumnFocusMarkers  ();
     void    ReleaseKeyboardColumnFocus ();
     bool    HandleKeyboardColumnKey  (WPARAM vk);
-    bool    HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false);
+    bool    HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false, bool ctrl = false);
 
     // Sets the selection to the rows from the anchor to `row`, inclusive.
     void    SelectRangeFromAnchor    (int row);
@@ -689,9 +1109,10 @@ private:
     const wchar_t *  GetBodyFace   () const  { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
     int              GetRowHeightPx() const  { return m_rowHeightPxFn ? m_rowHeightPxFn (m_scaler.GetDpi()) : (int) m_scaler.ToPxf ((float) m_rowHeightDip); }
 
-    bool                      m_monospace    = false;
-    int                       m_rowHeightDip = s_kRowHeightDip;
-    float                     m_fontDip      = s_kFontDip;
+    bool   m_monospace       = false;
+    int    m_rowHeightDip    = s_kRowHeightDip;
+    bool   m_explorerDetails = false;
+    float  m_fontDip         = s_kFontDip;
     std::function<int (UINT)> m_rowHeightPxFn;
     mutable std::vector<int>  m_measuredWPx;
     std::vector<int>          m_overrideWPx;
@@ -708,10 +1129,14 @@ private:
     // Virtual (provider) row model — see SetRowProvider. When m_virtual is
     // true, m_rows is empty and rows are pulled on demand into m_providerScratch.
     bool                       m_virtual           = false;
+    RowSource                  m_rowSource;
     int                        m_virtualCount      = 0;
     RowProvider                m_rowProvider;
     mutable std::vector<Cell>  m_providerScratch;
     int                        m_hovered           = -1;
+    int                        m_dropRow           = -1;
+    int                        m_iconColumn        = -1;
+    bool                       m_seedRowOnFocus    = true;
     int                        m_selectedRow       = -1;
     bool                       m_multiSelect       = false;
     int                        m_anchorRow         = -1;
@@ -729,9 +1154,44 @@ private:
     // m_stickyTail is re-derived on every resize and row change, and this
     // gate keeps that re-derivation from switching it on for a list that
     // never asked for it.
-    bool                       m_stickyTailEnabled = false;
-    bool                       m_listFocused       = false;
-    int                        m_focusedHeaderCol  = -1;
+    bool                          m_stickyTailEnabled = false;
+    bool                          m_listFocused       = false;
+    std::vector<Group>            m_groups;
+    int                           m_focusGroup        = -1;
+    mutable std::vector<int>      m_nameCut;   // the items drawn cut short in the last paint
+    mutable ItemLayout            m_itemLayout;   // see LayoutKey
+    mutable LayoutKey             m_itemLayoutKey;
+    mutable bool                  m_itemLayoutBuilt   = false;
+    mutable ListLayout            m_listLayout;
+    mutable LayoutKey             m_listLayoutKey;
+    mutable bool                  m_listLayoutBuilt   = false;
+    mutable std::vector<uint8_t>  m_itemTextLines;   // each item's name lines; 0 until measured
+    mutable ItemTextKey           m_itemTextKey;   // what the measurements were taken for
+    mutable int                   m_itemTextVersion   = 0;
+    mutable std::array<int, 5>    m_linesHKey         = { -1, -1, -1, -1, -1 };   // perLine, cellH, rows, rows version, text version
+    mutable int                   m_linesHPx          = 0;
+    mutable int                   m_captionLinePx     = 0;   // GDI's line height for captions; 0 until a paint measures it
+    RowNameSource                 m_rowNames;
+    mutable std::vector<int>      m_itemNameWPx;   // each item's name width; empty until measured
+    mutable int                   m_itemNameWidestPx  = 0;
+    mutable ItemTextKey           m_itemNameKey;   // what the widths were measured for
+    mutable std::vector<int>      m_listColumnLefts;   // List's column edges, one past the last
+    mutable std::pair<int, int>   m_listColumnsKey    = { -1, -1 };   // the items per column and name widths they were built for
+    int                           m_rowsVersion       = 0;   // counts row sets, so measurements of the last one are dropped
+    bool                          m_pressModified     = false;   // the row press held Ctrl or Shift
+    int                           m_hoverGroup        = -1;
+    int                           m_lastHeaderGroup   = -1;
+    int64_t                       m_lastHeaderMs      = 0;
+
+    //  Each line's row, or -(group + 1) for a header; and each row's line, or
+    //  -1 under a collapsed header. Rebuilt when the groups or the row count
+    //  change.
+    mutable std::vector<int>   m_lines;
+    mutable std::vector<int>   m_rowLines;
+    GroupSlide                 m_groupSlide;
+    PageSlide                  m_pageSlide;
+    mutable bool               m_linesDirty        = true;
+    mutable int                m_linesRowCount     = -1;    int                        m_focusedHeaderCol  = -1;
     int                        m_focusedDividerCol = -1;
     bool                       m_kbColNavEnabled   = false;
     bool                       m_kbColResize       = false;
@@ -771,6 +1231,25 @@ private:
     int                  m_headerPressXPx     = 0;
     int                  m_headerDragXPx      = 0;
     bool                 m_headerDragging     = false;
+
+    //  While a header is dragged, the others slide aside, as Explorer's do,
+    //  to open a gap where it would land: each column eases from where it
+    //  was to its new offset over a few frames.
+    struct HeaderSlide
+    {
+        float    fromPx  = 0.0f;
+        float    toPx    = 0.0f;
+        int64_t  startMs = 0;
+    };
+
+    static constexpr int64_t  s_kHeaderSlideMs = 150;
+
+    std::vector<HeaderSlide>  m_headerSlides;
+    int                       m_headerDropPos     = -1;
+
+    void   UpdateHeaderSlides  ();
+    float  GetHeaderSlidePx    (size_t column, int64_t nowMs) const;
+    int64_t  GetClockMs        () const;
 
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;

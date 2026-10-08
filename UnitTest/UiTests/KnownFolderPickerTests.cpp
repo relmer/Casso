@@ -65,6 +65,25 @@ public:
 
 
 
+    //  Casso's disk paths can be relative to its base folder, and so can the
+    //  folder it records for one; the list holds where that really is.
+    TEST_METHOD (Store_RelativeFolderIsUnderTheBase_AndListedOnce)
+    {
+        InMemoryFileSystem                    fs;
+        KnownFolderStore                      store (fs, kBase, false);
+        std::vector<KnownFolderStore::Entry>  known;
+
+        AssertSucceeded (store.Append (L"Apple2\\Demos", 1));
+        AssertSucceeded (store.Append (std::wstring (kBase) + L"\\Apple2\\Demos", 2));
+        AssertSucceeded (store.Load (known));
+
+        Assert::AreEqual ((size_t) 1, known.size());
+        Assert::AreEqual (std::wstring (kBase) + L"\\Apple2\\Demos", known[0].path);
+        Assert::AreEqual ((int64_t) 2, known[0].lastUsedUnix);
+    }
+
+
+
     TEST_METHOD (PickerFolders_WithNoKnownListAreTheRecentOnes)
     {
         std::vector<std::filesystem::path>  folders = KnownFolderStore::MergePickerFolders ({}, MakeMru());

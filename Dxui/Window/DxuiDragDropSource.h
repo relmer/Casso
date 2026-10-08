@@ -22,7 +22,13 @@
 //  FILECONTENTS is; a format with a count of one ignores it.
 //
 //  Begin blocks in DoDragDrop on the calling thread, as OLE requires, and
-//  Escape cancels.
+//  Escape cancels. The shell draws the drag image, and a target that sets a
+//  drop description -- "Move to Disks" -- has it drawn under the image.
+//
+//  A TARGET OR THE SHELL MAY STORE FORMATS OF ITS OWN on the object: the drag
+//  image, the drop description, the effect it performed. Each is kept, and
+//  read back as if the source had offered it, since the drag image cannot be
+//  drawn without them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,9 +45,15 @@ public:
     //  A source over `formats`, with one reference the caller releases.
     static HRESULT  Create (std::vector<Format> formats, DxuiDragDropSource ** outSource);
 
-    //  Builds a source and runs the drag. `resultEffect` is what the target
-    //  accepted, DROPEFFECT_NONE on a cancel.
-    static HRESULT  Begin (std::vector<Format> formats, DWORD allowedEffects, DWORD & resultEffect);
+    //  Builds a source and runs the drag from `startScreen`. `resultEffect` is
+    //  what the target accepted, DROPEFFECT_NONE on a cancel. A target that
+    //  moved the items itself -- an optimized move -- returns none and says so
+    //  in `outLogicalEffect`, which is then DROPEFFECT_MOVE.
+    static HRESULT  Begin (std::vector<Format> formats, DWORD allowedEffects, POINT startScreen,
+                           DWORD & resultEffect, DWORD * outLogicalEffect = nullptr);
+
+    //  A DWORD a target stored under the registered format, or `fallback`.
+    DWORD  GetStoredDword (const wchar_t * formatName, DWORD fallback) const;
 
     //  How many times each item was rendered, for a test to count.
     int  GetRenderCount (CLIPFORMAT format, int index) const;
@@ -78,4 +90,5 @@ private:
     std::vector<Format>                                         m_formats;
     std::map<std::pair<CLIPFORMAT, int>, std::vector<uint8_t>>  m_rendered;
     std::map<std::pair<CLIPFORMAT, int>, int>                   m_renderCounts;
+    std::map<CLIPFORMAT, std::vector<uint8_t>>                  m_stored;
 };

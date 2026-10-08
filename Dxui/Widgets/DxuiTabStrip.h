@@ -144,6 +144,11 @@ private:
     void  PaintNewTab    (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
     RECT  GetTabScreenRect (int index) const;
     RECT  GetCloseRect   (int index) const;
+
+    //  A tab's hover fill, darker while pressed; and what a tab shows: the
+    //  strip, or its hover mixed onto the strip.
+    uint32_t  GetHoverFill  (int index, uint32_t hoverArgb) const;
+    uint32_t  GetBesideFill (int index, uint32_t stripArgb, uint32_t hoverArgb) const;
     int   GetCloseAt     (int x, int y) const;
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,

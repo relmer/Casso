@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiColor.h"
 #include "Core/UnicodeSymbols.h"
 #include "Theme/DxuiTheme.h"
 
@@ -730,7 +731,7 @@ int DxuiToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
 
     if (m_textRenderer != nullptr)
     {
-        hrMeasure = m_textRenderer->MeasureString (text, fontPx, DxuiTheme::kBodyFace, w, h);
+        hrMeasure = m_textRenderer->MeasureString (text, fontPx, DxuiTheme::GetUiFace(), w, h);
     }
 
     if (SUCCEEDED (hrMeasure) && w > 0.0f)
@@ -1334,9 +1335,24 @@ bool DxuiToolbar::OnToolbarLButtonDown (int x, int y)
 
 
 
+    //  A press with a menu open closes it. On another drop-down button it
+    //  also opens that one in the same click, as Explorer's command bar does;
+    //  on the open menu's own button it only closes, so the button toggles.
     if (m_dropdown.IsVisible())
     {
+        int  open = m_openPicker;
+
         m_dropdown.Hide();
+
+        for (const Slot & slot : m_slots)
+        {
+            bool  other = slot.entry.command != nullptr && slot.entry.command->id != open && slot.entry.command->IsEnabled();
+
+            if (other && slot.entry.kind == Kind::DropDown && IsPointInRect (slot.rc, x, y))
+            {
+                OpenDropDown (slot.entry.command->id);
+            }
+        }
 
         return true;
     }
@@ -1609,6 +1625,18 @@ void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, c
         return;
     }
 
+    //  The command's own SVG, as Explorer draws its command bar, where the
+    //  renderer can draw one; the glyph stands in where it cannot.
+    if (slot.entry.command != nullptr && slot.entry.command->menuSvg != nullptr)
+    {
+        hr = text.DrawSvgIcon (*slot.entry.command->menuSvg, icon.x, icon.top + (icon.rowH - icon.size) * 0.5f, icon.size);
+
+        if (SUCCEEDED (hr))
+        {
+            return;
+        }
+    }
+
     if (glyph == nullptr || glyph[0] == 0)
     {
         return;
@@ -1652,20 +1680,23 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     const DxuiCommand *  cmd     = slot.entry.command.get();
     bool                 enabled = cmd != nullptr && cmd->IsEnabled();
     bool                 checked = slot.entry.kind == Kind::Toggle && cmd != nullptr && cmd->IsChecked();
-    bool                 active  = slot.hovered || slot.pressed || checked;
-    float                bl      = (float) slot.rc.left;
-    float                bt      = (float) slot.rc.top;
-    float                bw      = (float) (slot.rc.right  - slot.rc.left);
-    float                bh      = (float) (slot.rc.bottom - slot.rc.top);
-    float                fontDip = GetChromeFontPx();
-    float                iconDip = m_scaler.ToPxf (m_iconDip);
-    int                  padX    = GetButtonPadPx();
-    int                  iconGap = m_scaler.ToPx (kIconGapDp);
-    uint32_t             ink     = m_stripColorsSet ? m_textOverride : theme.ButtonText();
-    uint32_t             accent  = theme.Accent();
-    float                textX   = 0.0f;
-    DxuiToolbarIconBox   icon;
-    std::wstring         label;
+    //  The entry whose menu is open is not lit as hovered, as Explorer's is not.
+    bool                menuOpen = m_dropdown.IsVisible() && cmd != nullptr && cmd->id == m_openPicker;
+    bool                hovered  = slot.hovered && !menuOpen;
+    bool                active   = hovered || slot.pressed || checked;
+    float               bl       = (float) slot.rc.left;
+    float               bt       = (float) slot.rc.top;
+    float               bw       = (float) (slot.rc.right  - slot.rc.left);
+    float               bh       = (float) (slot.rc.bottom - slot.rc.top);
+    float               fontDip  = GetChromeFontPx();
+    float               iconDip  = m_scaler.ToPxf (m_iconDip);
+    int                 padX     = GetButtonPadPx();
+    int                 iconGap  = m_scaler.ToPx (kIconGapDp);
+    uint32_t            ink      = m_stripColorsSet ? m_textOverride : theme.ButtonText();
+    uint32_t            accent   = theme.Accent();
+    float               textX    = 0.0f;
+    DxuiToolbarIconBox  icon;
+    std::wstring        label;
 
 
 
@@ -1676,10 +1707,23 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         accent = (accent & 0x00FFFFFFu) | kDisabledInkAlpha;
     }
 
-    if (active)
+    if (active && m_flat)
+    {
+        //  WinUI's subtle fills, and its secondary text while pressed.
+        bool  bright = DxuiColor::ComputeRelativeLuminance (ink) > 0.5f;
+
+        painter.FillRoundedRect (bl, bt, bw, bh, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                 (slot.pressed || checked) ? theme.SystemButtonPressed() : theme.SystemButtonHover());
+
+        if (slot.pressed)
+        {
+            ink = (ink & 0x00FFFFFFu) | (bright ? kPressedInkAlphaDark : kPressedInkAlphaLight);
+        }
+    }
+    else if (active)
     {
         uint32_t  fill = (slot.pressed || checked) ? theme.ButtonPressed()
-                                                   : (slot.hovered ? theme.ButtonHover() : theme.ButtonIdle());
+                                                   : (hovered ? theme.ButtonHover() : theme.ButtonIdle());
 
         painter.FillRoundedRect    (bl, bt, bw, bh, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), fill);
         painter.OutlineRoundedRect (bl, bt, bw, bh, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, theme.ButtonBorder());
@@ -1729,7 +1773,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
             hr = text.DrawString (label.c_str(), textX, bt,
                                   (float) slot.rc.right - textX, bh,
-                                  ink, fontDip, DxuiTheme::kBodyFace,
+                                  ink, fontDip, DxuiTheme::GetUiFace(),
                                   DxuiTextHAlign::Left,
                                   DxuiTextVAlign::CenterOnCapHeight);
             IGNORE_RETURN_VALUE (hr, S_OK);

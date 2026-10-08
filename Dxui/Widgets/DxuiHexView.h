@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Widgets/DxuiPopupMenu.h"
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
@@ -185,6 +186,17 @@ public:
     void  SetMarkColor     (MarkColorFn fn)   { m_markColor = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
+    //  The view's own context menu, shown on a right-click when no handler
+    //  above replaces it: how values show (text only, 1-, 2- or 4-byte
+    //  integers), their format, the columns, and Copy. A host adds its own
+    //  items through the build hook, and hears of a change to the view's
+    //  settings through the settings hook, to keep them.
+    using BuildMenuFn = std::function<void (std::vector<DxuiPopupMenuItem> & items)>;
+    using SettingsFn  = std::function<void ()>;
+
+    void  SetOnBuildContextMenu (BuildMenuFn fn) { m_onBuildMenu = std::move (fn); }
+    void  SetOnSettingsChanged  (SettingsFn fn)  { m_onSettings  = std::move (fn); }
+    void  ShowContextMenu       (POINT atDip);
     //  The window a copy names as the clipboard's owner.
     void  SetOwnerWindow (HWND hwnd) { m_hwnd = hwnd; }
 
@@ -383,6 +395,8 @@ private:
     int                            m_leftPx         = 0;
     MarkColorFn                    m_markColor;
     ContextMenuFn                  m_onContextMenu;
+    BuildMenuFn                    m_onBuildMenu;
+    SettingsFn                     m_onSettings;
     std::function<void ()>  m_onSelectionChanged;
     std::vector<uint8_t>    m_rowBytes;
     std::vector<uint8_t>    m_rowMarks;

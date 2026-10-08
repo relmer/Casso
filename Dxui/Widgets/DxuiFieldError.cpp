@@ -30,7 +30,7 @@ int DxuiFieldError::GetHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & th
         return 0;
     }
 
-    hr = text.MeasureStringWrapped (m_message.c_str(), fontPx, DxuiTheme::kBodyFace, (float) (std::max) (widthPx - indent, 1), textW, textH);
+    hr = text.MeasureStringWrapped (m_message.c_str(), fontPx, DxuiTheme::GetUiFace(), (float) (std::max) (widthPx - indent, 1), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     return (std::max) (markPx, (int) std::ceil (textH));
@@ -139,7 +139,7 @@ void DxuiFieldError::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
-    hr = text.MeasureString (L"Ag", fontPx, DxuiTheme::kBodyFace, lineW, lineH);
+    hr = text.MeasureString (L"Ag", fontPx, DxuiTheme::GetUiFace(), lineW, lineH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     cx  = left + radius;
@@ -154,7 +154,7 @@ void DxuiFieldError::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           left + indent, top, (std::max) (width - indent, 1.0f), height,
                           fill,
                           fontPx,
-                          DxuiTheme::kBodyFace,
+                          DxuiTheme::GetUiFace(),
                           DxuiTextHAlign::Left,
                           DxuiTextVAlign::Top,
                           DxuiFontWeight::Normal,

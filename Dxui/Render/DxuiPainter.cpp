@@ -341,6 +341,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_viewportWidthPx  = viewportWidthPx;
     m_viewportHeightPx = viewportHeightPx;
     m_vertices.clear();
+    m_clips.clear();
     m_betweenBeginEnd  = true;
 
 Error:
@@ -427,14 +428,45 @@ void DxuiPainter::PushQuad (
     const Vertex & bottomLeft,
     const Vertex & bottomRight)
 {
-    Vertex  tl = topLeft;
-    Vertex  tr = topRight;
-    Vertex  bl = bottomLeft;
-    Vertex  br = bottomRight;
-    float   x0 = xPx + m_originXPx;
-    float   y0 = yPx + m_originYPx;
+    Vertex  tl  = topLeft;
+    Vertex  tr  = topRight;
+    Vertex  bl  = bottomLeft;
+    Vertex  br  = bottomRight;
+    float   x0  = xPx + m_originXPx;
+    float   y0  = yPx + m_originYPx;
+    float   fx0 = 0.0f;
+    float   fx1 = 1.0f;
+    float   fy0 = 0.0f;
+    float   fy1 = 1.0f;
 
 
+
+    //  A clip cuts the quad down to its part inside, every vertex attribute
+    //  taken at the new corners: all of them vary linearly across the quad.
+    if (!m_clips.empty() && widthPx > 0.0f && heightPx > 0.0f)
+    {
+        const D2D1_RECT_F &  clip = m_clips.back();
+
+        fx0 = (std::max) (0.0f, (clip.left   - x0) / widthPx);
+        fx1 = (std::min) (1.0f, (clip.right  - x0) / widthPx);
+        fy0 = (std::max) (0.0f, (clip.top    - y0) / heightPx);
+        fy1 = (std::min) (1.0f, (clip.bottom - y0) / heightPx);
+
+        if (fx1 <= fx0 || fy1 <= fy0)
+        {
+            return;
+        }
+
+        tl = LerpVertex (LerpVertex (topLeft, topRight, fx0), LerpVertex (bottomLeft, bottomRight, fx0), fy0);
+        tr = LerpVertex (LerpVertex (topLeft, topRight, fx1), LerpVertex (bottomLeft, bottomRight, fx1), fy0);
+        bl = LerpVertex (LerpVertex (topLeft, topRight, fx0), LerpVertex (bottomLeft, bottomRight, fx0), fy1);
+        br = LerpVertex (LerpVertex (topLeft, topRight, fx1), LerpVertex (bottomLeft, bottomRight, fx1), fy1);
+
+        x0       += widthPx  * fx0;
+        y0       += heightPx * fy0;
+        widthPx  *= fx1 - fx0;
+        heightPx *= fy1 - fy0;
+    }
 
     // The origin is applied HERE and only here: every primitive, spans and
     // arcs included, reaches the vertex buffer through this function.
@@ -447,6 +479,63 @@ void DxuiPainter::PushQuad (
     // one insert so the vector grows/size-checks once rather than six times
     // (the six 24-byte copies are the same either way; Vertex is a POD).
     m_vertices.insert (m_vertices.end(), { tl, tr, bl, bl, tr, br });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushClipRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::PushClipRect (float xPx, float yPx, float widthPx, float heightPx)
+{
+    D2D1_RECT_F  clip = D2D1::RectF (xPx + m_originXPx, yPx + m_originYPx, xPx + m_originXPx + widthPx, yPx + m_originYPx + heightPx);
+
+
+
+    if (!m_clips.empty())
+    {
+        clip.left   = (std::max) (clip.left,   m_clips.back().left);
+        clip.top    = (std::max) (clip.top,    m_clips.back().top);
+        clip.right  = (std::min) (clip.right,  m_clips.back().right);
+        clip.bottom = (std::min) (clip.bottom, m_clips.back().bottom);
+    }
+
+    m_clips.push_back (clip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LerpVertex
+//
+//  Every field of a vertex the fraction `t` of the way to another's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPainter::Vertex DxuiPainter::LerpVertex (const Vertex & from, const Vertex & to, float t)
+{
+    constexpr size_t  kFields = sizeof (Vertex) / sizeof (float);
+    Vertex            out     = from;
+    const float     * a       = reinterpret_cast<const float *> (&from);
+    const float     * b       = reinterpret_cast<const float *> (&to);
+    float           * o       = reinterpret_cast<float *> (&out);
+
+
+
+    for (size_t i = 0; i < kFields; i++)
+    {
+        o[i] = a[i] + (b[i] - a[i]) * t;
+    }
+
+    return out;
 }
 
 

@@ -70,6 +70,9 @@ struct DxuiTreeNode
 
     //  The icon drawn at half opacity, as Explorer draws a hidden item's.
     bool                       iconGhosted    = false;
+
+    //  A red badge on the icon, for an item that cannot be opened.
+    bool                       iconBroken     = false;
 };
 
 
@@ -108,6 +111,12 @@ public:
     //  Moves the highlight and scrolls to it without reporting a selection.
     void  HighlightRow (int flatRow) { m_highlight = flatRow; EnsureRowVisible (flatRow); }
 
+    //  Merge fresh nodes into those already there, keeping what is open, the
+    //  highlight and what is on screen. ReplaceChildren returns false when no
+    //  row shows the node.
+    bool  ReplaceChildren (const std::wstring & id, std::vector<DxuiTreeNode> children);
+    void  ReplaceRoots    (std::vector<DxuiTreeNode> roots);
+
     int                   FindRowById      (const std::wstring & id) const;
     std::wstring          GetHighlightedId () const;
     const DxuiTreeNode *  FindNodeById     (const std::wstring & id) const;
@@ -135,6 +144,7 @@ public:
     static constexpr float  s_kDefaultFontDip   = 13.0f;
     static constexpr int    s_kIconDip          = 16;
     static constexpr int    s_kIconGapDip       = 6;
+    static constexpr int    s_kLabelTipPadDip   = 4;    // a clipped name's tip starts this far before the icon
     static constexpr int    s_kDefaultIndentDip = 18;
 
     //  How opaque a ghosted icon is: Explorer's hidden items, measured.
@@ -178,7 +188,16 @@ public:
     bool  HitTestCheckbox (int x, int y, int flatRow) const;
 
     void  SetMouseHover   (int x, int y);
-    bool  OnLButtonDown   (int x, int y);
+
+    //  A row whose label runs past the pane's edge: the box from just before
+    //  its icon to the label's end, in client pixels. False when the whole
+    //  label shows, or before the tree has painted.
+    bool  GetClippedLabelRect (int flatRow, RECT & outRect) const;
+
+    //  The row's icon and label as the row draws them, the box's top-left at
+    //  the origin; and the fill behind them, opaque.
+    void      PaintLabel      (int flatRow, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    uint32_t  GetLabelFill    (int flatRow, const IDxuiTheme & theme) const;    bool  OnLButtonDown   (int x, int y);
     bool  OnLButtonUp     (int x, int y);
     bool  OnKey           (WPARAM vk);
 
@@ -224,7 +243,23 @@ private:
     };
 
 
+    //  The rows the view tracks, by the ids of the nodes on them.
+    struct RowIds
+    {
+        std::vector<std::wstring>  highlight;   // the node, then its ancestors
+        std::wstring               top;
+        std::wstring               hover;
+        std::wstring               pressed;
+        std::wstring               lastClick;
+    };
+
+
     void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
+    RowIds        GetRowIds     () const;
+    void          RestoreRowIds (const RowIds & ids);
+    std::wstring  GetRowId      (int flatRow) const;
+
+    static void  MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<DxuiTreeNode> fresh);
     void  ToggleRow        (int flatRow);
     int   SkipDividers     (int flatRow, int step) const;
 
@@ -277,6 +312,7 @@ private:
     int                        m_topRow         = 0;
     int                        m_leftPx         = 0;
     int                        m_rowsExtentPx   = 0;
+    std::vector<POINT>         m_labelSpans;              // per flat row: icon start, label end, unscrolled
     mutable DxuiScrollbar      m_vertScroll;
     mutable DxuiScrollbar      m_horzScroll;
 };

@@ -23,7 +23,8 @@
 //
 //  What CassoExplorer's command line asks for. The emulator launches it with
 //  `--owner <window handle in decimal>` and, when it has one, `--title
-//  <label>`; a launch from a shortcut has neither.
+//  <label>`; a launch from a shortcut has neither. A path, given once without
+//  a switch, opens in a tab: a folder, a disk image, or a file's folder.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,7 @@ struct CassoExplorerLaunchOptions
     HWND          owner    = nullptr;
     bool          hasOwner = false;
     std::wstring  titlePrefix;
+    std::wstring  openPath;
     std::wstring  refusal;
 };
 

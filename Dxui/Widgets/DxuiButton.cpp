@@ -237,7 +237,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
             linkColor = (linkColor & s_kDisabledMask);
         }
 
-        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::GetUiFace(),
                                                        (float) (m_boundsDip.right - m_boundsDip.left),
                                                        m_elide);
 
@@ -248,7 +248,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               linkColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -262,7 +262,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         //
         if (m_focused && m_focusCueVisible)
         {
-            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::GetUiFace(),
                                       (float) m_boundsDip.left,
                                       (float) m_boundsDip.left,
                                       (float) m_boundsDip.top,
@@ -325,7 +325,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     }
 
     {
-        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::GetUiFace(),
                                                        (float) (m_boundsDip.right - m_boundsDip.left),
                                                        m_elide);
 
@@ -336,7 +336,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                           (float) (m_boundsDip.bottom - m_boundsDip.top),
                           textColor,
                           fontDip,
-                          DxuiTheme::kBodyFace,
+                          DxuiTheme::GetUiFace(),
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);

@@ -63,6 +63,11 @@ public:
         Copy,
         Paste,
         Share,
+
+        //  The Recycle Bin's: its items back where they were, and all of
+        //  them gone for good.
+        Restore,
+        EmptyRecycleBin,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag
@@ -82,9 +87,13 @@ public:
 
     struct Outcome
     {
-        HRESULT       hr      = S_OK;
-        std::wstring  message;
-        int           written = 0;
+        HRESULT                   hr      = S_OK;
+        std::wstring              message;
+        int                       written = 0;
+
+        //  The entries a put or a copy made in the directory it went into,
+        //  by catalog path, so an undo can take them out again.
+        std::vector<std::string>  created;
 
         bool  Succeeded() const { return SUCCEEDED (hr); }
     };
@@ -160,12 +169,19 @@ public:
     //  "NEW.FOLDER", "NEW.FOLDER.2" in an image. Case does not tell names apart.
     static std::wstring  MakeUnusedName (const std::wstring & base, const std::vector<std::wstring> & taken, bool host);
 
+    //  A name for an entry going into an image that no other entry in its
+    //  directory has, as Explorer names a collision: "NAME (2)" on DOS 3.3,
+    //  and "NAME.2" on ProDOS, whose names take no spaces or parentheses. A
+    //  copy beside its original is "NAME - COPY" or "NAME.COPY" first.
+    static std::string   MakeFreeEntryName (const std::string & desired, const std::vector<std::string> & taken, VolumeKind kind, bool copy);
+
     //  The unused name a new folder in the current location takes.
     std::wstring  GetNewFolderName () const;
 
     static constexpr const wchar_t *  kHostFolderBase          = L"New folder";
     static constexpr const wchar_t *  kProDosFolderBase        = L"NEW.FOLDER";
     static constexpr size_t           kProDosNameMax           = 15;
+    static constexpr size_t           kDos33NameMax            = 30;
     static constexpr uint64_t         kProDosBlockBytes        = 512;
     static constexpr uint64_t         kProDosIndexEntries      = 256;
     static constexpr uint64_t         kProDosNewDiskFreeBlocks = 273;   // 280 less 2 boot, 4 directory, 1 bitmap
@@ -173,6 +189,10 @@ public:
     static constexpr uint64_t         kDos33ListEntries        = 122;
     static constexpr uint64_t         kDos33NewDiskFreeSectors = 496;   // 560 less tracks 0-2 and the catalog track
     Outcome  DeleteSelected ();
+
+    //  Entries by catalog path, for the second half of a move. A path that
+    //  lists is a directory, and goes with everything under it.
+    Outcome  DeleteEntries (const std::string & image, const std::vector<std::string> & catalogPaths);
     Outcome  BootSelected   ();
     Outcome  RenameSelected (const std::wstring & newName);
 
@@ -202,8 +222,8 @@ public:
 
     //  Raw access through the runner's sector and block verbs. Sectors are
     //  numbered as DOS 3.3 numbers them.
-    Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath);
-    Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath);
+    Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical);
+    Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical);
     Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath);
     Outcome  WriteBlocks  (int block, const std::wstring & hostPath);
 
@@ -276,6 +296,7 @@ private:
     bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);
     void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
                         const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Conversion conversion, Outcome & inOutOutcome);
+    std::vector<std::string>  GetEntryNames (const std::string & image, const std::string & directory) const;
     void  PutFolder    (const std::string & image, VolumeKind kind, const std::string & directory,
                         const std::wstring & hostFolder, const AddressFn & askAddress, Conversion conversion, Outcome & inOutOutcome);
 
@@ -284,6 +305,8 @@ private:
     static bool  TryParseGoToTarget (const std::wstring & text, int64_t caretAddress, int64_t & outAddress);
 
     static void  Append (Outcome & inOutOutcome, const DiskOperations::Result & result);
+    static void  Record (Outcome & inOutOutcome, const DiskOperations::Result & result, const std::string & catalogPath);
+    static void  KeepCreatedIn (Outcome & inOutOutcome, const std::string & directory);
 
     CassoExplorerBrowser  & m_browser;
     IFileSystem           & m_fs;

@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "CpuManager.h"
 
 #include "Core/MachineConfig.h"
@@ -82,7 +84,7 @@ HRESULT CpuManager::Start (
 
     m_running.store (true, std::memory_order_release);
 
-    m_thread = std::thread (&CpuManager::ThreadProc, this);
+    m_thread = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso CPU"); IGNORE_RETURN_VALUE (hrName, S_OK); ThreadProc(); });
 
 Error:
     return hr;

@@ -101,13 +101,16 @@ public:
     {
         using W = CassoExplorerWindow;
         using C = CatalogModel::Column;
+        using K = Location::Kind;
 
-        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Name,     false, false), L"Name shows even when unchecked");
-        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Type,     true,  false), L"a chosen column shows");
-        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Type,     false, false), L"an unchosen one does not");
-        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Address,  true,  false), L"a catalog column hides in a host folder");
-        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Locked,   true,  true),  L"and shows inside an image");
-        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Locked,   false, true),  L"unless unchosen");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Name,     false, K::HostFolder), L"Name shows even when unchecked");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Type,     true,  K::HostFolder), L"a chosen column shows");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Type,     false, K::HostFolder), L"an unchosen one does not");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Address,  true,  K::HostFolder), L"a catalog column hides in a host folder");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Locked,   true,  K::DiskImage),  L"and shows inside an image");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Locked,   false, K::DiskImage),  L"unless unchosen");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::DateDeleted, false, K::RecycleBin), L"the Recycle Bin shows when an item was deleted");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::OriginalLocation, true, K::HostFolder), L"and nowhere else");
     }
 
 

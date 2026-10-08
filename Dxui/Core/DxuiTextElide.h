@@ -63,14 +63,32 @@ public:
                                   float                fontDip,
                                   const wchar_t      * fontFamily,
                                   float                maxWidthDip,
-                                  DxuiElide            mode);
+                                  DxuiElide            mode,
+                                  bool                 gdiWidths = false);
+
+    //  A name wrapped to at most `maxLines` lines of the width, as Explorer
+    //  lays out an icon's caption: each line broken after the last space,
+    //  hyphen or period that fits, or inside a word with none, and the last
+    //  line cut with an ellipsis when the name runs on past it, or, without
+    //  `ellipsis`, left whole for the caller to clip at the edge. With
+    //  `gdiWidths`, the breaks fall where the shell's list view puts them,
+    //  by GDI's whole-pixel advances.
+    static std::vector<std::wstring>  WrapToLines (IDxuiTextRenderer  & text,
+                                                   const std::wstring & value,
+                                                   float                fontDip,
+                                                   const wchar_t      * fontFamily,
+                                                   float                maxWidthDip,
+                                                   int                  maxLines,
+                                                   bool                 ellipsis  = true,
+                                                   bool                 gdiWidths = false);
 
 private:
     static std::wstring  ElideTail     (IDxuiTextRenderer  & text,
                                         const std::wstring & value,
                                         float                fontDip,
                                         const wchar_t      * fontFamily,
-                                        float                maxWidthDip);
+                                        float                maxWidthDip,
+                                        bool                 gdiWidths);
 
     static std::wstring  ElidePathHead (IDxuiTextRenderer  & text,
                                         const std::wstring & value,
@@ -82,5 +100,6 @@ private:
                        const std::wstring & candidate,
                        float                fontDip,
                        const wchar_t      * fontFamily,
-                       float                maxWidthDip);
+                       float                maxWidthDip,
+                       bool                 gdiWidths = false);
 };

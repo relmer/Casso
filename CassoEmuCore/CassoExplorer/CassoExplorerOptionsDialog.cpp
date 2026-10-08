@@ -12,13 +12,15 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerOptionsPanel::Init (DxuiLabel & namingLabel, DxuiComboBox & naming)
+void CassoExplorerOptionsPanel::Init (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiCheckbox & registration)
 {
     m_namingLabel = &namingLabel;
     m_naming      = &naming;
+    m_register    = &registration;
 
     Adopt (namingLabel);
     Adopt (naming);
+    Adopt (registration);
 }
 
 
@@ -35,13 +37,16 @@ void CassoExplorerOptionsPanel::Layout (const RECT & boundsDip, const DxuiDpiSca
 {
     int  labelBottom = boundsDip.top + scaler.ToPx (kLabelHeightDip);
     int  fieldTop    = labelBottom + scaler.ToPx (kGapDip);
+    int  fieldBottom = fieldTop + scaler.ToPx (kFieldHeightDip);
+    int  checkTop    = fieldBottom + scaler.ToPx (kGapDip * 3);
 
 
 
     SetBounds (boundsDip);
 
     m_namingLabel->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, labelBottom }, scaler);
-    m_naming->Layout      (RECT { boundsDip.left, fieldTop, boundsDip.right, fieldTop + scaler.ToPx (kFieldHeightDip) }, scaler);
+    m_naming->Layout      (RECT { boundsDip.left, fieldTop, boundsDip.right, fieldBottom }, scaler);
+    m_register->Layout    (RECT { boundsDip.left, checkTop, boundsDip.right, checkTop + scaler.ToPx (kFieldHeightDip) }, scaler);
 }
 
 
@@ -56,7 +61,7 @@ void CassoExplorerOptionsPanel::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 bool CassoExplorerOptionsPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_naming->OnMouse (ev);
+    return m_naming->OnMouse (ev) || m_register->OnMouse (ev);
 }
 
 
@@ -100,14 +105,19 @@ void CassoExplorerOptionsDialog::OnCreate()
     m_naming.SetItems     (GetNamingLabels());
     m_naming.SetSelected  (m_choices.hostNaming);
 
+    //  Writes the user's file types only when OK is pressed with it changed.
+    m_register.SetLabel   (L"Open disk images in Casso (.dsk, .do, .po, .woz, .nib, .nb2)");
+    m_register.SetChecked (m_choices.registered);
+
     m_body = CreateDialogContent<CassoExplorerOptionsPanel>();
-    m_body->Init (m_namingLabel, m_naming);
+    m_body->Init (m_namingLabel, m_naming, m_register);
 
     ok = AddDialogButton (L"OK", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
 
     ok->SetOnClick ([this]()
     {
+        m_choices.registered = m_register.IsChecked();
         m_choices.hostNaming = m_naming.GetSelectedIndex();
         m_confirmed          = true;
         EndDialog (IDOK);
@@ -140,8 +150,8 @@ bool CassoExplorerOptionsDialog::Ask (HWND owner, const IDxuiTheme * theme, Choi
     params.title                    = L"Options";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 420, 180 };
-    params.minSizeDip               = { 320, 180 };
+    params.initialSizeDip           = { 460, 230 };
+    params.minSizeDip               = { 360, 230 };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;

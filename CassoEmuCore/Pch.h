@@ -88,6 +88,9 @@
 #include <crtdbg.h>
 #include <shellapi.h>
 #include <shobjidl.h>
+#include <searchapi.h>
+#include <oledb.h>
+#include <oledberr.h>
 #include <commoncontrols.h>
 #include <ole2.h>
 #include <oleidl.h>

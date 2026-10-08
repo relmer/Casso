@@ -15,7 +15,7 @@ static constexpr int      s_kNavHeightDip           = 32;
 static constexpr int      s_kItemInternalPaddingDip = 8;
 static constexpr int      s_kInterItemPaddingDip    = 4;
 static constexpr float    s_kUnderlineThicknessDip  = 1.0f;
-static constexpr const wchar_t * s_kFontFamily           = DxuiTheme::kBodyFace;
+static const wchar_t * const s_kFontFamily           = DxuiTheme::GetUiFace();
 
 static constexpr int  s_kFallbackGlyphWidthDip = 8;
 

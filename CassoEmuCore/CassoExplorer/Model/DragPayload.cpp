@@ -31,6 +31,43 @@ bool DragPayload::CanReceiveFolder (VolumeKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DragPayload::ChooseDropEffect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD DragPayload::ChooseDropEffect (bool sameVolume, DWORD keyState, DWORD allowed)
+{
+    bool   control = (keyState & MK_CONTROL) != 0;
+    bool   shift   = (keyState & MK_SHIFT)   != 0;
+    DWORD  effect  = sameVolume ? DROPEFFECT_MOVE : DROPEFFECT_COPY;
+
+
+
+    if (control && !shift)
+    {
+        effect = DROPEFFECT_COPY;
+    }
+    else if (shift && !control)
+    {
+        effect = DROPEFFECT_MOVE;
+    }
+
+    if ((allowed & effect) == 0)
+    {
+        effect = (allowed & DROPEFFECT_COPY) ? DROPEFFECT_COPY
+               : (allowed & DROPEFFECT_MOVE) ? DROPEFFECT_MOVE
+               :                               DROPEFFECT_NONE;
+    }
+
+    return effect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DragPayload::GetHostName
 //
 ////////////////////////////////////////////////////////////////////////////////

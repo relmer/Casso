@@ -86,6 +86,13 @@ public:
     //  Whether a folder can land on this file system at all.
     static bool  CanReceiveFolder (VolumeKind kind);
 
+    //  What a drop does, by Explorer's rules: a move within one volume and a
+    //  copy onto another; Ctrl makes it a copy and Shift a move, either way.
+    //  Both together would make a link, which a disk image has no way to hold,
+    //  so they change nothing. An effect the source does not allow gives way
+    //  to the other one, and to none when it allows neither.
+    static DWORD  ChooseDropEffect (bool sameVolume, DWORD keyState, DWORD allowed);
+
     //  The host name one entry gets: converted for the two BASIC types and
     //  text, raw for everything else.
     //  What an AppleSingle container of this entry records besides its data:

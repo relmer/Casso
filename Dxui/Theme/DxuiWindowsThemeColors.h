@@ -47,6 +47,8 @@ public:
         bool      hasSurfaces  = false;
         uint32_t  contentDark  = 0;
         uint32_t  contentLight = 0;
+
+        bool  operator== (const SystemColors &) const = default;
     };
 
     void  Refresh();
@@ -58,6 +60,7 @@ public:
     //  Light3, Light2, Light1, the accent, Dark1, Dark2, Dark3. Public so the
     //  decoding can be checked against bytes read off a real machine.
     static bool      DecodeAccentPalette (std::span<const BYTE> bytes, SystemColors & colors);
+    static bool      AreSurfacesForTheirModes (uint32_t dark, uint32_t light);
     static uint32_t  ToArgb (COLORREF color);
 
     uint32_t  CaptionButtonHoverArgb        () const;

@@ -73,14 +73,14 @@ public:
 
 
 
-    TEST_METHOD (TheOldestFallsOffPastTenEntries)
+    TEST_METHOD (TheOldestFallsOffPastTheLimit)
     {
         TypedPathHistory  history;
 
-        AddMany (history, 1, 12);
+        AddMany (history, 1, (int) TypedPathHistory::kMaxEntries + 2);
 
         Assert::AreEqual ((size_t) TypedPathHistory::kMaxEntries, history.GetEntries().size());
-        Assert::AreEqual (std::wstring (L"C:\\Disks\\12"), history.GetEntries()[0]);
+        Assert::AreEqual (std::format (L"C:\\Disks\\{}", TypedPathHistory::kMaxEntries + 2), history.GetEntries()[0]);
         Assert::AreEqual (std::wstring (L"C:\\Disks\\3"),  history.GetEntries().back());
     }
 
@@ -140,5 +140,20 @@ public:
 
         Assert::AreEqual ((size_t) TypedPathHistory::kMaxEntries, history.GetEntries().size());
         Assert::AreEqual (std::wstring (L"C:\\Disks\\0"), history.GetEntries()[0]);
+    }
+
+
+    TEST_METHOD (Merge_PlacesOursAfterTheNearestNewerSharedEntry)
+    {
+        std::vector<std::wstring>  explorer = { L"C:\\Users", L"D:\\Work", L"C:\\Temp" };
+        std::vector<std::wstring>  ours     = { L"C:\\Disks\\a.po", L"c:\\users", L"C:\\Disks\\b.po\\GAMES", L"C:\\Temp" };
+        std::vector<std::wstring>  merged   = TypedPathHistory::Merge (explorer, ours);
+
+        Assert::AreEqual ((size_t) 5, merged.size(), L"A shared entry appears once, whatever its case");
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\a.po"),         merged[0], L"Ours before any shared entry goes first");
+        Assert::AreEqual (std::wstring (L"C:\\Users"),              merged[1]);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\b.po\\GAMES"), merged[2], L"and one after a shared entry goes after it");
+        Assert::AreEqual (std::wstring (L"D:\\Work"),               merged[3], L"Explorer's own keep their order");
+        Assert::AreEqual (std::wstring (L"C:\\Temp"),               merged[4]);
     }
 };

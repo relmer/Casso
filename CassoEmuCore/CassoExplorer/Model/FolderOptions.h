@@ -29,6 +29,10 @@ struct FolderOptions
     bool  showProtected   = false;
     bool  colorCompressed = false;
 
+    //  The navigation pane's Show all folders and Expand to open folder.
+    bool  paneShowsAllFolders  = false;
+    bool  paneExpandsToCurrent = false;
+
     bool  IsShown (const FileSystemEntry & entry) const;
 
     bool  operator== (const FolderOptions &) const = default;

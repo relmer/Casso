@@ -24,7 +24,7 @@ DxuiToolbarEditBox::DxuiToolbarEditBox()
 {
     m_input.SetChromeless        (true);
     m_input.SetPlaceholderItalic (true);
-    m_input.SetFont              (DxuiTheme::kBodyFace, kFontDip);
+    m_input.SetFont              (DxuiTheme::GetUiFace(), kFontDip);
 }
 
 

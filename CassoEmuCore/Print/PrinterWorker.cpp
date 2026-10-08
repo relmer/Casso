@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "Print/PrinterWorker.h"
 
 #include "Devices/Printer/PrinterByteRing.h"
@@ -49,7 +51,7 @@ void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
 
     m_stopRequested = false;
     m_running       = true;
-    m_thread        = std::thread ([this] { Run(); });
+    m_thread        = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso printer"); IGNORE_RETURN_VALUE (hrName, S_OK); Run(); });
 }
 
 

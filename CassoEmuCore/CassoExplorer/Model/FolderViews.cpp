@@ -58,9 +58,59 @@ DxuiListView::View FolderViews::GetView (const std::wstring & key, FolderType ty
 
 void FolderViews::Remember (const std::wstring & key, DxuiListView::View view)
 {
-    std::erase_if (m_entries, [&key] (const FolderViewEntry & entry) { return IsSameFolder (entry.key, key); });
+    FolderViewEntry  entry = GetEntry (key, FolderType::Generic);
 
-    m_entries.insert (m_entries.begin(), FolderViewEntry { key, view });
+
+
+    entry.view = view;
+    Remember (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FolderViews::GetEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FolderViewEntry FolderViews::GetEntry (const std::wstring & key, FolderType type) const
+{
+    FolderViewEntry  entry;
+
+
+
+    for (const FolderViewEntry & kept : m_entries)
+    {
+        if (IsSameFolder (kept.key, key))
+        {
+            return kept;
+        }
+    }
+
+    entry.key  = key;
+    entry.view = GetDefaultView (type);
+
+    return entry;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FolderViews::Remember (entry)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FolderViews::Remember (const FolderViewEntry & entry)
+{
+    std::erase_if (m_entries, [&entry] (const FolderViewEntry & kept) { return IsSameFolder (kept.key, entry.key); });
+
+    m_entries.insert (m_entries.begin(), entry);
 
     if (m_entries.size() > kMaxEntries)
     {

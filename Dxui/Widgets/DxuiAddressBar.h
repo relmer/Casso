@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiIconImage.h"
 #include "DxuiTextInput.h"
 
 
@@ -47,9 +48,12 @@ public:
     using OverflowFn  = std::function<void (const RECT & anchor)>;
     using HistoryFn   = std::function<void (const RECT & anchor)>;
     using SubmitFn    = std::function<void (const std::wstring & text)>;
+    using EditFn      = std::function<void (const std::wstring & text)>;
+    using EditKeyFn   = std::function<bool (WPARAM vk)>;
+    using EditStateFn = std::function<void (bool editing)>;
 
     //  What lies under a point.
-    enum class Part { None, Overflow, Segment, Separator, Blank, Clear, History };
+    enum class Part { None, Overflow, Segment, Separator, Blank, Clear, History, Roots };
 
     struct Hit
     {
@@ -80,7 +84,26 @@ public:
     //  typed paths from. No callback set, no chevron drawn and no room taken
     //  for one, so a bar whose host keeps no history looks as it always did.
     void  SetOnHistory    (HistoryFn fn)                          { m_onHistory   = std::move (fn); LayoutSegments(); }
+    //  Off keeps the history (F4, Alt+Down) without the chevron, as Explorer's
+    //  bar has none.
+    void  SetHistoryChevron (bool show)                           { m_historyChevron = show; LayoutSegments(); }
     void  SetOnSubmit     (SubmitFn fn)                           { m_onSubmit    = std::move (fn); }
+
+    //  The location's own icon at the bar's leading end, and a chevron after
+    //  it that the host hangs the shell's roots from, as Explorer's bar has.
+    //  Neither takes room until set.
+    void  SetLeadIcon     (std::shared_ptr<const DxuiIconImage> icon) { m_leadIcon = std::move (icon); LayoutSegments(); }
+    void  SetOnRoots      (OverflowFn fn)                         { m_onRoots     = std::move (fn); LayoutSegments(); }
+
+    //  For a suggestion list under the box: the edit starting and ending, the
+    //  text changing as it is typed, and each key-down first, which the owner
+    //  may take (Up, Down, Escape while its list is open).
+    void  SetOnEditState  (EditStateFn fn)                        { m_onEditState = std::move (fn); }
+    void  SetOnEditText   (EditFn fn)                             { m_onEditText  = std::move (fn); }
+    void  SetOnEditKey    (EditKeyFn fn)                          { m_onEditKey   = std::move (fn); }
+
+    //  Replaces the text being edited, the caret after it.
+    void  SetEditText     (const std::wstring & text);
     void  SetTextRenderer (IDxuiTextRenderer * text)              { m_renderer = text; m_input.SetTextRenderer (text); }
     void  SetFont         (const wchar_t * face, float sizeDip)   { m_face = face; m_fontDip = sizeDip; m_input.SetFont (face, sizeDip); LayoutSegments(); }
     void  SetIconFace     (const wchar_t * face)                  { m_iconFace = face; }
@@ -123,6 +146,8 @@ private:
     static constexpr int    s_kOverflowDip      = 32;
     static constexpr int    s_kClearDip         = 32;
     static constexpr int    s_kHistoryDip       = 28;
+    static constexpr int    s_kLeadIconDip      = 32;
+    static constexpr int    s_kIconDip          = 16;
     static constexpr float  s_kCancelDip        = 10.0f;
     static constexpr float  s_kTurnMs           = 150.0f;   // a chevron's quarter turn
     static constexpr float  s_kChevronHalfDip   = 4.5f;   // half the chevron's height, measured off Explorer
@@ -138,21 +163,27 @@ private:
     //  The history chevron's rect, empty when no callback is set. It sits at
     //  the trailing end, ahead of the clear button while the field is open.
     RECT  GetHistoryRect () const;
+    bool  HasHistoryChevron () const { return m_onHistory && m_historyChevron; }
 
-    std::vector<std::wstring>    m_labels;
-    std::vector<RECT>            m_rects;
-    std::vector<RECT>            m_separators;
-    RECT                         m_overflow    = {};
-    RECT                         m_overflowSep = {};
-    std::wstring                 m_path;
-    DxuiTextInput                m_input;
-    SegmentFn                    m_onSegment;
-    SeparatorFn                  m_onSeparator;
-    OverflowFn                   m_onOverflow;
-    HistoryFn                    m_onHistory;
-    SubmitFn                     m_onSubmit;
-    IDxuiTextRenderer          * m_renderer    = nullptr;
-    const wchar_t              * m_face        = nullptr;
+    std::vector<std::wstring>               m_labels;
+    std::vector<RECT>                       m_rects;
+    std::vector<RECT>                       m_separators;
+    bool                                    m_historyChevron = true;
+    RECT                                    m_overflow       = {};
+    RECT                                    m_overflowSep    = {};
+    RECT                                    m_leadRect       = {};
+    RECT                                    m_rootsRect      = {};
+    std::shared_ptr<const DxuiIconImage>    m_leadIcon;
+    OverflowFn                              m_onRoots;
+    std::wstring                            m_path;
+    DxuiTextInput                           m_input;
+    SegmentFn                               m_onSegment;
+    SeparatorFn                             m_onSeparator;
+    OverflowFn                              m_onOverflow;
+    HistoryFn                               m_onHistory;
+    SubmitFn                                m_onSubmit;
+    IDxuiTextRenderer                     * m_renderer       = nullptr;
+    const wchar_t                         * m_face           = nullptr;
     const wchar_t            * m_iconFace   = L"Segoe MDL2 Assets";
     float          m_fontDip       = kFontDip;
     DxuiDpiScaler  m_scaler;
@@ -160,6 +191,9 @@ private:
     Hit            m_hover;
     Hit            m_pressed;
     bool           m_editing       = false;
+    EditStateFn    m_onEditState;
+    EditFn         m_onEditText;
+    EditKeyFn      m_onEditKey;
     bool           m_focused       = false;
     bool           m_focusCue      = true;
     int            m_chevronIndex  = -1;

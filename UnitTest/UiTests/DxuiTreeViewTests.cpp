@@ -555,4 +555,145 @@ public:
         Assert::AreEqual (std::wstring (L"casso:"), selected.back(), L"and so does Up");
         Assert::AreEqual (2, tv.FindRowById (L"pc:"));
     }
+
+
+    static DxuiTreeNode MakeFolder (const wchar_t * id, std::vector<DxuiTreeNode> children = {}, bool expanded = false)
+    {
+        DxuiTreeNode  n;
+
+        n.id             = id;
+        n.label          = id;
+        n.children       = std::move (children);
+        n.childrenLoaded = !n.children.empty();
+        n.expanded       = expanded && !n.children.empty();
+        return n;
+    }
+
+
+    //  A folder as a provider returns it: its children not yet read.
+    static DxuiTreeNode MakeUnread (const wchar_t * id, const wchar_t * label = nullptr)
+    {
+        DxuiTreeNode  n;
+
+        n.id             = id;
+        n.label          = (label != nullptr) ? label : id;
+        n.childrenLoaded = false;
+        n.expanded       = false;
+        return n;
+    }
+
+
+    static std::vector<std::wstring> RowIds (const DxuiTreeView & tv)
+    {
+        std::vector<std::wstring>  ids;
+
+        for (int row = 0; row < tv.GetVisibleCount(); row++)
+        {
+            ids.push_back (tv.GetNodeAt (row) != nullptr ? tv.GetNodeAt (row)->id : std::wstring());
+        }
+
+        return ids;
+    }
+
+
+    TEST_METHOD (ReplaceChildren_KeepsWhatIsOpenAndTakesTheNewLabels)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<DxuiTreeNode>  fresh;
+
+        roots.push_back (MakeFolder (L"a", { MakeFolder (L"a1", { MakeFolder (L"a1x") }, true), MakeFolder (L"a2") }, true));
+        roots.push_back (MakeFolder (L"b"));
+
+        tv.SetRect      (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+
+        fresh.push_back (MakeUnread (L"a0"));
+        fresh.push_back (MakeUnread (L"a1", L"renamed"));
+
+        Assert::IsTrue (tv.ReplaceChildren (L"a", std::move (fresh)));
+
+        Assert::IsTrue   (std::vector<std::wstring> { L"a", L"a0", L"a1", L"a1x", L"b" } == RowIds (tv),
+                          L"A child that stays keeps its open folders; one that went takes its rows with it");
+        Assert::AreEqual (std::wstring (L"renamed"), tv.FindNodeById (L"a1")->label, L"and each row shows what was read");
+    }
+
+
+    TEST_METHOD (ReplaceChildren_MovesTheHighlightToTheParentOfANodeThatWent)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<DxuiTreeNode>  fresh;
+
+        roots.push_back (MakeFolder (L"a", { MakeFolder (L"a1"), MakeFolder (L"a2") }, true));
+
+        tv.SetRect      (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+        tv.HighlightRow (tv.FindRowById (L"a2"));
+
+        fresh.push_back (MakeUnread (L"a0"));
+        fresh.push_back (MakeUnread (L"a1"));
+        tv.ReplaceChildren (L"a", std::move (fresh));
+
+        Assert::AreEqual (std::wstring (L"a"), tv.GetHighlightedId());
+
+        tv.HighlightRow (tv.FindRowById (L"a1"));
+        tv.ReplaceChildren (L"a", { MakeUnread (L"new"), MakeUnread (L"a1") });
+
+        Assert::AreEqual (std::wstring (L"a1"), tv.GetHighlightedId(), L"A highlighted node that stays keeps the highlight as rows move");
+    }
+
+
+    TEST_METHOD (ReplaceChildren_KeepsTheSameNodeAtTheTop)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<DxuiTreeNode>  children;
+        std::vector<DxuiTreeNode>  fresh;
+        std::vector<std::wstring>  ids;
+
+        for (int i = 0; i < 20; i++)
+        {
+            ids.push_back (L"c" + std::to_wstring (i));
+        }
+
+        for (const std::wstring & id : ids)
+        {
+            children.push_back (MakeFolder (id.c_str()));
+            fresh.push_back    (MakeUnread (id.c_str()));
+        }
+
+        fresh.insert (fresh.begin(), MakeUnread (L"n1"));
+        fresh.insert (fresh.begin(), MakeUnread (L"n0"));
+        roots.push_back (MakeFolder (L"r", std::move (children), true));
+
+        tv.SetRect      (RECT { 0, 0, 200, 100 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+        tv.SetTopRow    (tv.FindRowById (L"c10"));
+
+        tv.ReplaceChildren (L"r", std::move (fresh));
+
+        Assert::AreEqual (tv.FindRowById (L"c10"), tv.GetTopRow(), L"Rows added above what is on screen do not move it");
+    }
+
+
+    TEST_METHOD (ReplaceRoots_KeepsOpenRootsOpen)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+
+        roots.push_back (MakeFolder (L"casso:", { MakeFolder (L"k1") }, true));
+        roots.push_back (MakeFolder (L"pc:",    { MakeFolder (L"c:") }, false));
+
+        tv.SetRect      (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+
+        tv.ReplaceRoots ({ MakeUnread (L"casso:"), MakeUnread (L"pc:") });
+
+        Assert::IsTrue (std::vector<std::wstring> { L"casso:", L"k1", L"pc:" } == RowIds (tv));
+    }
 };

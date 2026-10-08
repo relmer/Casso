@@ -16,6 +16,7 @@ static constexpr uint32_t  s_kThumbAlpha        = 0xA6000000u;
 //  more slowly when it leaves.
 static constexpr float     s_kGrowMs            = 100.0f;
 static constexpr float     s_kShrinkMs          = 400.0f;
+static constexpr float     s_kMaxTickMs         = 33.0f;    // the longest step one tick takes
 static constexpr uint32_t  s_kArrowAlpha        = 0xA0000000u;
 static constexpr uint32_t  s_kArrowHotAlpha     = 0xFF000000u;
 static constexpr float     s_kArrowGlyphRatio   = 0.30f;
@@ -680,7 +681,9 @@ void DxuiScrollbar::PaintThumb (IDxuiPainter & painter, float x, float y, float 
 bool DxuiScrollbar::Tick (int64_t nowMs)
 {
     float    target = (m_expanded || m_dragging) ? 1.0f : 0.0f;
-    float    dt     = (m_lastTickMs == 0) ? 0.0f : (float) (nowMs - m_lastTickMs);
+    //  Capped, so the first tick after a host's timer was stopped animates from
+    //  where the bar was rather than jumping to the end.
+    float    dt     = (m_lastTickMs == 0) ? 0.0f : (std::min) ((float) (nowMs - m_lastTickMs), s_kMaxTickMs);
 
 
 

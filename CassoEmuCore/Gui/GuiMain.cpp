@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "AssetBootstrap.h"
 #include "CommandLineHelp.h"
 #include "CommandLineParser.h"
@@ -646,6 +648,9 @@ extern "C" int WINAPI wCassoMain (
     std::unique_ptr<EmulatorShell>       shell         = std::make_unique<EmulatorShell>();
 
 
+
+    hr = ThreadName::SetForCurrentThread (L"Casso UI");
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     UNREFERENCED_PARAMETER (hPrevInstance);
     shell->SetStartupShowCommand (nCmdShow);

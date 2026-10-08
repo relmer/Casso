@@ -96,3 +96,59 @@ void TypedPathHistory::Reset (const std::vector<std::wstring> & entries)
         Add (entries[i - 1]);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TypedPathHistory::Merge
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> TypedPathHistory::Merge (const std::vector<std::wstring> & explorer, const std::vector<std::wstring> & ours)
+{
+    std::vector<std::wstring>  merged;
+    size_t                     next = 0;
+
+
+
+    auto  find = [&merged] (const std::wstring & text)
+    {
+        return std::find_if (merged.begin(), merged.end(),
+                             [&text] (const std::wstring & held) { return _wcsicmp (held.c_str(), text.c_str()) == 0; });
+    };
+
+    for (const std::wstring & text : explorer)
+    {
+        if (!IsBlank (text) && find (text) == merged.end())
+        {
+            merged.push_back (text);
+        }
+    }
+
+    //  Ours in order, newest first: one Explorer holds marks the place, and
+    //  one it lacks goes in after the last place marked.
+    for (const std::wstring & text : ours)
+    {
+        auto  found = find (text);
+
+        if (found != merged.end())
+        {
+            next = (size_t) (found - merged.begin()) + 1;
+        }
+        else if (!IsBlank (text))
+        {
+            merged.insert (merged.begin() + (std::ptrdiff_t) next, text);
+            next++;
+        }
+    }
+
+    if (merged.size() > kMaxEntries)
+    {
+        merged.resize (kMaxEntries);
+    }
+
+    return merged;
+}

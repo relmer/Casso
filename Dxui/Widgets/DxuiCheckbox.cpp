@@ -210,7 +210,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         labelX = boxLeft + boxSize + labelGap;
         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
-        std::wstring  drawn  = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+        std::wstring  drawn  = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::GetUiFace(),
                                                        labelW,
                                                        m_singleLineLabel ? DxuiElide::Tail
                                                                          : DxuiElide::None);
@@ -222,7 +222,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               textColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal,
@@ -235,7 +235,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         //  had focus.
         if (m_focused && m_focusCueVisible)
         {
-            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::GetUiFace(),
                                       boxLeft,
                                       labelX,
                                       (float) m_boundsDip.top,

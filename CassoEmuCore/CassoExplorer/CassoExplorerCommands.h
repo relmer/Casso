@@ -101,12 +101,25 @@ public:
         kSortAscending,
         kSortDescending,
         kViewDetails,
+        kGroupBy,
+        kGroupAscending,
+        kGroupDescending,
+
+        //  The last file operation undone, as Explorer's Ctrl+Z does.
+        kUndo,
+
+        //  The Recycle Bin's own buttons, on the command bar only there.
+        kEmptyRecycleBin,
+        kRestoreItems,
 
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
         //  kViewFirst + a DxuiListView::View, one per view.
         kViewFirst    = 500,
+
+        //  kGroupByField + a RowGrouping::Field, None included.
+        kGroupByField = 600,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -116,6 +129,9 @@ public:
         std::function<void (int id)>  dispatch;
         std::function<bool (int id)>  isEnabled;
         std::function<bool (int id)>  isChecked;
+
+        //  The label of a command whose label changes, or empty for its own.
+        std::function<std::wstring (int id)>  getLabel;
     };
 
     explicit CassoExplorerCommands (Handlers handlers);
@@ -128,7 +144,7 @@ public:
     //  The toolbar's entries, in strip order: navigation, refresh, and the
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
-    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries() const;
+    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (bool recycleBin = false) const;
 
     //  The Fluent icon the command bar draws for a command, or none.
     static const DxuiVectorIcon    * GetCommandBarIcon (int id);
@@ -146,6 +162,14 @@ public:
     static size_t  GetToolbarEntryCount ();
     static int     GetToolbarCommandId  (size_t index);
     std::shared_ptr<const DxuiCommand>  Find (int id) const;
+
+    //  The SVG a command's button and menu rows draw in place of its glyph;
+    //  the text is the caller's and must outlive the command.
+    void  SetSvg (int id, const std::string * svg);
+
+    //  The SVG a menu draws beside the command, which the host reads for the
+    //  theme in use and sets again when the theme changes.
+    void  SetMenuSvg (int id, const std::string * svg);
 
     //  The command a key reaches, or zero. Alt combinations are included, so
     //  a caller asks before offering Alt to the menu bar's mnemonics.
@@ -202,6 +226,8 @@ private:
         { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
+        { kUndo,              Menu::Edit, L"&Undo",                L"Ctrl+Z",  false },
+        { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
         { kCopy,              Menu::Edit, L"&Copy",                L"Ctrl+C",  false, DxuiStandardCommand::Copy },
         { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false, DxuiStandardCommand::SelectAll },
         { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
@@ -266,6 +292,19 @@ private:
         { kSortByColumn + 3,  Menu::Count, L"&Size",               nullptr,     true  },
         { kSortByColumn + 4,  Menu::Count, L"&Address",            nullptr,     true  },
         { kSortByColumn + 5,  Menu::Count, L"&Locked",             nullptr,     true  },
+        { kSortByColumn + 6,  Menu::Count, L"&Original location",  nullptr,     true  },
+        { kSortByColumn + 7,  Menu::Count, L"Date d&eleted",       nullptr,     true  },
+        { kSortByColumn + 8,  Menu::Count, L"&Folder",             nullptr,     true  },
+        { kGroupBy,           Menu::Count, L"&Group by",           nullptr,     false },
+        { kGroupByField + 1,  Menu::Count, L"&Name",               nullptr,     true  },
+        { kGroupByField + 2,  Menu::Count, L"&Date modified",      nullptr,     true  },
+        { kGroupByField + 3,  Menu::Count, L"&Type",               nullptr,     true  },
+        { kGroupByField + 4,  Menu::Count, L"&Size",               nullptr,     true  },
+        { kGroupByField + 0,  Menu::Count, L"(&None)",             nullptr,     true  },
+        { kGroupAscending,    Menu::Count, L"&Ascending",          nullptr,     true  },
+        { kGroupDescending,   Menu::Count, L"D&escending",         nullptr,     true  },
+        { kEmptyRecycleBin,   Menu::Count, L"Empty Recycle Bin",   nullptr,     false },
+        { kRestoreItems,      Menu::Count, L"Restore all items",   nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -308,6 +347,15 @@ private:
         { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer (F1)", false, false, true },
         { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false, true },
         { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
+    };
+
+    //  The Recycle Bin's buttons, after View while the bin is shown, as
+    //  Explorer's. Restore's label says whether it restores the selection or
+    //  everything, so it has no short label of its own.
+    static constexpr ToolbarRow  kRecycleBinRows[] =
+    {
+        { kEmptyRecycleBin, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Delete,  L"Empty Recycle Bin", L"Empty Recycle Bin" },
+        { kRestoreItems,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Restore, L"",                  L"Restore"           },
     };
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =

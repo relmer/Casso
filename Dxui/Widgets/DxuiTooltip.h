@@ -53,6 +53,11 @@ public:
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
     void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
+
+    //  Explorer's tips: centered on the pointer and just above it, or just
+    //  below where there is no room above on its monitor, rather than on the
+    //  anchor; and a card with a shadow and no border.
+    void  SetFollowPointer (bool follow) { m_followPointer = follow; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
@@ -141,5 +146,9 @@ private:
     bool              m_pending       = false;
     bool              m_fadingOut     = false;
     DxuiHwndSource  * m_popupHost     = nullptr;
-    DxuiPopupHost   * m_activePopup   = nullptr;
+    bool              m_followPointer = false;
+
+    //  Windows' reshow delay is a fifth of its initial one.
+    static constexpr UINT    kReshowDivisor = 5;
+    DxuiPopupHost          * m_activePopup  = nullptr;
 };

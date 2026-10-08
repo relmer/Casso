@@ -167,7 +167,7 @@ float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
     }
 
     hr = text.MeasureString (m_text.c_str(), scaler.ToPxf (s_kFontDip),
-                             DxuiTheme::kBodyFace, measuredW, measuredH);
+                             DxuiTheme::GetUiFace(), measuredW, measuredH);
 
     //  A measurement that failed says nothing about the text; the full width
     //  is what the banner used before it was centered, and it wraps to the
@@ -247,7 +247,7 @@ float DxuiInfoBanner::FitCenteredBoxPx (IDxuiTextRenderer   &  text,
     for (step = 0; step < kMaxSteps; step++)
     {
         hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
-                                        DxuiTheme::kBodyFace, box, wrappedW, wrappedH);
+                                        DxuiTheme::GetUiFace(), box, wrappedW, wrappedH);
 
         //  A renderer that cannot measure a wrap leaves the split as it was,
         //  which is what this widget did before.
@@ -358,7 +358,7 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
     }
 
     hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
-                                    DxuiTheme::kBodyFace, textWidth, outW, outH);
+                                    DxuiTheme::GetUiFace(), textWidth, outW, outH);
 
     if (FAILED (hr) || outH <= 0.0f)
     {
@@ -555,7 +555,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           height - padY * 2.0f,
                           theme.InfoBannerForeground(),
                           fontPx,
-                          DxuiTheme::kBodyFace,
+                          DxuiTheme::GetUiFace(),
                           hAlign,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,

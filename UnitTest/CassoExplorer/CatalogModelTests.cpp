@@ -1,4 +1,6 @@
 #include "Pch.h"
+#include "CassoExplorer/CassoExplorerProperties.h"
+#include "CassoExplorer/CassoExplorerRawDialog.h"
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "CassoExplorer/Model/CatalogModel.h"
@@ -152,6 +154,93 @@ public:
         Assert::AreEqual (std::wstring (L"Folder"), folderRow.typeText);
         Assert::IsTrue   (folderRow.isDirectory);
         Assert::IsFalse  (folderRow.hasModified);
+    }
+
+
+
+    //  An entry's General tab: its type with ProDOS's code, its exact size
+    //  and the blocks it takes, its address, date and lock, in Explorer's
+    //  groups. DOS 3.3 records no date, so it has no Modified row.
+    TEST_METHOD (Properties_DescribeAnEntryAsExplorersGeneralTab)
+    {
+        FileEntry                                   entry;
+        std::vector<CassoExplorerProperties::Row>   rows;
+        std::vector<CassoExplorerProperties::Row>   dos;
+
+        entry.name           = "DHIRES";
+        entry.type           = 0x06;
+        entry.sizeUnits      = 33;
+        entry.eofBytes       = 16384;
+        entry.hasEofBytes    = true;
+        entry.loadAddress    = 0x2000;
+        entry.hasLoadAddress = true;
+        entry.hasModified    = true;
+        entry.modifiedUnix   = 461590440;
+        entry.isLocked       = true;
+
+        rows = CassoExplorerProperties::DescribeEntry (entry, VolumeKind::ProDos, L"C:\\Disks\\a.po");
+
+        Assert::AreEqual (std::wstring (L"Type of file:"), rows[0].label);
+        Assert::IsTrue   (rows[0].value.find (L"($06)") != std::wstring::npos);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\a.po"), rows[1].value);
+        Assert::IsTrue   (rows[1].groupStart);
+        Assert::IsTrue   (rows[2].value.find (L"(16,384 bytes)") != std::wstring::npos, L"Size, exactly");
+        Assert::IsTrue   (rows[3].value.find (L"33 blocks") != std::wstring::npos, L"Size on disk, in blocks");
+        Assert::AreEqual (std::wstring (L"$2000"), rows[4].value);
+        Assert::AreEqual (std::wstring (L"Modified:"), rows[5].label);
+        Assert::AreEqual (std::wstring (L"Locked"), rows.back().value);
+
+        entry.hasModified = false;
+        entry.hasEofBytes = false;
+        dos = CassoExplorerProperties::DescribeEntry (entry, VolumeKind::Dos33, L"C:\\Disks\\b.dsk");
+
+        Assert::IsTrue (std::none_of (dos.begin(), dos.end(), [] (const CassoExplorerProperties::Row & row) { return row.label == L"Modified:"; }));
+        Assert::IsTrue (dos[3].value.find (L"33 sectors") != std::wstring::npos);
+    }
+
+
+    //  A raw read's fields: a start on the disk, and a count that reaches
+    //  its end at most; a count says nothing while the start is not valid.
+    TEST_METHOD (RawChoices_CheckTheStartAndTheCount)
+    {
+        int  value = 0;
+
+        Assert::IsTrue   (CassoExplorerRawChoices::TryParse (L" 17 ", value));
+        Assert::AreEqual (17, value);
+        Assert::IsFalse  (CassoExplorerRawChoices::TryParse (L"1 7", value));
+        Assert::IsFalse  (CassoExplorerRawChoices::TryParse (L"", value));
+        Assert::IsFalse  (CassoExplorerRawChoices::TryParse (L"-1", value));
+
+        Assert::IsTrue  (CassoExplorerRawChoices::ValidateTrack  (L"34").empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateTrack  (L"35").empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateSector (L"16").empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateBlock  (L"280").empty());
+
+        Assert::AreEqual (16, CassoExplorerRawChoices::GetSectorsFrom (34, 0), L"the last track's sixteen");
+        Assert::AreEqual (0,  CassoExplorerRawChoices::GetSectorsFrom (35, 0));
+        Assert::AreEqual (278, CassoExplorerRawChoices::GetBlocksFrom (2));
+
+        Assert::IsTrue  (CassoExplorerRawChoices::ValidateCount (L"16", 16).empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateCount (L"17", 16).empty(), L"past the end of the disk");
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateCount (L"0",  16).empty());
+        Assert::IsTrue  (CassoExplorerRawChoices::ValidateCount (L"x",  0).empty(), L"the start says what is wrong");
+    }
+
+
+    //  Numbers in names sort by their value, as Explorer's do.
+    TEST_METHOD (Sort_ByName_NumbersGoByValue)
+    {
+        std::vector<CatalogRow>  rows (3);
+
+        rows[0].name = L"f10.txt";
+        rows[1].name = L"F2.txt";
+        rows[2].name = L"f1.txt";
+
+        CatalogModel::Sort (rows, Column::Name, false);
+
+        Assert::AreEqual (std::wstring (L"f1.txt"),  rows[0].name);
+        Assert::AreEqual (std::wstring (L"F2.txt"),  rows[1].name, L"f2 before f10, whatever its case");
+        Assert::AreEqual (std::wstring (L"f10.txt"), rows[2].name);
     }
 
 

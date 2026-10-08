@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "Win32ImageWatcher.h"
 
 
@@ -82,7 +84,7 @@ bool Win32ImageWatcher::Watch (const std::string & directory, Callback callback)
             {
                 DirectoryWatch *  raw = watch.get();
 
-                raw->worker = std::thread (&Win32ImageWatcher::RunWatch, raw, directory);
+                raw->worker = std::thread ([raw, directory] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso disk image watcher"); IGNORE_RETURN_VALUE (hrName, S_OK); Win32ImageWatcher::RunWatch (raw, directory); });
 
                 //  WAIT UNTIL IT IS ACTUALLY LISTENING. The platform reports
                 //  what happens after ReadDirectoryChangesW is called, so

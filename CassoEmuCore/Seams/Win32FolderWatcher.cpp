@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "Seams/Win32FolderWatcher.h"
 
 
@@ -129,7 +131,7 @@ void Win32FolderWatcher::EnsureService()
         return;
     }
 
-    m_service = std::thread (&Win32FolderWatcher::RunService, this);
+    m_service = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso Explorer folder watcher"); IGNORE_RETURN_VALUE (hrName, S_OK); RunService(); });
 }
 
 
@@ -173,10 +175,20 @@ void Win32FolderWatcher::RunService()
 
         signaled = WaitForMultipleObjects ((DWORD) waits.size(), waits.data(), FALSE, INFINITE);
 
-        if (signaled == WAIT_OBJECT_0 || signaled == WAIT_FAILED)
+        if (signaled == WAIT_OBJECT_0)
         {
             running = false;
             break;
+        }
+
+        //  A folder moved away with its handle open -- into the Recycle Bin,
+        //  say -- can leave that handle unusable, which fails the whole wait.
+        //  Each unusable one is dropped and reported, so the rest keep being
+        //  watched and the folder's loss is still seen.
+        if (signaled == WAIT_FAILED)
+        {
+            DropUnusable (directories);
+            continue;
         }
 
         if (signaled == (WAIT_OBJECT_0 + 1))
@@ -207,8 +219,15 @@ void Win32FolderWatcher::RunService()
                     callback = found->second.callback;
 
                     //  Re-armed before the callback, so a change made while it
-                    //  runs is still reported.
-                    FindNextChangeNotification (found->second.notification);
+                    //  runs is still reported. A folder that is gone, or whose
+                    //  handle cannot be re-armed, is dropped: its handle can stay
+                    //  signaled and would spin this loop.
+                    if (!FindNextChangeNotification (found->second.notification) ||
+                        GetFileAttributesW (directory.c_str()) == INVALID_FILE_ATTRIBUTES)
+                    {
+                        FindCloseChangeNotification (found->second.notification);
+                        m_folders.erase (found);
+                    }
                 }
             }
 
@@ -216,6 +235,47 @@ void Win32FolderWatcher::RunService()
             {
                 callback (directory);
             }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32FolderWatcher::DropUnusable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32FolderWatcher::DropUnusable (const std::vector<std::wstring> & directories)
+{
+    std::vector<std::pair<std::wstring, Callback>>  dropped;
+
+
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        for (const std::wstring & directory : directories)
+        {
+            auto  found = m_folders.find (directory);
+
+            if (found != m_folders.end() && WaitForSingleObject (found->second.notification, 0) == WAIT_FAILED)
+            {
+                dropped.emplace_back (directory, found->second.callback);
+                FindCloseChangeNotification (found->second.notification);
+                m_folders.erase (found);
+            }
+        }
+    }
+
+    for (const auto & [directory, callback] : dropped)
+    {
+        if (callback)
+        {
+            callback (directory);
         }
     }
 }

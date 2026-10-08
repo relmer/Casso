@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "CassoExplorer/CassoExplorerShellListings.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/CatalogModel.h"
@@ -12,6 +13,7 @@
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/IShellIcons.h"
+#include "Seams/IShellItemVerbs.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTreeView.h"
 
@@ -49,12 +51,14 @@ public:
         std::wstring  selection;   // how many items: "22 items"
         std::wstring  selected;    // what is selected, empty when nothing is
         std::wstring  detail;
-        std::wstring  freeSpace;
+        std::wstring  freeSpace;      // "112 KB free of 140 KB" for a disk image
+        std::wstring  freeSpaceTip;   // which disk: the image's name and its volume
     };
 
     CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & fileIo);
 
     TreeModel &       GetTreeModel    ()       { return m_tree;  }
+    const TreeModel & GetTreeModel    () const { return m_tree;  }
     BrowserModel &    GetBrowserModel ()       { return m_model; }
     DiskOperations &  GetOperations   ()       { return m_operations; }
 
@@ -129,6 +133,12 @@ public:
     //  segment does, or to a typed path. False, with nothing changed, for a
     //  path that is not a folder, an image or a directory inside one.
     void  NavigateToLocation (const Location & location);
+
+    //  When the folder or image the active tab shows is gone from the disk,
+    //  moves to the nearest folder above it that is still there, as Explorer
+    //  does when the folder it shows is deleted. False, with nothing
+    //  changed, when the location still exists or is not on the host.
+    bool  LeaveMissingLocation ();
     bool  NavigateToAddress  (const std::wstring & text);
 
     //  The paths typed into the address bar. Held here because this is where a
@@ -146,6 +156,14 @@ public:
     static std::wstring  JoinPath        (const std::wstring & folder, const std::wstring & name);
 
     void  SortByColumn     (int column);
+
+    //  Explorer's Group by: the rows ordered by group, then by the sort
+    //  within each, and the groups for the list to draw headers for.
+    void                              SetGroupBy    (RowGrouping::Field field, bool descending);
+
+    //  A folder's own sort and grouping, set together as it opens.
+    void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
+    std::vector<DxuiListView::Group>  GetListGroups () const;
     void  SetSelectedRows  (const std::vector<int> & rows);
     void  SetDisassemble   (bool disassemble);
 
@@ -193,12 +211,38 @@ public:
     //  The shell's icons for the tree and the list. None set, none drawn.
     void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
 
+    //  What lists the Recycle Bin. None set, it shows empty.
+    void  SetShellVerbs (IShellItemVerbs * verbs);
+
+    //  The keys a shell folder's listing is read under, for the list and the
+    //  tree apart.
+    static constexpr const wchar_t *  s_kListKey = L"list:";
+    static constexpr const wchar_t *  s_kTreeKey = L"tree:";
+
+    //  Shell folders read on threads of their own; the window says where to
+    //  tell it when one arrives.
+    CassoExplorerShellListings &  GetShellListings () { return m_shellListings; }
+
+    //  Quick access as the shell keeps it, read again after a pin changes.
+    bool  IsPinnedToQuickAccess (const std::wstring & folder) const { return m_tree.IsPinnedFolder (folder); }
+    void  RefreshShellRoots     ()                                  { m_tree.RefreshShellRoots(); }
+
+    //  The shell's ids for the Recycle Bin items selected.
+    void  GetSelectedRecycledIds (std::vector<std::wstring> & outIds) const;
+    void  GetAllRecycledIds      (std::vector<std::wstring> & outIds) const;
+
+    //  The catalog entry a row inside an image stands for.
+    bool  TryGetRowEntry (int row, FileEntry & outEntry) const;
+
     //  Which hidden items the tree and the list show, and whether compressed
     //  items are colored. The next listing follows them.
     void                   SetFolderOptions (const FolderOptions & options) { m_folderOptions = options; m_tree.SetFolderOptions (options); }
     const FolderOptions &  GetFolderOptions () const                        { return m_folderOptions; }
 
     static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row, const Location & at = Location(), IShellIcons * icons = nullptr);
+    static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
+    static IShellIcons::Kind                     GetAppleTypeIconKind (const std::wstring & typeText);
+    static std::shared_ptr<const DxuiIconImage>  GetLocationIcon      (const Location & at, IShellIcons & icons);
 
     //  The color a row's name is drawn in, or zero for the theme's.
     static uint32_t  GetNameArgb (const CatalogRow & row, const FolderOptions & options, bool dark);
@@ -222,6 +266,8 @@ public:
     static constexpr int  kSizeColumnDip     = 80;
     static constexpr int  kAddressColumnDip  = 72;
     static constexpr int  kLockedColumnDip   = 64;
+    static constexpr int  kOriginalColumnDip = 230;
+    static constexpr int  kDeletedColumnDip  = 144;
 
     //  Explorer's selection field: "1 item selected" or "4 items selected",
     //  then two spaces and the files' total size when any file is selected.
@@ -229,6 +275,20 @@ public:
 
     //  An image's refusal as the list shows it: the file's name, then why.
     static std::wstring  FormatImageError (const std::wstring & imagePath, const std::string & message);
+
+    //  What the disk runner says of a whole disk it finds no file system on.
+    static constexpr const char *  s_kNoFileSystem = "does not have a DOS or ProDOS file system";
+
+    //  Why an image cannot be read as a disk at all, as the list's message
+    //  says it; empty for one that can, a whole disk with no file system to
+    //  list included, since that is a disk and not a broken file.
+    std::wstring  GetImageProblem (const std::wstring & imagePath);
+
+    //  A message with each full path in it cut to the name at its end.
+    static std::wstring  ShortenPaths     (const std::wstring & message);
+
+    //  A typed path with a root and no drive, put on the system drive.
+    static std::wstring  RootOnSystemDrive (const std::wstring & text);
 
     static std::wstring  FormatSize      (uint64_t bytes);
     static std::wstring  FormatSizeColumn (uint64_t bytes);
@@ -240,12 +300,26 @@ private:
     void     ReloadAfterNavigation();
     HRESULT  LoadHostFolder (const std::wstring & path);
     HRESULT  LoadRoot       (const std::wstring & id);
+    HRESULT  LoadRecycleBin ();
+    HRESULT  LoadShellFolder (const std::wstring & id);
+
+    //  Where Up goes from the shell folder listed; none at the top.
+    Location  m_shellParent;
+
+    CassoExplorerShellListings  m_shellListings;
     HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
     bool     CanListImage   (const std::wstring & imagePath);
+
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
     void     SortRows();
+    void     GroupRows();
+    void     ResortKeepingSelection();
     void     UpdatePreview();
     void     UpdateStatus();
+
+    //  An image's free and total space in the status, and what the volume is
+    //  in its tip.
+    static void  DescribeVolumeSpace (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind, Status & outStatus);
     bool     TryGetSelectedEntry (const FileEntry *& outEntry) const;
 
     //  The key a selection stores for a row: its name and its occurrence among
@@ -255,7 +329,6 @@ private:
     //  Selects the rows whose keys are in `names`, in one pass over the rows.
     void  SelectRowsByKeys (const std::vector<std::wstring> & names);
 
-    static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
     static std::shared_ptr<const DxuiIconImage>  GetNodeIcon (const TreeNode & node, IShellIcons & icons);
 
     IFileSystem                       & m_fs;
@@ -266,6 +339,7 @@ private:
     MemoryBus                           m_bus;
     std::map<std::wstring, TreeNode>    m_nodes;
     std::vector<CatalogRow>             m_rows;
+    std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped
     std::vector<FileSystemEntry>        m_hostEntries;
     FolderOptions                       m_folderOptions;
     std::vector<TreeNode>               m_rootChildren;
@@ -278,4 +352,5 @@ private:
     std::wstring                        m_listError;
     Status                              m_status;
     IShellIcons                       * m_shellIcons     = nullptr;
+    IShellItemVerbs                   * m_shellVerbs     = nullptr;
 };

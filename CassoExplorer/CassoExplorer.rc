@@ -6,6 +6,9 @@
 // shows for CassoExplorer.exe, and it is the only one.
 IDI_CASSO_EXPLORER                  ICON "..\\Resources\\Icons\\CassoExplorer.ico"
 
+// A disk image's icon in the tree, the list and the address bar.
+IDI_DISK_IMAGE                      ICON "..\\Resources\\Icons\\Casso-disk-image.ico"
+
 // The application's icon, which the About box shows beside what it is.
 IDR_CASSO_EXPLORER_PICTURE_PNG      RCDATA "Assets\\CassoExplorer.png"
 

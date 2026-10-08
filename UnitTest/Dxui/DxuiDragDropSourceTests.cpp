@@ -179,4 +179,43 @@ public:
         Assert::AreEqual (S_OK,              fixture.source->QueryContinueDrag (FALSE, MK_LBUTTON));
         Assert::AreEqual (DRAGDROP_S_USEDEFAULTCURSORS, fixture.source->GiveFeedback (DROPEFFECT_COPY));
     }
+
+
+    //  The shell's drag image and a target's drop description are stored on
+    //  the object and read back later in the drag; without that, no image.
+    TEST_METHOD (SetData_KeepsWhatATargetStoresAndGivesItBack)
+    {
+        Fixture     fixture;
+        CLIPFORMAT  logical = (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_LOGICALPERFORMEDDROPEFFECT);
+        FORMATETC   format  = { logical, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+        STGMEDIUM   medium  = {};
+        STGMEDIUM   read    = {};
+        HGLOBAL     global  = GlobalAlloc (GMEM_MOVEABLE, sizeof (DWORD));
+        DWORD       move    = DROPEFFECT_MOVE;
+        void      * locked  = nullptr;
+
+        Build (fixture);
+
+        Assert::IsNotNull (global);
+        locked = GlobalLock (global);
+        Assert::IsNotNull (locked);
+
+        memcpy (locked, &move, sizeof (move));
+        GlobalUnlock (global);
+        medium.tymed   = TYMED_HGLOBAL;
+        medium.hGlobal = global;
+
+        Assert::AreEqual (DV_E_FORMATETC, fixture.source->QueryGetData (&format), L"Nothing is offered under it at first");
+        Assert::AreEqual (S_OK, fixture.source->SetData (&format, &medium, TRUE));
+        Assert::AreEqual (S_OK, fixture.source->QueryGetData (&format), L"and then it is");
+
+        Assert::AreEqual (S_OK, fixture.source->GetData (&format, &read));
+        Assert::AreEqual ((DWORD) DROPEFFECT_MOVE, *(const DWORD *) GlobalLock (read.hGlobal));
+        GlobalUnlock (read.hGlobal);
+        ReleaseStgMedium (&read);
+
+        Assert::AreEqual ((DWORD) DROPEFFECT_MOVE, fixture.source->GetStoredDword (CFSTR_LOGICALPERFORMEDDROPEFFECT, DROPEFFECT_NONE));
+        Assert::AreEqual ((DWORD) DROPEFFECT_COPY, fixture.source->GetStoredDword (CFSTR_PERFORMEDDROPEFFECT, DROPEFFECT_COPY),
+                          L"A format never stored reads as the fallback");
+    }
 };

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/DxuiPanel.h"
+#include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Window/DxuiDialogWindow.h"
@@ -22,7 +23,7 @@
 class CassoExplorerOptionsPanel : public DxuiPanel
 {
 public:
-    void  Init    (DxuiLabel & namingLabel, DxuiComboBox & naming);
+    void  Init    (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiCheckbox & registration);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -33,6 +34,7 @@ public:
 private:
     DxuiLabel     * m_namingLabel = nullptr;
     DxuiComboBox  * m_naming      = nullptr;
+    DxuiCheckbox  * m_register    = nullptr;
 };
 
 
@@ -54,7 +56,10 @@ public:
     struct Choices
     {
         //  An index into GetNamingLabels.
-        int  hostNaming = 0;
+        int   hostNaming = 0;
+
+        //  Whether Casso is the program for its disk image types.
+        bool  registered = false;
     };
 
     //  The host file name forms, in the order the setting stores them.
@@ -73,5 +78,6 @@ private:
     bool                         m_confirmed   = false;
     DxuiLabel                    m_namingLabel;
     DxuiComboBox                 m_naming;
+    DxuiCheckbox                 m_register;
     CassoExplorerOptionsPanel  * m_body        = nullptr;
 };

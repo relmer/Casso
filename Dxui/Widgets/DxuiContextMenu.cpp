@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items)
+void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items, DxuiPopupMenu::ClosedFn onClosed)
 {
     HRESULT              hr        = S_OK;
     HWND                 hwnd      = host.GetHwnd();
@@ -37,7 +37,7 @@ void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<Dxu
     menu.SetPopupHost  (&host);
     menu.SetTheme      (host.GetTheme());
     menu.SetDpi        (host.GetScaler().GetDpi());
-    menu.SetOnClosed   (nullptr);
+    menu.SetOnClosed   (std::move (onClosed));
 
     //  The menu is shared, so a width floor a drop-down set is cleared.
     menu.SetMinWidthPx (0);

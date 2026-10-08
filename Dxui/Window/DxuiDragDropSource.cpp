@@ -57,17 +57,39 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEffects, DWORD & resultEffect)
+HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEffects, POINT startScreen,
+                                   DWORD & resultEffect, DWORD * outLogicalEffect)
 {
-    HRESULT               hr     = S_OK;
-    DxuiDragDropSource *  source = nullptr;
+    HRESULT                      hr      = S_OK;
+    HRESULT                      hrImage = S_OK;
+    DxuiDragDropSource         * source  = nullptr;
+    ComPtr<IDragSourceHelper2>   helper;
 
 
 
     resultEffect = DROPEFFECT_NONE;
 
+    if (outLogicalEffect != nullptr)
+    {
+        *outLogicalEffect = DROPEFFECT_NONE;
+    }
+
     hr = Create (std::move (formats), &source);
     CHR (hr);
+
+    //  The shell's drag image, with room for a target's drop description. With
+    //  no window given, the shell builds the image from the object's own
+    //  formats. A drag without one still works, as a bare pointer.
+    hrImage = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
+
+    if (SUCCEEDED (hrImage))
+    {
+        hrImage = helper->SetFlags (DSH_ALLOWDROPDESCRIPTIONTEXT);
+        IGNORE_RETURN_VALUE (hrImage, S_OK);
+
+        hrImage = helper->InitializeFromWindow (nullptr, &startScreen, static_cast<IDataObject *> (source));
+        IGNORE_RETURN_VALUE (hrImage, S_OK);
+    }
 
     hr = DoDragDrop (static_cast<IDataObject *> (source), static_cast<IDropSource *> (source),
                      allowedEffects, &resultEffect);
@@ -80,6 +102,11 @@ HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEff
     }
 
     CHR (hr);
+
+    if (outLogicalEffect != nullptr)
+    {
+        *outLogicalEffect = source->GetStoredDword (CFSTR_LOGICALPERFORMEDDROPEFFECT, resultEffect);
+    }
 
 Error:
     if (source != nullptr)
@@ -322,18 +349,25 @@ STDMETHODIMP DxuiDragDropSource::GetData (FORMATETC * format, STGMEDIUM * medium
 
     ZeroMemory (medium, sizeof (*medium));
 
-    entry = FindFormat (format->cfFormat);
-    CBREx (entry != nullptr, DV_E_FORMATETC);
-
     wantsHg = (format->tymed & TYMED_HGLOBAL) != 0;
     CBREx (wantsHg, DV_E_TYMED);
 
-    index   = (entry->count > 1) ? (int) format->lindex : 0;
-    inRange = index >= 0 && index < entry->count;
-    CBREx (inRange, DV_E_LINDEX);
+    if (m_stored.contains (format->cfFormat))
+    {
+        bytes = &m_stored[format->cfFormat];
+    }
+    else
+    {
+        entry = FindFormat (format->cfFormat);
+        CBREx (entry != nullptr, DV_E_FORMATETC);
 
-    hr = GetRendered (*entry, index, bytes);
-    CHR (hr);
+        index   = (entry->count > 1) ? (int) format->lindex : 0;
+        inRange = index >= 0 && index < entry->count;
+        CBREx (inRange, DV_E_LINDEX);
+
+        hr = GetRendered (*entry, index, bytes);
+        CHR (hr);
+    }
 
     global = GlobalAlloc (GMEM_MOVEABLE, (std::max) (bytes->size(), (size_t) 1));
     CWR (global);
@@ -397,7 +431,7 @@ STDMETHODIMP DxuiDragDropSource::QueryGetData (FORMATETC * format)
         return E_POINTER;
     }
 
-    if (FindFormat (format->cfFormat) == nullptr)
+    if (FindFormat (format->cfFormat) == nullptr && !m_stored.contains (format->cfFormat))
     {
         return DV_E_FORMATETC;
     }
@@ -436,18 +470,63 @@ STDMETHODIMP DxuiDragDropSource::GetCanonicalFormatEtc (FORMATETC * formatIn, FO
 //  DxuiDragDropSource::SetData
 //
 //  Targets and the shell's drag helpers set formats of their own on the
-//  object -- a drop description, a performed effect. None of them is needed
-//  here, and refusing them is allowed.
+//  object -- the drag image, a drop description, a performed effect -- and
+//  read them back later in the drag. Each is kept as bytes, in global memory,
+//  the one medium they use.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium, BOOL release)
 {
-    UNREFERENCED_PARAMETER (format);
-    UNREFERENCED_PARAMETER (medium);
-    UNREFERENCED_PARAMETER (release);
+    HRESULT                hr     = S_OK;
+    const uint8_t        * locked = nullptr;
+    std::vector<uint8_t>   bytes;
 
-    return E_NOTIMPL;
+
+
+    CBREx (format != nullptr && medium != nullptr, E_POINTER);
+    CBREx ((medium->tymed & TYMED_HGLOBAL) != 0 && (format->tymed & TYMED_HGLOBAL) != 0, DV_E_TYMED);
+
+    locked = (const uint8_t *) GlobalLock (medium->hGlobal);
+    CWR (locked);
+
+    bytes.assign (locked, locked + GlobalSize (medium->hGlobal));
+    GlobalUnlock (medium->hGlobal);
+
+    m_stored[format->cfFormat] = std::move (bytes);
+
+    if (release)
+    {
+        ReleaseStgMedium (medium);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDragDropSource::GetStoredDword
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD DxuiDragDropSource::GetStoredDword (const wchar_t * formatName, DWORD fallback) const
+{
+    auto   found = m_stored.find ((CLIPFORMAT) RegisterClipboardFormatW (formatName));
+    DWORD  value = fallback;
+
+
+
+    if (found != m_stored.end() && found->second.size() >= sizeof (DWORD))
+    {
+        memcpy (&value, found->second.data(), sizeof (DWORD));
+    }
+
+    return value;
 }
 
 
@@ -483,6 +562,16 @@ STDMETHODIMP DxuiDragDropSource::EnumFormatEtc (DWORD direction, IEnumFORMATETC 
         FORMATETC  one = { entry.format, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
 
         formats.push_back (one);
+    }
+
+    for (const auto & [stored, bytes] : m_stored)
+    {
+        FORMATETC  one = { stored, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+
+        if (FindFormat (stored) == nullptr)
+        {
+            formats.push_back (one);
+        }
     }
 
     return SHCreateStdEnumFmtEtc ((UINT) formats.size(), formats.data(), outEnum);

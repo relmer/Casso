@@ -62,6 +62,7 @@ private:
     //  Starts the service thread if it is not already running. Called with the
     //  lock held.
     void  EnsureService ();
+    void  DropUnusable  (const std::vector<std::wstring> & directories);
 
     void  Stop ();
 

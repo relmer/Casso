@@ -4,9 +4,55 @@
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Core/AppleSingleCodec.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FakeRecycleBin
+//
+//  The shell's verbs with only the Recycle Bin's listing answered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class FakeRecycleBin : public IShellItemVerbs
+{
+public:
+    std::vector<RecycledItem>     items;
+    std::vector<ShellFolderItem>  shellItems;
+
+    std::vector<ShellFolderItem>  navRoots;
+    std::vector<ShellFolderItem>  pinned;
+
+    HRESULT  ListShellFolder (const std::wstring &, std::vector<ShellFolderItem> & outItems) override  { outItems = shellItems; return S_OK; }
+    HRESULT  ListNavigationRoots (std::vector<ShellFolderItem> & outRoots) override                   { outRoots = navRoots; return S_OK; }
+    HRESULT  ListPinnedFolders   (std::vector<ShellFolderItem> & outFolders) override                 { outFolders = pinned; return S_OK; }
+
+    HRESULT  Open                (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
+    HRESULT  GetOpenWithHandlers (const std::wstring &, std::vector<Handler> &) override                 { return E_NOTIMPL; }
+    HRESULT  OpenWith            (HWND, const std::wstring &, size_t) override                          { return E_NOTIMPL; }
+    HRESULT  ChooseOtherApp      (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
+    HRESULT  ShowShellMenu       (HWND, const std::vector<std::wstring> &, POINT) override              { return E_NOTIMPL; }
+    HRESULT  Recycle             (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
+    HRESULT  RestoreRecycled     (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
+    HRESULT  ListRecycled        (std::vector<RecycledItem> & outItems) override                        { outItems = items; return S_OK; }
+    HRESULT  RunRecycledVerb     (HWND, const std::vector<std::wstring> &, RecycledVerb) override       { return E_NOTIMPL; }
+    HRESULT  ShowRecycledMenu    (HWND, const std::vector<std::wstring> &, POINT) override              { return E_NOTIMPL; }
+    HRESULT  EmptyRecycleBin     (HWND) override                                                        { return E_NOTIMPL; }
+    HRESULT  RenameItem          (HWND, const std::wstring &, const std::wstring &) override            { return E_NOTIMPL; }
+    HRESULT  PlaceOnClipboard    (HWND, const std::vector<std::wstring> &, bool) override               { return E_NOTIMPL; }
+    bool     ClipboardHasFiles   () const override                                                      { return false; }
+    HRESULT  PasteInto           (HWND, const std::wstring &, PasteResult &) override                   { return E_NOTIMPL; }
+    HRESULT  MoveItemsTo         (HWND, const std::vector<std::wstring> &, const std::vector<std::wstring> &) override { return E_NOTIMPL; }
+    HRESULT  CreateFolder        (HWND, const std::wstring &, const std::wstring &) override            { return E_NOTIMPL; }
+    HRESULT  Share               (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
+};
 
 
 
@@ -117,6 +163,22 @@ public:
 
 
 
+    TEST_METHOD (AppleTypeIcons_FollowDos33AndProDosTypes)
+    {
+        using Kind = IShellIcons::Kind;
+
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"A")   == Kind::AppleApplesoft);
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"BAS") == Kind::AppleApplesoft);
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"I")   == Kind::AppleInteger);
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"T")   == Kind::AppleText);
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"BIN") == Kind::AppleBinary);
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"SYS") == Kind::AppleSystem);
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"REL") == Kind::AppleRelocatable);
+        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"$F5") == Kind::File, L"Any other type is a plain file");
+    }
+
+
+
     TEST_METHOD (TreeRoots_AreCollapsedAndLazy)
     {
         Host                       host;
@@ -124,9 +186,170 @@ public:
 
         host.browser.GetTreeRoots (roots);
 
-        Assert::AreEqual ((size_t) 2, roots.size());
+        Assert::AreEqual ((size_t) 2, roots.size(), L"Casso and This PC; the bin needs all folders shown");
         Assert::IsFalse  (roots[0].expanded);
         Assert::IsFalse  (roots[0].childrenLoaded);
+    }
+
+
+    //
+    //  The Recycle Bin by its name lists what the shell says it holds, with
+    //  where each item was and when it was deleted, and its two columns' cells.
+    //
+    TEST_METHOD (RecycleBin_ByName_ListsItsItemsWithTheirOrigins)
+    {
+        Host            host;
+        FakeRecycleBin  bin;
+        int             row = -1;
+
+        bin.items.push_back ({ L"C:\\$Recycle.Bin\\S-1\\$R1.txt", L"notes.txt", L"C:\\Docs", L"Text Document", 12, 1700000000, true, 1690000000, true, false });
+        bin.items.push_back ({ L"D:\\$Recycle.Bin\\S-1\\$R2",     L"Old",       L"D:\\",     L"File folder",   4096, 1700000100, true, 0, false, true });
+        host.browser.SetShellVerbs (&bin);
+
+        Assert::IsTrue  (host.browser.NavigateToAddress (L"recycle bin"));
+        Assert::IsTrue  (host.browser.GetLocation() == Location::MakeRecycleBin());
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
+
+        row = FindRow (host.browser, L"notes.txt");
+
+        std::vector<DxuiListView::Cell>  cells = CassoExplorerBrowser::ToCells (host.browser.GetRows()[(size_t) row], host.browser.GetLocation());
+
+        Assert::AreEqual (std::wstring (L"C:\\Docs"), cells[(size_t) CatalogModel::Column::OriginalLocation].text);
+        Assert::IsFalse  (cells[(size_t) CatalogModel::Column::DateDeleted].text.empty());
+        Assert::AreEqual (std::wstring (L"Recycle Bin"), CassoExplorerBrowser::GetLocationLabel (host.browser.GetLocation()));
+
+        host.browser.SetSelectedRows ({ row });
+
+        std::vector<std::wstring>  ids;
+
+        host.browser.GetSelectedRecycledIds (ids);
+        Assert::AreEqual ((size_t) 1, ids.size());
+        Assert::AreEqual (std::wstring (L"C:\\$Recycle.Bin\\S-1\\$R1.txt"), ids[0]);
+    }
+
+
+    //  Any shell folder by the shell's name for it lists what the shell lists:
+    //  a folder on a disk opens as a host folder, a folder that is not on a
+    //  disk opens through the shell, a folder that is a file too (a zip, a
+    //  library) as well, and a disk image as an image; its tab keeps its name.
+    TEST_METHOD (ShellFolder_ListsTheShellsItemsAndOpensEachAsWhatItIs)
+    {
+        Host                host;
+        FakeRecycleBin      shell;
+        Location            target;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+
+        shell.shellItems.push_back ({ L"::{LIB}\\Documents.library-ms", L"Documents", L"C:\\Users\\a\\Documents.library-ms", L"Library", 0, 0, false, true, true });
+        shell.shellItems.push_back ({ L"C:\\Disks",                     L"Disks",     L"C:\\Disks",                         L"File folder", 0, 0, false, true, false });
+        shell.shellItems.push_back ({ L"::{NET}\\SERVER",               L"SERVER",    L"",                                  L"Computer", 0, 0, false, true, false });
+        host.browser.SetShellVerbs (&shell);
+
+        Assert::IsTrue (host.browser.NavigateToAddress (L"shell:Libraries"));
+        Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::ShellFolder);
+        Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
+
+        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"Disks"), target));
+        Assert::IsTrue (target == Location::MakeHostFolder (L"C:\\Disks"), L"A folder on a disk opens as one");
+
+        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"Documents"), target));
+        Assert::IsTrue (target.kind == Location::Kind::ShellFolder, L"A library opens through the shell");
+        Assert::AreEqual (std::wstring (L"Documents"), target.label);
+
+        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"SERVER"), target));
+        Assert::IsTrue (target == Location::MakeShellFolder (L"::{NET}\\SERVER", L""));
+
+        saved.tabs.push_back (Location::MakeShellFolder (L"::{NET}\\SERVER", L"SERVER"));
+        AssertSucceeded (saved.Save (L"C:\\Prefs", host.fs));
+        AssertSucceeded (loaded.Load (L"C:\\Prefs", host.fs));
+
+        Assert::AreEqual ((size_t) 1, loaded.tabs.size());
+        Assert::IsTrue   (loaded.tabs[0].kind == Location::Kind::ShellFolder);
+        Assert::AreEqual (std::wstring (L"SERVER"), loaded.tabs[0].label, L"A saved tab keeps the name it shows");
+    }
+
+
+    //  Explorer's navigation pane below Casso's root: Home, Gallery and
+    //  OneDrive; a line; the pinned folders; a line; the rest, with Casso's
+    //  own This PC in the shell's place and the Recycle Bin last.
+    TEST_METHOD (NavigationPane_FollowsExplorersSectionsAndOrder)
+    {
+        Host                        host;
+        FakeRecycleBin              shell;
+        std::vector<DxuiTreeNode>   roots;
+        std::vector<std::wstring>   labels;
+
+        IShellItemVerbs::ShellFolderItem  home     { L"::{HOME}", L"Home" };
+        IShellItemVerbs::ShellFolderItem  oneDrive { L"C:\\OneDrive", L"OneDrive", L"C:\\OneDrive" };
+        IShellItemVerbs::ShellFolderItem  pc       { L"::{PC}", L"This PC" };
+        IShellItemVerbs::ShellFolderItem  network  { L"::{NET}", L"Network" };
+        IShellItemVerbs::ShellFolderItem  bin      { L"::{BIN}", L"Recycle Bin" };
+        IShellItemVerbs::ShellFolderItem  pin      { L"C:\\Disks", L"Disks", L"C:\\Disks" };
+        IShellItemVerbs::ShellFolderItem  libraries { L"::{LIB}", L"Libraries" };
+        TreeModel::NavPaneOptions         options;
+
+        home.leading     = true;
+        oneDrive.leading = true;
+        pc.isThisPc      = true;
+        bin.isRecycleBin = true;
+        network.hasSubfolders = true;
+        network.isNetwork     = true;
+        libraries.isLibraries = true;
+        libraries.shownByShell = false;
+
+        shell.navRoots = { home, oneDrive, pc, libraries, network, bin };
+        shell.pinned   = { pin };
+        host.browser.SetShellVerbs (&shell);
+        host.browser.GetTreeRoots (roots);
+
+        for (const DxuiTreeNode & root : roots)
+        {
+            labels.push_back (root.label);
+        }
+
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"Home", L"OneDrive", L"Disks", L"This PC", L"Network" }),
+                        L"As File Explorer's pane: libraries hidden there, and the bin only with all folders shown");
+        Assert::IsTrue (roots[3].dividerAbove, L"A line above the pinned folders");
+        Assert::IsTrue (roots[4].dividerAbove, L"and one below them");
+        Assert::IsTrue (roots[4].id == TreeModel::kThisPcRootId, L"Casso's own This PC, with its drives");
+        Assert::IsTrue (roots[1].childrenLoaded, L"Home has no folders under it");
+        Assert::IsFalse (roots[5].childrenLoaded, L"Network does");
+
+        //  The pane's own menu turns each root on and off, apart from File
+        //  Explorer's choice once set.
+        options.showThisPc     = false;
+        options.showNetwork    = false;
+        options.showLibraries  = true;
+        options.showAllFolders = true;
+        host.browser.GetTreeModel().SetNavPaneOptions (options);
+        host.browser.GetTreeRoots (roots);
+        labels.clear();
+
+        for (const DxuiTreeNode & root : roots)
+        {
+            labels.push_back (root.label);
+        }
+
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"Home", L"OneDrive", L"Disks", L"Libraries", L"Recycle Bin" }));
+        Assert::IsTrue (roots[4].dividerAbove, L"The line moves to the first root left");
+    }
+
+
+    TEST_METHOD (RecycleBin_ShellNameAndSavedTab_RoundTrip)
+    {
+        Host                host;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+
+        Assert::IsTrue (host.browser.NavigateToAddress (L"shell:RecycleBinFolder"));
+        Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::RecycleBin);
+
+        saved.tabs = { Location::MakeRecycleBin() };
+        AssertSucceeded (loaded.FromJson (saved.ToJson()));
+
+        Assert::AreEqual ((size_t) 1, loaded.tabs.size());
+        Assert::IsTrue   (loaded.tabs[0] == Location::MakeRecycleBin());
+        Assert::AreEqual (std::wstring (L"Recycle Bin"), BrowserModel::FormatAddress (loaded.tabs[0]));
     }
 
 
@@ -356,6 +579,81 @@ public:
     }
 
 
+    TEST_METHOD (SetGroupBy_OrdersRowsByGroup_AndKeepsSelection)
+    {
+        Host                              host;
+        std::wstring                      folder = host.OpenDisksFolder();
+        std::vector<DxuiListView::Group>  groups;
+        std::wstring                      selected;
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
+
+        host.browser.SetGroupBy (RowGrouping::Field::Name, false);
+        groups = host.browser.GetListGroups();
+
+        Assert::AreEqual ((size_t) 2, groups.size());
+        Assert::AreEqual (std::wstring (L"A - H"), groups[0].label);
+        Assert::AreEqual (std::wstring (L"I - P"), groups[1].label);
+        Assert::AreEqual (0, groups[0].firstRow);
+
+        for (int r = 0; r < groups[1].firstRow; r++)
+        {
+            Assert::IsTrue (host.browser.GetRows()[(size_t) r].name[0] <= L'H');
+        }
+
+        selected = host.browser.GetRows()[host.browser.GetSelectedRows()[0]].name;
+        Assert::AreEqual (std::wstring (L"NOTES"), selected);
+
+        host.browser.SetGroupBy (RowGrouping::Field::None, false);
+        Assert::IsTrue (host.browser.GetListGroups().empty());
+    }
+
+
+    TEST_METHOD (Status_ImageFreeSpaceIsOfTheWhole_AndSaysWhichDisk)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+
+        Assert::IsTrue (host.browser.GetStatus().freeSpace.ends_with (L" free of 140 KB"));
+        Assert::IsTrue (host.browser.GetStatus().freeSpaceTip.starts_with (L"dos33.dsk, DOS 3.3 volume "));
+    }
+
+
+    //  One image selected in its folder shows its own space, as it does open.
+    TEST_METHOD (Status_ASelectedImageShowsItsFreeSpace)
+    {
+        Host  host;
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"dos33.dsk") });
+
+        Assert::IsTrue (host.browser.GetStatus().freeSpace.ends_with (L" free of 140 KB"));
+        Assert::IsTrue (host.browser.GetStatus().freeSpaceTip.starts_with (L"dos33.dsk, DOS 3.3 volume "));
+
+        host.browser.SetSelectedRows ({});
+        Assert::IsTrue (host.browser.GetStatus().freeSpace.empty(), L"Nothing for a folder");
+    }
+
+
+    TEST_METHOD (LeaveMissingLocation_MovesToTheFolderAbove)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+        Assert::IsFalse (host.browser.LeaveMissingLocation());
+
+        AssertSucceeded (host.fs.Delete (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsTrue (host.browser.LeaveMissingLocation());
+
+        Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::HostFolder);
+        Assert::AreEqual (std::wstring (kDisks), host.browser.GetLocation().path);
+    }
+
+
     TEST_METHOD (CorruptImage_ShowsItsErrorInTheList)
     {
         Host          host;
@@ -367,7 +665,7 @@ public:
         host.browser.SelectTreeNode (host.FindChildId (folder, L"bad.dsk"));
 
         Assert::IsTrue  (host.browser.GetRows().empty());
-        Assert::AreEqual (std::wstring (L"bad.dsk is 10 bytes but should be 143,360 bytes, so it is not a valid .dsk image."),
+        Assert::AreEqual (std::wstring (L"bad.dsk is not a valid .dsk image.\nFile size is 10 bytes but should be 143,360 bytes."),
                           host.browser.GetListError(), L"The file by its name, and why; the path is in the address bar");
     }
 
@@ -378,6 +676,20 @@ public:
                           CassoExplorerBrowser::FormatImageError (L"C:\\Disks\\a.po", "C:\\Disks\\a.po: is empty\n"));
         Assert::AreEqual (std::wstring (L"Something else."),
                           CassoExplorerBrowser::FormatImageError (L"C:\\Disks\\a.po", "Something else"), L"A message of another form is kept");
+    }
+
+
+    TEST_METHOD (ShortenPaths_CutsEachPathToItsName)
+    {
+        Assert::AreEqual (std::wstring (L"broken.dsk: is 26 bytes but should be 143,360 bytes"),
+                          CassoExplorerBrowser::ShortenPaths (L"C:\\Users\\me\\Temp\\t077\\ui\\broken.dsk: is 26 bytes but should be 143,360 bytes"));
+        Assert::AreEqual (std::wstring (L"a.po: HELLO: wrote out.bin."),
+                          CassoExplorerBrowser::ShortenPaths (L"C:\\My Disks\\a.po: HELLO: wrote D:\\Out Dir\\out.bin."),
+                          L"Paths with spaces, mid-sentence, and before a period");
+        Assert::AreEqual (std::wstring (L"one\nDisks\ntwo.dsk"),
+                          CassoExplorerBrowser::ShortenPaths (L"one\nC:\\Disks\\\nE:\\x\\two.dsk"), L"A folder keeps its own name");
+        Assert::AreEqual (std::wstring (L"No path at all, just a colon: see."),
+                          CassoExplorerBrowser::ShortenPaths (L"No path at all, just a colon: see."));
     }
 
 

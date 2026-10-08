@@ -230,8 +230,8 @@ public:
 
 
     //
-    //  A row with its own icon opens an icon column after the check gutter,
-    //  and the labels move right by the icon and one more gap.
+    //  A row with its own icon, in a menu with no check column, sits its
+    //  icon as Explorer does, and the labels move to start past it.
     //
     TEST_METHOD (Width_RowWithIcon_OpensTheIconColumn)
     {
@@ -258,7 +258,9 @@ public:
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
         withIcon = menu.GetRect().right - menu.GetRect().left;
 
-        Assert::AreEqual (bare + DxuiPopupMenu::s_kRowIconDip + menu.GetMetrics().gutterGapPx, withIcon);
+        Assert::AreEqual (bare - menu.GetMetrics().leftPadPx - menu.GetMetrics().gutterGapPx
+                              + DxuiPopupMenu::s_kRowIconLeftDip + DxuiPopupMenu::s_kRowIconDip + DxuiPopupMenu::s_kRowIconGapDip,
+                          withIcon);
     }
 
 
