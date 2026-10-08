@@ -491,6 +491,7 @@ private:
     RECT                            m_hostClient   = {};
     DxuiDpiScaler                   m_scaler;
     DxuiMenuMetrics                 m_metrics;
+    UINT                            m_metricsDpi   = 0;     // the DPI m_metrics was read at
     int                             m_labeledCount = 0;
     std::shared_ptr<DxuiCommand>    m_seeMore;
 

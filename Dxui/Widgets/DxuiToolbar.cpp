@@ -957,15 +957,22 @@ float DxuiToolbar::GetChromeFontPx() const
 //
 //  DxuiToolbar::RefreshMetrics
 //
-//  Re-reads the chrome font for the scaler's DPI. The strip asks for the
-//  size on every width plan and every paint, and the metrics come from a
-//  system-parameters query that has no business running per frame.
+//  Re-reads the chrome font for the scaler's DPI, only when the DPI has
+//  changed. The strip asks for the size on every width plan and every
+//  paint, and the metrics come from a system-parameters query that has no
+//  business running per frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbar::RefreshMetrics()
 {
-    m_metrics = DxuiMenuMetrics::FromSystem (m_scaler.GetDpi());
+    if (m_metricsDpi == m_scaler.GetDpi())
+    {
+        return;
+    }
+
+    m_metrics    = DxuiMenuMetrics::FromSystem (m_scaler.GetDpi());
+    m_metricsDpi = m_scaler.GetDpi();
 }
 
 

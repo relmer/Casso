@@ -9746,7 +9746,7 @@ DebuggerTextColors::Set DebuggerWindow::GetTextColors() const
 {
     if (m_theme != nullptr)
     {
-        return DebuggerTextColors::MakeFor (*m_theme);
+        return m_textColors.GetFor (*m_theme);
     }
 
     return DebuggerTextColors::Make (0xFF000000, 0xFFFFFFFF, 0xFFC0C0C0, 0u);

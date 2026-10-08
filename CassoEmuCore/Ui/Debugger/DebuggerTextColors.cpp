@@ -132,6 +132,40 @@ DebuggerTextColors::Set DebuggerTextColors::MakeFor (const DxuiTheme & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerTextColors::Cache::GetFor
+//
+//  The key holds every theme color MakeFor reads, so a theme edited in
+//  place gets new colors as surely as a different theme does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DebuggerTextColors::Set & DebuggerTextColors::Cache::GetFor (const DxuiTheme & theme)
+{
+    std::array<uint32_t, s_kKeyColors>  key =
+    {
+        theme.ContentBackground(), theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent(),
+        theme.changedText, theme.romText, theme.ioText,
+        theme.mapMainRam, theme.mapAuxRam, theme.mapLcBank1, theme.mapLcBank2, theme.mapRom, theme.mapSlotRom, theme.mapIo
+    };
+
+
+
+    if (!m_isSet || key != m_key)
+    {
+        m_set   = MakeFor (theme);
+        m_key   = key;
+        m_isSet = true;
+    }
+
+    return m_set;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerTextColors::GetChangedOn
 //
 ////////////////////////////////////////////////////////////////////////////////

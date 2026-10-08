@@ -94,6 +94,22 @@ public:
         uint32_t              heatChanged    = 0;
     };
 
+    //  MakeFor, kept and made again only when one of the theme colors it
+    //  reads has changed. Every pane asks for the colors every frame, and
+    //  making them measures each against several backgrounds.
+    class Cache
+    {
+    public:
+        const Set &  GetFor (const DxuiTheme & theme);
+
+    private:
+        static constexpr size_t  s_kKeyColors = 15;
+
+        std::array<uint32_t, s_kKeyColors>  m_key   = {};
+        bool                                m_isSet = false;
+        Set                                 m_set;
+    };
+
     //  Make with every one of a theme's own colors, its memory map's among
     //  them, each falling back where the theme gives none.
     static Set       MakeFor     (const DxuiTheme & theme);

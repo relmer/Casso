@@ -300,33 +300,49 @@ std::wstring DebuggerStatusText::FormatTime (
 //
 //  DebuggerStatusText::FormatWallClock
 //
+//  The status bar asks for the same time every frame, and looking up the
+//  time zone is most of the cost, so the last time converted on each thread
+//  is kept and converted again only when the time asked for changes.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DebuggerStatusText::FormatWallClock (
     uint64_t  wallTime,
     LPCWSTR   locale)
 {
-    HRESULT         hr        = S_OK;
-    ULARGE_INTEGER  wall      = {};
-    FILETIME        utc       = {};
-    SYSTEMTIME      utcTime   = {};
-    SYSTEMTIME      localTime = {};
-    BOOL            converted = FALSE;
-    std::wstring    clock;
+    thread_local uint64_t    s_lastWallTime  = 0;
+    thread_local SYSTEMTIME  s_lastLocalTime = {};
+    HRESULT                  hr              = S_OK;
+    ULARGE_INTEGER           wall            = {};
+    FILETIME                 utc             = {};
+    SYSTEMTIME               utcTime         = {};
+    SYSTEMTIME               localTime       = {};
+    BOOL                     converted       = FALSE;
+    std::wstring             clock;
 
 
 
     CBR (wallTime != 0);
 
-    wall.QuadPart      = wallTime;
-    utc.dwLowDateTime  = wall.LowPart;
-    utc.dwHighDateTime = wall.HighPart;
+    if (wallTime == s_lastWallTime)
+    {
+        localTime = s_lastLocalTime;
+    }
+    else
+    {
+        wall.QuadPart      = wallTime;
+        utc.dwLowDateTime  = wall.LowPart;
+        utc.dwHighDateTime = wall.HighPart;
 
-    converted = FileTimeToSystemTime (&utc, &utcTime);
-    CWR (converted);
+        converted = FileTimeToSystemTime (&utc, &utcTime);
+        CWR (converted);
 
-    converted = SystemTimeToTzSpecificLocalTime (nullptr, &utcTime, &localTime);
-    CWR (converted);
+        converted = SystemTimeToTzSpecificLocalTime (nullptr, &utcTime, &localTime);
+        CWR (converted);
+
+        s_lastWallTime  = wallTime;
+        s_lastLocalTime = localTime;
+    }
 
     clock = FormatClock (localTime, locale);
 

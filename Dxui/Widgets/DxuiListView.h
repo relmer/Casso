@@ -685,6 +685,7 @@ private:
 
     // Drops selected rows past the end after the row count changes.
     void    PruneSelection           ();
+    bool    TrySkipMonoMeasure       (size_t column, const Cell & cell) const;
     bool    OnKeyColumnResizeNav     (const DxuiKeyEvent & ev);
     bool    OnKeyBodyHeaderNav       (const DxuiKeyEvent & ev);
     void    ApplyBodyHeaderFocus     ();
@@ -709,6 +710,13 @@ private:
     int                       m_cellPadRightDip = s_kCellPadRightDip;
     float                     m_fontDip         = s_kFontDip;
     mutable std::vector<int>  m_measuredWPx;
+
+    //  For each column, the longest printable-ASCII text in the monospaced
+    //  face measured into m_measuredWPx at each lead, at the font size in
+    //  pixels it was measured at. See TrySkipMonoMeasure.
+    mutable std::vector<std::map<int, size_t>>  m_monoMeasuredChars;
+    mutable float                               m_monoMeasuredFontPx = 0.0f;
+
     std::vector<int>          m_overrideWPx;
     // Monotonic max glyph count per auto column (header + widest cell);
     // the cheap fallback used when no DWrite measurement exists (e.g. the

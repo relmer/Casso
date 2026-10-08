@@ -101,6 +101,27 @@ public:
 
 
 
+    //  The kept colors are MakeFor's, and a theme color changed in place
+    //  makes them again.
+    TEST_METHOD (CacheFollowsAThemeEditedInPlace)
+    {
+        constexpr uint32_t  kOtherRom = 0xFF2060C0;
+
+        CassoTheme                  theme = CassoTheme::MakeSkeuomorphic();
+        DebuggerTextColors::Cache   cache;
+
+
+
+        Assert::AreEqual (DebuggerTextColors::MakeFor (theme).rom, cache.GetFor (theme).rom, L"MakeFor's colors");
+
+        theme.romText = kOtherRom;
+
+        Assert::AreEqual (DebuggerTextColors::MakeFor (theme).rom, cache.GetFor (theme).rom, L"made again for the new ROM color");
+        Assert::AreNotEqual (DebuggerTextColors::MakeFor (CassoTheme::MakeSkeuomorphic()).rom, cache.GetFor (theme).rom, L"and not the old one");
+    }
+
+
+
     TEST_METHOD (ReadableColorIsLeftAlone)
     {
         Assert::AreEqual (0xFF0000FFu, DebuggerTextColors::GetReadable (0xFF0000FF, 0xFFFFFFFF));

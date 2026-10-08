@@ -244,6 +244,92 @@ public:
 
 
 
+    //  Keeps every text measured, so a test can tell which cells were.
+    class CountingTextRenderer : public MockDxuiTextRenderer
+    {
+    public:
+        HRESULT  MeasureString (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily, float & outWidthDip, float & outHeightDip) override
+        {
+            measured.push_back (text);
+            return MockDxuiTextRenderer::MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+        }
+
+        int  CountMeasured (const wchar_t * text) const
+        {
+            return (int) std::count (measured.begin(), measured.end(), std::wstring (text));
+        }
+
+        std::vector<std::wstring>  measured;
+    };
+
+
+
+    static std::vector<std::vector<DxuiListView::Cell>>  MakeRows (const wchar_t * value)
+    {
+        constexpr int                                 kRows = 4;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+        for (int i = 0; i < kRows; i++)
+        {
+            rows.push_back ({ DxuiListView::Cell { value, false } });
+        }
+
+        return rows;
+    }
+
+
+
+    //  A debugger pane refills every frame. In the monospaced face a cell no
+    //  longer than one already measured cannot widen its column, so only a
+    //  longer one, or one with characters outside printable ASCII, is
+    //  measured again.
+    TEST_METHOD (AMonospacedCellNoLongerThanOneMeasuredIsNotMeasuredAgain)
+    {
+        MockDxuiPainter       painter;
+        MockDxuiTheme         theme;
+        CountingTextRenderer  text;
+        DxuiListView          list;
+        DxuiDpiScaler         scaler;
+        int                   before = 0;
+
+
+
+        scaler.SetDpi (96);
+
+        list.SetColumns        ({ DxuiListView::Column { L"Value", 0 } });
+        list.SetShowHeader     (true);
+        list.SetMonospace      (true);
+        list.SetPreciseAutoFit (true);
+        list.SetRefitOnSetRows (true);
+        list.SetRows           (MakeRows (L"$12"));
+        list.Layout            (RECT { 0, 0, 600, 400 }, scaler);
+        list.Paint             (painter, text, theme);
+
+        Assert::AreEqual (1, text.CountMeasured (L"$12"), L"the first of four equal cells is measured, the rest are not");
+
+        before = list.GetContentWidthPx();
+
+        list.SetRows (MakeRows (L"$34"));
+        list.Paint   (painter, text, theme);
+
+        Assert::AreEqual (0, text.CountMeasured (L"$34"), L"text as long is not measured");
+
+        list.SetRows (MakeRows (L"$123456789ABC"));
+        list.Paint   (painter, text, theme);
+
+        Assert::AreEqual (1, text.CountMeasured (L"$123456789ABC"), L"longer text is");
+        Assert::IsTrue (list.GetContentWidthPx() > before, L"and widens the column");
+
+        list.SetRows (MakeRows (L"\x2192"));
+        list.Paint   (painter, text, theme);
+
+        Assert::AreEqual (4, text.CountMeasured (L"\x2192"), L"an arrow is measured however short");
+    }
+
+
+
     TEST_METHOD (ASinglePressOnADividerFitsNothing)
     {
         Fixture  f;

@@ -544,6 +544,12 @@ int DxuiListView::GetTotalMeasuredWidthPx() const
 //  auto-fit widths, then reads GetTotalMeasuredWidthPx() to size the host
 //  dialog.
 //
+//  A list whose rows change every frame asks for this every frame, so a
+//  cell that cannot widen its column is passed over: plain text in the
+//  monospaced face no longer than a cell already measured in its column at
+//  the same lead, since there every plain character is as wide as any
+//  other and a column's width only grows.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
@@ -560,6 +566,13 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
     if (m_measuredWPx.size() != m_columns.size())
     {
         m_measuredWPx.assign (m_columns.size(), 0);
+        m_monoMeasuredChars.clear();
+    }
+
+    if (m_monoMeasuredChars.size() != m_columns.size() || m_monoMeasuredFontPx != fontDip)
+    {
+        m_monoMeasuredChars.assign (m_columns.size(), {});
+        m_monoMeasuredFontPx = fontDip;
     }
 
     for (size_t c = 0; c < m_columns.size(); ++c)
@@ -581,7 +594,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 
         for (const auto & row : m_rows)
         {
-            if (c < row.size() && !row[c].text.empty() && !row[c].spansRow)
+            if (c < row.size() && !row[c].text.empty() && !row[c].spansRow && !TrySkipMonoMeasure (c, row[c]))
             {
                 hr = text.MeasureString (row[c].text.c_str(), fontDip, (row[c].face != nullptr) ? row[c].face : GetBodyFace(), w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -592,6 +605,47 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 
         m_measuredWPx[c] = std::max (m_measuredWPx[c], wpx + padPx);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrySkipMonoMeasure
+//
+//  True when `cell` cannot widen column `column`: its text is printable
+//  ASCII in the monospaced face, and a cell at least as long at the same
+//  lead has been measured there already. A cell it does not skip is taken
+//  as measured, so the caller measures every cell this returns false for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TrySkipMonoMeasure (size_t column, const Cell & cell) const
+{
+    const wchar_t  * face    = (cell.face != nullptr) ? cell.face : GetBodyFace();
+    bool             isPlain = wcscmp (face, DxuiTheme::kMonoFace) == 0;
+    size_t         * longest = nullptr;
+
+
+
+    isPlain = isPlain && std::all_of (cell.text.begin(), cell.text.end(), [] (wchar_t ch) { return ch >= L' ' && ch <= L'~'; });
+
+    if (!isPlain || column >= m_monoMeasuredChars.size())
+    {
+        return false;
+    }
+
+    longest = &m_monoMeasuredChars[column][GetCellLeadPx (cell)];
+
+    if (cell.text.size() <= *longest)
+    {
+        return true;
+    }
+
+    *longest = cell.text.size();
+    return false;
 }
 
 

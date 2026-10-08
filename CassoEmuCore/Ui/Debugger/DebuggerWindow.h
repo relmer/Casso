@@ -590,6 +590,9 @@ protected:
     const CassoTheme     * m_emulatorTheme = nullptr;
     IDebuggerWindowHost  * m_host          = nullptr;
 
+    //  The text colors for m_theme, which GetTextColors reads every frame.
+    mutable DebuggerTextColors::Cache  m_textColors;
+
 private:
     //  The ids of files opened with no debug file record, above any a debug
     //  file gives.
