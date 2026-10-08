@@ -333,6 +333,9 @@ private:
     //  A guide's picture, kept so every frame draws the same buffer.
     std::shared_ptr<const DxuiIconImage>  GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered, const IDxuiTheme & theme) const;
 
+    //  Each pane's minimum size, grown by the gap while one is set.
+    DxuiPaneLayout::MinSizeFn  GetMinSizeWithGap() const;
+
     void          PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     DxuiPaneLayout                                m_layout;

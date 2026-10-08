@@ -163,14 +163,8 @@ void DxuiDockSite::Arrange()
     std::unordered_set<const IDxuiControl *>  placed;
     long                                      margin  = m_scaler.ToPx (m_marginDip);
     long                                      gap     = m_scaler.ToPx (m_gapDip);
-    DxuiPaneLayout::MinSizeFn                 minSize = m_minSize;
+    DxuiPaneLayout::MinSizeFn                 minSize = GetMinSizeWithGap();
     auto                                      slid    = m_panes.end();
-    auto                                      grown   = [this, gap] (const std::wstring & pane)
-    {
-        SIZE  size = m_minSize (pane);
-
-        return SIZE { size.cx + gap, size.cy + gap };
-    };
 
 
 
@@ -184,12 +178,6 @@ void DxuiDockSite::Arrange()
 
     m_paneArea.right  = std::max (m_paneArea.right,  m_paneArea.left);
     m_paneArea.bottom = std::max (m_paneArea.bottom, m_paneArea.top);
-
-    //  A pane loses up to the gap on each axis, so it needs that much more.
-    if (gap > 0 && m_minSize)
-    {
-        minSize = grown;
-    }
 
     //  A slid-out pane lies over the docked panes, which keep their places.
     ArrangeEdges (m_dockedArea, m_paneArea);
@@ -1750,7 +1738,9 @@ void DxuiDockSite::BeginDrag (const std::wstring & pane)
 
 void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, const std::wstring & active)
 {
-    auto  dragged = [&panes] (const std::wstring & pane)
+    std::vector<DxuiPaneLayout::GroupRect>  groups;
+    long                                    gap     = m_scaler.ToPx (m_gapDip);
+    auto                                    dragged = [&panes] (const std::wstring & pane)
     {
         return std::find (panes.begin(), panes.end(), pane) != panes.end();
     };
@@ -1770,9 +1760,18 @@ void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, cons
         Arrange();
     }
 
+    //  The groups as Arrange lays them out, each less its share of the gaps,
+    //  so a group's cross sits on the middle of the pane as it is drawn.
+    groups = m_layout.Arrange (GetPaneArea(), m_shown, GetMinSizeWithGap());
+
+    for (DxuiPaneLayout::GroupRect & group : groups)
+    {
+        group.rect = GetInsetForGap (group.rect, GetPaneArea(), gap);
+    }
+
     m_dragPane     = active;
     m_dragPanes    = panes;
-    m_zones        = DxuiDockDropZones::Build (m_layout.Arrange (GetPaneArea(), m_shown, m_minSize), GetPaneArea(), active, m_scaler,
+    m_zones        = DxuiDockDropZones::Build (groups, GetPaneArea(), active, m_scaler,
                                                [this] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
     m_hoverZone    = -1;
     m_compassGroup = -1;
@@ -2311,6 +2310,39 @@ RECT DxuiDockSite::GetInsetForGap (const RECT & rect, const RECT & paneArea, lon
     inset.right  = std::max (inset.right,  inset.left);
     inset.bottom = std::max (inset.bottom, inset.top);
     return inset;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetMinSizeWithGap
+//
+//  Each pane's minimum size as the layout takes it. A pane loses up to the
+//  gap on each axis, so while a gap is set it needs that much more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneLayout::MinSizeFn DxuiDockSite::GetMinSizeWithGap() const
+{
+    long                       gap     = m_scaler.ToPx (m_gapDip);
+    DxuiPaneLayout::MinSizeFn  minSize = m_minSize;
+
+
+
+    if (gap > 0 && m_minSize)
+    {
+        minSize = [base = m_minSize, gap] (const std::wstring & pane)
+        {
+            SIZE  size = base (pane);
+
+            return SIZE { size.cx + gap, size.cy + gap };
+        };
+    }
+
+    return minSize;
 }
 
 

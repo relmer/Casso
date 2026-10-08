@@ -388,5 +388,27 @@ namespace DxuiDockSiteGapTests
             Assert::AreEqual (code.top,       slid.top,    L"its top is theirs");
             Assert::AreEqual (console.bottom, slid.bottom, L"and its bottom");
         }
+
+
+        //  A drag's cross for a pane lies over the pane as it is drawn, less
+        //  its share of the gaps, so the cross sits on the pane's middle.
+        TEST_METHOD (ACrossSitsOnTheMiddleOfItsPane)
+        {
+            Rig                       rig (s_kDpi125, true);
+            RECT                      code   = rig.GetGroupRect (rig.code);
+            POINT                     middle = { (code.left + code.right) / 2, (code.top + code.bottom) / 2 };
+            const DxuiDockDropZone  * zone   = nullptr;
+
+
+
+            rig.site.BeginDrag (L"console");
+            rig.Press (middle, DxuiMouseEventKind::Move);
+            zone = rig.site.GetHoveredZone();
+
+            Assert::IsNotNull (zone, L"the middle of the pane is on its cross's center button");
+            AssertRect (code, zone->groupRect, L"the cross is over the pane as it is drawn");
+            Assert::AreEqual (middle.x, (zone->target.left + zone->target.right) / 2, L"its center button sits on the pane's middle across");
+            Assert::AreEqual (middle.y, (zone->target.top + zone->target.bottom) / 2, L"and down");
+        }
     };
 }
