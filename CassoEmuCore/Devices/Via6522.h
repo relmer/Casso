@@ -38,10 +38,10 @@
 //  Timer 1 is a 16-bit down-counter clocked at the CPU phi2 rate. It is
 //  loaded from the latch on a T1C-H write and underflows (setting IFR
 //  bit 6) latch+1 cycles later. In one-shot mode (ACR bit 6 = 0) it fires
-//  once; in continuous mode (ACR bit 6 = 1) it reloads from the latch and
-//  re-fires every latch+1 cycles -- the periodic IRQ that Mockingboard
-//  music players use for timing. Timer 2 is one-shot timed only; PB6
-//  pulse counting (ACR bit 5 = 1) is not modeled.
+//  once; in continuous mode (ACR bit 6 = 1) it reads $FFFF for one cycle,
+//  reloads from the latch and re-fires every latch+2 cycles -- the periodic
+//  IRQ that Mockingboard music players use for timing. Timer 2 is one-shot
+//  timed only; PB6 pulse counting (ACR bit 5 = 1) is not modeled.
 //
 //  Modeled: full register file, ports A/B + DDRs, Timer 1 (one-shot and
 //  continuous) and Timer 2 (one-shot), IFR/IER and the level-sensitive
@@ -192,7 +192,7 @@ protected:
 
     Byte     m_t1LatchLo = 0;
     Byte     m_t1LatchHi = 0;
-    int32_t  m_t1Counter = 0;
+    int32_t  m_t1Counter = 0;     // -1 in the $FFFF cycle before a continuous reload
     bool     m_t1Armed   = false;
 
     Byte     m_t2LatchLo = 0;
