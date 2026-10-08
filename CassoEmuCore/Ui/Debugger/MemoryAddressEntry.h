@@ -46,6 +46,7 @@ public:
     void             OnMouseLeave  () override;
     bool             OnLButtonDown (int x, int y) override;
     int              GetMinWidthPx (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kMinWidthDip); }
+    int              GetLeadPx     (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (DxuiTextInput::kPadLeftDip); }
 
     static constexpr int  kWidthDip    = 180;
     static constexpr int  kMinWidthDip = 80;

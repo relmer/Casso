@@ -2,6 +2,8 @@
 
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -22,9 +24,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Room around and between what the panes draw: the console's line spacing
 //  and the gap between commands, the inset that keeps a device graphic off
-//  the pane's edge, a meter's text box, the call stack's columns fitting the
-//  frames shown, and a switch's value. Painted at 96 DPI into recording
-//  mocks, whose renderer measures a line as 16 pixels tall.
+//  the pane's edge, the text inset every pane's text starts at, a meter's
+//  text box, the call stack's columns fitting the frames shown, and a
+//  switch's value. Painted at 96 DPI, or at each of kDpis where the text
+//  inset is checked, into recording mocks, whose renderer measures a line as
+//  16 pixels tall.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +39,10 @@ namespace DebuggerTests
     public:
 
         static constexpr float  kMockLineDip = 16.0f;
+
+        //  The DPIs the text inset is checked at. 106 is where the inset in
+        //  pixels is not the sum of its parts converted one at a time.
+        static constexpr int    kDpis[]      = { 96, 106, 120, 144, 168 };
 
 
 
@@ -59,6 +67,19 @@ namespace DebuggerTests
 
 
             return (found != text.Calls().end()) ? &*found : nullptr;
+        }
+
+
+        static std::shared_ptr<DxuiCommand> MakeCommand (int id, const wchar_t * label, const wchar_t * glyph)
+        {
+            auto  command = std::make_shared<DxuiCommand>();
+
+
+
+            command->id    = id;
+            command->label = label;
+            command->glyph = glyph;
+            return command;
         }
 
 
@@ -159,6 +180,214 @@ namespace DebuggerTests
             Assert::AreEqual ((LONG) (200 - kInset),     placed.right);
             Assert::AreEqual ((LONG) (kInset + kHeight), placed.bottom);
             Assert::AreEqual ((LONG) 0,                  list.GetBounds().left, L"a part without one keeps the edge");
+        }
+
+
+        //  A text-aligned part's sides move in to the pane's text inset, less
+        //  the room the part keeps ahead of its own text; its top inset and
+        //  its height are what they were.
+        TEST_METHOD (ATextAlignedPartKeepsItsTopAndHeight)
+        {
+            constexpr int   kInset    = 6;
+            constexpr int   kHeight   = 20;
+            constexpr int   kInnerDip = 6;
+            constexpr LONG  kWidth    = 200;
+
+
+
+            for (int dpi : kDpis)
+            {
+                DebuggerPaneFrame  plainFrame   (L"Pane");
+                DebuggerPaneFrame  alignedFrame (L"Pane");
+                DxuiTextView       plainPart;
+                DxuiTextView       alignedPart;
+                DxuiTextView       plainList;
+                DxuiTextView       alignedList;
+                DxuiDpiScaler      scaler;
+                RECT               plain        = {};
+                RECT               aligned      = {};
+                LONG               side         = 0;
+                std::wstring       at           = std::format (L"at {} DPI", dpi);
+
+
+
+                scaler.SetDpi (dpi);
+                side = (LONG) std::max (0, DxuiPaneMetrics::GetContentTextInsetPx (scaler) - scaler.ToPx (kInnerDip));
+
+                for (auto [frame, part, list] : { std::tuple { &plainFrame, &plainPart, &plainList }, std::tuple { &alignedFrame, &alignedPart, &alignedList } })
+                {
+                    frame->AddPart         (part, [] (int, const DxuiDpiScaler & each) { return each.ToPx (kHeight); });
+                    frame->AddPart         (list);
+                    frame->SetPartInsetDip (part, kInset);
+                }
+
+                alignedFrame.SetPartTextAligned (&alignedPart, kInnerDip);
+
+                plainFrame.Layout   (RECT { 0, 0, kWidth, 300 }, scaler);
+                alignedFrame.Layout (RECT { 0, 0, kWidth, 300 }, scaler);
+
+                plain   = plainPart.GetBounds();
+                aligned = alignedPart.GetBounds();
+
+                Assert::AreEqual (side,                         aligned.left,                      (L"its left is the inset less its own pad " + at).c_str());
+                Assert::AreEqual (kWidth - side,                aligned.right,                     (L"and its right the same in from the edge " + at).c_str());
+                Assert::AreEqual (plain.top,                    aligned.top,                       (L"its top inset is unchanged " + at).c_str());
+                Assert::AreEqual (plain.bottom - plain.top,     aligned.bottom - aligned.top,      (L"and so is its height " + at).c_str());
+                Assert::AreEqual (plainList.GetBounds().top,    alignedList.GetBounds().top,       (L"the part after it is where it was " + at).c_str());
+                Assert::AreEqual ((LONG) scaler.ToPx (kInset),  plain.left,                        (L"a part with only an inset keeps it " + at).c_str());
+            }
+        }
+
+
+        //  The gap between one part and the next is in DIPs, like the parts.
+        TEST_METHOD (ThePartsGapScalesWithTheDpi)
+        {
+            constexpr int  kHeight = 20;
+
+
+
+            for (int dpi : kDpis)
+            {
+                DebuggerPaneFrame  frame (L"Pane");
+                DxuiTextView       top;
+                DxuiTextView       rest;
+                DxuiDpiScaler      scaler;
+                std::wstring       at    = std::format (L"at {} DPI", dpi);
+
+
+
+                scaler.SetDpi (dpi);
+
+                frame.AddPart (&top, [] (int, const DxuiDpiScaler &) { return kHeight; });
+                frame.AddPart (&rest);
+                frame.Layout  (RECT { 0, 0, 200, 300 }, scaler);
+
+                Assert::AreEqual ((LONG) scaler.ToPx (DebuggerPaneFrame::kGapDip), rest.GetBounds().top - top.GetBounds().bottom, at.c_str());
+            }
+        }
+
+
+        //  Every kind of text a pane starts with -- a dense list's first
+        //  column, a pane toolbar's first label or icon, a key hint in a
+        //  text-aligned part and a history band -- starts the same distance
+        //  from the pane's outer edge as the pane's title, its body being one
+        //  outline width inside that edge.
+        TEST_METHOD (EveryPaneTextStartsOnTheInset)
+        {
+            constexpr LONG  kPaneLeft   = 40;
+            constexpr LONG  kPaneTop    = 30;
+            constexpr LONG  kPaneWidth  = 400;
+            constexpr LONG  kPaneHeight = 300;
+            constexpr int   kPanePadDip = 4;    // a debugger pane list's cell padding
+            constexpr int   kHintDip    = 20;
+
+
+
+            for (int dpi : kDpis)
+            {
+                DxuiDpiScaler                    scaler;
+                MockDxuiPainter                  painter;
+                MockDxuiTextRenderer             text;
+                MockDxuiTextRenderer             bandText;
+                MockDxuiTheme                    theme;
+                DxuiListView                     list;
+                DxuiToolbar                      labelBar;
+                DxuiToolbar                      iconBar;
+                std::vector<DxuiToolbar::Entry>  labelFirst (2);
+                std::vector<DxuiToolbar::Entry>  iconFirst  (2);
+                DebuggerPaneFrame                traceFrame (L"Trace");
+                KeyHintLine                      hint;
+                DxuiListView                     traceList;
+                HistoryBand                      band;
+                HistoryStatus                    status;
+                RECT                             body       = {};
+                RECT                             strip      = {};
+                float                            title      = 0.0f;
+                const RecordedTextCall         * found      = nullptr;
+                std::wstring                     at         = std::format (L"at {} DPI", dpi);
+
+
+
+                scaler.SetDpi (dpi);
+
+                body  = RECT { kPaneLeft + DxuiPaneMetrics::GetLinePx (scaler), kPaneTop,
+                               kPaneLeft + kPaneWidth - DxuiPaneMetrics::GetLinePx (scaler), kPaneTop + kPaneHeight };
+                strip = RECT { body.left, body.top, body.right, body.top + scaler.ToPx (DxuiToolbar::kCompactBandDp) };
+                title = (float) (kPaneLeft + DxuiPaneMetrics::GetTextInsetPx (scaler));
+
+                //  A dense list.
+                list.SetColumns        ({ DxuiListView::Column { L"Name", 0 } });
+                list.SetShowHeader     (true);
+                list.SetCellPaddingDip (kPanePadDip, kPanePadDip);
+                list.SetPaneTextInset  (true);
+                list.SetRows           ({ { DxuiListView::Cell { L"ABCD", false } } });
+                list.Layout            (body, scaler);
+                list.Paint             (painter, text, theme);
+
+                //  A compact toolbar whose first entry is a label, and one whose
+                //  first entry is an icon.
+                labelFirst[0].command  = MakeCommand (1, L"Show", nullptr);
+                labelFirst[0].kind     = DxuiToolbar::Kind::DropDown;
+                labelFirst[1].command  = MakeCommand (2, L"Next", L"b");
+                labelFirst[1].iconOnly = true;
+                iconFirst[0].command   = MakeCommand (1, L"First", L"a");
+                iconFirst[0].iconOnly  = true;
+                iconFirst[1].command   = MakeCommand (2, L"Next", L"b");
+                iconFirst[1].iconOnly  = true;
+
+                for (auto [bar, entries] : { std::pair { &labelBar, &labelFirst }, std::pair { &iconBar, &iconFirst } })
+                {
+                    bar->SetCompact       (true);
+                    bar->SetPaneTextInset (true);
+                    bar->SetEntries       (std::move (*entries));
+                    bar->Layout           (strip, scaler);
+                    bar->Paint            (painter, text, theme);
+                }
+
+                //  The trace pane's key hint over its list.
+                hint.SetPairs ({ { L"Space", L"step into" } });
+                traceFrame.AddPart            (&hint, [] (int, const DxuiDpiScaler & each) { return each.ToPx (kHintDip); });
+                traceFrame.AddPart            (&traceList);
+                traceFrame.SetPartTextAligned (&hint);
+                traceFrame.Layout             (body, scaler);
+                hint.Paint                    (painter, text, theme);
+
+                //  A history band, behind live.
+                status.isRecording        = true;
+                status.isBehindLive       = true;
+                status.instructionsBehind = 3;
+                status.cyclesBehind       = 9;
+                band.SetStatus (status);
+                band.Layout    (strip, scaler);
+                band.Paint     (painter, bandText, theme);
+
+                for (const wchar_t * first : { L"Name", L"ABCD", L"Show", L"Space" })
+                {
+                    found = FindText (text, first);
+
+                    Assert::IsNotNull (found, (std::wstring (first) + L" is drawn " + at).c_str());
+                    Assert::AreEqual  (title, found->x, (std::wstring (first) + L" starts where the title does " + at).c_str());
+                }
+
+                found = FindText (text, L"a");
+
+                Assert::IsNotNull (found, at.c_str());
+                Assert::AreEqual  (title, found->x, 0.5f, (L"the first icon starts where the title does " + at).c_str());
+
+                //  The band draws its text, whichever length fits, and the link.
+                found = nullptr;
+
+                for (const RecordedTextCall & call : bandText.Calls())
+                {
+                    if (found == nullptr && call.kind == RecordedTextKind::DrawString && call.text != HistoryBand::kGoLiveText)
+                    {
+                        found = &call;
+                    }
+                }
+
+                Assert::IsNotNull (found, at.c_str());
+                Assert::AreEqual  (title, found->x, (L"the history band's text starts where the title does " + at).c_str());
+            }
         }
 
 

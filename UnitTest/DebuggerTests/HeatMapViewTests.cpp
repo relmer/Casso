@@ -994,5 +994,98 @@ namespace DebuggerTests
             notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapView::kpszRebuildingNote; });
             Assert::AreEqual ((size_t) 1, notes, L"one note while the heat is rebuilt");
         }
+
+
+
+        //  The DPIs the text inset is checked at, and the pane's left. 106 DPI
+        //  is where the inset in pixels is not the sum of its parts converted
+        //  one at a time.
+        static constexpr int   kInsetDpis[]  = { 96, 106, 120, 144, 168 };
+        static constexpr LONG  kPaneLeft     = 20;
+
+        //  What the mock renderer measures a character as, whatever its size.
+        static constexpr float  kMockCharPx  = 7.0f;
+
+
+
+        //  The row labels are set right, against the map, so the widest of them
+        //  -- every one, in the fixed-width face -- starts at the pane's text
+        //  inset, where the pane's title does.
+        TEST_METHOD (TheWidestRowLabelStartsOnTheInset)
+        {
+            for (int dpi : kInsetDpis)
+            {
+                HeatMapView           view;
+                MockDxuiPainter       painter;
+                MockDxuiTextRenderer  text;
+                MockDxuiTheme         theme;
+                DxuiDpiScaler         scaler;
+                size_t                labels = 0;
+                std::wstring          at     = std::format (L"at {} DPI", dpi);
+
+
+
+                scaler.SetDpi (dpi);
+                view.SetPalette (MakePalette());
+                view.Layout     (RECT { kPaneLeft, 0, kPaneLeft + kWidth, kHeight }, scaler);
+                view.Paint      (painter, text, theme);
+
+                for (const RecordedTextCall & call : text.Calls())
+                {
+                    if (call.kind != RecordedTextKind::DrawString || call.hAlign != DxuiTextHAlign::Right || !call.text.starts_with (L"$"))
+                    {
+                        continue;
+                    }
+
+                    labels++;
+                    Assert::AreEqual ((float) (kPaneLeft + DxuiPaneMetrics::GetContentTextInsetPx (scaler)),
+                                      call.x + call.width - (float) call.text.size() * kMockCharPx,
+                                      (call.text + L" starts at the pane's text inset " + at).c_str());
+                }
+
+                Assert::IsTrue (labels > 0, (L"rows are labeled " + at).c_str());
+            }
+        }
+
+
+
+        //  A range's header starts at the pane's text inset too.
+        TEST_METHOD (ARangeHeaderStartsOnTheInset)
+        {
+            constexpr int  kRangeBytes = 0x100;
+
+
+
+            for (int dpi : kInsetDpis)
+            {
+                HeatMapView               view;
+                MockDxuiPainter           painter;
+                MockDxuiTextRenderer      text;
+                MockDxuiTheme             theme;
+                DxuiDpiScaler             scaler;
+                const RecordedTextCall  * header = nullptr;
+                std::wstring              at     = std::format (L"at {} DPI", dpi);
+
+
+
+                scaler.SetDpi (dpi);
+                view.SetPalette (MakePalette());
+                view.Layout     (RECT { kPaneLeft, 0, kPaneLeft + kWidth, kHeight }, scaler);
+                view.SetRanges  ({ HeatMapView::Band { L"Zero page", 0x0000, kRangeBytes } });
+                view.Paint      (painter, text, theme);
+
+                for (const RecordedTextCall & call : text.Calls())
+                {
+                    if (header == nullptr && call.kind == RecordedTextKind::DrawString && call.text.starts_with (L"Zero page"))
+                    {
+                        header = &call;
+                    }
+                }
+
+                Assert::IsNotNull (header, (L"the header is drawn " + at).c_str());
+                Assert::AreEqual  ((float) (kPaneLeft + DxuiPaneMetrics::GetContentTextInsetPx (scaler)), header->x,
+                                   (L"and starts at the pane's text inset " + at).c_str());
+            }
+        }
     };
 }

@@ -433,4 +433,79 @@ public:
         view.SetRows (rows);
         Assert::AreEqual (20, view.GetTopLine(), L"scrolled up, new rows keep its place");
     }
+
+
+    //  A view that fills a pane starts its text at the pane's text inset in
+    //  place of its pad, and moves neither its first line nor its scrollbar.
+    //  106 DPI is where the inset in pixels is not the sum of its parts
+    //  converted one at a time.
+    TEST_METHOD (PaneTextInset_MovesTheTextNotTheTopOrTheScrollbar)
+    {
+        constexpr int   kDpis[]   = { 96, 106, 120, 144, 168 };
+        constexpr LONG  kLeft     = 30;
+        constexpr LONG  kTop      = 20;
+        constexpr LONG  kWidth    = 400;
+        constexpr LONG  kHeight   = 200;
+        constexpr LONG  kBarSweep = 40;
+        constexpr int   kPadDip   = 6;   // the view's own pad, every side
+        constexpr int   kRowCount = 100;
+
+
+
+        for (int dpi : kDpis)
+        {
+            DxuiTextView                    plain;
+            DxuiTextView                    inset;
+            std::vector<DxuiTextView::Row>  rows;
+            DxuiDpiScaler                   scaler;
+            float                           plainX   = 0.0f;
+            float                           insetX   = 0.0f;
+            float                           plainY   = 0.0f;
+            float                           insetY   = 0.0f;
+            float                           plainTop = 0.0f;
+            float                           insetTop = 0.0f;
+            float                           bottom   = 0.0f;
+            int                             overBar  = 0;
+            std::wstring                    at       = std::format (L"at {} DPI", dpi);
+
+
+
+            for (int i = 0; i < kRowCount; i++)
+            {
+                rows.push_back (MakeRow ({ std::to_wstring (i) }));
+            }
+
+            scaler.SetDpi (dpi);
+            inset.SetPaneTextInset (true);
+
+            for (DxuiTextView * view : { &plain, &inset })
+            {
+                view->SetCellSize (8, 16);
+                view->Layout      (RECT { kLeft, kTop, kLeft + kWidth, kTop + kHeight }, scaler);
+                view->SetRows     (rows);
+            }
+
+            Assert::IsTrue (plain.GetCellAnchorPx (0, 0, plainX, plainY), at.c_str());
+            Assert::IsTrue (inset.GetCellAnchorPx (0, 0, insetX, insetY), at.c_str());
+            plain.GetLinesSpanPx (plainTop, bottom);
+            inset.GetLinesSpanPx (insetTop, bottom);
+
+            Assert::AreEqual ((float) (kLeft + scaler.ToPx (kPadDip)),                            plainX, (L"without it, the text starts a pad in " + at).c_str());
+            Assert::AreEqual ((float) (kLeft + DxuiPaneMetrics::GetContentTextInsetPx (scaler)), insetX, (L"with it, at the pane's text inset " + at).c_str());
+            Assert::AreEqual (plainY,   insetY,   (L"the first line is where it was " + at).c_str());
+            Assert::AreEqual (plainTop, insetTop, (L"and so is the top " + at).c_str());
+
+            Assert::IsTrue (inset.IsScrollbarVisible(), at.c_str());
+
+            for (LONG x = kLeft + kWidth - kBarSweep; x < kLeft + kWidth; x++)
+            {
+                POINT  pt = { x, kTop + kHeight / 2 };
+
+                Assert::AreEqual (plain.IsOverScrollbar (pt), inset.IsOverScrollbar (pt), (L"the scrollbar is where it was " + at).c_str());
+                overBar += inset.IsOverScrollbar (pt) ? 1 : 0;
+            }
+
+            Assert::IsTrue (overBar > 0, (L"and the sweep crossed it " + at).c_str());
+        }
+    }
 };

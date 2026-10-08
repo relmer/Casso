@@ -775,13 +775,14 @@ void DebuggerWindow::ConfigureConsoleBar()
     dialect.kind          = DxuiToolbar::Kind::DropDown;
     dialect.neverOverflow = true;
 
-    m_consoleBar->SetTextRenderer (GetTextRenderer());
-    m_consoleBar->SetPopupHost    (GetPopupHost());
-    m_consoleBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_consoleBar->SetCompact      (true);
-    m_consoleBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-    m_consoleBar->SetEntries      ({ label, dialect, MakeFindEntry (DebuggerLayout::kConsole) });
-    m_consoleBar->SetVisible      (false);
+    m_consoleBar->SetTextRenderer  (GetTextRenderer());
+    m_consoleBar->SetPopupHost     (GetPopupHost());
+    m_consoleBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+    m_consoleBar->SetCompact       (true);
+    m_consoleBar->SetPaneTextInset (true);
+    m_consoleBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
+    m_consoleBar->SetEntries       ({ label, dialect, MakeFindEntry (DebuggerLayout::kConsole) });
+    m_consoleBar->SetVisible       (false);
 
     SetConsoleBarMenus();
 }
@@ -1080,11 +1081,12 @@ void DebuggerWindow::ConfigureCodeBars()
             entries.push_back (std::move (entry));
         }
 
-        bar->SetTextRenderer (GetTextRenderer());
-        bar->SetPopupHost    (GetPopupHost());
-        bar->SetCompact      (true);
-        bar->SetEntries      (std::move (entries));
-        bar->SetVisible      (false);
+        bar->SetTextRenderer  (GetTextRenderer());
+        bar->SetPopupHost     (GetPopupHost());
+        bar->SetCompact       (true);
+        bar->SetPaneTextInset (true);
+        bar->SetEntries       (std::move (entries));
+        bar->SetVisible       (false);
     }
 }
 
@@ -1153,12 +1155,13 @@ void DebuggerWindow::ConfigureSourceBars()
     {
         DxuiToolbar  * bar = m_sourceDocs[(size_t) slot].bar;
 
-        bar->SetTextRenderer (GetTextRenderer());
-        bar->SetPopupHost    (GetPopupHost());
-        bar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-        bar->SetCompact      (true);
-        bar->SetEntries      ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
-        bar->SetVisible      (false);
+        bar->SetTextRenderer  (GetTextRenderer());
+        bar->SetPopupHost     (GetPopupHost());
+        bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+        bar->SetCompact       (true);
+        bar->SetPaneTextInset (true);
+        bar->SetEntries       ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
+        bar->SetVisible       (false);
     }
 }
 

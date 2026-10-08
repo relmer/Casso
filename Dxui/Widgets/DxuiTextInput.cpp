@@ -5,7 +5,6 @@
 #include "Core/DxuiClipboard.h"
 
 
-static constexpr float     s_kPadLeftDip          = 6.0f;
 static constexpr float     s_kPadRightDip         = 6.0f;
 static constexpr float     s_kCaretWidthPx        = 1.0f;
 static constexpr uint32_t  s_kFallbackBg          = 0xFF1A1F26;
@@ -503,7 +502,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        w         = (float) (m_boundsDip.right  - m_boundsDip.left);
     float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
     float        fontPx    = m_scaler.ToPxf (m_fontDip);
-    float        padL      = m_scaler.ToPxf (s_kPadLeftDip) + MeasurePrompt (text, fontPx);
+    float        padL      = (float) m_scaler.ToPx (kPadLeftDip) + MeasurePrompt (text, fontPx);
     float        padR      = m_scaler.ToPxf (s_kPadRightDip);
     // Floored at zero: a control laid out against a window with no client
     // area yet is zero DIPs wide, and the padding inset would otherwise take
@@ -578,7 +577,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (!m_prompt.empty())
     {
-        hr = text.DrawString (m_prompt.c_str(), x + m_scaler.ToPxf (s_kPadLeftDip), y, m_promptPx + 1.0f, h, fgArgb, fontPx, GetFace(),
+        hr = text.DrawString (m_prompt.c_str(), x + (float) m_scaler.ToPx (kPadLeftDip), y, m_promptPx + 1.0f, h, fgArgb, fontPx, GetFace(),
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -844,7 +843,7 @@ void DxuiTextInput::GetWordSpan (
 size_t DxuiTextInput::GetCharIndexFromX (IDxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr     = S_OK;
-    float         padL   = m_scaler.ToPxf (s_kPadLeftDip) + m_promptPx;
+    float         padL   = (float) m_scaler.ToPx (kPadLeftDip) + m_promptPx;
     float         fontPx = m_scaler.ToPxf (m_fontDip);
     float         target = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w      = 0.0f;
@@ -936,7 +935,7 @@ float DxuiTextInput::MeasurePrompt (IDxuiTextRenderer & text, float fontPx) cons
 size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr       = S_OK;
-    float         padL     = m_scaler.ToPxf (s_kPadLeftDip) + m_promptPx;
+    float         padL     = (float) m_scaler.ToPx (kPadLeftDip) + m_promptPx;
     float         fontPx   = m_scaler.ToPxf (m_fontDip);
     float         target   = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w        = 0.0f;

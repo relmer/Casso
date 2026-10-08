@@ -2122,13 +2122,15 @@ int HeatMapView::ComputeFitCellPx()
 //  HeatMapView::MeasureGutter
 //
 //  As wide as the widest row label in the face it is drawn in, so a text
-//  zoom widens it.
+//  zoom widens it, plus the pane's text inset ahead of the label, so the
+//  widest label starts where the pane's title does, and the row labels' gap
+//  before the map after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr int   kPadDip = 8;
+    constexpr int   kPadDip = 4;
     DxuiFontHandle  font    = theme.MonospaceFont();
     float           width   = 0.0f;
     float           height  = 0.0f;
@@ -2144,7 +2146,7 @@ void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & th
         return;
     }
 
-    gutter = (int) std::ceil (width) + m_scaler.ToPx (kPadDip);
+    gutter = (int) std::ceil (width) + DxuiPaneMetrics::GetContentTextInsetPx (m_scaler) + m_scaler.ToPx (kPadDip);
 
     if (gutter == m_gutterPx)
     {
@@ -2337,20 +2339,19 @@ void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & t
 //
 //  Each range's name and span across the top of its rows, "Hi-res page 1
 //  $2000-$3FFF", where the whole header is in view; or, for a set with
-//  nothing in it, a note saying so where the map would be.
+//  nothing in it, a note saying so where the map would be. A header starts
+//  at the pane's text inset, where the pane's title does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::PaintHeaders (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr int   kPadDip = 4;
-    DxuiFontHandle  font    = theme.BodyFont();
-    float           size    = m_scaler.ToPxf (font.sizeDip);
-    float           pad     = m_scaler.ToPxf ((float) kPadDip);
-    float           left    = (float) m_boundsDip.left + pad;
-    float           width   = std::max (0.0f, (float) m_map.right - left);
+    DxuiFontHandle  font  = theme.BodyFont();
+    float           size  = m_scaler.ToPxf (font.sizeDip);
+    float           left  = (float) (m_boundsDip.left + DxuiPaneMetrics::GetContentTextInsetPx (m_scaler));
+    float           width = std::max (0.0f, (float) m_map.right - left);
     std::wstring    title;
-    HRESULT         hr      = S_OK;
+    HRESULT         hr    = S_OK;
 
 
 

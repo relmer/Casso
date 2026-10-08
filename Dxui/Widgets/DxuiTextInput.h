@@ -43,6 +43,10 @@ class DxuiTextInput : public IDxuiControl
 public:
     using ChangeFn = std::function<void (const std::wstring &)>;
 
+    //  From the field's left to its text (or its prompt), in whole pixels
+    //  once scaled, so a host can line the text up with other text.
+    static constexpr int  kPadLeftDip = 6;
+
     DxuiTextInput() { m_focusable = true; }
     ~DxuiTextInput() override = default;
 

@@ -44,6 +44,11 @@ public:
     //  to its own bounds does not touch the pane's edge.
     void  SetPartInsetDip (IDxuiControl * control, int dip);
 
+    //  A part whose text starts where the pane's title does: its sides are
+    //  kept in by the pane's text inset, less the room the part keeps ahead
+    //  of its own text. Its top inset and its height are unchanged.
+    void  SetPartTextAligned (IDxuiControl * control, int innerPadDip = 0);
+
     //  Lays the parts out again, for a part whose height or shown state
     //  changed while the frame kept its bounds.
     void  Relayout ();
@@ -59,13 +64,18 @@ public:
 private:
     struct Part
     {
-        IDxuiControl  * control  = nullptr;
+        IDxuiControl  * control     = nullptr;
         HeightFn        height;
         ShownFn         shown;
-        int             insetDip = 0;
+        int             insetDip    = 0;
+        bool            textAligned = false;
+        int             innerPadDip = 0;
     };
 
     bool  IsPartShown (const Part & part) const;
+
+    //  How far a part is kept in from the pane's left and right.
+    static int  GetSideInsetPx (const Part & part, const DxuiDpiScaler & scaler);
 
     std::wstring       m_name;
     std::vector<Part>  m_parts;

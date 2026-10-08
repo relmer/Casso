@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
 #include "Core/DxuiUnicodeSymbols.h"
+#include "Core/DxuiPaneMetrics.h"
 
 #include "DxuiToolbar.h"
 #include "DxuiMenuBar.h"
@@ -894,10 +895,89 @@ std::wstring DxuiToolbar::GetFittedButtonText (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::GetEntryLeadPx
+//
+//  From an entry's left to its first ink. A button's icon or label starts
+//  past the button padding; a custom entry gives its own, or takes the
+//  button padding when it does not say.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbar::GetEntryLeadPx (const Slot & slot) const
+{
+    int  lead = -1;
+
+
+
+    if (slot.entry.custom != nullptr)
+    {
+        lead = slot.entry.custom->GetLeadPx (m_scaler);
+    }
+
+    if (lead < 0)
+    {
+        lead = m_scaler.ToPx (GetSpacingDp (Spacing::BtnPadX));
+    }
+
+    return lead;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetPaneInsetExtraPx
+//
+//  How much further in than the bar padding a pane's strip starts its first
+//  entry, so that entry's first ink lands on the pane's text inset. The
+//  entry never starts closer to the edge than the bar padding: one whose ink
+//  would land past the inset even there starts at the padding, as it would
+//  anyway. Zero for any other strip, and for one standing up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbar::GetPaneInsetExtraPx() const
+{
+    int  barPad = m_scaler.ToPx (GetSpacingDp (Spacing::BarPadX));
+    int  inset  = DxuiPaneMetrics::GetContentTextInsetPx (m_scaler);
+    int  extra  = 0;
+
+
+
+    if (!m_paneTextInset || m_vertical)
+    {
+        return 0;
+    }
+
+    //  Trailing entries come last, so the first one shown that is not
+    //  trailing is the one at the strip's leading end.
+    for (const Slot & slot : m_slots)
+    {
+        if (slot.hidden || slot.entry.trailing)
+        {
+            continue;
+        }
+
+        extra = (std::max) (barPad, inset - GetEntryLeadPx (slot)) - barPad;
+        break;
+    }
+
+    return extra;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::GetTotalWidthPx
 //
 //  Entries in one group sit a button gap apart; a change of group opens the
-//  wider group gap instead.
+//  wider group gap instead. A pane's strip also counts the extra room ahead
+//  of its first entry, so See more plans against where the entries land.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -906,7 +986,7 @@ int DxuiToolbar::GetTotalWidthPx (int labeledCount) const
     int  barPad   = m_scaler.ToPx (GetSpacingDp (Spacing::BarPadX));
     int  btnGap   = m_scaler.ToPx (GetSpacingDp (Spacing::BtnGap));
     int  groupGap = m_scaler.ToPx (GetSpacingDp (Spacing::GroupGap));
-    int  width    = barPad * 2;
+    int  width    = barPad * 2 + GetPaneInsetExtraPx();
     int  index    = 0;
 
 
@@ -1175,7 +1255,7 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     btnGap   = m_scaler.ToPx (GetSpacingDp (Spacing::BtnGap));
     groupGap = m_scaler.ToPx (GetSpacingDp (Spacing::GroupGap));
     barPad   = m_scaler.ToPx (GetSpacingDp (Spacing::BarPadX));
-    x        = bounds.left + barPad;
+    x        = bounds.left + barPad + GetPaneInsetExtraPx();
     top      = bounds.top + marginY;
     bottom   = bounds.bottom - marginY;
 

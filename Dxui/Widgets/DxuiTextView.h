@@ -94,6 +94,10 @@ public:
     void  SetGutter        (int widthDip, int iconDip) { m_gutterDip = widthDip; m_gutterIconDip = iconDip; }
     int   GetGutterPx      () const               { return m_scaler.ToPx (m_gutterDip); }
 
+    //  A view that fills a pane: its text starts where the pane's title
+    //  does, rather than a pad in from its left. Off by default.
+    void  SetPaneTextInset (bool on)              { m_paneTextInset = on; }
+
     //  The face's size as a multiple of the theme's, and how far the text
     //  color goes from the background toward the theme's foreground (1 is
     //  the full foreground).
@@ -282,6 +286,7 @@ private:
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors, const std::vector<bool> & lit, uint32_t litArgb) const;
     int           GetTextLeft       () const;
+    int           GetPadLeftPx      () const;
 
     //  A drawn line's height, a line's top counted from the first line shown,
     //  and the first line to show for a given line to be the last that fits.
@@ -313,6 +318,7 @@ private:
     UINT                    m_measuredDpi     = 0;
     int                     m_topLine         = 0;
     bool                    m_followEnd       = false;
+    bool                    m_paneTextInset   = false;
     bool                    m_atEnd           = true;
     Position                m_anchor;
     Position                m_caret;

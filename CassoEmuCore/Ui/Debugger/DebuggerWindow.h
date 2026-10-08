@@ -664,7 +664,6 @@ private:
     static constexpr float  kPaneFontDip           = 12.0f;
     static constexpr int    kPaneRowDip            = 16;
     static constexpr int    kPaneHeaderDip         = 22;
-    static constexpr int    kPaneEdgeDip           = 6;
     static constexpr int    kPanePadDip            = 4;
     static constexpr int    kTraceHintDip          = 20;
     static constexpr int    kPaneRows              = 8;

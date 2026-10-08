@@ -1,4 +1,7 @@
 #include "Pch.h"
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -13,7 +16,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  A compact strip is a tool window's, as Visual Studio draws one inside a
 //  pane: a 26 DIP band, 12 DIP icons in buttons 4 DIPs wider each side, 2
-//  DIPs of air above and below, and 1 DIP between neighbors.
+//  DIPs of air above and below, and 1 DIP between neighbors. In a pane, the
+//  strip can start its first entry where that entry's first ink lines up
+//  with the pane's title.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +82,145 @@ public:
         Assert::AreEqual (42, bar.GetBandDp());
         Assert::IsTrue   (bar.TryGetEntryRect (1, first));
         Assert::AreEqual (35L, first.right - first.left);
+    }
+
+
+    //  A custom entry that draws one string, its lead in from its left.
+    class LeadEntry : public IDxuiToolbarCustomEntry
+    {
+    public:
+        static constexpr int  kLeadDip  = 2;
+        static constexpr int  kWidthDip = 60;
+
+        int              GetWidthPx   (bool, const DxuiDpiScaler & scaler, IDxuiTextRenderer *) const override { return scaler.ToPx (kWidthDip); }
+        void             Layout       (const RECT & rc, bool, const DxuiDpiScaler & scaler)          override { m_rc = rc; m_scaler = scaler; }
+        const wchar_t *  GetTooltipAt (int, int, RECT &) const                                       override { return nullptr; }
+        bool             OnClick      (int, int)                                                     override { return false; }
+        int              GetLeadPx    (const DxuiDpiScaler & scaler) const                           override { return scaler.ToPx (kLeadDip); }
+
+        void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool hovered, bool pressed, bool labeled) override
+        {
+            HRESULT  hr = S_OK;
+
+
+
+            (void) painter;
+            (void) theme;
+            (void) hovered;
+            (void) pressed;
+            (void) labeled;
+
+            hr = text.DrawString (L"custom", (float) (m_rc.left + m_scaler.ToPx (kLeadDip)), (float) m_rc.top, 1.0f, 1.0f, 0xFFFFFFFFu,
+                                  1.0f, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+    private:
+        RECT           m_rc = {};
+        DxuiDpiScaler  m_scaler;
+    };
+
+
+    static std::shared_ptr<DxuiCommand>  MakeCommand (int id, const wchar_t * label, const wchar_t * glyph)
+    {
+        auto  command = std::make_shared<DxuiCommand>();
+
+
+
+        command->id    = id;
+        command->label = label;
+        command->glyph = glyph;
+        return command;
+    }
+
+
+    //  The x of the first DrawString of a string.
+    static float  FindTextX (const MockDxuiTextRenderer & text, const wchar_t * string)
+    {
+        auto  found = std::ranges::find_if (text.Calls(), [string] (const RecordedTextCall & call)
+        {
+            return call.kind == RecordedTextKind::DrawString && call.text == string;
+        });
+
+
+
+        return (found != text.Calls().end()) ? found->x : -1.0f;
+    }
+
+
+    //  Lays the strip out at the length it asks for, paints it, and checks
+    //  where its first entry's ink falls, the gap to the entry after it, and
+    //  that the last entry still ends a bar pad short of the strip's end.
+    static void  CheckFirstInk (std::vector<DxuiToolbar::Entry> entries, const wchar_t * firstInk, int dpi, const wchar_t * what)
+    {
+        constexpr int         kLeftPx = 50;
+        DxuiToolbar           bar;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        RECT                  first   = {};
+        RECT                  second  = {};
+        int                   length  = 0;
+        int                   barPad  = 0;
+        std::wstring          at      = std::format (L"{} at {} DPI", what, dpi);
+
+
+
+        scaler.SetDpi (dpi);
+        bar.SetCompact       (true);
+        bar.SetPaneTextInset (true);
+        bar.SetEntries       (std::move (entries));
+
+        length = bar.GetNaturalLengthPx (scaler);
+        barPad = scaler.ToPx (bar.GetSpacingDp (DxuiToolbar::Spacing::BarPadX));
+
+        bar.Layout (RECT { kLeftPx, 0, kLeftPx + length, scaler.ToPx (DxuiToolbar::kCompactBandDp) }, scaler);
+        bar.Paint  (painter, text, theme);
+
+        Assert::IsTrue   (bar.TryGetEntryRect (1, first),  at.c_str());
+        Assert::IsTrue   (bar.TryGetEntryRect (2, second), at.c_str());
+        Assert::IsFalse  (bar.IsInSeeMore (2),             (L"nothing goes into See more at the length asked for, " + at).c_str());
+
+        Assert::AreEqual ((float) (kLeftPx + DxuiPaneMetrics::GetContentTextInsetPx (scaler)), FindTextX (text, firstInk), 0.5f,
+                          (L"the first ink is on the pane's text inset, " + at).c_str());
+        Assert::AreEqual ((LONG) scaler.ToPx (1), second.left - first.right, (L"the next entry keeps its 1-DIP gap, " + at).c_str());
+        Assert::IsTrue   (second.right <= kLeftPx + length - barPad, (L"the strip asks for the room the inset takes, " + at).c_str());
+    }
+
+
+    TEST_METHOD (PaneTextInsetPutsTheFirstContentOnTheInset)
+    {
+        constexpr int  kDpis[] = { 96, 106, 120, 144, 168 };
+
+
+
+        for (int dpi : kDpis)
+        {
+            LeadEntry                        custom;
+            std::vector<DxuiToolbar::Entry>  icons (2);
+            std::vector<DxuiToolbar::Entry>  labels (2);
+            std::vector<DxuiToolbar::Entry>  customs (2);
+
+
+
+            icons[0].command  = MakeCommand (1, L"First", L"a");
+            icons[0].iconOnly = true;
+            icons[1].command  = MakeCommand (2, L"Second", L"b");
+            icons[1].iconOnly = true;
+            CheckFirstInk (std::move (icons), L"a", dpi, L"an icon button");
+
+            labels[0].command  = MakeCommand (1, L"Show", nullptr);
+            labels[0].kind     = DxuiToolbar::Kind::DropDown;
+            labels[1].command  = MakeCommand (2, L"Second", L"b");
+            labels[1].iconOnly = true;
+            CheckFirstInk (std::move (labels), L"Show", dpi, L"a label drop-down");
+
+            customs[0].command  = MakeCommand (1, L"Custom", nullptr);
+            customs[0].custom   = &custom;
+            customs[1].command  = MakeCommand (2, L"Second", L"b");
+            customs[1].iconOnly = true;
+            CheckFirstInk (std::move (customs), L"custom", dpi, L"a custom entry");
+        }
     }
 };

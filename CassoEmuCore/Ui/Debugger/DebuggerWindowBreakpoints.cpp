@@ -34,13 +34,14 @@ void DebuggerWindow::ConfigureBreakpointBar()
 
     m_breakpointList->SetMultiSelect (true);
 
-    m_breakpointBar->SetTextRenderer (GetTextRenderer());
-    m_breakpointBar->SetPopupHost    (GetPopupHost());
-    m_breakpointBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_breakpointBar->SetCompact      (true);
-    m_breakpointBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-    m_breakpointBar->SetEntries      (m_breakpointCommands->BuildEntries());
-    m_breakpointBar->SetVisible      (false);
+    m_breakpointBar->SetTextRenderer  (GetTextRenderer());
+    m_breakpointBar->SetPopupHost     (GetPopupHost());
+    m_breakpointBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+    m_breakpointBar->SetCompact       (true);
+    m_breakpointBar->SetPaneTextInset (true);
+    m_breakpointBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
+    m_breakpointBar->SetEntries       (m_breakpointCommands->BuildEntries());
+    m_breakpointBar->SetVisible       (false);
 
     SetBreakpointBarMenus();
 }

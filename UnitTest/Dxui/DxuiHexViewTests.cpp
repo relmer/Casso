@@ -1207,4 +1207,79 @@ public:
         view.SetSource (&plain);
         Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"a source gives none unless it chooses to");
     }
+
+
+    //  A view that fills a pane starts its address column at the pane's text
+    //  inset in place of its padding, the bytes moving with it, and moves
+    //  neither its first row nor its scrollbar. 106 DPI is where the inset in
+    //  pixels is not the sum of its parts converted one at a time.
+    TEST_METHOD (PaneTextInset_MovesTheAddressColumnNotTheTopOrTheScrollbar)
+    {
+        constexpr int       kDpis[]   = { 96, 106, 120, 144, 168 };
+        constexpr LONG      kLeft     = 30;
+        constexpr LONG      kTop      = 20;
+        constexpr LONG      kWidth    = 800;
+        constexpr LONG      kHeight   = 320;
+        constexpr LONG      kBarSweep = 40;
+        constexpr uint64_t  kBytes    = 0x1000;
+
+
+
+        for (int dpi : kDpis)
+        {
+            CountingHexSource     source (kBytes);
+            DxuiHexView           plain;
+            DxuiHexView           inset;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            RECT                  plainAddress = {};
+            RECT                  insetAddress = {};
+            RECT                  plainByte    = {};
+            RECT                  insetByte    = {};
+            int                   textX        = 0;
+            int                   overBar      = 0;
+            std::wstring          at           = std::format (L"at {} DPI", dpi);
+
+
+
+            scaler.SetDpi (dpi);
+            textX = DxuiPaneMetrics::GetContentTextInsetPx (scaler);
+            inset.SetPaneTextInset (true);
+
+            for (DxuiHexView * view : { &plain, &inset })
+            {
+                view->SetSource      (&source);
+                view->SetCellSizeDip (kCellW, kCellH);
+                view->Layout         (RECT { kLeft, kTop, kLeft + kWidth, kTop + kHeight }, scaler);
+            }
+
+            inset.Paint (painter, text, theme);
+
+            plainAddress = plain.GetRowOffsetRect (0);
+            insetAddress = inset.GetRowOffsetRect (0);
+            plainByte    = plain.GetByteRect (0, DxuiHexView::Column::Hex);
+            insetByte    = inset.GetByteRect (0, DxuiHexView::Column::Hex);
+
+            Assert::AreEqual (kLeft,                          plainAddress.left, (L"without it, the addresses start at the padding " + at).c_str());
+            Assert::AreEqual (kLeft + textX,                  insetAddress.left, (L"with it, at the pane's text inset " + at).c_str());
+            Assert::IsTrue   (std::ranges::any_of (text.Calls(), [&] (const RecordedTextCall & call) { return call.text == L"0000" && call.x == (float) (kLeft + textX); }),
+                              (L"where the first address is drawn " + at).c_str());
+            Assert::AreEqual (plainByte.left + textX,         insetByte.left,    (L"the bytes move with them " + at).c_str());
+            Assert::AreEqual (plainAddress.top,               insetAddress.top,  (L"the first row is where it was " + at).c_str());
+
+            Assert::IsTrue (inset.IsScrollbarVisible(), at.c_str());
+
+            for (LONG x = kLeft + kWidth - kBarSweep; x < kLeft + kWidth; x++)
+            {
+                POINT  pt = { x, kTop + kHeight / 2 };
+
+                Assert::AreEqual (plain.IsOverScrollbar (pt), inset.IsOverScrollbar (pt), (L"the scrollbar is where it was " + at).c_str());
+                overBar += inset.IsOverScrollbar (pt) ? 1 : 0;
+            }
+
+            Assert::IsTrue (overBar > 0, (L"and the sweep crossed it " + at).c_str());
+        }
+    }
 };

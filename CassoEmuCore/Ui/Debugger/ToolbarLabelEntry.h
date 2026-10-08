@@ -35,6 +35,7 @@ public:
                                     bool                labeled) override;
     const wchar_t *  GetTooltipAt  (int x, int y, RECT & anchor) const override;
     bool             OnClick       (int x, int y) override;
+    int              GetLeadPx     (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kPadDip); }
 
 private:
     static constexpr int    kPadDip     = 6;

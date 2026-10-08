@@ -87,6 +87,11 @@ public:
     //  text box can, gives up width down to this once nothing else on the
     //  strip can move; -1, the default, keeps it at its full width.
     virtual int              GetMinWidthPx (const DxuiDpiScaler & scaler) const                                           { (void) scaler; return -1; }
+
+    //  From the entry's left to its first ink, so a strip that lines its
+    //  first entry up with a pane's text knows where that ink falls; -1, the
+    //  default, is the toolbar's own button padding.
+    virtual int              GetLeadPx     (const DxuiDpiScaler & scaler) const                                           { (void) scaler; return -1; }
     virtual void             OnMouseLeave  ()                                                                           {}
     virtual bool             OnLButtonDown (int x, int y)                                                               { (void) x; (void) y; return false; }
 
@@ -215,6 +220,12 @@ public:
 
     static constexpr int    kCompactBandDp  = 26;
     static constexpr float  kCompactIconDip = 12.0f;
+
+    //  A pane's strip: the first entry starts far enough in that its icon,
+    //  label or other first ink lines up with the pane's title. Off by
+    //  default.
+    void  SetPaneTextInset (bool on)                     { m_paneTextInset = on; }
+    bool  HasPaneTextInset () const                      { return m_paneTextInset; }
 
     //  A strip docked against a side edge: its entries run top to bottom as
     //  icons, unrotated, with no labels, so the band is as wide as a
@@ -440,6 +451,8 @@ private:
     Slot       *  FindSlot             (int commandId);
     int           MeasureLabelPx       (const wchar_t * text, float fontPx) const;
     int           GetEntryWidthPx      (const Slot & slot, bool labeled) const;
+    int           GetEntryLeadPx       (const Slot & slot) const;
+    int           GetPaneInsetExtraPx  () const;
     int           GetTotalWidthPx      (int labeledCount) const;
     RECT          GetFlyoutKeepAliveRc () const;
     void          LayoutFlyout         ();
@@ -501,6 +514,7 @@ private:
     std::shared_ptr<DxuiCommand>    m_seeMore;
 
     bool                     m_compact        = false;
+    bool                     m_paneTextInset  = false;
     int                      m_bandDp         = 0;
     bool                     m_vertical       = false;
     bool                     m_labels         = true;

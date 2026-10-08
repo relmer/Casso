@@ -348,6 +348,14 @@ public:
     void   SetFontSizeDip              (float dip)             { m_fontDip = (dip > 0.0f) ? dip : s_kFontDip; }
     float  GetFontSizeDip              () const                { return m_fontDip; }
 
+    //  A list that fills a pane: the columns start far enough in that the
+    //  first column's text lines up with the pane's title, while the row,
+    //  header and first cell fills still run from the list's left. Off by
+    //  default. The lead is the space before the first column, 0 when off.
+    void   SetPaneTextInset            (bool on)               { m_paneTextInset = on; }
+    bool   HasPaneTextInset            () const                { return m_paneTextInset; }
+    int    GetPaneLeadPx               () const;
+
     void  SetHorizontalScrollEnabled   (bool b)                { m_hScrollEnabled = b; }
     bool  IsHorizontalScrollEnabled    () const                { return m_hScrollEnabled; }
     int   GetContentWidthPx            () const;
@@ -709,6 +717,7 @@ private:
     int                       m_headerHeightDip = s_kHeaderHeightDip;
     int                       m_cellPadLeftDip  = s_kCellPadLeftDip;
     int                       m_cellPadRightDip = s_kCellPadRightDip;
+    bool                      m_paneTextInset   = false;
     float                     m_fontDip         = s_kFontDip;
     mutable std::vector<int>  m_measuredWPx;
 

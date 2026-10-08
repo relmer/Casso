@@ -43,13 +43,14 @@ void DebuggerWindow::ConfigureUndoBars()
 
         each.commands = std::make_unique<UndoBarCommands> (std::move (handlers));
 
-        each.bar->SetTextRenderer (GetTextRenderer());
-        each.bar->SetPopupHost    (GetPopupHost());
-        each.bar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-        each.bar->SetCompact      (true);
-        each.bar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-        each.bar->SetEntries      (each.commands->BuildEntries());
-        each.bar->SetVisible      (false);
+        each.bar->SetTextRenderer  (GetTextRenderer());
+        each.bar->SetPopupHost     (GetPopupHost());
+        each.bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+        each.bar->SetCompact       (true);
+        each.bar->SetPaneTextInset (true);
+        each.bar->EnableSeeMore    (s_kpszMdl2More, L"See more");
+        each.bar->SetEntries       (each.commands->BuildEntries());
+        each.bar->SetVisible       (false);
     }
 }
 
