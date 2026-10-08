@@ -39,6 +39,12 @@ public:
 
 
 
+struct CallRecord;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CallStackRecorder
@@ -122,6 +128,10 @@ public:
     const std::vector<Break>             & GetBreaks     () const { return m_breaks; }
     const std::optional<CallStackFrame>  & GetLastReturn () const { return m_lastReturn; }
 
+    //  A copy of the record's data, which a call stack can be built from on
+    //  any thread.
+    CallRecord  GetRecord () const;
+
     //  True when no call made at or after cycle encloses the code now
     //  running: the record holds no frame and began no later than cycle, or
     //  its innermost call was made before cycle.
@@ -177,6 +187,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CallRecord
+//
+//  A call record's data apart from its recorder, copied on the machine's
+//  thread and read on any other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CallRecord
+{
+    bool                                   isActive = false;
+    std::vector<CallStackFrame>            frames;
+    std::vector<CallStackRecorder::Break>  breaks;
+    std::optional<CallStackFrame>          lastReturn;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CallStack
 //
 //  The chain as CALLS and the pane show it, innermost first, for one of the
@@ -191,6 +222,11 @@ class CallStack
 public:
     static CallStackData  Build (CallStackMechanism          mechanism,
                                  const CallStackRecorder   & recorder,
+                                 Byte                        sp,
+                                 const CallStackPeek       & peek,
+                                 const std::set<Word>      * routineEntries);
+    static CallStackData  Build (CallStackMechanism          mechanism,
+                                 const CallRecord          & record,
                                  Byte                        sp,
                                  const CallStackPeek       & peek,
                                  const std::set<Word>      * routineEntries);
@@ -209,6 +245,6 @@ public:
     static std::string   DescribeBreak    (const CallStackBreak & chainBreak);
 
 private:
-    static void          AddRecorded      (const CallStackRecorder & recorder, CallStackData & data);
+    static void          AddRecorded      (const CallRecord & record, CallStackData & data);
     static const char *  GetMnemonic      (Byte opcode);
 };

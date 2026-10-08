@@ -276,6 +276,21 @@ void CallStackRecorder::OnStackWrite (Word address, Byte value, std::optional<By
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CallStackRecorder::GetRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CallRecord CallStackRecorder::GetRecord() const
+{
+    return CallRecord { m_active, m_frames, m_breaks, m_lastReturn };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CallStackRecorder::HasNoCallSince
 //
 //  A record without a clock cannot date anything, and says nothing. Calls
@@ -926,6 +941,28 @@ CallStackData CallStack::Build (
     const CallStackPeek       & peek,
     const std::set<Word>      * routineEntries)
 {
+    return Build (mechanism, recorder.GetRecord(), sp, peek, routineEntries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStack::Build
+//
+//  From a copy of the record, which can be built on any thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CallStackData CallStack::Build (
+    CallStackMechanism          mechanism,
+    const CallRecord          & record,
+    Byte                        sp,
+    const CallStackPeek       & peek,
+    const std::set<Word>      * routineEntries)
+{
     CallStackData  data;
     bool           isWalkBelow = false;
     Byte           walkFrom    = sp;
@@ -934,7 +971,7 @@ CallStackData CallStack::Build (
 
     data.mechanism = mechanism;
 
-    if (mechanism == CallStackMechanism::Walk || (mechanism == CallStackMechanism::Hybrid && !recorder.IsActive()))
+    if (mechanism == CallStackMechanism::Walk || (mechanism == CallStackMechanism::Hybrid && !record.isActive))
     {
         for (const CallStackFrame & frame : StackWalker::Walk (sp, peek, routineEntries))
         {
@@ -944,10 +981,10 @@ CallStackData CallStack::Build (
         return data;
     }
 
-    AddRecorded (recorder, data);
+    AddRecorded (record, data);
 
     isWalkBelow = mechanism == CallStackMechanism::Hybrid &&
-                  std::any_of (recorder.GetBreaks().begin(), recorder.GetBreaks().end(), [] (const CallStackRecorder::Break & each)
+                  std::any_of (record.breaks.begin(), record.breaks.end(), [] (const CallStackRecorder::Break & each)
                   {
                       return each.depth == 0 && each.info.kind == CallBreakKind::TrackingBegan;
                   });
@@ -957,9 +994,9 @@ CallStackData CallStack::Build (
         return data;
     }
 
-    if (!recorder.GetFrames().empty())
+    if (!record.frames.empty())
     {
-        walkFrom = recorder.GetFrames().front().stackLevel;
+        walkFrom = record.frames.front().stackLevel;
     }
 
     for (CallStackFrame frame : StackWalker::Walk (walkFrom, peek, routineEntries))
@@ -984,10 +1021,10 @@ CallStackData CallStack::Build (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CallStack::AddRecorded (const CallStackRecorder & recorder, CallStackData & data)
+void CallStack::AddRecorded (const CallRecord & record, CallStackData & data)
 {
-    const std::vector<CallStackFrame>            & frames  = recorder.GetFrames();
-    const std::vector<CallStackRecorder::Break>  & breaks  = recorder.GetBreaks();
+    const std::vector<CallStackFrame>            & frames  = record.frames;
+    const std::vector<CallStackRecorder::Break>  & breaks  = record.breaks;
     bool                                           isBelow = false;
     CallStackFrame                                 frame;
 
@@ -1014,7 +1051,7 @@ void CallStack::AddRecorded (const CallStackRecorder & recorder, CallStackData &
         data.rows.push_back ({ frame, std::nullopt });
     }
 
-    data.lastReturn = recorder.GetLastReturn();
+    data.lastReturn = record.lastReturn;
 }
 
 

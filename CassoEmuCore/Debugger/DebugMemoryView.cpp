@@ -76,6 +76,65 @@ bool DebugMemoryView::TryPeek (Word address, Byte & value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugMemoryView::CopyAll
+//
+//  The answers TryPeek and GetRegion give, page by page: a page the bus maps
+//  directly is copied whole, I/O is left unread, and only the slot ROM pages
+//  and any page no device maps directly are read a byte at a time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugMemoryView::CopyAll (DebugMemoryImage & image) const
+{
+    MemoryBus  & bus   = m_host.GetMemoryBus();
+    Byte       * page  = nullptr;
+    size_t       first = 0;
+
+
+
+    for (size_t index = 0; index < DebugMemoryImage::kPages; index++)
+    {
+        first                = index * DebugMemoryImage::kPageBytes;
+        image.regions[index] = GetRegion ((Word) first);
+        page                 = bus.GetShadowReadPage ((Word) first);
+
+        if (first >= kIoFirst && first <= kIoLast)
+        {
+            std::fill_n (image.bytes.begin() + first, DebugMemoryImage::kPageBytes, (Byte) 0);
+
+            for (size_t offset = 0; offset < DebugMemoryImage::kPageBytes; offset++)
+            {
+                image.readable[first + offset] = false;
+            }
+
+            continue;
+        }
+
+        if (page != nullptr && (first < kSlotRomFirst || first > kSlotRomLast))
+        {
+            std::copy_n (page, DebugMemoryImage::kPageBytes, image.bytes.begin() + first);
+
+            for (size_t offset = 0; offset < DebugMemoryImage::kPageBytes; offset++)
+            {
+                image.readable[first + offset] = true;
+            }
+
+            continue;
+        }
+
+        for (size_t offset = 0; offset < DebugMemoryImage::kPageBytes; offset++)
+        {
+            image.readable[first + offset] = TryPeek ((Word) (first + offset), image.bytes[first + offset]);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugMemoryView::TryPoke
 //
 //  Below $C000 a poke lands where a CPU write would. In $D000-$FFFF it lands

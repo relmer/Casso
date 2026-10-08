@@ -40,6 +40,7 @@ public:
     bool                TryPoke           (Word address, Byte value) override;
     bool                TryPatch          (Word address, Byte value) override;
     MemoryRegion        GetRegion         (Word address) const override;
+    void                TakeMemoryImage   (DebugMemoryImage & image) const override;
     Byte                ReadIo            (Word address) override;
     void                WriteIo           (Word address, Byte value) override;
     void                GetSoftSwitches   (std::vector<SoftSwitch> & switches) const override;

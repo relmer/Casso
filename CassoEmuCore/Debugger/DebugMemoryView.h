@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/DebugMemoryImage.h"
 #include "Debugger/Reply.h"
 
 class MachineHost;
@@ -27,6 +28,7 @@ public:
     bool          TryPoke   (Word address, Byte value);
     bool          TryPatch  (Word address, Byte value);
     MemoryRegion  GetRegion (Word address) const;
+    void          CopyAll   (DebugMemoryImage & image) const;
 
 private:
     static constexpr Word    kIoFirst      = 0xC000;

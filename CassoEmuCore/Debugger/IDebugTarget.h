@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/DebugMemoryImage.h"
 #include "Debugger/HeatTypes.h"
 #include "Debugger/Reply.h"
 
@@ -72,6 +73,21 @@ public:
 
     virtual bool                TryPeek           (Word address, Byte & value) const = 0;
     virtual bool                TryPoke           (Word address, Byte value) = 0;
+
+    //  Everything TryPeek and GetRegion would answer, all at once. A target
+    //  that can copy whole pages overrides this; the default peeks each byte.
+    virtual void                TakeMemoryImage   (DebugMemoryImage & image) const
+    {
+        for (size_t address = 0; address < DebugMemoryImage::kBytes; address++)
+        {
+            image.readable[address] = TryPeek ((Word) address, image.bytes[address]);
+        }
+
+        for (size_t page = 0; page < DebugMemoryImage::kPages; page++)
+        {
+            image.regions[page] = GetRegion ((Word) (page * DebugMemoryImage::kPageBytes));
+        }
+    }
 
     //  A memory window's edit: RAM as a write, ROM into the image the CPU
     //  reads from, I/O refused.

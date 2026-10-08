@@ -142,7 +142,9 @@
     <ClCompile Include="Core\MachineScanner.cpp" />
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
+    <ClCompile Include="Debugger\CapturedDebugTarget.cpp" />
     <ClCompile Include="Debugger\DebugMemoryView.cpp" />
+    <ClCompile Include="Debugger\DebugViewCapture.cpp" />
     <ClCompile Include="Debugger\RunStopHook.cpp" />
     <ClCompile Include="Debugger\StepFilter.cpp" />
     <ClCompile Include="Debugger\CallStack.cpp" />
@@ -615,7 +617,10 @@
     <ClInclude Include="Core\MemoryBus.h" />
     <ClInclude Include="Core\IWatchSink.h" />
     <ClInclude Include="Debugger\DebugHook.h" />
+    <ClInclude Include="Debugger\CapturedDebugTarget.h" />
+    <ClInclude Include="Debugger\DebugMemoryImage.h" />
     <ClInclude Include="Debugger\DebugMemoryView.h" />
+    <ClInclude Include="Debugger\DebugViewCapture.h" />
     <ClInclude Include="Debugger\RunStopHook.h" />
     <ClInclude Include="Debugger\StepFilter.h" />
     <ClInclude Include="Debugger\CallStack.h" />
