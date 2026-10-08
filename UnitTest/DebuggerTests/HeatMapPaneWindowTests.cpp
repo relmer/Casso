@@ -609,15 +609,19 @@ namespace HeatMapPaneWindowTests
 
 
 
-        TEST_METHOD (OverTheMapTheTipShowsAtOnce)
+        //  The tip waits for the machine to say what last wrote and read the
+        //  cell, so it is never shown with one line and then grown; once they
+        //  are in, it shows at once, with no dwell.
+        TEST_METHOD (OverTheMapTheTipShowsWholeWithNoDwell)
         {
-            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
-            HeatMapHost     host;
-            HeatMapWindow   window (theme, host);
-            HeatMapView   * view   = nullptr;
-            RECT            cell   = {};
-            DxuiMouseEvent  move;
-            Word            target = 0;
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost      host;
+            HeatMapWindow    window (theme, host);
+            HeatMapView    * view   = nullptr;
+            RECT             cell   = {};
+            DxuiMouseEvent   move;
+            HeatAccessHover  hover;
+            Word             target = 0;
 
 
 
@@ -630,9 +634,16 @@ namespace HeatMapPaneWindowTests
             move.positionDip = { cell.left + 1, cell.top + 1 };
             (void) window.OnMouse (move);
 
-            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell");
-            Assert::AreEqual (std::format (L"${:04X}  untouched", target), window.GetTooltip().GetText());
-            Assert::IsTrue   (view->GetHover().has_value(), L"and the cell is framed");
+            Assert::IsFalse (window.GetTooltip().IsVisible(), L"not before its writer and reader are in");
+            Assert::IsTrue  (view->GetHover().has_value(), L"but the cell is framed");
+
+            hover.address = target;
+            view->SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+            (void) window.OnMouse (move);
+
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell once they are");
+            Assert::AreEqual (view->GetTipText (target), window.GetTooltip().GetText());
+            Assert::IsTrue   (window.GetTooltip().GetText().starts_with (std::format (L"${:04X}  untouched\n", target)), L"the whole tip");
         }
     };
 }

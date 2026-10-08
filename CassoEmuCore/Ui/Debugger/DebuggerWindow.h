@@ -1090,6 +1090,7 @@ private:
     int64_t                                                                          m_framePaintedAt     = 0;
     uint64_t                                                                         m_heatAppliedSerial  = 0;
     std::optional<POINT>                                                             m_heatMapTipAt;
+    bool                                                                             m_isHeatMapTipPending = false;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapBarSlot;
     DxuiToolbar                                                                    * m_heatMapBar         = nullptr;
     std::unique_ptr<HeatMapBarCommands>                                              m_heatMapCommands;

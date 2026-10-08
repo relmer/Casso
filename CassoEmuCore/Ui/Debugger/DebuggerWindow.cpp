@@ -7081,8 +7081,9 @@ void DebuggerWindow::ApplyHeatMap()
     }
 
     //  The tip over the map shows the last writer and reader as soon as they
-    //  come in, without waiting for the mouse to move.
-    if (isNewHover && m_heatMapTipAt.has_value() && m_tooltip.IsVisible())
+    //  come in, without waiting for the mouse to move, and a tip held back
+    //  for them shows now.
+    if (isNewHover && m_heatMapTipAt.has_value() && (m_tooltip.IsVisible() || m_isHeatMapTipPending))
     {
         UpdateTooltip (*m_heatMapTipAt);
     }
@@ -8678,12 +8679,22 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     }
 
     //  Over the heat map, the cell the mouse picks and what touched it, the
-    //  same way.
+    //  same way. Until the machine has looked up the cell's last writer and
+    //  reader, a tip already up stays as it is and none is put up, so a tip
+    //  never shows one line and then grows; ApplyHeatMap shows it whole once
+    //  they arrive.
     m_heatMapTipAt.reset();
+    m_isHeatMapTipPending = false;
 
     if (TryGetHeatMapTip (clientPx, cell, text))
     {
-        m_heatMapTipAt = clientPx;
+        m_heatMapTipAt        = clientPx;
+        m_isHeatMapTipPending = !m_heatMapView->IsTipComplete (clientPx);
+
+        if (m_isHeatMapTipPending)
+        {
+            return;
+        }
 
         tip.SetMonospace   (true);
         tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);

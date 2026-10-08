@@ -908,6 +908,37 @@ namespace DebuggerTests
 
 
 
+        //  With a machine looking up what touched the cell, the tip is whole
+        //  only once the answer for that cell is in, so it is not shown with
+        //  one line and then grown by two.
+        TEST_METHOD (TheTipIsWholeOnlyOnceTheCellsWriterAndReaderAreIn)
+        {
+            HeatMapView      view;
+            HeatAccessHover  hover;
+            POINT            point = {};
+
+
+
+            Place (view);
+            view.SetTop (50000.0);
+            point = GetPointOf (view, 0x2000, 0);
+
+            Assert::IsTrue (view.IsTipComplete (point), L"whole when nothing looks them up");
+
+            view.SetOnHoverChanged ([] (std::optional<Word>) {});
+            Assert::IsFalse (view.IsTipComplete (point), L"not before the answer");
+
+            hover.address = 0x2001;
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+            Assert::IsFalse (view.IsTipComplete (point), L"nor with another cell's");
+
+            hover.address = 0x2000;
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+            Assert::IsTrue (view.IsTipComplete (point), L"whole with its own");
+        }
+
+
+
         TEST_METHOD (WhileTheHeatIsRebuiltTheBarSaysSo)
         {
             HeatMapView           view;

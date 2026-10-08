@@ -2022,6 +2022,33 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::IsTipComplete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::IsTipComplete (POINT point) const
+{
+    std::optional<Place>  pick    = GetPickPlaceAt (point);
+    Word                  address = 0;
+
+
+
+    if (!pick.has_value() || !m_onHoverChanged)
+    {
+        return true;
+    }
+
+    address = GetAddressOf (*pick);
+
+    return m_hoverAccess != nullptr && m_hoverAccess->address == address && m_hoverAccess->bank == m_shownBank;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::Layout
 //
 //  The first layout sets the starting zoom, which depends on the dpi. Ranges

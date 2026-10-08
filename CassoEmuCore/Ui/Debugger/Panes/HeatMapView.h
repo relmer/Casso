@@ -365,6 +365,11 @@ public:
     //  address and what touched it, "$C65E  executed 120/s, read 3/s"; false
     //  off the map and while a button is down.
     bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text) const;
+
+    //  Whether the tip for a point is whole: the last writer and reader of
+    //  the cell it picks are in, or nothing looks them up. A tip shown before
+    //  them gains two lines when they arrive.
+    bool                 IsTipComplete (POINT point) const;
     std::wstring         GetTipText   (Word address) const;
 
     //  The widening of a scrollbar under the mouse, carried out over frames.
