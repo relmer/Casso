@@ -124,6 +124,10 @@ public:
         // to the card rather than the window, so a consumer never sees it.
         bool                            shadow             = true;
 
+        // Square corners, for a popup laid over something square (a row)
+        // rather than floating as a card.
+        bool                            squareCorners      = false;
+
         // When true (the default) a popup whose dismiss policy is
         // OnClick* grabs the mouse via SetCapture so off-popup clicks
         // route to its WndProc. Consumers that need the OWNER window to

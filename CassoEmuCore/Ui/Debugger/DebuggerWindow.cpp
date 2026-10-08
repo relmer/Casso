@@ -101,6 +101,8 @@ static bool TryParseHexWord (std::wstring text, Word & value)
 
 DebuggerWindow::~DebuggerWindow()
 {
+    //  The operand tip's popup goes back to its window before the window goes.
+    HideOperandTip();
     DestroyBackend();
 }
 
@@ -4224,6 +4226,9 @@ void DebuggerWindow::LayoutWidgets()
     PlaceColorKeys();
     PlaceFindBar();
     ClipPaneControls();
+
+    //  A pane moved or sized under the operand tip moves its cell.
+    CheckOperandTip (m_operandTipCell.view);
 }
 
 
@@ -6431,6 +6436,7 @@ void DebuggerWindow::RenderFrame()
         isAnimating = true;
     }
 
+    FollowOperandTipPointer();
     TickFloats (now);
 
     for (MemoryPane * pane : GetOpenMemoryPanes())
@@ -6728,6 +6734,8 @@ void DebuggerWindow::ApplyCodeView (int view)
     {
         list->EnsureVisible (current);
     }
+
+    CheckOperandTip (view);
 }
 
 
@@ -8547,7 +8555,8 @@ void DebuggerWindow::CommitRegister (const std::string & name, Byte typed)
 //
 //  DebuggerWindow::IsAnyMenuOpen
 //
-//  Whether the menu bar, a toolbar's drop-down or a context menu is open.
+//  Whether the menu bar, a toolbar's drop-down or a context menu is open,
+//  in this window or a floating one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -8565,9 +8574,21 @@ bool DebuggerWindow::IsAnyMenuOpen() const
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
 
+    for (const DxuiToolbar * bar : m_codeBars)
+    {
+        open = open || (bar != nullptr && bar->IsMenuOpen());
+    }
+
     for (const SourceDocument & document : m_sourceDocs)
     {
         open = open || (document.bar != nullptr && document.bar->IsMenuOpen());
+    }
+
+    for (const auto & [floatPane, window] : m_floats)
+    {
+        DxuiHwndSource  * floatPopups = (window != nullptr) ? window->GetPopupHost() : nullptr;
+
+        open = open || (floatPopups != nullptr && floatPopups->GetContextMenu().IsVisible());
     }
 
     return open;
@@ -8788,6 +8809,8 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     //  means.
     if (TryGetCellTip (clientPx, cell, text) || TryGetGraphicTip (clientPx, cell, text))
     {
+        cell = GetColorTipAnchor (cell);
+
         tip.SetMonospace (false);
         tip.RequestShow  (cell, text, now);
         return;
@@ -8812,6 +8835,606 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     }
 
     tip.RequestHide (now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UpdateOperandTip
+//
+//  The operand tip in the window the pointer is in, at that window's scale,
+//  kept on the monitor under the pointer; a tip up in another window goes. A
+//  window with no HWND, as a test builds it, measures with what the test
+//  gives it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateOperandTip (const DxuiMouseEvent & ev, bool isPressed)
+{
+    DxuiHwndSource     * host     = GetRoutedTooltip().GetPopupHost();
+    IDxuiTextRenderer  * text     = (host != nullptr) ? GetTextRenderer() : m_operandTipTestText;
+    DxuiDpiScaler        scaler   = (host != nullptr) ? host->GetScaler() : m_scaler;
+    RECT                 workArea = (host != nullptr) ? GetWorkAreaPx (host, ev.positionDip) : m_operandTipTestArea;
+
+
+
+    if (host != m_operandTipHost)
+    {
+        HideOperandTip();
+    }
+
+    m_operandTipHost = host;
+
+    if (text != nullptr)
+    {
+        PlaceOperandTip (ev, isPressed, scaler, *text, workArea);
+    }
+    else
+    {
+        HideOperandTip();
+    }
+
+    ShowOperandTip();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceOperandTip
+//
+//  A disassembly row's operand and result that the pane cuts off show whole
+//  over their cell as soon as the pointer reaches it, and go when it leaves
+//  the cell or does anything but move: a press, the wheel, a button held
+//  down, a menu opening, or the PC's marker being dragged. New text or a new
+//  place takes down the popup that drew the old, so the new is drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceOperandTip (
+    const DxuiMouseEvent  & ev,
+    bool                    isPressed,
+    const DxuiDpiScaler   & scaler,
+    IDxuiTextRenderer     & text,
+    const RECT            & workArea)
+{
+    OperandResultTip::Layout  layout;
+    OperandTipCell            cell;
+    bool                      isOver = false;
+
+
+
+    isOver = ev.kind == DxuiMouseEventKind::Move && !isPressed && m_pcDragView < 0 && !IsAnyMenuOpen() &&
+             TryGetOperandTip (ev.positionDip, scaler, text, workArea, layout, cell);
+
+    if (!isOver)
+    {
+        HideOperandTip();
+        return;
+    }
+
+    if (m_hasOperandTip && !OperandResultTip::IsSame (layout, m_operandTipLayout))
+    {
+        m_operandTip.Hide();
+    }
+
+    m_hasOperandTip      = true;
+    m_operandTipLayout   = std::move (layout);
+    m_operandTipCell     = cell;
+    m_operandTipText     = &text;
+    m_operandTipScaler   = scaler;
+    m_operandTipWorkArea = workArea;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowOperandTip
+//
+//  The popup over the tip the window keeps, in the window it was laid out
+//  for; a popup already up over the same rect stays as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowOperandTip()
+{
+    OperandResultTip::Layout  layout = m_operandTipLayout;
+
+
+
+    if (!m_hasOperandTip)
+    {
+        m_operandTip.Hide();
+        return;
+    }
+
+    m_operandTip.SetPopupHost (m_operandTipHost);
+    m_operandTip.Show (layout.rect, layout.fill, [layout] (IDxuiPainter & painter, IDxuiTextRenderer & tipText)
+    {
+        OperandResultTip::Paint (layout, painter, tipText);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HideOperandTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::HideOperandTip()
+{
+    m_operandTip.Hide();
+
+    m_hasOperandTip    = false;
+    m_operandTipLayout = OperandResultTip::Layout();
+    m_operandTipCell   = OperandTipCell();
+    m_operandTipText   = nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CheckOperandTip
+//
+//  New rows, or a new layout of the panes, that change the cell under the
+//  operand tip or move it take the tip down; the next move of the pointer
+//  brings back one for what is there. The list fits its columns to new rows
+//  only as it paints, so they are fitted here first, as that paint will fit
+//  them, and the tip is laid out again in full: a column ahead of the operand
+//  widened by the new rows moves the cell as surely as new text does, and the
+//  PC leaving the row changes its fill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CheckOperandTip (int view)
+{
+    OperandResultTip::Layout  layout;
+    OperandTipCell            cell;
+    bool                      isSame = false;
+
+
+
+    if (!m_hasOperandTip || view != m_operandTipCell.view || m_operandTipText == nullptr)
+    {
+        return;
+    }
+
+    if (m_operandTipHost != nullptr)
+    {
+        m_operandTipScaler = m_operandTipHost->GetScaler();
+    }
+
+    m_codeLists[(size_t) view]->MeasureColumnsPx (*m_operandTipText);
+
+    isSame = TryMakeOperandTip (view, m_operandTipCell.row, m_operandTipScaler, *m_operandTipText, m_operandTipWorkArea, layout, cell) &&
+             OperandResultTip::IsSame (layout, m_operandTipLayout);
+
+    if (!isSame)
+    {
+        HideOperandTip();
+        return;
+    }
+
+    m_operandTipCell = cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CheckOperandTipPointer
+//
+//  The pointer anywhere but on the part of the cell the operand tip was put
+//  up for takes the tip down, however it got there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CheckOperandTipPointer (POINT clientPx)
+{
+    if (m_hasOperandTip && !DxuiDockSite::Contains (m_operandTipCell.area, clientPx))
+    {
+        HideOperandTip();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FollowOperandTipPointer
+//
+//  Once a frame while the operand tip is up. Mouse events reach the window
+//  only while the pointer moves over its client area, so a pointer that
+//  leaves straight from the cell, onto the frame or the caption, into another
+//  window or onto another monitor, or that a window moved or minimized leaves
+//  behind, would otherwise leave the tip up. Where the pointer cannot be
+//  read, the tip goes too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FollowOperandTipPointer()
+{
+    HWND   hwnd    = (m_operandTipHost != nullptr) ? m_operandTipHost->GetHwnd() : nullptr;
+    POINT  pointer = {};
+    bool   isRead  = false;
+    bool   isShown = false;
+
+
+
+    if (!m_hasOperandTip || hwnd == nullptr)
+    {
+        return;
+    }
+
+    isRead  = GetCursorPos (&pointer) != FALSE && ScreenToClient (hwnd, &pointer) != FALSE;
+    isShown = IsWindowVisible (hwnd) != FALSE && IsIconic (hwnd) == FALSE;
+
+    if (!isRead || !isShown)
+    {
+        HideOperandTip();
+        return;
+    }
+
+    CheckOperandTipPointer (pointer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetColorTipAnchor
+//
+//  A color tip over a cell shows below the operand and result where they lie
+//  whole over their cell, rather than over their lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DebuggerWindow::GetColorTipAnchor (const RECT & cell) const
+{
+    return m_hasOperandTip ? m_operandTipLayout.rect : cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetOperandTip
+//
+//  Over the operand and result of a row in any disassembly view, the tip for
+//  them when the pane cuts them off, unless something lying over the pane
+//  meets the tip or the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetOperandTip (
+    POINT                       clientPx,
+    const DxuiDpiScaler       & scaler,
+    IDxuiTextRenderer         & text,
+    const RECT                & workArea,
+    OperandResultTip::Layout  & out,
+    OperandTipCell            & outCell) const
+{
+    HRESULT                     hr        = S_OK;
+    OperandResultTip::Layout    layout;
+    OperandTipCell              cell;
+    int                         view      = FindOperandTipView (clientPx);
+    DxuiListView              * list      = (view >= 0) ? m_codeLists[(size_t) view] : nullptr;
+    RECT                        bounds    = {};
+    int                         row       = -1;
+    bool                        isOver    = false;
+    bool                        isMade    = false;
+    bool                        isCovered = false;
+    bool                        hasTip    = false;
+
+
+
+    CBR (list != nullptr);
+
+    bounds = list->GetBounds();
+    row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
+    isOver = row >= 0 && GetColumnAt (list, clientPx.x - bounds.left) == (int) kCodeOperandColumn;
+    CBR (isOver);
+
+    isMade = TryMakeOperandTip (view, row, scaler, text, workArea, layout, cell);
+    CBR (isMade);
+
+    isOver    = DxuiDockSite::Contains (cell.area, clientPx);
+    isCovered = IsOperandTipCovered (view, clientPx, layout.rect);
+    CBR (isOver && !isCovered);
+
+    out     = std::move (layout);
+    outCell = cell;
+    hasTip  = true;
+
+Error:
+    return hasTip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FindOperandTipView
+//
+//  The disassembly view under a point in the window the event being routed
+//  came from, or -1: one slid out over the panes ahead of any under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::FindOperandTipView (POINT clientPx) const
+{
+    std::wstring  slid   = (m_routingPane.empty() && m_dockSite != nullptr) ? m_dockSite->GetSlidPane() : std::wstring();
+    int           found  = -1;
+    bool          isSlid = false;
+
+
+
+    for (int each = 0; each < DebuggerViewState::kMaxCodeViews && !isSlid; each++)
+    {
+        DxuiListView  * code   = m_codeLists[(size_t) each];
+        bool            isOver = code != nullptr && IsRoutable (code) && code->IsVisible() && DxuiDockSite::Contains (code->GetBounds(), clientPx);
+
+        if (isOver)
+        {
+            found  = each;
+            isSlid = !slid.empty() && slid == DebuggerLayout::GetCodePaneId (each);
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryMakeOperandTip
+//
+//  The tip over a row's operand and result when the pane cuts them off,
+//  placed as the list draws the cell: where its text starts, the pane's
+//  edges short of its scrollbar, its padding, face and size, and the theme's
+//  colors under and around it, the row's own fill among them. The cell's area
+//  is the part of it the pane shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryMakeOperandTip (
+    int                         view,
+    int                         row,
+    const DxuiDpiScaler       & scaler,
+    IDxuiTextRenderer         & text,
+    const RECT                & workArea,
+    OperandResultTip::Layout  & out,
+    OperandTipCell            & outCell) const
+{
+    HRESULT                                   hr        = S_OK;
+    DxuiListView                            * list      = m_codeLists[(size_t) view];
+    const std::vector<DxuiListView::Cell>   * cells     = nullptr;
+    RECT                                      bounds    = {};
+    size_t                                    cellCount = 0;
+    bool                                      isShown   = false;
+    bool                                      isMade    = false;
+    OperandResultTip::Placement               placement;
+
+
+
+    isShown = m_theme != nullptr && list != nullptr && list->IsVisible() &&
+              list->GetCellTextRectPx (row, kCodeOperandColumn, placement.textRect);
+    CBR (isShown);
+
+    cells     = &list->GetCellsOfRow (row);
+    cellCount = cells->size();
+    CBR (cellCount > kCodeOperandColumn);
+
+    bounds = list->GetBounds();
+    OffsetRect (&placement.textRect, bounds.left, bounds.top);
+
+    placement.visibleLeft       = bounds.left;
+    placement.visibleRight      = bounds.right - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0);
+    placement.padLeftPx         = scaler.ToPx (list->GetCellPadLeftDip());
+    placement.padRightPx        = scaler.ToPx (list->GetCellPadRightDip());
+    placement.fontPx            = scaler.ToPxf (list->GetFontSizeDip());
+    placement.face              = list->IsMonospace() ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace;
+    placement.contentBackground = m_theme->ContentBackground();
+    placement.rowFill           = GetCodeRowFill (list, row);
+    placement.ink               = m_theme->Foreground();
+    placement.border            = m_theme->TooltipBorder();
+    placement.workArea          = workArea;
+    placement.dpi               = scaler.GetDpi();
+
+    isMade = OperandResultTip::TryMakeLayout ((*cells)[kCodeOperandColumn], placement, text, out);
+    CBR (isMade);
+
+    outCell.view = view;
+    outCell.row  = row;
+    outCell.area = RECT { (std::max) (placement.textRect.left - (LONG) placement.padLeftPx, bounds.left),
+                          placement.textRect.top,
+                          (std::min) (placement.textRect.right, (LONG) placement.visibleRight),
+                          placement.textRect.bottom };
+
+Error:
+    return isMade;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsOperandTipCovered
+//
+//  Whether anything lying over the disassembly meets the tip or the pointer:
+//  the zoom popup, another pane slid out over it, a color key held open, a
+//  find widget, or a floating window. The tip is a window of its own, over
+//  everything drawn in this one, so it would show over each of them; and a
+//  pointer on one of them is on it rather than on the cell, though a color
+//  key lets it through to the panes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsOperandTipCovered (int view, POINT clientPx, const RECT & tipRect) const
+{
+    bool   isMain    = m_routingPane.empty();
+    bool   isCovered = false;
+    HWND   hwnd      = nullptr;
+    POINT  origin    = {};
+    RECT   tipScreen = tipRect;
+    RECT   both      = {};
+
+
+
+    //  The zoom popup and a slid pane lie over this window's panes only.
+    isCovered = isMain && m_zoomOpen && Meets (m_zoomRect, clientPx, tipRect);
+
+    isCovered = isCovered || (isMain && m_dockSite != nullptr && !m_dockSite->GetSlidPane().empty() &&
+                              m_dockSite->GetSlidPane() != DebuggerLayout::GetCodePaneId (view) &&
+                              Meets (m_dockSite->GetSlidRect(), clientPx, tipRect));
+
+    isCovered = isCovered || (m_colorKeyOwner != nullptr && m_colorKeyPopup.IsShown() && m_colorKeyPopup.IsHeld() &&
+                              GetBarRoutingPane (m_colorKeyOwner->GetPane()) == m_routingPane &&
+                              Meets (m_colorKeyPopup.GetRect(), clientPx, tipRect));
+
+    for (const auto & [findPane, state] : m_findStates)
+    {
+        isCovered = isCovered || (state.plate != nullptr && IsRoutable (state.plate) && state.plate->IsVisible() &&
+                                  Meets (state.plate->GetBounds(), clientPx, tipRect));
+    }
+
+    //  Every floating window lies over this one, and another may lie over the
+    //  one the tip is in.
+    hwnd = isMain ? GetHwnd() : (m_floats.contains (m_routingPane) ? m_floats.at (m_routingPane)->GetHwnd() : nullptr);
+
+    if (hwnd != nullptr && ClientToScreen (hwnd, &origin) != FALSE)
+    {
+        OffsetRect (&tipScreen, origin.x, origin.y);
+
+        for (const auto & [floatPane, window] : m_floats)
+        {
+            RECT  floatRect = (window != nullptr) ? window->GetScreenRect() : RECT {};
+
+            isCovered = isCovered || (floatPane != m_routingPane && window != nullptr && IsWindowVisible (window->GetHwnd()) != FALSE &&
+                                      IntersectRect (&both, &tipScreen, &floatRect) != FALSE);
+        }
+    }
+
+    return isCovered;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::Meets
+//
+//  Whether something lying at `over` holds the pointer or overlaps the tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::Meets (const RECT & over, POINT clientPx, const RECT & tipRect)
+{
+    RECT  both = {};
+
+
+
+    return DxuiDockSite::Contains (over, clientPx) || IntersectRect (&both, &over, &tipRect) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCodeRowFill
+//
+//  What a disassembly list fills a row with under its cells, as it paints
+//  them: the selection on the selected row while the list has the focus and
+//  no text is selected, the hover on the row under the pointer, or its own
+//  background.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetCodeRowFill (const DxuiListView * list, int row) const
+{
+    bool  isSelected = list->IsListFocused() && !list->HasTextSelection() &&
+                       (list->IsMultiSelect() ? list->IsRowSelected (row) : row == list->GetSelectedRow());
+    bool  isHovered  = row == list->GetHoveredRow();
+
+
+
+    return isSelected ? m_theme->ContentSelection() : (isHovered ? m_theme->ContentHover() : m_theme->ContentBackground());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetWorkAreaPx
+//
+//  The work area of the monitor under a point of a window's client area, in
+//  that window's client pixels: the screen the operand tip stays on, as its
+//  popup is kept on it. Empty where the window has no HWND to measure from,
+//  which leaves no room for a tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DebuggerWindow::GetWorkAreaPx (const DxuiHwndSource * host, POINT clientPx)
+{
+    HRESULT      hr       = S_OK;
+    HWND         hwnd     = host->GetHwnd();
+    POINT        screen   = clientPx;
+    POINT        origin   = {};
+    MONITORINFO  info     = {};
+    RECT         area     = {};
+    bool         isPlaced = false;
+    bool         isFound  = false;
+
+
+
+    isPlaced = hwnd != nullptr && ClientToScreen (hwnd, &screen) != FALSE && ClientToScreen (hwnd, &origin) != FALSE;
+    CBR (isPlaced);
+
+    info.cbSize = sizeof (info);
+    isFound     = GetMonitorInfoW (MonitorFromPoint (screen, MONITOR_DEFAULTTONEAREST), &info) != FALSE;
+    CBR (isFound);
+
+    area = info.rcWork;
+    OffsetRect (&area, -origin.x, -origin.y);
+
+Error:
+    return area;
 }
 
 
@@ -10278,6 +10901,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         m_lastPressPx = POINT { x, y };
     }
 
+    //  A disassembly row's operand and result that the pane cuts off show
+    //  whole over their cell while the pointer is on it. This runs ahead of
+    //  everything that lies over the panes, so IsOperandTipCovered tests for
+    //  each of them. A move event records whether the left button was down
+    //  when the pointer moved; that, not the button's state at this moment,
+    //  marks a drag over the cell.
+    UpdateOperandTip (ev, ev.button == DxuiMouseButton::Left);
+
     //  A watch being edited takes the pointer while it is over the box; a
     //  press or a wheel anywhere else keeps the edit and lets it through.
     if (m_watchEdit.row >= 0)
@@ -11676,6 +12307,13 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
         m_floatTips.erase (pane);
     }
 
+    //  And an operand tip up in it.
+    if (m_operandTipHost != nullptr && m_operandTipHost == window->GetPopupHost())
+    {
+        HideOperandTip();
+        m_operandTipHost = nullptr;
+    }
+
     for (IDxuiControl * control : GetPaneControls (pane))
     {
         std::unique_ptr<IDxuiControl>  owned = window->DetachChild (control);
@@ -12396,6 +13034,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Char)
     {
         m_openingFocus.OnUserInput();
+    }
+
+    //  A key can scroll, step or resize what the operand tip lies over, so
+    //  the tip goes; the next move of the pointer brings it back.
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        HideOperandTip();
     }
 
     //  Typing into a memory window is an edit, which the address tip would

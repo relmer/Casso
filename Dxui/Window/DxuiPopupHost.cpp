@@ -402,7 +402,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // DWM rounds the window only when the host is NOT drawing the rounded
     // card itself. With a shadow margin the window's corners are transparent
     // surround, and DWM's corner clip would cut the shadow off there.
-    DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0);
+    DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0 && !m_params.squareCorners);
 
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
     // back most-recently-used first, so the window about to be shown is

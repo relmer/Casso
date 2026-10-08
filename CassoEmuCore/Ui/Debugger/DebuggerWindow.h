@@ -31,6 +31,7 @@
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/OpeningFocusDeferral.h"
+#include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
@@ -586,6 +587,47 @@ protected:
     bool                  TryGetMemoryMapTip (POINT clientPx, std::wstring & text) const;
     ColorLegend::Palette  GetColorPalette  () const;
 
+    //  Protected so a test can lay out the tip over a disassembly row's
+    //  operand and result where the pane cuts them off, measured by a
+    //  renderer of its own on a screen of its own, and see the tip the
+    //  pointer's moves, presses and keys, new rows and new layouts leave up:
+    //  the window keeps it whether or not a popup draws it. The cell is the
+    //  view and row the tip covers, and the part of the cell, in the window's
+    //  pixels, the pointer keeps it up over.
+    struct OperandTipCell
+    {
+        int   view = -1;
+        int   row  = -1;
+        RECT  area = {};
+    };
+
+    bool  TryGetOperandTip       (POINT                       clientPx,
+                                  const DxuiDpiScaler       & scaler,
+                                  IDxuiTextRenderer         & text,
+                                  const RECT                & workArea,
+                                  OperandResultTip::Layout  & out,
+                                  OperandTipCell            & outCell) const;
+    void  PlaceOperandTip        (const DxuiMouseEvent      & ev,
+                                  bool                        isPressed,
+                                  const DxuiDpiScaler       & scaler,
+                                  IDxuiTextRenderer         & text,
+                                  const RECT                & workArea);
+    void  CheckOperandTip        (int view);
+    void  CheckOperandTipPointer (POINT clientPx);
+    RECT  GetColorTipAnchor      (const RECT & cell) const;
+    bool  HasOperandTip          () const { return m_hasOperandTip; }
+
+    const OperandResultTip::Layout &  GetOperandTipLayout () const { return m_operandTipLayout; }
+    const OperandTipCell &            GetOperandTipCell   () const { return m_operandTipCell; }
+
+    //  The renderer and work area the tip is measured with in a window that
+    //  has no HWND, as a test builds it.
+    void  SetOperandTipDeviceForTest (IDxuiTextRenderer * text, const RECT & workArea) { m_operandTipTestText = text; m_operandTipTestArea = workArea; }
+
+    //  Protected so a test can slide out an auto-hidden pane, as a press on
+    //  its tab does.
+    DxuiDockSite *  GetDockSite () const { return m_dockSite; }
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     //  m_theme is the one in force, m_emulatorTheme the emulator's, which a
@@ -675,6 +717,7 @@ private:
     static constexpr int    kBreakpointIconDip     = 16;
     static constexpr int    kGutterColumnDip       = 24;
     static constexpr int    kCodeInstructionColumn = 5;
+    static constexpr size_t kCodeOperandColumn     = 6;
     static constexpr size_t kCodeFirstTextColumn   = 2;
     static constexpr size_t kCodeColumnCount       = 7;
 
@@ -879,6 +922,27 @@ private:
     void     CommitStackByte  (int row, Byte typed);
     void     CommitRegister   (const std::string & name, Byte typed);
     void     UpdateTooltip    (POINT clientPx);
+    void     UpdateOperandTip (const DxuiMouseEvent & ev, bool isPressed);
+    void     ShowOperandTip   ();
+    void     HideOperandTip   ();
+
+    //  The operand tip's parts: the pointer it follows between moves, the
+    //  view under a point, its layout over a row, what may lie over it, the
+    //  fill under the row, and the screen it stays on.
+    void          FollowOperandTipPointer ();
+    int           FindOperandTipView      (POINT clientPx) const;
+    bool          TryMakeOperandTip       (int                         view,
+                                           int                         row,
+                                           const DxuiDpiScaler       & scaler,
+                                           IDxuiTextRenderer         & text,
+                                           const RECT                & workArea,
+                                           OperandResultTip::Layout  & out,
+                                           OperandTipCell            & outCell) const;
+    bool          IsOperandTipCovered     (int view, POINT clientPx, const RECT & tipRect) const;
+    uint32_t      GetCodeRowFill          (const DxuiListView * list, int row) const;
+    static RECT   GetWorkAreaPx           (const DxuiHwndSource * host, POINT clientPx);
+    static bool   Meets                   (const RECT & over, POINT clientPx, const RECT & tipRect);
+
     std::wstring  GetTitleButtonTipAt (POINT clientPx, RECT & button) const;
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool     TryGetMemoryTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
@@ -1004,6 +1068,23 @@ private:
     int                                   m_openViewsSettling   = 0;
     float                                 m_textZoom            = 1.0f;
     DxuiTooltip                           m_tooltip;
+
+    //  A disassembly row's operand and result that the pane cuts off, shown
+    //  whole over their cell: the popup, the window it shows in, whether the
+    //  tip is up, what it shows, the cell it covers, and the renderer, scale
+    //  and work area it was laid out with, which new rows and layouts are
+    //  checked against. A window with no HWND, as a test builds it, measures
+    //  with the renderer and work area the test gives it.
+    DxuiInPlaceTip                        m_operandTip;
+    DxuiHwndSource                      * m_operandTipHost      = nullptr;
+    bool                                  m_hasOperandTip       = false;
+    OperandResultTip::Layout              m_operandTipLayout;
+    OperandTipCell                        m_operandTipCell;
+    IDxuiTextRenderer                   * m_operandTipText      = nullptr;
+    DxuiDpiScaler                         m_operandTipScaler;
+    RECT                                  m_operandTipWorkArea  = {};
+    IDxuiTextRenderer                   * m_operandTipTestText  = nullptr;
+    RECT                                  m_operandTipTestArea  = {};
 
     //  The status bar along the bottom, and the zoom popup its zoom field
     //  opens above it, drawn on the top layer.
