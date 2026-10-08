@@ -507,7 +507,8 @@ public:
 
 
     //  A self-sync track of exactly bitCount bits with a marker run of
-    //  nibbles starting at the given fraction of the revolution.
+    //  nibbles starting within one sync byte of the given fraction of the
+    //  revolution. Padding with zeros instead would read as weak bits.
     static vector<Byte> MakeMarkedTrack (size_t bitCount, double markerAngle, const vector<uint8_t> & marker)
     {
         vector<uint8_t>  bits;
@@ -520,11 +521,6 @@ public:
         while (bits.size() + 10 <= markerBit)
         {
             AppendByte (bits, 0xFF, 10);
-        }
-
-        while (bits.size() < markerBit)
-        {
-            bits.push_back (0);
         }
 
         for (i = 0; i < marker.size(); i++)
@@ -568,8 +564,9 @@ public:
         vector<uint8_t>             nibbles;
         DiskImage                   disk;
         Disk2NibbleEngine           eng;
-        uint32_t                    leadCycles = 0;
-        uint32_t                    window     = 0;
+        size_t                      leadBit    = static_cast<size_t> ((kMarkerAngle - kLeadAngle) * kLongBits);
+        uint32_t                    window     = static_cast<uint32_t> (kWindowRevs * kLongBits * Disk2NibbleEngine::kCyclesPerBit);
+        HRESULT                     hr         = S_OK;
 
 
 
@@ -580,15 +577,19 @@ public:
         tracks[1].bitCount      = kShortBits;
         tracks[1].quarterTracks = { 4 };
 
-        Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV21 (tracks, woz)));
-        Assert::IsTrue (SUCCEEDED (WozLoader::Load (woz, disk)));
+        hr = WozLoader::BuildSyntheticV21 (tracks, woz);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        hr = WozLoader::Load (woz, disk);
+        Assert::IsTrue (SUCCEEDED (hr));
 
         StartOn (eng, disk, 0);
 
-        leadCycles = static_cast<uint32_t> ((kMarkerAngle - kLeadAngle) * kLongBits * Disk2NibbleEngine::kCyclesPerBit);
-        window     = static_cast<uint32_t> (kWindowRevs * kLongBits * Disk2NibbleEngine::kCyclesPerBit);
+        while (eng.GetBitPosition() < leadBit)
+        {
+            eng.Tick (1);
+        }
 
-        eng.Tick (leadCycles);
         eng.SetCurrentTrack (4);
 
         nibbles = ReadNibbles (eng, window);
