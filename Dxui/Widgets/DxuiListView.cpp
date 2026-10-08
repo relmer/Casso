@@ -7,6 +7,7 @@
 
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
+#include "Core/DxuiPaneMetrics.h"
 
 
 
@@ -508,11 +509,13 @@ Error:
 //
 //  GetTotalMeasuredWidthPx
 //
+//  Starts from the pane lead, since the columns start there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListView::GetTotalMeasuredWidthPx() const
 {
-    int  sum = 0;
+    int  sum = GetPaneLeadPx();
 
 
 
@@ -1362,15 +1365,15 @@ void DxuiListView::ApplyPendingFit()
 //
 //  GetContentWidthPx
 //
-//  Sum of every visible column's natural width (no stretch fill). This
-//  is the width the columns want, against which the horizontal scroll
-//  range is measured.
+//  Sum of every visible column's natural width (no stretch fill), plus the
+//  pane lead the columns start after. This is the width the columns want,
+//  against which the horizontal scroll range is measured.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListView::GetContentWidthPx() const
 {
-    int  total = 0;
+    int  total = GetPaneLeadPx();
 
 
 
@@ -3205,6 +3208,7 @@ void DxuiListView::PaintDataRows (
     float    cellPadR = (float) m_scaler.ToPx (m_cellPadRightDip);
     float    fontPx   = (float) m_scaler.ToPxf (m_fontDip);
     float    colOff   = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
+    int      lead     = GetPaneLeadPx();
 
 
 
@@ -3267,9 +3271,13 @@ void DxuiListView::PaintDataRows (
                 cellW = (std::max) (cellW, layoutW - colOff - (float) colXPx[c]);
             }
 
+            //  The first column's fill runs back over the pane lead to the
+            //  list's left, so a colored cell still meets the pane's edge.
             if (cells[c].background != 0)
             {
-                painter.FillRect (x + colOff + (float) colXPx[c], ry, cellW, rowH, cells[c].background);
+                float  fillX = (colXPx[c] == lead) ? 0.0f : (float) colXPx[c];
+
+                painter.FillRect (x + colOff + fillX, ry, cellW + (float) colXPx[c] - fillX, rowH, cells[c].background);
             }
 
             if (cells[c].check.has_value())
@@ -3548,15 +3556,17 @@ Error:
 //  Assigns each column an x-offset and width for the given content
 //  width. Fixed/auto columns take their override / widthDip / measured
 //  width; the first stretch column absorbs whatever space remains, down to
-//  its own declared width and no further.
+//  its own declared width and no further. The first column starts at the
+//  pane lead, which the stretch column gives up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const
 {
+    int  lead       = GetPaneLeadPx();
     int  fixedTotal = 0;
     int  stretchIdx = -1;
-    int  x          = 0;
+    int  x          = lead;
 
 
 
@@ -3596,7 +3606,7 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
     //  zero still shrinks to fit.
     if (stretchIdx >= 0)
     {
-        int  rem     = (int) fullW - fixedTotal;
+        int  rem     = (int) fullW - fixedTotal - lead;
         int  floorPx = (m_columns[(size_t) stretchIdx].widthDip > 0)
                      ? m_scaler.ToPx (m_columns[(size_t) stretchIdx].widthDip)
                      : 0;
@@ -3609,6 +3619,35 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
         xs[c]  = x;
         x     += ws[c];
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPaneLeadPx
+//
+//  The space before the first column of a list that fills a pane: enough
+//  that the first column's text, past its own left padding, starts where the
+//  pane's title starts. Zero for any other list, and never negative, since a
+//  padding wider than the inset already puts the text past it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetPaneLeadPx() const
+{
+    int  lead = 0;
+
+
+
+    if (m_paneTextInset)
+    {
+        lead = (std::max) (0, DxuiPaneMetrics::GetContentTextInsetPx (m_scaler) - m_scaler.ToPx (m_cellPadLeftDip));
+    }
+
+    return lead;
 }
 
 

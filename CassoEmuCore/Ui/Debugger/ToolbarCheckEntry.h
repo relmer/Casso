@@ -40,6 +40,7 @@ public:
     const wchar_t *  GetTooltipAt  (int x, int y, RECT & anchor) const override;
     bool             OnClick       (int x, int y) override;
     bool             OnLButtonDown (int x, int y) override;
+    int              GetLeadPx     (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kPadDip); }
 
 private:
     static constexpr int    kBoxDip     = 16;

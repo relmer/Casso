@@ -290,6 +290,10 @@ public:
     //  Space before the address column.
     void  SetPaddingDip (int padDip) { m_padDip = padDip; }
 
+    //  A view that fills a pane: the address column starts where the pane's
+    //  title does, in place of the padding. Off by default.
+    void  SetPaneTextInset (bool on) { m_paneTextInset = on; }
+
     //  The active column. A click sets it, and it determines the format Copy
     //  produces.
     Column  GetActiveColumn () const { return m_activeColumn; }
@@ -394,6 +398,7 @@ private:
     int   GetColumnStartCell (Column column) const;
     RECT  GetCellRect (int cellX, uint64_t row, int cellCount) const;
     int   GetCellLeft (int cellX) const;
+    int   GetPadPx    () const;
     bool  IsRowVisible (uint64_t row) const;
     void  ClampTopRow ();
 
@@ -538,6 +543,7 @@ private:
     Column                         m_activeColumn   = Column::Hex;
     HWND                           m_hwnd           = nullptr;
     int                            m_padDip         = 0;
+    bool                           m_paneTextInset  = false;
     bool                           m_dragging       = false;
     TextEncoding                   m_encoding       = TextEncoding::Ascii;
     DxuiDpiScaler                  m_scaler;

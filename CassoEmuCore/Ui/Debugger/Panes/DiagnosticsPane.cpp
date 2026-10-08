@@ -48,6 +48,12 @@ DiagnosticsPane::DiagnosticsPane (
     m_frame->SetPartInsetDip (m_head,   kGraphicInsetDip);
     m_frame->SetPartInsetDip (m_meters, kGraphicInsetDip);
 
+    //  Each graphic's labels start where the pane's title does; the top
+    //  inset still keeps the graphic off the pane's top.
+    m_frame->SetPartTextAligned (m_map);
+    m_frame->SetPartTextAligned (m_head);
+    m_frame->SetPartTextAligned (m_meters);
+
     m_map->SetVisible    (false);
     m_head->SetVisible   (false);
     m_meters->SetVisible (false);

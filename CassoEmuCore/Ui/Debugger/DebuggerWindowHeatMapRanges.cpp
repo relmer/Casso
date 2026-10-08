@@ -44,13 +44,14 @@ void DebuggerWindow::ConfigureHeatRanges()
 
     m_heatRangeCommands = std::make_unique<HeatMapRangeBarCommands> (std::move (handlers));
 
-    m_heatRangeBar->SetTextRenderer (GetTextRenderer());
-    m_heatRangeBar->SetPopupHost    (GetPopupHost());
-    m_heatRangeBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_heatRangeBar->SetCompact      (true);
-    m_heatRangeBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-    m_heatRangeBar->SetEntries      (m_heatRangeCommands->BuildEntries());
-    m_heatRangeBar->SetVisible      (false);
+    m_heatRangeBar->SetTextRenderer  (GetTextRenderer());
+    m_heatRangeBar->SetPopupHost     (GetPopupHost());
+    m_heatRangeBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+    m_heatRangeBar->SetCompact       (true);
+    m_heatRangeBar->SetPaneTextInset (true);
+    m_heatRangeBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
+    m_heatRangeBar->SetEntries       (m_heatRangeCommands->BuildEntries());
+    m_heatRangeBar->SetVisible       (false);
 
     MakeDense (m_heatRangeList);
     m_heatRangeList->SetColumns               (std::move (columns));

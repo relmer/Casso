@@ -279,7 +279,8 @@ void HistoryBand::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //  at the right in the accent, its place kept for the mouse. The link is
 //  drawn at the weight it was measured at and right-aligned against the
 //  pad, so it never runs into the pane's edge; a narrow pane shortens the
-//  text, never the link.
+//  text, never the link. The text starts at the pane's text inset, where
+//  the pane's title starts, while the fill and edge span the band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,6 +296,7 @@ void HistoryBand::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     float                      height      = (float) (bounds.bottom - bounds.top);
     float                      sizePx      = m_scaler.ToPxf (font.sizeDip);
     float                      pad         = m_scaler.ToPxf (kPadDip);
+    float                      lead        = (float) DxuiPaneMetrics::GetContentTextInsetPx (m_scaler);
     float                      edge        = m_scaler.ToPxf ((float) kEdgeDip);
     bool                       isWarning   = m_status.outcome.has_value() && *m_status.outcome != ReverseOutcome::Moved;
     uint32_t                   fill        = isWarning ? theme.InfoBannerWarningBackground() : theme.InfoBannerBackground();
@@ -326,7 +328,9 @@ void HistoryBand::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         widths.push_back (measured);
     }
 
-    placement = Place (left, right, pad, linkWidth, widths);
+    //  Place keeps one pad at each end; handed the band with its left moved
+    //  by the difference, it starts the text at the lead instead.
+    placement = Place (left + lead - pad, right, pad, linkWidth, widths);
 
     if (CanGoLive (m_status))
     {
@@ -337,7 +341,7 @@ void HistoryBand::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    hr = text.DrawString (texts[placement.textIndex].c_str(), left + pad, top, (std::max) (0.0f, placement.textRight - left - pad), height,
+    hr = text.DrawString (texts[placement.textIndex].c_str(), left + lead, top, (std::max) (0.0f, placement.textRight - left - lead), height,
                           theme.InfoBannerForeground(), sizePx, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);

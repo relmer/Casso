@@ -5,6 +5,7 @@
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiUnicodeSymbols.h"
+#include "Core/DxuiPaneMetrics.h"
 
 
 
@@ -289,7 +290,7 @@ void DxuiTextView::SetTopLine (int line)
 
 int DxuiTextView::GetTextColumns (bool scrollbar) const
 {
-    int  width = (int) (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (s_kPadDip) * 2 - GetGutterPx();
+    int  width = (int) (m_boundsDip.right - m_boundsDip.left) - GetPadLeftPx() - m_scaler.ToPx (s_kPadDip) - GetGutterPx();
 
 
 
@@ -1847,7 +1848,26 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
 
 int DxuiTextView::GetTextLeft() const
 {
-    return (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip) + GetGutterPx();
+    return (int) m_boundsDip.left + GetPadLeftPx() + GetGutterPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetPadLeftPx
+//
+//  The space left of the gutter and the text: the pad every side has, or in
+//  a view that fills a pane, the pane's text inset, so the text starts where
+//  the pane's title does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetPadLeftPx() const
+{
+    return m_paneTextInset ? DxuiPaneMetrics::GetContentTextInsetPx (m_scaler) : m_scaler.ToPx (s_kPadDip);
 }
 
 

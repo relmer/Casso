@@ -6,6 +6,7 @@
 #include "Theme/DxuiColor.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Core/DxuiClipboard.h"
+#include "Core/DxuiPaneMetrics.h"
 
 
 
@@ -773,7 +774,7 @@ void DxuiHexView::RecomputeRowWidth()
 
     if (m_columns == 0)
     {
-        width  = (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (m_padDip) - m_scaler.ToPx (s_kScrollbarWidthDip);
+        width  = (m_boundsDip.right - m_boundsDip.left) - GetPadPx() - m_scaler.ToPx (s_kScrollbarWidthDip);
         cells  = (m_cellWidthDip > 0) ? (width / m_cellWidthDip) : 0;
         fixed  = GetOffsetDigits() + GetGutterCells() + (m_showValues ? (GetGutterCells() - 1) : 0);
         each   = m_grouping + (m_showValues ? (GetValueCells() + 1) : 0);
@@ -847,7 +848,7 @@ int DxuiHexView::GetHeightDip() const
 
 int DxuiHexView::GetContentWidthPx() const
 {
-    return m_scaler.ToPx (m_padDip) + ((GetColumnStartCell (Column::Text) + m_bytesPerRow) * m_cellWidthDip);
+    return GetPadPx() + ((GetColumnStartCell (Column::Text) + m_bytesPerRow) * m_cellWidthDip);
 }
 
 
@@ -884,7 +885,7 @@ void DxuiHexView::KeepCaretInView()
     bool  text  = (m_activeColumn == Column::Text) || !m_showValues;
     int   cell  = text ? (GetColumnStartCell (Column::Text) + index) : (GetColumnStartCell (Column::Hex) + GetByteCellInRow (index));
     int   wide  = text ? 1 : ((m_format == ValueFormat::Hex) ? 2 : GetValueCells());
-    int   left  = m_scaler.ToPx (m_padDip) + (cell * m_cellWidthDip);
+    int   left  = GetPadPx() + (cell * m_cellWidthDip);
     int   right = left + (wide * m_cellWidthDip);
     int   view  = GetViewWidthPx();
 
@@ -892,7 +893,7 @@ void DxuiHexView::KeepCaretInView()
 
     if (left < m_leftPx)
     {
-        SetLeftPx (left - m_scaler.ToPx (m_padDip));
+        SetLeftPx (left - GetPadPx());
     }
     else if (right > (m_leftPx + view))
     {
@@ -1527,7 +1528,26 @@ int DxuiHexView::GetColumnStartCell (Column column) const
 
 int DxuiHexView::GetCellLeft (int cellX) const
 {
-    return m_boundsDip.left + m_scaler.ToPx (m_padDip) + (cellX * m_cellWidthDip) - m_leftPx;
+    return m_boundsDip.left + GetPadPx() + (cellX * m_cellWidthDip) - m_leftPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetPadPx
+//
+//  The space before the address column: the padding, or in a view that fills
+//  a pane, the pane's text inset, so the addresses start where the pane's
+//  title does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetPadPx() const
+{
+    return m_paneTextInset ? DxuiPaneMetrics::GetContentTextInsetPx (m_scaler) : m_scaler.ToPx (m_padDip);
 }
 
 
@@ -1694,7 +1714,7 @@ DxuiHexView::HitResult DxuiHexView::HitTestPoint (POINT clientDip) const
 
     row   = GetRowAtY ((int) clientDip.y);
     rowUp = (int) (row - m_topRow);
-    cellX = (int) ((clientDip.x - m_boundsDip.left - m_scaler.ToPx (m_padDip) + m_leftPx) / cellW);
+    cellX = (int) ((clientDip.x - m_boundsDip.left - GetPadPx() + m_leftPx) / cellW);
 
     if (rowUp >= GetRowCap())
     {

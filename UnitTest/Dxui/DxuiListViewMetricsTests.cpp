@@ -223,4 +223,141 @@ public:
         Assert::AreEqual (17, dense.list.GetRowHeightDip());
         Assert::AreEqual (30, roomy.list.GetRowHeightDip());
     }
+
+
+    //  A list that fills a pane, laid out a little in from the window's
+    //  corner, with a debugger pane's padding, one selected row and a fill
+    //  behind its first cell.
+    static constexpr int       kPaneLeftPx  = 30;
+    static constexpr int       kPaneTopPx   = 10;
+    static constexpr int       kPanePadDip  = 4;
+    static constexpr uint32_t  kCellFill    = 0xFF123456;
+
+    //  106 DPI is where the inset in pixels is not the sum of its parts
+    //  converted one at a time.
+    static constexpr int       kDpis[]      = { 96, 106, 120, 144, 168 };
+
+
+    static void  PaintPaneList (DxuiListView & list, MockDxuiPainter & painter, MockDxuiTextRenderer & text, int dpi, bool paneInset)
+    {
+        DxuiDpiScaler                    scaler;
+        MockDxuiTheme                    theme;
+        std::vector<DxuiListView::Cell>  cells (2);
+
+
+
+        scaler.SetDpi (dpi);
+
+        cells[0].text       = L"ABCD";
+        cells[0].background = kCellFill;
+        cells[1].text       = L"EF";
+
+        list.SetColumns             ({ DxuiListView::Column { L"Name", 0 }, DxuiListView::Column { L"Value", 0 } });
+        list.SetShowHeader          (true);
+        list.SetCellPaddingDip      (kPanePadDip, kPanePadDip);
+        list.SetPaneTextInset       (paneInset);
+        list.SetAlwaysShowSelection (true);
+        list.SetRows                ({ cells });
+        list.SetSelectedRow         (0);
+        list.Layout                 (RECT { kPaneLeftPx, kPaneTopPx, kPaneLeftPx + 400, kPaneTopPx + 300 }, scaler);
+        list.Paint                  (painter, text, theme);
+    }
+
+
+    static const RecordedTextCall * FindText (const MockDxuiTextRenderer & text, const wchar_t * string)
+    {
+        auto  found = std::ranges::find_if (text.Calls(), [string] (const RecordedTextCall & call)
+        {
+            return call.kind == RecordedTextKind::DrawString && call.text == string;
+        });
+
+
+
+        return (found != text.Calls().end()) ? &*found : nullptr;
+    }
+
+
+    static const RecordedPaintCall * FindFill (const MockDxuiPainter & painter, RecordedPaintKind kind, uint32_t argb)
+    {
+        auto  found = std::ranges::find_if (painter.Calls(), [kind, argb] (const RecordedPaintCall & call)
+        {
+            return call.kind == kind && call.argb == argb;
+        });
+
+
+
+        return (found != painter.Calls().end()) ? &*found : nullptr;
+    }
+
+
+    //  The first column's text, in the header and in the rows, starts at the
+    //  pane's text inset, where the pane's title does; the selected row and
+    //  the first cell's fill still run from the list's left.
+    TEST_METHOD (PaneTextInsetMovesColumnZeroNotTheRowFill)
+    {
+        MockDxuiTheme  theme;
+
+
+
+        for (int dpi : kDpis)
+        {
+            DxuiListView               plain;
+            DxuiListView               inset;
+            MockDxuiPainter            plainPainter;
+            MockDxuiPainter            insetPainter;
+            MockDxuiTextRenderer       plainText;
+            MockDxuiTextRenderer       insetText;
+            DxuiDpiScaler              scaler;
+            int                        textX      = 0;
+            int                        lead       = 0;
+            RECT                       cellRect   = {};
+            std::wstring               at         = std::format (L"at {} DPI", dpi);
+            const RecordedTextCall   * header     = nullptr;
+            const RecordedTextCall   * cell       = nullptr;
+            const RecordedPaintCall  * selected   = nullptr;
+            const RecordedPaintCall  * plainFill  = nullptr;
+            const RecordedPaintCall  * insetFill  = nullptr;
+
+
+
+            scaler.SetDpi (dpi);
+            textX = DxuiPaneMetrics::GetContentTextInsetPx (scaler);
+            lead  = textX - scaler.ToPx (kPanePadDip);
+
+            PaintPaneList (plain, plainPainter, plainText, dpi, false);
+            PaintPaneList (inset, insetPainter, insetText, dpi, true);
+
+            header    = FindText (insetText, L"Name");
+            cell      = FindText (insetText, L"ABCD");
+            selected  = FindFill (insetPainter, RecordedPaintKind::FillRoundedRect, theme.ContentSelection());
+            plainFill = FindFill (plainPainter, RecordedPaintKind::FillRect, kCellFill);
+            insetFill = FindFill (insetPainter, RecordedPaintKind::FillRect, kCellFill);
+
+            Assert::IsNotNull (header,    at.c_str());
+            Assert::IsNotNull (cell,      at.c_str());
+            Assert::IsNotNull (selected,  at.c_str());
+            Assert::IsNotNull (plainFill, at.c_str());
+            Assert::IsNotNull (insetFill, at.c_str());
+
+            Assert::AreEqual ((float) (kPaneLeftPx + textX), header->x,   (L"the heading starts at the inset " + at).c_str());
+            Assert::AreEqual ((float) (kPaneLeftPx + textX), cell->x,     (L"the first cell's text starts at the inset " + at).c_str());
+            Assert::AreEqual ((float) kPaneLeftPx,           selected->x, (L"the selected row still starts at the list's left " + at).c_str());
+            Assert::AreEqual ((float) kPaneLeftPx,           insetFill->x, (L"the first cell's fill still starts at the list's left " + at).c_str());
+            Assert::AreEqual (plainFill->width + (float) lead, insetFill->width, (L"and runs on to the cell's end " + at).c_str());
+
+            Assert::IsTrue   (inset.GetCellTextRectPx (0, 0, cellRect), at.c_str());
+            Assert::AreEqual ((LONG) textX, cellRect.left, (L"an edit over the cell lines up with its text " + at).c_str());
+
+            Assert::AreEqual (plain.GetContentWidthPx() + lead,       inset.GetContentWidthPx(),       (L"the content is wider by the lead " + at).c_str());
+            Assert::AreEqual (plain.GetTotalMeasuredWidthPx() + lead, inset.GetTotalMeasuredWidthPx(), (L"and so is the measured width " + at).c_str());
+        }
+    }
+
+
+    TEST_METHOD (PaneTextInset_OffByDefault)
+    {
+        DxuiListView  list;
+
+        Assert::IsFalse (list.HasPaneTextInset());
+    }
 };

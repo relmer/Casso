@@ -433,9 +433,10 @@ void DebuggerWindow::ConfigureWidgets()
     //  THE CONSOLE IS TEXT, NOT A LIST: no columns or rows to pick, a
     //  selection that runs through the text as an editor's does, and Ctrl+C
     //  to copy it.
-    m_consoleView->SetOwnerWindow (GetHwnd());
-    m_consoleView->SetFollowEnd   (true);
-    m_consoleView->SetLineSpacing (kConsoleLineSpacing);
+    m_consoleView->SetOwnerWindow   (GetHwnd());
+    m_consoleView->SetFollowEnd     (true);
+    m_consoleView->SetLineSpacing   (kConsoleLineSpacing);
+    m_consoleView->SetPaneTextInset (true);
 
     //  Activating a breakpoint shows its address; its checkbox turns it on
     //  and off, as Visual Studio's Breakpoints window does.
@@ -466,6 +467,14 @@ void DebuggerWindow::ConfigureWidgets()
     for (DxuiListView * list : GetLists())
     {
         MakeDense (list);
+    }
+
+    //  A disassembly opens with its breakpoint and marker columns, a margin
+    //  of glyphs as Visual Studio's is, so its columns start at the list's
+    //  left rather than at the pane's text inset.
+    for (DxuiListView * code : m_codeLists)
+    {
+        code->SetPaneTextInset (false);
     }
 
     //  The registers need no headings: each row says what it is.
@@ -598,13 +607,14 @@ void DebuggerWindow::ConfigureMemoryBar()
     m_addressEntry->SetTooltips (L"Address: a hex address, a register, a symbol or an expression such as (3E),Y; Enter goes there",
                                  L"Addresses entered before");
 
-    m_memoryBar->SetTextRenderer (GetTextRenderer());
-    m_memoryBar->SetPopupHost    (GetPopupHost());
-    m_memoryBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_memoryBar->SetCompact      (true);
-    m_memoryBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-    m_memoryBar->SetEntries      (m_memoryCommands->BuildEntries (m_addressEntry.get()));
-    m_memoryBar->SetVisible      (false);
+    m_memoryBar->SetTextRenderer  (GetTextRenderer());
+    m_memoryBar->SetPopupHost     (GetPopupHost());
+    m_memoryBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+    m_memoryBar->SetCompact       (true);
+    m_memoryBar->SetPaneTextInset (true);
+    m_memoryBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
+    m_memoryBar->SetEntries       (m_memoryCommands->BuildEntries (m_addressEntry.get()));
+    m_memoryBar->SetVisible       (false);
 
     SetMemoryBarMenus();
 }
@@ -1093,6 +1103,7 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
     list->SetPreciseAutoFit          (true);
     list->SetRefitOnSetRows          (true);
     list->SetHorizontalScrollEnabled (true);
+    list->SetPaneTextInset           (true);
 }
 
 
@@ -4900,6 +4911,10 @@ void DebuggerWindow::ConfigureDockSite()
     m_consoleFrame->AddPart (m_commandBox, boxHeight);
     m_consoleFrame->SetBottomMarginDip (kPanePadDip + 2);
 
+    //  The command box's prompt, a pad inside its border, starts where the
+    //  console's text and the pane's title do.
+    m_consoleFrame->SetPartTextAligned (m_commandBox, DxuiTextInput::kPadLeftDip);
+
     m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call stack");
     //  The pane always shows hybrid; CALLS MODE picks another (FR-068), so
     //  the button that cycled them is not shown.
@@ -4913,6 +4928,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_traceFrame = std::make_unique<DebuggerPaneFrame> (L"Trace");
     m_traceFrame->AddPart (m_traceHint, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); });
     m_traceFrame->AddPart (m_traceList);
+    m_traceFrame->SetPartTextAligned (m_traceHint);
 
     //  The heat map is its bar over its map, the bar a place PlaceHeatMapBar
     //  fills. It records only while it shows.
@@ -4930,6 +4946,7 @@ void DebuggerWindow::ConfigureDockSite()
     m_heatRangeFrame->AddPart (m_heatRangeError, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); },
                                [this] { return !m_heatRangeError->GetText().empty(); });
     m_heatRangeFrame->AddPart (m_heatRangeList);
+    m_heatRangeFrame->SetPartTextAligned (m_heatRangeError);
 
     //  The breakpoints pane is its toolbar over its rows (FR-119). The bar is a
     //  place held at the pane's top, which PlaceBreakpointBar fills.
@@ -4998,6 +5015,7 @@ void DebuggerWindow::ConfigureDockSite()
         m_memoryFrames[i] = std::make_unique<DebuggerPaneFrame> (std::format (L"Memory {}", pane->GetId()));
         m_memoryFrames[i]->AddPart (m_memoryBars[i].get(), barHeight);
         m_memoryFrames[i]->AddPart (pane->GetView());
+        pane->GetView()->SetPaneTextInset (true);
 
         m_dockSite->AddPane (DebuggerLayout::GetMemoryPaneId (pane->GetId()),
                              std::format (L"Memory {}", pane->GetId()), m_memoryFrames[i].get());
@@ -6079,11 +6097,14 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
 //
 //  DebuggerWindow::GetColumnAt
 //
+//  The columns start after the list's pane lead, so their edges are counted
+//  from there; a point in the lead is in the first column.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DebuggerWindow::GetColumnAt (const DxuiListView * list, int xPx)
 {
-    int  right = -list->GetLeftPx();
+    int  right = list->GetPaneLeadPx() - list->GetLeftPx();
 
 
 
@@ -6854,13 +6875,14 @@ void DebuggerWindow::ConfigureHeatMap()
 
     m_heatMapCommands = std::make_unique<HeatMapBarCommands> (std::move (handlers));
 
-    m_heatMapBar->SetTextRenderer (GetTextRenderer());
-    m_heatMapBar->SetPopupHost    (GetPopupHost());
-    m_heatMapBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
-    m_heatMapBar->SetCompact      (true);
-    m_heatMapBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-    m_heatMapBar->SetEntries      (m_heatMapCommands->BuildEntries (options.cumulative));
-    m_heatMapBar->SetVisible      (false);
+    m_heatMapBar->SetTextRenderer  (GetTextRenderer());
+    m_heatMapBar->SetPopupHost     (GetPopupHost());
+    m_heatMapBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+    m_heatMapBar->SetCompact       (true);
+    m_heatMapBar->SetPaneTextInset (true);
+    m_heatMapBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
+    m_heatMapBar->SetEntries       (m_heatMapCommands->BuildEntries (options.cumulative));
+    m_heatMapBar->SetVisible       (false);
 
     //  The set of ranges and the bank, beside the map's tabs, as tall as
     //  their row.

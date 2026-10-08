@@ -72,7 +72,8 @@ public:
     //  as published.
     static DxuiListView::Cell  MakeValueCell (const DiagnosticsRow & row);
 
-    //  The graphic is kept this far from the pane's edges.
+    //  The graphic is kept this far below the pane's top; its sides line its
+    //  labels up with the pane's title.
     static constexpr int  kGraphicInsetDip = 6;
 
 private:
