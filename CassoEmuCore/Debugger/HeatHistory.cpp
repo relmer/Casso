@@ -4,8 +4,6 @@
 
 #include "Debugger/HeatCountDelta.h"
 #include "Debugger/HeatKeyframeSide.h"
-#include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineHost.h"
 
 
@@ -148,7 +146,7 @@ void HeatHistory::OnMapStopped()
     m_bits         = std::vector<uint64_t>();
     m_oldestBits   = std::vector<uint64_t>();
 
-    m_diskImages.clear();
+    m_diskCopier.ReleaseImages();
     m_lookups.clear();
 }
 
@@ -582,7 +580,7 @@ HRESULT HeatHistory::FindInStretch (
     hr = CopyInputs (job.inputsFrom, endPosition, job.inputs);
     CHR (hr);
 
-    hr = CopyDisks (job.disks);
+    hr = m_diskCopier.Copy (m_machine.GetDiskStore(), job.disks);
     CHR (hr);
 
     hr = m_finder->FindAccess (job, result);
@@ -1119,7 +1117,7 @@ HRESULT HeatHistory::MakeRebuildJob (
     hr = CopyInputs (outJob.inputsFrom, position, outJob.inputs);
     CHR (hr);
 
-    hr = CopyDisks (outJob.disks);
+    hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
     CHR (hr);
 
     outHasWindow = true;
@@ -1291,111 +1289,13 @@ HRESULT HeatHistory::CopyInputs (
     uint64_t                    position,
     std::vector<InputRecord>  & outInputs) const
 {
-    HRESULT               hr      = S_OK;
-    const InputJournal  & journal = m_machine.GetInputJournal();
-    size_t                index   = journalIndex;
-    bool                  isHeld  = journalIndex >= journal.GetBeginIndex() && journalIndex <= journal.GetEndIndex();
+    HRESULT  hr       = S_OK;
+    bool     isCopied = false;
 
 
 
-    outInputs.clear();
-
-    CBRA (isHeld);
-
-    for (index = journalIndex; index < journal.GetEndIndex() && journal.GetRecord (index).position <= position; index++)
-    {
-        outInputs.push_back (journal.GetRecord (index));
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HeatHistory::CopyDisks
-//
-//  Each disk in a bay as a rebuild mounts it: a sector image as a blank one
-//  of its format, shared by all, and any other as its format's file would
-//  hold it, made once per medium and shared with every rebuild after; the
-//  images of media no longer in a bay are let go. A disk its format cannot
-//  hold fails the rebuild.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT HeatHistory::CopyDisks (std::vector<HeatRebuildDisk> & outDisks)
-{
-    HRESULT                                                                  hr       = S_OK;
-    DiskImageStore                                                         & store    = m_machine.GetDiskStore();
-    DiskImage                                                              * image    = nullptr;
-    std::unordered_map<uint64_t, std::shared_ptr<const std::vector<Byte>>>   kept;
-    std::shared_ptr<std::vector<Byte>>                                       bytes;
-    HeatRebuildDisk                                                          disk;
-    int                                                                      slot     = 0;
-    int                                                                      drive    = 0;
-    bool                                                                     isSector = false;
-
-
-
-    outDisks.clear();
-
-    if (m_blankSectorImage == nullptr)
-    {
-        m_blankSectorImage = std::make_shared<const std::vector<Byte>> (DiskImage::kDos33ImageSize, (Byte) 0);
-    }
-
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
-    {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-        {
-            image = store.IsMounted (slot, drive) ? store.GetImage (slot, drive) : nullptr;
-
-            if (image == nullptr)
-            {
-                continue;
-            }
-
-            disk            = HeatRebuildDisk();
-            disk.slot       = slot;
-            disk.drive      = drive;
-            disk.mediaId    = store.GetMediaId (slot, drive);
-            disk.trackCount = image->GetTrackCount();
-            disk.format     = image->GetSourceFormat();
-            isSector        = disk.format == DiskFormat::Dsk || disk.format == DiskFormat::Do || disk.format == DiskFormat::Po;
-
-            if (isSector)
-            {
-                disk.image = m_blankSectorImage;
-            }
-            else if (m_diskImages.contains (disk.mediaId))
-            {
-                disk.image = m_diskImages[disk.mediaId];
-            }
-            else
-            {
-                bytes = std::make_shared<std::vector<Byte>>();
-                CPRA (bytes);
-
-                hr = image->Serialize (*bytes);
-                CHR (hr);
-
-                disk.image = bytes;
-            }
-
-            if (!isSector)
-            {
-                kept[disk.mediaId] = disk.image;
-            }
-
-            outDisks.push_back (disk);
-        }
-    }
-
-    m_diskImages.swap (kept);
+    isCopied = m_machine.GetInputJournal().TryCopyRecords (journalIndex, position, outInputs);
+    CBRA (isCopied);
 
 Error:
     return hr;

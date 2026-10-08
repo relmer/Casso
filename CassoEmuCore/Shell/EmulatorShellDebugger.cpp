@@ -59,7 +59,7 @@ void EmulatorShell::OpenDebuggerWindow (bool activate)
 
     m_debuggerWindow->Show (activate);
 
-    m_isDebugWindowShown.store (true);
+    SetDebugWindowShown (true);
     m_cpuManager.PostCommand (IDM_DEBUG_OPEN);
 
 Error:
@@ -125,7 +125,7 @@ void EmulatorShell::OnDebuggerWindowClosed()
 
 
 
-    m_isDebugWindowShown.store (false);
+    SetDebugWindowShown (false);
     m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
 }
 
@@ -1674,9 +1674,10 @@ void EmulatorShell::PublishDebuggerView()
     isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
                                            isTaken, now, m_debugViewBuiltAt);
 
-    //  A stopped machine waiting on the heat map's rebuild builds again a
-    //  frame apart, so the rebuilt heat shows when it comes in.
-    isDue = isDue || (m_wasHeatRebuilding && now - m_debugViewBuiltAt >= DebuggerViewState::kBuildIntervalMs);
+    //  A stopped machine waiting on the heat map's rebuild, or the call
+    //  record's, builds again a frame apart, so what is rebuilt shows when
+    //  it comes in.
+    isDue = isDue || ((m_wasHeatRebuilding || m_wasCallRebuilding) && now - m_debugViewBuiltAt >= DebuggerViewState::kBuildIntervalMs);
 
     if (!isDue)
     {
@@ -1717,6 +1718,7 @@ void EmulatorShell::PublishDebuggerView()
     m_debugViewBuiltAt      = now;
     m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
     m_wasHeatRebuilding     = m_debugger->GetSession().GetTarget().IsHeatMapRebuilding();
+    m_wasCallRebuilding     = m_debugger->GetCallHistory().IsRebuilding();
     m_isDebugViewDirty = false;
 }
 

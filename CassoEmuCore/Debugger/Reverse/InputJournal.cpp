@@ -277,3 +277,37 @@ void InputJournal::LoadRecords (
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryCopyRecords
+//
+//  The records from absolute index firstIndex on, through the last made at
+//  lastPosition, for a second machine replaying them. False when the
+//  journal no longer holds firstIndex, or never held it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InputJournal::TryCopyRecords (
+    size_t                       firstIndex,
+    uint64_t                     lastPosition,
+    std::vector<InputRecord>   & outRecords) const
+{
+    bool    isHeld = firstIndex >= GetBeginIndex() && firstIndex <= GetEndIndex();
+    size_t  index  = firstIndex;
+
+
+
+    outRecords.clear();
+
+    for (index = firstIndex; isHeld && index < GetEndIndex() && GetRecord (index).position <= lastPosition; index++)
+    {
+        outRecords.push_back (GetRecord (index));
+    }
+
+    return isHeld;
+}
+
+
+
+
+

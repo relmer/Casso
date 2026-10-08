@@ -148,6 +148,7 @@ public:
     bool      IsInHistory         () const;
     uint64_t  GetOldestPosition   () const;
     uint64_t  GetLiveEndPosition  () const;
+    uint64_t  GetRecordedEnd      () const;
     uint64_t  GetLiveEndCycle     () const { return m_liveEndCycle; }
     uint64_t  GetWallTimeAt       (uint64_t cycle) const;
     size_t    GetTableBuildCount  () const { return m_tableBuilds; }

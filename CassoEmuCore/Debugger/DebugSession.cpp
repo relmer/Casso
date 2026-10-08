@@ -1350,7 +1350,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
 //  DebugSession::OnReset
 //
 //  A reset abandons the stack a Monitor `G` pushed its return onto, so the
-//  stop at that return is disarmed.
+//  stop at that return is disarmed. The call record starts over from the
+//  reset, so a rebuild of the old one from history is no longer wanted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1363,6 +1364,11 @@ void DebugSession::OnReset (bool isPowerCycle)
     m_monitorReturn.reset();
     m_monitorReturned = false;
     UpdateHookInstalled();
+
+    if (m_callRecorder.IsActive())
+    {
+        m_callRecordGeneration++;
+    }
 
     m_callRecorder.OnReset (pc, PeekByte (pc), isPowerCycle);
     m_sink.OnReset (isPowerCycle);
@@ -2672,35 +2678,14 @@ void DebugSession::PushMonitorReturn()
 //
 //  DebugSession::FindStoreInProgress
 //
-//  Called from inside a bus write. The CPU has fetched the whole instruction
-//  by the time it stores, so PC is already past it; a store that can reach
-//  the stack page is three bytes (absolute, absolute indexed) or two
-//  (indirect), and the one whose length ends at PC is the one running.
+//  Called from inside a bus write; see CallStackRecorder::FindStoreInProgress.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Word DebugSession::FindStoreInProgress() const
 {
-    const Microcode  * set = m_target.GetInstructionSet();
-    Word               pc  = m_target.GetRegisters().pc;
-    Disassembler       disassembler (set);
-
-
-
-    if (set == nullptr)
-    {
-        return pc;
-    }
-
-    for (Word length : { (Word) 3, (Word) 2 })
-    {
-        if (disassembler.GetLength (PeekByte ((Word) (pc - length))) == length)
-        {
-            return (Word) (pc - length);
-        }
-    }
-
-    return pc;
+    return CallStackRecorder::FindStoreInProgress (m_target.GetInstructionSet(), m_target.GetRegisters().pc,
+                                                   [this] (Word address) { return PeekByte (address); });
 }
 
 
@@ -2730,6 +2715,8 @@ void DebugSession::SetCallRecording (bool isOn)
         return;
     }
 
+    m_callRecordGeneration++;
+
     if (isOn)
     {
         m_callRecorder.Begin (pc, PeekByte (pc), m_target.GetCycleCount() == 0);
@@ -2745,6 +2732,60 @@ void DebugSession::SetCallRecording (bool isOn)
         m_watchpoints.SetStackWriteSink (nullptr);
         m_callRecorder.End();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::RestartCallRecording
+//
+//  For a machine that moved through history, so the bottom is not where the
+//  debugger attached: the calls before here are in history, and until a
+//  rebuild from it replaces this record -- or where none can -- nothing
+//  before here is known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::RestartCallRecording()
+{
+    Word  pc = m_target.GetRegisters().pc;
+
+
+
+    if (!m_callRecorder.IsActive())
+    {
+        return;
+    }
+
+    m_callRecordGeneration++;
+    m_callRecorder.Begin (pc, PeekByte (pc), (m_target.GetCycleCount() == 0) ? CallBreakKind::PowerOn : CallBreakKind::HistoryBegan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AdoptCallRecord
+//
+//  The record replaces the one kept since recording began, and the next
+//  instruction the CPU reports goes on from it. A record that is off takes
+//  nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AdoptCallRecord (const CallRecord & record)
+{
+    if (!m_callRecorder.IsActive() || !record.isActive)
+    {
+        return;
+    }
+
+    m_callRecorder.SetRecord (record);
 }
 
 
@@ -2800,6 +2841,11 @@ CallStackData DebugSession::GetCallStack()
         m_symbols.TryFindName (data.lastReturn->target, data.lastReturn->symbol, table);
     }
 
+    if (m_callRecorder.IsActive())
+    {
+        data.rebuildProgress = m_callRebuildProgress;
+    }
+
     return data;
 }
 
@@ -2832,6 +2878,7 @@ void DebugSession::TakeView (DebugSessionView & out)
     out.isStepBySource   = m_stepBySource;
     out.callMechanism    = m_callMechanism;
     out.callRecord       = m_callRecorder.GetRecord();
+    out.callRebuild      = m_callRebuildProgress;
     out.fileSystem       = m_fileSystem;
     out.currentDirectory = m_currentDirectory;
 
@@ -2896,6 +2943,7 @@ void DebugSession::InstallView (const DebugSessionView & view)
     m_currentDirectory = view.currentDirectory;
 
     m_callRecorder.SetRecord (view.callRecord);
+    m_callRebuildProgress = view.callRebuild;
 
     if (view.symbols != nullptr && view.symbols->GetRevision() != m_symbols.GetRevision())
     {

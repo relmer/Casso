@@ -768,6 +768,24 @@ uint64_t ReverseController::GetLiveEndPosition() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetRecordedEnd
+//
+//  The newest position a replay can reach: the live end, except while the
+//  machine is live with recording paused, when it is where recording paused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ReverseController::GetRecordedEnd() const
+{
+    return (m_isLive && m_isPaused) ? m_pauseStart : GetLiveEndPosition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Seek
 //
 //  A target in the stretch the machine stands in, and ahead of it, is

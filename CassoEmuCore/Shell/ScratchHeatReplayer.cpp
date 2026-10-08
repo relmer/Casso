@@ -2,10 +2,7 @@
 
 #include "Shell/ScratchHeatReplayer.h"
 
-#include "Core/Prng.h"
 #include "Debugger/MachineDebugTarget.h"
-#include "Devices/Disk/DiskImage.h"
-#include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineHost.h"
 
 
@@ -28,8 +25,7 @@ ScratchHeatReplayer::ScratchHeatReplayer() = default;
 //
 //  ScratchHeatReplayer::~ScratchHeatReplayer
 //
-//  The job running is abandoned and waited for; then the machine goes,
-//  after the replayer and the builder that hold it.
+//  The job running is abandoned and waited for before the machine goes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,10 +33,6 @@ ScratchHeatReplayer::~ScratchHeatReplayer()
 {
     Cancel();
     WaitForWork();
-
-    m_replayer.reset();
-    m_builder.reset();
-    m_machine.reset();
 }
 
 
@@ -57,13 +49,7 @@ void ScratchHeatReplayer::SetMachine (
     const MachineConfig  & config,
     const std::wstring   & name)
 {
-    std::lock_guard<std::mutex>  held (m_configLock);
-
-
-
-    m_config = config;
-    m_name   = name;
-    m_configGeneration++;
+    m_scratch.SetMachine (config, name);
 }
 
 
@@ -416,160 +402,17 @@ HRESULT ScratchHeatReplayer::RunPart (
 
     if (part == 0)
     {
-        hr = BuildMachine();
+        hr = m_scratch.Build();
         CHR (hr);
 
-        hr = MountDisks (job);
+        hr = m_scratch.MountDisks (job.disks);
         CHR (hr);
 
-        m_machine->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
+        m_scratch.GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
     }
 
     hr = Replay (job, job.parts[part], outResult);
     CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ScratchHeatReplayer::BuildMachine
-//
-//  As the headless factory builds a machine, again whenever the running
-//  machine's configuration changed: a Prng and a video timing model before
-//  the devices. Its disk store never writes a file, and replays only. A
-//  machine that does not build is dropped, so the next job tries again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ScratchHeatReplayer::BuildMachine()
-{
-    HRESULT        hr         = S_OK;
-    MachineConfig  config;
-    std::wstring   name;
-    uint64_t       generation = 0;
-
-
-
-    {
-        std::lock_guard<std::mutex>  held (m_configLock);
-
-        generation = m_configGeneration;
-
-        if (generation != m_builtGeneration)
-        {
-            config = m_config;
-            name   = m_name;
-        }
-    }
-
-    CBR (generation != 0);
-
-    BAIL_OUT_IF (generation == m_builtGeneration && m_machine != nullptr, S_OK);
-
-    m_replayer.reset();
-    m_builder.reset();
-    m_machine.reset();
-    m_mounted.fill (0);
-
-    m_machine = std::make_unique<MachineHost>();
-    m_builder = std::make_unique<MachineBuilder> (*m_machine, m_services);
-
-    m_machine->SetPrng               (std::make_unique<Prng> (HeadlessMachineFactory::kDefaultSeed));
-    m_machine->SetVideoTiming        (std::make_unique<VideoTiming>());
-    m_machine->SetCurrentMachineName (name);
-    m_machine->GetConfig() = config;
-
-    hr = m_builder->Build (config);
-    CHR (hr);
-
-    m_machine->GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
-
-    m_replayer = std::make_unique<Replayer> (*m_machine, m_noKeyframes);
-    m_replayer->SetOverMountedMedia (true);
-
-    m_builtGeneration = generation;
-
-Error:
-    if (FAILED (hr))
-    {
-        m_replayer.reset();
-        m_builder.reset();
-        m_machine.reset();
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ScratchHeatReplayer::MountDisks
-//
-//  Each bay holds the job's medium for it, mounted from its image only when
-//  a different one is there, with as many track slots as the medium has,
-//  and bays the job leaves empty are emptied. The snapshot then loads every
-//  track over what is mounted.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ScratchHeatReplayer::MountDisks (const HeatRebuildJob & job)
-{
-    HRESULT                    hr       = S_OK;
-    DiskImageStore           & store    = m_machine->GetDiskStore();
-    DiskImage                * image    = nullptr;
-    BayIds                     wanted   = {};
-    size_t                     bay      = 0;
-    bool                       hasImage = false;
-
-
-
-    for (const HeatRebuildDisk & disk : job.disks)
-    {
-        wanted[(size_t) disk.slot * DiskImageStore::kDriveCount + (size_t) disk.drive] = disk.mediaId;
-    }
-
-    for (bay = 0; bay < wanted.size(); bay++)
-    {
-        if (wanted[bay] == 0 && m_mounted[bay] != 0)
-        {
-            store.Eject ((int) (bay / DiskImageStore::kDriveCount), (int) (bay % DiskImageStore::kDriveCount));
-            m_mounted[bay] = 0;
-        }
-    }
-
-    for (const HeatRebuildDisk & disk : job.disks)
-    {
-        bay = (size_t) disk.slot * DiskImageStore::kDriveCount + (size_t) disk.drive;
-
-        if (m_mounted[bay] == disk.mediaId)
-        {
-            continue;
-        }
-
-        hasImage = disk.image != nullptr;
-        CBRA (hasImage);
-
-        m_mounted[bay] = 0;
-
-        hr = store.MountFromBytes (disk.slot, disk.drive, std::format ("heat-rebuild-s{}d{}", disk.slot, disk.drive + 1), disk.format, *disk.image);
-        CHR (hr);
-
-        image = store.GetImage (disk.slot, disk.drive);
-        CBRA (image);
-
-        image->EnsureTrackSlots (disk.trackCount);
-
-        m_mounted[bay] = disk.mediaId;
-    }
 
 Error:
     return hr;
@@ -597,7 +440,9 @@ HRESULT ScratchHeatReplayer::Replay (
     HeatRebuildResult      & outResult)
 {
     HRESULT        hr          = S_OK;
-    EmuCpu       * cpu         = m_machine->GetCpu();
+    MachineHost  * machine     = m_scratch.GetMachine();
+    Replayer     * replayer    = m_scratch.GetReplayer();
+    EmuCpu       * cpu         = (machine != nullptr) ? machine->GetCpu() : nullptr;
     uint64_t       cycle       = 0;
     uint64_t       frameEnd    = 0;
     uint64_t       before      = 0;
@@ -608,27 +453,28 @@ HRESULT ScratchHeatReplayer::Replay (
 
 
     CBRA (cpu);
+    CBRA (replayer);
 
     hr = m_unpacker.Unpack (part.start, m_state);
     CHR (hr);
 
-    hr = m_replayer->LoadFrom (m_state, part.startPosition, part.journalIndex);
+    hr = replayer->LoadFrom (m_state, part.startPosition, part.journalIndex);
     CHR (hr);
 
     m_map.Stop();
-    m_map.SetPositionSource (m_machine->GetPositionPtr());
+    m_map.SetPositionSource (machine->GetPositionPtr());
     m_map.SetFadeSeconds    (job.fadeSeconds);
     m_map.Start             (cpu->GetCpu6502()->GetInstructionSet(), cpu->GetTotalCycles());
     m_map.SetCountFrom      (job.countFrom);
     m_map.SetKeptBits    (part.kept);
 
-    isConnected = MachineDebugTarget::TryConnectHeatMap (*m_machine, &m_map);
+    isConnected = MachineDebugTarget::TryConnectHeatMap (*machine, &m_map);
     CBRA (isConnected);
 
-    before = m_replayer->GetReplayedCount();
+    before = replayer->GetReplayedCount();
     cycle  = cpu->GetTotalCycles();
 
-    while (m_machine->GetPosition() < part.endPosition)
+    while (machine->GetPosition() < part.endPosition)
     {
         BAIL_OUT_IF (IsAbandoned (job), E_ABORT);
 
@@ -636,7 +482,7 @@ HRESULT ScratchHeatReplayer::Replay (
         target.position = part.endPosition;
         target.cycle    = frameEnd;
 
-        hr = m_replayer->RunTo (target, part.endPosition, nullptr, report);
+        hr = replayer->RunTo (target, part.endPosition, nullptr, report);
         CHR (hr);
 
         cycle = cpu->GetTotalCycles();
@@ -652,7 +498,7 @@ HRESULT ScratchHeatReplayer::Replay (
     CBREx (cycle == part.endCycle, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outResult.cycle        = cycle;
-    outResult.instructions = m_replayer->GetReplayedCount() - before;
+    outResult.instructions = replayer->GetReplayedCount() - before;
 
     if (job.query.isSet)
     {
@@ -664,8 +510,11 @@ HRESULT ScratchHeatReplayer::Replay (
     }
 
 Error:
-    isConnected = MachineDebugTarget::TryConnectHeatMap (*m_machine, nullptr);
-    IGNORE_RETURN_VALUE (isConnected, false);
+    if (machine != nullptr)
+    {
+        isConnected = MachineDebugTarget::TryConnectHeatMap (*machine, nullptr);
+        IGNORE_RETURN_VALUE (isConnected, false);
+    }
 
     return hr;
 }

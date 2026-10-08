@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/CallStackHistory.h"
 #include "Debugger/Channel/DebugChannelServer.h"
 #include "Debugger/Channel/IDebugCommandRunner.h"
 #include "Debugger/CpuManagerRunDriver.h"
@@ -63,6 +64,9 @@ public:
     DebugSession         & GetSession   () { return m_session; }
     CpuManagerRunDriver  & GetRunDriver () { return m_driver; }
 
+    //  Rebuilds the session's call record from history when it starts mid-run.
+    CallStackHistory     & GetCallHistory () { return m_callHistory; }
+
     //  The session's stop conditions, as reverse continue tests them.
     IReverseStopTest     & GetReverseStopTest () { return m_reverseStopTest; }
 
@@ -88,4 +92,5 @@ private:
     DebugSession           m_session;
     DebugHandlerSet        m_handlers;
     ReverseStopTest        m_reverseStopTest { m_session };
+    CallStackHistory       m_callHistory     { m_host, m_session };
 };

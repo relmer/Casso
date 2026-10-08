@@ -376,6 +376,7 @@ enum class CallBreakKind
     Reset,
     TrackingBegan,
     PowerOn,
+    HistoryBegan,
 };
 
 // callSite is the JSR or BRK, or the interrupted instruction; target is the
@@ -418,11 +419,14 @@ struct CallStackRow
 
 // Innermost first. lastReturn is the most recent frame the recorder saw
 // return with a note, such as one that returned past inline parameters.
+// rebuildProgress is set while the record is being rebuilt from history,
+// with how much of it has been replayed, 0 to 1.
 struct CallStackData
 {
     CallStackMechanism             mechanism = CallStackMechanism::Hybrid;
     std::vector<CallStackRow>      rows;
     std::optional<CallStackFrame>  lastReturn;
+    std::optional<float>           rebuildProgress;
 };
 
 // CALLS MODE, with or without a mechanism: the one now in use.

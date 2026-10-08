@@ -2,6 +2,8 @@
 
 #include "Debugger/CallStack.h"
 
+#include "Disassembler.h"
+
 
 
 
@@ -92,6 +94,24 @@ std::vector<CallStackFrame> StackWalker::Walk (Byte sp, const CallStackPeek & pe
 
 void CallStackRecorder::Begin (Word pc, Byte opcode, bool isPowerOn)
 {
+    Begin (pc, opcode, isPowerOn ? CallBreakKind::PowerOn : CallBreakKind::TrackingBegan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::Begin
+//
+//  The bottom is where recording began, power-on, or where history starts
+//  for a record rebuilt from it or begun again after a move through it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackRecorder::Begin (Word pc, Byte opcode, CallBreakKind bottom)
+{
     Pending  at;
 
 
@@ -105,7 +125,7 @@ void CallStackRecorder::Begin (Word pc, Byte opcode, bool isPowerOn)
 
     at.pc     = pc;
     at.opcode = opcode;
-    AddBreak (isPowerOn ? CallBreakKind::PowerOn : CallBreakKind::TrackingBegan, at);
+    AddBreak (bottom, at);
 }
 
 
@@ -282,7 +302,7 @@ void CallStackRecorder::OnStackWrite (Word address, Byte value, std::optional<By
 
 CallRecord CallStackRecorder::GetRecord() const
 {
-    return CallRecord { m_active, m_frames, m_breaks, m_lastReturn };
+    return CallRecord { m_active, m_frames, m_breaks, m_lastReturn, m_startCycle };
 }
 
 
@@ -301,7 +321,36 @@ void CallStackRecorder::SetRecord (const CallRecord & record)
     m_frames     = record.frames;
     m_breaks     = record.breaks;
     m_lastReturn = record.lastReturn;
+    m_startCycle = record.startCycle;
     m_pending.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::GetBottom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<CallStackBreak> CallStackRecorder::GetBottom() const
+{
+    std::optional<CallStackBreak>  bottom;
+
+
+
+    for (const Break & each : m_breaks)
+    {
+        if (m_active && each.depth == 0 && IsBottom (each.info.kind))
+        {
+            bottom = each.info;
+            break;
+        }
+    }
+
+    return bottom;
 }
 
 
@@ -402,6 +451,43 @@ void CallStackRecorder::MarkOpcodes (bool * opcodes)
     {
         opcodes[opcode] = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::FindStoreInProgress
+//
+//  Called from inside a bus write. The CPU has fetched the whole instruction
+//  by the time it stores, so PC is already past it; a store that can reach
+//  the stack page is three bytes (absolute, absolute indexed) or two
+//  (indirect), and the one whose length ends at PC is the one running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word CallStackRecorder::FindStoreInProgress (const Microcode * set, Word pc, const CallStackPeek & peek)
+{
+    Disassembler  disassembler (set);
+
+
+
+    if (set == nullptr)
+    {
+        return pc;
+    }
+
+    for (Word length : { (Word) 3, (Word) 2 })
+    {
+        if (disassembler.GetLength (peek ((Word) (pc - length))) == length)
+        {
+            return (Word) (pc - length);
+        }
+    }
+
+    return pc;
 }
 
 
@@ -840,14 +926,15 @@ void CallStackRecorder::AddBreak (CallBreakKind kind, const Pending & held)
 //
 //  CallStackRecorder::IsBottom
 //
-//  Where recording began, a reset and power-on: the bottom of the chain,
-//  which no later break or dropped frame removes.
+//  Where recording began, a reset, power-on and where the history a rebuilt
+//  record replayed starts: the bottom of the chain, which no later break or
+//  dropped frame removes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CallStackRecorder::IsBottom (CallBreakKind kind)
 {
-    return kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::Reset || kind == CallBreakKind::PowerOn;
+    return kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::Reset || kind == CallBreakKind::PowerOn || kind == CallBreakKind::HistoryBegan;
 }
 
 
@@ -948,8 +1035,9 @@ Word CallStackRecorder::GetExpectedReturn (const CallStackFrame & frame)
 //  CallStack::Build
 //
 //  Hybrid walks below the recorded frames only where recording began after
-//  the program did; below a reset there is nothing to find. A recorder that
-//  never began has no record, and hybrid is then the walk.
+//  the program did, or the history a rebuilt record replayed starts after
+//  it; below a reset there is nothing to find. A recorder that never began
+//  has no record, and hybrid is then the walk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1005,7 +1093,7 @@ CallStackData CallStack::Build (
     isWalkBelow = mechanism == CallStackMechanism::Hybrid &&
                   std::any_of (record.breaks.begin(), record.breaks.end(), [] (const CallStackRecorder::Break & each)
                   {
-                      return each.depth == 0 && each.info.kind == CallBreakKind::TrackingBegan;
+                      return each.depth == 0 && (each.info.kind == CallBreakKind::TrackingBegan || each.info.kind == CallBreakKind::HistoryBegan);
                   });
 
     if (!isWalkBelow)
@@ -1135,6 +1223,7 @@ const char * CallStack::GetBreakKindName (CallBreakKind kind)
     case CallBreakKind::StackWrap:      return "stackWrap";
     case CallBreakKind::Reset:          return "reset";
     case CallBreakKind::PowerOn:        return "powerOn";
+    case CallBreakKind::HistoryBegan:   return "historyBegan";
     default:                            return "trackingBegan";
     }
 }
@@ -1165,6 +1254,7 @@ std::string CallStack::DescribeBreak (const CallStackBreak & chainBreak)
     case CallBreakKind::StackWrap:      return std::format ("{} at ${:04X} wrapped the stack pointer", mnemonic, pc);
     case CallBreakKind::Reset:          return std::format ("reset at ${:04X}", pc);
     case CallBreakKind::PowerOn:        return std::format ("power-on at ${:04X}, cycle 0", pc);
+    case CallBreakKind::HistoryBegan:   return std::format ("history starts at ${:04X}, and no calls before it are known", pc);
     default:                            return std::format ("debugger opened at ${:04X}, and no calls before it were recorded", pc);
     }
 }

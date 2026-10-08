@@ -1231,6 +1231,63 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::ReadSavedMedia
+//
+//  The header as WriteStateHeader lays it out, read as far as the bays: the
+//  machine's name, its ROM identity, then the medium in each bay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::ReadSavedMedia (
+    const std::vector<Byte>  & state,
+    MediaIds                 & outIds)
+{
+    constexpr uint32_t  kLongestName = 256;
+    HRESULT             hr           = S_OK;
+    StateReader         reader       (state);
+    uint16_t            version      = 0;
+    uint32_t            nameLength   = 0;
+    Word                ch           = 0;
+    uint64_t            romIdentity  = 0;
+    uint32_t            i            = 0;
+
+
+
+    outIds.fill (0);
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    reader.ReadUInt32 (nameLength);
+    CBREx (nameLength <= kLongestName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (i = 0; i < nameLength; i++)
+    {
+        reader.ReadWord (ch);
+    }
+
+    reader.ReadUInt64 (romIdentity);
+
+    for (uint64_t & mediaId : outIds)
+    {
+        reader.ReadUInt64 (mediaId);
+    }
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::ReadPictureHeader
 //
 //  The header as CheckStateHeader reads it, holding the state to the same

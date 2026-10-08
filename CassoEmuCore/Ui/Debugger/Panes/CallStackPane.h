@@ -64,12 +64,14 @@ public:
     //  a dimmed row's tip saying why it is dimmed.
     static std::vector<DxuiListView::Cell>  GetCells (const Row & row, const DebuggerTextColors::Set & colors);
 
-    static std::vector<Row>  GetRows           (const CallStackData & data);
-    static std::wstring      GetUnrecordedNote (Word pc);
-    static std::wstring      GetUnverifiedTip  (const std::optional<CallStackBreak> & above);
-    static std::string       GetNextModeLine   (CallStackMechanism current);
-    static std::string       GetNextMechanism  (CallStackMechanism current);
-    static std::wstring      GetModeLabel      (CallStackMechanism mechanism);
+    static std::vector<Row>  GetRows             (const CallStackData & data);
+    static std::wstring      GetUnrecordedNote   (Word pc);
+    static std::wstring      GetRebuildingNote   (float progress);
+    static std::wstring      GetHistoryStartNote (Word pc);
+    static std::wstring      GetUnverifiedTip    (const std::optional<CallStackBreak> & above);
+    static std::string       GetNextModeLine     (CallStackMechanism current);
+    static std::string       GetNextMechanism    (CallStackMechanism current);
+    static std::wstring      GetModeLabel        (CallStackMechanism mechanism);
 
 private:
     static bool  IsSameText (const std::vector<Row> & a, const std::vector<Row> & b);

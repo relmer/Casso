@@ -189,6 +189,27 @@ public:
     void                  SetCallRecording (bool isOn);
     bool                  IsCallRecording  () const { return m_callRecorder.IsActive(); }
 
+    // A record started at PC again for a machine that moved through history,
+    // its bottom where history starts as far as the record knows, or
+    // power-on at cycle 0. Nothing happens while it is off.
+    void                  RestartCallRecording ();
+
+    // Counts each time the record starts, ends, or is reset, so a rebuild of
+    // it from history can tell when the record it was for has gone.
+    uint64_t              GetCallRecordGeneration () const { return m_callRecordGeneration; }
+
+    // The break at the bottom of the record: where it began, power-on, a
+    // reset or where history starts. Empty while nothing is recorded.
+    std::optional<CallStackBreak>  GetCallRecordBottom () const { return m_callRecorder.GetBottom(); }
+
+    // A record rebuilt from history up to where the machine stands, taken as
+    // this one, so recording goes on from it.
+    void                  AdoptCallRecord  (const CallRecord & record);
+
+    // How far along a rebuild of the record from history is, 0 to 1, while
+    // one runs; the call stack the session builds holds it for the pane.
+    void                  SetCallRebuildProgress (std::optional<float> progress) { m_callRebuildProgress = progress; }
+
     // CALLS and the call-stack pane: the chain to PC by the chosen mechanism,
     // each frame's target named from the symbol tables.
     CallStackMechanism    GetCallMechanism () const                       { return m_callMechanism; }
@@ -403,6 +424,11 @@ private:
     std::array<bool, 0x100>               m_callOpcodes   = {};
     CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;
     std::vector<Word>                     m_searchResults;
+
+    //  Counts the call record's starts, ends and resets; and how far along a
+    //  rebuild of it from history is, while one runs.
+    uint64_t                              m_callRecordGeneration = 0;
+    std::optional<float>                  m_callRebuildProgress;
 
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;

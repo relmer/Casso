@@ -189,9 +189,11 @@ bool CallStackPane::IsSameText (const std::vector<Row> & a, const std::vector<Ro
 //  CallStackPane::GetRows
 //
 //  A break is a separator row: the instruction's address in the first column
-//  and what broke the chain in the second. Where recording began is a note
-//  across the row instead. An unverified frame is dimmed, as is the note on
-//  the last return, which is about a frame no longer on the stack.
+//  and what broke the chain in the second. Where recording began, and where
+//  the history a record knows of starts, is a note across the row instead;
+//  while the record is being rebuilt, the note shows that. An unverified
+//  frame is dimmed, as is the note on the last return, which is about a
+//  frame no longer on the stack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,8 +202,9 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     std::vector<Row>                 rows;
     Row                              row;
     std::optional<CallStackBreak>    above;
-    auto                             widen = [] (const std::string & text) { return std::wstring (text.begin(), text.end()); };
-    auto              frameRow = [&widen] (const CallStackFrame & frame)
+    bool                             isMidRun = false;
+    auto                             widen    = [] (const std::string & text) { return std::wstring (text.begin(), text.end()); };
+    auto                             frameRow = [&widen] (const CallStackFrame & frame)
     {
         Row  made;
 
@@ -241,10 +244,26 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
             row.isBreak = true;
             row.address = each.chainBreak->pc;
 
-            if (each.chainBreak->kind == CallBreakKind::TrackingBegan)
+            //  A record that began mid-run, where the debugger attached or a
+            //  move through history landed, is the one a rebuild replaces.
+            isMidRun = each.chainBreak->kind == CallBreakKind::TrackingBegan || each.chainBreak->kind == CallBreakKind::HistoryBegan;
+
+            if (isMidRun && data.rebuildProgress.has_value())
+            {
+                row.site.clear();
+                row.routine = GetRebuildingNote (*data.rebuildProgress);
+                row.isNote  = true;
+            }
+            else if (each.chainBreak->kind == CallBreakKind::TrackingBegan)
             {
                 row.site.clear();
                 row.routine = GetUnrecordedNote (each.chainBreak->pc);
+                row.isNote  = true;
+            }
+            else if (each.chainBreak->kind == CallBreakKind::HistoryBegan)
+            {
+                row.site.clear();
+                row.routine = GetHistoryStartNote (each.chainBreak->pc);
                 row.isNote  = true;
             }
 
@@ -287,6 +306,48 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
 std::wstring CallStackPane::GetUnrecordedNote (Word pc)
 {
     return std::format (L"Earlier calls weren't recorded (debugger opened at ${:04X})", pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetRebuildingNote
+//
+//  In place of the note above while the calls made before recording began
+//  are being rebuilt from history, with how much of it has been replayed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CallStackPane::GetRebuildingNote (float progress)
+{
+    constexpr float  kPercent = 100.0f;
+    int              percent  = (int) (std::clamp (progress, 0.0f, 1.0f) * kPercent);
+
+
+
+    return std::format (L"Rebuilding earlier calls from history ({}%)", percent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetHistoryStartNote
+//
+//  A record rebuilt from history begins where history does, which is after
+//  power-on once the oldest history has been let go, or after a stretch it
+//  could not replay: nothing is known of the calls made before that point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CallStackPane::GetHistoryStartNote (Word pc)
+{
+    return std::format (L"Earlier calls are unknown (history starts at ${:04X})", pc);
 }
 
 
