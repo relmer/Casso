@@ -137,6 +137,11 @@ public:
     //  top and bottom edges.
     static RECT  GetDockedRect (const DxuiToolbarDock & dock, const RECT & area, int lengthPx, int bandPx, int marginPx, int dpi);
 
+    //  How much of its edge strip the docked toolbar takes from the dock
+    //  site: the whole band across the top, the band less the margin the
+    //  site keeps from the window's other edges.
+    static long  GetEdgeShareThickness (DxuiToolbarDock::Edge edge, int bandPx, int marginPx);
+
     //  The dock site's side for a toolbar's edge.
     static DxuiDockSide  EdgeToDockSide (DxuiToolbarDock::Edge edge);
 
