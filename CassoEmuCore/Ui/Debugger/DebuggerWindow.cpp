@@ -466,6 +466,9 @@ void DebuggerWindow::ConfigureWidgets()
         MakeDense (list);
     }
 
+    //  The registers need no headings: each row says what it is.
+    m_registerList->SetShowHeader (false);
+
     m_tracePane->Configure();
     m_traceHint->SetPairs (TracePane::GetKeyPairs());
 
@@ -7169,17 +7172,29 @@ void DebuggerWindow::ApplySnapshot()
     //  sit on P's row beside the byte they come from, in the same monospace
     //  face -- where a bit changing moves nothing else. A register that
     //  changed since the last stop is drawn in the changed color (FR-098).
-    //  The cycle count's row shows, in the same column, how far it moved
-    //  since the stop before, signed, so a step back reads as one.
+    //  The cycle count's row runs across the pane, its digits grouped, with
+    //  how far it moved since the stop before after it, signed, so a step
+    //  back reads as one. Spanning, it sets no column's width, so a long
+    //  count never pushes the flags along.
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
         bool                isCycles = reg.name == DebuggerViewState::kCyclesRegister;
         DxuiListView::Cell  value    = { Widen (reg.value) };
         DxuiListView::Cell  flags    = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
+        std::wstring        delta;
+        uint64_t            count    = 0;
 
         if (isCycles)
         {
-            flags.text = Widen (m_stopChanges.GetDelta ("R:" + reg.name));
+            delta = Widen (m_stopChanges.GetDelta ("R:" + reg.name));
+
+            if (std::from_chars (reg.value.data(), reg.value.data() + reg.value.size(), count).ec == std::errc())
+            {
+                value.text = DebuggerStatusText::FormatCount (count, LOCALE_NAME_USER_DEFAULT);
+            }
+
+            value.text     += delta.empty() ? std::wstring() : L"  (" + delta + L")";
+            value.spansRow  = true;
         }
 
         if (!isCycles && m_stopChanges.IsChanged ("R:" + reg.name))

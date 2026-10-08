@@ -3,6 +3,7 @@
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
@@ -370,6 +371,52 @@ namespace DebuggerValueEditTests
             window.SetConsoleBarMenus();
 
             Assert::AreEqual (std::wstring (L"Monitor"),  window.GetModeText());
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerRegisterRowTests
+    //
+    //  The registers have no headings, and the cycle count runs across its
+    //  row with its digits grouped, so a long count sets no column's width
+    //  and never pushes the flags along.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerRegisterRowTests)
+    {
+    public:
+
+        TEST_METHOD (TheCycleCountSpansItsRowWithItsDigitsGrouped)
+        {
+            CassoTheme       theme    = CassoTheme::MakeSkeuomorphic();
+            ValueEditHost    host;
+            ValueEditWindow  window   (theme, host);
+            auto             snapshot = ValueEditRig::MakeSnapshot (true);
+            DxuiDpiScaler    scaler;
+            DxuiListView   * list     = nullptr;
+
+
+
+            snapshot->registers.push_back ({ std::string (DebuggerViewState::kCyclesRegister), "9758191" });
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.ShowPane (DebuggerLayout::kRegisters);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            list = window.GetRegisterList();
+
+            Assert::IsFalse  (list->IsHeaderShown(), L"no headings");
+            Assert::IsTrue   (list->GetCellsOfRow (list->GetRowCount() - 1)[1].spansRow, L"the count runs across its row");
+            Assert::AreEqual (std::wstring (DebuggerStatusText::FormatCount (9758191, LOCALE_NAME_USER_DEFAULT)),
+                              list->GetCellsOfRow (list->GetRowCount() - 1)[1].text, L"its digits grouped");
         }
     };
 }
