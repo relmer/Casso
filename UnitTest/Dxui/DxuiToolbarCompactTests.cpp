@@ -92,11 +92,13 @@ public:
         static constexpr int  kLeadDip  = 2;
         static constexpr int  kWidthDip = 60;
 
+        explicit LeadEntry (int leadDip = kLeadDip) : m_leadDip (leadDip) {}
+
         int              GetWidthPx   (bool, const DxuiDpiScaler & scaler, IDxuiTextRenderer *) const override { return scaler.ToPx (kWidthDip); }
         void             Layout       (const RECT & rc, bool, const DxuiDpiScaler & scaler)          override { m_rc = rc; m_scaler = scaler; }
         const wchar_t *  GetTooltipAt (int, int, RECT &) const                                       override { return nullptr; }
         bool             OnClick      (int, int)                                                     override { return false; }
-        int              GetLeadPx    (const DxuiDpiScaler & scaler) const                           override { return scaler.ToPx (kLeadDip); }
+        int              GetLeadPx    (const DxuiDpiScaler & scaler) const                           override { return scaler.ToPx (m_leadDip); }
 
         void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool hovered, bool pressed, bool labeled) override
         {
@@ -110,13 +112,14 @@ public:
             (void) pressed;
             (void) labeled;
 
-            hr = text.DrawString (L"custom", (float) (m_rc.left + m_scaler.ToPx (kLeadDip)), (float) m_rc.top, 1.0f, 1.0f, 0xFFFFFFFFu,
+            hr = text.DrawString (L"custom", (float) (m_rc.left + m_scaler.ToPx (m_leadDip)), (float) m_rc.top, 1.0f, 1.0f, 0xFFFFFFFFu,
                                   1.0f, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
     private:
-        RECT           m_rc = {};
+        int            m_leadDip = kLeadDip;
+        RECT           m_rc      = {};
         DxuiDpiScaler  m_scaler;
     };
 
@@ -148,9 +151,9 @@ public:
     }
 
 
-    //  Lays the strip out at the length it asks for, paints it, and checks
-    //  where its first entry's ink falls, the gap to the entry after it, and
-    //  that the last entry still ends a bar pad short of the strip's end.
+    //  Lays the strip out at its natural length, paints it, and checks where
+    //  its first entry's ink falls, the gap to the entry after it, and that
+    //  the last entry still ends a bar pad short of the strip's end.
     static void  CheckFirstInk (std::vector<DxuiToolbar::Entry> entries, const wchar_t * firstInk, int dpi, const wchar_t * what)
     {
         constexpr int         kLeftPx = 50;
@@ -180,12 +183,12 @@ public:
 
         Assert::IsTrue   (bar.TryGetEntryRect (1, first),  at.c_str());
         Assert::IsTrue   (bar.TryGetEntryRect (2, second), at.c_str());
-        Assert::IsFalse  (bar.IsInSeeMore (2),             (L"nothing goes into See more at the length asked for, " + at).c_str());
+        Assert::IsFalse  (bar.IsInSeeMore (2),             (L"nothing goes into See more at the natural length, " + at).c_str());
 
         Assert::AreEqual ((float) (kLeftPx + DxuiPaneMetrics::GetContentTextInsetPx (scaler)), FindTextX (text, firstInk), 0.5f,
                           (L"the first ink is on the pane's text inset, " + at).c_str());
         Assert::AreEqual ((LONG) scaler.ToPx (1), second.left - first.right, (L"the next entry keeps its 1-DIP gap, " + at).c_str());
-        Assert::IsTrue   (second.right <= kLeftPx + length - barPad, (L"the strip asks for the room the inset takes, " + at).c_str());
+        Assert::IsTrue   (second.right <= kLeftPx + length - barPad, (L"the natural length counts the room the inset takes, " + at).c_str());
     }
 
 
@@ -221,6 +224,48 @@ public:
             customs[1].command  = MakeCommand (2, L"Second", L"b");
             customs[1].iconOnly = true;
             CheckFirstInk (std::move (customs), L"custom", dpi, L"a custom entry");
+        }
+    }
+
+
+    //  A first entry whose own lead is wider than the inset less the bar
+    //  padding starts at the bar padding, never nearer the strip's edge, so
+    //  its ink lands past the inset by the difference.
+    TEST_METHOD (AFirstEntryWithAWideLeadStartsAtTheBarPadding)
+    {
+        constexpr int   kDpis[]  = { 96, 106, 120, 144, 168 };
+        constexpr int   kWideDip = 10;
+        constexpr long  kLeftPx  = 50;
+        constexpr long  kWidthPx = 400;
+
+
+
+        for (int dpi : kDpis)
+        {
+            LeadEntry                        custom (kWideDip);
+            std::vector<DxuiToolbar::Entry>  entries (1);
+            DxuiToolbar                      bar;
+            DxuiDpiScaler                    scaler;
+            RECT                             first  = {};
+            long                             barPad = 0;
+            long                             room   = 0;
+            std::wstring                     at     = std::format (L"{} DPI", dpi);
+
+            scaler.SetDpi (dpi);
+            entries[0].command = MakeCommand (1, L"Custom", nullptr);
+            entries[0].custom  = &custom;
+
+            bar.SetCompact       (true);
+            bar.SetPaneTextInset (true);
+            bar.SetEntries       (std::move (entries));
+            bar.Layout           (RECT { kLeftPx, 0, kLeftPx + kWidthPx, scaler.ToPx (DxuiToolbar::kCompactBandDp) }, scaler);
+
+            barPad = scaler.ToPx (bar.GetSpacingDp (DxuiToolbar::Spacing::BarPadX));
+            room   = DxuiPaneMetrics::GetContentTextInsetPx (scaler) - barPad;
+
+            Assert::IsTrue   (custom.GetLeadPx (scaler) > room,  (L"the lead is wider than the inset less the bar padding, " + at).c_str());
+            Assert::IsTrue   (bar.TryGetEntryRect (1, first),    at.c_str());
+            Assert::AreEqual (kLeftPx + barPad, first.left,      (L"the entry starts at the bar padding, " + at).c_str());
         }
     }
 };

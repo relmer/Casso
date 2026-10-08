@@ -800,6 +800,7 @@
     <ClCompile Include="Dxui\DxuiHexViewSelectionContrastTests.cpp" />
     <ClCompile Include="DebuggerTests\ByteChangesTests.cpp" />
     <ClCompile Include="DebuggerTests\OpeningFocusDeferralTests.cpp" />
+    <ClCompile Include="DebuggerTests\ToolbarCheckEntryTests.cpp" />
     <ClCompile Include="DebuggerTests\PaneUndoTextTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowUndoBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTextSelectionTests.cpp" />
