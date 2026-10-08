@@ -304,6 +304,7 @@ void DxuiTextRenderer::Shutdown()
     m_brushCache.clear();
     m_layoutCache.clear();
     m_oldLayoutCache.clear();
+    m_cellFonts.clear();
     m_formatCache.clear();
     m_dwriteFactory.Reset();
     m_d2dContext.Reset();
@@ -1564,6 +1565,251 @@ HRESULT DxuiTextRenderer::DrawString (
                                       brush.Get(),
                                       opts);
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawCells
+//
+//  A hex dump draws hundreds of one- and two-character strings a frame, and
+//  each DrawString looks up or builds a layout and records a draw of its
+//  own. A run of characters the face has goes out here as one glyph run
+//  instead, every advance a cell, with no layout at all. A character the
+//  face lacks, or one outside printable ASCII, is drawn alone in its cell
+//  through DrawString, whose layout finds a face that has it. Each UTF-16
+//  unit takes a cell.
+//
+//  A face that cannot be found draws the whole run through the default,
+//  as one string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::DrawCells (
+    const wchar_t        * text,
+    float                  xDip,
+    float                  yDip,
+    float                  cellWidthDip,
+    float                  heightDip,
+    uint32_t               argbColor,
+    const DxuiFontHandle & font)
+{
+    HRESULT                         hr        = S_OK;
+    HRESULT                         hrFont    = S_OK;
+    const CellFont                * cellFont  = nullptr;
+    ComPtr<ID2D1SolidColorBrush>    brush;
+    ID2D1SolidColorBrush          * rawBrush  = nullptr;
+    size_t                          length    = 0;
+    size_t                          start     = 0;
+    size_t                          end       = 0;
+    wchar_t                         single[2] = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+    CBRAEx (text, E_INVALIDARG);
+
+    BAIL_OUT_IF (cellWidthDip <= 0.0f || heightDip <= 0.0f, S_OK);
+
+    hrFont = EnsureCellFont (font, &cellFont);
+
+    if (FAILED (hrFont))
+    {
+        hr = IDxuiTextRenderer::DrawCells (text, xDip, yDip, cellWidthDip, heightDip, argbColor, font);
+    }
+
+    BAIL_OUT_IF (FAILED (hrFont), hr);
+
+    hr = EnsureBrush (argbColor, &rawBrush);
+    CHRA (hr);
+    brush.Attach (rawBrush);
+
+    brush->SetOpacity (m_globalAlpha);
+
+    length = wcslen (text);
+
+    while (start < length)
+    {
+        for (end = start; end < length; end++)
+        {
+            if (text[end] < s_kFirstCellChar || text[end] > s_kLastCellChar || cellFont->glyphs[text[end] - s_kFirstCellChar] == 0)
+            {
+                break;
+            }
+        }
+
+        if (end > start)
+        {
+            DrawCellRun (*cellFont, text + start, end - start, xDip + (float) start * cellWidthDip, yDip, cellWidthDip, font.sizeDip, brush.Get());
+
+            start = end;
+            continue;
+        }
+
+        single[0] = text[start];
+
+        hr = DrawString (single, xDip + (float) start * cellWidthDip, yDip, cellWidthDip + heightDip, heightDip, argbColor,
+                         font.sizeDip, font.face, HAlign::Left, VAlign::Top, font.weight, false);
+        CHRA (hr);
+
+        start++;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawCellRun
+//
+//  The baseline is rounded to a whole pixel, as DrawString's layout draw
+//  snaps it, so a run sits exactly where the same characters drawn one at a
+//  time did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::DrawCellRun (
+    const CellFont         & cellFont,
+    const wchar_t          * text,
+    size_t                   count,
+    float                    xDip,
+    float                    yDip,
+    float                    cellWidthDip,
+    float                    fontSizeDip,
+    ID2D1SolidColorBrush   * brush)
+{
+    DWRITE_GLYPH_RUN  run = {};
+
+
+
+    m_cellGlyphs.resize   (count);
+    m_cellAdvances.assign (count, cellWidthDip);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        m_cellGlyphs[i] = cellFont.glyphs[text[i] - s_kFirstCellChar];
+    }
+
+    run.fontFace      = cellFont.face.Get();
+    run.fontEmSize    = fontSizeDip;
+    run.glyphCount    = (UINT32) count;
+    run.glyphIndices  = m_cellGlyphs.data();
+    run.glyphAdvances = m_cellAdvances.data();
+
+    m_d2dContext->DrawGlyphRun (D2D1::Point2F (xDip, std::floor (yDip + cellFont.baseline + 0.5f)), &run, brush, DWRITE_MEASURING_MODE_NATURAL);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureCellFont
+//
+//  The face DrawString's layout would pick for printable ASCII in this
+//  family and weight, its glyph for each of those characters, and where
+//  that layout puts the baseline below a line's top. Kept per family, size
+//  and weight, like the text formats.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::EnsureCellFont (const DxuiFontHandle & font, const CellFont ** outFont)
+{
+    static constexpr float                s_kMeasureBox = 4096.0f;
+    static constexpr size_t               s_kCellChars  = s_kLastCellChar - s_kFirstCellChar + 1;
+    HRESULT                               hr            = S_OK;
+    TextFormatKey                         key;
+    IDWriteTextFormat                   * rawFmt        = nullptr;
+    ComPtr<IDWriteTextFormat>             format;
+    ComPtr<IDWriteTextLayout>             layout;
+    ComPtr<IDWriteFontCollection>         collection;
+    ComPtr<IDWriteFontFamily>             family;
+    ComPtr<IDWriteFont>                   match;
+    CellFont                              made;
+    BOOL                                  isFound       = FALSE;
+    UINT32                                familyIndex   = 0;
+    UINT32                                lineCount     = 0;
+    DWRITE_LINE_METRICS                   line          = {};
+    std::array<UINT32, s_kCellChars>      codepoints    = {};
+    const wchar_t                       * useFamily     = (font.face != nullptr) ? font.face : L"Segoe UI";
+    auto                                  cached        = m_cellFonts.end();
+
+
+
+    CBRAEx (outFont, E_INVALIDARG);
+    CBRA (m_dwriteFactory);
+
+    *outFont = nullptr;
+
+    key.family  = useFamily;
+    key.sizeDip = font.sizeDip;
+    key.weight  = font.weight;
+
+    cached = m_cellFonts.find (key);
+
+    if (cached != m_cellFonts.end())
+    {
+        *outFont = &cached->second;
+    }
+
+    BAIL_OUT_IF (*outFont != nullptr, S_OK);
+
+    hr = EnsureTextFormat (useFamily, font.sizeDip, font.weight, &rawFmt);
+    CHRA (hr);
+    format.Attach (rawFmt);
+
+    hr = format->GetFontCollection (&collection);
+    CHRA (hr);
+
+    hr = collection->FindFamilyName (useFamily, &familyIndex, &isFound);
+    CHRA (hr);
+    CBR (isFound);
+
+    hr = collection->GetFontFamily (familyIndex, &family);
+    CHRA (hr);
+
+    hr = family->GetFirstMatchingFont (static_cast<DWRITE_FONT_WEIGHT> ((int) font.weight & 0xFFFF),
+                                       DWRITE_FONT_STRETCH_NORMAL,
+                                       (((int) font.weight & 0x10000) != 0) ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
+                                       &match);
+    CHRA (hr);
+
+    hr = match->CreateFontFace (&made.face);
+    CHRA (hr);
+
+    for (size_t i = 0; i < s_kCellChars; i++)
+    {
+        codepoints[i] = (UINT32) s_kFirstCellChar + (UINT32) i;
+    }
+
+    hr = made.face->GetGlyphIndices (codepoints.data(), (UINT32) s_kCellChars, made.glyphs.data());
+    CHRA (hr);
+
+    hr = m_dwriteFactory->CreateTextLayout (L"0", 1, format.Get(), s_kMeasureBox, s_kMeasureBox, &layout);
+    CHRA (hr);
+
+    hr = layout->GetLineMetrics (&line, 1, &lineCount);
+    CHRA (hr);
+    CBRA (lineCount > 0);
+
+    made.baseline = line.baseline;
+
+    *outFont = &(m_cellFonts[key] = std::move (made));
 
 Error:
     return hr;

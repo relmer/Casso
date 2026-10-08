@@ -340,6 +340,37 @@ public:
     }
 
 
+    //  A row of one color goes out in one draw: its values, the spaces
+    //  between them, the gutter and its characters, from the hex column's
+    //  first cell.
+    TEST_METHOD (Paint_DrawsARowOfOneColorAsOneRun)
+    {
+        VectorHexSource       source ("ABCD");
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        int                   runs = 0;
+
+
+        view.SetSource      (&source);
+        view.SetBytesPerRow (4);
+        LayOut (view);
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString && call.text == L"41 42 43 44  ABCD")
+            {
+                runs++;
+                Assert::AreEqual ((float) view.GetByteRect (0, DxuiHexView::Column::Hex).left, call.x, L"from the hex column");
+            }
+        }
+
+        Assert::AreEqual (1, runs, L"the row is one draw");
+    }
+
     TEST_METHOD (SetGrouping_RefusesWhatTheRowDoesNotDivide)
     {
         DxuiHexView  view;

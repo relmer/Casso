@@ -116,6 +116,17 @@ public:
                                DxuiFontWeight  weight = DxuiFontWeight::Normal,
                                bool            wrap   = true) override;
 
+    // A run of printable ASCII drawn as one glyph run with every advance a
+    // cell, so it needs no layout at all; any other character is drawn alone
+    // in its cell through DrawString.
+    HRESULT  DrawCells        (const wchar_t        * text,
+                               float                  xDip,
+                               float                  yDip,
+                               float                  cellWidthDip,
+                               float                  heightDip,
+                               uint32_t               argbColor,
+                               const DxuiFontHandle & font) override;
+
     // Push an axis-aligned clip rect onto the d2d context. All
     // subsequent DrawString / FillRect calls are clipped to the
     // intersection of currently-active clips until the matching
@@ -263,6 +274,32 @@ private:
                                ID2D1SolidColorBrush        ** outBrush);
 
 
+    // What DrawCells needs of a face at a size and weight: the face itself,
+    // the glyph for each printable ASCII character, and where DrawString
+    // puts the baseline below a line's top.
+    static constexpr wchar_t  s_kFirstCellChar = L' ';
+    static constexpr wchar_t  s_kLastCellChar  = L'~';
+
+    struct CellFont
+    {
+        ComPtr<IDWriteFontFace>                                     face;
+        std::array<UINT16, s_kLastCellChar - s_kFirstCellChar + 1>  glyphs   = {};
+        float                                                       baseline = 0.0f;
+    };
+
+    HRESULT  EnsureCellFont   (const DxuiFontHandle         & font,
+                               const CellFont              ** outFont);
+
+    void     DrawCellRun      (const CellFont               & cellFont,
+                               const wchar_t                * text,
+                               size_t                         count,
+                               float                          xDip,
+                               float                          yDip,
+                               float                          cellWidthDip,
+                               float                          fontSizeDip,
+                               ID2D1SolidColorBrush         * brush);
+
+
     // Cached shaped text layout (see LayoutCacheKey). Alignment / wrapping are
     // set on the layout itself so the shared format is never mutated.
     HRESULT  EnsureLayout     (const wchar_t                * text,
@@ -343,6 +380,12 @@ private:
              ComPtr<IDWriteTextFormat>>  m_formatCache;
 
     std::map<TextFormatKey, float>       m_capMidCache;
+
+    std::map<TextFormatKey, CellFont>    m_cellFonts;
+
+    // DrawCellRun's glyphs and advances, kept so a run does not allocate.
+    std::vector<UINT16>                  m_cellGlyphs;
+    std::vector<FLOAT>                   m_cellAdvances;
 
     std::map<uint32_t,
              ComPtr<ID2D1SolidColorBrush>>  m_brushCache;

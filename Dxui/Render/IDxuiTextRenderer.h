@@ -70,6 +70,29 @@ public:
                                     DxuiFontWeight       weight = DxuiFontWeight::Normal,
                                     bool                 wrap   = true)         = 0;
 
+    // Characters on a grid of cells `cellWidthDip` apart, the first cell's
+    // top left at (xDip, yDip), the way a fixed-width listing lays them out,
+    // in one call however many there are. A cell may differ from the face's
+    // own advance, which is how whole-pixel cells keep a column straight.
+    // The default draws the run as one string in a box a cell wider than the
+    // run, as a fixed-width face lays it, which suits a renderer that only
+    // records what it was asked for.
+    virtual HRESULT  DrawCells     (const wchar_t        * text,
+                                    float                  xDip,
+                                    float                  yDip,
+                                    float                  cellWidthDip,
+                                    float                  heightDip,
+                                    uint32_t               argbColor,
+                                    const DxuiFontHandle & font)
+    {
+        float  widthDip = (float) wcslen (text) * cellWidthDip + heightDip;
+
+
+
+        return DrawString (text, xDip, yDip, widthDip, heightDip, argbColor, font.sizeDip, font.face,
+                           DxuiTextHAlign::Left, DxuiTextVAlign::Top, font.weight, false);
+    }
+
     virtual HRESULT  PushClipRect  (float xDip, float yDip, float widthDip, float heightDip) = 0;
     virtual HRESULT  PopClipRect   ()                                                        = 0;
 

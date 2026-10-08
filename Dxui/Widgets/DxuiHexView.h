@@ -410,6 +410,8 @@ private:
     //  buffers the view reuses frame after frame.
     int   ReadRow (uint64_t row);
     void  PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count);
+    void  PutRunCells (int firstCell, int cellX, const std::wstring & chars, uint32_t argb);
+    void  DrawRuns (IDxuiTextRenderer & text, int firstCell, uint64_t row, const DxuiFontHandle & font);
     void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     //  One cell run of the fixed-width face, and the fill behind it.
@@ -549,6 +551,12 @@ private:
     std::wstring            m_pending;
     uint64_t                m_editStart = 0;
     WriteRefusedFn          m_onWriteRefused;
+
+    //  The row PaintRow is drawing, as a line of cells from the value column's
+    //  first: each cell's character and color, zero where nothing is drawn.
+    std::wstring            m_runChars;
+    std::vector<uint32_t>   m_runInks;
+    std::wstring            m_runText;
 
     //  Whether the source's regions are outlined.
     bool                    m_showRegions = false;

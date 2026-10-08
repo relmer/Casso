@@ -2955,14 +2955,21 @@ int DxuiHexView::ReadRow (uint64_t row)
 //  lit in both columns at once, which is the whole point of selecting bytes
 //  rather than characters.
 //
+//  The fills go out as each byte is reached, and its characters into a line
+//  of cells for the row, drawn once the fills are down as runs of one color
+//  each: a row is a few draws rather than one for every value and every
+//  character.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count)
 {
-    DxuiFontHandle  font     = theme.MonospaceFont();
-    RECT            gutter   = {};
-    int             digits   = GetOffsetDigits();
-    uint64_t        address  = GetRowAddress (row);
+    DxuiFontHandle  font      = theme.MonospaceFont();
+    RECT            gutter    = {};
+    int             digits    = GetOffsetDigits();
+    uint64_t        address   = GetRowAddress (row);
+    int             firstCell = GetColumnStartCell (Column::Hex);
+    int             textCell  = GetColumnStartCell (Column::Text);
     std::wstring    label;
 
 
@@ -2974,6 +2981,9 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         PaintLineRow (text, theme, row);
         return;
     }
+
+    m_runChars.assign ((size_t) (std::max) (0, textCell + count - firstCell), L' ');
+    m_runInks.assign  (m_runChars.size(), 0);
 
     gutter = GetRowOffsetRect (row);
 
@@ -3028,7 +3038,8 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
             shown.replace (0, m_pending.size(), m_pending);
         }
 
-        DrawCell (text, cell, shown.c_str(), selected ? GetSelectionInk (theme) : argb, font);
+        PutRunCells (firstCell, GetColumnStartCell (Column::Hex) + ((first / m_grouping) * (GetValueCells() + 1)),
+                     shown, selected ? GetSelectionInk (theme) : argb);
     }
 
     //  The text column, a byte at a time.
@@ -3052,7 +3063,94 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
             argb = GetSelectionInk (theme);
         }
 
-        DrawCell (text, txtRect, charOf.c_str(), argb, font);
+        PutRunCells (firstCell, textCell + index, charOf, argb);
+    }
+
+    DrawRuns (text, firstCell, row, font);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::PutRunCells
+//
+//  Writes `chars` into the row's line of cells from cell `cellX`, in `argb`.
+//  The line starts at cell `firstCell`; a cell nothing is written to keeps a
+//  space and no color, and joins whichever run it falls inside.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::PutRunCells (int firstCell, int cellX, const std::wstring & chars, uint32_t argb)
+{
+    for (size_t i = 0; i < chars.size(); i++)
+    {
+        size_t  at = (size_t) (cellX - firstCell) + i;
+
+        if (at < m_runChars.size())
+        {
+            m_runChars[at] = chars[i];
+            m_runInks[at]  = argb;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::DrawRuns
+//
+//  The row's line of cells, a run of one color at a time. A run starts at a
+//  colored cell and takes in every cell after it of the same color or of
+//  none, then ends at its last colored cell, so the spaces between values
+//  of a color go out with them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::DrawRuns (IDxuiTextRenderer & text, int firstCell, uint64_t row, const DxuiFontHandle & font)
+{
+    HRESULT  hr    = S_OK;
+    size_t   start = 0;
+    size_t   end   = 0;
+    size_t   last  = 0;
+    RECT     cell  = {};
+
+
+
+    while (start < m_runChars.size())
+    {
+        if (m_runInks[start] == 0)
+        {
+            start++;
+            continue;
+        }
+
+        last = start;
+
+        for (end = start + 1; end < m_runChars.size(); end++)
+        {
+            if (m_runInks[end] != 0 && m_runInks[end] != m_runInks[start])
+            {
+                break;
+            }
+
+            last = (m_runInks[end] != 0) ? end : last;
+        }
+
+        cell = GetCellRect (firstCell + (int) start, row, 1);
+
+        m_runText.assign (m_runChars, start, last + 1 - start);
+
+        hr = text.DrawCells (m_runText.c_str(), (float) cell.left, (float) cell.top, (float) m_cellWidthDip,
+                             (float) (cell.bottom - cell.top), m_runInks[start], font);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        start = last + 1;
     }
 }
 
