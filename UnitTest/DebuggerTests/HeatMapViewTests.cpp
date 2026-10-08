@@ -234,6 +234,36 @@ namespace DebuggerTests
 
 
 
+        //  A map the user zoomed keeps the zoom when the pane is resized, but
+        //  its 100%, and what Reset zoom fits, is the new pane's.
+        TEST_METHOD (AResizeKeepsTheUsersZoomAndRefitsTheHundredPercent)
+        {
+            HeatMapView    view;
+            DxuiDpiScaler  scaler;
+            int            fitted = 0;
+            int            zoomed = 0;
+
+
+
+            view.SetPalette (MakePalette());
+            view.Layout (RECT { 0, 0, 1200, 900 }, scaler);
+            fitted = view.GetStartCellPx();
+
+            view.ZoomIn();
+            zoomed = view.GetCellPx();
+
+            view.Layout (RECT { 0, 0, 2400, 1800 }, scaler);
+
+            Assert::AreEqual (zoomed, view.GetCellPx(), L"the user's zoom stays");
+            Assert::IsTrue   (view.GetStartCellPx() > fitted, L"100% is the larger pane's fit");
+
+            view.ResetZoom();
+            Assert::AreEqual (view.GetStartCellPx(), view.GetCellPx(), L"Reset zoom fits the new pane");
+            Assert::IsFalse  (view.HasVerticalScroll() || view.HasHorizontalScroll());
+        }
+
+
+
         TEST_METHOD (AThreePixelCellHasAOnePixelStreet)
         {
             HeatMapView  view;
@@ -828,39 +858,6 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (AClickOnAModeShowsIt)
-        {
-            HeatMapView     view;
-            DxuiMouseEvent  click;
-            int             top     = HeatMapView::kBarDip / 2;
-            int             changed = 0;
-
-
-
-            Place (view);
-            view.SetOnOptionsChanged ([&changed] { changed++; });
-            click = MakeEvent (DxuiMouseEventKind::Down, { HeatMapView::kGutterDip + HeatMapView::kTabDip + 5, top });
-
-            Assert::IsTrue   (view.OnMouse (click));
-            Assert::AreEqual ((int) Mode::Code, (int) view.GetMode());
-            Assert::AreEqual ((int) Mode::Code, (int) view.GetOptions().view, L"the view is one of the options kept");
-            Assert::AreEqual (1, changed);
-
-            click.positionDip = { HeatMapView::kGutterDip + HeatMapView::kTabDip * 2 + 5, top };
-            view.OnMouse (click);
-            Assert::AreEqual ((int) Mode::Data, (int) view.GetMode());
-
-            click.positionDip = { HeatMapView::kGutterDip + HeatMapView::kTabDip * 3 + 5, top };
-            view.OnMouse (click);
-            Assert::AreEqual ((int) Mode::Changed, (int) view.GetMode());
-
-            click.positionDip = { HeatMapView::kGutterDip + HeatMapView::kTabDip * 4 + 5, top };
-            Assert::IsFalse  (view.OnMouse (click), L"past the last mode is no mode");
-            Assert::AreEqual ((int) Mode::Changed, (int) view.GetMode());
-        }
-
-
-
         TEST_METHOD (TheTipGivesTheAddressWhatTouchedItAndHowFast)
         {
             HeatMapView        view;
@@ -991,6 +988,7 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 0, notes, L"no note while nothing is rebuilt");
 
             view.SetRebuilding (true);
+            view.SetNoteRect   (RECT { 0, 0, 400, HeatMapView::kBarDip });
             text.Reset();
             view.Paint (painter, text, theme);
             notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapView::kpszRebuildingNote; });

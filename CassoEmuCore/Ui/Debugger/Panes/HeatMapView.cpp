@@ -1717,39 +1717,6 @@ std::optional<HeatMapView::Place> HeatMapView::GetPickPlaceAt (POINT point) cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::GetModeAt
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<HeatMapView::Mode> HeatMapView::GetModeAt (POINT point) const
-{
-    long  tab   = m_scaler.ToPx (kTabDip);
-    long  left  = m_boundsDip.left + m_gutterPx;
-    long  index = 0;
-
-
-
-    if (tab <= 0 || point.y < m_boundsDip.top || point.y >= m_boundsDip.top + m_scaler.ToPx (kBarDip) || point.x < left)
-    {
-        return std::nullopt;
-    }
-
-    index = (point.x - left) / tab;
-
-    if (index >= kModeCount)
-    {
-        return std::nullopt;
-    }
-
-    return (Mode) index;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HeatMapView::IsPressed
 //
 //  A press on the map, or a scrollbar's thumb being dragged.
@@ -2093,8 +2060,57 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
         return;
     }
 
+    //  A map the user zoomed keeps its zoom, but the size that fits the
+    //  pane, which is 100% and what Reset zoom returns to, is the new
+    //  pane's.
+    if (!EqualRect (&m_fittedFor, &m_boundsDip))
+    {
+        m_fitCellPx = ComputeFitCellPx();
+        m_fittedFor = m_boundsDip;
+    }
+
     PlaceMap();
     m_isFrameStale = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::ComputeFitCellPx
+//
+//  The cell FitRanges would choose for the pane as it is now, leaving the
+//  zoom and the scroll the user has as they were.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HeatMapView::ComputeFitCellPx()
+{
+    int    zoomed = m_cellPx;
+    POINT  scroll = m_scroll;
+    int    fit    = 1;
+
+
+
+    for (int cell = kMaxCellPx; cell >= 1; cell--)
+    {
+        m_cellPx = cell;
+        PlaceMap();
+
+        if (!m_hasVertBar && !m_hasHorzBar)
+        {
+            fit = cell;
+            break;
+        }
+    }
+
+    m_cellPx = zoomed;
+    m_scroll = scroll;
+    PlaceMap();
+
+    return fit;
 }
 
 
@@ -2215,54 +2231,33 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //
 //  HeatMapView::PaintBar
 //
-//  The modes as tabs, the chosen one underlined in the accent; then, while
-//  the heat is being rebuilt after a move through history, a note saying so.
+//  The row of views holds the window's strip of drop-downs (which view,
+//  Blend, which ranges and which bank); while the heat is being rebuilt after
+//  a move through history, a note in the room the strip leaves says so.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr int   kSwatchDip  = 10;
-    DxuiFontHandle  font        = theme.BodyFont();
-    float           size        = m_scaler.ToPxf (font.sizeDip);
-    float           bar         = m_scaler.ToPxf ((float) kBarDip);
-    float           tab         = m_scaler.ToPxf ((float) kTabDip);
-    float           swatch      = m_scaler.ToPxf ((float) kSwatchDip);
-    float           underline   = std::max (1.0f, m_scaler.ToPxf (2.0f));
-    float           top         = (float) m_boundsDip.top;
-    float           x           = (float) (m_boundsDip.left + m_gutterPx);
-    float           right       = (float) m_boundsDip.right - m_scaler.ToPxf ((float) kInsetDip);
-    HRESULT         hr          = S_OK;
+    constexpr float  kGapDip = 10.0f;
+    DxuiFontHandle   font    = theme.BodyFont();
+    float            gap     = m_scaler.ToPxf (kGapDip);
+    HRESULT          hr      = S_OK;
 
 
 
-    for (int index = 0; index < kModeCount; index++)
+    UNREFERENCED_PARAMETER (painter);
+
+    if (!m_isRebuilding || m_noteRect.right - m_noteRect.left <= gap)
     {
-        Mode  mode     = (Mode) index;
-        bool  isChosen = (mode == m_options.view);
-
-
-
-        hr = text.DrawString (GetModeLabel (mode).c_str(), x, top, tab, bar, isChosen ? theme.Foreground() : theme.ForegroundMuted(),
-                              size, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        if (isChosen)
-        {
-            painter.FillRect (x + tab / 4, top + bar - underline, tab / 2, underline, theme.Accent());
-        }
-
-        x += tab;
+        return;
     }
 
-    if (m_isRebuilding)
-    {
-        x += swatch;
-
-        hr = text.DrawString (kpszRebuildingNote, x, top, std::max (right - x, 0.0f), bar, theme.ForegroundMuted(),
-                              size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    hr = text.DrawString (kpszRebuildingNote, (float) m_noteRect.left + gap, (float) m_noteRect.top,
+                          (float) (m_noteRect.right - m_noteRect.left) - gap, (float) (m_noteRect.bottom - m_noteRect.top),
+                          theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -2781,30 +2776,17 @@ void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme
 //
 //  HeatMapView::OnPress
 //
-//  A press on a mode shows it; one on a scrollbar moves it, its thumb by a
-//  drag; one on the map starts what is a click or a drag, which the release
-//  and the moves decide.
+//  A press on a scrollbar moves it, its thumb by a drag; one on the map
+//  starts what is a click or a drag, which the release and the moves decide.
+//  The view is chosen on the window's strip in the row of views.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::OnPress (const DxuiMouseEvent & ev)
 {
-    std::optional<Mode>  mode = GetModeAt (ev.positionDip);
-    POINT                at   = ev.positionDip;
+    POINT  at = ev.positionDip;
 
 
-
-    if (mode.has_value())
-    {
-        SetMode (*mode);
-
-        if (m_onOptionsChanged)
-        {
-            m_onOptionsChanged();
-        }
-
-        return true;
-    }
 
     if (m_hasVertBar && m_vertBar.HitTest (at.x, at.y))
     {
@@ -3091,15 +3073,14 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
 //
 //  HeatMapView::GetViewRowFreeRect
 //
-//  From half a tab past the last tab to the pane's inset, as tall as the
-//  row.
+//  From the map's left, past the row labels, to the pane's inset, as tall
+//  as the row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT HeatMapView::GetViewRowFreeRect() const
 {
-    long  tab   = m_scaler.ToPx (kTabDip);
-    long  left  = m_boundsDip.left + m_gutterPx + (long) kModeCount * tab + tab / 2;
+    long  left  = m_boundsDip.left + m_gutterPx;
     long  right = m_boundsDip.right - m_scaler.ToPx (kInsetDip);
 
 

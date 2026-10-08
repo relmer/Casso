@@ -451,6 +451,7 @@ private:
     void          OpenFlyout           (bool byKeyboard);
     void          CloseFlyout          ();
     void          OpenDropDown         (int commandId);
+    static bool   TryOpenDropDownAt    (POINT screenPx, const DxuiToolbar * closing, int closedId);
     void          OpenSeeMore          ();
     void          PlanSeeMore          (int clientWidthPx);
     void          ShrinkToFit          (int clientWidthPx);
@@ -471,7 +472,11 @@ private:
     std::vector<Slot>        m_slots;
     std::map<int, Picker>    m_pickers;
     DxuiPopupMenu            m_dropdown;
-    int                      m_openPicker     = -1;
+
+    //  Every strip alive, UI thread only, so a press that dismisses one
+    //  strip's drop-down can open another's (TryOpenDropDownAt).
+    static inline std::vector<DxuiToolbar *>  s_toolbars;
+    int                                       m_openPicker = -1;
 
     IDxuiControl           * m_flyoutControl  = nullptr;
     SIZE                     m_flyoutPanelDp  = {};

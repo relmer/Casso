@@ -35,6 +35,8 @@ DxuiToolbar::DxuiToolbar()
     RefreshMetrics();
     WireDropDown();
 
+    s_toolbars.push_back (this);
+
     //  Every strip overflows: what does not fit even as icons goes into a
     //  "..." menu. A host may still call EnableSeeMore for its own glyph.
     EnableSeeMore (s_kpszMdl2More, L"See more");
@@ -52,6 +54,7 @@ DxuiToolbar::DxuiToolbar()
 
 DxuiToolbar::~DxuiToolbar()
 {
+    std::erase (s_toolbars, this);
 }
 
 
@@ -1933,13 +1936,80 @@ void DxuiToolbar::OpenDropDown (int commandId)
     RECT  anchor = { slot->rc.left, m_barRect.top, slot->rc.right, m_barRect.bottom };
 
     m_openPicker = commandId;
-    m_dropdown.SetOnClickOutside (m_onDropDownClickOutside);
+
+    //  A press that dismisses the menu by landing on another drop-down, on
+    //  this strip or another in the window, opens that one, as every
+    //  application's drop-downs do; one on this menu's own button only
+    //  closes it. An owner with somewhere else to send the press says so.
+    if (m_onDropDownClickOutside)
+    {
+        m_dropdown.SetOnClickOutside (m_onDropDownClickOutside);
+    }
+    else
+    {
+        m_dropdown.SetOnClickOutside ([this, commandId] (POINT screenPx) { (void) TryOpenDropDownAt (screenPx, this, commandId); });
+    }
+
     m_dropdown.ShowUnder (anchor, it->second.items, *m_textRenderer, m_hostClient);
 
     if (!m_dropdown.IsVisible())
     {
         m_openPicker = -1;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::TryOpenDropDownAt
+//
+//  The drop-down entry of any strip shown in the window under a point in
+//  screen pixels, opened; the one just closed (`closing`'s `closedId`) is
+//  left closed, so its button toggles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbar::TryOpenDropDownAt (POINT screenPx, const DxuiToolbar * closing, int closedId)
+{
+    HWND  under = WindowFromPoint (screenPx);
+
+
+
+    for (DxuiToolbar * strip : s_toolbars)
+    {
+        DxuiHwndSource  * host  = strip->m_dropdown.GetPopupHost();
+        POINT             local = screenPx;
+
+        if (!strip->IsVisible() || host == nullptr || host->GetHwnd() != under)
+        {
+            continue;
+        }
+
+        ScreenToClient (under, &local);
+
+        for (const Slot & slot : strip->m_slots)
+        {
+            bool  isDropDown = slot.entry.kind == Kind::DropDown && slot.entry.command != nullptr;
+
+            if (!isDropDown || slot.hidden || !slot.entry.command->IsEnabled() || !IsPointInRect (slot.rc, local.x, local.y))
+            {
+                continue;
+            }
+
+            if (strip == closing && slot.entry.command->id == closedId)
+            {
+                return false;
+            }
+
+            strip->OpenDropDown (slot.entry.command->id);
+            return strip->IsMenuOpen();
+        }
+    }
+
+    return false;
 }
 
 

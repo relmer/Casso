@@ -224,6 +224,10 @@ public:
 
 
     void   SetRebuilding (bool isRebuilding) { m_isRebuilding = isRebuilding; }
+
+    //  Where the note that the heat is being rebuilt goes: the room the
+    //  window's strip leaves in the row of views.
+    void   SetNoteRect   (const RECT & rect) { m_noteRect = rect; }
     bool   IsRebuilding  () const            { return m_isRebuilding; }
 
     void                    SetOptions (const HeatMapOptions & options);
@@ -347,8 +351,9 @@ public:
     //  the scrollbars; and an address's cell within the pane, as scrolled.
     RECT                 GetMapRect  () const { return m_map; }
 
-    //  The row of views past its tabs, where the window puts the strip that
-    //  picks the set of ranges and the bank shown; empty while it has no room.
+    //  The row of views, where the window puts the strip that picks the
+    //  view, Blend, the set of ranges and the bank shown; empty while it has
+    //  no room.
     RECT                 GetViewRowFreeRect () const;
     RECT                 GetCellRect (Word address) const;
 
@@ -357,7 +362,7 @@ public:
     //  near it; the mode under a point in the bar.
     std::optional<Word>  GetAddressAt (POINT point) const;
     std::optional<Word>  GetPickAt    (POINT point) const;
-    std::optional<Mode>  GetModeAt    (POINT point) const;
+
     std::optional<Word>  GetHover     () const;
     bool                 IsPressed    () const;
 
@@ -414,6 +419,7 @@ private:
     Word                 GetAddressOf   (const Place & place) const;
     void                 PlaceBands     ();
     void                 FitRanges      ();
+    int                  ComputeFitCellPx ();
     std::wstring         FormatAmount   (Byte level) const;
     void                 ApplyCellPx    (int cellPx, POINT point);
     void                 PlaceMap       ();
@@ -476,6 +482,7 @@ private:
     bool                       m_isDragging   = false;
     bool                       m_isFrameStale = false;
     bool                       m_isRebuilding = false;
+    RECT                       m_noteRect     = {};
     std::function<void()>      m_onOptionsChanged;
     std::function<void(Word)>  m_onPickAddress;
 

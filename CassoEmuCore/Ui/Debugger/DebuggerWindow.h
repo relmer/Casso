@@ -469,6 +469,7 @@ protected:
 
     //  The fade drop-down's rows, as last built, so a test can choose one.
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapFadeCommands () const { return m_heatMapFadeCommands; }
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatViewCommands    () const { return m_heatViewCommands; }
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapBankCommands () const { return m_heatMapBankCommands; }
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatIgnoreCommands  () const { return m_heatIgnoreCommands; }
 
@@ -1100,6 +1101,7 @@ private:
     DxuiToolbar                                                                    * m_heatViewBar        = nullptr;     // the set of ranges and the bank, beside the map's tabs
     std::unique_ptr<HeatMapBarCommands>                                              m_heatMapCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapFadeCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatViewCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapBankCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatIgnoreCommands;
     std::string                                                                      m_heatIgnoreWords;

@@ -12,9 +12,10 @@
 //  HeatMapBarCommands::GetRows
 //
 //  How the map counts, with Reset counts beside it while it counts totals,
-//  how it mixes colors, and which writes and reads before written it leaves
-//  out; then, in the map's own row of views, which ranges and which bank it
-//  shows. The zoom is the map's own widget, in its bottom-right corner.
+//  and which writes and reads before written it leaves out; then, in the
+//  map's own row of views, which accesses it shows and whether it blends
+//  their colors, and on the right which ranges and which bank. The zoom is
+//  the map's own widget, in its bottom-right corner.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,9 +25,11 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
     {
         { kMode,        L"Fading",                nullptr, L"Fade each address as its accesses age, or keep a total since the counts were reset", DxuiToolbar::Kind::DropDown, 0, false, false, false },
         { kResetCounts, L"Reset counts",          nullptr, L"Start the totals over",                                                             DxuiToolbar::Kind::Command,  0, false, false, false },
-        { kBlend,       L"Blend",                 nullptr, L"Mix the colors of an address touched more than one way",                            DxuiToolbar::Kind::Toggle,   4, false, false, false },
+
         { kIgnoreSame,  L"Skip unchanged writes", nullptr, L"Ignore writes that don't change the value: show only the writes that stored a different value", DxuiToolbar::Kind::Toggle, 5, false, false, false },
         { kIgnoreSet,   L"Leave out: None",       nullptr, L"Leave a set's ranges out of the reads before written",                              DxuiToolbar::Kind::DropDown, 5, false, false, false },
+        { kView,        L"All",                   nullptr, L"Show every access, only code run, only data read and written, or only values changed", DxuiToolbar::Kind::DropDown, 0, false, false, true  },
+        { kBlend,       L"Blend",                 nullptr, L"Mix the colors of an address touched more than one way",                            DxuiToolbar::Kind::Toggle,   0, false, false, true  },
         { kRangeSet,    L"All memory",            nullptr, L"Show all of memory, or only the ranges of a set",                                   DxuiToolbar::Kind::DropDown, 0, false, true,  true  },
         { kBank,        L"Bank",                  nullptr, L"Show what the CPU addresses, or one bank as it is stored",                          DxuiToolbar::Kind::DropDown, 0, false, true,  true  },
     };
@@ -205,13 +208,14 @@ std::wstring HeatMapBarCommands::GetFadeChoiceLabel (int seconds)
 //
 //  HeatMapBarCommands::GetFadeLabel
 //
-//  The mode in force with its fade time: "Fading: 10 s".
+//  Fading with its time, as the drop-down lists it and as the entry shows
+//  the choice in force: "Fade (10 s)".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring HeatMapBarCommands::GetFadeLabel (int seconds)
 {
-    return L"Fading: " + GetFadeChoiceLabel (seconds);
+    return L"Fade (" + GetFadeChoiceLabel (seconds) + L")";
 }
 
 

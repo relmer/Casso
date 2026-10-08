@@ -106,6 +106,8 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::IsHeatMapRecording;
         using DebuggerWindow::GetHeatMapView;
         using DebuggerWindow::GetHeatMapBar;
+        using DebuggerWindow::GetHeatViewBar;
+        using DebuggerWindow::GetHeatViewCommands;
         using DebuggerWindow::GetHeatMapFadeCommands;
         using DebuggerWindow::GetHeatMapBarLabel;
         using DebuggerWindow::IsHeatMapBarEnabled;
@@ -177,7 +179,8 @@ namespace HeatMapPaneWindowTests
 
 
 
-            Assert::IsTrue (window.GetHeatMapBar()->TryGetEntryRect (id, entry), L"the entry is on the bar");
+            Assert::IsTrue (window.GetHeatMapBar()->TryGetEntryRect (id, entry) || window.GetHeatViewBar()->TryGetEntryRect (id, entry),
+                            L"the entry is on the bar or on the strip in the row of views");
 
             at = { (entry.left + entry.right) / 2, (entry.top + entry.bottom) / 2 };
 
@@ -341,12 +344,15 @@ namespace HeatMapPaneWindowTests
 
 
 
-        TEST_METHOD (AClickOnAModeInTheWindowReachesThePane)
+        //  Which accesses the map shows is a drop-down in its row of views,
+        //  reading the view in force, with Blend beside it.
+        TEST_METHOD (TheViewIsADropDownInTheRowOfViews)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
             HeatMapHost     host;
             HeatMapWindow   window (theme, host);
-            RECT            bounds = {};
+            RECT            view   = {};
+            RECT            blend  = {};
 
 
 
@@ -354,10 +360,17 @@ namespace HeatMapPaneWindowTests
             window.ShowPane (DebuggerLayout::kHeatMap);
             Relayout (window);
 
-            bounds = window.GetHeatMapView()->GetBounds();
+            Assert::IsTrue   (window.GetHeatViewBar()->TryGetEntryRect (HeatMapBarCommands::kView,  view),  L"in the row of views");
+            Assert::IsTrue   (window.GetHeatViewBar()->TryGetEntryRect (HeatMapBarCommands::kBlend, blend), L"with Blend");
+            Assert::IsTrue   (blend.left >= view.right, L"Blend beside it");
+            Assert::AreEqual (std::wstring (L"All"), window.GetHeatMapBarLabel (HeatMapBarCommands::kView));
+            Assert::AreEqual ((size_t) HeatMapView::kModeCount, window.GetHeatViewCommands().size(), L"a row for each view");
 
-            Assert::IsTrue   (window.OnMouse (MakePress (DxuiMouseEventKind::Down, { bounds.left + HeatMapView::kGutterDip + HeatMapView::kTabDip + 5, bounds.top + HeatMapView::kBarDip / 2 })));
+            window.GetHeatViewCommands()[1]->dispatch();
+
             Assert::AreEqual ((int) HeatMapView::Mode::Code, (int) window.GetHeatMapView()->GetMode());
+            Assert::AreEqual (std::wstring (L"Code"), window.GetHeatMapBarLabel (HeatMapBarCommands::kView));
+            Assert::IsTrue   (host.heatMapOptions.find ("view=code") != std::string::npos, L"kept");
         }
 
 
@@ -428,16 +441,16 @@ namespace HeatMapPaneWindowTests
                 }
             }
 
-            Assert::IsTrue   ((std::vector<std::wstring> { L"Fading: 2 s", L"Fading: 5 s", L"Fading: 10 s", L"Fading: 20 s", L"Fading: 30 s", L"Fading: 60 s", L"Cumulative" }) == labels,
+            Assert::IsTrue   ((std::vector<std::wstring> { L"Fade (2 s)", L"Fade (5 s)", L"Fade (10 s)", L"Fade (20 s)", L"Fade (30 s)", L"Fade (60 s)", L"Cumulative" }) == labels,
                               L"the six times, in order, then cumulative");
-            Assert::AreEqual (std::wstring (L"Fading: 10 s"), checked, L"the choice in force is checked");
-            Assert::AreEqual (std::wstring (L"Fading: 10 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kMode));
+            Assert::AreEqual (std::wstring (L"Fade (10 s)"), checked, L"the choice in force is checked");
+            Assert::AreEqual (std::wstring (L"Fade (10 s)"), window.GetHeatMapBarLabel (HeatMapBarCommands::kMode));
 
             window.GetHeatMapFadeCommands()[4]->dispatch();
 
             Assert::AreEqual (30, window.GetHeatMapView()->GetOptions().fadeSeconds);
             Assert::AreEqual (std::string ("fade=30 view=all"), host.heatMapOptions, L"kept");
-            Assert::AreEqual (std::wstring (L"Fading: 30 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kMode));
+            Assert::AreEqual (std::wstring (L"Fade (30 s)"), window.GetHeatMapBarLabel (HeatMapBarCommands::kMode));
             Assert::IsTrue   (window.GetHeatMapFadeCommands()[4]->IsChecked(), L"the rows are built again with the new check");
         }
 

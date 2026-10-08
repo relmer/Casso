@@ -14,11 +14,11 @@
 //
 //  What the heat map pane's bar shows: one drop-down for how the map counts,
 //  fading for each of the fade times or cumulative, with Reset counts beside
-//  it while cumulative; Blend; whether writes that change nothing are left
-//  out, and the set whose reads before written are, as a drop-down. The set
-//  of ranges shown and the bank shown are drop-downs on a strip of their own
-//  in the map's row of views, beside the tabs; the set's drop-down ends with
-//  Edit ranges. The zoom is a widget in the map's own corner. Each strip is a
+//  it while cumulative; whether writes that change nothing are left out, and
+//  the set whose reads before written are, as a drop-down. The map's row of
+//  views holds a strip of its own: which accesses it shows, as a drop-down,
+//  and Blend; then on the right the set of ranges shown and the bank shown,
+//  as drop-downs, the set's ending with Edit ranges. The zoom is a widget in the map's own corner. Each strip is a
 //  DxuiToolbar, so what does not fit goes into its "..." menu as on every
 //  other strip.
 //
@@ -32,6 +32,9 @@ class HeatMapBarCommands
 public:
     //  How the map counts, and its fade time while fading.
     static constexpr int  kMode        = 3;
+
+    //  Which accesses the map shows: all, code, data or changed values.
+    static constexpr int  kView        = 10;
     static constexpr int  kResetCounts = 4;
 
     //  Apart from the others' numbers, so an entry added beside them keeps
@@ -64,7 +67,7 @@ public:
     std::shared_ptr<DxuiCommand>     Find         (int id) const;
 
     //  A fade time as the drop-down lists it, "10 s", and as the entry shows
-    //  the one in force while fading, "Fading: 10 s".
+    //  the one in force while fading, "Fade (10 s)".
     static std::wstring  GetFadeChoiceLabel (int seconds);
     static std::wstring  GetFadeLabel       (int seconds);
 

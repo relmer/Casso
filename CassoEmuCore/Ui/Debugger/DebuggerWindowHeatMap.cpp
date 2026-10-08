@@ -66,8 +66,8 @@ void DebuggerWindow::SetHeatMapOptions (const HeatMapOptions & options)
 //  DebuggerWindow::SetHeatMapBarMenus
 //
 //  How the map counts: fading, at each of the fade times, then cumulative,
-//  the one in force checked. The banks the machine has, the one shown
-//  checked.
+//  the one in force checked. Which accesses it shows, and the banks the
+//  machine has, each with the one shown checked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +113,29 @@ void DebuggerWindow::SetHeatMapBarMenus()
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
 
     m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kMode, std::move (items));
+
+    items.clear();
+    m_heatViewCommands.clear();
+
+    for (int index = 0; index < HeatMapView::kModeCount; index++)
+    {
+        HeatMapView::Mode  mode = (HeatMapView::Mode) index;
+
+        command = MakeMenuCommand (HeatMapView::GetModeLabel (mode), mode == shown.view, [this, mode]
+        {
+            HeatMapOptions  options = m_heatMapView->GetOptions();
+
+
+
+            options.view = mode;
+            SetHeatMapOptions (options);
+        });
+
+        m_heatViewCommands.push_back (command);
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    }
+
+    m_heatViewBar->SetDropDownItems (HeatMapBarCommands::kView, std::move (items));
 
     items.clear();
     m_heatMapBankCommands.clear();
@@ -322,6 +345,10 @@ void DebuggerWindow::PlaceHeatMapBar()
     m_heatViewBar->Layout            (row, m_scaler);
 
     host->SetChildClip (m_heatViewBar, row);
+
+    //  The note that the heat is being rebuilt goes in the room the strip
+    //  leaves between its two ends.
+    m_heatMapView->SetNoteRect (m_heatViewBar->GetFreeRect());
 }
 
 
@@ -467,6 +494,11 @@ std::wstring DebuggerWindow::GetHeatMapBarLabel (int id) const
     if (id == HeatMapBarCommands::kBank)
     {
         return HeatMapBarCommands::GetBankEntryLabel (GetShownHeatMapBank());
+    }
+
+    if (id == HeatMapBarCommands::kView)
+    {
+        return HeatMapView::GetModeLabel (m_heatMapView->GetOptions().view);
     }
 
     if (id == HeatMapBarCommands::kIgnoreSet)
