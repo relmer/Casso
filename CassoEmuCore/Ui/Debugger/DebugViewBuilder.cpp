@@ -40,7 +40,7 @@ DebuggerViewSnapshot DebugViewBuilder::Build (const DebuggerViewState & view, co
     m_target.SetCapture (input.capture);
     m_session.InstallView (input.session);
 
-    snapshot = view.BuildCaptured (m_session, input.isPaused);
+    snapshot = view.BuildCaptured (m_session, input.isPaused, m_runner);
 
     if (input.historyTrace.has_value())
     {

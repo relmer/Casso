@@ -37,6 +37,7 @@
 #include "Shell/ScreenshotCapture.h"
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
+#include "Core/ParallelWorkPool.h"
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DebugViewPublisher.h"
@@ -2404,6 +2405,7 @@ private:
     // change. The queue is declared last so it is destroyed first, waiting for
     // a build still running.
     static constexpr size_t                        kDebugBuildQueueCapacity = 2;
+    static constexpr DWORD                         kDebugBuildThreads       = 3;
     std::mutex                                     m_debugViewStateLock;
     DebugSessionView                               m_debugSessionView;
     DebugViewPublisher                             m_debugViewPublisher { m_debugViewState, m_debugViewStateLock,
@@ -2411,6 +2413,7 @@ private:
                                                                           {
                                                                               PublishDebugSnapshot (std::move (snapshot));
                                                                           } };
+    ParallelWorkPool                               m_debugBuildPool;
     ThreadPoolWorkQueue                            m_debugBuildQueue;
 
     // Atomic flags (UI writes, CPU reads)

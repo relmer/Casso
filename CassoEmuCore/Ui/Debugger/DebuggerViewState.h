@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Core/IParallelRunner.h"
+
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/HeatAccessJump.h"
@@ -499,7 +501,7 @@ public:
 
     //  The panes that only read the machine and the session, which can be
     //  built from a session over a capture, on any thread.
-    DebuggerViewSnapshot  BuildCaptured (DebugSession & session, bool isPaused) const;
+    DebuggerViewSnapshot  BuildCaptured (DebugSession & session, bool isPaused, IParallelRunner * runner = nullptr) const;
 
     //  The panes that drive the live machine: the device panels, which ask
     //  the devices themselves, and the heat map, which is switched on and
@@ -697,12 +699,14 @@ private:
     void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
     void  ImportBreakpoints (DebugSession & session, const std::string & path, const BreakpointImport::LineRunner & run, std::vector<std::string> & lines);
 
-    void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
-    void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
-    void  BuildTraceNext (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
-    void  BuildPanels    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
-    void  BuildHeatMap   (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const;
-    void  ReadHeatMap    (DebugSession & session, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state) const;
+    void  BuildCodeViews   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildMemoryPanes (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildSource      (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildTrace       (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildTraceNext   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildPanels      (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    void  BuildHeatMap     (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const;
+    void  ReadHeatMap      (DebugSession & session, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state) const;
     static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
     static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values);
     static void            FindHeatMarks  (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);

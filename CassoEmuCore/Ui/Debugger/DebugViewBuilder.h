@@ -39,7 +39,8 @@ struct DebugViewInput
 //
 //  Builds the panes that only read, from an input, with a session of its own
 //  over a captured target: nothing it does touches the machine or the live
-//  session, so it runs on any thread. One build at a time.
+//  session, so it runs on any thread. One build at a time; the panes within a
+//  build run at once on the runner it is given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,10 +52,12 @@ public:
     DebugViewBuilder             (const DebugViewBuilder &) = delete;
     DebugViewBuilder & operator= (const DebugViewBuilder &) = delete;
 
+    void                   SetRunner        (IParallelRunner * runner) { m_runner = runner; }
     DebuggerViewSnapshot   Build            (const DebuggerViewState & view, const DebugViewInput & input);
 
 private:
     CapturedDebugTarget        m_target;
     NullDebugNotificationSink  m_sink;
     DebugSession               m_session;
+    IParallelRunner          * m_runner = nullptr;
 };

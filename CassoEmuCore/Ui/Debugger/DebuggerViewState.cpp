@@ -96,21 +96,26 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 //  DebuggerViewState::BuildCaptured
 //
 //  Every read is a direct call on the session and its target, never a
-//  command, so the session may be one over a capture on another thread.
+//  command, so the session may be one over a capture on another thread. The
+//  panes that only read are built at once on the runner given, or one after
+//  another without one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, bool isPaused) const
+DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, bool isPaused, IParallelRunner * runner) const
 {
-    static constexpr uint32_t  kPaneDumpBytes = 64;
-    static constexpr char      kFlagNames[]   = "NV-BDIZC";
-    DebuggerViewSnapshot       snapshot;
-    const Cpu6502Registers     r              = session.GetTarget().GetRegisters();
-    const VideoPosition        video          = session.GetTarget().GetVideoPosition();
-    const StackData            stack          = RegisterHandlers::MakeStackData (session.GetTarget());
-    const WatchListData        watches        = WatchHandlers::MakeList (session, WatchListKind::Watch);
-    BreakpointListData         breakpoints;
-    MemoryData                 memory;
+    static constexpr char         kFlagNames[]   = "NV-BDIZC";
+    DebuggerViewSnapshot          snapshot;
+    const Cpu6502Registers        r              = session.GetTarget().GetRegisters();
+    const VideoPosition           video          = session.GetTarget().GetVideoPosition();
+    const StackData               stack          = RegisterHandlers::MakeStackData (session.GetTarget());
+    const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch);
+    BreakpointListData            breakpoints;
+    InlineParallelRunner          inlineRunner;
+    IParallelRunner             & run            = (runner != nullptr) ? *runner : inlineRunner;
+    const IParallelRunner::Job    jobs[]         = { [this, &session, &snapshot] { BuildCodeViews   (session, snapshot); },
+                                                     [this, &session, &snapshot] { BuildMemoryPanes (session, snapshot); },
+                                                     [this, &session, &snapshot] { BuildTrace       (session, snapshot); } };
 
 
 
@@ -162,8 +167,70 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         session.GetSymbols().TryFindName (info.address, snapshot.breakpoints.back().label, table);
     }
 
-    //  Each disassembly view open, the first always; one of them follows the
-    //  PC and the rest stay where they were put.
+    //  The code views, the memory panes and the trace each read the machine
+    //  and write only their own part of the snapshot, so they are built at
+    //  once. What follows reads the code views and the call record.
+    run.RunAll (jobs);
+
+    snapshot.code       = snapshot.codeViews[0];
+    snapshot.followView = m_follow;
+
+    for (const StackEntry & entry : stack.entries)
+    {
+        snapshot.stack.push_back ({ entry.address, entry.value });
+    }
+
+    snapshot.callStack = session.GetCallStack();
+
+    for (const WatchEntry & entry : watches.entries)
+    {
+        snapshot.watches.push_back ({ entry.id, entry.address,
+                                      entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
+                                      entry.enabled });
+    }
+
+    if (isPaused)
+    {
+        BuildAutoWatches (session, snapshot);
+    }
+
+    BuildSource (session, snapshot);
+
+    return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildLive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildLive (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const
+{
+    BuildPanels  (session, snapshot);
+    BuildHeatMap (session, snapshot, isPaused);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildCodeViews
+//
+//  Each disassembly view open, the first always; one of them follows the
+//  PC and the rest stay where they were put. One job for every view, since
+//  where a view starts depends on where the others are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildCodeViews (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
     for (int view = 0; view < kMaxCodeViews; view++)
     {
         if (view == 0 || m_code[(size_t) view].open)
@@ -172,9 +239,26 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
             snapshot.codeOpen[(size_t) view]  = true;
         }
     }
+}
 
-    snapshot.code       = snapshot.codeViews[0];
-    snapshot.followView = m_follow;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildMemoryPanes
+//
+//  The memory pane and every memory window open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildMemoryPanes (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    static constexpr uint32_t  kPaneDumpBytes = 64;
+    MemoryData                 memory;
+
+
 
     //  The rows D would show, read without running D, so a bare D typed later
     //  still continues from the user's own last dump.
@@ -219,46 +303,6 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
             snapshot.memoryWindows.push_back (ReadMemoryWindow (session, id, *address));
         }
     }
-
-    for (const StackEntry & entry : stack.entries)
-    {
-        snapshot.stack.push_back ({ entry.address, entry.value });
-    }
-
-    snapshot.callStack = session.GetCallStack();
-
-    for (const WatchEntry & entry : watches.entries)
-    {
-        snapshot.watches.push_back ({ entry.id, entry.address,
-                                      entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
-                                      entry.enabled });
-    }
-
-    if (isPaused)
-    {
-        BuildAutoWatches (session, snapshot);
-    }
-
-    BuildSource  (session, snapshot);
-    BuildTrace   (session, snapshot);
-
-    return snapshot;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerViewState::BuildLive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerViewState::BuildLive (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const
-{
-    BuildPanels  (session, snapshot);
-    BuildHeatMap (session, snapshot, isPaused);
 }
 
 

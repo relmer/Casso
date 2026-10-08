@@ -35,7 +35,8 @@ public:
     DebugViewPublisher             (const DebugViewPublisher &) = delete;
     DebugViewPublisher & operator= (const DebugViewPublisher &) = delete;
 
-    void        SetQueue          (IWorkQueue * queue) { m_queue = queue; }
+    void        SetQueue          (IWorkQueue * queue)       { m_queue = queue; }
+    void        SetRunner         (IParallelRunner * runner) { m_builder.SetRunner (runner); }
 
     //  The panes the machine's thread built (live) go out with the panes built
     //  from input. With no queue, or one that will not take the work, the

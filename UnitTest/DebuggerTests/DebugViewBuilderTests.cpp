@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ControllerRig.h"
+#include "Core/ParallelWorkPool.h"
 #include "Ui/Debugger/DebugViewBuilder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -68,6 +69,53 @@ namespace DebugViewBuilderTests
             AssertSamePanes (live, built);
         }
 
+        //  Built at once on a pool, the panes are the panes built one after
+        //  another, every time: the jobs write only their own parts.
+        TEST_METHOD (PanesBuiltAtOnceOnAPoolAreThePanesBuiltInTurn)
+        {
+            static constexpr uint64_t  kRunCycles   = 200;
+            static constexpr int       kBuilds      = 50;
+            static constexpr DWORD     kMaxThreads  = 3;
+
+            ControllerRig         rig;
+            DebugSession        & session  = rig.controller.GetSession();
+            DebuggerViewState     liveView;
+            DebuggerViewState     capturedView;
+            DebugViewBuilder      builder;
+            ParallelWorkPool      pool;
+            DebugViewInput        input;
+            DebuggerViewSnapshot  live;
+            auto                  capture  = std::make_shared<DebugViewCapture>();
+            uint64_t              first    = 0;
+            HRESULT               hr       = S_OK;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Run ("HISTORY ON").status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Run ("WA 400").status);
+            rig.machine.GetMemoryBus().WriteByte (0x0305, 0x4C);
+            rig.machine.GetMemoryBus().WriteByte (0x0306, 0x00);
+            rig.machine.GetMemoryBus().WriteByte (0x0307, 0x03);
+            rig.machine.RunCycles (kRunCycles);
+
+            hr = pool.Create (kMaxThreads);
+            Assert::AreEqual (S_OK, hr);
+
+            live  = liveView.BuildCaptured (session, true);
+            first = DebuggerViewState::GetTraceWindowFirst (session.GetTarget().GetTraceSize(), std::nullopt, DebuggerViewState::kTraceRows);
+
+            DebugViewCapture::Take (session.GetTarget(), CallRecord(), (size_t) first, DebuggerViewState::kTraceRows, *capture);
+            session.TakeView (input.session);
+
+            input.capture  = capture;
+            input.isPaused = true;
+            builder.SetRunner (&pool);
+
+            for (int i = 0; i < kBuilds; i++)
+            {
+                AssertSamePanes (live, builder.Build (capturedView, input));
+            }
+        }
     private:
 
         static void AssertSamePanes (const DebuggerViewSnapshot & live, const DebuggerViewSnapshot & built)
