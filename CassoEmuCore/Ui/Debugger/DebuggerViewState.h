@@ -488,14 +488,23 @@ public:
     void                 ClosePanel  (const std::string & id) { m_openPanels.erase (id); }
     bool                 IsPanelOpen (const std::string & id) const { return m_openPanels.contains (id); }
 
-    //  Runs the pane commands against the session. CPU thread only.
+    //  Builds every pane from the session: BuildCaptured, then BuildLive.
     //
     //  isPaused is the CPU manager's run state, which the session does not
     //  hold. It decides whether the code pane's annotations are built at all
     //  (FR-110): while the machine runs they would cost an effective-address
     //  prediction and several peeks per shown line per snapshot, to show a
     //  byte read at an arbitrary moment that no one can read at speed.
-    DebuggerViewSnapshot  Build (DebugSession & session, bool isPaused = true) const;
+    DebuggerViewSnapshot  Build         (DebugSession & session, bool isPaused = true) const;
+
+    //  The panes that only read the machine and the session, which can be
+    //  built from a session over a capture, on any thread.
+    DebuggerViewSnapshot  BuildCaptured (DebugSession & session, bool isPaused) const;
+
+    //  The panes that drive the live machine: the device panels, which ask
+    //  the devices themselves, and the heat map, which is switched on and
+    //  folded. The machine's thread only.
+    void                  BuildLive     (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const;
 
     //  The command a control stands for.
     static std::string  GetToggleBreakpointLine (const DebuggerViewSnapshot & snapshot, Word address);

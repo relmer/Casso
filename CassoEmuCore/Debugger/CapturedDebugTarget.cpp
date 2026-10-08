@@ -12,9 +12,36 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+CapturedDebugTarget::CapturedDebugTarget() :
+    m_capture (std::make_shared<const DebugViewCapture>())
+{
+}
+
+
 CapturedDebugTarget::CapturedDebugTarget (std::shared_ptr<const DebugViewCapture> capture) :
     m_capture (std::move (capture))
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CapturedDebugTarget::SetCapture
+//
+//  Answers from another capture from now on. An empty one is refused, so
+//  every read always has a capture to answer from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CapturedDebugTarget::SetCapture (std::shared_ptr<const DebugViewCapture> capture)
+{
+    if (capture != nullptr)
+    {
+        m_capture = std::move (capture);
+    }
 }
 
 

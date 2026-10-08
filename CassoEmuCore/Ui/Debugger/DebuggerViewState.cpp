@@ -75,13 +75,32 @@ bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused,
 //
 //  DebuggerViewState::Build
 //
-//  Each pane's command runs in AppleWin mode whatever mode the user is in, so
-//  the panes read the same data in both; only the command box follows the
-//  chosen mode.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPaused) const
+{
+    DebuggerViewSnapshot  snapshot = BuildCaptured (session, isPaused);
+
+
+
+    BuildLive (session, snapshot, isPaused);
+    return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildCaptured
+//
+//  Every read is a direct call on the session and its target, never a
+//  command, so the session may be one over a capture on another thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, bool isPaused) const
 {
     static constexpr uint32_t  kPaneDumpBytes = 64;
     static constexpr char      kFlagNames[]   = "NV-BDIZC";
@@ -222,10 +241,24 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 
     BuildSource  (session, snapshot);
     BuildTrace   (session, snapshot);
-    BuildPanels  (session, snapshot);
-    BuildHeatMap (session, snapshot, isPaused);
 
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildLive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildLive (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const
+{
+    BuildPanels  (session, snapshot);
+    BuildHeatMap (session, snapshot, isPaused);
 }
 
 

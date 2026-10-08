@@ -27,3 +27,25 @@ public:
     virtual void  OnMachineChanged (const std::string & machineName) = 0;
     virtual void  OnModeChanged    (CommandMode mode)                = 0;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NullDebugNotificationSink
+//
+//  For a session no one listens to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class NullDebugNotificationSink : public IDebugNotificationSink
+{
+public:
+    void  OnStopped        (const StopEvent &) override          {}
+    void  OnResumed        () override                           {}
+    void  OnReset          (bool) override                       {}
+    void  OnMachineChanged (const std::string &) override        {}
+    void  OnModeChanged    (CommandMode) override                {}
+};

@@ -291,6 +291,25 @@ CallRecord CallStackRecorder::GetRecord() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CallStackRecorder::SetRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackRecorder::SetRecord (const CallRecord & record)
+{
+    m_active     = record.isActive;
+    m_frames     = record.frames;
+    m_breaks     = record.breaks;
+    m_lastReturn = record.lastReturn;
+    m_pending.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CallStackRecorder::HasNoCallSince
 //
 //  A record without a clock cannot date anything, and says nothing. Calls

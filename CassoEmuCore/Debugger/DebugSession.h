@@ -5,6 +5,7 @@
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/DebugSessionView.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
@@ -171,7 +172,7 @@ public:
 
     // The symbol table the debug file's symbols went into. Clearing that
     // table unloads the file as well.
-    void                  SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; }
+    void                  SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; m_filesRevision++; }
     std::optional<SymbolTableId>  GetDebugFileTable () const { return m_debugFileTable; }
 
     // Whether T, P and RTS, and every dialect's step commands, step by source
@@ -193,6 +194,11 @@ public:
     CallStackMechanism    GetCallMechanism () const                       { return m_callMechanism; }
     void                  SetCallMechanism (CallStackMechanism mechanism) { m_callMechanism = mechanism; }
     CallStackData         GetCallStack     ();
+
+    // What the debugger's panes read, copied for a second session that builds
+    // them on another thread, and that copy installed into the second session.
+    void                  TakeView         (DebugSessionView & out);
+    void                  InstallView      (const DebugSessionView & view);
 
     // Step back out's quick answer: true when the record shows that no call
     // made at or after cycle entered the code now running.
@@ -389,6 +395,7 @@ private:
     std::wstring                          m_debugFilePath;
     std::string                           m_debugFileKey;
     std::optional<SymbolTableId>          m_debugFileTable;
+    uint64_t                              m_filesRevision = 0;
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
     StepFilter                            m_stepFilter;

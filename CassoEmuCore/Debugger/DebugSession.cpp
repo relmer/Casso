@@ -106,6 +106,7 @@ void DebugSession::SetDebugFile (DebugFile file, const std::wstring & path, cons
     m_debugFileKey  = key;
     m_debugFileTable.reset();
     m_lineTable.Build (m_debugFile);
+    m_filesRevision++;
 }
 
 
@@ -162,6 +163,7 @@ void DebugSession::ClearDebugFile()
     m_debugFileKey.clear();
     m_debugFileTable.reset();
     m_lineTable.Clear();
+    m_filesRevision++;
 }
 
 
@@ -2799,6 +2801,116 @@ CallStackData DebugSession::GetCallStack()
     }
 
     return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TakeView
+//
+//  Copies only what is small or has changed: the symbols and the debug file
+//  already in out are kept while their revisions match, so taking a view
+//  copies them once per change rather than once per frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::TakeView (DebugSessionView & out)
+{
+    SettleCallRecord();
+
+    out.breakpoints      = m_breakpoints.GetAll();
+    out.watchpoints      = m_watchpoints.GetAll();
+    out.watches          = m_watches;
+    out.zeroPage         = m_zeroPage;
+    out.bookmarks        = m_bookmarks;
+    out.dataBlocks       = m_dataBlocks;
+    out.mode             = m_mode;
+    out.assemblyAddress  = m_assemblyAddress;
+    out.isStepBySource   = m_stepBySource;
+    out.callMechanism    = m_callMechanism;
+    out.callRecord       = m_callRecorder.GetRecord();
+    out.fileSystem       = m_fileSystem;
+    out.currentDirectory = m_currentDirectory;
+
+    if (out.symbols == nullptr || out.symbols->GetRevision() != m_symbols.GetRevision())
+    {
+        out.symbols = std::make_shared<const SymbolTable> (m_symbols);
+    }
+
+    if (out.files == nullptr || out.filesRevision != m_filesRevision)
+    {
+        out.files         = std::make_shared<const DebugSessionFiles> (DebugSessionFiles { m_debugFile, m_debugFilePath, m_debugFileKey,
+                                                                                           m_debugFileTable, m_lineTable });
+        out.filesRevision = m_filesRevision;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::InstallView
+//
+//  For a session that only builds the panes: its tables become the copy's,
+//  each entry keeping its id. The symbols and the debug file are copied in
+//  only when their revisions differ from what this session already holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::InstallView (const DebugSessionView & view)
+{
+    bool  isAdopted = false;
+
+
+
+    m_breakpoints.ClearAll();
+
+    for (const Breakpoint & entry : view.breakpoints)
+    {
+        isAdopted = m_breakpoints.TryAdopt (entry);
+        IGNORE_RETURN_VALUE (isAdopted, false);
+    }
+
+    m_watchpoints.ClearAll();
+
+    for (const Watchpoint & entry : view.watchpoints)
+    {
+        isAdopted = m_watchpoints.TryAdopt (entry);
+        IGNORE_RETURN_VALUE (isAdopted, false);
+    }
+
+    m_watches          = view.watches;
+    m_zeroPage         = view.zeroPage;
+    m_bookmarks        = view.bookmarks;
+    m_dataBlocks       = view.dataBlocks;
+    m_mode             = view.mode;
+    m_assemblyAddress  = view.assemblyAddress;
+    m_stepBySource     = view.isStepBySource;
+    m_callMechanism    = view.callMechanism;
+    m_fileSystem       = view.fileSystem;
+    m_currentDirectory = view.currentDirectory;
+
+    m_callRecorder.SetRecord (view.callRecord);
+
+    if (view.symbols != nullptr && view.symbols->GetRevision() != m_symbols.GetRevision())
+    {
+        m_symbols = *view.symbols;
+    }
+
+    if (view.files != nullptr && view.filesRevision != m_filesRevision)
+    {
+        m_debugFile      = view.files->debugFile;
+        m_debugFilePath  = view.files->path;
+        m_debugFileKey   = view.files->key;
+        m_debugFileTable = view.files->table;
+        m_lineTable      = view.files->lineTable;
+        m_filesRevision  = view.filesRevision;
+    }
 }
 
 

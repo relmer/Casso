@@ -1161,32 +1161,3 @@ void EmulatorShell::SyncHeatHistory (bool isAttached)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BuildHistoryTrace
-//
-//  Behind live, the trace pane lists the instructions that led to where the
-//  machine stands, from the step table the last reverse command left.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::BuildHistoryTrace (DebuggerViewSnapshot & snapshot)
-{
-    std::vector<TraceRecord>  entries;
-
-
-
-    if (m_reverseHost == nullptr || m_debugger == nullptr)
-    {
-        return;
-    }
-
-    m_reverseHost->GetRecentTrace (DebuggerViewState::kHistoryTraceRows, entries);
-
-    DebuggerViewState::ApplyHistoryTrace (m_debugger->GetSession(), std::move (entries), snapshot);
-}
-
-
-
-
-

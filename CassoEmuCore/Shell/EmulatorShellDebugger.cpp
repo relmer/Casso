@@ -1155,7 +1155,14 @@ void EmulatorShell::OpenDebugChannel()
             return;
         }
 
-        lines = m_debugViewState.ExecuteConsoleLine (m_debugger->GetSession(), line, mode);
+        {
+            std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+            lines = m_debugViewState.ExecuteConsoleLine (m_debugger->GetSession(), line, mode);
+        }
+
         DebuggerViewState::AddCommandGap (lines);
 
         {
@@ -1245,8 +1252,9 @@ void EmulatorShell::PauseDebugRun()
 
 void EmulatorShell::RunDebugActions()
 {
-    std::vector<DebuggerAction>  actions;
-    std::vector<std::string>     lines;
+    std::vector<DebuggerAction>   actions;
+    std::vector<std::string>      lines;
+    std::unique_lock<std::mutex>  viewHeld (m_debugViewStateLock, std::defer_lock);
 
 
 
@@ -1261,6 +1269,8 @@ void EmulatorShell::RunDebugActions()
         return;
     }
 
+    viewHeld.lock();
+
     for (const DebuggerAction & action : actions)
     {
         std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugger->GetSession(), action);
@@ -1268,6 +1278,8 @@ void EmulatorShell::RunDebugActions()
         DebuggerViewState::AddCommandGap (shown);
         lines.insert (lines.end(), shown.begin(), shown.end());
     }
+
+    viewHeld.unlock();
 
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
@@ -1290,7 +1302,8 @@ void EmulatorShell::RunDebugActions()
 
 void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> address)
 {
-    int  index = 0;
+    int                          index = 0;
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
 
 
@@ -1355,6 +1368,10 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
 
 void EmulatorShell::ScrollDebugCode (int lines, int view)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.ScrollCode (lines, view);
     m_isDebugViewDirty = true;
 }
@@ -1371,6 +1388,10 @@ void EmulatorShell::ScrollDebugCode (int lines, int view)
 
 void EmulatorShell::GoToDebugMemory (int window, const std::string & text)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     if (m_debugger != nullptr)
     {
         m_debugViewState.RequestGoTo (m_debugger->GetSession(), window, text);
@@ -1390,6 +1411,10 @@ void EmulatorShell::GoToDebugMemory (int window, const std::string & text)
 
 void EmulatorShell::SetDebugTraceView (std::optional<uint64_t> first)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetTraceTop (first);
     m_isDebugViewDirty = true;
 }
@@ -1600,17 +1625,20 @@ void EmulatorShell::RedrawDebugFrame()
 //  PublishDebuggerView
 //
 //  Once a frame while the machine runs, and at once after anything the window
-//  did; DebuggerViewState::IsBuildDue says which.
+//  did; DebuggerViewState::IsBuildDue says which. This thread only gathers:
+//  the panes are built on the publisher's queue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PublishDebuggerView()
 {
-    ULONGLONG                                     now        = GetTickCount64();
-    bool                                          isDue      = false;
-    bool                                          isBreaking = false;
-    bool                                          isTaken    = true;
-    std::shared_ptr<const DebuggerViewSnapshot>   snapshot;
+    HRESULT               hr         = S_OK;
+    ULONGLONG             now        = GetTickCount64();
+    bool                  isDue      = false;
+    bool                  isBreaking = false;
+    bool                  isTaken    = true;
+    DebugViewInput        input;
+    DebuggerViewSnapshot  live;
 
 
 
@@ -1668,29 +1696,88 @@ void EmulatorShell::PublishDebuggerView()
     //  The heat map follows the machine through history.
     SyncHeatHistory (true);
 
-    //  The run state is the CPU manager's, not the session's, so it is handed
-    //  in: the command bar gates its stepping entries on it, and the code
-    //  pane's annotations are built only when it is paused (FR-110).
-    DebuggerViewSnapshot  built = m_debugViewState.Build (m_debugger->GetSession(), m_cpuManager.IsPaused());
-
-    built.history = GetHistoryStatus();
-
-    if (built.history.isBehindLive)
+    if (!m_debugBuildQueue.IsCreated())
     {
-        BuildHistoryTrace (built);
+        hr = m_debugBuildQueue.Create (kDebugBuildQueueCapacity);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  Without a queue the publisher builds on this thread, as before.
+        m_debugViewPublisher.SetQueue (m_debugBuildQueue.IsCreated() ? &m_debugBuildQueue : nullptr);
     }
 
-    snapshot       = std::make_shared<const DebuggerViewSnapshot> (std::move (built));
-
-    {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        m_debugViewSnapshot = std::move (snapshot);
-        m_isDebugViewFresh  = true;
-    }
+    GatherDebugView (input, live);
+    m_debugViewPublisher.Submit (std::move (input), std::move (live));
 
     m_debugViewBuiltAt      = now;
     m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
     m_wasHeatRebuilding     = m_debugger->GetSession().GetTarget().IsHeatMapRebuilding();
     m_isDebugViewDirty = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GatherDebugView
+//
+//  Everything the next snapshot reads that only this thread may touch: the
+//  device panels and the heat map, built now since they drive the live
+//  machine; the history status and, behind live, the instructions replayed
+//  to get there; the machine's capture; and the session's tables. The run
+//  state is the CPU manager's, not the session's, so it is handed in: the
+//  command bar gates its stepping entries on it, and the code pane's
+//  annotations are built only when it is paused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::GatherDebugView (DebugViewInput & input, DebuggerViewSnapshot & live)
+{
+    DebugSession              & session  = m_debugger->GetSession();
+    IDebugTarget              & target   = session.GetTarget();
+    bool                        isPaused = m_cpuManager.IsPaused();
+    auto                        capture  = std::make_shared<DebugViewCapture>();
+    uint64_t                    first    = 0;
+    std::vector<TraceRecord>    entries;
+
+
+
+    m_debugViewState.BuildLive (session, live, isPaused);
+    live.history = GetHistoryStatus();
+
+    if (live.history.isBehindLive && m_reverseHost != nullptr)
+    {
+        m_reverseHost->GetRecentTrace (DebuggerViewState::kHistoryTraceRows, entries);
+        input.historyTrace = std::move (entries);
+    }
+
+    first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
+
+    DebugViewCapture::Take (target, CallRecord(), (size_t) first, DebuggerViewState::kTraceRows, *capture);
+    session.TakeView (m_debugSessionView);
+
+    input.capture  = std::move (capture);
+    input.session  = m_debugSessionView;
+    input.isPaused = isPaused;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PublishDebugSnapshot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
+{
+    std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+
+
+    m_debugViewSnapshot = std::move (snapshot);
+    m_isDebugViewFresh  = true;
 }

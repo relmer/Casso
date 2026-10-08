@@ -166,6 +166,8 @@
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />
     <ClCompile Include="DebuggerTests\CapturedDebugTargetTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugViewBuilderTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugViewPublisherTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblerTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorListing1979Tests.cpp" />
     <ClCompile Include="DebuggerTests\LineAssemblerTests.cpp" />

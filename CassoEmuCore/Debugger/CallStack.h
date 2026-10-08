@@ -132,6 +132,10 @@ public:
     //  any thread.
     CallRecord  GetRecord () const;
 
+    //  Takes a copy's data as this record's, nothing held, for a recorder
+    //  that only answers for the copy and never sees an instruction.
+    void        SetRecord (const CallRecord & record);
+
     //  True when no call made at or after cycle encloses the code now
     //  running: the record holds no frame and began no later than cycle, or
     //  its innermost call was made before cycle.

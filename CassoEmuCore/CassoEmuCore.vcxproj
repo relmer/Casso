@@ -154,6 +154,8 @@
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
     <ClCompile Include="Debugger\DebuggerController.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointColumns.cpp" />
+    <ClCompile Include="Ui\Debugger\DebugViewBuilder.cpp" />
+    <ClCompile Include="Ui\Debugger\DebugViewPublisher.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
     <ClCompile Include="Ui\Debugger\StopChanges.cpp" />
     <ClCompile Include="Ui\Debugger\ByteChanges.cpp" />
@@ -620,6 +622,7 @@
     <ClInclude Include="Debugger\CapturedDebugTarget.h" />
     <ClInclude Include="Debugger\DebugMemoryImage.h" />
     <ClInclude Include="Debugger\DebugMemoryView.h" />
+    <ClInclude Include="Debugger\DebugSessionView.h" />
     <ClInclude Include="Debugger\DebugViewCapture.h" />
     <ClInclude Include="Debugger\RunStopHook.h" />
     <ClInclude Include="Debugger\StepFilter.h" />
@@ -631,6 +634,8 @@
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />
     <ClInclude Include="Debugger\DebuggerController.h" />
     <ClInclude Include="Ui\Debugger\BreakpointColumns.h" />
+    <ClInclude Include="Ui\Debugger\DebugViewBuilder.h" />
+    <ClInclude Include="Ui\Debugger\DebugViewPublisher.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
     <ClInclude Include="Ui\Debugger\StopChanges.h" />
     <ClInclude Include="Ui\Debugger\ByteChanges.h" />

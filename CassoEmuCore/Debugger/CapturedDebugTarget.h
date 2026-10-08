@@ -22,9 +22,11 @@
 class CapturedDebugTarget : public IDebugTarget
 {
 public:
+             CapturedDebugTarget ();
     explicit CapturedDebugTarget (std::shared_ptr<const DebugViewCapture> capture);
 
     const DebugViewCapture & GetCapture  () const { return *m_capture; }
+    void                     SetCapture  (std::shared_ptr<const DebugViewCapture> capture);
 
     Cpu6502Registers    GetRegisters      () const override { return m_capture->registers; }
     void                SetRegisters      (const Cpu6502Registers &) override {}

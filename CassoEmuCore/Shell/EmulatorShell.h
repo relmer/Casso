@@ -37,7 +37,9 @@
 #include "Shell/ScreenshotCapture.h"
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
+#include "Core/ThreadPoolWorkQueue.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebugViewPublisher.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
@@ -501,7 +503,6 @@ private:
     // CPU thread: where the machine stands in history, with the last reverse
     // command's outcome while the machine has not moved since it landed.
     HistoryStatus  GetHistoryStatus  ();
-    void           BuildHistoryTrace (DebuggerViewSnapshot & snapshot);
 
     const ReverseHost *  GetReverseHost() const { return m_reverseHost.get(); }
 
@@ -597,8 +598,13 @@ private:
     // Draws a stopped machine's picture again when the beam mark changed.
     void    RedrawDebugFrame     () override;
 
-    // Rebuilds the window's snapshot when it is showing and due. CPU thread.
-    void    PublishDebuggerView ();
+    // Gathers what the window's next snapshot reads when it is showing and
+    // due, and hands it to be built off the CPU thread. CPU thread.
+    void    PublishDebuggerView  ();
+    void    GatherDebugView      (DebugViewInput & input, DebuggerViewSnapshot & live);
+
+    // A built snapshot, for the UI thread to take. Any thread.
+    void    PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
 
     // IDebuggerWindowHost, called by the window on the UI thread.
     void    RunDebuggerCommand       (const std::string & line) override;
@@ -2388,6 +2394,24 @@ private:
     bool                                           m_isDebugViewFresh   = false;
     std::vector<std::string>                       m_debugConsolePending;
     std::vector<DebuggerAction>                    m_debugActionsPending;
+
+    // The panes are built off the CPU thread from what it gathers each frame.
+    // Each build holds the view state lock while it reads the view state, and
+    // so does every change the window makes to it on the CPU thread; the
+    // device panels and the heat map, which drive the live machine, are built
+    // on the CPU thread from members no build reads. The session view is kept
+    // between frames so the symbols and the debug file are shared until they
+    // change. The queue is declared last so it is destroyed first, waiting for
+    // a build still running.
+    static constexpr size_t                        kDebugBuildQueueCapacity = 2;
+    std::mutex                                     m_debugViewStateLock;
+    DebugSessionView                               m_debugSessionView;
+    DebugViewPublisher                             m_debugViewPublisher { m_debugViewState, m_debugViewStateLock,
+                                                                          [this] (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
+                                                                          {
+                                                                              PublishDebugSnapshot (std::move (snapshot));
+                                                                          } };
+    ThreadPoolWorkQueue                            m_debugBuildQueue;
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};
