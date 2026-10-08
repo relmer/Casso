@@ -861,7 +861,8 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
 //
 //  A text field's caret shows only while its window holds the focus, so a
 //  window behind another app or another window has nothing blinking. Both
-//  return NotHandled so DefWindowProc still runs.
+//  then run OnWindowFocusChanged, and return NotHandled so DefWindowProc
+//  still runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -869,6 +870,7 @@ DxuiMessageResult DxuiWindow::OnSetFocus()
 {
     SetTextInputsWindowActive (this, true);
     Invalidate();
+    OnWindowFocusChanged (true);
     return DxuiMessageResult::NotHandled;
 }
 
@@ -886,6 +888,7 @@ DxuiMessageResult DxuiWindow::OnKillFocus()
 {
     SetTextInputsWindowActive (this, false);
     Invalidate();
+    OnWindowFocusChanged (false);
     return DxuiMessageResult::NotHandled;
 }
 

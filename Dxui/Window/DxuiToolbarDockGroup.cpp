@@ -219,10 +219,9 @@ void DxuiToolbarDockGroup::ShareEdge (RECT & inner)
             end   = (std::max) (end,   down ? rect.bottom : rect.right);
         }
 
-        site->SetEdgeShare (DxuiToolbarHost::EdgeToDockSide (member.edge),
-                            DxuiToolbarHost::GetEdgeShareThickness (member.edge, thick, m_marginPx),
-                            start,
-                            end);
+        //  The site keeps the whole band on every edge: its own margin, not
+        //  a gap left outside it, keeps its panes off the toolbars.
+        site->SetEdgeShare (DxuiToolbarHost::EdgeToDockSide (member.edge), thick, start, end);
 
         switch (member.edge)
         {

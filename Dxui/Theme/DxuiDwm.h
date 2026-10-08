@@ -30,6 +30,9 @@ public:
     static void ApplyMicaBackdrop         (HWND hwnd, bool mica);
     static void ApplyImmersiveDarkMode    (HWND hwnd, bool dark);
     static void ExtendFrameIntoClientArea (HWND hwnd, int inset);
+    static void ApplyBorderColor          (HWND hwnd, uint32_t argb);
+
+    static uint32_t ArgbToColorref (uint32_t argb);
 
 private:
     // RTL_OSVERSIONINFOW by another name -- declared here so we do not
@@ -52,6 +55,7 @@ private:
     // DWMWA_* values that are not always declared in older SDK headers.
     static constexpr DWORD kDwmwaUseImmersiveDarkMode       = 20;
     static constexpr DWORD kDwmwaWindowCornerPreference     = 33;
+    static constexpr DWORD kDwmwaBorderColor                = 34;
     static constexpr DWORD kDwmwaSystemBackdropType         = 38;
 
     static constexpr DWORD kDwmwcpDefault                   = 0;

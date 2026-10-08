@@ -726,8 +726,10 @@
     <ClCompile Include="Dxui\DxuiDockSiteDragTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerDpiTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockedWindowFadeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockedWindowFocusTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteFloatingTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockSiteGapTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSitePaneMenuTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockCarryAndCompassTests.cpp" />

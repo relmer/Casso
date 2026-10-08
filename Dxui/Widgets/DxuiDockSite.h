@@ -116,6 +116,16 @@ public:
     //  The pane the user is working in: its group shows the accent border.
     void  SetFocusedPane  (const std::wstring & pane);
 
+    //  The room between docked panes and around them, as Visual Studio leaves
+    //  it, filled with the theme's DockGap. Zero for both, the default, puts
+    //  the panes edge to edge.
+    void         SetPaneGap     (int gapDip, int marginDip);
+    static RECT  GetInsetForGap (const RECT & rect, const RECT & paneArea, long gapPx);
+
+    //  Visual Studio's gap, 8 px at 125%, and a margin of 5 px there.
+    static constexpr int  kPaneGapDip    = 6;
+    static constexpr int  kPaneMarginDip = 4;
+
     //  A tool window's menu button, and a close from a document tab or a
     //  tool window's title bar. A pane closes only while `canClose` says so;
     //  without it, every pane can.
@@ -291,12 +301,13 @@ private:
     void          Arrange       ();
     RECT          GetDockedArea () const;
     RECT          GetPaneArea   () const;
-    void          ArrangeEdges  (const RECT & area);
+    void          ArrangeEdges  (const RECT & dockedArea, const RECT & paneArea);
     int           HitTestEdgeTab (POINT pointDip) const;
     void          PaintEdges    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void          NotifyChanged ();
     int           HitTestSash   (POINT pointDip) const;
     RECT          GetSashRect   (const DxuiPaneLayout::SplitRect & split) const;
+    void          PaintGaps     (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     std::wstring  GetTitle      (const std::wstring & pane) const;
     static constexpr wchar_t  kAutoHideLabel[] = L"Auto hide";
 
@@ -333,6 +344,10 @@ private:
     std::wstring                                  m_slidNotified;
     std::wstring                                  m_hoverEdge;
     std::vector<DxuiPaneLayout::SplitRect>        m_splits;
+    int                                           m_gapDip     = 0;
+    int                                           m_marginDip  = 0;
+    RECT                                          m_dockedArea = {};
+    RECT                                          m_paneArea   = {};
     DxuiDpiScaler                                 m_scaler;
     ChangedFn                                     m_onChanged;
     DxuiTabGroup::NewTabShownFn                   m_newTabShown;

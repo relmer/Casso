@@ -412,6 +412,45 @@ public:
         Assert::AreEqual (apart + thin, shared,   L"shared with the site, whose panes start below it");
     }
 
+    //  The site's only group, laid out with the toolbar alone in the innermost
+    //  band of its edge, and the toolbar's own rect.
+    static RECT MeasureSharedGroup (const wchar_t * toolText, RECT & outBar)
+    {
+        DxuiDockSite     site;
+        MockDxuiControl  code;
+        DxuiDpiScaler    scaler;
+        Rig              rig (L"top 0 band 0", toolText, &site);
+
+        site.AddPane       (L"code", L"Disassembly", &code);
+        site.SetPaneLayout (DxuiPaneLayout::MakeSingle (L"code"));
+        site.Layout        (rig.inner, scaler);
+
+        outBar = rig.toolBar.GetBounds();
+        return site.GetGroup (0)->GetBounds();
+    }
+
+
+    //  The site lies under the shared band on every edge and takes all of
+    //  it, so its panes start where the toolbar ends, never under it.
+    TEST_METHOD (TheDockSiteTakesTheWholeSharedBandOnEveryEdge)
+    {
+        RECT  topBar    = {};
+        RECT  bottomBar = {};
+        RECT  leftBar   = {};
+        RECT  rightBar  = {};
+        RECT  top       = MeasureSharedGroup (L"top 0 band 1",    topBar);
+        RECT  bottom    = MeasureSharedGroup (L"bottom 0 band 0", bottomBar);
+        RECT  left      = MeasureSharedGroup (L"left 0 band 0",   leftBar);
+        RECT  right     = MeasureSharedGroup (L"right 0 band 0",  rightBar);
+
+
+
+        Assert::AreEqual (topBar.bottom, top.top,       L"below a toolbar across the top");
+        Assert::AreEqual (bottomBar.top, bottom.bottom, L"above one across the bottom");
+        Assert::AreEqual (leftBar.right, left.left,     L"right of one down the left");
+        Assert::AreEqual (rightBar.left, right.right,   L"left of one down the right");
+    }
+
     //  Whether a paint of `bar` tints `slot` in the accent and outlines it.
     static bool IsSlotPainted (DxuiToolbar & bar, const RECT & slot)
     {

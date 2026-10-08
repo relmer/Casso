@@ -11,8 +11,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DxuiToolbarHostTests
 //
 //  The toolbar host's geometry: where a docked toolbar sits along each edge,
-//  how much of the edge it takes from the dock site, and where its floating
-//  window goes when its scale changes.
+//  which side of the dock site it shares, and where its floating window goes
+//  when its scale changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,15 +81,6 @@ public:
         Assert::AreEqual (300L,  bar.top, L"100 DIPs at 200% is 200 pixels down from the area's top");
         Assert::AreEqual (1000L, bar.right);
         Assert::AreEqual (500L,  bar.bottom);
-    }
-
-
-    TEST_METHOD (TheTopTakesTheWholeBandAndTheOtherEdgesLessTheMargin)
-    {
-        Assert::AreEqual (40L, DxuiToolbarHost::GetEdgeShareThickness (DxuiToolbarDock::Edge::Top,    kBand, kMargin));
-        Assert::AreEqual (32L, DxuiToolbarHost::GetEdgeShareThickness (DxuiToolbarDock::Edge::Bottom, kBand, kMargin));
-        Assert::AreEqual (32L, DxuiToolbarHost::GetEdgeShareThickness (DxuiToolbarDock::Edge::Left,   kBand, kMargin));
-        Assert::AreEqual (32L, DxuiToolbarHost::GetEdgeShareThickness (DxuiToolbarDock::Edge::Right,  kBand, kMargin));
     }
 
 
