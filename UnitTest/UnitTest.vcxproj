@@ -891,6 +891,7 @@
     <ClCompile Include="EmuTests\StateWriterReuseTests.cpp" />
     <ClCompile Include="EmuTests\RecordingBufferTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeWorkQueueTests.cpp" />
+    <ClCompile Include="EmuTests\ParallelWorkPoolTests.cpp" />
     <ClCompile Include="EmuTests\WrittenPageTests.cpp" />
     <ClCompile Include="EmuTests\InlineWorkQueue.cpp" />
     <ClCompile Include="EmuTests\ThreadAllocationCounter.cpp" />

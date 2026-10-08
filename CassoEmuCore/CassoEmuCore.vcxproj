@@ -285,6 +285,7 @@
     <ClCompile Include="Core\StateHash.cpp" />
     <ClCompile Include="Core\StateWriter.cpp" />
     <ClCompile Include="Core\RamPages.cpp" />
+    <ClCompile Include="Core\ParallelWorkPool.cpp" />
     <ClCompile Include="Core\ThreadPoolWorkQueue.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
     <ClCompile Include="Core\CpuFactory.cpp" />
@@ -784,6 +785,8 @@
     <ClInclude Include="Core\StateWriter.h" />
     <ClInclude Include="Core\RamPages.h" />
     <ClInclude Include="Core\IWorkQueue.h" />
+    <ClInclude Include="Core\IParallelRunner.h" />
+    <ClInclude Include="Core\ParallelWorkPool.h" />
     <ClInclude Include="Core\ThreadPoolWorkQueue.h" />
     <ClInclude Include="Devices\IMmu.h" />
     <ClInclude Include="Devices\IVideoMode.h" />
