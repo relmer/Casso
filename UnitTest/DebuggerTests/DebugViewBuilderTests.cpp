@@ -30,16 +30,17 @@ namespace DebugViewBuilderTests
         {
             static constexpr uint64_t  kRunCycles = 200;
 
-            ControllerRig         rig;
-            DebugSession        & session  = rig.controller.GetSession();
-            DebuggerViewState     liveView;
-            DebuggerViewState     capturedView;
-            DebugViewBuilder      builder;
-            DebugViewInput        input;
-            DebuggerViewSnapshot  live;
-            DebuggerViewSnapshot  built;
-            auto                  capture  = std::make_shared<DebugViewCapture>();
-            uint64_t              first    = 0;
+            auto              rigHeld  = std::make_unique<ControllerRig>();
+            ControllerRig   & rig      = *rigHeld;
+            DebugSession    & session  = rig.controller.GetSession();
+            auto              liveHeld = std::make_unique<DebuggerViewState>();
+            auto              viewHeld = std::make_unique<DebuggerViewState>();
+            auto              builder  = std::make_unique<DebugViewBuilder>();
+            auto              live     = std::make_unique<DebuggerViewSnapshot>();
+            auto              built    = std::make_unique<DebuggerViewSnapshot>();
+            auto              capture  = std::make_shared<DebugViewCapture>();
+            DebugViewInput    input;
+            uint64_t          first    = 0;
 
 
 
@@ -54,7 +55,7 @@ namespace DebugViewBuilderTests
             rig.machine.GetMemoryBus().WriteByte (0x0307, 0x03);
             rig.machine.RunCycles (kRunCycles);
 
-            live = liveView.BuildCaptured (session, true);
+            *live = liveHeld->BuildCaptured (session, true);
 
             first = DebuggerViewState::GetTraceWindowFirst (session.GetTarget().GetTraceSize(), std::nullopt, DebuggerViewState::kTraceRows);
 
@@ -64,9 +65,9 @@ namespace DebugViewBuilderTests
             input.capture  = capture;
             input.isPaused = true;
 
-            built = builder.Build (capturedView, input);
+            *built = builder->Build (*viewHeld, input);
 
-            AssertSamePanes (live, built);
+            AssertSamePanes (*live, *built);
         }
 
         //  Built at once on a pool, the panes are the panes built one after
@@ -77,17 +78,18 @@ namespace DebugViewBuilderTests
             static constexpr int       kBuilds      = 50;
             static constexpr DWORD     kMaxThreads  = 3;
 
-            ControllerRig         rig;
-            DebugSession        & session  = rig.controller.GetSession();
-            DebuggerViewState     liveView;
-            DebuggerViewState     capturedView;
-            DebugViewBuilder      builder;
-            ParallelWorkPool      pool;
-            DebugViewInput        input;
-            DebuggerViewSnapshot  live;
-            auto                  capture  = std::make_shared<DebugViewCapture>();
-            uint64_t              first    = 0;
-            HRESULT               hr       = S_OK;
+            auto                rigHeld  = std::make_unique<ControllerRig>();
+            ControllerRig     & rig      = *rigHeld;
+            DebugSession      & session  = rig.controller.GetSession();
+            auto                liveHeld = std::make_unique<DebuggerViewState>();
+            auto                viewHeld = std::make_unique<DebuggerViewState>();
+            auto                builder  = std::make_unique<DebugViewBuilder>();
+            auto                live     = std::make_unique<DebuggerViewSnapshot>();
+            auto                capture  = std::make_shared<DebugViewCapture>();
+            ParallelWorkPool    pool;
+            DebugViewInput      input;
+            uint64_t            first    = 0;
+            HRESULT             hr       = S_OK;
 
 
 
@@ -101,7 +103,7 @@ namespace DebugViewBuilderTests
             hr = pool.Create (kMaxThreads);
             Assert::AreEqual (S_OK, hr);
 
-            live  = liveView.BuildCaptured (session, true);
+            *live = liveHeld->BuildCaptured (session, true);
             first = DebuggerViewState::GetTraceWindowFirst (session.GetTarget().GetTraceSize(), std::nullopt, DebuggerViewState::kTraceRows);
 
             DebugViewCapture::Take (session.GetTarget(), CallRecord(), (size_t) first, DebuggerViewState::kTraceRows, *capture);
@@ -109,11 +111,11 @@ namespace DebugViewBuilderTests
 
             input.capture  = capture;
             input.isPaused = true;
-            builder.SetRunner (&pool);
+            builder->SetRunner (&pool);
 
             for (int i = 0; i < kBuilds; i++)
             {
-                AssertSamePanes (live, builder.Build (capturedView, input));
+                AssertSamePanes (*live, builder->Build (*viewHeld, input));
             }
         }
     private:

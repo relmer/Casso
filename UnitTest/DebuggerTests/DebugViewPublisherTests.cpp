@@ -28,21 +28,18 @@ namespace DebugViewPublisherTests
         //  Submitting builds nothing; the queue's work builds and publishes.
         TEST_METHOD (TheBuildRunsOnTheQueueNotTheSubmittingThread)
         {
-            ControllerRig                                             rig;
-            DebuggerViewState                                         view;
+            auto                                                      rigHeld   = std::make_unique<ControllerRig>();
+            ControllerRig                                           & rig       = *rigHeld;
+            auto                                                      viewHeld  = std::make_unique<DebuggerViewState>();
             std::mutex                                                viewLock;
             InlineWorkQueue                                           queue;
             std::vector<std::shared_ptr<const DebuggerViewSnapshot>>  published;
-            DebugViewPublisher                           publisher (view, viewLock,
-                                                                    [&published] (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
-                                                                    {
-                                                                        published.push_back (std::move (snapshot));
-                                                                    });
+            auto                                                      publisher = MakePublisher (*viewHeld, viewLock, published);
 
 
 
-            publisher.SetQueue (&queue);
-            publisher.Submit (MakeInput (rig, 0x0300), DebuggerViewSnapshot());
+            publisher->SetQueue (&queue);
+            publisher->Submit (MakeInput (rig, 0x0300), DebuggerViewSnapshot());
 
             Assert::AreEqual ((size_t) 0, published.size(), L"nothing is built on the submitting thread");
             Assert::AreEqual ((size_t) 1, queue.GetPendingCount(), L"the build waits on the queue");
@@ -59,23 +56,20 @@ namespace DebugViewPublisherTests
         //  once, from the newest.
         TEST_METHOD (OnlyTheNewestInputWaitingIsBuilt)
         {
-            ControllerRig                                             rig;
-            DebuggerViewState                                         view;
+            auto                                                      rigHeld   = std::make_unique<ControllerRig>();
+            ControllerRig                                           & rig       = *rigHeld;
+            auto                                                      viewHeld  = std::make_unique<DebuggerViewState>();
             std::mutex                                                viewLock;
             InlineWorkQueue                                           queue;
             std::vector<std::shared_ptr<const DebuggerViewSnapshot>>  published;
-            DebugViewPublisher                           publisher (view, viewLock,
-                                                                    [&published] (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
-                                                                    {
-                                                                        published.push_back (std::move (snapshot));
-                                                                    });
+            auto                                                      publisher = MakePublisher (*viewHeld, viewLock, published);
 
 
 
-            publisher.SetQueue (&queue);
-            publisher.Submit (MakeInput (rig, 0x0300), DebuggerViewSnapshot());
-            publisher.Submit (MakeInput (rig, 0x0400), DebuggerViewSnapshot());
-            publisher.Submit (MakeInput (rig, 0x0500), DebuggerViewSnapshot());
+            publisher->SetQueue (&queue);
+            publisher->Submit (MakeInput (rig, 0x0300), DebuggerViewSnapshot());
+            publisher->Submit (MakeInput (rig, 0x0400), DebuggerViewSnapshot());
+            publisher->Submit (MakeInput (rig, 0x0500), DebuggerViewSnapshot());
 
             Assert::AreEqual ((size_t) 1, queue.GetPendingCount(), L"one piece of work for all three");
 
@@ -84,7 +78,7 @@ namespace DebugViewPublisherTests
             Assert::AreEqual ((size_t) 1, published.size(), L"one build");
             Assert::AreEqual ((Word) 0x0500, published[0]->pc, L"of the newest input");
 
-            publisher.Submit (MakeInput (rig, 0x0600), DebuggerViewSnapshot());
+            publisher->Submit (MakeInput (rig, 0x0600), DebuggerViewSnapshot());
             Assert::AreEqual ((size_t) 1, queue.GetPendingCount(), L"a later input queues work again");
         }
 
@@ -92,23 +86,20 @@ namespace DebugViewPublisherTests
         //  What the machine's thread built goes out with the built panes.
         TEST_METHOD (TheLivePanesAreMergedIn)
         {
-            ControllerRig                                             rig;
-            DebuggerViewState                                         view;
+            auto                                                      rigHeld   = std::make_unique<ControllerRig>();
+            ControllerRig                                           & rig       = *rigHeld;
+            auto                                                      viewHeld  = std::make_unique<DebuggerViewState>();
             std::mutex                                                viewLock;
             DebuggerViewSnapshot                                      live;
             std::vector<std::shared_ptr<const DebuggerViewSnapshot>>  published;
-            DebugViewPublisher                           publisher (view, viewLock,
-                                                                    [&published] (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
-                                                                    {
-                                                                        published.push_back (std::move (snapshot));
-                                                                    });
+            auto                                                      publisher = MakePublisher (*viewHeld, viewLock, published);
 
 
 
             live.panels.push_back ({ "disk", "Disk II", true });
             live.history.isBehindLive = true;
 
-            publisher.Submit (MakeInput (rig, 0x0300), live);
+            publisher->Submit (MakeInput (rig, 0x0300), live);
 
             Assert::AreEqual ((size_t) 1, published.size(), L"with no queue the build runs at once");
             Assert::AreEqual ((size_t) 1, published[0]->panels.size(), L"the device panels came from the machine's thread");
@@ -117,6 +108,17 @@ namespace DebugViewPublisherTests
         }
 
     private:
+
+        static std::unique_ptr<DebugViewPublisher> MakePublisher (
+            const DebuggerViewState                                     & view,
+            std::mutex                                                  & viewLock,
+            std::vector<std::shared_ptr<const DebuggerViewSnapshot>>    & published)
+        {
+            return std::make_unique<DebugViewPublisher> (view, viewLock, [&published] (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
+            {
+                published.push_back (std::move (snapshot));
+            });
+        }
 
         static DebugViewInput MakeInput (ControllerRig & rig, Word pc)
         {

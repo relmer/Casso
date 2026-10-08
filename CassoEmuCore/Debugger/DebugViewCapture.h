@@ -22,7 +22,7 @@
 
 struct DebugViewCapture
 {
-    Cpu6502Registers          registers;
+    Cpu6502Registers          registers      = {};
     uint64_t                  cycleCount     = 0;
     VideoPosition             video;
     Byte                      lastPenalties  = 0;
