@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "StartupDownloadDialog.h"
 
 #include "DownloadBodyPanel.h"
@@ -131,6 +132,8 @@ void StartupDownloadDialog::WorkerThreadProc (DialogState * state, size_t index)
     HRESULT             hr    = S_OK;
 
 
+
+    ThreadName::Set (L"Casso ROM download");
 
     rt.status.store ((int) EntryStatus::Downloading, std::memory_order_relaxed);
     rt.startedWrite = true;

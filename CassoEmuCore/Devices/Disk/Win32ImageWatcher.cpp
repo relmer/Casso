@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "Win32ImageWatcher.h"
 
 
@@ -238,6 +239,8 @@ void Win32ImageWatcher::RunWatch (DirectoryWatch * watch, std::string directory)
     bool               running    = true;
 
 
+
+    ThreadName::Set (L"Casso disk image watcher");
 
     overlapped.hEvent = CreateEventW (nullptr, TRUE, FALSE, nullptr);
 

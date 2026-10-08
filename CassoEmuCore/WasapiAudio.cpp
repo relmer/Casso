@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "WasapiAudio.h"
 #include "Audio/AudioGenerator.h"
 #include "Audio/DriveAudioMixer.h"
@@ -682,6 +683,8 @@ void WasapiAudio::RenderPump()
     BYTE    * buffer    = nullptr;
 
 
+
+    ThreadName::Set (L"Casso audio render");
 
     SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 

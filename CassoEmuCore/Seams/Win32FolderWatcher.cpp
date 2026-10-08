@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "Seams/Win32FolderWatcher.h"
 
 
@@ -150,6 +151,8 @@ void Win32FolderWatcher::RunService()
     bool  running = true;
 
 
+
+    ThreadName::Set (L"Casso folder watcher");
 
     while (running)
     {

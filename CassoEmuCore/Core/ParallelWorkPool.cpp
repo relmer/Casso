@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/ParallelWorkPool.h"
+#include "Core/ThreadName.h"
 
 
 
@@ -20,6 +21,7 @@
 struct ParallelWorkPool::Batch
 {
     std::span<const Job>     jobs;
+    const wchar_t          * name      = nullptr;
     std::atomic<size_t>      next      = 0;
     std::atomic<size_t>      remaining = 0;
     std::atomic<size_t>      callbacks = 0;
@@ -67,7 +69,7 @@ ParallelWorkPool::~ParallelWorkPool()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ParallelWorkPool::Create (DWORD maxThreads)
+HRESULT ParallelWorkPool::Create (DWORD maxThreads, const wchar_t * name)
 {
     HRESULT  hr          = S_OK;
     BOOL     isMinSet    = FALSE;
@@ -79,6 +81,7 @@ HRESULT ParallelWorkPool::Create (DWORD maxThreads)
     CBRAEx (isUnused,   E_UNEXPECTED);
     CBRAEx (hasThreads, E_INVALIDARG);
 
+    m_name = name;
     m_pool = CreateThreadpool (nullptr);
     CWRA (m_pool);
 
@@ -128,6 +131,7 @@ void ParallelWorkPool::RunAll (std::span<const Job> jobs)
     }
 
     batch.jobs      = jobs;
+    batch.name      = m_name;
     batch.remaining = jobs.size();
 
     for (size_t i = 1; i < jobs.size(); i++)
@@ -177,6 +181,12 @@ void CALLBACK ParallelWorkPool::OnJob (
 
 
     UNREFERENCED_PARAMETER (instance);
+
+    //  The pool's threads run only this pool's work, so the name stays.
+    if (batch.name != nullptr)
+    {
+        ThreadName::Set (batch.name);
+    }
 
     RunJobs (batch);
 

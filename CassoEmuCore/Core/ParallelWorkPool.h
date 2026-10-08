@@ -27,7 +27,7 @@ public:
     ParallelWorkPool             (const ParallelWorkPool &) = delete;
     ParallelWorkPool & operator= (const ParallelWorkPool &) = delete;
 
-    HRESULT          Create            (DWORD maxThreads);
+    HRESULT          Create            (DWORD maxThreads, const wchar_t * name = nullptr);
     bool             IsCreated         () const { return m_pool != nullptr; }
 
     // IParallelRunner
@@ -41,6 +41,7 @@ private:
     static void           Wake         (Batch & batch);
 
     PTP_POOL             m_pool    = nullptr;
+    const wchar_t      * m_name    = nullptr;
     PTP_CLEANUP_GROUP    m_cleanup = nullptr;
     TP_CALLBACK_ENVIRON  m_environ = {};
 };

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "Shell/ControllerInputThread.h"
 
 
@@ -135,6 +136,8 @@ void ControllerInputThread::Run()
     ControllerWaitSources  wait;
 
 
+
+    ThreadName::Set (L"Casso controller input");
 
     hrCom = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
     IGNORE_RETURN_VALUE (hrCom, S_OK);

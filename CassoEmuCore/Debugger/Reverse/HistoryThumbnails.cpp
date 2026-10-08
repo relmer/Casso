@@ -459,7 +459,7 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 
     if (m_queue == nullptr)
     {
-        hr = m_ownQueue.Create (1);
+        hr = m_ownQueue.Create (1, L"Casso history thumbnails");
         CHRA (hr);
 
         m_queue = &m_ownQueue;

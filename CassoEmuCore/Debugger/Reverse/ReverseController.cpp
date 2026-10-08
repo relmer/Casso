@@ -2186,7 +2186,7 @@ HRESULT ReverseController::UseWorkQueue()
 
     if (!isCreated)
     {
-        hr = m_workQueue.Create (KeyframeStore::kBufferCount);
+        hr = m_workQueue.Create (KeyframeStore::kBufferCount, L"Casso history keyframes");
         CHR (hr);
     }
 

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "Core/ThreadPoolWorkQueue.h"
 
 
@@ -21,6 +22,12 @@ ThreadPoolWorkQueue::~ThreadPoolWorkQueue()
         WaitForThreadpoolWorkCallbacks (m_work, FALSE);
         CloseThreadpoolWork (m_work);
     }
+
+    if (m_pool != nullptr)
+    {
+        CloseThreadpool (m_pool);
+        DestroyThreadpoolEnvironment (&m_environ);
+    }
 }
 
 
@@ -32,22 +39,43 @@ ThreadPoolWorkQueue::~ThreadPoolWorkQueue()
 //  Create
 //
 //  Creates the work object and sizes the ring for capacity items. Called
-//  once, before any Submit.
+//  once, before any Submit. A named queue runs on a one-thread pool of its
+//  own; an unnamed one on the process's default pool.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThreadPoolWorkQueue::Create (size_t capacity)
+HRESULT ThreadPoolWorkQueue::Create (size_t capacity, const wchar_t * name)
 {
-    HRESULT  hr        = S_OK;
-    bool     isUnused  = m_work == nullptr;
-    bool     hasRoom   = capacity > 0;
+    HRESULT                hr          = S_OK;
+    bool                   isUnused    = m_work == nullptr;
+    bool                   hasRoom     = capacity > 0;
+    BOOL                   isMinSet    = FALSE;
+    PTP_CALLBACK_ENVIRON   callbacks   = nullptr;
 
 
 
     CBRAEx (isUnused, E_UNEXPECTED);
     CBRAEx (hasRoom,  E_INVALIDARG);
 
-    m_work = CreateThreadpoolWork (OnWork, this, nullptr);
+    m_name = name;
+
+    if (name != nullptr)
+    {
+        m_pool = CreateThreadpool (nullptr);
+        CWRA (m_pool);
+
+        SetThreadpoolThreadMaximum (m_pool, 1);
+
+        isMinSet = SetThreadpoolThreadMinimum (m_pool, 1);
+        CWRA (isMinSet);
+
+        InitializeThreadpoolEnvironment (&m_environ);
+        SetThreadpoolCallbackPool (&m_environ, m_pool);
+
+        callbacks = &m_environ;
+    }
+
+    m_work = CreateThreadpoolWork (OnWork, this, callbacks);
     CWRA (m_work);
 
     m_items.assign (capacity, Item());
@@ -167,6 +195,11 @@ void ThreadPoolWorkQueue::RunNext()
     Item  item;
 
 
+
+    if (m_name != nullptr)
+    {
+        ThreadName::Set (m_name);
+    }
 
     AcquireSRWLockExclusive (&m_runLock);
     AcquireSRWLockExclusive (&m_lock);

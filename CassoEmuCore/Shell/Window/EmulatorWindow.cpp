@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -1328,6 +1329,8 @@ int EmulatorShell::RunMessageLoop()
     };
 
 
+
+    ThreadName::Set (L"Casso UI");
 
     // Auto-reset wake signal the CPU thread raises after each published
     // frame, so the idle UI loop can block on it instead of spin-polling.

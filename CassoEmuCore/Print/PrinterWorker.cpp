@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "Print/PrinterWorker.h"
 
 #include "Devices/Printer/PrinterByteRing.h"
@@ -98,6 +99,8 @@ void PrinterWorker::Stop()
 
 void PrinterWorker::Run()
 {
+    ThreadName::Set (L"Casso printer");
+
     while (!m_stopRequested)
     {
         int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (

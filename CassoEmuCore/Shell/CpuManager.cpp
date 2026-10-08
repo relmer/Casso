@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
 #include "CpuManager.h"
 
 #include "Core/MachineConfig.h"
@@ -529,6 +530,8 @@ void CpuManager::ThreadProc()
     LONGLONG       deadline        = 0;
     LONGLONG       wait100Ns       = 0;
 
+
+    ThreadName::Set (L"Casso machine");
 
     hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
     CHRA (hr);

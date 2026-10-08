@@ -203,7 +203,7 @@ HRESULT ScratchHeatReplayer::UseQueue()
 
     if (!isCreated)
     {
-        hr = m_ownQueue.Create (kCapacity);
+        hr = m_ownQueue.Create (kCapacity, L"Casso heat map rebuild");
         CHR (hr);
     }
 

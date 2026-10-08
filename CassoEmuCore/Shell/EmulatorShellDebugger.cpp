@@ -1698,14 +1698,14 @@ void EmulatorShell::PublishDebuggerView()
 
     if (!m_debugBuildQueue.IsCreated())
     {
-        hr = m_debugBuildQueue.Create (kDebugBuildQueueCapacity);
+        hr = m_debugBuildQueue.Create (kDebugBuildQueueCapacity, L"Casso debugger build");
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         //  Without a queue the publisher builds on this thread, as before.
         m_debugViewPublisher.SetQueue (m_debugBuildQueue.IsCreated() ? &m_debugBuildQueue : nullptr);
 
         //  Without a pool the panes of a build are built one after another.
-        hr = m_debugBuildPool.Create (kDebugBuildThreads);
+        hr = m_debugBuildPool.Create (kDebugBuildThreads, L"Casso debugger pane builder");
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         m_debugViewPublisher.SetRunner (m_debugBuildPool.IsCreated() ? &m_debugBuildPool : nullptr);
