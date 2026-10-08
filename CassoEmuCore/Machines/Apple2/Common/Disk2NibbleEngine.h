@@ -193,7 +193,7 @@ private:
     void       ResolveSlot();
     void       RefreshSlot();
     double     GetAngle() const;
-    void       PlaceHead (double angle, bool cameFromFlux);
+    void       PlaceHead (double angle);
     void       SeekFlux (double angle);
     uint8_t    StepFluxPulse();
     void       RecordFluxWriteBit (uint8_t bit);
