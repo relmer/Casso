@@ -111,7 +111,8 @@ void DebuggerWindow::OpenHeatRanges()
 //  DebuggerWindow::SetHeatRangeMenus
 //
 //  The heat map's drop-down, All memory and then every set, the one shown
-//  checked; and the pane's, every set, the one edited checked. Built again
+//  checked, and last Edit ranges, which opens the pane that makes them; and
+//  the pane's, every set, the one edited checked. Built again
 //  before either opens, since the rows carry the checks they were built
 //  with.
 //
@@ -146,12 +147,16 @@ void DebuggerWindow::SetHeatRangeMenus()
         shown.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
+    m_rangeSetCommands.push_back (MakeMenuCommand (L"Edit ranges...", false, [this] { OpenHeatRanges(); }));
+    shown.push_back (DxuiPopupMenuItem::ForSeparator());
+    shown.push_back (DxuiPopupMenuItem::ForCommand (m_rangeSetCommands.back()));
+
     for (const std::shared_ptr<DxuiCommand> & command : m_editedSetCommands)
     {
         edited.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    m_heatMapBar->SetDropDownItems   (HeatMapBarCommands::kRangeSet,  std::move (shown));
+    m_heatViewBar->SetDropDownItems  (HeatMapBarCommands::kRangeSet,  std::move (shown));
     m_heatRangeBar->SetDropDownItems (HeatMapRangeBarCommands::kSet,  std::move (edited));
 }
 

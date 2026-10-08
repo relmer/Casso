@@ -139,8 +139,7 @@ namespace DebuggerWindowDetachTests
 
             Assert::IsNotNull (GetDebugRow (window, L"Detach"));
             Assert::IsNull    (GetDebugRow (window, L"Stop debugging"));
-            Assert::IsNotNull (GetDebugRow (window, L"Restart under debugger", L"&Machine"), L"restart under debugger stays, in Machine");
-            Assert::IsNotNull (GetDebugRow (window, L"Power cycle",            L"&Machine"), L"with the machine's other restarts");
+            Assert::IsNotNull (GetDebugRow (window, L"Power cycle", L"&Machine"), L"the machine's restarts are in Machine");
         }
 
 

@@ -3089,6 +3089,35 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::GetViewRowFreeRect
+//
+//  From half a tab past the last tab to the pane's inset, as tall as the
+//  row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapView::GetViewRowFreeRect() const
+{
+    long  tab   = m_scaler.ToPx (kTabDip);
+    long  left  = m_boundsDip.left + m_gutterPx + (long) kModeCount * tab + tab / 2;
+    long  right = m_boundsDip.right - m_scaler.ToPx (kInsetDip);
+
+
+
+    if (!m_visible || right <= left)
+    {
+        return RECT {};
+    }
+
+    return RECT { left, m_boundsDip.top, right, m_boundsDip.top + m_scaler.ToPx (kBarDip) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::PlaceZoomWidget
 //
 //  In the corner, except while its slider is open in a pane the same size:

@@ -326,7 +326,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::wstring (L"Ignore writes that don't change the value"), commands.Find (HeatMapBarCommands::kIgnoreSame)->label);
+            Assert::AreEqual (std::wstring (L"Skip unchanged writes"), commands.Find (HeatMapBarCommands::kIgnoreSame)->label);
             Assert::IsNotNull (commands.Find (HeatMapBarCommands::kIgnoreSet).get());
             Assert::AreEqual (std::wstring (L"Leave out: None"),        HeatMapBarCommands::GetIgnoreSetLabel (L""));
             Assert::AreEqual (std::wstring (L"Leave out: Boot probes"), HeatMapBarCommands::GetIgnoreSetLabel (L"Boot probes"));

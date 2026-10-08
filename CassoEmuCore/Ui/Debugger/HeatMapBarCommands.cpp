@@ -11,9 +11,10 @@
 //
 //  HeatMapBarCommands::GetRows
 //
-//  How the map counts and how it mixes colors, which ranges and which bank
-//  it shows, and which writes and reads before written it leaves out. The
-//  zoom is the map's own widget, in its bottom-right corner.
+//  How the map counts, with Reset counts beside it while it counts totals,
+//  how it mixes colors, and which writes and reads before written it leaves
+//  out; then, in the map's own row of views, which ranges and which bank it
+//  shows. The zoom is the map's own widget, in its bottom-right corner.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,16 +22,13 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
-        { kFading,      L"Fading",         nullptr,         L"Show how recently and how often each address was touched", DxuiToolbar::Kind::Toggle,   0, false, false },
-        { kCumulative,  L"Cumulative",     nullptr,         L"Show each address's total since the counts were reset",    DxuiToolbar::Kind::Toggle,   0, false, false },
-        { kFade,        L"Fade",           nullptr,         L"How long a single access stays on the map",                DxuiToolbar::Kind::DropDown, 1, false, false },
-        { kResetCounts, L"Reset counts",   nullptr,         L"Start the totals over",                                    DxuiToolbar::Kind::Command,  1, false, false },
-        { kBlend,       L"Blend",          nullptr,         L"Mix the colors of an address touched more than one way",  DxuiToolbar::Kind::Toggle,   4, false, false },
-        { kRangeSet,    L"All memory",     nullptr,         L"Show all of memory, or only the ranges of a set",          DxuiToolbar::Kind::DropDown, 3, false, false },
-        { kEditRanges,  L"Edit ranges...", nullptr,         L"Make and change the sets of ranges the map can show",      DxuiToolbar::Kind::Command,  3, false, false },
-        { kBank,        L"Bank",           nullptr,         L"Show what the CPU addresses, or one bank as it is stored",  DxuiToolbar::Kind::DropDown, 3, false, false },
-        { kIgnoreSame,  L"Ignore writes that don't change the value", nullptr, L"Show only the writes that stored a different value", DxuiToolbar::Kind::Toggle, 5, false, false },
-        { kIgnoreSet,   L"Leave out: None", nullptr,        L"Leave a set's ranges out of the reads before written",       DxuiToolbar::Kind::DropDown, 5, false, false },
+        { kMode,        L"Fading",                nullptr, L"Fade each address as its accesses age, or keep a total since the counts were reset", DxuiToolbar::Kind::DropDown, 0, false, false, false },
+        { kResetCounts, L"Reset counts",          nullptr, L"Start the totals over",                                                             DxuiToolbar::Kind::Command,  0, false, false, false },
+        { kBlend,       L"Blend",                 nullptr, L"Mix the colors of an address touched more than one way",                            DxuiToolbar::Kind::Toggle,   4, false, false, false },
+        { kIgnoreSame,  L"Skip unchanged writes", nullptr, L"Ignore writes that don't change the value: show only the writes that stored a different value", DxuiToolbar::Kind::Toggle, 5, false, false, false },
+        { kIgnoreSet,   L"Leave out: None",       nullptr, L"Leave a set's ranges out of the reads before written",                              DxuiToolbar::Kind::DropDown, 5, false, false, false },
+        { kRangeSet,    L"All memory",            nullptr, L"Show all of memory, or only the ranges of a set",                                   DxuiToolbar::Kind::DropDown, 0, false, true,  true  },
+        { kBank,        L"Bank",                  nullptr, L"Show what the CPU addresses, or one bank as it is stored",                          DxuiToolbar::Kind::DropDown, 0, false, true,  true  },
     };
 
 
@@ -101,7 +99,40 @@ HeatMapBarCommands::HeatMapBarCommands (Handlers handlers)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> HeatMapBarCommands::BuildEntries() const
+std::vector<DxuiToolbar::Entry> HeatMapBarCommands::BuildEntries (bool isCumulative) const
+{
+    return BuildEntriesOf (false, isCumulative);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapBarCommands::BuildViewRowEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> HeatMapBarCommands::BuildViewRowEntries() const
+{
+    return BuildEntriesOf (true, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapBarCommands::BuildEntriesOf
+//
+//  The rows of the bar or of the view row; Reset counts only while the map
+//  counts totals, as there is nothing to reset while it fades.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> HeatMapBarCommands::BuildEntriesOf (bool viewRow, bool isCumulative) const
 {
     std::vector<DxuiToolbar::Entry>  entries;
 
@@ -110,6 +141,11 @@ std::vector<DxuiToolbar::Entry> HeatMapBarCommands::BuildEntries() const
     for (const Row & row : GetRows())
     {
         DxuiToolbar::Entry  entry;
+
+        if (row.inViewRow != viewRow || (row.id == kResetCounts && !isCumulative))
+        {
+            continue;
+        }
 
         entry.command  = Find (row.id);
         entry.kind     = row.kind;
@@ -169,13 +205,13 @@ std::wstring HeatMapBarCommands::GetFadeChoiceLabel (int seconds)
 //
 //  HeatMapBarCommands::GetFadeLabel
 //
-//  What the drop-down sets, with the choice in force: "Fade: 10 s".
+//  The mode in force with its fade time: "Fading: 10 s".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring HeatMapBarCommands::GetFadeLabel (int seconds)
 {
-    return L"Fade: " + GetFadeChoiceLabel (seconds);
+    return L"Fading: " + GetFadeChoiceLabel (seconds);
 }
 
 

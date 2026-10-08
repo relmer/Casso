@@ -343,10 +343,10 @@ void DebuggerWindow::SetWindowMenus()
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
 
-    //  Machine: the machine's own restarts.
-    add (machine, emulator (L"Reset",                  IDM_MACHINE_RESET));
-    add (machine, emulator (L"Power cycle",            IDM_MACHINE_POWERCYCLE));
-    add (machine, emulator (L"Restart under debugger", IDM_DEBUG_RESTART));
+    //  Machine: the machine's own restarts. The main window's Restart under
+    //  debugger is not here: with the debugger open, it is Power cycle.
+    add (machine, emulator (L"Reset",       IDM_MACHINE_RESET));
+    add (machine, emulator (L"Power cycle", IDM_MACHINE_POWERCYCLE));
 
     //  Tools: which editor's keys the window takes.
     for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })

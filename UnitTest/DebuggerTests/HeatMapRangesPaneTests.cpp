@@ -112,6 +112,7 @@ namespace HeatMapRangesPaneTests
         using DebuggerWindow::EndHeatRangeEdit;
         using DebuggerWindow::ToggleHeatRange;
         using DebuggerWindow::GetRangeSetCommands;
+        using DebuggerWindow::GetHeatViewBar;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::IsFramePaintDue;
         using DebuggerWindow::kIdlePaintMs;
@@ -251,16 +252,16 @@ namespace HeatMapRangesPaneTests
 
 
 
-        TEST_METHOD (EditRangesOnTheHeatMapBarOpensThePane)
+        //  Edit ranges ends the drop-down of sets, beside the map's tabs, and
+        //  opens the pane that makes them.
+        TEST_METHOD (EditRangesEndsTheSetDropDownAndOpensThePane)
         {
-            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
-            RangesHost     host;
-            RangesWindow   window (theme, host);
+            CassoTheme      theme = CassoTheme::MakeSkeuomorphic();
+            RangesHost      host;
+            RangesWindow    window (theme, host);
             constexpr int   kWideWindow = 3000;
             DxuiDpiScaler   scaler;
             RECT            entry       = {};
-            POINT           at          = {};
-            DxuiMouseEvent  ev;
 
 
 
@@ -269,22 +270,14 @@ namespace HeatMapRangesPaneTests
             scaler.SetDpi (96);
             window.Layout (RECT { 0, 0, kWideWindow, 900 }, scaler);
 
-            Assert::IsFalse (window.GetHeatMapBar()->IsInSeeMore (HeatMapBarCommands::kEditRanges), L"room for it on the strip");
-            Assert::IsTrue  (window.GetHeatMapBar()->TryGetEntryRect (HeatMapBarCommands::kEditRanges, entry), L"Edit ranges is on the bar");
+            Assert::IsTrue   (window.GetHeatViewBar()->TryGetEntryRect (HeatMapBarCommands::kRangeSet, entry), L"the sets' drop-down is beside the tabs");
+            Assert::IsTrue   (entry.bottom <= window.GetHeatMapView()->GetMapRect().top, L"in the row of views, over the map");
+            Assert::AreEqual (std::wstring (L"Edit ranges..."), window.GetRangeSetCommands().back()->label);
 
-            at             = { (entry.left + entry.right) / 2, (entry.top + entry.bottom) / 2 };
-            ev.button      = DxuiMouseButton::Left;
-            ev.positionDip = at;
-
-            for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Move, DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
-            {
-                ev.kind = kind;
-                (void) window.OnMouse (ev);
-            }
+            window.GetRangeSetCommands().back()->dispatch();
 
             Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kHeatRanges));
         }
-
 
 
         TEST_METHOD (ANewSetIsNamedInPlaceAndKept)
@@ -448,7 +441,7 @@ namespace HeatMapRangesPaneTests
                 labels.push_back (command->label);
             }
 
-            Assert::IsTrue   ((std::vector<std::wstring> { L"All memory", L"Game" }) == labels);
+            Assert::IsTrue   ((std::vector<std::wstring> { L"All memory", L"Game", L"Edit ranges..." }) == labels, L"the sets, then Edit ranges");
             Assert::AreEqual (std::wstring (L"All memory"), window.GetHeatMapBarLabel (HeatMapBarCommands::kRangeSet));
             Assert::IsFalse  (window.GetHeatMapView()->HasRanges());
 

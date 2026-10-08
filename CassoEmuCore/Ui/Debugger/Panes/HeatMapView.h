@@ -346,6 +346,10 @@ public:
     //  The map's area within the pane: the part of the rows in view, without
     //  the scrollbars; and an address's cell within the pane, as scrolled.
     RECT                 GetMapRect  () const { return m_map; }
+
+    //  The row of views past its tabs, where the window puts the strip that
+    //  picks the set of ranges and the bank shown; empty while it has no room.
+    RECT                 GetViewRowFreeRect () const;
     RECT                 GetCellRect (Word address) const;
 
     //  The address under a point in the map, a street counting as the cell

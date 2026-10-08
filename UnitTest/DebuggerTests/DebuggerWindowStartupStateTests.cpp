@@ -268,10 +268,9 @@ namespace DebuggerStartupStateTests
                 labels.push_back ((row.command != nullptr) ? row.command->label : std::wstring (L"-"));
             }
 
-            Assert::AreEqual ((size_t) 3, labels.size());
-            Assert::AreEqual (std::wstring (L"Reset"),                  labels[0]);
-            Assert::AreEqual (std::wstring (L"Power cycle"),            labels[1]);
-            Assert::AreEqual (std::wstring (L"Restart under debugger"), labels[2]);
+            Assert::AreEqual ((size_t) 2, labels.size(), L"no Restart under debugger, which with the debugger open is Power cycle");
+            Assert::AreEqual (std::wstring (L"Reset"),       labels[0]);
+            Assert::AreEqual (std::wstring (L"Power cycle"), labels[1]);
         }
 
 

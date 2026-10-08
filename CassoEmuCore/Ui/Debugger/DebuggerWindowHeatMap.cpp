@@ -27,14 +27,25 @@ static constexpr std::pair<const wchar_t *, HeatMapView::PickAction>  s_kAccessR
 //
 //  A choice made on the heat map's bar: shown at once, kept, and sent on to
 //  the machine, with the spans of the set whose reads before written are
-//  left out. The fade drop-down's rows are built again, since each holds the
-//  check it was built with.
+//  left out. The drop-downs' rows are built again, since each holds the
+//  check it was built with, and the bar's entries when the map starts or
+//  stops counting totals, which Reset counts shows only for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::SetHeatMapOptions (const HeatMapOptions & options)
 {
+    bool  wasCumulative = m_heatMapView->GetOptions().cumulative;
+
+
+
     m_heatMapView->SetOptions (options);
+
+    if (options.cumulative != wasCumulative)
+    {
+        m_heatMapBar->SetEntries (m_heatMapCommands->BuildEntries (options.cumulative));
+        PlaceHeatMapBar();
+    }
 
     if (m_host != nullptr)
     {
@@ -54,15 +65,17 @@ void DebuggerWindow::SetHeatMapOptions (const HeatMapOptions & options)
 //
 //  DebuggerWindow::SetHeatMapBarMenus
 //
-//  The fade times, the one in force checked; and the banks the machine has,
-//  the one shown checked.
+//  How the map counts: fading, at each of the fade times, then cumulative,
+//  the one in force checked. The banks the machine has, the one shown
+//  checked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::SetHeatMapBarMenus()
 {
     std::vector<DxuiPopupMenuItem>  items;
-    int                             current = m_heatMapView->GetOptions().fadeSeconds;
+    HeatMapOptions                  shown   = m_heatMapView->GetOptions();
+    std::shared_ptr<DxuiCommand>    command;
 
 
 
@@ -70,12 +83,13 @@ void DebuggerWindow::SetHeatMapBarMenus()
 
     for (int seconds : HeatMapOptions::kFadeChoices)
     {
-        std::shared_ptr<DxuiCommand>  command = MakeMenuCommand (HeatMapBarCommands::GetFadeChoiceLabel (seconds), seconds == current, [this, seconds]
+        command = MakeMenuCommand (HeatMapBarCommands::GetFadeLabel (seconds), !shown.cumulative && seconds == shown.fadeSeconds, [this, seconds]
         {
             HeatMapOptions  options = m_heatMapView->GetOptions();
 
 
 
+            options.cumulative  = false;
             options.fadeSeconds = seconds;
             SetHeatMapOptions (options);
         });
@@ -84,7 +98,21 @@ void DebuggerWindow::SetHeatMapBarMenus()
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kFade, std::move (items));
+    command = MakeMenuCommand (L"Cumulative", shown.cumulative, [this]
+    {
+        HeatMapOptions  options = m_heatMapView->GetOptions();
+
+
+
+        options.cumulative = true;
+        SetHeatMapOptions (options);
+    });
+
+    m_heatMapFadeCommands.push_back (command);
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    items.push_back (DxuiPopupMenuItem::ForCommand (command));
+
+    m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kMode, std::move (items));
 
     items.clear();
     m_heatMapBankCommands.clear();
@@ -105,7 +133,7 @@ void DebuggerWindow::SetHeatMapBarMenus()
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    m_heatMapBar->SetDropDownItems (HeatMapBarCommands::kBank, std::move (items));
+    m_heatViewBar->SetDropDownItems (HeatMapBarCommands::kBank, std::move (items));
 
     SetHeatIgnoreMenu();
     SetHeatRangeMenus();
@@ -248,9 +276,10 @@ HeatMapOptions::Bank DebuggerWindow::GetShownHeatMapBank() const
 //
 //  DebuggerWindow::PlaceHeatMapBar
 //
-//  The bar sits in the place held at the top of the heat map pane and is one
-//  of the pane's controls, so it goes with the pane into a floating window
-//  and draws, measures and opens its menu there.
+//  The bar sits in the place held at the top of the heat map pane, and the
+//  view row's strip in the map's row of views, beside the tabs. Both are the
+//  pane's controls, so they go with the pane into a floating window and
+//  draw, measure and open their menus there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -259,24 +288,40 @@ void DebuggerWindow::PlaceHeatMapBar()
     bool          shown = m_heatMapBarSlot != nullptr && m_heatMapBarSlot->IsVisible();
     DxuiWindow  * host  = GetPaneHost (DebuggerLayout::kHeatMap);
     RECT          slot  = {};
+    RECT          row   = {};
 
 
 
     m_heatMapBar->SetVisible (shown);
+
+    if (shown)
+    {
+        slot = m_heatMapBarSlot->GetBounds();
+
+        m_heatMapBar->SetTextRenderer   (host->GetTextRenderer());
+        m_heatMapBar->SetPopupHost      (host->GetPopupHost());
+        m_heatMapBar->SetHostClientRect (host->GetBounds());
+        m_heatMapBar->Layout            (GetBarStrip (DebuggerLayout::kHeatMap, slot), m_scaler);
+
+        host->SetChildClip (m_heatMapBar, slot);
+    }
+
+    row   = m_heatMapView->GetViewRowFreeRect();
+    shown = shown && m_heatMapView->IsVisible() && row.right > row.left;
+
+    m_heatViewBar->SetVisible (shown);
 
     if (!shown)
     {
         return;
     }
 
-    slot = m_heatMapBarSlot->GetBounds();
+    m_heatViewBar->SetTextRenderer   (host->GetTextRenderer());
+    m_heatViewBar->SetPopupHost      (host->GetPopupHost());
+    m_heatViewBar->SetHostClientRect (host->GetBounds());
+    m_heatViewBar->Layout            (row, m_scaler);
 
-    m_heatMapBar->SetTextRenderer   (host->GetTextRenderer());
-    m_heatMapBar->SetPopupHost      (host->GetPopupHost());
-    m_heatMapBar->SetHostClientRect (host->GetBounds());
-    m_heatMapBar->Layout            (GetBarStrip (DebuggerLayout::kHeatMap, slot), m_scaler);
-
-    host->SetChildClip (m_heatMapBar, slot);
+    host->SetChildClip (m_heatViewBar, row);
 }
 
 
@@ -287,24 +332,39 @@ void DebuggerWindow::PlaceHeatMapBar()
 //
 //  DebuggerWindow::RouteHeatMapBarMouse
 //
-//  As the breakpoints pane's: the strip and whatever menu it has open take
+//  As the breakpoints pane's: each strip and whatever menu it has open take
 //  the left button.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::RouteHeatMapBarMouse (const DxuiMouseEvent & ev)
 {
+    return RouteHeatStripMouse (m_heatViewBar, ev) || RouteHeatStripMouse (m_heatMapBar, ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteHeatStripMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteHeatStripMouse (DxuiToolbar * bar, const DxuiMouseEvent & ev)
+{
     int   x     = ev.positionDip.x;
     int   y     = ev.positionDip.y;
-    RECT  strip = m_heatMapBar->GetBounds();
-    bool  open  = m_heatMapBar->IsMenuOpen();
-    bool  over  = m_heatMapBar->IsVisible() && DxuiDockSite::Contains (strip, POINT { x, y });
+    RECT  strip = bar->GetBounds();
+    bool  open  = bar->IsMenuOpen();
+    bool  over  = bar->IsVisible() && DxuiDockSite::Contains (strip, POINT { x, y });
 
 
 
     if (!over && !open)
     {
-        m_heatMapBar->OnToolbarMouseLeave();
+        bar->OnToolbarMouseLeave();
         return false;
     }
 
@@ -318,7 +378,7 @@ bool DebuggerWindow::RouteHeatMapBarMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Move:
         UpdateTooltip (ev.positionDip);
 
-        return m_heatMapBar->OnToolbarMouseMove (x, y);
+        return bar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:
         if (!open)
@@ -326,10 +386,10 @@ bool DebuggerWindow::RouteHeatMapBarMouse (const DxuiMouseEvent & ev)
             SetHeatMapBarMenus();
         }
 
-        return m_heatMapBar->OnToolbarLButtonDown (x, y);
+        return bar->OnToolbarLButtonDown (x, y);
 
     case DxuiMouseEventKind::Up:
-        return m_heatMapBar->OnToolbarLButtonUp (x, y);
+        return bar->OnToolbarLButtonUp (x, y);
 
     default:
         return open;
@@ -344,23 +404,19 @@ bool DebuggerWindow::RouteHeatMapBarMouse (const DxuiMouseEvent & ev)
 //
 //  DebuggerWindow::IsHeatMapBarEnabled
 //
-//  The fade time counts only while fading, and Reset counts only while
-//  cumulative. There is a bank to choose only on a machine with aux RAM or
-//  a language card.
+//  There is a bank to choose only on a machine with aux RAM or a language
+//  card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::IsHeatMapBarEnabled (int id) const
 {
     constexpr size_t  kBanksWithoutBanking = 3;        // the CPU's, main RAM and ROM
-    bool              isCumulative         = m_heatMapView->GetOptions().cumulative;
 
 
 
     switch (id)
     {
-    case HeatMapBarCommands::kFade:        return !isCumulative;
-    case HeatMapBarCommands::kResetCounts: return isCumulative;
     case HeatMapBarCommands::kBank:        return GetHeatMapBanks().size() > kBanksWithoutBanking;
     default:                               return true;
     }
@@ -378,14 +434,8 @@ bool DebuggerWindow::IsHeatMapBarEnabled (int id) const
 
 bool DebuggerWindow::IsHeatMapBarChecked (int id) const
 {
-    bool  isCumulative = m_heatMapView->GetOptions().cumulative;
-
-
-
     switch (id)
     {
-    case HeatMapBarCommands::kFading:      return !isCumulative;
-    case HeatMapBarCommands::kCumulative:  return isCumulative;
     case HeatMapBarCommands::kBlend:       return m_heatMapView->GetOptions().blend;
     case HeatMapBarCommands::kIgnoreSame:  return m_heatMapView->GetOptions().ignoreSameWrites;
     default:                               return false;
@@ -400,16 +450,18 @@ bool DebuggerWindow::IsHeatMapBarChecked (int id) const
 //
 //  DebuggerWindow::GetHeatMapBarLabel
 //
-//  The fade drop-down reads the time in force, the bank drop-down the bank
-//  shown and the ranges' the set shown; the rest keep their labels.
+//  The mode drop-down reads how the map counts, with the fade time while
+//  fading; the bank drop-down the bank shown and the ranges' the set shown;
+//  the rest keep their labels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DebuggerWindow::GetHeatMapBarLabel (int id) const
 {
-    if (id == HeatMapBarCommands::kFade)
+    if (id == HeatMapBarCommands::kMode)
     {
-        return HeatMapBarCommands::GetFadeLabel (m_heatMapView->GetOptions().fadeSeconds);
+        return m_heatMapView->GetOptions().cumulative ? std::wstring (L"Cumulative")
+                                                      : HeatMapBarCommands::GetFadeLabel (m_heatMapView->GetOptions().fadeSeconds);
     }
 
     if (id == HeatMapBarCommands::kBank)
@@ -438,7 +490,7 @@ std::wstring DebuggerWindow::GetHeatMapBarLabel (int id) const
 //
 //  DebuggerWindow::RunHeatMapBarEntry
 //
-//  The fade time is chosen from its drop-down's rows, not here.
+//  How the map counts is chosen from its drop-down's rows, not here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -450,12 +502,6 @@ void DebuggerWindow::RunHeatMapBarEntry (int id)
 
     switch (id)
     {
-    case HeatMapBarCommands::kFading:
-    case HeatMapBarCommands::kCumulative:
-        options.cumulative = (id == HeatMapBarCommands::kCumulative);
-        SetHeatMapOptions (options);
-        break;
-
     case HeatMapBarCommands::kBlend:
         options.blend = !options.blend;
         SetHeatMapOptions (options);
@@ -473,8 +519,6 @@ void DebuggerWindow::RunHeatMapBarEntry (int id)
         }
 
         break;
-
-    case HeatMapBarCommands::kEditRanges: OpenHeatRanges(); break;
 
     default:
         break;

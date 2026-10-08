@@ -435,11 +435,13 @@ protected:
     //  its bar, what each entry on it does and the fade times it offers.
     HeatMapView              * GetHeatMapView       () const { return m_heatMapView; }
     DxuiToolbar              * GetHeatMapBar        () const { return m_heatMapBar; }
+    DxuiToolbar              * GetHeatViewBar       () const { return m_heatViewBar; }
     bool                       IsHeatMapRecording   () const { return m_isHeatMapRecording; }
     void                       SyncHeatMapRecording ();
     void                       ApplyHeatMap         ();
     bool                       RouteHeatMapMouse    (const DxuiMouseEvent & ev);
     bool                       RouteHeatMapBarMouse (const DxuiMouseEvent & ev);
+    bool                       RouteHeatStripMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     void                       ConfigureHeatMap     ();
     void                       SetHeatMapBarMenus   ();
     void                       PlaceHeatMapBar      ();
@@ -1095,6 +1097,7 @@ private:
     bool                                                                             m_isHeatMapTipPending = false;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapBarSlot;
     DxuiToolbar                                                                    * m_heatMapBar         = nullptr;
+    DxuiToolbar                                                                    * m_heatViewBar        = nullptr;     // the set of ranges and the bank, beside the map's tabs
     std::unique_ptr<HeatMapBarCommands>                                              m_heatMapCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapFadeCommands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_heatMapBankCommands;

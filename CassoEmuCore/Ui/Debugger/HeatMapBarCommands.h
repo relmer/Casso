@@ -12,13 +12,15 @@
 //
 //  HeatMapBarCommands
 //
-//  What the heat map pane's bar shows: Fading and Cumulative, the fade time
-//  as a drop-down and Reset counts, Blend, the set of ranges shown as a
-//  drop-down, Edit ranges and the bank shown as a drop-down, whether writes
-//  that change nothing are left out and the set whose reads before written
-//  are, as a drop-down. The zoom is a widget in the map's own corner.
-//  The bar is a DxuiToolbar, so what does not fit goes into its "..." menu as
-//  on every other strip.
+//  What the heat map pane's bar shows: one drop-down for how the map counts,
+//  fading for each of the fade times or cumulative, with Reset counts beside
+//  it while cumulative; Blend; whether writes that change nothing are left
+//  out, and the set whose reads before written are, as a drop-down. The set
+//  of ranges shown and the bank shown are drop-downs on a strip of their own
+//  in the map's row of views, beside the tabs; the set's drop-down ends with
+//  Edit ranges. The zoom is a widget in the map's own corner. Each strip is a
+//  DxuiToolbar, so what does not fit goes into its "..." menu as on every
+//  other strip.
 //
 //  The window owns the behavior: it hands over one dispatch, one enabled
 //  test, one checked test and one label, each taking an id.
@@ -28,16 +30,13 @@
 class HeatMapBarCommands
 {
 public:
-    static constexpr int  kFading      = 1;
-    static constexpr int  kCumulative  = 2;
-    static constexpr int  kFade        = 3;
+    //  How the map counts, and its fade time while fading.
+    static constexpr int  kMode        = 3;
     static constexpr int  kResetCounts = 4;
 
     //  Apart from the others' numbers, so an entry added beside them keeps
-    //  its own: which set of ranges the map shows, the pane that edits them,
-    //  and which bank it shows.
+    //  its own: which set of ranges the map shows, and which bank it shows.
     static constexpr int  kRangeSet    = 20;
-    static constexpr int  kEditRanges  = 21;
     static constexpr int  kBank        = 30;
 
     //  Whether an address touched more than one way mixes their colors.
@@ -58,11 +57,14 @@ public:
 
     explicit HeatMapBarCommands (Handlers handlers);
 
-    std::vector<DxuiToolbar::Entry>  BuildEntries () const;
+    //  The bar's entries, Reset counts among them only while cumulative,
+    //  and the view row's.
+    std::vector<DxuiToolbar::Entry>  BuildEntries        (bool isCumulative) const;
+    std::vector<DxuiToolbar::Entry>  BuildViewRowEntries () const;
     std::shared_ptr<DxuiCommand>     Find         (int id) const;
 
     //  A fade time as the drop-down lists it, "10 s", and as the entry shows
-    //  the one in force, "Fade: 10 s".
+    //  the one in force while fading, "Fading: 10 s".
     static std::wstring  GetFadeChoiceLabel (int seconds);
     static std::wstring  GetFadeLabel       (int seconds);
 
@@ -85,9 +87,12 @@ private:
         int                  group      = 0;
         bool                 iconOnly   = false;
         bool                 trailing   = false;
+        bool                 inViewRow  = false;
     };
 
     static const std::vector<Row> &  GetRows ();
+
+    std::vector<DxuiToolbar::Entry>  BuildEntriesOf (bool viewRow, bool isCumulative) const;
 
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;

@@ -275,7 +275,7 @@ namespace DebuggerMenuBarTests
 
             window.OnCreate();
 
-            for (const wchar_t * label : { L"Reset", L"Power cycle", L"Restart under debugger" })
+            for (const wchar_t * label : { L"Reset", L"Power cycle" })
             {
                 const DxuiPopupMenuItem  * row = MenuRows::GetRow (window.GetMenuBarItems(), L"&Machine", label);
 
@@ -285,10 +285,9 @@ namespace DebuggerMenuBarTests
                 row->command->dispatch();
             }
 
-            Assert::AreEqual (3, (int) host.emulatorCommands.size());
+            Assert::AreEqual (2, (int) host.emulatorCommands.size());
             Assert::AreEqual ((int) IDM_MACHINE_RESET,      host.emulatorCommands[0]);
             Assert::AreEqual ((int) IDM_MACHINE_POWERCYCLE, host.emulatorCommands[1]);
-            Assert::AreEqual ((int) IDM_DEBUG_RESTART,      host.emulatorCommands[2]);
         }
 
 

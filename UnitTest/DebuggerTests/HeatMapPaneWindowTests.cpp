@@ -335,8 +335,8 @@ namespace HeatMapPaneWindowTests
             window.ShowPane (DebuggerLayout::kHeatMap);
             Relayout (window);
 
-            ClickBarEntry (window, HeatMapBarCommands::kFading);
-            Assert::AreEqual (std::string ("fade=30 view=code"), host.heatMapOptions, L"Fading, kept");
+            window.GetHeatMapFadeCommands()[4]->dispatch();
+            Assert::AreEqual (std::string ("fade=30 view=code"), host.heatMapOptions, L"Fading for 30 s, kept");
         }
 
 
@@ -397,13 +397,15 @@ namespace HeatMapPaneWindowTests
 
 
 
-        TEST_METHOD (TheFadeIsADropDownOfItsTimesAndAChoiceIsKept)
+        //  How the map counts is one drop-down: fading at each fade time,
+        //  then cumulative. The entry reads the choice in force.
+        TEST_METHOD (HowTheMapCountsIsOneDropDownAndAChoiceIsKept)
         {
             CassoTheme                       theme  = CassoTheme::MakeSkeuomorphic();
             HeatMapHost                      host;
             HeatMapWindow                    window (theme, host);
             HeatMapBarCommands               commands ({});
-            std::vector<DxuiToolbar::Entry>  entries  = commands.BuildEntries();
+            std::vector<DxuiToolbar::Entry>  entries  = commands.BuildEntries (false);
             std::vector<std::wstring>        labels;
             std::wstring                     checked;
 
@@ -413,8 +415,8 @@ namespace HeatMapPaneWindowTests
 
             Assert::IsTrue (std::ranges::any_of (entries, [] (const DxuiToolbar::Entry & entry)
             {
-                return entry.command->id == HeatMapBarCommands::kFade && entry.kind == DxuiToolbar::Kind::DropDown;
-            }), L"the fade time is a drop-down, not a link that cycles");
+                return entry.command->id == HeatMapBarCommands::kMode && entry.kind == DxuiToolbar::Kind::DropDown;
+            }), L"how the map counts is a drop-down");
 
             for (const std::shared_ptr<DxuiCommand> & row : window.GetHeatMapFadeCommands())
             {
@@ -426,38 +428,42 @@ namespace HeatMapPaneWindowTests
                 }
             }
 
-            Assert::IsTrue   ((std::vector<std::wstring> { L"2 s", L"5 s", L"10 s", L"20 s", L"30 s", L"60 s" }) == labels, L"the six times, in order");
-            Assert::AreEqual (std::wstring (L"10 s"), checked, L"the time in force is checked");
-            Assert::AreEqual (std::wstring (L"Fade: 10 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kFade));
+            Assert::IsTrue   ((std::vector<std::wstring> { L"Fading: 2 s", L"Fading: 5 s", L"Fading: 10 s", L"Fading: 20 s", L"Fading: 30 s", L"Fading: 60 s", L"Cumulative" }) == labels,
+                              L"the six times, in order, then cumulative");
+            Assert::AreEqual (std::wstring (L"Fading: 10 s"), checked, L"the choice in force is checked");
+            Assert::AreEqual (std::wstring (L"Fading: 10 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kMode));
 
             window.GetHeatMapFadeCommands()[4]->dispatch();
 
             Assert::AreEqual (30, window.GetHeatMapView()->GetOptions().fadeSeconds);
             Assert::AreEqual (std::string ("fade=30 view=all"), host.heatMapOptions, L"kept");
-            Assert::AreEqual (std::wstring (L"Fade: 30 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kFade));
+            Assert::AreEqual (std::wstring (L"Fading: 30 s"), window.GetHeatMapBarLabel (HeatMapBarCommands::kMode));
             Assert::IsTrue   (window.GetHeatMapFadeCommands()[4]->IsChecked(), L"the rows are built again with the new check");
         }
 
 
 
-        TEST_METHOD (FadingCumulativeAndResetCountsAreOnTheBar)
+        //  Reset counts is on the bar only while the map counts totals, as
+        //  there is nothing to reset while it fades.
+        TEST_METHOD (ResetCountsIsOnTheBarOnlyWhileCumulative)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
             HeatMapHost    host;
             HeatMapWindow  window (theme, host);
+            RECT           entry  = {};
 
 
 
             BuildShown (window);
 
-            Assert::IsTrue  (window.IsHeatMapBarChecked (HeatMapBarCommands::kFading));
-            Assert::IsFalse (window.IsHeatMapBarEnabled (HeatMapBarCommands::kResetCounts), L"nothing to reset while fading");
+            Assert::IsFalse  (window.GetHeatMapBar()->TryGetEntryRect (HeatMapBarCommands::kResetCounts, entry), L"nothing to reset while fading");
 
-            ClickBarEntry (window, HeatMapBarCommands::kCumulative);
-            Assert::IsTrue  (window.GetHeatMapView()->GetOptions().cumulative);
-            Assert::IsTrue  (window.IsHeatMapBarChecked (HeatMapBarCommands::kCumulative));
-            Assert::IsFalse (window.IsHeatMapBarEnabled (HeatMapBarCommands::kFade), L"the fade counts for nothing while cumulative");
-            Assert::IsTrue  (window.IsHeatMapBarEnabled (HeatMapBarCommands::kResetCounts));
+            window.GetHeatMapFadeCommands().back()->dispatch();
+            Relayout (window);
+
+            Assert::IsTrue   (window.GetHeatMapView()->GetOptions().cumulative);
+            Assert::AreEqual (std::wstring (L"Cumulative"), window.GetHeatMapBarLabel (HeatMapBarCommands::kMode));
+            Assert::IsTrue   (window.GetHeatMapBar()->TryGetEntryRect (HeatMapBarCommands::kResetCounts, entry), L"Reset counts is on the bar");
 
             ClickBarEntry (window, HeatMapBarCommands::kResetCounts);
             Assert::AreEqual (1, host.resets);

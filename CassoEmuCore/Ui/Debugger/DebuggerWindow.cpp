@@ -213,6 +213,7 @@ void DebuggerWindow::OnCreate()
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_breakpointBar     = CreateChild<DxuiToolbar>   ();
     m_heatMapBar        = CreateChild<DxuiToolbar>   ();
+    m_heatViewBar       = CreateChild<DxuiToolbar>   ();
     m_heatRangeBar      = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
 
@@ -6390,7 +6391,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -6847,8 +6848,19 @@ void DebuggerWindow::ConfigureHeatMap()
     m_heatMapBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_heatMapBar->SetCompact      (true);
     m_heatMapBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
-    m_heatMapBar->SetEntries      (m_heatMapCommands->BuildEntries());
+    m_heatMapBar->SetEntries      (m_heatMapCommands->BuildEntries (options.cumulative));
     m_heatMapBar->SetVisible      (false);
+
+    //  The set of ranges and the bank, beside the map's tabs, as tall as
+    //  their row.
+    m_heatViewBar->SetTextRenderer (GetTextRenderer());
+    m_heatViewBar->SetPopupHost    (GetPopupHost());
+    m_heatViewBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
+    m_heatViewBar->SetCompact      (true);
+    m_heatViewBar->SetBandDp       (HeatMapView::kBarDip);
+    m_heatViewBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
+    m_heatViewBar->SetEntries      (m_heatMapCommands->BuildViewRowEntries());
+    m_heatViewBar->SetVisible      (false);
 
     SetHeatMapBarMenus();
 
@@ -8548,7 +8560,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -8621,6 +8633,12 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_heatMapBar != nullptr && m_heatMapBar->IsVisible())
     {
         barTip = m_heatMapBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
+    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kHeatMap) &&
+        m_heatViewBar != nullptr && m_heatViewBar->IsVisible())
+    {
+        barTip = m_heatViewBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  And its ranges'.
@@ -10699,7 +10717,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
-    if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapBarSlot.get(), m_heatMapView, m_heatMapBar }; }
+    if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapBarSlot.get(), m_heatMapView, m_heatMapBar, m_heatViewBar }; }
     if (pane == DebuggerLayout::kHeatRanges)  { return { m_heatRangeSlot.get(), m_heatRangeError, m_heatRangeList, m_heatRangeEditor, m_heatRangeBar }; }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
