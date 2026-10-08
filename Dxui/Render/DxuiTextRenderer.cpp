@@ -303,6 +303,7 @@ void DxuiTextRenderer::Shutdown()
     m_iconBitmaps.clear();
     m_brushCache.clear();
     m_layoutCache.clear();
+    m_oldLayoutCache.clear();
     m_formatCache.clear();
     m_dwriteFactory.Reset();
     m_d2dContext.Reset();
@@ -1185,9 +1186,13 @@ HRESULT DxuiTextRenderer::EnsureLayout (
 
 
     // Bound so a scrolling debug panel with many distinct strings cannot grow
-    // the cache without limit. Chrome's working set is a few dozen entries; the
-    // cap only trips under pathological churn, where a rebuild is cheap.
-    static constexpr size_t  s_kMaxLayoutCache = 512;
+    // the cache without limit. The debugger draws several hundred distinct
+    // strings a frame, so a bound that empties the whole cache when reached
+    // would empty it every frame and lay every string out again. Instead the
+    // full generation becomes the old one, and a layout found there moves
+    // back: what is still drawn survives, and what is not falls out with the
+    // next turnover.
+    static constexpr size_t  s_kLayoutGeneration = 2048;
 
     HRESULT                    hr        = S_OK;
     LayoutCacheKey             key;
@@ -1213,7 +1218,18 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     key.maxH    = maxHeightDip;
 
     {
-        auto  it = m_layoutCache.find (key);
+        auto  it  = m_layoutCache.find (key);
+        auto  old = m_oldLayoutCache.end();
+
+        if (it == m_layoutCache.end())
+        {
+            old = m_oldLayoutCache.find (key);
+        }
+
+        if (old != m_oldLayoutCache.end())
+        {
+            it = m_layoutCache.insert (m_oldLayoutCache.extract (old)).position;
+        }
 
         if (it != m_layoutCache.end())
         {
@@ -1255,8 +1271,9 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     layout->SetParagraphAlignment (dwV);
     layout->SetWordWrapping       (wrap ? DWRITE_WORD_WRAPPING_WRAP : DWRITE_WORD_WRAPPING_NO_WRAP);
 
-    if (m_layoutCache.size() >= s_kMaxLayoutCache)
+    if (m_layoutCache.size() >= s_kLayoutGeneration)
     {
+        m_oldLayoutCache = std::move (m_layoutCache);
         m_layoutCache.clear();
     }
 

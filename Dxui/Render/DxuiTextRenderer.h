@@ -347,8 +347,12 @@ private:
     std::map<uint32_t,
              ComPtr<ID2D1SolidColorBrush>>  m_brushCache;
 
+    // The layouts made or used since the last turnover, and the generation
+    // before them. See EnsureLayout.
     std::map<LayoutCacheKey,
              ComPtr<IDWriteTextLayout>>     m_layoutCache;
+    std::map<LayoutCacheKey,
+             ComPtr<IDWriteTextLayout>>     m_oldLayoutCache;
 
     //  Pushes the stored origin into the D2D transform. Called on BeginDraw
     //  and on a SetOrigin made while drawing.
