@@ -1653,7 +1653,7 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     }
 
     //  The selected tab takes the color of the row it joins, which the host
-    //  names; without one it takes the elevated surface. A hovered tab is a
+    //  sets; without one it takes the elevated surface. A hovered tab is a
     //  faint wash of the text color, which reads in either theme, as Explorer's
     //  gray does, where the theme's hover is a saturated selection color.
     PaintInternal (painter, text,

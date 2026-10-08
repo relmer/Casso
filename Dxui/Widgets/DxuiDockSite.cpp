@@ -880,8 +880,8 @@ void DxuiDockSite::SlideIn()
 //
 //  DxuiDockSite::PaintEdges
 //
-//  The edge strips and their tabs, the slid-out one's in the accent color,
-//  and an outline around the slid-out pane.
+//  The edge strips and their tabs. The slid-out pane itself is drawn by
+//  PaintSlidUnder and PaintSlidOver.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
