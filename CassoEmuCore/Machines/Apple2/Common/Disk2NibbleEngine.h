@@ -23,7 +23,9 @@
 //  The sequencer runs at 2 MHz (two LSS clocks per CPU cycle). Eight LSS
 //  clocks make one bit cell, so the head advances one bit every four CPU
 //  cycles -- the standard ~250 kbps Disk II data rate at 1.023 MHz. On a bit
-//  track the read pulse is sampled once per bit cell, at LSS clock 4.
+//  track the read pulse is sampled once per bit cell, at LSS clock 4. A WOZ
+//  image that gives a different optimal bit timing plays its bit tracks at
+//  that rate instead, so its cells no longer line up with the clock count.
 //
 //  A flux track is played by time instead. Each transition reaches the
 //  sequencer on the clock where its recorded time falls, so cells written
@@ -126,6 +128,14 @@ public:
     static constexpr uint64_t  kFluxUnitsPerLssClock = 176;
     static constexpr uint64_t  kFluxUnitsPerCell     = 1408;
 
+    // A bit-stream track plays its cells at the image's bit timing, scaled by
+    // the same ratio that turns the standard 32 into kFluxUnitsPerCell, so a
+    // timing of 28 runs seven-eighths as long a cell as the standard.
+    static constexpr uint64_t  kFluxUnitsPerTimingStep = 44;
+
+    // How long a bit-stream cell lasts under the head, in flux units.
+    uint64_t   GetCellUnits() const { return m_cellUnits; }
+
 private:
     // Logic State Sequencer clocking. The P6 sequencer runs at 2 MHz --
     // two LSS clocks per 1.023 MHz CPU cycle. Eight LSS clocks make one
@@ -138,7 +148,13 @@ private:
 
     // The clock within each eight-clock cell where a bit track's pulse is
     // sampled and a written bit is committed.
-    static constexpr int        kLssReadClock  = 4;
+    static constexpr int        kLssReadClock     = 4;
+    static constexpr int        kLssClocksPerCell = 8;
+
+    // Where a bit-stream cell's phase stands at clock 0, in sequencer clocks:
+    // far enough along that a standard-length cell completes on the read
+    // clock, which is where the head has always moved.
+    static constexpr uint64_t   kCellPhaseLead = kLssClocksPerCell - 1 - kLssReadClock;
 
     // Sequencer ROM index bit positions (see "Understanding the Apple IIe"
     // Fig 9.11 column ordering): pulse-absent, latch MSB, Q6, Q7, then the
@@ -193,6 +209,9 @@ private:
     void       ResolveSlot();
     void       RefreshSlot();
     double     GetAngle() const;
+    void       SetCellUnits (uint64_t cellUnits);
+    bool       AdvanceCellPhase();
+    void       MoveHeadOneCell (bool hasTrack);
     void       PlaceHead (double angle);
     void       SeekFlux (double angle);
     uint8_t    StepFluxPulse();
@@ -242,6 +261,11 @@ private:
     int          m_slot             = -1;
     bool         m_isFluxSlot       = false;
     uint64_t     m_layoutGeneration = UINT64_MAX;
+
+    // Bit-stream cell timing, in flux units. The phase runs on every
+    // sequencer clock, and a reading head moves one cell each time it wraps.
+    uint64_t     m_cellUnits        = kFluxUnitsPerCell;
+    uint64_t     m_cellPhase        = kCellPhaseLead * kFluxUnitsPerLssClock;
 
     // Flux playback, in 1/45-tick units. m_fluxDue is when the next
     // transition reaches the head; m_fluxLastPulse is when the last real one

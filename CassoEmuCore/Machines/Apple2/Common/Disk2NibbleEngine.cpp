@@ -2,6 +2,14 @@
 
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+
+
+
+
+
+static_assert (Disk2NibbleEngine::kFluxUnitsPerTimingStep * WozLoader::kBitTimingStandard == Disk2NibbleEngine::kFluxUnitsPerCell,
+               "the standard bit timing must play at the controller's own cell");
 
 
 
@@ -184,15 +192,117 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 //  ResolveSlot
 //
 //  Looks up the slot under the head once, so the sequencer does not have to
-//  on each of the 410,000 clocks a revolution takes.
+//  on each of the 410,000 clocks a revolution takes. The disk's bit timing is
+//  picked up here too, since a new disk always arrives through this path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2NibbleEngine::ResolveSlot()
 {
+    uint64_t  timing = (m_disk != nullptr) ? m_disk->GetBitTiming() : WozLoader::kBitTimingStandard;
+
+
+
     m_slot             = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
     m_isFluxSlot       = (m_slot >= 0) && (m_disk->GetTrackKind (m_slot) == TrackKind::Flux);
     m_layoutGeneration = (m_disk != nullptr) ? m_disk->GetLayoutGeneration() : 0;
+
+    SetCellUnits (timing * kFluxUnitsPerTimingStep);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCellUnits
+//
+//  A change of cell length restarts the phase where a standard cell would
+//  stand at this sequencer clock. At the standard length that keeps the head
+//  moving on the read clock exactly as it always has; at any other length the
+//  starting phase is as arbitrary as where a real disk happens to be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::SetCellUnits (uint64_t cellUnits)
+{
+    uint64_t  clockInCell = 0;
+
+
+
+    if (cellUnits != m_cellUnits)
+    {
+        clockInCell = (static_cast<uint64_t> (m_lssClock) + kCellPhaseLead) % kLssClocksPerCell;
+        m_cellUnits = cellUnits;
+        m_cellPhase = (clockInCell * kFluxUnitsPerLssClock) % m_cellUnits;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceCellPhase
+//
+//  One sequencer clock of bit-stream time. Reports whether a cell boundary
+//  passed under the head on this clock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2NibbleEngine::AdvanceCellPhase()
+{
+    bool  cellDue = false;
+
+
+
+    m_cellPhase += kFluxUnitsPerLssClock;
+
+    if (m_cellPhase >= m_cellUnits)
+    {
+        m_cellPhase -= m_cellUnits;
+        cellDue      = true;
+    }
+
+    return cellDue;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveHeadOneCell
+//
+//  The head moves on to the next cell of a bit-stream track, or of the blank
+//  surface where the image holds nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::MoveHeadOneCell (bool hasTrack)
+{
+    size_t  trackBits = 0;
+
+
+
+    if (hasTrack)
+    {
+        trackBits = m_disk->GetTrackBitCount (m_slot);
+
+        if (trackBits > 0)
+        {
+            m_bitPos = (m_bitPos + 1) % trackBits;
+        }
+    }
+    else if (m_disk != nullptr)
+    {
+        // A disk with nothing recorded at this position still turns
+        // under the head.
+        m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
+    }
 }
 
 
@@ -486,19 +596,20 @@ void Disk2NibbleEngine::Reset()
 
     CommitPendingWrite();
 
-    m_motorOn        = false;
-    m_writeMode      = false;
-    m_shiftLoadMode  = false;
-    m_bitPos         = 0;
-    m_lssState       = kLssInitialState;
-    m_lssClock       = 0;
-    m_readLatch      = 0;
-    m_bus            = 0;
-    m_latchIsFresh   = false;
-    m_readNibbles    = 0;
-    m_writeNibbles   = 0;
-    m_headWindow     = 0;
-    m_weakRngState   = 0xDEADBEEFu;
+    m_motorOn           = false;
+    m_writeMode         = false;
+    m_shiftLoadMode     = false;
+    m_bitPos            = 0;
+    m_lssState          = kLssInitialState;
+    m_lssClock          = 0;
+    m_cellPhase         = (kCellPhaseLead * kFluxUnitsPerLssClock) % m_cellUnits;
+    m_readLatch         = 0;
+    m_bus               = 0;
+    m_latchIsFresh      = false;
+    m_readNibbles       = 0;
+    m_writeNibbles      = 0;
+    m_headWindow        = 0;
+    m_weakRngState      = 0xDEADBEEFu;
 
     ResolveSlot();
     PlaceHead (0);
@@ -549,10 +660,11 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 //  StepLss
 //
 //  One 2 MHz Logic State Sequencer clock. Faithful port of the P6 state
-//  machine: sample the read pulse (clock 4 only), index the sequencer ROM
-//  by {pulse, latch MSB, Q6, Q7, state}, execute the resulting command,
-//  advance to the next state, and -- at clock 4 -- write any outgoing bit
-//  and advance the head one bit cell.
+//  machine: sample the read pulse, index the sequencer ROM by {pulse, latch
+//  MSB, Q6, Q7, state}, execute the resulting command, advance to the next
+//  state, write any outgoing bit on clock 4, and move the head one cell --
+//  on clock 4 while writing, and when a cell of the disk's own bit timing has
+//  passed while reading, which is also clock 4 at the standard timing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -571,13 +683,13 @@ void Disk2NibbleEngine::StepLss()
 
 
     bool     readClock = (m_lssClock == kLssReadClock);
+    bool     cellDue   = false;
     bool     hasTrack  = false;
     bool     writing   = false;
     bool     prevMsb   = false;
     uint8_t  pulse     = 0;
     uint8_t  outBit    = 0;
     uint8_t  command   = 0;
-    size_t   trackBits = 0;
 
     if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
     {
@@ -586,9 +698,14 @@ void Disk2NibbleEngine::StepLss()
 
     // A mapped track implies a disk; with no disk the slot is -1.
     hasTrack = (m_slot >= 0);
+    writing  = m_writeMode && hasTrack && !m_disk->IsWriteProtected();
+
+    // Bit-stream time runs on every clock, flux track or not, so a standard
+    // cell stays in step with the read clock across a visit to a flux track.
+    cellDue = AdvanceCellPhase();
 
     // Read side. A flux track can deliver a pulse on any clock; a bit track
-    // delivers one bit per cell, on the read clock. With no track under the
+    // delivers one bit per cell, as the cell passes. With no track under the
     // head the head window turns silence into noise, as an empty drive does.
     if (m_isFluxSlot)
     {
@@ -599,7 +716,7 @@ void Disk2NibbleEngine::StepLss()
             pulse = StepFluxPulse();
         }
     }
-    else if (readClock)
+    else if (cellDue)
     {
         pulse = ApplyHeadWindow (hasTrack ? m_disk->ReadBit (m_slot, m_bitPos) : 0);
     }
@@ -650,14 +767,13 @@ void Disk2NibbleEngine::StepLss()
         m_readNibbles++;
     }
 
-    // Write side and head motion, once per cell. The bit written is the latch
+    // Write side, once per controller cell. The bit written is the latch
     // MSB -- the shift register's serial output -- not the sequencer state's
     // high bit: the two only agree in the hardware's sub-clock lockstep,
     // which catching the sequencer up in bursts cannot hold (GH #89).
     if (readClock)
     {
-        writing = m_writeMode && hasTrack && !m_disk->IsWriteProtected();
-        outBit  = (m_readLatch & kLatchMsbMask) ? 1 : 0;
+        outBit = (m_readLatch & kLatchMsbMask) ? 1 : 0;
 
         if (m_isFluxSlot)
         {
@@ -672,26 +788,23 @@ void Disk2NibbleEngine::StepLss()
                 CommitPendingWrite();
             }
         }
-        else if (hasTrack)
+        else if (writing)
         {
-            if (writing)
-            {
-                m_disk->WriteBit (m_slot, m_bitPos, outBit);
-            }
-
-            trackBits = m_disk->GetTrackBitCount (m_slot);
-
-            if (trackBits > 0)
-            {
-                m_bitPos = (m_bitPos + 1) % trackBits;
-            }
+            // A write lays down one stored cell per controller cell, whatever
+            // the disk's timing. Recording it by time instead would put each
+            // transition up to a whole stored cell off on a disk timed
+            // differently from the controller, and the data would not read
+            // back.
+            m_disk->WriteBit (m_slot, m_bitPos, outBit);
+            MoveHeadOneCell (hasTrack);
         }
-        else if (m_disk != nullptr)
-        {
-            // A disk with nothing recorded at this position still turns
-            // under the head.
-            m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
-        }
+    }
+
+    // Reading, the head moves once per cell of the disk's own timing -- the
+    // read clock, at the standard timing.
+    if (cellDue && !m_isFluxSlot && !writing)
+    {
+        MoveHeadOneCell (hasTrack);
     }
 
     if (++m_lssClock > kLssMaxClock)

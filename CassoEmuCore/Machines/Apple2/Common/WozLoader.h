@@ -95,6 +95,11 @@ public:
         bool                    hasBootSectorFormat = false;
         Byte                    bootSectorFormat    = 0;
 
+        //  Also version 2 and later: the bit cell the imaged disk was written
+        //  at, in 125 ns units, exactly as stored.
+        bool                    hasBitTiming        = false;
+        Byte                    bitTiming           = 0;
+
         std::string             creator;
         std::vector<MetaField>  meta;
 
@@ -147,6 +152,10 @@ public:
     // if the bytes are not a WOZ or carry no usable INFO chunk.
     static HRESULT  SetWriteProtectFlag (vector<Byte> & fileBytes, bool writeProtected);
 
+    //  The cell length, in 125 ns units, that this image's bit-stream tracks
+    //  play at. kBitTimingStandard unless the source INFO gives a usable value.
+    static Byte     GetPlaybackBitTiming (const WozMetadata & meta);
+
     static HRESULT  BuildSyntheticV2 (
         Byte                  diskType,
         bool                  writeProtected,
@@ -173,6 +182,7 @@ public:
     static constexpr size_t  kInfoOffsetCreator          = 5;
     static constexpr size_t  kInfoCreatorLength          = 32;
     static constexpr size_t  kInfoOffsetBootSectorFormat = 38;
+    static constexpr size_t  kInfoOffsetBitTiming        = 39;
     static constexpr size_t  kInfoOffsetLargestTrack     = 44;
     static constexpr size_t  kInfoOffsetFluxBlock        = 46;
     static constexpr size_t  kInfoOffsetLargestFlux      = 48;
@@ -184,6 +194,13 @@ public:
     static constexpr Byte    kBootSector16       = 1;
     static constexpr Byte    kBootSector13       = 2;
     static constexpr Byte    kBootSectorBoth     = 3;
+
+    //  A 5.25" disk's standard 4 us bit cell, in INFO's 125 ns units, and the
+    //  span either side of it a stored timing is believed within. Outside it
+    //  the value is more likely damage than a disk written that fast or slow.
+    static constexpr Byte    kBitTimingStandard  = 32;
+    static constexpr Byte    kBitTimingMin       = 24;
+    static constexpr Byte    kBitTimingMax       = 40;
 
 private:
     //  A fixed-width, space-padded field as a string with the padding removed.

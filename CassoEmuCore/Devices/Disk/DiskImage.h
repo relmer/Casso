@@ -167,6 +167,9 @@ public:
     void                  SetWozMetadata         (const WozMetadata & meta) { m_wozMetadata = meta; }
     const WozMetadata &   GetWozMetadata         () const { return m_wozMetadata; }
 
+    // The cell length bit-stream tracks play at, in 125 ns units.
+    Byte                  GetBitTiming           () const;
+
     bool             IsImageWriteProtected  () const { return m_imageWriteProtected; }
     bool             IsUserWriteProtected   () const { return m_userWriteProtected;  }
     WriteProtectInfo GetWriteProtectInfo    () const;
