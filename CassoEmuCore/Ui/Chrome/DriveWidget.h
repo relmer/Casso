@@ -144,6 +144,18 @@ public:
     // Only Paint can place it, since it follows the measured name.
     RECT               GetInfoIconRect  () const { return m_infoIconRect; }
 
+    // The info icon's glyph and the font that has it: a Segoe MDL2 glyph, in
+    // the private use area, so no other family draws it. Shared with the desk
+    // scene's names, which wear the same icon.
+    static constexpr const wchar_t  * kInfoIconFamily = L"Segoe MDL2 Assets";
+
+    // How far below the text's layout center the glyph's box sits, as a
+    // fraction of the font size. Centering the two boxes leaves the ring
+    // riding high, because the icon font's ink sits higher in its box than
+    // the body face's capitals do in theirs; this puts the ring's center on
+    // the capitals' center. Measured from rendered captures.
+    static constexpr float            kInfoIconDropEm = 0.17f;
+
     // Places the name row's parts. Pure, so the arithmetic Paint relies on can
     // be checked without a renderer.
     static DriveNameRowLayout  LayoutNameRow (float  labelLeft,
@@ -297,12 +309,10 @@ private:
     static constexpr uint32_t kDamageMarkArgb      = 0xFF241500;   // exclamation mark
 
     // Info icon after the name, shown when the mounted WOZ image's declared
-    // hardware or RAM conflicts with the running machine. A Segoe MDL2 glyph,
-    // which renders only in that family; the box stands in when measuring
-    // fails, as the padlock's does.
+    // hardware or RAM conflicts with the running machine. The box stands in
+    // when measuring fails, as the padlock's does.
     static constexpr int              kInfoIconWidthPx  = 13;
     static constexpr int              kInfoIconHeightPx = 15;
-    static constexpr const wchar_t  * kInfoIconFamily   = L"Segoe MDL2 Assets";
 
     // The head-position bar under the disk name.
     void  PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme & theme, UINT dpi);

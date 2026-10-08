@@ -1315,13 +1315,19 @@ void EmulatorShell::SyncSceneDriveLabels()
     int                                           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     int                                           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
     SIZE                                          cellPx    = { halfW * 2, stripH };
+    IDxuiTextRenderer                           * text      = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    float                                         fontPx    = fontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
 
 
 
     for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
     {
-        std::wstring &  name = names[i];
-        RECT            rc   = {};
+        std::wstring &  name     = names[i];
+        RECT            rc       = {};
+        RECT            nameRc   = {};
+        RECT            iconRc   = {};
+        RECT            iconHit  = {};
+        bool            showIcon = false;
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
@@ -1365,19 +1371,53 @@ void EmulatorShell::SyncSceneDriveLabels()
             rc.bottom = rc.top + stripH;
         }
 
+        // THE INFO ICON TRAILS THE NAME, so unlike the padlock it is not part
+        // of the string: a scrolling name would carry it off. It takes its own
+        // share of the strip and, on the desk, its own baked cell and quad.
+        nameRc   = rc;
+        showIcon = !name.empty() && m_driveWidgetState[i].wozConflict && text != nullptr;
+
+        if (showIcon)
+        {
+            PlaceSceneNameAndIcon (*text, name, fontPx, rc, nameRc, iconRc, iconHit);
+            showIcon = !IsRectEmpty (&iconRc);
+        }
+
+        m_sceneLabelSpan[i]                        = SceneLabelSpan();
+        m_sceneLabelSpan[s_kSceneInfoIconCell + i] = SceneLabelSpan();
+        fullNames[s_kSceneInfoIconCell + i].clear();
+
+        if (showIcon)
+        {
+            m_sceneLabelSpan[i]                        = { (nameRc.left + nameRc.right) / 2 - comp.driveLabelPx[i].x, nameRc.right - nameRc.left };
+            m_sceneLabelSpan[s_kSceneInfoIconCell + i] = { (iconRc.left + iconRc.right) / 2 - comp.driveLabelPx[i].x, iconRc.right - iconRc.left };
+            fullNames[s_kSceneInfoIconCell + i]        = s_kpszMdl2Info;
+        }
+
         // On the strip a long name scrolls under the pointer, as on the desk,
         // whose baked names keep their own periods.
         if (onStrip)
         {
-            SetStripLabelMarquee (m_sceneDriveLabel[i], i, name, rc);
+            SetStripLabelMarquee (m_sceneDriveLabel[i], i, name, nameRc);
         }
 
         m_sceneDriveLabel[i].SetText        (name);
         m_sceneDriveLabel[i].SetFontSizeDip (fontDip);
         m_sceneDriveLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveLabel[i].SetDpi         (m_scaler.GetDpi());
-        m_sceneDriveLabel[i].Layout         (rc, m_scaler);
+        m_sceneDriveLabel[i].Layout         (nameRc, m_scaler);
         m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene);
+
+        m_sceneDriveInfoIcon[i].SetText        (s_kpszMdl2Info);
+        m_sceneDriveInfoIcon[i].SetFontFace    (DriveWidget::kInfoIconFamily);
+        m_sceneDriveInfoIcon[i].SetFontSizeDip (fontDip);
+        m_sceneDriveInfoIcon[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        m_sceneDriveInfoIcon[i].SetDpi         (m_scaler.GetDpi());
+        m_sceneDriveInfoIcon[i].Layout         (iconRc, m_scaler);
+        m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene);
+
+        // The icon's own tooltip target, ahead of the name's.
+        m_sceneInfoIconRect[i] = showIcon ? iconHit : RECT{};
 
         // THE RECT STAYS HONEST EITHER WAY. It anchors the write-protect
         // tooltip, and the quad covers exactly these pixels, so the hover
@@ -1974,12 +2014,20 @@ bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, in
                                            int gapPx, float corners[4][3])
 {
     float  anchor[3] = {};
+    bool   isIcon    = (cell >= s_kSceneInfoIconCell);
+    int    drive     = isIcon ? cell - s_kSceneInfoIconCell : cell;
+    SIZE   size      = { GetSceneLabelCellWidthPx (cell, cellPx), cellPx.cy };
+    float  fontPx    = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+    int    dropPx    = isIcon ? (int) lroundf (fontPx * DriveWidget::kInfoIconDropEm) : 0;
 
 
 
-    if (cell < s_kSceneTapeNameCell)
+    // A drive's name, and the info icon after it, which hangs a little lower
+    // so its ring centers on the name's capitals rather than on its box.
+    if (cell < s_kSceneTapeNameCell || isIcon)
     {
-        return DeskSceneLayout::TryMakeDriveLabelQuad (comp, cell, cellPx, gapPx, corners);
+        return DeskSceneLayout::TryMakeDriveLabelQuad (comp, drive, size, gapPx + dropPx, corners,
+                                                       m_sceneLabelSpan[(size_t) cell].offsetPx);
     }
 
     if (cell == s_kSceneCassetteCell)
@@ -2533,7 +2581,12 @@ LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) con
 
 
 
-    if (cell == s_kSceneCassetteCell && areaW > 0.0f && areaD > 0.0f)
+    // A name sharing its strip with the info icon, and the icon itself.
+    if (m_sceneLabelSpan[(size_t) cell].widthPx > 0)
+    {
+        width = m_sceneLabelSpan[(size_t) cell].widthPx;
+    }
+    else if (cell == s_kSceneCassetteCell && areaW > 0.0f && areaD > 0.0f)
     {
         width = (LONG) lroundf ((float) GetSceneLabelCellHeightPx (cell, cellPx) * areaW / areaD);
     }
@@ -2599,16 +2652,17 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
 
         m_sceneDiskLabelPeriod[i] = 0.0f;
 
-        // The cassette's title never scrolls: it is sized to fit instead.
-        if (!names[i].empty() && i != s_kSceneCassetteCell)
+        // The cassette's title never scrolls: it is sized to fit instead. Nor
+        // does an info icon, whose cell is its own width.
+        if (!names[i].empty() && i != s_kSceneCassetteCell && i < s_kSceneInfoIconCell)
         {
             hrMeasure = text->MeasureString (names[i].c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
         }
 
-        if (SUCCEEDED (hrMeasure) && textW > (float) cellPx.cx - 2.0f * DxuiShadowedText::kGlowReachPx)
+        if (SUCCEEDED (hrMeasure) && textW > (float) GetSceneLabelCellWidthPx (i, cellPx) - 2.0f * DxuiShadowedText::kGlowReachPx)
         {
             m_sceneDiskLabelPeriod[i] = ceilf (textW + (float) m_scaler.ToPx (s_kSceneLabelScrollGapDp));
-            bakeW = max (bakeW, cellPx.cx + (LONG) m_sceneDiskLabelPeriod[i]);
+            bakeW = max (bakeW, GetSceneLabelCellWidthPx (i, cellPx) + (LONG) m_sceneDiskLabelPeriod[i]);
         }
     }
 
@@ -2642,10 +2696,13 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
 
         if (period <= 0.0f)
         {
+            // The info icon's cell holds only the glyph, in the one font that
+            // has it.
             DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
                                              0.0f, (float) GetSceneLabelCellTopPx (i, cellPx),
-                                             (float) cellPx.cx, (float) cellPx.cy,
-                                             kLabelArgb, fontPx, DxuiTheme::kBodyFace,
+                                             (float) GetSceneLabelCellWidthPx (i, cellPx), (float) cellPx.cy,
+                                             kLabelArgb, fontPx,
+                                             (i >= s_kSceneInfoIconCell) ? DriveWidget::kInfoIconFamily : DxuiTheme::kBodyFace,
                                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
                                              DxuiShadowedText::kGlowReachPx);
             continue;
@@ -2704,6 +2761,90 @@ void EmulatorShell::ClearSceneDiskLabels()
 
     m_sceneDiskLabelSrv  = nullptr;
     m_sceneDiskLabelCell = SIZE {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PlaceSceneNameAndIcon
+//
+//  Laid out on the ink, inside the halo's reach at either end of the strip,
+//  and each part's rect then gets its own halo back. That way the name and
+//  the icon each carry a whole halo in their own quad or label, rather than
+//  the icon's being cut off at the edge of the name's.
+//
+//  The icon's drawn rect sits a little lower than the name's, so its ring
+//  centers on the name's capitals; its hover target does not move with it.
+//
+//  If the name cannot be measured, the name keeps the whole strip and no
+//  icon is placed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PlaceSceneNameAndIcon (
+    IDxuiTextRenderer   & text,
+    const std::wstring  & name,
+    float                 fontPx,
+    const RECT          & strip,
+    RECT                & outName,
+    RECT                & outIcon,
+    RECT                & outIconTarget) const
+{
+    HRESULT             hr      = S_OK;
+    HRESULT             hrGlyph = S_OK;
+    float               halo    = (float) DxuiShadowedText::kGlowReachPx;
+    float               gap     = (float) m_scaler.ToPx (s_kSceneInfoIconGapDp);
+    float               textW   = 0.0f;
+    float               textH   = 0.0f;
+    float               glyphW  = 0.0f;
+    float               glyphH  = 0.0f;
+    float               iconW   = (float) m_scaler.ToPx (s_kSceneInfoIconWidthDp);
+    LONG                dropPx  = (LONG) lroundf (fontPx * DriveWidget::kInfoIconDropEm);
+    DriveNameRowLayout  row;
+
+
+
+    outName       = strip;
+    outIcon       = {};
+    outIconTarget = {};
+
+    hr = text.MeasureString (name.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+    CHR (hr);
+
+    hrGlyph = text.MeasureString (s_kpszMdl2Info, fontPx, DriveWidget::kInfoIconFamily, glyphW, glyphH);
+
+    if (SUCCEEDED (hrGlyph) && glyphW > 0.0f)
+    {
+        iconW = glyphW;
+    }
+
+    row = DriveWidget::LayoutNameRow ((float) strip.left + halo,
+                                      (float) (strip.right - strip.left) - 2.0f * halo,
+                                      textW,
+                                      0.0f,
+                                      iconW,
+                                      gap);
+
+    outName       = { (LONG) floorf (row.nameLeft - halo),         strip.top,
+                      (LONG) ceilf  (row.nameLeft + row.nameW + halo), strip.bottom };
+    outIcon       = { (LONG) floorf (row.iconX - halo),            strip.top    + dropPx,
+                      (LONG) ceilf  (row.iconX + iconW + halo),    strip.bottom + dropPx };
+    outIconTarget = { (LONG) floorf (row.iconX - gap * 0.5f),      strip.top,
+                      (LONG) ceilf  (row.iconX + iconW + gap * 0.5f), strip.bottom };
+
+    // A name that scrolls is cut where its ink is meant to stop, not a halo
+    // later: its quad clips the moving text at its own edge, and a halo's
+    // width more would run the text into the icon.
+    if (!row.fits)
+    {
+        outName.right = (LONG) ceilf (row.nameLeft + row.nameW);
+    }
+
+Error:
+    return;
 }
 
 

@@ -821,7 +821,7 @@ void DriveWidget::PaintBasenameLabel (
         // The icon is drawn outside the marquee's clip, like the badge, so it
         // stays put while the name scrolls. Its target is the icon plus half
         // a gap either side, the full height of the row.
-        float  iconY   = labelTop + (labelH - iconH) * 0.5f;
+        float  iconY   = labelTop + (labelH - iconH) * 0.5f + basenameDip * kInfoIconDropEm;
         float  halfGap = partGap * 0.5f;
 
         hr = text.DrawString (s_kpszMdl2Info, row.iconX, iconY, iconW, iconH,
