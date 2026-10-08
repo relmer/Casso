@@ -6406,11 +6406,11 @@ void DebuggerWindow::RenderFrame()
     //  working in is found once a frame rather than at each of them. Of this
     //  window and the floating ones, the one that took the focus last shows
     //  the accent.
-    m_dockSite->SetFocusedPane (m_focusedFloat.empty() ? GetPaneOfFocus() : std::wstring());
+    m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? GetPaneOfFocus() : std::wstring());
 
     for (const auto & entry : m_floats)
     {
-        entry.second->SetFocusedLook (entry.first == m_focusedFloat, *m_theme);
+        entry.second->SetFocusedLook (entry.first == m_accentOwner.GetFocusedFloat(), *m_theme);
     }
 
     //  A disassembly view's height changes with a window resize, a sash drag,
@@ -11350,18 +11350,14 @@ void DebuggerWindow::SyncFloats()
 //  DebuggerWindow::OnWindowFocusChanged
 //
 //  The window, main or floating, that took the keyboard focus last shows the
-//  accent: this one taking it takes the accent back from a floating pane.
-//  Losing it to another application changes nothing.
+//  accent (see FocusAccentOwner): this one taking it takes the accent back
+//  from a floating pane. Losing it to another application changes nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::OnWindowFocusChanged (bool focused)
 {
-    if (focused)
-    {
-        m_focusedFloat.clear();
-    }
-
+    m_accentOwner.OnMainFocusChanged (focused);
     Invalidate();
 }
 
@@ -11458,11 +11454,7 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     //  losing it to another application keeps it.
     window->SetOnFocusChanged ([this, pane] (bool focused)
     {
-        if (focused)
-        {
-            m_focusedFloat = pane;
-        }
-
+        m_accentOwner.OnFloatFocusChanged (pane, focused);
         Invalidate();
     });
 
@@ -11739,11 +11731,7 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
 
     m_floats.erase     (pane);
     m_floatFocus.erase (pane);
-
-    if (m_focusedFloat == pane)
-    {
-        m_focusedFloat.clear();
-    }
+    m_accentOwner.OnFloatDocked (pane);
 
     if (m_floatTips.contains (pane))
     {

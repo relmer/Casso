@@ -160,6 +160,7 @@
     <ClCompile Include="Ui\Debugger\StopChanges.cpp" />
     <ClCompile Include="Ui\Debugger\ByteChanges.cpp" />
     <ClCompile Include="Ui\Debugger\OpeningFocusDeferral.cpp" />
+    <ClCompile Include="Ui\Debugger\FocusAccentOwner.cpp" />
     <ClCompile Include="Ui\Debugger\UndoBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowUndoBars.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointBarCommands.cpp" />
@@ -641,6 +642,7 @@
     <ClInclude Include="Ui\Debugger\StopChanges.h" />
     <ClInclude Include="Ui\Debugger\ByteChanges.h" />
     <ClInclude Include="Ui\Debugger\OpeningFocusDeferral.h" />
+    <ClInclude Include="Ui\Debugger\FocusAccentOwner.h" />
     <ClInclude Include="Ui\Debugger\UndoBarCommands.h" />
     <ClInclude Include="Ui\Debugger\BreakpointBarCommands.h" />
     <ClInclude Include="Ui\Debugger\BreakpointHistory.h" />

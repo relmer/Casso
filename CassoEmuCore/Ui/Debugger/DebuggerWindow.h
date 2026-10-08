@@ -31,6 +31,7 @@
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/OpeningFocusDeferral.h"
+#include "Ui/Debugger/FocusAccentOwner.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
@@ -1043,7 +1044,7 @@ private:
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>                        m_floats;
     std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
     std::map<std::wstring, std::unique_ptr<DxuiTooltip>>                             m_floatTips;
-    std::wstring                                                                     m_focusedFloat;
+    FocusAccentOwner                                                                 m_accentOwner;
     DxuiDragOverlay                                                                  m_dragOverlay;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;
