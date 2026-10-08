@@ -13,9 +13,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DxuiPaneFrameTests
 //
 //  A pane's frame as Visual Studio draws it, part by part: the worked checks
-//  against Visual Studio at 125% and the owner's capture at 150%, the bend
-//  where the selected tab meets the line, which side a tab is flush with or
-//  cut off on, and the square frame of a pane too small to round.
+//  against Visual Studio at 125% and a tool window at 150%, the bend where
+//  the selected tab meets the line, which side a tab is flush with or cut
+//  off on, that no part reaches past the pane, and the square frame of a
+//  pane too small to round.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +29,24 @@ namespace DxuiPaneFrameTests
     static RECT GetPartRect (const DxuiPaneFramePart & part)
     {
         return RECT { std::lround (part.x), std::lround (part.y), std::lround (part.x + part.width), std::lround (part.y + part.height) };
+    }
+
+
+
+    //  What a part can reach: its rect, cut to its clip when it has one.
+    static RECT GetPartReach (const DxuiPaneFramePart & part)
+    {
+        RECT  r = GetPartRect (part);
+
+
+
+        if (part.clipped)
+        {
+            r = RECT { (std::max) (r.left,  part.clip.left),  (std::max) (r.top,    part.clip.top),
+                       (std::min) (r.right, part.clip.right), (std::min) (r.bottom, part.clip.bottom) };
+        }
+
+        return r;
     }
 
 
@@ -114,7 +133,7 @@ namespace DxuiPaneFrameTests
 
 
 
-    //  A quarter of the outline: a ring round the circle of radius `ro` at
+    //  A quarter of the outline: a ring around the circle of radius `ro` at
     //  (cx, cy), `t` thick, seen inside `box`.
     static void AssertQuarterRing (const Parts & parts, long cx, long cy, long ro, long t, const RECT & box)
     {
@@ -270,8 +289,8 @@ namespace DxuiPaneFrameTests
         }
 
 
-        //  The owner's capture at 144 dpi: Disk II selected across [166,310)
-        //  in a tool window's bottom band ending at row 57.
+        //  A tool window at 144 dpi with Disk II selected across [166,310)
+        //  in its bottom band, which ends at row 57.
         TEST_METHOD (ToolWindowWithBottomTabsAt144)
         {
             DxuiDpiScaler      scaler = MakeScaler (144);
@@ -320,14 +339,14 @@ namespace DxuiPaneFrameTests
             {
                 for (bool toolWindow : { false, true })
                 {
-                    DxuiDpiScaler      scaler = MakeScaler (dpi);
-                    long               t      = DxuiPaneMetrics::GetLinePx (scaler);
-                    long               band   = scaler.ToPx (DxuiTabGroup::kStripDip);
-                    RECT               pane   = { 40, 30, 840, 630 };
-                    long               sl     = 200;
-                    long               sr     = 330;
-                    DxuiPaneFrameSpec  spec   = toolWindow ? MakeToolWindow (pane, scaler.ToPx (DxuiTabGroup::kTitleDip), band, sl, sr, scaler)
-                                                           : MakeDocument (pane, band, sl, sr, scaler);
+                    DxuiDpiScaler      scaler  = MakeScaler (dpi);
+                    long               t       = DxuiPaneMetrics::GetLinePx (scaler);
+                    long               band    = scaler.ToPx (DxuiTabGroup::kStripDip);
+                    RECT               pane    = { 40, 30, 840, 630 };
+                    long               sl      = 200;
+                    long               sr      = 330;
+                    DxuiPaneFrameSpec  spec    = toolWindow ? MakeToolWindow (pane, scaler.ToPx (DxuiTabGroup::kTitleDip), band, sl, sr, scaler)
+                                                            : MakeDocument (pane, band, sl, sr, scaler);
                     long               lineTop = toolWindow ? pane.bottom - band - t : pane.top + band;
                     Parts              parts   = DxuiPaneFrame::Build (spec);
                     size_t             joins   = 0;
@@ -456,8 +475,8 @@ namespace DxuiPaneFrameTests
         }
 
 
-        //  A tool window with one pane has no tabs: its outline runs right
-        //  round it, with the gap outside its rounded bottom corners.
+        //  A tool window with one pane has no tabs: its outline runs all the
+        //  way around it, with the gap outside its rounded bottom corners.
         TEST_METHOD (NoStripToolWindowIsFullyRounded)
         {
             DxuiDpiScaler      scaler = MakeScaler (120);
@@ -543,6 +562,79 @@ namespace DxuiPaneFrameTests
                 }
 
                 Assert::IsTrue (body.right >= body.left && body.bottom >= body.top, L"the body is never inverted");
+            }
+        }
+
+
+        //  A last tab ending 2 px short of the pane's right side at 120 dpi,
+        //  nearer than a join's 5-px reach, is drawn flush with it: no right
+        //  join, no line right of it, its top running to the pane's rounded
+        //  corner, and the pane's side up to that corner. A tab ending the
+        //  whole reach short keeps its join, inside the pane.
+        TEST_METHOD (ATabEndingJustShortOfTheSideIsDrawnFlush)
+        {
+            DxuiDpiScaler      scaler   = MakeScaler (120);
+            DxuiPaneFrameSpec  spec     = MakeDocument (RECT { 10, 20, 610, 420 }, 31, 470, 608, scaler);
+            Parts              parts    = DxuiPaneFrame::Build (spec);
+            Parts              boundary = DxuiPaneFrame::Build (MakeDocument (RECT { 10, 20, 610, 420 }, 31, 470, 605, scaler));
+
+
+
+            Assert::AreEqual  (5L, DxuiPaneFrame::GetFlushReachPx (spec.cornerPx, spec.linePx), L"the outer radius less a line");
+            Assert::AreEqual  ((size_t) 1, CountParts (parts, DxuiPaneFrameShape::Ring, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Content), L"the left join only");
+            Assert::IsFalse   (HasLineRunAt (parts, 51, 1, 609), L"no line right of the tab");
+            Assert::IsTrue    (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 476, 20, 604, 21  }), L"the tab's top runs to the pane's corner");
+            Assert::IsTrue    (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 609, 26, 610, 414 }), L"the pane's right side starts at PT + Ro");
+            AssertQuarterRing (parts, 604, 26, 6, 1, RECT { 604, 20, 610, 26 });
+
+            Assert::AreEqual  ((size_t) 2, CountParts (boundary, DxuiPaneFrameShape::Ring, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Content), L"a join each side");
+            AssertFillet      (boundary, 610, 46, 6, RECT { 604, 46, 610, 52 });
+        }
+
+
+        //  However near a side of the pane the selected tab ends, no part of
+        //  the frame reaches past the pane, at any scale, in either kind.
+        TEST_METHOD (NoPartReachesPastThePane)
+        {
+            for (UINT dpi : { 96u, 120u, 144u, 168u })
+            {
+                for (bool toolWindow : { false, true })
+                {
+                    DxuiDpiScaler  scaler = MakeScaler (dpi);
+                    long           ro     = DxuiPaneMetrics::GetCornerPx (scaler);
+                    long           band   = scaler.ToPx (DxuiTabGroup::kStripDip);
+                    long           title  = scaler.ToPx (DxuiTabGroup::kTitleDip);
+                    RECT           pane   = { 40, 30, 840, 630 };
+                    size_t         parts  = 0;
+
+                    for (long gap = 0; gap <= 2 * ro; gap++)
+                    {
+                        std::wstring                    where = std::format (L"{} dpi, {}, {} px from a side", dpi, toolWindow ? L"tool window" : L"document", gap);
+                        std::vector<DxuiPaneFrameSpec>  specs = toolWindow ? std::vector<DxuiPaneFrameSpec> { MakeToolWindow (pane, title, band, 500, pane.right - gap, scaler),
+                                                                                                              MakeToolWindow (pane, title, band, pane.left + gap, 300, scaler) }
+                                                                           : std::vector<DxuiPaneFrameSpec> { MakeDocument (pane, band, 500, pane.right - gap, scaler),
+                                                                                                              MakeDocument (pane, band, pane.left + gap, 300, scaler) };
+
+                        for (const DxuiPaneFrameSpec & spec : specs)
+                        {
+                            for (const DxuiPaneFramePart & part : DxuiPaneFrame::Build (spec))
+                            {
+                                RECT  reach = GetPartReach (part);
+
+                                if (reach.right <= reach.left || reach.bottom <= reach.top)
+                                {
+                                    continue;
+                                }
+
+                                parts++;
+                                Assert::IsTrue (reach.left >= pane.left && reach.top >= pane.top && reach.right <= pane.right && reach.bottom <= pane.bottom,
+                                                (where + L": " + Describe (reach) + L" stays in the pane").c_str());
+                            }
+                        }
+                    }
+
+                    Assert::IsTrue (parts > 0, L"parts were checked");
+                }
             }
         }
     };

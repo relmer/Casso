@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiTabStrip.h"
+#include "Widgets/DxuiPaneFrame.h"
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiTextElide.h"
 #include "Core/DxuiUnicodeSymbols.h"
@@ -970,6 +971,10 @@ int DxuiTabStrip::GetInsertIndexAt (int x) const
 //  the scroll arrows. A strip with no bounds has no arrows, and the tab
 //  shows whole.
 //
+//  The strip's ends are the pane's sides. A tab that is not cut off and
+//  ends nearer an end than DxuiPaneFrame::GetFlushReachPx is drawn reaching
+//  it, as the pane's frame draws it flush with that side.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTabStrip::GetSelectedSpan (long & left, long & right, bool & openLeft, bool & openRight) const
@@ -977,6 +982,7 @@ bool DxuiTabStrip::GetSelectedSpan (long & left, long & right, bool & openLeft, 
     RECT  r         = {};
     long  viewLeft  = 0;
     long  viewRight = 0;
+    long  reach     = DxuiPaneFrame::GetFlushReachPx (DxuiPaneMetrics::GetCornerPx (m_scaler), DxuiPaneMetrics::GetLinePx (m_scaler));
 
 
 
@@ -998,6 +1004,8 @@ bool DxuiTabStrip::GetSelectedSpan (long & left, long & right, bool & openLeft, 
     openRight = r.right > viewRight;
     left      = (std::max) (r.left,  viewLeft);
     right     = (std::min) (r.right, viewRight);
+    left      = (HasBounds() && !openLeft  && left - m_boundsDip.left   < reach) ? m_boundsDip.left  : left;
+    right     = (HasBounds() && !openRight && m_boundsDip.right - right < reach) ? m_boundsDip.right : right;
     return true;
 }
 
@@ -1202,6 +1210,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     size_t    n          = m_tabs.size();
     bool      compact    = m_style != Style::Explorer;
     long      line       = DxuiPaneMetrics::GetLinePx (m_scaler);
+    long      lineAbove  = (m_style == Style::ToolWindow) ? line : 0;
     float     focusThick = m_scaler.ToPxf (s_kFocusThickDip);
     float     focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
     float     padX       = m_scaler.ToPxf (s_kPadXDp);
@@ -1218,9 +1227,10 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     //  File Explorer's tabs (research R13): the selected one is filled with the
     //  row below and joins it, rounded at the top and flared at the bottom;
     //  the rest are unfilled, split by short dividers, with dimmer labels.
-    //  In the compact styles the shapes are held to the same span, reaching
-    //  one line past the strip so the selected tab can fill the line it
-    //  opens into.
+    //  In the compact styles the tabs' fills are clipped to the same span,
+    //  extended one line past the strip's edge along the pane, below a
+    //  document's tabs and above a tool window's, so the selected tab can
+    //  fill the line it opens into.
     if (HasBounds())
     {
         hr = text.PushClipRect ((float) GetViewLeft(), (float) m_boundsDip.top,
@@ -1230,8 +1240,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     if (HasBounds() && compact)
     {
-        painter.PushClip ((float) GetViewLeft(), (float) (m_boundsDip.top - line),
-                          (float) (GetViewRight() - GetViewLeft()), (float) (m_boundsDip.bottom - m_boundsDip.top + 2 * line));
+        painter.PushClip ((float) GetViewLeft(), (float) (m_boundsDip.top - lineAbove),
+                          (float) (GetViewRight() - GetViewLeft()), (float) (m_boundsDip.bottom - m_boundsDip.top + line));
     }
 
     for (i = 0; i < (int) n; ++i)
@@ -1471,11 +1481,16 @@ void DxuiTabStrip::PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & 
 //
 //  DxuiTabStrip::PaintSelectedBody
 //
-//  The selected tab's fill, in the color of the pane it opens into: rounded
-//  at the pane's outer radius at its two far corners, square along the edge
-//  it shares with the pane, and extended one line past that edge so it
-//  fills the line it opens into. Nothing is drawn outside the tab and that
-//  line; the pane's frame draws the outline and the joins.
+//  The selected tab's fill, in the color of the pane it opens into, across
+//  the span GetSelectedSpan gives: rounded at the pane's outer radius at its
+//  two far corners, square along the edge it shares with the pane, and
+//  extended one line past that edge so it fills the line it opens into.
+//  Nothing is drawn outside that span and that line; the pane's frame draws
+//  the outline and the joins.
+//
+//  A side a scroll arrow cuts off is square to the arrow, as the frame's
+//  outline runs straight on to it there: the fill reaches a radius past the
+//  cut, so its rounded corner falls outside what shows.
 //
 //  A document's tabs sit above their pane, a tool window's below it.
 //
@@ -1483,25 +1498,40 @@ void DxuiTabStrip::PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 void DxuiTabStrip::PaintSelectedBody (IDxuiPainter & painter, const RECT & tab, uint32_t fillArgb) const
 {
-    long   t     = DxuiPaneMetrics::GetLinePx (m_scaler);
-    long   ro    = DxuiPaneMetrics::GetCornerPx (m_scaler);
-    bool   below = m_style == Style::ToolWindow;
-    RECT   clip  = below ? RECT { tab.left, tab.top - t, tab.right, tab.bottom } : RECT { tab.left, tab.top, tab.right, tab.bottom + t };
-    float  width = (float) (tab.right - tab.left);
-    float  depth = (float) (tab.bottom - tab.top + t + ro);
-    float  top   = below ? (float) (tab.top - t - ro) : (float) tab.top;
+    long   t         = DxuiPaneMetrics::GetLinePx (m_scaler);
+    long   ro        = DxuiPaneMetrics::GetCornerPx (m_scaler);
+    bool   below     = m_style == Style::ToolWindow;
+    long   left      = tab.left;
+    long   right     = tab.right;
+    bool   openLeft  = false;
+    bool   openRight = false;
+    bool   shown     = GetSelectedSpan (left, right, openLeft, openRight);
+    long   fillLeft  = 0;
+    long   fillRight = 0;
+    RECT   clip      = {};
+    float  depth     = (float) (tab.bottom - tab.top + t + ro);
+    float  top       = below ? (float) (tab.top - t - ro) : (float) tab.top;
 
 
+
+    if (!shown)
+    {
+        return;
+    }
+
+    fillLeft  = openLeft  ? left  - ro : left;
+    fillRight = openRight ? right + ro : right;
+    clip      = below ? RECT { left, tab.top - t, right, tab.bottom } : RECT { left, tab.top, right, tab.bottom + t };
 
     painter.PushClip ((float) clip.left, (float) clip.top, (float) (clip.right - clip.left), (float) (clip.bottom - clip.top));
 
-    if (tab.right - tab.left < 2 * ro)
+    if (fillRight - fillLeft < 2 * ro)
     {
         painter.FillRect ((float) clip.left, (float) clip.top, (float) (clip.right - clip.left), (float) (clip.bottom - clip.top), fillArgb);
     }
     else
     {
-        painter.FillRoundedRect ((float) tab.left, top, width, depth, (float) ro, fillArgb);
+        painter.FillRoundedRect ((float) fillLeft, top, (float) (fillRight - fillLeft), depth, (float) ro, fillArgb);
     }
 
     painter.PopClip();
@@ -1567,7 +1597,8 @@ std::wstring DxuiTabStrip::GetTipAt (int x, int y, RECT & tabRect) const
 //
 //  The label's width, measured when a renderer can, plus the style's padding,
 //  the icon, the mark and the close button, so the label is never cut short
-//  in a tab the host sized with this.
+//  in a tab the host sized with this. A compact tab's padding is counted in
+//  the whole pixels PaintCompactTab places its label by.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1592,7 +1623,7 @@ int DxuiTabStrip::MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style
 
     if (compact)
     {
-        width = scaler.ToPxf ((float) s_kCompactPadDip) * 2.0f + labelW;
+        width = (float) scaler.ToPx (s_kCompactPadDip) * 2.0f + labelW;
         width += tab.mark.empty() ? 0.0f : scaler.ToPxf ((float) s_kCompactMarkDip);
         width += (hasClose && tab.closable && style == Style::Document) ? scaler.ToPxf ((float) s_kCompactCloseDip) : 0.0f;
         width  = (style == Style::ToolWindow) ? (std::max) (width, scaler.ToPxf ((float) s_kToolTabMinDip)) : width;
@@ -1653,7 +1684,8 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     }
 
     //  The selected tab takes the color of the row it joins, which the host
-    //  sets; without one it takes the elevated surface. A hovered tab is a
+    //  sets; without one it takes the elevated surface in the Explorer style
+    //  and the content color in the compact styles. A hovered tab is a
     //  faint wash of the text color, which reads in either theme, as Explorer's
     //  gray does, where the theme's hover is a saturated selection color.
     PaintInternal (painter, text,

@@ -926,7 +926,7 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  DxuiTabGroup::PaintFrame
 //
 //  The frame's over parts: the gap outside the pane's rounded corners where
-//  its controls fill the body, and the outline round the pane and its
+//  its controls fill the body, and the outline around the pane and its
 //  selected tab. The dock site calls it after every sibling has painted, so
 //  the outline and the corner caps lie over the pane's controls whatever the
 //  child order.

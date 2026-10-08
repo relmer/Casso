@@ -111,6 +111,26 @@ RECT DxuiPaneFrame::GetBodyRect (const DxuiPaneFrameSpec & spec)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPaneFrame::GetFlushReachPx
+//
+//  A selected tab whose end lies fewer than this many pixels from a side of
+//  the pane is drawn flush with that side. A join's box reaches the outer
+//  radius less a line past the tab's side, so a tab ending any nearer would
+//  put its join out past the pane. A tab ending on the side is always flush.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+long DxuiPaneFrame::GetFlushReachPx (long cornerPx, long linePx)
+{
+    return (std::max) (1L, cornerPx - linePx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPaneFrame::Paint
 //
 //  Replays the parts of one phase in order, each inside its clip when it
@@ -181,9 +201,11 @@ void DxuiPaneFrame::Paint (
 //  square corners: every corner piece then has an empty box, and the
 //  straight runs reach the corners themselves.
 //
-//  A selected tab is flush with a side of the pane when it starts or ends
-//  exactly there and no scroll arrow cuts it off, so its rounded corner is
-//  the pane's own.
+//  A selected tab is flush with a side of the pane when no scroll arrow cuts
+//  it off and it starts or ends closer to that side than GetFlushReachPx, so
+//  its rounded corner is the pane's own. A tab that stops short of the side
+//  by less than that is drawn reaching it: a join there would curve out past
+//  the pane, into the gap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,6 +213,7 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
 {
     constexpr long  kCornersAcross = 4;
     Geometry        g;
+    long            reach          = 0;
 
 
 
@@ -208,13 +231,17 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
     g.selRight    = spec.selRight;
     g.openLeft    = spec.openLeft;
     g.openRight   = spec.openRight;
-    g.flushLeft   = g.hasSelected && !g.openLeft  && g.selLeft  == g.left;
-    g.flushRight  = g.hasSelected && !g.openRight && g.selRight == g.right;
 
     if (g.right - g.left < kCornersAcross * g.ro || g.bottom - g.top < kCornersAcross * g.ro)
     {
         g.ro = 0;
     }
+
+    reach        = GetFlushReachPx (g.ro, g.t);
+    g.flushLeft  = g.hasSelected && !g.openLeft  && g.selLeft  - g.left  < reach;
+    g.flushRight = g.hasSelected && !g.openRight && g.right - g.selRight < reach;
+    g.selLeft    = g.flushLeft  ? g.left  : g.selLeft;
+    g.selRight   = g.flushRight ? g.right : g.selRight;
 
     if (g.toolWindow)
     {
@@ -244,7 +271,7 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
 //  rounded top corners, the band, and the joins' fillets. Over everything:
 //  the gap outside the pane's rounded bottom corners, then the outline --
 //  the line along the band, square where it meets the pane's sides, the
-//  sides and bottom with their rounded corners, and round the selected tab.
+//  sides and bottom with their rounded corners, and around the selected tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,11 +312,11 @@ void DxuiPaneFrame::BuildDocument (std::vector<DxuiPaneFramePart> & parts, const
 //  DxuiPaneFrame::BuildToolWindow
 //
 //  A title along the top in the content color, rounded at the pane's top
-//  corners. Without tabs the outline runs right round the pane, with the
-//  gap outside its rounded bottom corners. With tabs, they hang in a band
-//  below the line under the pane, rounded at its bottom corners; the
+//  corners. Without tabs the outline runs all the way around the pane, with
+//  the gap outside its rounded bottom corners. With tabs, they hang in a
+//  band below the line under the pane, rounded at its bottom corners; the
 //  outline runs down the pane's sides to that line, square where it meets
-//  it, and on round the selected tab.
+//  it, and then around the selected tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -384,7 +411,7 @@ void DxuiPaneFrame::AddLineRuns (std::vector<DxuiPaneFramePart> & parts, const G
 //  Where the selected tab's side meets the line, on each side that is
 //  neither flush with the pane nor cut off: in the Under phase, a fillet of
 //  the content color outside a circle of the outer radius, which flares the
-//  tab into the line; in the Over phase, the quarter of the outline round
+//  tab into the line; in the Over phase, the quarter of the outline around
 //  that circle. The circle's center is one radius out from the tab's side
 //  and one radius from the line, so its ring is tangent to the tab side's
 //  own column and to the line's own row.
@@ -430,7 +457,7 @@ void DxuiPaneFrame::AddJoins (std::vector<DxuiPaneFramePart> & parts, const Geom
 //
 //  DxuiPaneFrame::AddTabOutline
 //
-//  The outline round the selected tab: its far edge, its sides down to the
+//  The outline around the selected tab: its far edge, its sides down to the
 //  joins, its rounded far corners, and the joins. A side flush with the pane
 //  is the pane's own side, and a side cut off by a scroll arrow has no side,
 //  corner or join; the far edge runs on to the arrow.
@@ -639,7 +666,7 @@ void DxuiPaneFrame::AddRing (
 //
 //  DxuiPaneFrame::AddQuarterRing
 //
-//  The quarter of the outline round a corner whose circle is centered at
+//  The quarter of the outline around a corner whose circle is centered at
 //  (cx, cy): the outline's ring at the outer radius, inside the corner's
 //  box.
 //
@@ -681,7 +708,7 @@ void DxuiPaneFrame::AddFillet (std::vector<DxuiPaneFramePart> & parts, const Geo
 //  DxuiPaneFrame::AddCap
 //
 //  The gap color over a corner's box, outside the pane's own rounded
-//  corner: a ring one radius thick round the pane grown by a radius, whose
+//  corner: a ring one radius thick around the pane grown by a radius, whose
 //  inner edge is the pane's outer edge rounded at the outer radius.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -528,4 +528,50 @@ public:
                           DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::ToolWindow, false, scaler),
                           L"a tool window's tabs have no close button to make room for");
     }
+
+    //  A compact tab sized by MeasureTabPx shows its whole label at any
+    //  scale. The label is placed in whole pixels, so the tab is measured in
+    //  them too: at 102 dpi, where 8 DIP is 8.5 px, padding measured as 17
+    //  px left a label room 1 px short of itself, and it was cut short.
+    TEST_METHOD (CompactTab_ShowsTheLabelItWasMeasuredFor)
+    {
+        constexpr UINT  kDpis[]  = { 96, 102, 105, 106, 120, 144 };
+        constexpr long  kTop     = 0;
+        constexpr long  kWidthPx = 600;
+
+
+
+        for (UINT dpi : kDpis)
+        {
+            DxuiDpiScaler                   scaler;
+            DxuiTabStrip                    ts;
+            DxuiTabStrip::Tab               tab;
+            std::vector<DxuiTabStrip::Tab>  tabs;
+            MockDxuiPainter                 painter;
+            MockDxuiTextRenderer            text;
+            MockDxuiTheme                   theme;
+            long                            width = 0;
+            bool                            whole = false;
+            std::wstring                    at    = std::format (L"{} dpi", dpi);
+
+            scaler.SetDpi (dpi);
+            tab.label = L"Registers";
+            width     = DxuiTabStrip::MeasureTabPx (&text, tab, DxuiTabStrip::Style::Document, false, scaler);
+            tab.rect  = RECT { 0, kTop, width, kTop + scaler.ToPx (DxuiTabGroup::kStripDip) };
+            tabs.push_back (tab);
+
+            ts.SetStyle    (DxuiTabStrip::Style::Document);
+            ts.SetTabs     (tabs);
+            ts.Layout      (RECT { 0, kTop, kWidthPx, tab.rect.bottom }, scaler);
+            ts.SetSelected (0);
+            ts.Paint       (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                whole = whole || (call.kind == RecordedTextKind::DrawString && call.text == L"Registers");
+            }
+
+            Assert::IsTrue (whole, (L"the label is drawn whole, " + at).c_str());
+        }
+    }
 };

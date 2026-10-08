@@ -23,7 +23,7 @@
 //    title, a menu button, a pin and a close button -- and, holding more
 //    than one pane, its tabs along its bottom.
 //
-//  Each group has one outline, round the pane and its selected tab, in the
+//  Each group has one outline, around the pane and its selected tab, in the
 //  focus accent while the user works in the group and in the border color
 //  otherwise. PaintFrame draws it, with the rounded corners and the joins
 //  where the selected tab meets the line along its band (see DxuiPaneFrame),

@@ -150,7 +150,7 @@ struct DxuiPaneFrameColors
 //  DxuiPaneFrame
 //
 //  A docked pane's frame as Visual Studio draws it: one rounded outline
-//  round the pane and its selected tab, a tab band across the pane's full
+//  around the pane and its selected tab, a tab band across the pane's full
 //  width with rounded outer corners, a concave join where the selected tab
 //  meets the line along the band, square corners where that line meets the
 //  pane's sides, and the gap color outside every rounded corner.
@@ -170,6 +170,9 @@ public:
                                                         const std::vector<DxuiPaneFramePart>  & parts,
                                                         DxuiPaneFramePhase                      phase,
                                                         const DxuiPaneFrameColors             & colors);
+
+    //  How near a side of the pane a selected tab must end to be drawn flush.
+    static long  GetFlushReachPx (long cornerPx, long linePx);
 
 private:
     struct Geometry;

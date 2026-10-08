@@ -39,7 +39,7 @@
 //    plain text.
 //
 //  In the compact styles the strip draws no outline: the pane's frame
-//  (DxuiPaneFrame) runs round the selected tab and joins it to the pane.
+//  (DxuiPaneFrame) runs around the selected tab and joins it to the pane.
 //
 //  In every style a tab can carry a leading mark ahead of its label, a glyph
 //  in a face and color of the host's choosing, and a tip the host shows.
@@ -154,7 +154,7 @@ public:
     //  In the document and tool-window styles, where along the strip the
     //  selected tab shows, cut to the part between the scroll arrows, and
     //  whether an arrow cuts it off on either side, so the host can draw the
-    //  pane's outline round it. False while no selected tab shows.
+    //  pane's outline around it. False while no selected tab shows.
     bool  GetSelectedSpan  (long & left, long & right, bool & openLeft, bool & openRight) const;
 
     //  How far a hovered tab's wash stands in from the strip's edges. It
@@ -201,13 +201,15 @@ private:
 
     //  Visual Studio's document and tool-window tabs.
     static constexpr int  s_kCompactFontDip   = 12;
-    static constexpr int  s_kCompactPadDip    = DxuiPaneMetrics::kTextInsetDip;   // label from each end of the tab, where a title starts
     static constexpr int  s_kCompactMarkDip   = 12;   // a leading mark's room
     static constexpr int  s_kCompactCloseDip  = 16;   // the close button's square
     static constexpr int  s_kCompactCornerDip = 4;
     static constexpr int  s_kCompactInsetDip  = 3;    // a hovered tab's wash from the strip's edges
     static constexpr int  s_kToolTabMinDip    = 96;   // a tool window's tab, however short its title
     static constexpr int  s_kCharEstimateDip  = 7;    // a label's width a character, unmeasured
+
+    //  The label from each end of the tab, where a pane's title starts.
+    static constexpr int  s_kCompactPadDip    = DxuiPaneMetrics::kTextInsetDip;
 
     void  Commit         (int newIndex);
     bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }
@@ -232,10 +234,10 @@ private:
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,
                          uint32_t textArgb, uint32_t focusArgb) const;
-    void  PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & text, int index,
-                           uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const;
+    void  PaintCompactTab   (IDxuiPainter & painter, IDxuiTextRenderer & text, int index,
+                             uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const;
     void  PaintSelectedBody (IDxuiPainter & painter, const RECT & tab, uint32_t fillArgb) const;
-    void  PaintHoverPill  (IDxuiPainter & painter, const RECT & rect, uint32_t argb) const;
+    void  PaintHoverPill    (IDxuiPainter & painter, const RECT & rect, uint32_t argb) const;
     bool  IsCloseShown  (int index) const;
 
 
