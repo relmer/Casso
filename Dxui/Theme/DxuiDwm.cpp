@@ -263,7 +263,8 @@ Error:
 //  ApplyBorderColor
 //
 //  Sets DWMWA_BORDER_COLOR, the color of the thin border Windows 11 draws
-//  around a window. No-op on pre-Win11.
+//  around a window. No-op on pre-Win11, and without a window, before the
+//  OS version is read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,8 +277,10 @@ void DxuiDwm::ApplyBorderColor (HWND hwnd, uint32_t argb)
 
 
 
+    BAIL_OUT_IF (hwnd == nullptr, S_OK);
+
     supported = IsWindows11OrGreater();
-    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
+    BAIL_OUT_IF (!supported, S_OK);
 
     // Best-effort, same as ApplyRoundedCorners.
     hrAttrib = DwmSetWindowAttribute (hwnd,
