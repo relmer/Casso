@@ -6,6 +6,7 @@
 
 #include "../AssetBootstrap.h"
 #include "Config/WindowPlacementProfile.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
@@ -17,7 +18,6 @@
 #include "Devices/Printer/PrintDelivery.h"
 #include "Devices/Printer/PrintFileNaming.h"
 #include "Devices/Printer/PrintPagination.h"
-#include "Window/DxuiMessageBox.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Devices/Printer/RgbaImage.h"
@@ -435,12 +435,15 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
-    else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                                  { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                            { route = WindowCommandRoute::Disk; }
+    else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_CONTROLLER_SETTINGS)                           { route = WindowCommandRoute::View; }
+    else if (id == IDM_DEBUG_SAVE_TRACE)                                   { route = WindowCommandRoute::Machine; }
     else if (id == IDM_PRINTER_DISCARD)                                    { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_COPY)                                       { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_PRINT)                                      { route = WindowCommandRoute::Printer; }
@@ -453,8 +456,6 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { route = WindowCommandRoute::ExternalDrive; }
     else if (id == IDM_MOUSE_CONNECT ||
              id == IDM_MOUSE_DISCONNECT)                                   { route = WindowCommandRoute::MouseConnect; }
-    else if (id == IDM_GAMEPORT_ADAPTER_NONE ||
-             id == IDM_GAMEPORT_ADAPTER_JOYPORT)                           { route = WindowCommandRoute::GamePort; }
 
     return route;
 }
@@ -494,7 +495,6 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
         case WindowCommandRoute::Help:                OnHelpCommand (id);          break;
         case WindowCommandRoute::ExternalDrive:       OnExternalDriveCommand (id); break;
         case WindowCommandRoute::MouseConnect:        OnMouseConnectCommand (id);  break;
-        case WindowCommandRoute::GamePort:            OnGamePortCommand (id);      break;
         case WindowCommandRoute::None:                                             break;
     }
 
@@ -549,25 +549,6 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
             m_shell.SyncSelectorState();
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnGamePortCommand
-//
-//  The Settings sheet's OK for the game-port adapter: attach or detach the
-//  Sirius Joyport, with no reset. Live only; the sheet saves the setting.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WindowCommandManager::OnGamePortCommand (int id)
-{
-    m_shell.ApplyGamePortAdapterLive (id == IDM_GAMEPORT_ADAPTER_JOYPORT ? GamePortAdapter::SiriusJoyport
-                                                                         : GamePortAdapter::None);
 }
 
 
@@ -733,6 +714,22 @@ void WindowCommandManager::OnMachineCommand (int id)
         {
             m_shell.m_cpuManager.TogglePaused();
             m_shell.UpdateWindowTitle();
+            break;
+        }
+
+        case IDM_DEBUG_SAVE_TRACE:
+        {
+            // The ring belongs to the CPU thread, and pausing only sets a
+            // flag, so the write is queued to run there between slices.
+            if (m_shell.IsTracing())
+            {
+                m_shell.PostCommand (static_cast<WORD> (id));
+            }
+            else
+            {
+                m_shell.PostNotice (L"Start Casso with --trace to record a CPU trace.");
+            }
+
             break;
         }
 
@@ -1009,6 +1006,12 @@ void WindowCommandManager::OnViewCommand (int id)
                     h = (int) (sized.bottom - sized.top);
 
                     SetWindowPos (m_shell.m_hwnd, nullptr, 0, 0, w, h, SWP_NOZORDER | SWP_NOMOVE);
+
+                    // Persisted here because nothing else will: placement is saved
+                    // only at the end of the OS drag loop or on a user maximize or
+                    // restore, precisely so a programmatic SetWindowPos cannot
+                    // stomp it. This one is the user's, so it has to say so.
+                    m_shell.m_windowManager.SaveWindowPlacement (m_shell.m_hwnd, false);
                 }
             }
 
@@ -1139,7 +1142,6 @@ Error:
 HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMountStarted)
 {
     HRESULT                    hr        = S_OK;
-    PWSTR                      docsRaw   = nullptr;
     int                        choice    = IDYES;
     bool                       occupied  = false;
     std::wstring               folder;
@@ -1148,7 +1150,6 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     std::vector<int>           mountedDrives;
     vector<Byte>               imageBytes;
     std::string                imageContent;
-    std::error_code            ec;
     BootPayload                payload;
     FileBrowseModel            model;
     CreateDiskDialog           dialog;
@@ -1158,33 +1159,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
     outMountStarted = false;
 
-    // The last create's folder wins while it still exists; otherwise the
-    // default Documents\Casso Disks, created on demand.
-    if (!m_shell.m_globalPrefs.lastDiskCreateFolder.empty())
-    {
-        const std::string &  stored = m_shell.m_globalPrefs.lastDiskCreateFolder;
-        std::u8string        u8     (reinterpret_cast<const char8_t *> (stored.data()),
-                                     stored.size());
-        std::wstring         last   = std::filesystem::path (u8).wstring();
-
-        if (std::filesystem::exists (last, ec))
-        {
-            folder = last;
-        }
-    }
-
-    if (folder.empty())
-    {
-        hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &docsRaw);
-        CHRA (hr);
-
-        folder = docsRaw;
-        CoTaskMemFree (docsRaw);
-        docsRaw = nullptr;
-
-        folder += L"\\Casso Disks";
-        std::filesystem::create_directories (folder, ec);
-    }
+    folder = GetDiskCreateFolder();
 
     // The model refuses a target that is currently mounted in any drive; the
     // store's backing paths are UTF-8 and go wide through the same u8string
@@ -1328,6 +1303,163 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDiskCreateFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WindowCommandManager::GetDiskCreateFolder()
+{
+    HRESULT          hr      = S_OK;
+    PWSTR            docsRaw = nullptr;
+    std::wstring     folder;
+    std::error_code  ec;
+
+
+
+    if (!m_shell.m_globalPrefs.lastDiskCreateFolder.empty())
+    {
+        const std::string &  stored = m_shell.m_globalPrefs.lastDiskCreateFolder;
+        std::u8string        u8     (reinterpret_cast<const char8_t *> (stored.data()), stored.size());
+        std::wstring         last   = std::filesystem::path (u8).wstring();
+
+        if (std::filesystem::exists (last, ec))
+        {
+            folder = last;
+        }
+    }
+
+    BAIL_OUT_IF (!folder.empty(), S_OK);
+
+    hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &docsRaw);
+    CHRA (hr);
+
+    folder = docsRaw;
+    folder += L"\\Casso Disks";
+    std::filesystem::create_directories (folder, ec);
+
+Error:
+    if (docsRaw != nullptr)
+    {
+        CoTaskMemFree (docsRaw);
+    }
+
+    return folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRecentMedia
+//
+//  The picker's list for one kind of media: the recent entries of that kind
+//  that still exist, then the files of that kind in the shared known-folder
+//  list and in the folders of every recent entry, then the bundled demos.
+//  Disks and tapes share the recent list and the folders; the filter is the
+//  only difference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<DiskMru::Entry> & entries)
+{
+    DiskMru                      mru        = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
+                                                                 m_shell.m_globalPrefs.recentDiskLoadedAt);
+    std::vector<DiskMru::Entry>  existing   = mru.Prune ([] (const std::filesystem::path & p)
+                                                         {
+                                                             return std::filesystem::exists (p)
+                                                                    && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                                         });
+    Win32FileSystem              fileSystem;
+    int64_t                      nowUnix    = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                                  std::chrono::system_clock::now().time_since_epoch()).count();
+
+
+
+    entries.clear();
+
+    for (const DiskMru::Entry & entry : existing)
+    {
+        if (isWanted (entry.path.wstring()))
+        {
+            entries.push_back (entry);
+        }
+    }
+
+    AssetBootstrap::AppendSiblingDisksFromFolders (KnownFolderStore::LoadPickerFolders (fileSystem,
+                                                                                        AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                                                        existing,
+                                                                                        nowUnix),
+                                                   entries,
+                                                   isWanted);
+    AssetBootstrap::AppendSiblingDisksFromMruFolders (entries, existing, isWanted);
+    AssetBootstrap::AppendBundledDemoDisks (entries, isWanted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptInsertTapeMru
+//
+//  The disk picker, choosing a tape: same recent list, same folders, tape
+//  files only, and no stock downloads. Browse and create-new go to the tape
+//  versions of those flows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
+{
+    HRESULT                      hr            = S_OK;
+    std::vector<DiskMru::Entry>  entries;
+    std::wstring                 chosenPath;
+    std::string                  error;
+    bool                         userBrowsed   = false;
+    bool                         userCreateNew = false;
+
+
+
+    GetRecentMedia (TapeImageLoader::IsTapeFileExtension, entries);
+
+    hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
+                                              m_shell.m_hwnd,
+                                              AssetBootstrap::MakeTapePickerKind(),
+                                              anchorRectPx,
+                                              entries,
+                                              AssetBootstrap::GetDiskDirectory(),
+                                              m_shell.m_globalPrefs.activeTheme,
+                                              chosenPath,
+                                              userBrowsed,
+                                              userCreateNew,
+                                              error);
+    CHR (hr);
+
+    if (userBrowsed)
+    {
+        m_shell.BrowseForTape();
+    }
+    else if (userCreateNew)
+    {
+        m_shell.CreateBlankTape();
+    }
+    else if (!chosenPath.empty())
+    {
+        m_shell.InsertTape (chosenPath);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PromptInsertDiskMru
 //
 //  Shows the themed disk MRU picker. Routes the user's chosen disk
@@ -1355,32 +1487,12 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
 
 
 
-    diskDir   = AssetBootstrap::GetDiskDirectory();
-    mru       = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
-                                   m_shell.m_globalPrefs.recentDiskLoadedAt);
-    mruPruned = mru.Prune ([] (const std::filesystem::path & p)
-                           {
-                               return std::filesystem::exists (p)
-                                      && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                           });
-
-    {
-        Win32FileSystem  fs;
-        int64_t          nowUnix = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
-                                       std::chrono::system_clock::now().time_since_epoch()).count();
-
-        AssetBootstrap::AppendSiblingDisksFromFolders (
-            KnownFolderStore::LoadPickerFolders (fs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
-                                                 mruPruned, nowUnix),
-            mruPruned);
-    }
-
-    AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
-    AssetBootstrap::AppendBundledDemoDisks (mruPruned);
+    diskDir = AssetBootstrap::GetDiskDirectory();
+    GetRecentMedia (IsSupportedDiskImageExtension, mruPruned);
 
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
                                               m_shell.m_hwnd,
-                                              drive,
+                                              AssetBootstrap::MakeDiskPickerKind (drive),
                                               anchorRectPx,
                                               mruPruned,
                                               diskDir,
@@ -1478,6 +1590,20 @@ void WindowCommandManager::OnDiskCommand (int id)
             OpenCassoExplorer();
             break;
         }
+
+        // The tape items open their pickers here; the deck commands are
+        // queued to the CPU thread by the tape manager.
+        case IDM_TAPE_INSERT:      m_shell.PickTape();                                     break;
+        case IDM_TAPE_NEW:         m_shell.CreateBlankTape();                              break;
+        case IDM_TAPE_EJECT:       m_shell.HandleTapeClick (TapeDeckRegion::Eject);        break;
+        case IDM_TAPE_PLAY:        m_shell.HandleTapeClick (TapeDeckRegion::Play);         break;
+        case IDM_TAPE_STOP:        m_shell.HandleTapeClick (TapeDeckRegion::Stop);         break;
+        case IDM_TAPE_REWIND:      m_shell.HandleTapeClick (TapeDeckRegion::Rewind);       break;
+        case IDM_TAPE_FASTFORWARD: m_shell.HandleTapeClick (TapeDeckRegion::FastForward);  break;
+
+        // Each flips its device, connected to disconnected or back.
+        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.ShouldShowExternalDrive()); break;
+        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeRecorderConnected);  break;
     }
 }
 
@@ -2307,7 +2433,7 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
 //
 //  OnHelpCommand
 //
-//  The Help menu: the keyboard map and the About box.
+//  The Help menu: the keyboard map, the update check, and the About box.
 //
 //  Both are built as DialogDefinition data and handed to the shared modal
 //  renderer rather than being dialog resources, so they pick up the active
@@ -2346,6 +2472,14 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body  = KeyboardMapText::BuildBody (machine);
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
+            break;
+        }
+
+        case IDM_HELP_CHECK_UPDATES:
+        {
+            // Runs on the update service's thread; the result comes back to
+            // the shell, which reports it whatever it is.
+            m_shell.CheckForUpdatesNow();
             break;
         }
 

@@ -1,9 +1,10 @@
 #include "Pch.h"
 #include "Theme/DxuiColor.h"
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiToolbar.h"
+#include "DxuiMenuBar.h"
 #include "Window/DxuiHwndSource.h"
 #include "Render/DxuiShadow.h"
 
@@ -776,7 +777,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
     if (labeled && slot.entry.command != nullptr)
     {
-        label  = slot.entry.command->GetShortText();
+        label  = GetFittedButtonText (*slot.entry.command, m_textRenderer, fontPx);
         width += (HasGlyph (slot) ? iconGap : 0) + MeasureLabelPx (label.c_str(), fontPx);
     }
 
@@ -786,6 +787,85 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
     }
 
     return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetButtonText
+//
+//  A command without a short label falls back to its menu label, which marks
+//  the Alt mnemonic with '&'. The menu bar consumes that marker; a toolbar
+//  button or its tooltip has no mnemonic, so it is stripped here or it shows
+//  as a literal ampersand ("&Full screen").
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiToolbar::GetButtonText (const DxuiCommand & cmd)
+{
+    std::wstring  stripped;
+    int           mnIdx    = -1;
+    wchar_t       mnCh     = 0;
+
+
+
+    DxuiMenuBar::ParseMnemonic (cmd.GetShortText(), stripped, mnIdx, mnCh);
+
+    return stripped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetFittedButtonText
+//
+//  The button text shortened to the command's label fit, when it has one.
+//  Measuring and painting both take their text from here, so the strip
+//  reserves exactly the width of the string it draws. Without a renderer
+//  there is nothing to measure the fit against, and the text is left whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiToolbar::GetFittedButtonText (
+    const DxuiCommand  & cmd,
+    IDxuiTextRenderer  * text,
+    float                fontPx) const
+{
+    std::wstring          label    = GetButtonText (cmd);
+    const DxuiLabelFit  * fit      = nullptr;
+    size_t                keptLen  = 0;
+    bool                  isFitted = cmd.labelFit.has_value() && text != nullptr;
+
+
+
+    if (!isFitted)
+    {
+        return label;
+    }
+
+    fit = &cmd.labelFit.value();
+
+    if (!fit->keptSuffix.empty() && label.ends_with (fit->keptSuffix))
+    {
+        keptLen = fit->keptSuffix.size();
+    }
+
+    for (const std::wstring & suffix : fit->keptSuffixes)
+    {
+        if (suffix.size() > keptLen && label.ends_with (suffix))
+        {
+            keptLen = suffix.size();
+        }
+    }
+
+    return DxuiTextElide::ToWidth (*text, label, fontPx, DxuiTheme::GetUiFace(),
+                                   m_scaler.ToPxf (fit->maxWidthDip), fit->mode, keptLen);
 }
 
 
@@ -1154,8 +1234,9 @@ const wchar_t * DxuiToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
         }
         else if (!slot.labeled)
         {
-            anchor = slot.rc;
-            tip    = cmd->label.c_str();
+            m_tipText = GetButtonText (*cmd);
+            anchor    = slot.rc;
+            tip       = m_tipText.c_str();
         }
     }
 
@@ -1765,7 +1846,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
     if (slot.labeled && cmd != nullptr)
     {
-        label = cmd->GetShortText();
+        label = GetFittedButtonText (*cmd, &text, fontDip);
 
         if (!label.empty())
         {

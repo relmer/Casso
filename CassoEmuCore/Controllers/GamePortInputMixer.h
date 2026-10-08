@@ -110,7 +110,7 @@ private:
 
     void                          ScheduleApply              ();
     GamePortState                 ComputeTargetLocked        () const;
-    JoyportJacks                  ComputeJacksLocked         (AxisOwner owner) const;
+    JoyportJacks                  ComputeJacksLocked         () const;
     const GamePortContribution *  GetOwnerContributionLocked (AxisOwner owner) const;
 
     static JoystickSwitches  GetSwitchesFromKeys (const GamePortContribution & arrows, const GamePortContribution & fire);

@@ -219,12 +219,33 @@ public:
 
         kbd.BeginKeyRepeat ('J');
         kbd.BeginKeyRepeat ('J');
-        kbd.BeginKeyRepeat (0);
+        kbd.EndKeyRepeat();
 
         Assert::AreEqual (1, sink.hostKeyDownCount,
             L"A repeated host down for the same held key must coalesce to one key-down");
         Assert::AreEqual (1, sink.hostKeyUpCount,
             L"Disarming the repeat must emit exactly one key-up");
+    }
+
+    TEST_METHOD (HostKeyDownUp_CtrlAtIsAKey)
+    {
+        AppleKeyboard       kbd;
+        RecordingInputSink  sink;
+
+        kbd.SetInputEventSink (&sink);
+        sink.lastAscii = 0xFF;
+
+        // Ctrl+@ arms with $00, which must read as a key-down rather than as
+        // the release it used to signal.
+        kbd.BeginKeyRepeat (0x00);
+        kbd.EndKeyRepeat();
+
+        Assert::AreEqual (1, sink.hostKeyDownCount,
+            L"Arming Ctrl+@ must emit a key-down");
+        Assert::AreEqual (1, sink.hostKeyUpCount,
+            L"Releasing Ctrl+@ must emit a key-up");
+        Assert::AreEqual (static_cast<uint8_t> (0x00), sink.lastAscii,
+            L"The events must carry $00");
     }
 
     TEST_METHOD (AutoRepeat_FiresFromTickWhileHeld)

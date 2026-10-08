@@ -3106,6 +3106,26 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("c.woz"),   slashed.disk1);
         }
 
+        //  A tape goes in by name either way, and a missing name is an error
+        //  rather than the next flag taken for a file.
+        TEST_METHOD (Emulator_TapeTakesAFileInEitherPrefix)
+        {
+            ArgVector  dashes  = { "--tape", "adventure.wav" };
+            ArgVector  slashes = { "/tape", "side-a.mp3" };
+            ArgVector  bare    = { "--tape" };
+
+            CommandLineOptions::EmulatorOptions  dashed  =
+                CommandLineParser::ParseEmulator (dashes.Count(),  dashes.Data());
+            CommandLineOptions::EmulatorOptions  slashed =
+                CommandLineParser::ParseEmulator (slashes.Count(), slashes.Data());
+            CommandLineOptions::EmulatorOptions  missing =
+                CommandLineParser::ParseEmulator (bare.Count(),    bare.Data());
+
+            Assert::AreEqual (std::string ("adventure.wav"), dashed.tape);
+            Assert::AreEqual (std::string ("side-a.mp3"),    slashed.tape);
+            Assert::IsFalse  (missing.refusalMessage.empty(), L"--tape with no file is refused");
+        }
+
         //  Bare, space-separated, and `=`; a suffix the table does not know
         //  leaves the bare number rather than failing at startup.
         TEST_METHOD (Emulator_TraceTakesItsThreeSpellings)
@@ -3127,6 +3147,55 @@ namespace CommandLineTests
 
             Assert::AreEqual ((size_t) 20, CommandLineParser::ParseTraceSize ("20X"),
                 L"an unknown suffix leaves the bare number");
+        }
+
+        //  Hex as the trace file prints it, decimal, and the = form all land
+        //  on the same field; without --seed there is no seed.
+        TEST_METHOD (Emulator_SeedTakesHexDecimalAndEquals)
+        {
+            ArgVector                            none    = { "--machine", "Apple2e" };
+            ArgVector                            hex     = { "--seed", "0x00000000CA550036" };
+            ArgVector                            decimal = { "--seed", "12345" };
+            ArgVector                            joined  = { "/seed=0xFFFFFFFFFFFFFFFF" };
+            CommandLineOptions::EmulatorOptions  parsed;
+
+
+
+            parsed = CommandLineParser::ParseEmulator (none.Count(), none.Data());
+            Assert::IsFalse (parsed.hasSeed);
+
+            parsed = CommandLineParser::ParseEmulator (hex.Count(), hex.Data());
+            Assert::IsTrue  (parsed.hasSeed);
+            Assert::AreEqual ((uint64_t) 0xCA550036ULL, parsed.seed);
+
+            parsed = CommandLineParser::ParseEmulator (decimal.Count(), decimal.Data());
+            Assert::AreEqual ((uint64_t) 12345, parsed.seed);
+
+            parsed = CommandLineParser::ParseEmulator (joined.Count(), joined.Data());
+            Assert::IsTrue  (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::AreEqual ((uint64_t) 0xFFFFFFFFFFFFFFFFULL, parsed.seed);
+        }
+
+        //  A seed that is not exactly a number would replay a different
+        //  power-on, so it stops startup instead.
+        TEST_METHOD (Emulator_BadSeed_IsRefused)
+        {
+            ArgVector  junk     = { "--seed", "12abc" };
+            ArgVector  overflow = { "--seed", "0x1FFFFFFFFFFFFFFFF" };
+            ArgVector  bareHex  = { "--seed", "0x" };
+            ArgVector  missing  = { "--seed" };
+
+            for (ArgVector * args : { &junk, &overflow, &bareHex })
+            {
+                CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args->Count(), args->Data());
+
+                Assert::IsTrue  (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+                Assert::IsFalse (parsed.hasSeed);
+                Assert::IsTrue  (parsed.refusalMessage.starts_with ("Error: invalid seed "));
+            }
+
+            Assert::AreEqual (std::string ("Error: missing value for --seed"),
+                CommandLineParser::ParseEmulator (missing.Count(), missing.Data()).refusalMessage);
         }
 
         //  THE UNDOCUMENTED CAPTION LABEL, which is the only way to tell
@@ -3157,6 +3226,44 @@ namespace CommandLineTests
 
             Assert::IsTrue (without.titlePrefix.empty(),
                 L"an invocation that names no label carries none");
+        }
+
+        //  THE RELAUNCH AFTER A SELF-UPDATE. Casso writes these itself, so they
+        //  are undocumented; a process id that is not one stops startup rather
+        //  than leaving the old files to a guess.
+        TEST_METHOD (Emulator_TakesTheUndocumentedUpdateRelaunchFlags)
+        {
+            ArgVector  relaunch = { "--updated", "--cleanup-old", "4242" };
+            ArgVector  slashed  = { "/cleanup-old", "17" };
+            ArgVector  junk     = { "--cleanup-old", "12abc" };
+            ArgVector  zero     = { "--cleanup-old", "0" };
+            ArgVector  missing  = { "--cleanup-old" };
+            ArgVector  absent   = { "--machine", "Apple2e" };
+
+            CommandLineOptions::EmulatorOptions  parsed =
+                CommandLineParser::ParseEmulator (relaunch.Count(), relaunch.Data());
+
+            Assert::IsTrue   (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::IsTrue   (parsed.wasUpdated);
+            Assert::AreEqual ((std::uint32_t) 4242, parsed.cleanupOldPid);
+
+            Assert::AreEqual ((std::uint32_t) 17,
+                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data()).cleanupOldPid);
+
+            for (ArgVector * args : { &junk, &zero })
+            {
+                CommandLineOptions::EmulatorOptions  bad = CommandLineParser::ParseEmulator (args->Count(), args->Data());
+
+                Assert::IsTrue (bad.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+                Assert::IsTrue (bad.refusalMessage.starts_with ("Error: invalid process id "));
+            }
+
+            Assert::AreEqual (std::string ("Error: missing value for --cleanup-old"),
+                CommandLineParser::ParseEmulator (missing.Count(), missing.Data()).refusalMessage);
+
+            parsed = CommandLineParser::ParseEmulator (absent.Count(), absent.Data());
+            Assert::IsFalse  (parsed.wasUpdated);
+            Assert::AreEqual ((std::uint32_t) 0, parsed.cleanupOldPid);
         }
 
 
@@ -3512,8 +3619,8 @@ namespace CommandLineTests
             Assert::IsTrue (parsed.erase ("no-image-watch") == 1,
                 L"the developer switch is parsed and deliberately not described");
 
-            Assert::IsTrue (parsed.erase ("title") == 1,
-                L"the caption label is parsed and deliberately not described");
+            Assert::IsTrue (parsed.erase ("updated") == 1 && parsed.erase ("cleanup-old") == 1,
+                L"the self-update relaunch flags are parsed and deliberately not described");
 
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");

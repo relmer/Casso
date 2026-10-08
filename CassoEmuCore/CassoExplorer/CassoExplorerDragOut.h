@@ -5,7 +5,6 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
-#include "Window/DxuiDragDropSource.h"
 
 
 

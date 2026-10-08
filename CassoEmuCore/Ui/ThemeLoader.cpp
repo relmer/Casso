@@ -4,6 +4,7 @@
 
 
 #include "Core/JsonParser.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -21,10 +22,7 @@ static constexpr const char *  s_kpszBuiltInKey  = "$cassoBuiltIn";
 
 std::wstring  ThemeLoader::Utf8ToWide (const std::string & s)
 {
-    // Theme paths in theme.json are ASCII by spec (filename
-    // restrictions). A naive widen is fine for the relative
-    // names we deal with here.
-    return std::wstring (s.begin(), s.end());
+    return TextEncoding::Utf8ToWide (s);
 }
 
 

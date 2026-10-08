@@ -8,9 +8,9 @@
 #include "Controllers/InputModeRules.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/PlayerModeRules.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -52,7 +52,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
@@ -294,6 +293,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
+    // The update indicator sits in the caption, above every band, so a move
+    // over it is its own and nothing below sees it.
+    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     // The compass sees every move: armed, it owns the gesture; idle, the
     // call is what keeps its hover highlight honest. Ahead of the drags
     // below because a press the compass took must never feed the orbit's
@@ -334,6 +340,14 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_sceneOrbitMoved = true;
 
         UpdateSceneOrbit (x, y);
+        return DxuiMessageResult::Handled;
+    }
+
+    // The recorder's volume wheel, held, follows the pointer across.
+    if (m_volumeDragging && leftDown && !m_paddleCaptured)
+    {
+        DragVolumeWheel (x, nowMs);
+
         return DxuiMessageResult::Handled;
     }
 
@@ -393,6 +407,40 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         UpdateGuestMouseFromHost (x, y);
     }
 
+    // The desk's names scroll under the pointer too; a change re-hangs them so
+    // the one that was scrolling comes back to its start.
+    if (UpdateSceneLabelHover (x, y, nowMs))
+    {
+        SyncSceneDriveLabels();
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    // The desk recorder's key under the pointer shows its name over it, and
+    // its volume wheel, held or under the pointer, how loud it is set -- in
+    // the same label, which changes in place rather than reopening.
+    {
+        int    key   = -1;
+        POINT  pt    = { x, y };
+        RECT   wheel = GetVolumeWheelRect();
+
+        if (DeskSceneActive() && (m_volumeDragging || PtInRect (&wheel, pt)))
+        {
+            key = s_kVolumeWheelLabelKey;
+        }
+        else if (DeskSceneActive())
+        {
+            SceneHitResult  hit = RecorderHit (x, y);
+
+            key = (hit.target == SceneHitResult::Target::Recorder) ? hit.recorderKey : -1;
+        }
+
+        if (key != m_recorderHoverKey)
+        {
+            m_recorderHoverKey = key;
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
     // write-protected drive under the pointer so the WP tooltip can show.
@@ -414,6 +462,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         {
             wpDrive = &drive;
         }
+    }
+
+    if (m_tapeChrome.UpdateHover (x, y))
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
     }
 
     shellHandled = m_uiShell.OnMouseMove (x, y, leftDown);
@@ -584,12 +637,33 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     m_uiShell.OnMouseLeave();
 
+    // Leaving the window -- into the caption counts -- from the update
+    // indicator takes its tooltip down at once; nothing else would, since the
+    // indicator is a client-area control under the caption's tooltip.
+    if (m_updateIndicator.OnPointer (false, (int64_t) GetTickCount64()).hideTip)
+    {
+        m_captionTooltip.HideImmediate();
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+
     // Drop drive marquee-hover state so re-entering the window re-triggers
     // the basename scroll.
     for (DriveWidget & drive : m_driveChrome)
     {
         drive.UpdateMarqueeHover (false, nowMs);
     }
+
+    // Off every control, so the recorder's magnified controls ease back down
+    // and the desk's scrolling name returns to its start.
+    m_tapeChrome.UpdateHover (INT_MIN / 2, INT_MIN / 2);
+    m_recorderHoverKey = -1;
+
+    if (UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
+    {
+        SyncSceneDriveLabels();
+    }
+
+    m_d3dRenderer.MarkRedrawNeeded();
 
     m_toolbar.OnToolbarMouseLeave();
     m_toolbarTooltip.RequestHide (nowMs);
@@ -762,6 +836,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     DxuiMessageResult  result     = DxuiMessageResult::NotHandled;
     POINT              pt         = {};
     bool               overGuest  = false;
+    RECT               wheel      = GetVolumeWheelRect();
 
 
 
@@ -791,6 +866,14 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     if (overGuest)
     {
         SetCursor (nullptr);
+        result = DxuiMessageResult::Handled;
+    }
+    else if (hitTest == HTCLIENT && DeskSceneActive() &&
+             (m_volumeDragging || (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) &&
+                                   PtInRect (&wheel, pt))))
+    {
+        // A hand over the volume wheel, which can be taken hold of.
+        SetCursor (LoadCursorW (nullptr, IDC_HAND));
         result = DxuiMessageResult::Handled;
     }
     else if (hitTest == HTCLIENT && DeskSceneActive() && !m_d3dRenderer.IsFullscreen()
@@ -1162,6 +1245,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (m_paddleCaptured, S_OK);
 
+    // The caption's update indicator, ahead of the capture and every band:
+    // nothing else lives in the caption strip's client area.
+    if (OfferMouseToUpdateIndicator (DxuiMouseEventKind::Down, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     SetCapture (m_hwnd);
 
     // A mouse press drops the keyboard chrome-focus ring: clicking anywhere
@@ -1276,6 +1366,68 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         m_sceneOrbitLeftBtn = true;
         result = DxuiMessageResult::Handled;
         BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Ctrl turns the press into a pan, the mouse's way to do what the touchpad
+    // does with a two-finger slide. Beside the Shift orbit, for the same
+    // reasons, and like it never in fullscreen. Not on the compass, which
+    // has its own Ctrl gestures and is handled below.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+        (wParam & MK_CONTROL) != 0 && !m_mainMenu.IsOpen() &&
+        PointInSceneRect (x, y) && !chromeTook && !PointOnCompass (x, y))
+    {
+        m_scenePanning    = true;
+        m_scenePanStartPx = POINT { x, y };
+        m_scenePanStartX  = m_sceneView.panX;
+        m_scenePanStartY  = m_sceneView.panY;
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Pressing on the recorder's volume wheel starts its drag, which handles
+    // every move until the release: no orbit, no click.
+    if (DeskSceneActive() && !m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    {
+        float  span  = 0.0f;
+        RECT   wheel = GetVolumeWheelRect (&span);
+        POINT  pt    = { x, y };
+
+        if (PtInRect (&wheel, pt))
+        {
+            m_volumeDragging      = true;
+            m_volumeDragStartX    = x;
+            m_volumeDragStartGain = m_tapeAudioSource.GetVolume();
+            m_volumeDragSpanPx    = span;
+
+            result = DxuiMessageResult::Handled;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
+    // A desk recorder key starts down the moment it is pressed, as under a
+    // finger, and stays down while the button is held; what it does still
+    // waits for the release, like any button. Stop is the exception: it is
+    // the key reaching the bottom that trips the latch, so the held keys are
+    // released then, with the button still down.
+    if (DeskSceneActive() && !m_mainMenu.IsOpen())
+    {
+        SceneHitResult  keyHit = RecorderHit (x, y);
+
+        if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
+        {
+            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+
+            m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = nowMs;
+            m_recorderHeldKey                               = keyHit.recorderKey;
+
+            if (TapeDeckWidget::GetButtonRegion ((size_t) keyHit.recorderKey) == TapeDeckRegion::Stop)
+            {
+                m_recorderReleaseAtMs = nowMs + s_kRecorderKeyDownMs;
+            }
+
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
     }
 
     // The compass outranks everything on the scene: it is drawn on top,
@@ -1401,6 +1553,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     int                     x             = ((int) (short) LOWORD (lParam));
     int                     y             = ((int) (short) HIWORD (lParam));
     DriveWidgetRegion       region        = DriveWidgetRegion::None;
+    TapeDeckRegion          tapeRegion    = TapeDeckRegion::None;
     Apple2cSwitchBar::Part  switchPart    = Apple2cSwitchBar::Part::None;
     bool                    toolbarTook   = false;
     bool                    shellTook     = false;
@@ -1412,6 +1565,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
+
+    // A desk recorder key held under the pointer comes back up with the
+    // button, wherever the pointer has gone since.
+    if (m_recorderHeldKey >= 0)
+    {
+        m_recorderHeldKey = -1;
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
 
     //  THE CLICK-CAPTURE GOES BACK FIRST, whatever this release turns out to
     //  mean. OnLButtonDown takes it unconditionally, so every path out of
@@ -1431,10 +1592,26 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         ReleaseCapture();
     }
 
+    //  The update indicator's own press ends here, and its click is this
+    //  release landing on it.
+    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     //  The release is what makes a button fire, so the bar has to see both
     //  halves of the click.
     if (OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
     {
+        return DxuiMessageResult::Handled;
+    }
+
+    // Letting go of the volume wheel keeps where it was left, and the release
+    // is the drag's, not a click's.
+    if (m_volumeDragging)
+    {
+        m_volumeDragging = false;
+        PersistTapeVolume();
         return DxuiMessageResult::Handled;
     }
 
@@ -1571,6 +1748,40 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             driveTook = true;
         }
+
+        // The labels under the recorder: its counter sets the position and
+        // its name picks a tape, as on the flat deck -- on the strip too,
+        // which a dialog opened from it pins, as a drive's browse does.
+        m_stripBrowseOpen = inStrip;
+
+        if (PtInRect (&m_sceneTapeCounterRect, pt))
+        {
+            HandleTapeClick (TapeDeckRegion::Counter);
+            driveTook = true;
+        }
+        else if (PtInRect (&m_sceneTapeNameRect, pt))
+        {
+            HandleTapeClick (TapeDeckRegion::Name);
+            driveTook = true;
+        }
+
+        // A key does what the flat deck's button of the same name does, and
+        // dips as it is pressed; the rest of the case picks a tape.
+        else if (sceneHit.target == SceneHitResult::Target::Recorder)
+        {
+            if (sceneHit.recorderKey >= 0)
+            {
+                HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
+            }
+            else
+            {
+                HandleTapeClick (TapeDeckRegion::Name);
+            }
+
+            driveTook = true;
+        }
+
+        m_stripBrowseOpen = false;
     }
     else
     {
@@ -1597,6 +1808,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 driveTook = true;
                 break;
             }
+        }
+
+        tapeRegion = driveTook ? TapeDeckRegion::None : m_tapeChrome.HitTest (x, y);
+
+        if (tapeRegion != TapeDeckRegion::None)
+        {
+            HandleTapeClick (tapeRegion);
+            driveTook = true;
         }
     }
 
@@ -1702,6 +1921,15 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         m_sceneOrbiting = false;
         ReleaseCapture();
 
+        // A motionless right-click on a drive or the recorder opens its
+        // menu; a drag that began there still turned the scene.
+        if (still && StorageDeviceAt (x, y) >= 0)
+        {
+            ShowStorageContextMenu (StorageDeviceAt (x, y), x, y);
+            m_sceneOrbitTapMs = 0;
+            return DxuiMessageResult::Handled;
+        }
+
         // Two motionless right-clicks in double-click time reset the orbit
         // -- the pose home button, without stealing a key.
         if (still)
@@ -1727,8 +1955,83 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
     }
+    else if (!m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    {
+        // The drive band and the fullscreen strip have no orbit to share the
+        // button with: a right-click there is the device's menu.
+        int  x      = (int) (short) LOWORD (lParam);
+        int  y      = (int) (short) HIWORD (lParam);
+        int  device = StorageDeviceAt (x, y);
+
+        if (device >= 0)
+        {
+            ShowStorageContextMenu (device, x, y);
+            result = DxuiMessageResult::Handled;
+        }
+    }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StorageDeviceAt
+//
+//  Which storage device is under a client point, as the left-click chain
+//  finds it: in the desk scene (or on the fullscreen strip) its drives, the
+//  recorder and the recorder's labels; otherwise the flat drive widgets and
+//  the flat tape deck. 0 or 1 for a drive, kStorageMenuRecorder for the
+//  recorder, -1 for neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::StorageDeviceAt (int x, int y) const
+{
+    POINT  pt = { x, y };
+
+
+
+    if (DeskSceneActive())
+    {
+        bool            inStrip  = m_d3dRenderer.IsFullscreen() &&
+                                   m_stripRectPx.bottom > m_stripRectPx.top &&
+                                   PtInRect (&m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
+
+        if (sceneHit.target == SceneHitResult::Target::Drive)
+        {
+            return sceneHit.driveIndex;
+        }
+
+        // The recorder has its own hit test, which checks whether it is on
+        // the strip or the desk; the drives' test does not include it.
+        if (RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
+            PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
+        {
+            return IsTapeRecorderShown() ? kStorageMenuRecorder : -1;
+        }
+
+        return -1;
+    }
+
+    for (const DriveWidget & drive : m_driveChrome)
+    {
+        if (drive.IsVisible() && drive.HitTest (x, y) != DriveWidgetRegion::None)
+        {
+            return drive.GetDrive();
+        }
+    }
+
+    if (IsTapeRecorderShown() && m_tapeChrome.HitTest (x, y) != TapeDeckRegion::None)
+    {
+        return kStorageMenuRecorder;
+    }
+
+    return -1;
 }
 
 
@@ -1764,7 +2067,7 @@ void EmulatorShell::ReleaseGuestKeys()
     if (m_machine.GetRefs().keyboard != nullptr)
     {
         m_machine.GetRefs().keyboard->SetKeyDown (false);
-        m_machine.GetRefs().keyboard->BeginKeyRepeat (0);
+        m_machine.GetRefs().keyboard->EndKeyRepeat();
     }
 }
 
@@ -1976,6 +2279,7 @@ void EmulatorShell::DispatchShellKey (
 //
 //  Always reports Handled, including on the bail paths: once a keystroke has
 //  been classified as shell-owned it must not also reach default processing.
+//  Alt+F4 is the one exception, left unclaimed so Windows closes the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1994,6 +2298,14 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     AppleKeyboard *  keyboard  = lifetime.owns_lock() ? m_machine.GetRefs().keyboard : nullptr;
 
 
+
+    // Alt+F4 belongs to Windows, not to the guest or the chrome. Leaving it
+    // unclaimed lets DefWindowProc turn it into SC_CLOSE; claiming it, as
+    // every other keydown is, left the main window unable to close that way.
+    if (vk == VK_F4 && (lParam & s_kAltContextLParamBit) != 0)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
 
     if (!lifetime.owns_lock())
     {
@@ -2169,7 +2481,7 @@ static bool HostKeyboardLayoutIsDvorak()
 //  the emulated //e then generates its own authentic repeat cadence in Tick.
 //  Letting both repeats run would double the rate and sound wrong.
 //
-//  A key-up always calls BeginKeyRepeat(0). The //e latch holds exactly one
+//  A key-up always calls EndKeyRepeat. The //e latch holds exactly one
 //  key, so a release necessarily ends the current repeat; clearing it also
 //  stops a later non-character press (a bare modifier, say) from resurrecting
 //  the previous character's repeat.
@@ -2330,7 +2642,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // clears any stale armed key so a later non-character press
             // (e.g. a bare modifier) can never resurrect the previous
             // character's repeat.
-            m_machine.GetRefs().keyboard->BeginKeyRepeat (0);
+            m_machine.GetRefs().keyboard->EndKeyRepeat();
         }
 
         // Release the //e Open/Closed-Apple and Shift modifiers as the host
@@ -2351,7 +2663,9 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     {
         WPARAM  ch = ev.vk;
 
-        if (ch >= 1 && ch <= 127)
+        // $00 is a real character: Windows sends it for Ctrl+Shift+2, the
+        // PC's Ctrl+@, and some games wait for it.
+        if (ch <= 127)
         {
             // //c keyboard switch: remap physical keystrokes to Dvorak when the
             // switch is engaged. A no-op on the //e, when the switch is out, and
@@ -2479,6 +2793,14 @@ void EmulatorShell::UpdateJoystickAxesFromKeys()
 
     contribution.paddle[0] = x;
     contribution.paddle[1] = y;
+
+    // Player 1's keys in a jack close its switches, on both jacks until the
+    // controllers place the players.
+    if (IsPlayerOneOnJoyport())
+    {
+        contribution.keyJacks.set();
+    }
+
     m_gamePortMixer.Submit (GamePortSource::ArrowKeys, contribution);
 }
 
@@ -2531,7 +2853,7 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
     }
 
     buttons = InputModeRules::GetFireKeyButtons (xDown, zDown, leftAltDown, rightAltDown,
-                                                 GetGamePortAdapter() == GamePortAdapter::SiriusJoyport);
+                                                 IsJoyportInEffect());
 
     contribution.buttons.set (0, buttons.test (0));
     contribution.buttons.set (1, buttons.test (1));
@@ -2609,9 +2931,13 @@ void EmulatorShell::SetArrowsJoystick (bool on)
     // Mirror of the rule in SetPointerMapping: the Keys axis drives PDL0/1,
     // so enabling it must drop an active Paddle (they fight over the same
     // game-port lines). Mouse uses a separate slot card and may coexist.
+    // Dropped WITHOUT a sync of its own, so the one below finds the keys on
+    // and the paddle off together: Player 1's entry then goes from the mouse
+    // straight to the keys, never through Automatic, which would hand Player
+    // 1 a controller for a moment and announce it.
     if (on && m_pointerMode == InputMappingMode::Paddle)
     {
-        SetPointerMapping (InputMappingMode::Off);
+        DropPaddleMode();
     }
 
     m_arrowsJoystick = on;
@@ -2625,9 +2951,64 @@ void EmulatorShell::SetArrowsJoystick (bool on)
         return;
     }
 
-    // The arrows drive nothing now: the axes go to whichever owner is left
-    // (center when none) and the fire buttons release. Alt held as Open or
-    // Solid-Apple is the modifier keys' own contribution, so it stays pressed.
+    ReleaseArrowKeySources();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropPaddleMode
+//
+//  The paddle's half of turning the keys on: the capture ends and the
+//  pointer mapping goes Off. No sync; SetArrowsJoystick runs one with both
+//  changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DropPaddleMode()
+{
+    StopPaddleCapture();
+    m_pointerMode = InputMappingMode::Off;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropArrowsJoystick
+//
+//  The keys' half of turning the paddle on. No sync; SetPointerMapping runs
+//  one with both changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DropArrowsJoystick()
+{
+    m_arrowsJoystick = false;
+    ReleaseArrowKeySources();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseArrowKeySources
+//
+//  The arrows drive nothing now: the axes go to whichever owner is left
+//  (center when none) and the fire buttons release. Alt held as Open or
+//  Solid-Apple is the modifier keys' own contribution, so it stays pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReleaseArrowKeySources()
+{
     m_gamePortMixer.ReleaseSource (GamePortSource::ArrowKeys);
     m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
 }
@@ -2638,59 +3019,30 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetGamePortAdapter
+//  SyncJoyport
 //
-//  The picker row: attach or detach the Sirius Joyport now, and save the
-//  choice with the running machine.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetGamePortAdapter (GamePortAdapter adapter)
-{
-    ApplyGamePortAdapterLive         (adapter);
-    PersistGamePortAdapterForMachine (adapter);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyGamePortAdapterLive
-//
-//  Attaches or detaches the Sirius Joyport on the running machine, with no
-//  reset: the next button read answers from it, or from the machine's own
-//  lines again. A machine with no Joyport to attach (the //c) stays at None.
-//  The fire keys are resubmitted because the Alt keys drop out of them while
-//  the Joyport is attached.
-//
-//  Saves nothing. The Settings sheet reaches this through its OK, and the
-//  sheet saves the machine's block itself; a second save from here could
-//  land on a different machine when the same OK switches machines.
+//  UI thread, after the players' modes may have changed: the running
+//  machine's Joyport follows them on the next button read, with no reset.
+//  The keys are resubmitted, since Player 1's keys in a jack close its
+//  switches rather than drive the paddle inputs, and the Alt keys drop out
+//  of the fire keys while the Joyport is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
+void EmulatorShell::SyncJoyport()
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
-    SiriusJoyport                      * joyport  = m_machine.GetJoyport();
 
 
 
-    if (joyport != nullptr)
-    {
-        joyport->SetAttached (adapter == GamePortAdapter::SiriusJoyport);
-    }
-
+    ApplyJoyportToMachine();
     lifetime.unlock();
 
     if (m_arrowsJoystick)
     {
+        UpdateJoystickAxesFromKeys();
         UpdateJoystickButtonsFromKeys();
     }
-
-    SyncSelectorState();
 }
 
 
@@ -2699,18 +3051,69 @@ void EmulatorShell::ApplyGamePortAdapterLive (GamePortAdapter adapter)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetGamePortAdapter
+//  IsJoyportInEffect
+//
+//  Whether the running machine reads the Joyport: a player is in one of its
+//  jacks, on a machine that has one. A machine builds a Joyport exactly when
+//  it has the annunciators to drive one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-GamePortAdapter EmulatorShell::GetGamePortAdapter() const
+bool EmulatorShell::IsJoyportInEffect() const
 {
-    const SiriusJoyport  * joyport  = m_machine.GetJoyport();
-    bool                   attached = joyport != nullptr && joyport->IsAttached();
+    PlayerEntries  entries;
 
 
 
-    return attached ? GamePortAdapter::SiriusJoyport : GamePortAdapter::None;
+    if (m_controllerService != nullptr)
+    {
+        entries = m_controllerService->GetPlayerEntries();
+    }
+
+    return PlayerModeRules::IsJoyportOn (entries, m_machine.GetJoyport() != nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPlayerOneOnJoyport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsPlayerOneOnJoyport() const
+{
+    PlayerEntries  entries;
+
+
+
+    if (m_controllerService != nullptr)
+    {
+        entries = m_controllerService->GetPlayerEntries();
+    }
+
+    return PlayerModeRules::IsOnJoyport (entries, 0, m_machine.GetJoyport() != nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsJoyportOffered
+//
+//  Whether the running machine can take a Joyport, which is what the picker's
+//  row and the Controllers page's switch are offered on: both apply at once
+//  to the running machine, so a machine staged elsewhere has no say.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsJoyportOffered() const
+{
+    return m_machine.GetJoyport() != nullptr;
 }
 
 
@@ -2743,10 +3146,11 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
     // axis. Mouse is a separate slot card (disjoint lines) and may coexist
     // with Joystick, so only Paddle clears it. Enforced here (not just in the
     // SetInputMappingMode presets) so the per-segment / menu toggle paths
-    // honor the same paddle-vs-joystick exclusivity.
+    // honor the same paddle-vs-joystick exclusivity. Dropped without a sync
+    // of its own, for the reason SetArrowsJoystick gives.
     if (pointer == InputMappingMode::Paddle && m_arrowsJoystick)
     {
-        SetArrowsJoystick (false);
+        DropArrowsJoystick();
     }
 
     if (prev == InputMappingMode::Paddle && pointer != InputMappingMode::Paddle)
@@ -2803,62 +3207,54 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PickPaddleSource
+//  PickPlayer
 //
-//  UI thread. The user chose what drives the paddle axes. Exactly one of the
-//  three can, so each branch hands the axes over and the setters take them
-//  from whatever had them (FR-008).
+//  UI thread. The user picked an entry in a player's submenu. A controller
+//  takes effect at once, whether or not it has been used, and one the other
+//  player picked sends that player back to Automatic (FR-041).
+//
+//  The keys and the mouse go through their own setters, which hand PDL0 and
+//  PDL1 over and take the pointer, and record Player 1's entry through the
+//  axis owner. Any other entry for Player 1 gives them up. The entry is set
+//  FIRST, so the setters that give them up find Player 1 already on it and
+//  do not pass through Automatic on the way. From the keys to the mouse, or
+//  back, the setter turns the other off and syncs once with both changed, so
+//  Player 1's entry is set once, straight to the new one. The entries are
+//  saved with the global prefs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
+void EmulatorShell::PickPlayer (size_t player, PlayerEntry entry)
 {
-    // Two people playing is set up rather than picked: the row turns the mode
-    // on for this machine and opens the page where the slots are filled, since
-    // the mode on its own says nothing about who holds what.
-    if (source.isMultiplayer)
-    {
-        if (m_controllerService != nullptr)
-        {
-            m_controllerService->SetMultiplayerEnabled (true);
-        }
+    bool  isPlayerOne = player == 0;
 
-        SetArrowsJoystick (false);
-        SetPointerMapping (InputMappingMode::Off);
-        SyncGamePortAxisOwner();
-        SyncInputModeUi();
-        OpenSettings (true);
+
+
+    if (isPlayerOne && entry.kind == PlayerEntryKind::ArrowKeys)
+    {
+        SetArrowsJoystick (true);
         return;
     }
 
-    if (source.isArrowKeys)
+    if (isPlayerOne && entry.kind == PlayerEntryKind::MousePaddle)
     {
-        SetControllerSelection (std::nullopt);
-        SetPointerMapping (InputMappingMode::Off);
-        SetArrowsJoystick (true);
-    }
-    else if (source.isMousePaddle)
-    {
-        SetControllerSelection (std::nullopt);
-        SetArrowsJoystick (false);
         SetPointerMapping (InputMappingMode::Paddle);
+        return;
     }
-    else if (source.controller.has_value())
+
+    PickPlayerEntry (player, entry);
+
+    if (isPlayerOne && m_arrowsJoystick)
     {
         SetArrowsJoystick (false);
-        SetPointerMapping (InputMappingMode::Off);
-
-        // The picker chooses THE controller that drives the paddles, so a pick
-        // leaves multiplayer mode. Both player slots are kept, so turning the
-        // mode back on is a click rather than a setup job.
-        if (m_controllerService != nullptr)
-        {
-            m_controllerService->SetMultiplayerEnabled (false);
-        }
-
-        SetControllerSelection (source.controller);
     }
 
+    if (isPlayerOne && m_pointerMode == InputMappingMode::Paddle)
+    {
+        SetPointerMapping (InputMappingMode::Off);
+    }
+
+    SyncJoyport();
     SyncGamePortAxisOwner();
     SyncInputModeUi();
 }
@@ -2869,22 +3265,66 @@ void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetControllerSelection
+//  SetPlayerMode
 //
-//  Hands a chosen controller to the service and wakes its thread, so the
+//  UI thread. The mode is set FIRST, and the service returns Player 1 to
+//  Automatic when the new mode cannot have the keys or the mouse; turning
+//  those off afterwards then finds Player 1 already on Automatic and picks
+//  nothing on the way. The machine's Joyport follows the new modes, and the
+//  entries are saved with the global prefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetPlayerMode (size_t player, PlayerMode mode)
+{
+    bool  isPlayerOne = player == 0;
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    m_controllerService->SetPlayerMode (player, mode);
+
+    if (isPlayerOne && PlayerModeRules::IsPaddleMode (mode) && m_arrowsJoystick)
+    {
+        SetArrowsJoystick (false);
+    }
+
+    if (isPlayerOne && !PlayerModeRules::IsPaddleMode (mode) && m_pointerMode == InputMappingMode::Paddle)
+    {
+        SetPointerMapping (InputMappingMode::Off);
+    }
+
+    SyncJoyport();
+    SyncGamePortAxisOwner();
+    SyncInputModeUi();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickPlayerEntry
+//
+//  Hands one player's entry to the service and wakes its thread, so the
 //  choice takes effect on the next read rather than at the end of whatever
 //  wait the thread is in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetControllerSelection (const std::optional<ControllerUnitKey> & selection)
+void EmulatorShell::PickPlayerEntry (size_t player, const PlayerEntry & entry)
 {
     if (m_controllerService == nullptr)
     {
         return;
     }
 
-    m_controllerService->SetSelection (selection);
+    m_controllerService->PickPlayerEntry (player, entry);
 
     if (m_controllerThread != nullptr)
     {
@@ -2900,22 +3340,22 @@ void EmulatorShell::SetControllerSelection (const std::optional<ControllerUnitKe
 //
 //  SyncPaddleSourceList
 //
-//  Rebuilds the picker's rows from what is attached and what is chosen. The
-//  menu holds the rows by pointer, so the menu bar is handed the new list
-//  whenever they are rebuilt.
+//  Rebuilds the picker from what is attached and what is playing: a row for
+//  each player, the profiles of whatever controller plays there, and the
+//  word the closed picker wears. The menu holds the rows by pointer, so the
+//  strip is handed the new list whenever they are rebuilt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncPaddleSourceList()
 {
-    InputModeRules::State             state;
+    InputModeRules::PickerSource      source;
     ControllerInputService::Snapshot  snapshot;
 
 
 
-    // Without the controller service there is nothing to list beyond what the
-    // cluster already knows, so the drop-down keeps its own rows rather than
-    // going empty.
+    // Without the controller service there is nothing to list, so the
+    // drop-down keeps its own rows rather than going empty.
     if (m_controllerService == nullptr)
     {
         return;
@@ -2923,34 +3363,28 @@ void EmulatorShell::SyncPaddleSourceList()
 
     snapshot = m_controllerService->GetSnapshot();
 
-    state.arrowsJoystick       = m_arrowsJoystick;
-    state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
-    state.hasController        = snapshot.selection.has_value();
-    state.isControllerAttached = snapshot.isAnyDriverConnected;
-
-    // The mode AS PLAYED, not as saved. A machine whose players are unplugged
-    // is playing a single controller, and a picker checking Multiplayer would
-    // name a source that is driving nothing.
+    // A picked controller that is unplugged is still listed, under the
+    // description it had while it was here.
+    for (const ControllerDeviceInfo & device : snapshot.devices)
     {
-        MultiplayerSetup  live = snapshot.multiplayer;
-
-        live.isEnabled = snapshot.isMultiplayerLive;
-
-        m_mainMenu.GetCommands().SetPaddleSources (
-            InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection, live, snapshot.axisCount));
+        m_controllerDescriptions[ControllerTokens::UnitToToken (device.unit)] = device.description;
     }
 
-    // The Profiles submenu follows the same controllers and rides inside the
-    // picker's list, so it is rebuilt before that list is handed over.
-    SyncProfileList (snapshot);
+    source.entries           = snapshot.entries;
+    source.slots             = snapshot.slots;
+    source.devices           = snapshot.devices;
+    source.profiles          = GetPickerProfileChoices (snapshot);
+    source.knownDescriptions = m_controllerDescriptions;
+    source.hasJoyport        = IsJoyportOffered();
 
-    // Straight onto the command bar's Input drop-down rather than a submenu
-    // off the Machine menu: this is a list the user picks from while playing,
-    // and a cascade puts two hovers between them and their controller.
+    m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
+
+    // Straight onto the command bar's drop-down rather than a submenu off the
+    // Machine menu: this is a list the user picks from while playing.
     m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
                                 m_mainMenu.GetCommands().GetPaddlePickerItems());
 
-    // The picker wears the chosen source, so its width moves with the answer.
+    // The picker wears what is playing, so its width moves with the answer.
     // Without laying the strip out again the new word paints into the rect
     // the old one left behind.
     {
@@ -2969,85 +3403,39 @@ void EmulatorShell::SyncPaddleSourceList()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncProfileList
+//  GetPickerProfileChoices
 //
-//  The Profiles submenu: a section for each attached controller in play --
-//  both players' in multiplayer, each under a header saying whose it is, or
-//  the one selected controller, with no header, otherwise. A controller whose
-//  model has nothing saved yet still has its Default. With no controller in
-//  play the submenu is left out.
+//  Each attached controller's profiles of the kind it plays -- its player's
+//  mode, either Joyport jack being the Joyport kind -- that kind's built-in
+//  profile first, which a model with nothing saved still lists, and its
+//  active one.
+//  By unit token, since two pads of one model can play different profiles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & snapshot)
+std::map<std::string, InputModeRules::ProfileChoices> EmulatorShell::GetPickerProfileChoices (
+    const ControllerInputService::Snapshot & snapshot) const
 {
-    std::map<std::string, ControllerModelSettings>  models = m_controllerService->GetModelSettings();
-    std::vector<EmulatorCommands::ProfileSection>   sections;
-    std::vector<ControllerUnitKey>                  units;
-    std::vector<std::wstring>                       headers;
-    size_t                                          i      = 0;
+    std::map<std::string, ControllerModelSettings>         models  = m_controllerService->GetModelSettings();
+    std::map<std::string, InputModeRules::ProfileChoices>  choices;
 
 
 
-    if (snapshot.isMultiplayerLive)
+    for (const ControllerDeviceInfo & device : snapshot.devices)
     {
-        for (i = 0; i < MultiplayerSetup::kPlayerCount; i++)
-        {
-            if (snapshot.multiplayer.players[i].unit.has_value())
-            {
-                units.push_back   (snapshot.multiplayer.players[i].unit.value());
-                headers.push_back (L"Player " + std::to_wstring (i + 1));
-            }
-        }
-    }
-    else if (snapshot.selection.has_value())
-    {
-        units.push_back   (snapshot.selection.value());
-        headers.push_back (std::wstring());
+        std::string                       token  = ControllerTokens::UnitToToken (device.unit);
+        auto                              model  = models.find (ControllerTokens::ModelToToken (device.unit.model));
+        auto                              active = snapshot.activeProfiles.find (token);
+        auto                              kind   = snapshot.profileModes.find (token);
+        ProfileMode                       mode   = (kind != snapshot.profileModes.end()) ? kind->second : ProfileMode::Joystick;
+        InputModeRules::ProfileChoices  & entry  = choices[token];
+
+        entry.names  = (model != models.end()) ? model->second.GetProfileNames (mode)
+                                               : ControllerModelSettings().GetProfileNames (mode);
+        entry.active = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
     }
 
-    for (i = 0; i < units.size(); i++)
-    {
-        EmulatorCommands::ProfileSection  section;
-        const ControllerDeviceInfo      * device = nullptr;
-        auto                              model  = models.find (ControllerTokens::ModelToToken (units[i].model));
-        auto                              active = snapshot.activeProfiles.find (ControllerTokens::UnitToToken (units[i]));
-
-        for (const ControllerDeviceInfo & candidate : snapshot.devices)
-        {
-            if (candidate.unit == units[i])
-            {
-                device = &candidate;
-            }
-        }
-
-        // An absent controller has nothing to switch, and one whose model has
-        // nothing saved has no list to switch within.
-        if (device == nullptr)
-        {
-            continue;
-        }
-
-        section.unit   = units[i];
-        section.active = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
-
-        if (!headers[i].empty())
-        {
-            section.header = headers[i] + L" " + s_kchEmDash + L" " + device->description;
-        }
-
-        if (model != models.end())
-        {
-            for (const ControllerProfile & profile : model->second.profiles)
-            {
-                section.names.push_back (profile.name);
-            }
-        }
-
-        sections.push_back (std::move (section));
-    }
-
-    m_mainMenu.GetCommands().SetProfileSections (std::move (sections));
+    return choices;
 }
 
 
@@ -3080,7 +3468,7 @@ void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string p
         m_controllerThread->Wake();
     }
 
-    SaveControllerCalibrations();
+    SaveControllerPrefs();
     SyncPaddleSourceList();
 }
 
@@ -3092,19 +3480,20 @@ void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string p
 //
 //  StartNewControllerProfile
 //
-//  The Profiles submenu's New... Settings opens on the Controllers page, where
-//  Editing is already the controller the submenu lists first, and the New
-//  Profile dialog comes up for it.
+//  New... at the foot of a player's profile section. Settings opens on the
+//  Controllers page with Editing on that section's controller, and the New
+//  Profile dialog comes up for it. Opened without the Controllers page's own
+//  landing, which would move Editing to player one's controller first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StartNewControllerProfile()
+void EmulatorShell::StartNewControllerProfile (ControllerUnitKey unit)
 {
-    OpenSettings (true);
+    OpenSettings (false);
 
     if (m_settingsSheet != nullptr)
     {
-        m_settingsSheet->StartNewControllerProfile();
+        m_settingsSheet->StartNewControllerProfile (unit);
     }
 }
 
@@ -3114,57 +3503,43 @@ void EmulatorShell::StartNewControllerProfile()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyControllerSelectionChange
+//  ApplyControllerSlotsChange
 //
-//  UI thread. The controller thread moved the selection, or a controller came
-//  or went. The axis owner and the picker follow either way, and the prefs
-//  take the selection as it now stands (FR-011).
+//  UI thread. The players' slots changed, or a controller came or went. The
+//  axis owner and the picker follow either way, and the global prefs take
+//  the entries when a picked controller was followed to another identity,
+//  and the last holders when a slot's holder changed.
 //
-//  ONLY AN AUTOMATIC SELECTION TURNS THE KEYS AND THE MOUSE OFF. A replacement
-//  or a clear starts from a controller that already had the axes, so neither
-//  can find them on, and a controller merely arriving or leaving must not undo
-//  a mode the user picked.
+//  A CONTROLLER CONNECTING TURNS NOTHING OFF. The keys or the mouse picked
+//  for Player 1 stay until the user picks something else.
 //
-//  An adoption says nothing. The user did not choose anything -- the same
-//  controller came back on another port -- so announcing it would report a
-//  change the user did not make.
+//  Each notice -- a controller that left, or one Automatic gave a slot that
+//  another controller held last time -- goes onto the notice stack over the
+//  picture, never into a dialog: the user did not ask about this, so
+//  stopping the machine to have it acknowledged would interrupt them to
+//  report something they may not care about.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyControllerSelectionChange (const std::wstring & description, SelectionChangeReason reason, bool hasNotice)
+void EmulatorShell::ApplyControllerSlotsChange (
+    const std::vector<std::wstring>  & notices,
+    bool                               haveEntriesChanged,
+    bool                               haveLastHoldersChanged)
 {
-    if (reason == SelectionChangeReason::AutomaticSelection)
-    {
-        if (m_arrowsJoystick)
-        {
-            SetArrowsJoystick (false);
-        }
-
-        if (m_pointerMode == InputMappingMode::Paddle)
-        {
-            SetPointerMapping (InputMappingMode::Off);
-        }
-    }
-
     SyncGamePortAxisOwner();
-    SyncInputModeUi();
 
-    // Over the picture for a few seconds, never a dialog: the user did not
-    // ask about this, so stopping the machine to have it acknowledged would
-    // interrupt them to report something they may not care about.
-    if (!hasNotice)
+    if (haveEntriesChanged)
     {
-        return;
+        SyncInputModeUi();
+    }
+    else if (haveLastHoldersChanged)
+    {
+        SaveControllerPrefs();
     }
 
-    // Only a disconnect is announced, and only by the controller that left. A
-    // selection needs no notice: the picker on the command bar shows what is
-    // selected, or "Controller" when nothing is, and it is the one thing the
-    // bar can no longer show once a controller has gone.
-    if ((reason == SelectionChangeReason::Replacement || reason == SelectionChangeReason::Cleared)
-        && !description.empty())
+    for (const std::wstring & notice : notices)
     {
-        ShowNotice (description + L" disconnected.");
+        ShowNotice (notice);
     }
 }
 
@@ -3224,22 +3599,22 @@ void EmulatorShell::TraceControllerState()
 
     state.arrowsJoystick       = m_arrowsJoystick;
     state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
-    state.hasController        = snapshot.selection.has_value();
+    state.hasController        = snapshot.slots[0].holder.has_value() || snapshot.slots[1].holder.has_value();
     state.isControllerAttached = snapshot.isAnyDriverConnected;
 
     swprintf_s (line,
         L"[controller] devices=%zu sel=%d xinput=%d "
         L"read=0x%08X connected=%d mapping=%d appActive=%d submit=%d "
-        L"paddle=%d,%d buttons=%d%d%d deadzone=%.2f owner=%d\n",
+        L"paddle=%d,%d buttons=%d%d%d deadZone=%.2f owner=%d\n",
         snapshot.devices.size(),
-        tick.hasSelection, tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
+        tick.hasPlayerOne, tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
         tick.hasMapping, tick.isAppActive, tick.didSubmit,
         tick.submitted.paddle[0].has_value() ? (int) tick.submitted.paddle[0].value() : -1,
         tick.submitted.paddle[1].has_value() ? (int) tick.submitted.paddle[1].value() : -1,
         tick.submitted.buttons.test (0), tick.submitted.buttons.test (1),
         tick.submitted.buttons.test (2),
         tick.deadzone,
-        (int) InputModeRules::GetAxisOwner (state));
+        (int) InputModeRules::GetAxisOwners (state)[0]);
 
     OutputDebugStringW (line);
 }
@@ -3277,21 +3652,28 @@ std::wstring EmulatorShell::GetStandInBannerText() const
 //
 //  SyncGamePortAxisOwner
 //
-//  Who owns the axes: the controllers once one of them reads, else paddle
-//  mode, else arrows-to-joystick, else nothing, which rests the axes at
-//  center. The rule itself is in InputModeRules so it can be asserted without
-//  a machine. Which controller drives which axis is settled inside the
-//  controller source, which leaves an axis it does not drive at center.
+//  Who owns each axis: Player 1's keys or mouse own PDL0 and PDL1 while one of
+//  them is picked -- the keys only outside the Joyport's jacks, and the mouse
+//  PDL0 alone while Player 2 plays, outside Two paddles mode -- and the
+//  controller source owns the rest,
+//  and all four otherwise. The rule itself is in InputModeRules so it can be
+//  asserted without a machine. Which controller drives which axis is settled
+//  inside the controller source, which leaves an axis it does not drive at
+//  center.
 //
-//  ANY DRIVING CONTROLLER THAT READS KEEPS THE AXES, not only the selection:
-//  a second player's controller must keep driving through the moment the
-//  first one's is unplugged and before the rescan moves the selection.
+//  THE KEYS AND THE MOUSE ARE PLAYER 1'S ENTRY, so the players follow them:
+//  a controller then plays as Player 2 beside them rather than as Player 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncGamePortAxisOwner()
 {
-    InputModeRules::State  state;
+    InputModeRules::State             state;
+    InputModeRules::AxisOwners        owners;
+    ControllerInputService::Snapshot  snapshot;
+    PlayerEntry                       playerOne;
+    PlayerEntryKind                   wanted    = PlayerEntryKind::Automatic;
+    size_t                            axis      = 0;
 
 
 
@@ -3300,17 +3682,41 @@ void EmulatorShell::SyncGamePortAxisOwner()
 
     if (m_controllerService != nullptr)
     {
-        ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
+        snapshot  = m_controllerService->GetSnapshot();
+        playerOne = snapshot.entries[0];
+        wanted    = playerOne.kind;
 
-        // In multiplayer the players drive the axes and the selection drives
-        // nothing, so the mode itself is what holds them: reading the
-        // selection alone would leave the axes at center for two people
-        // playing on a machine with no controller selected.
-        state.hasController        = snapshot.selection.has_value() || snapshot.isMultiplayerLive;
-        state.isControllerAttached = snapshot.isAnyDriverConnected;
+        state.isKeysOnJoyport   = PlayerModeRules::IsOnJoyport (snapshot.entries, 0, m_machine.GetJoyport() != nullptr);
+        state.isSecondPlaying   = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[1]);
+        state.isMouseTwoPaddles = PlayerModeRules::ResolveMode (snapshot.entries, 0, m_machine.GetJoyport() != nullptr) == PlayerMode::TwoPaddles;
+
+        if (state.mousePaddle)
+        {
+            wanted = PlayerEntryKind::MousePaddle;
+        }
+        else if (state.arrowsJoystick)
+        {
+            wanted = PlayerEntryKind::ArrowKeys;
+        }
+        else if (wanted == PlayerEntryKind::ArrowKeys || wanted == PlayerEntryKind::MousePaddle)
+        {
+            wanted = PlayerEntryKind::Automatic;
+        }
+
+        if (wanted != playerOne.kind)
+        {
+            playerOne.kind = wanted;
+            playerOne.unit.reset();
+            PickPlayerEntry (0, playerOne);
+        }
     }
 
-    m_gamePortMixer.SetAxisOwner (InputModeRules::GetAxisOwner (state));
+    owners = InputModeRules::GetAxisOwners (state);
+
+    for (axis = 0; axis < owners.size(); axis++)
+    {
+        m_gamePortMixer.SetAxisOwner (axis, owners[axis]);
+    }
 }
 
 

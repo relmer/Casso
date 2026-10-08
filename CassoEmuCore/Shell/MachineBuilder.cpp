@@ -31,6 +31,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -224,8 +225,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         if (FAILED (hr) || fileBytes.size() < config.systemRom.romBankSize)
         {
             wideError = L"Cannot read banked system ROM: " +
-                        std::wstring (config.systemRom.resolvedPath.begin(),
-                                      config.systemRom.resolvedPath.end());
+                        TextEncoding::NarrowToWide (config.systemRom.resolvedPath);
             CBRN (false, wideError.c_str());
         }
 
@@ -253,7 +253,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
         if (!romOk)
         {
-            wideError.assign (error.begin(), error.end());
+            wideError = TextEncoding::NarrowToWide (error);
             CBRN (false, wideError.c_str());
         }
 
@@ -322,6 +322,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         else if (devCfg.type == "apple2-family-speaker")
         {
             m_host.GetRefs().speaker = static_cast<AppleSpeaker *> (device.get());
+        }
+        else if (devCfg.type == "apple2-family-cassette")
+        {
+            m_host.GetRefs().cassettePort = static_cast<CassettePort *> (device.get());
         }
 
         m_host.GetMemoryBus().AddDevice (device.get());
@@ -485,7 +489,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
             if (device == nullptr)
             {
-                wideError.assign (error.begin(), error.end());
+                wideError = TextEncoding::NarrowToWide (error);
                 CBRN (false, wideError.c_str());
             }
 
@@ -1050,16 +1054,14 @@ void MachineBuilder::WireBankedRom()
         std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
         std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
 
-        m_host.SetApple2cRomBank (std::make_unique<Apple2cRomBank> (*lc, *mmu));
-        m_host.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
-        sw->SetRomBankSwitch (m_host.GetApple2cRomBank());
-
         // A machine with no card slots has nothing that could answer in
         // $C100-$CFFF, so the router leaves the whole range to the internal
         // firmware. That is a fact about the machine, and the machine says
         // it: the //c declares zero slots, every other model declares seven.
         // Reading it here rather than assuming it means a later banked-ROM
-        // machine that DOES have slots keeps them.
+        // machine that DOES have slots keeps them. It is set before the bank
+        // images go in, because applying a bank maps the $C1-$CF read pages
+        // only when the router already knows there are no slots.
         {
             const MachineDefinition *  definition =
                 MachineDefinitions::Find (TextEncoding::WideToNarrow (m_host.GetCurrentMachineName()));
@@ -1069,6 +1071,10 @@ void MachineBuilder::WireBankedRom()
                 mmu->GetCxxxRouter()->SetNoExternalSlots (true);
             }
         }
+
+        m_host.SetApple2cRomBank (std::make_unique<Apple2cRomBank> (*lc, *mmu));
+        m_host.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
+        sw->SetRomBankSwitch (m_host.GetApple2cRomBank());
     }
 }
 
@@ -1495,6 +1501,8 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         }
     }
 
+    WireCassettePort();
+
 Error:
     return hr;
 }
@@ -1554,6 +1562,54 @@ void MachineBuilder::WireJoyport()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireCassettePort
+//
+//  Connects the cassette jacks to the recorder the host owns, times them off
+//  the CPU's bus-cycle counter, and hands them to whichever device decodes
+//  $C060 and $C068: the game port on the ][ and ][+, the keyboard and the
+//  soft-switch bank on the //e. Machines without the jacks have no port and
+//  nothing here runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireCassettePort()
+{
+    MachineRefs   & refs = m_host.GetRefs();
+    CassettePort  * port = refs.cassettePort;
+
+
+
+    if (port == nullptr)
+    {
+        return;
+    }
+
+    port->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
+    port->SetDeck           (&m_host.GetTapeDeck());
+    m_host.GetTapeDeck().SetCpuClock ((double) m_host.GetConfig().clockSpeed);
+
+    if (refs.gamePort != nullptr)
+    {
+        refs.gamePort->SetCassettePort (port);
+    }
+
+    if (refs.iieKeyboard != nullptr)
+    {
+        refs.iieKeyboard->SetCassettePort (port);
+    }
+
+    if (refs.iieSoftSwitches != nullptr)
+    {
+        refs.iieSoftSwitches->SetCassettePort (port);
+    }
 }
 
 

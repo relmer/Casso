@@ -28,7 +28,8 @@
 #define WM_APP_SHOW_NOTICE     (WM_APP + 0x28)
 #define WM_APP_GAMEPORT_FLUSH  (WM_APP + 0x29)
 #define WM_APP_CONTROLLER_PICK (WM_APP + 0x2A)
-#define WM_APP_INTENT_REPLY    (WM_APP + 0x2B)
+#define WM_APP_UPDATE_RESULT   (WM_APP + 0x2B)
+#define WM_APP_INTENT_REPLY    (WM_APP + 0x2C)
 
 
 
@@ -146,12 +147,23 @@ static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 // that keeps changing size while it moves reads as chrome coming unglued.
 static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 
+// Except where the devices crowd closer than that: then each name narrows to
+// half the space to its neighbor, less this much, so names never run into
+// each other.
+static constexpr int     s_kSceneLabelNeighborGapDp = 6;
+
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //
 static constexpr int     s_kFrameRateInsetDp        = 12;
 static constexpr int     s_kFrameRateWidthDp        = 120;
 static constexpr int     s_kFrameRateHeightDp       = 28;
+
+// The compass's hint line: room for it under the compass, glow included,
+// and how long it takes to fade fully in or out.
+static constexpr int     s_kCompassHintHeightDp     = 24;
+static constexpr int     s_kCompassHintWidthDp      = 150;
+static constexpr float   s_kCompassHintFadeMs       = 180.0f;
 
 // The scene-pose readout. Wider than the frame rate because it carries five
 // numbers, and centered on the glass rather than hung off a corner: the
@@ -160,6 +172,12 @@ static constexpr int     s_kScenePoseWidthDp        = 320;
 static constexpr int     s_kScenePoseHeightDp       = 24;
 
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
+
+// The desk name's marquee, timed as the flat widgets' is: a scroll begins as
+// the pointer arrives and repeats after the hold while it stays.
+static constexpr int     s_kSceneLabelScrollGapDp     = 25;
+static constexpr float   s_kSceneLabelScrollDipPerSec = 45.0f;
+static constexpr int64_t s_kSceneLabelScrollHoldMs    = 2000;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
 // row composes into the classic bottom band -- breathing room off the window
@@ -181,6 +199,9 @@ static constexpr int     s_kMenuRightPadDp    = 12;
 // gate the emulated keyboard strobe on this so holding a key delivers a
 // single //e keypress instead of flooding $C000 at the host repeat rate.
 static constexpr LPARAM  s_kPreviousKeyDownLParamBit = 0x40000000;
+
+// WM_SYSKEYDOWN lParam bit 29 (context code): set when Alt is held.
+static constexpr LPARAM  s_kAltContextLParamBit      = 0x20000000;
 
 // Emulated joystick axis extremes. The PREAD model reads 0..255; an axis
 // deflected to a key maps to a rail, neutral sits at s_knPaddleCenter.

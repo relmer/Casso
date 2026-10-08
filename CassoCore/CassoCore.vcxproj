@@ -133,7 +133,6 @@
     <ClCompile Include="CycleReference.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
-    <ClCompile Include="Ehm.cpp" />
     <ClCompile Include="ExpressionEvaluator.cpp" />
     <ClCompile Include="Microcode.cpp" />
     <ClCompile Include="OpcodeTable.cpp" />
@@ -178,7 +177,6 @@
     <ClInclude Include="I6502DebugInfo.h" />
     <ClInclude Include="CpuOperations.h" />
     <ClInclude Include="CpuStatus.h" />
-    <ClInclude Include="Ehm.h" />
     <ClInclude Include="ExpressionEvaluator.h" />
     <ClInclude Include="GlobalAddressingModes.h" />
     <ClInclude Include="Group00.h" />
@@ -212,6 +210,11 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="Version.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ehm\Ehm.vcxproj">
+      <Project>{5E1D2C3B-7A49-4F08-B6E1-2C8D9A0F4E71}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

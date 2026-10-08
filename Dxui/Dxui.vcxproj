@@ -145,6 +145,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Widgets\DxuiDivider.cpp" />
     <ClCompile Include="Core\DxuiFocusRing.cpp" />
     <ClCompile Include="Core\DxuiTextElide.cpp" />
     <ClCompile Include="Core\DxuiFrameRate.cpp" />
@@ -158,6 +159,7 @@
     <ClCompile Include="Core\DxuiInput.cpp" />
     <ClCompile Include="Core\DxuiPanel.cpp" />
     <ClCompile Include="Core\DxuiPanZoom.cpp" />
+    <ClCompile Include="Core\DxuiSlide.cpp" />
     <ClCompile Include="Core\DxuiSystemSettings.cpp" />
     <ClCompile Include="Core\DxuiStackLayout.cpp" />
     <ClCompile Include="Core\DxuiThread.cpp" />
@@ -176,13 +178,16 @@
     <ClCompile Include="Widgets\DxuiComboBox.cpp" />
     <ClCompile Include="Widgets\DxuiContextMenu.cpp" />
     <ClCompile Include="Widgets\DxuiToolbar.cpp" />
+    <ClCompile Include="Widgets\DxuiInfoTip.cpp" />
     <ClCompile Include="Widgets\DxuiShadowedText.cpp" />
     <ClCompile Include="Widgets\DxuiOrbitControl.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
     <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiActionBanner.cpp" />
     <ClCompile Include="Widgets\DxuiTimedInfoBanner.cpp" />
+    <ClCompile Include="Widgets\DxuiNoticeStack.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
+    <ClCompile Include="Widgets\DxuiLabel.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
     <ClCompile Include="Widgets\DxuiListViewItems.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
@@ -190,6 +195,7 @@
     <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />
     <ClCompile Include="Widgets\DxuiRadio.cpp" />
     <ClCompile Include="Widgets\DxuiScrollbar.cpp" />
+    <ClCompile Include="Widgets\DxuiScrollPanel.cpp" />
     <ClCompile Include="Widgets\DxuiSearchBox.cpp" />
     <ClCompile Include="Widgets\DxuiSlider.cpp" />
     <ClCompile Include="Widgets\DxuiAddressBar.cpp" />
@@ -229,6 +235,7 @@
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Widgets\DxuiDivider.h" />
     <ClInclude Include="Dxui.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\DxuiFocusRing.h" />
@@ -248,10 +255,11 @@
     <ClInclude Include="Core\DxuiInput.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />
+    <ClInclude Include="Core\DxuiSlide.h" />
     <ClInclude Include="Core\DxuiSystemSettings.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
     <ClInclude Include="Core\DxuiThread.h" />
-    <ClInclude Include="Core\UnicodeSymbols.h" />
+    <ClInclude Include="Core\DxuiUnicodeSymbols.h" />
     <ClInclude Include="Core\DxuiViewport.h" />
     <ClInclude Include="Core\IDxuiControl.h" />
     <ClInclude Include="Core\IDxuiLayout.h" />
@@ -278,12 +286,14 @@
     <ClInclude Include="Widgets\DxuiToolbar.h" />
     <ClInclude Include="Widgets\DxuiLabel.h" />
     <ClInclude Include="Widgets\DxuiHudNotice.h" />
+    <ClInclude Include="Widgets\DxuiInfoTip.h" />
     <ClInclude Include="Widgets\DxuiShadowedText.h" />
     <ClInclude Include="Widgets\DxuiOrbitControl.h" />
     <ClInclude Include="Widgets\DxuiIconButton.h" />
     <ClInclude Include="Widgets\DxuiInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiActionBanner.h" />
     <ClInclude Include="Widgets\DxuiTimedInfoBanner.h" />
+    <ClInclude Include="Widgets\DxuiNoticeStack.h" />
     <ClInclude Include="Widgets\DxuiWarningBadge.h" />
     <ClInclude Include="Widgets\DxuiListView.h" />
     <ClInclude Include="Widgets\DxuiMenuBar.h" />
@@ -291,6 +301,7 @@
     <ClInclude Include="Widgets\DxuiPopupMenu.h" />
     <ClInclude Include="Widgets\DxuiRadio.h" />
     <ClInclude Include="Widgets\DxuiScrollbar.h" />
+    <ClInclude Include="Widgets\DxuiScrollPanel.h" />
     <ClInclude Include="Widgets\DxuiSearchBox.h" />
     <ClInclude Include="Widgets\DxuiSlider.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
@@ -408,6 +419,11 @@
       <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
       <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
     </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ehm\Ehm.vcxproj">
+      <Project>{5E1D2C3B-7A49-4F08-B6E1-2C8D9A0F4E71}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

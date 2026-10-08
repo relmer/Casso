@@ -8,7 +8,6 @@
 #include "Controllers/ControllerProfileStore.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
-#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -30,6 +29,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -49,7 +49,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
@@ -57,6 +56,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Seams/Win32DiskFileIo.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -108,18 +108,7 @@ EmulatorShell::EmulatorShell()
 
     seed ^= static_cast<uint64_t> (GetCurrentProcessId()) << 32;
 
-    m_machine.SetPrng (make_unique<Prng> (seed));
-
-#ifdef _DEBUG
-    // Log the per-boot DRAM seed so when an illegal-opcode (or any
-    // other non-deterministic) fault fires later, the user can grep
-    // the debug output for "[Casso] Cold boot seed:" and capture the
-    // value into a bug report. Re-running with the same seed gives
-    // byte-identical DRAM at every PowerCycle, which is the first
-    // requirement for reproducing flaky CPU faults.
-    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n",
-              (unsigned long long) seed);
-#endif
+    SetPrngSeed (seed);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -214,6 +203,10 @@ EmulatorShell::~EmulatorShell()
     SetNotifyFunction (nullptr);
     s_pNotifyShell = nullptr;
 
+    // The update workers next: a download in flight is canceled, and every
+    // worker is joined before anything it posts to or reads from goes.
+    StopUpdateService();
+
     //  THE CONTROLLER STACK GOES BY HAND, HERE, for the same reason. Its
     //  members are declared after the window, so member-order destruction
     //  leaves the HWND alive and dispatching messages after the service is
@@ -229,7 +222,7 @@ EmulatorShell::~EmulatorShell()
 
     // What automatic calibration learned this session, while the service that
     // holds it still exists and nothing is reading into it.
-    SaveControllerCalibrations();
+    SaveControllerPrefs();
 
     m_controllerService.reset();
     m_controllerBackend.reset();
@@ -303,6 +296,10 @@ EmulatorShell::~EmulatorShell()
     // Same idea for a preference change still inside its debounce window:
     // quitting right after a volume nudge would otherwise lose it.
     FlushDeferredGlobalPrefs();
+
+    // An update applied when Casso closes, now that the disks and the
+    // preferences are written.
+    CommitPendingUpdateAtExit();
 
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
@@ -386,9 +383,11 @@ HRESULT EmulatorShell::Initialize (
     const wstring       & machineName,
     const MachineConfig & config,
     const string        & disk1Path,
-    const string        & disk2Path)
+    const string        & disk2Path,
+    const string        & tapePath)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    HRESULT  hrTape = S_OK;
 
 
 
@@ -459,36 +458,30 @@ HRESULT EmulatorShell::Initialize (
     m_controllerBackend = std::make_unique<Win32ControllerBackend>();
     m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
 
-    // Saved controller settings and calibrations, before the thread starts
-    // reading. Anything that cannot be used is said once: it falls back to
-    // the default mapping or to automatic calibration, and the next save
-    // drops it, so there is nothing to say again.
-    {
-        ControllerProfileStore    store;
-        std::vector<std::string>  rejected;
-
-        store.FromJson (m_globalPrefs.controllers, rejected);
-        m_controllerService->SetModelSettings  (store.models);
-        m_controllerService->SetCalibrations   (store.calibrations);
-        m_controllerService->SetActiveProfiles (store.activeProfiles);
-
-        if (!rejected.empty())
-        {
-            PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
-        }
-    }
+    // Saved controller settings, calibrations and players, before the thread
+    // starts reading, so its first evaluation already knows who was picked
+    // and who last held each slot.
+    LoadControllerPrefs();
 
     m_controllerThread  = std::make_unique<ControllerInputThread>();
 
-    m_controllerService->SetSelectionChangedFn (
-        [this] (const ControllerSelectionPolicy::Decision & decision)
+    // A controller that held a slot and left is said over the picture, and so
+    // is one Automatic gave a slot that another controller held last time;
+    // the command bar's picker already shows what is playing after either.
+    m_controllerService->SetSlotsChangedFn (
+        [this] (const ControllerInputService::SlotsChange & change)
         {
             {
                 std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
-                m_controllerPickDescription = decision.departedDescription;
-                m_controllerPickReason      = decision.reason;
-                m_controllerPickHasNotice   = decision.isAnnounced;
+                for (const std::wstring & description : change.departedDescriptions)
+                {
+                    m_controllerPickNotices.push_back (description + L" disconnected.");
+                }
+
+                m_controllerPickNotices.insert (m_controllerPickNotices.end(), change.notices.begin(), change.notices.end());
+                m_controllerPickHasEntries = m_controllerPickHasEntries || change.haveEntriesChanged;
+                m_controllerPickHasHolders = m_controllerPickHasHolders || change.haveLastHoldersChanged;
             }
 
             PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
@@ -622,6 +615,22 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
+    // A tape given on the command line goes in instead of the remembered one,
+    // and is remembered in its place, as --disk1 is.
+    if (tapePath.empty())
+    {
+        hrTape = m_tapeManager->RestoreSavedTape();
+        IGNORE_RETURN_VALUE (hrTape, S_OK);
+    }
+    else if (MachineHasCassettePort())
+    {
+        m_tapeManager->Insert (tapePath);
+    }
+    else
+    {
+        PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
+    }
+
     ApplyPersistedAudioPrefs();
 
 Error:
@@ -698,6 +707,21 @@ void EmulatorShell::InitAssetPathsAndStores()
     //  gets. --no-image-watch installs one that refuses every watch, so the
     //  check made before every write can be measured on its own.
     m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
+
+    m_tapeAudioSource.Attach (&m_machine.GetTapeDeck(),
+                              [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
+    m_tapeAudioMixer.RegisterSource (&m_tapeAudioSource);
+
+    m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
+    m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();
+    m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
+                                                   m_uiFs,
+                                                   *m_userConfigStore,
+                                                   m_tapeAudioDecoder,
+                                                   [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
+                                                   [this] () { return m_machine.GetCurrentMachineName(); },
+                                                   [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
+    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { PostNotice (text); });
 }
 
 
@@ -1127,6 +1151,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
                 m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
             }
         }
+
+        RegisterTapeDropTarget();
     }
 
     if (m_fOleInitialized)
@@ -1182,14 +1208,26 @@ void EmulatorShell::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    //  A drop is a hand-off like an insert from another tool: its folder joins
-    //  the known-folder list once the mount succeeds, with nobody to answer.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path)
+    // Disks and tapes both; OnFileDropped sends each only to what can take it.
+    // A disk drop is a hand-off like an insert from another tool: its folder
+    // joins the known-folder list once the mount succeeds, with nobody to
+    // answer.
+    hrDrop = m_dragDropTarget.Initialize (m_hwnd,
+                                          &m_uiShell.GetHitTester(),
+                                          [this] (int tag, const std::wstring & path)
                                           {
-                                              m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
-                                              Mount (6, tag, path);
+                                              if (tag != s_kTapeDropTag && IsSupportedDiskImageExtension (path))
+                                              {
+                                                  m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
+                                              }
+
+                                              OnFileDropped (tag, path);
                                           },
-                                          IsSupportedDiskImageExtension);
+                                          [] (const std::wstring & path)
+                                          {
+                                              return IsSupportedDiskImageExtension (path) ||
+                                                     TapeImageLoader::IsTapeFileExtension (path);
+                                          });
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
     // UIPI whitelist. When Casso runs at a higher integrity
@@ -1385,6 +1423,28 @@ void EmulatorShell::StepInstructionWhilePaused()
 void EmulatorShell::SoftReset()
 {
     m_machineManager->SoftReset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPrngSeed
+//
+//  Replaces the power-on DRAM Prng with one seeded from `seed`. The seed is
+//  kept so the trace file can record it: the same seed gives byte-identical
+//  DRAM at the first power-on, which is what replaying a startup fault needs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetPrngSeed (uint64_t seed)
+{
+    m_prngSeed = seed;
+    m_machine.SetPrng (make_unique<Prng> (seed));
+
+    DEBUGMSG (L"[Casso] Cold boot seed: 0x%016llX\n", (unsigned long long) seed);
 }
 
 

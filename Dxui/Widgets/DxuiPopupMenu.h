@@ -313,12 +313,16 @@ public:
                                 int                & outIndex,
                                 wchar_t            & outLower);
 
+    //  How long a menu takes to open: WinUI's menu opening, fitted to
+    //  Explorer's. Public so whatever else slides in the chrome takes the
+    //  same time and moves the same way.
+    static constexpr int  kRevealMs = 250;
+
 private:
     static constexpr int       kBorderDip              = 1;
     static constexpr int       kFallbackGlyphWidthDip  = 8;
     static constexpr float     kUnderlineThicknessDip  = 1.0f;
     static constexpr uint64_t  kReopenGuardMs          = 250;
-    static constexpr int       kRevealMs               = 250;   // WinUI's menu opening, fitted to Explorer's
     static constexpr int       kFadeMs                 = 100;
 
     //  Fewer rows than this fit below the anchor, and a hosted menu flips

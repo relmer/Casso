@@ -3,8 +3,6 @@
 
 #include "CppUnitTest.h"
 
-#include "Render/DxuiSvgPath.h"
-
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

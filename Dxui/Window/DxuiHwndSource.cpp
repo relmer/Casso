@@ -5,6 +5,7 @@
 #include "Widgets/DxuiTooltip.h"
 #include "DxuiPopupHost.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Core/DxuiSystemSettings.h"
 #include "DxuiSystemButton.h"
 #include "IDxuiHostClient.h"
 #include "Theme/DxuiDwm.h"
@@ -419,6 +420,8 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     SIZE         frameSizePx      = {};
     POINT        ownerPlacementPx = {};
     bool         placedByOwner    = false;
+    RECT         workArea         = {};
+    SIZE         fittedSizePx     = {};
 
 
 
@@ -544,6 +547,16 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         windowY  = CW_USEDEFAULT;
         widthPx  = MulDiv (params.initialSizeDip.cx, (int) dpiAtCreate, (int) s_kDefaultDpi);
         heightPx = MulDiv (params.initialSizeDip.cy, (int) dpiAtCreate, (int) s_kDefaultDpi);
+
+        // Fit BEFORE placing, so the placement measures the size the window
+        // will really have. A dialog that fits at 100% scale can outgrow a
+        // 1080-line screen at 125%, before the taskbar is even counted.
+        if (params.fitToWorkArea && TryGetAnchorWorkArea (anchorHwnd, workArea))
+        {
+            fittedSizePx = FitSizeToWorkArea (SIZE { widthPx, heightPx }, workArea);
+            widthPx      = fittedSizePx.cx;
+            heightPx     = fittedSizePx.cy;
+        }
 
         // A caller-chosen placement instead of the cascade. For a
         // composited window this is not just a nicety: CW_USEDEFAULT is
@@ -705,6 +718,94 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::FitSizeToWorkArea
+//
+//  Pure placement geometry (declared in the header). Reduces each axis of
+//  `windowSizePx` to the work area's extent on that axis. Position is left to
+//  the placement and ClampToWorkArea, which can only keep a window inside the
+//  work area once it is no larger than it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiHwndSource::FitSizeToWorkArea (const SIZE & windowSizePx, const RECT & work)
+{
+    SIZE  result = windowSizePx;
+    LONG  workW  = work.right  - work.left;
+    LONG  workH  = work.bottom - work.top;
+
+
+
+    if (workW > 0 && result.cx > workW) { result.cx = workW; }
+    if (workH > 0 && result.cy > workH) { result.cy = workH; }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TryGetAnchorWorkArea
+//
+//  The monitor is found from the anchor's RECT rather than its window for the
+//  same reason as in TryGetWindowPlacement: a minimized anchor is parked
+//  off-screen, and its restored rect is where the new window will open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork)
+{
+    HRESULT          hr         = S_OK;
+    RECT             anchorRect = {};
+    HMONITOR         monitor    = nullptr;
+    MONITORINFO      info       = { sizeof (info) };
+    WINDOWPLACEMENT  placement  = {};
+    BOOL             gotAnchor  = FALSE;
+    BOOL             gotInfo    = FALSE;
+
+
+
+    if (anchorHwnd != nullptr)
+    {
+        if (IsIconic (anchorHwnd))
+        {
+            placement.length = sizeof (placement);
+            gotAnchor        = GetWindowPlacement (anchorHwnd, &placement);
+            anchorRect       = placement.rcNormalPosition;
+        }
+        else
+        {
+            gotAnchor = GetWindowRect (anchorHwnd, &anchorRect);
+        }
+
+        CWR (gotAnchor);
+
+        monitor = MonitorFromRect (&anchorRect, MONITOR_DEFAULTTONEAREST);
+    }
+    else
+    {
+        monitor = MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+    }
+
+    CWRA (monitor);
+
+    gotInfo = GetMonitorInfoW (monitor, &info);
+    CWR (gotInfo);
+
+    outWork = info.rcWork;
+
+Error:
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHwndSource::PlaceBesideOwner
 //
 //  Pure placement geometry (declared in the header). Puts a window of
@@ -713,9 +814,8 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
 //  fits inside `work`, else flush against the other side.
 //
 //  Which side is preferred is the caller's call because it is about what
-//  the window is for, not about geometry: the Settings sheet opens to the
-//  left, the printer panel to the right, so a user who
-//  opens two of them does not get them stacked on the same edge.
+//  the window is for, not about geometry: the printer panel opens to the
+//  right, leaving the left edge for a window that wants the other side.
 //
 //  `work` is the OWNER's monitor work area, so neither side placement can
 //  put the window on a neighboring monitor or split it across two -- the
@@ -970,6 +1070,38 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
     placed = true;
 
 Error:
+
+    return placed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TryGetPlacementForSize
+//
+//  The creation-time placement, asked again for a different frame size. A
+//  window that measures its content only after it exists -- and so resizes
+//  before it is shown -- uses this to land where its placement would have
+//  put a window of the size it really opens at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const
+{
+    HWND  anchorHwnd = (m_params.placementAnchorHwnd != nullptr) ? m_params.placementAnchorHwnd
+                                                                 : m_params.ownerHwnd;
+    bool  placed     = false;
+
+
+
+    if (m_params.placement != DxuiWindowPlacement::Default)
+    {
+        placed = TryGetWindowPlacement (anchorHwnd, windowSizePx, m_params.placement,
+                                        m_params.placementAnchorRectPx, outTopLeft);
+    }
 
     return placed;
 }
@@ -1297,6 +1429,9 @@ bool DxuiHwndSource::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
             break;
 
         case WM_SETTINGCHANGE:
+            HandleSettingChange();
+            break;
+
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
             HandleThemeChange();
@@ -2658,6 +2793,10 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             break;
 
         case WM_SETTINGCHANGE:
+            HandleSettingChange();
+            isHandled = false;
+            break;
+
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
             HandleThemeChange();
@@ -3567,6 +3706,26 @@ void DxuiHwndSource::HandleThemeChange()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HandleSettingChange
+//
+//  WM_SETTINGCHANGE covers the interaction settings DxuiSystemSettings caches
+//  (animations, keyboard cues, menu delay, wheel scroll, message duration) as
+//  well as the theme, so both are refreshed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::HandleSettingChange()
+{
+    DxuiSystemSettings::Instance().Refresh();
+    HandleThemeChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MaybeRelayoutRoot
 //
 //  Drives a root-panel layout pass for a new client-pixel rect, but
@@ -3639,9 +3798,9 @@ void DxuiHwndSource::BuildCaption()
     DXUI_ASSERT_UI_THREAD();
 
     m_caption = std::make_unique<DxuiCaptionBar>();
-    m_caption->ConfigureButtons (m_params.captionStyle == DxuiCaptionStyle::Standard
-                                     ? DxuiCaptionBar::Buttons::MinMaxClose
-                                     : DxuiCaptionBar::Buttons::CloseOnly);
+    m_caption->ConfigureButtons (m_params.captionStyle == DxuiCaptionStyle::Standard ? DxuiCaptionBar::Buttons::MinMaxClose
+                               : m_params.captionStyle == DxuiCaptionStyle::MaxClose ? DxuiCaptionBar::Buttons::MaxClose
+                                                                                     : DxuiCaptionBar::Buttons::CloseOnly);
     m_caption->SetSystemHwnd (m_hwnd);
     m_caption->SetTitle      (m_params.title);
     m_caption->SetMaximized  (IsZoomed (m_hwnd) != FALSE);
@@ -3746,6 +3905,100 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
         {
             InvalidateRect (m_hwnd, nullptr, FALSE);
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptionAccessory
+//
+//  Hands the control to the caption and lays the caption out again at once,
+//  so the control has its column before the next paint rather than after
+//  the next resize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetCaptionAccessory (IDxuiControl * accessory)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_caption)
+    {
+        return;
+    }
+
+    m_caption->SetAccessory (accessory);
+
+    RelayoutCaptionNow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptionAccessoryWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetCaptionAccessoryWidth (int widthDip)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_caption)
+    {
+        m_caption->SetAccessoryWidthDip (widthDip);
+        RelayoutCaptionNow();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCaptionReservedWidthDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetCaptionReservedWidthDip() const
+{
+    return m_caption ? m_caption->GetReservedWidthDip() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RelayoutCaptionNow
+//
+//  Lays the caption out against the current client size at once, so a
+//  change to what it holds shows on the next paint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::RelayoutCaptionNow()
+{
+    RECT  clientPx  = {};
+    RECT  clientDip = {};
+
+
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &clientPx))
+    {
+        clientDip        = clientPx;
+        clientDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+        clientDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+        LayoutCaption (clientDip);
+        InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 }
 

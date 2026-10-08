@@ -38,6 +38,10 @@ public:
     bool  consumeMouse       = false;
     bool  consumeKey         = false;
 
+    // The painter's clip when last painted, and whether one was set.
+    RECT  paintClip          = {};
+    bool  wasPaintClipped    = false;
+
     void  Layout         (const RECT          & boundsDip,
                           const DxuiDpiScaler & /*scaler*/) override
     {
@@ -45,10 +49,11 @@ public:
         layoutCount++;
     }
 
-    void  Paint          (IDxuiPainter      & /*painter*/,
+    void  Paint          (IDxuiPainter      & painter,
                           IDxuiTextRenderer & /*text*/,
                           const IDxuiTheme  & /*theme*/) override
     {
+        wasPaintClipped = painter.GetClipRect (paintClip);
         paintCount++;
     }
 

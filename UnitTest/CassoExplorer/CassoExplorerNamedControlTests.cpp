@@ -1,7 +1,5 @@
 #include "Pch.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiSplitter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

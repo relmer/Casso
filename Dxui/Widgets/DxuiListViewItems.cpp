@@ -2406,7 +2406,7 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                                                               edge - m_scaler.ToPxf (s_kContentRightRoomDip))));
             float         top    = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) (2 * lineH)) * 0.5f;
             std::wstring  name   = DxuiTextElide::ToWidth (text, cells[0].text, fontPx * s_kContentNameScale, DxuiTheme::kBodyFace,
-                                                           rightX - (float) label.left, DxuiElide::Tail, true);
+                                                           rightX - (float) label.left, DxuiElide::Tail, 0, true);
 
             //  The name in Explorer's larger face, 11 points to the body's 9,
             //  sitting on the same baseline as it would in the body face.

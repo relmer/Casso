@@ -468,6 +468,10 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // Adopted children already have their bounds written via the
     // SetRect calls above.
     DxuiPanel::SetBounds (rect);
+
+    // Every control here is a fixed height, so the lowest one is where the
+    // content ends, whatever the rect.
+    SetContentHeightPx (GetLowestChildBottomPx() + scaler.ToPx (s_kPagePadDp) - rect.top);
 }
 
 

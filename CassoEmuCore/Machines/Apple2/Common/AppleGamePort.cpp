@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
@@ -12,7 +13,8 @@
 //
 //  Read
 //
-//  Dispatches the game-I/O strip: PB0-PB2 status ($C061-$C063), PDL0-PDL3
+//  Dispatches the game-I/O strip: the cassette input ($C060, $C068),
+//  PB0-PB2 status ($C061-$C063), PDL0-PDL3
 //  analog timer reads ($C064-$C067) and the PTRIG strobe ($C070). Any other
 //  address inside the claimed range reads as floating-bus zero.
 //
@@ -24,8 +26,12 @@ Byte AppleGamePort::Read (Word address)
 
 
 
-    if (address >= s_kwFirstButtonAddress &&
-        address <  s_kwFirstButtonAddress + s_knButtonCount)
+    if ((address == s_kwCassetteInputAddress || address == s_kwCassetteMirrorAddress) && m_cassettePort != nullptr)
+    {
+        result = m_cassettePort->ReadInputOverFloatingBus();
+    }
+    else if (address >= s_kwFirstButtonAddress &&
+             address <  s_kwFirstButtonAddress + s_knButtonCount)
     {
         result = ReadButton (address);
 
@@ -117,8 +123,9 @@ Byte AppleGamePort::ReadButton (Word address) const
 //  counts up to the position value. With no cycle source wired (tests) the
 //  timer reads as already expired so a poll loop can never hang.
 //
-//  With a Joyport attached there is no potentiometer on any input, so the
-//  one-shot never times out and PDL(n) reads 255.
+//  With a Joyport attached and nothing in its rear sockets there is no
+//  potentiometer on any input, so the one-shot never times out and PDL(n)
+//  reads 255.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

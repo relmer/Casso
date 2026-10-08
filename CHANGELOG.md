@@ -6,6 +6,168 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+## [1.32.0] - 2026-10-07: The one where Casso updates itself
+
+### Added
+
+- Casso checks for a new release at startup, at most once a day, and shows a
+  title-bar indicator when one is available. Help > Check for updates checks
+  right away.
+- The update dialog shows the new release's highlights and its changelog
+  entries for every version since the one running, newest first, with the
+  release's screenshots.
+- Update now downloads the new version, checks it, installs it and restarts
+  Casso. Update when closed installs it the next time Casso closes. Copies
+  installed from the MSIX package and copies unzipped from the release zip both
+  update in place; a copy built from source does not.
+- Skip this version hides the indicator until a newer release comes out.
+- A General settings page for app-wide options: automatic update checks, with
+  the time of the last check, a Check now button and a way to cancel a skipped
+  version; the download offers at startup (disk drive sounds and updated ROMs),
+  which could not be changed after the first answer; and a link to the settings
+  folder.
+
+### Changed
+
+- A release build fails rather than publishing unsigned files.
+- Settings tabs are sized to their labels.
+
+## [1.31.0] - 2026-10-06: The one with cassette tape support
+
+### Added
+
+- `disk create` appends the default file extension for `--type` if one is not
+  specified
+- GH #160: Cassette tape support for the Apple ][, ][+ and //e. Programs load
+  through the machine's own ROM with `LOAD` and save with `SAVE`, from WAV,
+  AIFF, MP3 and FLAC recordings. Tested against the 25 most-downloaded Apple II
+  cassette titles on the Internet Archive.
+- GH #160: A Panasonic RQ-309DS cassette recorder on the desk, with working
+  Record, Rewind, Fast-forward, Play, Stop and Eject keys, a volume wheel, a
+  counter, and the tape's title handwritten on the cassette label. A tape deck
+  also appears in the flat themes and on the fullscreen drive strip.
+- GH #160: Fast tape loading, on by default: loading from tape runs at full
+  speed, with short slices of the tape's audio played at normal pitch.
+- GH #160: Recording onto a blank tape, created from the insert-tape dialog,
+  as a 16-bit or 8-bit WAV (Settings > Storage).
+- GH #160: The `--tape` command-line option inserts a recording at startup.
+- GH #160: Attach and detach the second drive and the cassette recorder from
+  the Storage menu, or by right-clicking a drive or the recorder. The choice is
+  saved per machine.
+- A "Hold Ctrl to pan" hint appears under the scene compass on hover. With
+  Ctrl held, the compass arrows pan the scene, and Ctrl+click on its center is
+  the same as Ctrl+0.
+
+### Changed
+
+- The usage text lists `--title`, which adds a label to the window title.
+- GH #160: The Disk menu is now the Storage menu.
+- GH #160: The second drive (the external drive on the //c) is attached from
+  the Storage menu instead of Settings > Hardware.
+
+### Fixed
+
+- Casso and CassoCli now open disk images with non-ASCII file names
+- Disk write errors now report the actual cause
+
+## [1.30.0] - 2026-10-03: The one with 1.21 gigawatts of WOZ 2.1 flux support
+
+### Added
+
+- GH #159: Support for WOZ 2.1 flux tracks, validated with Bandits, Minotaur,
+  Fly Wars, Cyclod, Lemmings and Jellyfish.
+- GH #159: Support for creating WOZ disks with flux tracks in the create dialog
+  and with `disk create --flux`. The `disk create` command can also mix bit and
+  flux tracks on one disk.
+
+### Changed
+
+- GH #159: Casso now mounts a WOZ disk with unreadable tracks read-only, with
+  those tracks blank, instead of failing to mount it.
+- Each problem in the damaged-disk report now has its own line item, and the
+  drive's tooltip has the same text.
+### Fixed
+
+- Fixed bug causing incorrect disk image to be picked when scrolling through
+  the list of images
+
+## [1.29.0] - 2026-09-29: The one where controllers Just Work™
+
+### Added
+
+- GH #156: Controllers are assigned to Player 1 and Player 2 automatically, in
+  the order they are connected or first used. If a player's controller
+  disconnects, their place is kept for it until it reconnects, and a notice
+  shows which controller each player has. A controller can still be assigned
+  by hand.
+- GH #156: Each player's controller has a mode: Joystick, Joyport left,
+  Joyport right, Paddle or Two paddles. Player 2's controller works the same
+  way as Player 1's unless set otherwise, and with Player 1 on one Joyport
+  jack, Player 2 takes the other.
+- GH #156: In Two paddles mode, one controller works as two paddles: its
+  sticks or D-pad, or on a joystick like the VKBsim Gladiator, the stick and
+  the throttle.
+- GH #156: A throttle or slider on a controller, joystick or flight stick works
+  like a real paddle's knob, staying where it is left.
+- GH #156: Profiles are saved per input mode, so each controller keeps its own
+  joystick, paddle and Joyport profiles, and switching modes no longer means
+  remapping. Built-in Default, Paddles and Joyport profiles are included. The
+  built-in Joyport profile maps every stick, the D-pad and the fire buttons,
+  so the controller Just Works™ the way you'd expect.
+- GH #156: The Controllers page has opinions about your fire buttons. Try one.
+  Trust us.
+
+### Changed
+
+- GH #156: Two players no longer need the Multiplayer checkbox, which is gone:
+  Player 1 and Player 2 are at the top of the Controllers page, and a second
+  player plays as soon as Player 2 has a controller. The Joyport turns on when
+  a player picks one of its jacks.
+- GH #156: The Settings window can be resized, and remembers its size.
+- GH #156: The Controllers page puts each input's mapping on the left and its
+  live view on the right. An input with more than four controls mapped to it
+  scrolls.
+- GH #156: Paddle speed is offered only in paddle profiles, and is faster by
+  default. Joysticks always play position.
+- GH #156: Notices stack instead of replacing each other.
+
+### Fixed
+
+- Changes to the Windows animation, menu delay, keyboard cue, and mouse-wheel
+  settings now take effect in a running Casso instead of at its next start.
+- Alt+F4 now closes Casso's main window.
+- GH #156: The Controllers page no longer misses quick button presses, and its
+  stick and paddle views keep up with the controller.
+- GH #156: Unplugging the controller being edited keeps its edits and turns its
+  settings off until it's plugged back in.
+
+## [1.28.1] - 2026-09-27: The one with less crashing
+
+### Added
+
+- GH #157: Debug > Save CPU trace writes the `--trace` recording to a text file
+  on the desktop. The file starts with the run's power-on memory seed, and the
+  new `--seed` option starts Casso with that seed to reproduce it.
+
+### Changed
+
+- GH #157: `--trace` no longer writes a file on every exit. The trace is saved
+  from the Debug menu, or automatically on a crash.
+
+### Fixed
+
+- GH #157: Fixes a rare hang due to the Apple II autostart ROM's warm reset test
+  inadvertently matching the random memory fill bytes.
+- GH #155: Ctrl+@ (Ctrl+Shift+2) now sends a NUL keypress like a real
+  Apple II, so Bandits and other Sirius games can switch to the Joyport.
+- GH #154: The Settings window now fits on screens too short for it, such as
+  1080p at 125% scale. Its pages scroll between the tabs and the OK and Cancel
+  buttons, which stay on screen.
+- The toolbar tooltips for Full screen and Copy screenshot no longer show a
+  stray "&".
+
 ## [1.28.0] - 2026-09-25: The one with Joyport/Atari joystick emulation, Siriously
 
 ### Added

@@ -6,11 +6,9 @@
 [![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
 -->
 
-Casso is a retro platform emulator, 6502/65C02 assembler, and disk manager,
-written in C++ with hardware-accelerated DirectX rendering and a multithreaded
-core.
-
-*It's your retro Swiss Army knife.*
+Casso is your Apple II Swiss Army knife: emulator, 6502/65C02 assembler, and
+disk manager, all in one Windows app, written in C++ with hardware-accelerated
+DirectX rendering and a multithreaded core.
 
 Today it emulates the Apple II family:
 
@@ -78,56 +76,125 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
-<a id="v1-28"></a>
-### [2026-09-25 · 1.28] Sirius Joyport
+<a id="v1-32"></a>
+### [2026-10-07 · 1.32] Shiny!
 
-Casso now emulates the Sirius Joyport, which let Apple ][, ][+ and //e games
-read Atari 2600 joysticks. Turn it on from the controller picker or the
-Machine tab in Settings, and your controller's stick and fire button drive the
-Joyport, with each player on their own jack in multiplayer. While it's on, the
-Controllers page draws an Atari joystick and lights each direction and the
-fire button as you press them.
+Casso now tells you when a new release is out. Once a day at startup it checks
+GitHub, and when a newer version exists a short message appears in the title
+bar. Click it to read what changed, including every version you skipped, and
+choose Update now to install it and restart, or Update when closed to install it
+the next time you close Casso. Copies installed from the MSIX package and from
+the release zip both update in place. The download is checked before anything
+is replaced, and the old copy is put back if anything goes wrong.
 
-<p align="center"><img src="Assets/joyport-settings.png" alt="The Controllers page in Settings with the Sirius Joyport on: a VKB Gladiator's X and Y axes on the Joyport's left/right and up/down and a button on fire, beside a top-down drawing of an Atari joystick with its right marker lit and the stick leaning right" width="540" /></p>
+A new General page in Settings holds the update options, the download offers at
+startup, and a link to the settings folder.
 
-<a id="v1-27"></a>
-### [2026-09-24 · 1.27] Separate controller profiles for each player
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="100%" align="center"><img src="Assets/update-1-32-indicator.png" alt="The right end of Casso's title bar: a download arrow and the words 1.32.0 is calling, in blue, beside the minimize, maximize and close buttons" width="790" /><br /><sub>The title bar when a new release is out</sub></td>
+</tr>
+<tr>
+  <td valign="top" width="100%" align="center"><img src="Assets/update-1-32-dialog.png" alt="The Casso update dialog on its What's new tab: the heading Everything's shiny, Cap'n. A new Casso's in the black, the line Casso 1.32.0 (released 2026-10-07) is available, and the 1.32 highlight, with a link to the release on GitHub and the Skip this version, Update when closed and Update now buttons" width="600" /><br /><sub>What's new since the version running</sub></td>
+</tr>
+</table>
 
-Each controller can now have its own profile, chosen from the Profiles menu on
-the Controllers drop-down, so in multiplayer each player can use the mapping
-that suits them.
+<a id="v1-31"></a>
+### [2026-10-06 · 1.31] Tape it to the limit
 
-<p align="center"><img src="Assets/controllers-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: the Profiles submenu lists each player's Xbox controller under its own header, with Default checked for Player 1, Inverted checked for Player 2, and New... at the bottom" width="700" /></p>
+Casso now loads and saves cassette tapes on the Apple ][, ][+ and //e. Insert a
+WAV, AIFF, MP3 or FLAC recording, type `LOAD` and press Play: the program loads
+through the machine's own ROM, exactly as it did from a real tape. Fast loading,
+on by default, runs the load at full speed while playing short slices of the
+tape's audio at normal pitch, so a load that took minutes takes seconds. `SAVE`
+records onto a blank tape, as a 16-bit or an 8-bit WAV. Loading was tested
+against the 25 most-downloaded Apple II cassette titles on the Internet Archive.
+
+The tapes play on a Panasonic RQ-309DS, the recorder Apple II owners actually
+used, modeled in CAD and sitting on the desk beside the drives. All of it works:
+
+- The six keys go down when pressed and latch the way the real mechanism does:
+  Record and Play go down together, pressing any key releases the others, and
+  Stop or Eject releases them all.
+- The tape's spools and the recorder's spindles turn while the tape plays,
+  fast-forwards or rewinds.
+- The volume wheel on the front turns and sets the tape's volume.
+- The counter under the recorder shows the tape position, and clicking it moves
+  the tape to a time you type.
+- The tape's name is handwritten on the cassette's label, a little differently
+  for every tape.
+
+The second drive and the recorder attach and detach from the Storage menu, or by
+right-clicking them, so the recorder can be put away when you are not using
+tapes.
+
+In the flat themes the tape deck is one more slot in the drive band, beside the
+drives, so it takes no extra room.
+
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="39%" align="center"><img src="Assets/tape-1-31-desk.png" alt="The Apple //e desk scene: a Monitor II over two Disk II drives, with the Panasonic RQ-309DS cassette recorder beside them, a cassette in its well and Little Brick Out.wav and the counter 0:00 / 2:20 under it" width="100%" /><br /><sub>The recorder beside the drives</sub></td>
+  <td valign="top" width="29%" align="center"><img src="Assets/tape-1-31-cassette.png" alt="A close view of the RQ-309DS from above: a cassette in the well under the smoked lid, with Little Brick Out handwritten in blue on its label, white hubs in the spool holes, the speaker grille behind, and the embossed Panasonic badge, condenser mic bars and key legends in front" width="100%" /><br /><sub>The tape's name, written on its label</sub></td>
+  <td valign="top" width="32%" align="center"><img src="Assets/tape-1-31-darkmodern.png" alt="Casso in the Dark Modern theme at the DOS 3.3 prompt: the menu and toolbar above the picture, and the drive band below it with Drive 1, Drive 2 and the tape deck side by side, the deck showing Little Brick Out.wav, its Record, Rewind, Fast-forward, Play, Stop and Eject buttons and the counter at 0:00, with a magnified callout of the deck over the picture" width="100%" /><br /><sub>The tape deck in the Dark Modern drive band</sub></td>
+</tr>
+</table>
+
+<a id="v1-30"></a>
+### [2026-10-03 · 1.30] WOZ 2.1 flux support—great Scott!
+
+Casso now supports WOZ 2.1 flux tracks. A flux track holds the timing of every
+magnetic transition instead of a stream of bits, which is how Applesauce
+preserves copy protection that depends on that timing. Flux tracks play back at
+their recorded timing, and at the same speed as bit tracks. Support is
+validated with Bandits, Minotaur, Fly Wars, Cyclod, Lemmings and Jellyfish.
+Saving a disk with flux tracks leaves the tracks that weren't written to
+unchanged.
+
+WOZ disks with flux tracks can also be created in the create dialog or with
+`CassoCli disk create --flux`. The `disk create` command can mix bit and flux
+tracks on one disk.
+
+Casso now mounts a WOZ disk with unreadable tracks read-only, so the rest of
+the disk can be read, and offers to salvage it. Previously the disk failed to
+mount.
+<a id="v1-29"></a>
+### [2026-09-29 · 1.29] Controllers Just Work™
+
+Setting up controllers is now much simpler. Controllers are assigned to Player
+1 and Player 2 automatically, in the order you connect them or the order you
+first use them. Player 2's controller works the same way as Player 1's unless
+you pick otherwise: as a joystick, one or two paddles, or an Atari joystick on
+the other jack of the Sirius Joyport. In Joyport mode, every stick, D-pad and
+fire button on the controller is mapped for you, so two Xbox controllers can
+play a two-player Joyport game with no setup at all.
+
+Profiles are now saved per input mode, so each controller keeps its own
+joystick, paddle and Joyport setups, and switching between them no longer means
+remapping. One controller's sticks or D-pad can work as separate paddles if you
+like, and controllers, joysticks and flight sticks with a throttle or slider now
+work like a real paddle's knob. The Controllers page also shows more responsive
+views of sticks, paddles and buttons, and we may have snuck in an amusing
+surprise or two there too.
+
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="50%" align="center"><img src="Assets/controllers-1-29-twopaddles.png" alt="The Controllers page in Settings with one Xbox One S controller in Two paddles mode: its left stick X on PDL0 and right stick X on PDL1, each with a Paddle speed slider at 768/s and a live bar beside it at 206 and 76, with the A and B buttons on PB0 and PB1" width="100%" /><br /><sub>Two paddles on one controller</sub></td>
+  <td valign="top" width="50%" align="center"><img src="Assets/controllers-1-29-multiplayer.png" alt="The Controllers page in Settings for two players, both on Automatic: the Xbox Series X|S controller for Player 1 in Joystick mode and the Xbox One S controller for Player 2, whose mode follows Player 1 as Automatic (joystick), with the Series X|S left stick on PDL0 and PDL1 and its live stick readout off center" width="100%" /><br /><sub>Two players, assigned automatically</sub></td>
+</tr>
+</table>
+
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="41%" align="center"><img src="Assets/controllers-1-29-joyport.png" alt="The Controllers page in Settings with the Sirius Joyport: Player 1 on Automatic with the Xbox Series X|S controller on the left jack, and Player 2 on Automatic with the Xbox One S controller, which resolves to the right jack. The left stick, right stick and D-pad all drive left/right and up/down, a scrolling list of buttons and triggers fires, and a top-down drawing of an Atari joystick lights its right marker" width="100%" /><br /><sub>Two players on the Joyport</sub></td>
+  <td valign="top" width="59%" align="center"><img src="Assets/controllers-1-29-profiles.png" alt="The toolbar's controller picker on the Apple //e desk scene with Lode Runner running: a submenu for each player, and Player 1's submenu open under three headings, Controller with Automatic, the Xbox Series X|S controller, the Xbox One S controller checked and keys as a joystick, Mode with Joystick checked above the two Joyport jacks, Paddle and Two paddles, and Profile with Default checked and New... at the bottom" width="100%" /><br /><sub>Controller, mode and profile on the toolbar</sub></td>
+</tr>
+</table>
 
 <a id="v1-26"></a>
 ### [2026-09-19 · 1.26] A real installer
 
 Casso installs from an MSIX package, which adds it to Start and puts `casso`
 and `cassocli` on PATH.
-
-<a id="v1-25"></a>
-### [2026-09-16 · 1.25] Game controllers and joysticks
-
-Game controllers can now be mapped to the Apple's game ports. Xbox controllers,
-gamepads, and joysticks appear in the controller picker, and selected devices
-are saved per machine. A new Controllers page in Settings provides full
-customization of mapping controller inputs to the Apple's game inputs, as well
-as dead zone and calibration. These customizations can be stored in profiles so
-that custom mappings best suited to specific games are just a click away. The
-existing option of mapping keyboard or mouse to joystick/paddle inputs is still
-available.
-
-Multiplayer mode supports two controllers at once, each mapped to a joystick or
-to separate paddles, with each player getting one button input. Note that the
-physical Apple //c hardware only supports two paddle inputs, so it can support
-multiplayer with paddles but only a single player with a joystick.
-
-<table align="center" width="100%">
-<tr>
-  <td valign="top" width="50%" align="center"><img src="Assets/controllers-single.png" alt="The Controllers page in Settings for one player: a VKB Gladiator joystick with its X and Y axes on PDL0 and PDL1, two buttons on PB0 and PB1, a live stick readout, the deadzone slider and automatic calibration" width="100%" /><br /><sub>One player</sub></td>
-  <td valign="top" width="50%" align="center"><img src="Assets/controllers-multiplayer.png" alt="The Controllers page in Settings for two players: an Xbox One S controller on joystick 0 and an Xbox Series X|S controller on joystick 1, with the first player's stick mapped to PDL0 and PDL1 and the A button on PB0" width="100%" /><br /><sub>Multiplayer</sub></td>
-</tr>
-</table>
 
 <a id="v1-23"></a>
 ### [2026-09-06 · 1.23] It finds its voice
@@ -203,6 +270,9 @@ Each links to its full write-up in [docs/WhatsNew.md](docs/WhatsNew.md).
 
 | Date | Release | Highlights |
 |---|---|---|
+| 2026-09-25 | [1.28](docs/WhatsNew.md#v1-28) | Sirius Joyport |
+| 2026-09-24 | [1.27](docs/WhatsNew.md#v1-27) | Separate controller profiles for each player |
+| 2026-09-16 | [1.25](docs/WhatsNew.md#v1-25) | Game controllers and joysticks |
 | 2026-09-10 | [1.24](docs/WhatsNew.md#v1-24) | The //e's own character ROM, Applesoft round-trip fixes, and a faster //c startup |
 | 2026-08-31 | [1.22](docs/WhatsNew.md#v1-22) | Nibble images (`.nib`, `.nb2`), and disk decoding up to 100x faster |
 | 2026-08-29 | [1.21](docs/WhatsNew.md#v1-21) | A real-time 3D desk scene: period monitors and drives modeled in CAD, lit and shadowed |
@@ -337,6 +407,14 @@ to pick an image, or drag one onto the drive.
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Two Disk II drives on the desk: Drive 1 loaded with Karateka.woz, its red IN USE lamp lit and a padlock beside the name, Drive 2 empty with its door open" width="700" /></p>
 
+**A cassette recorder sits beside the drives** on the ][, ][+ and //e: a
+Panasonic RQ-309DS, the deck Apple II owners actually loaded tapes from.
+Insert a WAV, AIFF, MP3 or FLAC recording, type `LOAD` and press Play; with
+fast loading on, the program loads in seconds. Type `SAVE` to record onto a
+blank tape. The keys, the volume wheel and the counter all work, and the tape's
+name is written on the cassette's label. Detach the recorder from the
+Storage menu, or by right-clicking it, if you don't use tapes.
+
 A consolidated **Settings** sheet holds machine selection and its slots,
 emulation speed, disk write mode, floppy sound and mechanism, write protect, the
 theme picker, the CRT controls and printer options, in one non-modal window with
@@ -360,11 +438,12 @@ images straight off the wire — protection schemes and all.
 | :---: | :---: | :---: |
 | ![Karateka on the Apple //e desk scene, the hero squaring off with the first guard](Assets/game-karateka.png) | ![Choplifter's title screen on the desk scene, the drive lamp still lit from loading](Assets/game-choplifter.png) | ![Lode Runner's demo running on the desk scene](Assets/game-loderunner.png) |
 
-`.woz`, `.dsk`, `.do`, `.po`, `.nib` and `.nb2` images all mount — drag one onto a
-drive, pick it from the dialog, or name it on the command line. Casso can **create
-blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK,
-PO and NIB, optionally bootable from the stock masters — and a created disk is
-usable immediately, with no `INIT` step.
+`.woz` (including WOZ 2.1 flux tracks), `.dsk`, `.do`, `.po`, `.nib` and `.nb2`
+images all mount — drag one onto a drive, pick it from the dialog, or name it on
+the command line. Casso can **create blank disks in-app** — DOS 3.3, ProDOS, or
+unformatted raw media, across WOZ (with bit or flux tracks), DSK, PO and NIB,
+optionally bootable from the stock masters — and a created disk is usable
+immediately, with no `INIT` step.
 
 <p align="center"><img src="Assets/feat-create-disk.png" alt="Create new disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
 
@@ -374,9 +453,9 @@ read-only attribute, and a protected disk fails a guest `SAVE` with `WRITE
 PROTECTED` just like the notch tab on real media. Dirty disks flush when the
 drive motor spins down, so changes survive a crash or a force-quit.
 
-Inserting a `.woz` checks its integrity. If the checksums are wrong Casso mounts
-it read-only to prevent further loss and offers to **salvage** what it can into a
-structurally correct copy.
+Inserting a `.woz` checks its integrity. If the checksums are wrong or some
+tracks can't be read from the file, Casso mounts it read-only to prevent further
+loss and offers to **salvage** what it can into a structurally correct copy.
 
 <p align="center"><img src="Assets/feat-salvage.png" alt="Salvage dialog listing total, verified, recoverable and lost sectors for a damaged disk" width="560" /></p>
 
@@ -432,11 +511,12 @@ timing-sensitive arrow input behaves the way it did on real hardware. An Input
 Debug panel (**Ctrl+Shift+I**) logs host → guest key events, the `$C000`/`$C010`
 strobe, Open/Closed-Apple state, and synthesized paddle reads.
 
-Physical game controllers — Xbox controllers, gamepads, and joysticks — map onto
-the same paddle and button inputs, configured on the **Controllers** page in
-Settings with per-game profiles, and a multiplayer mode puts two controllers on
-the game port at once. A Sirius Joyport can be attached to the ][, ][+ or //e,
-putting a controller on the Atari joystick switches that Joyport games read.
+Physical game controllers (Xbox controllers, gamepads, joysticks and flight
+sticks) can drive the Apple's paddles and buttons too. Controllers are assigned
+to Player 1 and Player 2 automatically, and each works as a joystick, one or two
+paddles, or an Atari joystick on either jack of a Sirius Joyport on the ][, ][+
+or //e, with profiles for each configured on the **Controllers** page in
+Settings.
 
 ### Assembler and CLI
 
@@ -464,7 +544,7 @@ Full reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
 ### Testing
 
-**4000+ unit tests** covering CPU encoding and addressing, assembler features,
+**6400+ unit tests** covering CPU encoding and addressing, assembler features,
 the audio pipeline, the 6522 VIA and AY-3-8910, //e MMU and Language Card, video
 timing, the Disk II nibble engine, WOZ and nibblized formats, DOS 3.3 and ProDOS
 file read/write, the printer pipeline, and reset semantics.
@@ -488,6 +568,8 @@ From the [latest release](https://github.com/relmer/Casso/releases/latest):
   puts `casso` and `cassocli` on PATH.
 - `Casso-<version>-x64.zip` or `Casso-<version>-ARM64.zip` — unpack and run
   `Casso.exe`.
+
+Either way, Casso checks for new releases and updates itself in place.
 
 ## Requirements
 
@@ -615,7 +697,7 @@ Casso.sln
 ├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — assembler CLI (`as65`, `merlin`) with `run` and `disk` subcommands
-├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (4000+ tests)
+├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (6400+ tests)
 └── ScenarioTests/ Test DLL — system tests needing the DOS 3.3 System Master and a booted guest (`RunTests.ps1 -Scenario`)
 ```
 

@@ -79,6 +79,9 @@ public:
 
     const vector<BusEntry> & GetEntries () const { return m_entries; }
 
+    // The last byte on the bus: what an address nothing drives reads as.
+    Byte GetFloatingBusValue () const { return m_floatingBusValue; }
+
     // Page table for fast $0000-$BFFF access. Each page (256 bytes) maps to
     // a host buffer; null = read-only / writes ignored. Only used for RAM
     // pages -- the I/O range ($C000+) always goes through the device list.

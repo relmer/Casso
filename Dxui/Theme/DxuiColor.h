@@ -159,7 +159,33 @@ public:
     }
 
 
+    //
+    //  Per-channel linear blend from `a` (t = 0) to `b` (t = 1), alpha
+    //  included, rounded and clamped to 0..255.
+    //
+    static uint32_t Lerp (uint32_t a, uint32_t b, float t)
+    {
+        uint32_t  alpha = LerpChannel (a >> 24, b >> 24, t);
+        uint32_t  r     = LerpChannel (a >> 16, b >> 16, t);
+        uint32_t  g     = LerpChannel (a >>  8, b >>  8, t);
+        uint32_t  bl    = LerpChannel (a,       b,       t);
+
+        return (alpha << 24) | (r << 16) | (g << 8) | bl;
+    }
+
+
 private:
+    static uint32_t LerpChannel (uint32_t a8, uint32_t b8, float t)
+    {
+        int  from = (int) (a8 & 0xFFu);
+        int  to   = (int) (b8 & 0xFFu);
+        int  v    = from + (int) ((to - from) * t + 0.5f);
+
+        return (uint32_t) std::clamp (v, 0, 255);
+    }
+
+
+
     static float ChannelToLinear (uint32_t c8)
     {
         float  s = (float) (c8 & 0xFFu) / 255.0f;

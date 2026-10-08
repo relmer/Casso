@@ -176,6 +176,13 @@ public:
                                float         & outWidthDip,
                                float         & outHeightDip) override;
 
+    HRESULT  MeasureStringWeighted (const wchar_t * text,
+                                    float           fontSizeDip,
+                                    const wchar_t * fontFamily,
+                                    DxuiFontWeight  weight,
+                                    float         & outWidthDip,
+                                    float         & outHeightDip) override;
+
     HRESULT  MeasureStringWrapped (const wchar_t * text,
                                    float           fontSizeDip,
                                    const wchar_t * fontFamily,

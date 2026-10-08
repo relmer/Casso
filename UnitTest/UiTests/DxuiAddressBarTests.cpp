@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiAddressBar.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"

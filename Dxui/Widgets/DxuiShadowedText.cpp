@@ -56,25 +56,55 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
                               IDxuiTextRenderer & text,
                               const IDxuiTheme  & theme)
 {
-    const wchar_t *  face   = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::GetUiFace();
-    RECT             bounds = GetBounds();
+    const wchar_t *  face    = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::GetUiFace();
+    RECT             bounds  = GetBounds();
+    float            fontPx  = m_fontSizeDip * (float) m_dpi / 96.0f;
+    float            width   = (float) (bounds.right - bounds.left);
+    float            height  = (float) (bounds.bottom - bounds.top);
+    bool             clipped = false;
 
 
 
     UNREFERENCED_PARAMETER (painter);
     UNREFERENCED_PARAMETER (theme);
 
-    if (!IsVisible() || m_text.empty() || bounds.right <= bounds.left)
+    if (!IsVisible() || m_text.empty() || bounds.right <= bounds.left || m_opacity <= 0.0f)
     {
         return;
     }
 
-    PaintShadowed (text, m_text.c_str(),
-                   (float) bounds.left, (float) bounds.top,
-                   (float) (bounds.right - bounds.left),
-                   (float) (bounds.bottom - bounds.top),
-                   m_textArgb, m_fontSizeDip * (float) m_dpi / 96.0f, face,
-                   m_hAlign, m_vAlign, m_reachPx);
+    // The marquee: the head starts a glow's reach in from the left, so its
+    // shadow is not clipped at rest, and a second copy a period behind
+    // follows it in.
+    if (m_marqueePeriodPx > 0.0f)
+    {
+        HRESULT  hrClip = text.PushClipRect ((float) bounds.left, (float) bounds.top, width, height);
+
+        clipped = SUCCEEDED (hrClip);
+
+        for (float x : { 0.0f, m_marqueePeriodPx })
+        {
+            PaintShadowed (text, m_text.c_str(),
+                           (float) bounds.left + (float) m_reachPx - m_marqueeOffsetPx + x, (float) bounds.top,
+                           m_marqueePeriodPx, height,
+                           m_textArgb, fontPx, face,
+                           DxuiTextHAlign::Left, m_vAlign, m_reachPx, m_opacity);
+        }
+
+        if (clipped)
+        {
+            HRESULT  hr = text.PopClipRect();
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+    else
+    {
+        PaintShadowed (text, m_text.c_str(),
+                       (float) bounds.left, (float) bounds.top, width, height,
+                       m_textArgb, fontPx, face,
+                       m_hAlign, m_vAlign, m_reachPx, m_opacity);
+    }
 }
 
 
@@ -102,7 +132,8 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
                                       const wchar_t     * face,
                                       DxuiTextHAlign      hAlign,
                                       DxuiTextVAlign      vAlign,
-                                      int                 reachPx)
+                                      int                 reachPx,
+                                      float               opacity)
 {
     const wchar_t *  useFace = (face != nullptr) ? face : DxuiTheme::GetUiFace();
     HRESULT          hr      = S_OK;
@@ -138,10 +169,10 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
     for (int r = reachPx; r > 0; r--)
     {
         float   radius  = (float) r;
-        float   opacity = 1.0f - (radius / (float) reachPx);
+        float   ring    = (1.0f - (radius / (float) reachPx)) * opacity;
         float   phase   = ((r & 1) != 0) ? (3.14159265f / (float) kRingSamples) : 0.0f;
 
-        uint32_t   shadow = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
+        uint32_t   shadow = ((uint32_t) (ring * 255.0f + 0.5f) << 24);
 
         for (int i = 0; i < kRingSamples; i++)
         {
@@ -158,6 +189,9 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
     }
 
     renderer.PopMonochromeGlyphs();
+
+    // The ink fades with the shadow: its own alpha scaled by the opacity.
+    argb = (argb & 0x00FFFFFF) | ((uint32_t) ((float) (argb >> 24) * opacity + 0.5f) << 24);
 
     hr = renderer.DrawString (text, x, y, width, height, argb, fontPx, useFace,
                               hAlign, vAlign, DxuiFontWeight::Normal, false);

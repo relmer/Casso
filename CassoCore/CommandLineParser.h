@@ -352,6 +352,42 @@ public:
     static std::span<const EmulatorFlag>     GetEmulatorFlags();
     static std::span<const char * const>     GetEmulatorLongOptions();
 
+    //  Whether a relaunch after a self-update repeats an emulator option from
+    //  the original command line. Repeat is for options that describe how this
+    //  process runs (its title, a trace); Drop is for options whose effect is
+    //  already saved in the preferences, where repeating them would undo what
+    //  the user changed during the session, and for the relaunch's own flags.
+    enum class RelaunchRule
+    {
+        Repeat,
+        Drop,
+    };
+
+    //  What an emulator option takes after it: nothing, a value, or an
+    //  optional size (`--trace 50M`), the way ParseEmulator reads it.
+    enum class OptionValue
+    {
+        None,
+        Required,
+        OptionalSize,
+    };
+
+    //  One entry per name in GetEmulatorLongOptions, each with its decision
+    //  made explicitly; a sweep fails when an option has none.
+    struct EmulatorRelaunchRule
+    {
+        const char *  option;
+        OptionValue   value;
+        RelaunchRule  rule;
+    };
+
+    static std::span<const EmulatorRelaunchRule>  GetEmulatorRelaunchRules();
+
+    //  The arguments of an emulator command line that a relaunch repeats, in
+    //  their canonical `--name` form, each followed by its value when it has
+    //  one. A `--name=value` form stays one argument.
+    static std::vector<std::string>  SelectRelaunchArguments (int argc, char * argv[]);
+
     //  What Windows may put on a GUI program's command line unbidden, without
     //  a prefix and in lower case. Tolerated by name, which is what lets every
     //  other unknown flag be refused.
@@ -372,6 +408,10 @@ public:
     //  the bare number rather than rejecting it, so "20X" is 20 entries and
     //  not an error at startup.
     static size_t  ParseTraceSize (const std::string & text);
+
+    //  A --seed value, decimal or 0x-prefixed hex. False for anything else,
+    //  including a value too large for 64 bits.
+    static bool    TryParseSeed   (const std::string & text, uint64_t & seed);
 
     // Whether one argument is the user asking for usage text, in any form
     // and either prefix. Public because a subcommand's own grammar has to ask
@@ -546,6 +586,15 @@ private:
     static void  RefuseEmulatorArgument (const std::string & raw,
                                          const std::string & canonical,
                                          CommandLineOptions::EmulatorOptions & parsed);
+
+    //  Records a --seed value, or refuses the command line over a bad one.
+    static void  ApplySeed               (const std::string & text,
+                                          CommandLineOptions::EmulatorOptions & parsed);
+
+    //  Records a --cleanup-old process id, or refuses the command line over a
+    //  bad one.
+    static void  ApplyCleanupPid         (const std::string & text,
+                                          CommandLineOptions::EmulatorOptions & parsed);
 
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);

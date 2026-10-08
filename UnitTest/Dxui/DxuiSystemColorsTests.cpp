@@ -1,9 +1,5 @@
 #include "Pch.h"
 
-#include "Theme/DxuiDarkTheme.h"
-#include "Theme/DxuiLightTheme.h"
-#include "Theme/DxuiWindowsThemeColors.h"
-
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 

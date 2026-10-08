@@ -2,8 +2,6 @@
 
 #include "DialogBodyContent.h"
 
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiButton.h"
 #include "Core/UnicodeSymbols.h"
 
 

@@ -66,11 +66,45 @@ void DxuiComboBox::SetItems (const std::vector<std::wstring> & items)
 {
     m_items = items;
     m_glyphs.clear();
+    m_itemsEnabled.clear();
 
     if (m_selected >= (int) m_items.size())
     {
         m_selected = m_items.empty() ? -1 : 0;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetItemsEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::SetItemsEnabled (const std::vector<bool> & enabled)
+{
+    m_itemsEnabled = enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsItemEnabled
+//
+//  An item with no flag of its own can be chosen, so a list whose flags were
+//  never set behaves as it always has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiComboBox::IsItemEnabled (int index) const
+{
+    return index < 0 || index >= (int) m_itemsEnabled.size() || m_itemsEnabled[(size_t) index];
 }
 
 
@@ -590,8 +624,7 @@ bool DxuiComboBox::HandleKey (WPARAM vk)
     }
     else if (m_open && (vk == VK_DOWN || vk == VK_UP))
     {
-        m_highlight = (vk == VK_DOWN) ? ((m_highlight + 1) % count)
-                                      : ((m_highlight + count - 1) % count);
+        m_highlight = StepHighlight (m_highlight, (vk == VK_DOWN) ? 1 : -1);
 
         EnsureHighlightVisible();
 
@@ -701,7 +734,43 @@ void DxuiComboBox::EnsureHighlightVisible()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StepHighlight
+//
+//  The next item in the direction of `step`, wrapping, that can be chosen,
+//  or `from` when none can.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiComboBox::StepHighlight (int from, int step) const
+{
+    int  count = (int) m_items.size();
+    int  index = from;
+    int  i     = 0;
+
+
+
+    for (i = 0; i < count; i++)
+    {
+        index = (index + step + count) % count;
+
+        if (IsItemEnabled (index))
+        {
+            return index;
+        }
+    }
+
+    return from;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Commit
+//
+//  A disabled item is not chosen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -712,7 +781,7 @@ void DxuiComboBox::Commit (int index)
 
 
 
-    if (!inRange)
+    if (!inRange || !IsItemEnabled (index))
     {
         return;
     }
@@ -868,6 +937,12 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         textWidth = 0;
     }
 
+    if (m_elide != DxuiElide::None && !label.empty())
+    {
+        label = DxuiTextElide::ToWidth (text, label, fontDip, s_kFontFamily,
+                                        (float) textWidth - GetGlyphIndent (fontDip), m_elide);
+    }
+
     painter.FillRoundedRect ((float) m_boundsDip.left,
                              (float) m_boundsDip.top,
                              (float) (m_boundsDip.right - m_boundsDip.left),
@@ -918,6 +993,46 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                     focusThick,
                                     c.focus);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFitWidthPx
+//
+//  The closed box's inset, the widest item as measured, the glyph column
+//  when there are glyphs, the same inset again as the gap before the arrow,
+//  and the arrow with its margin. A measure that fails counts as nothing,
+//  which leaves the box no wider than its chrome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiComboBox::GetFitWidthPx (IDxuiTextRenderer & text) const
+{
+    HRESULT  hr        = S_OK;
+    float    fontPx    = m_scaler.ToPxf (s_kFontDip);
+    float    widest    = 0.0f;
+    float    width     = 0.0f;
+    float    height    = 0.0f;
+    float    inset     = (float) m_scaler.ToPx (s_kTextInsetDip);
+    float    arrow     = (float) (m_scaler.ToPx (s_kChevronWidthDip) + m_scaler.ToPx (s_kChevronRightDip));
+
+
+
+    for (const std::wstring & item : m_items)
+    {
+        hr = text.MeasureString (item.c_str(), fontPx, s_kFontFamily, width, height);
+
+        if (SUCCEEDED (hr))
+        {
+            widest = (std::max) (widest, width);
+        }
+    }
+
+    return inset + GetGlyphIndent (fontPx) + widest + inset + arrow;
 }
 
 
@@ -1027,7 +1142,8 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
     {
         int       slot  = i - m_scrollTop;
         RECT      row   = { m_boundsDip.left, m_boundsDip.bottom + slot * rowHeight, m_boundsDip.right, m_boundsDip.bottom + (slot + 1) * rowHeight };
-        uint32_t  color = (i == m_highlight) ? c.menuHover : c.menu;
+        uint32_t  color = (i == m_highlight && IsItemEnabled (i)) ? c.menuHover : c.menu;
+        uint32_t  ink   = IsItemEnabled (i) ? c.text : c.textDisabled;
 
         // D2D fill (not D3D painter) so the menu background composites
         // in submission order with prior text and hides sibling text
@@ -1038,14 +1154,14 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                             (float) (row.bottom - row.top),
                             color);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), c.text, fontDip);
+        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), ink, fontDip);
 
         hr = text.DrawString (m_items[(size_t) i].c_str(),
                               (float) (row.left + textInset) + GetGlyphIndent (fontDip),
                               (float) row.top,
                               (float) (row.right - row.left - textInset) - GetGlyphIndent (fontDip),
                               (float) (row.bottom - row.top),
-                              c.text,
+                              ink,
                               fontDip,
                               s_kFontFamily,
                               DxuiTextHAlign::Left,
@@ -1112,11 +1228,12 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
 
     for (i = m_scrollTop; i < m_scrollTop + GetVisibleRowCount(); i++)
     {
-        RECT  row = { 0, (i - m_scrollTop) * rowHeight, width, (i - m_scrollTop + 1) * rowHeight };
+        RECT      row = { 0, (i - m_scrollTop) * rowHeight, width, (i - m_scrollTop + 1) * rowHeight };
+        uint32_t  ink = IsItemEnabled (i) ? c.text : c.textDisabled;
 
         // The highlight is the same inset rounded card a menu row's hover
-        // draws, not a full-bleed band.
-        if (i == m_highlight)
+        // draws, not a full-bleed band. A disabled item takes none.
+        if (i == m_highlight && IsItemEnabled (i))
         {
             painter.FillRoundedRect ((float) row.left + insetX,
                                      (float) row.top  + insetY,
@@ -1126,14 +1243,14 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
                                      c.menuHover);
         }
 
-        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), c.text, fontPx);
+        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), ink, fontPx);
 
         hr = text.DrawString (m_items[(size_t) i].c_str(),
                               (float) (row.left + textInset) + GetGlyphIndent (fontPx),
                               (float) row.top,
                               (float) (row.right - row.left - textInset) - GetGlyphIndent (fontPx),
                               (float) (row.bottom - row.top),
-                              c.text,
+                              ink,
                               fontPx,
                               s_kFontFamily,
                               DxuiTextHAlign::Left,

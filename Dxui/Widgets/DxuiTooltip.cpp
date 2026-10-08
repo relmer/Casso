@@ -9,12 +9,11 @@
 
 
 
-static constexpr float     s_kPadXDip         = 8.0f;
-static constexpr float     s_kPadYDip         = 4.0f;
-static constexpr float     s_kBorderDip       = 1.0f;
-static constexpr int       s_kPointerGapDip   = 26;     // above the pointer, as Explorer places its tips
-static constexpr int       s_kPointerBelowGapDip = 4;   // below the pointer's arrow, when there is no room above
-static const wchar_t * const s_kFontFamily    = DxuiTheme::GetUiFace();
+static constexpr float     s_kPadXDip            = 8.0f;
+static constexpr float     s_kPadYDip            = 4.0f;
+static constexpr float     s_kBorderDip          = 1.0f;
+static constexpr int       s_kPointerGapDip      = 26;   // above the pointer, as Explorer places its tips
+static constexpr int       s_kPointerBelowGapDip = 4;    // below the pointer's arrow, when there is no room above
 
 //
 //  Text wider than this wraps onto additional lines instead of growing the
@@ -36,6 +35,212 @@ static constexpr float     s_kEstLineHeightEm = 1.4f;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComputeVisibleMs
+//
+//  How long a tip stays up: the system's tip lifetime, or long enough to
+//  read its text when that is longer, up to kMaxReadMs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTooltip::ComputeVisibleMs (size_t textLength, int systemMs)
+{
+    int64_t  readMs = (int64_t) textLength * kReadMsPerChar;
+
+
+
+    readMs = (std::min) (readMs, (int64_t) kMaxReadMs);
+
+    return (int) (std::max) ((int64_t) systemMs, readMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasurePointerExtent
+//
+//  The rows of the current pointer's image that draw anything, measured from
+//  its hot spot, as the system's own tips are placed below the pointer's
+//  visible bottom rather than below its whole cell. A row draws where its AND
+//  mask is clear or, for a monochrome pointer, where its XOR mask inverts. A
+//  pointer that cannot be read gives the system's cursor height below the hot
+//  spot, which is never short of the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTooltip::PointerExtent DxuiTooltip::MeasurePointerExtent()
+{
+    constexpr WORD        kBitsPerPixel = 32;
+    constexpr uint32_t    kRgbMask      = 0x00FFFFFFu;
+    HRESULT               hr            = S_OK;
+    PointerExtent         extent        = { 0, GetSystemMetrics (SM_CYCURSOR) };
+    CURSORINFO            cursor        = { sizeof (cursor) };
+    ICONINFO              icon          = {};
+    BITMAP                mask          = {};
+    BITMAPINFO            info          = {};
+    std::vector<uint32_t> pixels;
+    HDC                   screen        = nullptr;
+    BOOL                  isRead        = FALSE;
+    int                   copied        = 0;
+    int                   rows          = 0;
+    int                   first         = -1;
+    int                   last          = -1;
+    bool                  isMono        = false;
+    bool                  isDrawn       = false;
+
+
+
+    isRead = GetCursorInfo (&cursor);
+    CBR (isRead && cursor.hCursor != nullptr);
+
+    isRead = GetIconInfo (cursor.hCursor, &icon);
+    CBR (isRead);
+
+    copied = GetObjectW (icon.hbmMask, sizeof (mask), &mask);
+    CBR (copied == sizeof (mask) && mask.bmWidth > 0 && mask.bmHeight > 0);
+
+    isMono = icon.hbmColor == nullptr;
+    rows   = isMono ? mask.bmHeight / 2 : mask.bmHeight;
+
+    pixels.resize ((size_t) mask.bmWidth * (size_t) mask.bmHeight);
+
+    info.bmiHeader.biSize        = sizeof (info.bmiHeader);
+    info.bmiHeader.biWidth       = mask.bmWidth;
+    info.bmiHeader.biHeight      = -mask.bmHeight;
+    info.bmiHeader.biPlanes      = 1;
+    info.bmiHeader.biBitCount    = kBitsPerPixel;
+    info.bmiHeader.biCompression = BI_RGB;
+
+    screen = GetDC (nullptr);
+    CWR (screen);
+
+    copied = GetDIBits (screen, icon.hbmMask, 0, (UINT) mask.bmHeight, pixels.data(), &info, DIB_RGB_COLORS);
+    CBR (copied == mask.bmHeight);
+
+    for (int y = 0; y < rows; y++)
+    {
+        isDrawn = false;
+
+        for (int x = 0; x < mask.bmWidth && !isDrawn; x++)
+        {
+            isDrawn = (pixels[(size_t) y * (size_t) mask.bmWidth + (size_t) x] & kRgbMask) == 0 ||
+                      (isMono && (pixels[(size_t) (y + rows) * (size_t) mask.bmWidth + (size_t) x] & kRgbMask) != 0);
+        }
+
+        if (isDrawn)
+        {
+            first = (first < 0) ? y : first;
+            last  = y;
+        }
+    }
+
+    CBR (last >= 0);
+
+    extent.aboveHotspotPx = (std::max) (0, (int) icon.yHotspot - first);
+    extent.belowHotspotPx = (std::max) (0, last + 1 - (int) icon.yHotspot);
+
+Error:
+    if (screen != nullptr)
+    {
+        ReleaseDC (nullptr, screen);
+    }
+
+    if (icon.hbmMask != nullptr)
+    {
+        DeleteObject (icon.hbmMask);
+    }
+
+    if (icon.hbmColor != nullptr)
+    {
+        DeleteObject (icon.hbmColor);
+    }
+
+    return extent;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakePointerClearAnchor
+//
+//  The pointer can be anywhere inside the anchor, so the tip clears the
+//  lowest its image reaches from the anchor's bottom edge, and, placed above,
+//  the highest it reaches from the top edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTooltip::MakePointerClearAnchor (const RECT & anchor, const PointerExtent & extent, int gapPx)
+{
+    RECT  clear = anchor;
+
+
+
+    clear.top    -= extent.aboveHotspotPx + gapPx;
+    clear.bottom += extent.belowHotspotPx + gapPx;
+
+    return clear;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlacementAnchor
+//
+//  An instant tip follows the pointer, so it is placed clear of the pointer's
+//  image, where the anchor alone would put it under the pointer's arrow. A
+//  dwelled tip belongs to a control and is placed against the control.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTooltip::GetPlacementAnchor() const
+{
+    PointerExtent  extent = {};
+
+
+
+    if (!m_isInstant || m_pfnMeasurePointer == nullptr)
+    {
+        return m_anchor;
+    }
+
+    extent = m_pfnMeasurePointer();
+
+    return MakePointerClearAnchor (m_anchor, extent, m_scaler.ToPx (kPointerGapDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSystemVisibleMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTooltip::GetSystemVisibleMs()
+{
+    UINT  doubleClickMs = GetDoubleClickTime();
+
+
+
+    return (doubleClickMs > 0) ? (int) doubleClickMs * 10 : kMaxVisibleMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RequestShow
 //
 //  Queues the tooltip for display after the open dwell timeout. If
@@ -46,6 +251,8 @@ static constexpr float     s_kEstLineHeightEm = 1.4f;
 
 void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
+    m_isInstant = false;
+
     if (m_visible)
     {
         bool  changed = (text != m_text) ||
@@ -80,7 +287,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
         if (changed && m_popupHost != nullptr)
         {
-            m_hideAtMs = nowMs + kMaxVisibleMs;
+            m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
 
             ReleaseActivePopup();
             ShowPopup();
@@ -93,6 +300,43 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
     m_pendingText   = text;
     m_pending       = true;
     m_showAtMs      = nowMs + (int64_t) m_dwellOpenMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestShowNow
+//
+//  Shown on the request itself. A repeat for the same anchor and text keeps
+//  the tip and its deadline, as RequestShow's does; a new one swaps in at
+//  once and starts its own lifetime.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
+{
+    bool  isSame = m_visible && !m_fadingOut && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+
+
+
+    if (isSame)
+    {
+        return;
+    }
+
+    m_anchor    = anchor;
+    m_text      = text;
+    m_pending   = false;
+    m_visible   = true;
+    m_fadingOut = false;
+    m_isInstant = true;
+    m_hideAtMs  = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+
+    ReleaseActivePopup();
+    ShowPopup();
 }
 
 
@@ -114,11 +358,12 @@ void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int
 
 
 
-    m_anchor   = anchor;
-    m_text     = text;
-    m_pending  = false;
-    m_visible  = true;
-    m_hideAtMs = nowMs + (int64_t) durationMs;
+    m_anchor    = anchor;
+    m_text      = text;
+    m_pending   = false;
+    m_visible   = true;
+    m_isInstant = false;
+    m_hideAtMs  = nowMs + (int64_t) durationMs;
 
     if (m_popupHost != nullptr && (changed || m_activePopup == nullptr))
     {
@@ -175,7 +420,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
         // The OS dismisses its own after a few seconds for the same reason:
         // the tip has been read by then, and what is left is an obstruction
         // sitting over the thing it was explaining.
-        m_hideAtMs = nowMs + kMaxVisibleMs;
+        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
 
         ShowPopup();
 
@@ -283,6 +528,7 @@ void DxuiTooltip::HideImmediate()
 void DxuiTooltip::ShowPopup()
 {
     DxuiPopupHost::ShowParams  showParams;
+    RECT                       anchor   = {};
     POINT                      topLeft  = {};
     POINT                      botRight = {};
     HWND                       owner    = nullptr;
@@ -340,7 +586,7 @@ void DxuiTooltip::ShowPopup()
         // ARE pixels and it measures whatever size it is handed. If it is
         // unavailable (test mode) fall back to a glyph-count estimate wrapped
         // the same way.
-        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, s_kFontFamily,
+        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(),
                                                 maxWPx, textWPx, textHPx);
         if (FAILED (hr) || textWPx <= 0.0f)
         {
@@ -360,10 +606,11 @@ void DxuiTooltip::ShowPopup()
         boxHPx = std::ceil (textHPx) + padYPx * 2.0f;
 
         // Anchor arrives in client pixels; the popup wants screen pixels.
-        topLeft.x  = m_anchor.left;
-        topLeft.y  = m_anchor.top;
-        botRight.x = m_anchor.right;
-        botRight.y = m_anchor.bottom;
+        anchor     = GetPlacementAnchor();
+        topLeft.x  = anchor.left;
+        topLeft.y  = anchor.top;
+        botRight.x = anchor.right;
+        botRight.y = anchor.bottom;
         ClientToScreen (owner, &topLeft);
         ClientToScreen (owner, &botRight);
 
@@ -400,8 +647,9 @@ void DxuiTooltip::ShowPopup()
         showParams.backgroundArgb   = m_bgArgb;
 
         // A tip fades in rather than appearing. Same switch the menus read,
-        // so turning menu animation off turns this off with it.
-        showParams.revealMs         = DxuiSystemSettings::Instance().AreMenuAnimationsEnabled()
+        // so turning menu animation off turns this off with it. An instant
+        // tip appears whole, since it moves from cell to cell with the pointer.
+        showParams.revealMs         = (DxuiSystemSettings::Instance().AreMenuAnimationsEnabled() && !m_isInstant)
                                           ? kFadeMs : 0;
         showParams.revealFade       = true;
         showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
@@ -488,6 +736,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     float    height    = 0.0f;
     float    boxLeft   = 0.0f;
     float    boxTop    = 0.0f;
+    RECT     anchor    = {};
 
 
 
@@ -497,14 +746,15 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     }
 
     hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
-             m_text.c_str(), fontPx, s_kFontFamily,
+             m_text.c_str(), fontPx, GetFace(),
              m_scaler.ToPxf (s_kMaxTextWidthDip), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    anchor  = GetPlacementAnchor();
     width   = std::ceil (textW)  + padX * 2.0f;
     height  = std::ceil (textH)  + padY * 2.0f;
-    boxLeft = (float) m_anchor.left;
-    boxTop  = (float) m_anchor.bottom + anchorGap;
+    boxLeft = (float) anchor.left;
+    boxTop  = (float) anchor.bottom + anchorGap;
 
     if (m_viewportWPx > 0)
     {
@@ -523,7 +773,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     if (m_viewportHPx > 0)
     {
-        float  flippedTop = (float) m_anchor.top - anchorGap - height;
+        float  flippedTop = (float) anchor.top - anchorGap - height;
 
         if (boxTop + height > (float) m_viewportHPx && flippedTop >= 0.0f)
         {
@@ -541,7 +791,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
-                          s_kFontFamily);
+                          GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -629,6 +879,6 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
-                          s_kFontFamily);
+                          GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

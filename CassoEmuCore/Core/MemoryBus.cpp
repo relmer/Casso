@@ -73,9 +73,11 @@ Byte MemoryBus::ReadByte (Word address)
 {
     // Fast path: page-table lookup. RAM ($0000-$BFFF) and, once the language
     // card wires them, ROM/LC RAM ($D000-$FFFF) have a mapped page; I/O
-    // ($C000-$CFFF) stays null and falls through to device dispatch so its
-    // read side effects run. This is the hottest read in the emulator, so the
-    // mapped case stays one branch deep.
+    // ($C000-$C0FF) and the //e's slot ROM space ($C100-$CFFF) stay null and
+    // fall through to device dispatch so their read side effects run. On the
+    // //c, the internal ROM pages $C1-$CF are mapped for reads, except $C3
+    // and $CF, which keep their INTC8ROM side effects. This is the hottest
+    // read in the emulator, so the mapped case stays one branch deep.
     Byte *          page   = m_readPage[address >> 8];
     MemoryDevice *  device = nullptr;
     Byte            value  = 0;

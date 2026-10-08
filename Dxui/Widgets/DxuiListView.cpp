@@ -7,7 +7,7 @@
 
 #include "DxuiListView.h"
 
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 
 
@@ -5344,6 +5344,10 @@ void DxuiListView::OnFocusChanged (bool focused)
         // neighboring control shows focus immediately. The resize model keeps
         // its neutral entry (the first Tab / Shift+Tab picks a direction into
         // the sub-stops).
+        //
+        // The row selected is the top VISIBLE one, not row 0: a click on a
+        // scrolled list gives it focus before the press is hit-tested, so
+        // scrolling back to row 0 here would land the click on the wrong row.
         m_kbColFocus = 0;
         ClearColumnFocusMarkers();
 

@@ -3,6 +3,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 
 #include "resource.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -29,7 +30,7 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
     switch (cmd.id)
     {
         case IDM_FILE_OPEN:
-            hr = target.SwitchMachine (std::wstring (cmd.payload.begin(), cmd.payload.end()));
+            hr = target.SwitchMachine (TextEncoding::NarrowToWide (cmd.payload));
             if (FAILED (hr))
             {
                 DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hr);
@@ -55,6 +56,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
         case IDM_MACHINE_STEP:
             target.StepInstruction();
+            break;
+
+        case IDM_DEBUG_SAVE_TRACE:
+            target.SaveTrace();
             break;
 
         case IDM_DISK_INSERT1:
@@ -92,7 +97,7 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
         case IDM_AUDIO_DRIVE_MECHANISM:
             // "shugart" or "alps", canonical lower-case from the settings
             // state; the mixer matches case-insensitively anyway.
-            hr = target.SetDriveAudioMechanism (std::wstring (cmd.payload.begin(), cmd.payload.end()));
+            hr = target.SetDriveAudioMechanism (TextEncoding::NarrowToWide (cmd.payload));
             IGNORE_RETURN_VALUE (hr, S_OK);
             break;
 
@@ -106,6 +111,40 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
         case IDM_AUDIO_DRIVE_TEST:
             DispatchDriveTest (cmd.payload, target);
+            break;
+
+        case IDM_TAPE_INSERT:
+            target.ControlTape (TapeCommand::Insert);
+            break;
+
+        case IDM_TAPE_EJECT:
+            // "keep" unloads without forgetting, for a machine switch.
+            target.ControlTape (cmd.payload == "keep" ? TapeCommand::Unload : TapeCommand::Eject);
+            break;
+
+        case IDM_TAPE_PLAY:
+            target.ControlTape (TapeCommand::Play);
+            break;
+
+        case IDM_TAPE_STOP:
+            target.ControlTape (TapeCommand::Stop);
+            break;
+
+        case IDM_TAPE_REWIND:
+            target.ControlTape (TapeCommand::Rewind);
+            break;
+
+        case IDM_TAPE_RECORD:
+            // "1" arms record, anything else releases it.
+            target.ControlTape (cmd.payload == "1" ? TapeCommand::ArmRecord : TapeCommand::ReleaseRecord);
+            break;
+
+        case IDM_TAPE_SEEK:
+            target.ControlTape (TapeCommand::Seek);
+            break;
+
+        case IDM_TAPE_FASTFORWARD:
+            target.ControlTape (TapeCommand::FastForward);
             break;
 
         default:

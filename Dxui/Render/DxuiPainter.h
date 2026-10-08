@@ -102,6 +102,8 @@ public:
     // is opaque (default), 0.0 is fully transparent.
     void    SetGlobalAlpha (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
     void    SetOrigin      (float xPx, float yPx)   override { m_originXPx = xPx; m_originYPx = yPx; }
+    void    SetClipRect    (const RECT * clipPx)    override;
+    bool    GetClipRect    (RECT & clipPx) const    override;
     float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
     void    PushClipRect   (float xPx, float yPx, float widthPx, float heightPx) override;
     void    PopClipRect    ()                       override { if (!m_clips.empty()) { m_clips.pop_back(); } }
@@ -187,7 +189,7 @@ private:
     void    NdcFromPixel    (float xPx, float yPx, float & outX, float & outY) const;
 
     static Vertex MakeVertex     (uint32_t argbColor, float alphaMultiplier = 1.0f);
-    static Vertex LerpVertex     (const Vertex & from, const Vertex & to, float t);
+    static Vertex LerpVertex     (const Vertex & a, const Vertex & b, float t);
     static void   MakeEdgePlanes (const float px[4],
                                   const float py[4],
                                   float       nx[4],
@@ -213,6 +215,8 @@ private:
     float                             m_globalAlpha          = 1.0f;
     float                             m_originXPx            = 0.0f;
     float                             m_originYPx            = 0.0f;
+    bool                              m_hasClip              = false;
+    RECT                              m_clipPx               = {};   // after the origin, like the vertices
 
     std::vector<Vertex>               m_vertices;
     std::vector<D2D1_RECT_F>          m_clips;     // pushed clips, in origin-applied pixels, each within the one before

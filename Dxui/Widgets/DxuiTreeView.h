@@ -122,6 +122,11 @@ public:
     const DxuiTreeNode *  FindNodeById     (const std::wstring & id) const;
     int                   GetParentRow     (int flatRow) const;
 
+    // One nesting step, unless SetIndentDip changes it. The settings pages
+    // indent a child setting's label by the same amount, so it reads as nested
+    // the way a child row here does.
+    static constexpr int  kIndentDip = 18;
+
     DxuiTreeView() { m_focusable = true; }
     ~DxuiTreeView() override = default;
 
@@ -145,7 +150,6 @@ public:
     static constexpr int    s_kIconDip          = 16;
     static constexpr int    s_kIconGapDip       = 6;
     static constexpr int    s_kLabelTipPadDip   = 4;    // a clipped name's tip starts this far before the icon
-    static constexpr int    s_kDefaultIndentDip = 18;
 
     //  How opaque a ghosted icon is: Explorer's hidden items, measured.
     static constexpr float  s_kGhostedIconAlpha = 0.5f;
@@ -294,8 +298,8 @@ private:
     SelectFn                   m_onSelect;
     ExpandFn                   m_onExpand;
     int                        m_rowHeightPx    = 22;
-    int                        m_indentDip      = s_kDefaultIndentDip;
-    int                        m_indentPx       = s_kDefaultIndentDip;
+    int                        m_indentDip      = kIndentDip;
+    int                        m_indentPx       = kIndentDip;
     int                        m_checkboxPx     = 16;
     int                        m_twistyPx       = 16;
     int                        m_highlight      = -1;

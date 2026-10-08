@@ -11,6 +11,28 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozSyntheticTrack
+//
+//  One track for WozLoader::BuildSyntheticV21. data holds packed bits for a
+//  bit track or raw flux bytes for a flux track; bitCount is used only for a
+//  bit track. Each listed quarter track maps to this track in TMAP or FLUX.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct WozSyntheticTrack
+{
+    vector<Byte>  data;
+    size_t        bitCount = 0;
+    bool          isFlux   = false;
+    vector<int>   quarterTracks;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozLoader
 //
 //  Native nibble-level loader for the WOZ disk-image format (v1 + v2)
@@ -132,6 +154,14 @@ public:
         size_t                trackZeroBitCount,
         vector<Byte>       &  outBytes);
 
+    // Test helper: a WOZ 2.1 image with any mix of bit and flux tracks. Track
+    // i is TRKS record i. Laid out the way Applesauce writes one: INFO
+    // version 3, then TMAP and TRKS, then FLUX on the first block boundary
+    // after the track data.
+    static HRESULT  BuildSyntheticV21 (
+        const vector<WozSyntheticTrack>  &  tracks,
+        vector<Byte>                     &  outBytes);
+
     //  INFO chunk field offsets, from the payload's first byte. Named here
     //  because Describe and Serialize both address them and a second set of
     //  numbers is a second chance to be wrong.
@@ -143,6 +173,9 @@ public:
     static constexpr size_t  kInfoOffsetCreator          = 5;
     static constexpr size_t  kInfoCreatorLength          = 32;
     static constexpr size_t  kInfoOffsetBootSectorFormat = 38;
+    static constexpr size_t  kInfoOffsetLargestTrack     = 44;
+    static constexpr size_t  kInfoOffsetFluxBlock        = 46;
+    static constexpr size_t  kInfoOffsetLargestFlux      = 48;
 
     static constexpr Byte    kDiskType525 = 1;
     static constexpr Byte    kDiskType35  = 2;

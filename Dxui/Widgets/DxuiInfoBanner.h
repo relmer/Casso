@@ -73,6 +73,21 @@ public:
     //  Off by default, so every existing banner paints exactly as it did.
     void  SetCentered (bool centered) { m_centered = centered; m_fitValid = false; }
 
+    //  Inner padding above and below the text, in DIPs. For a banner that sits
+    //  in a form among rows of controls, where the default padding makes a
+    //  one-line notice taller than the rows around it.
+    //
+    //  The default padding unless set, so every existing banner measures and
+    //  paints exactly as it did.
+    void  SetVerticalPaddingDip (float padDip) { m_padYDip = padDip; }
+
+    //  A Segoe MDL2 Assets glyph drawn in the icon box in place of the badge,
+    //  in the severity's color. Must outlive the banner (a UnicodeSymbols
+    //  constant). Null by default, so every existing banner keeps its badge.
+    void  SetIconGlyph (const wchar_t * glyph) { m_iconGlyph = glyph; }
+
+    const wchar_t * GetIconGlyph () const { return m_iconGlyph; }
+
     void  SetRect (const RECT & rect) { SetBounds (rect); }
     void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }   // the fit cache keys off the dpi itself
 
@@ -167,12 +182,22 @@ private:
     static void  StrokeCircle (IDxuiPainter & painter, float cx, float cy,
                                float radiusPx, float strokePx, uint32_t argb);
 
+    // Draws the icon-font glyph set by SetIconGlyph, filling the icon box.
+    void  PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme & theme,
+                          float iconLeft, float iconTop, float iconBox) const;
+
     //  How much of the trailing edge belongs to something else. See
     //  SetTrailingReservePx.
     float           m_trailingReservePx = 0.0f;
 
     //  See SetCentered.
     bool            m_centered = false;
+
+    //  See SetVerticalPaddingDip.
+    float           m_padYDip = s_kPadYDip;
+
+    //  See SetIconGlyph.
+    const wchar_t * m_iconGlyph = nullptr;
 
     //  What ResolveCenteredBoxPx last worked out, and the three inputs it
     //  depends on. Mutable because the height queries are const and are the

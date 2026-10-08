@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Render/IDxuiTextRenderer.h"
 #include "Widgets/DxuiShadowedText.h"
 
 

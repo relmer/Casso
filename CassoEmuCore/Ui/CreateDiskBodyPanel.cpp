@@ -2,14 +2,6 @@
 
 #include "CreateDiskBodyPanel.h"
 
-#include "Core/DxuiEvents.h"
-#include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiTextInput.h"
-
 
 
 
@@ -30,6 +22,7 @@ void CreateDiskBodyPanel::Init (const Children & children)
     Adopt (*children.format);
     Adopt (*children.imageTypeLabel);
     Adopt (*children.imageType);
+    Adopt (*children.flux);
     Adopt (*children.bootable);
     Adopt (*children.download);
     Adopt (*children.nameLabel);
@@ -44,7 +37,7 @@ void CreateDiskBodyPanel::Init (const Children & children)
 //
 //  Layout
 //
-//  Path strip on top; the options, bootable, and name strips stacked at the
+//  Path strip on top; the options, flux, bootable, and name strips stacked at the
 //  bottom; the listing fills whatever is left between them.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,6 +56,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     int  labelPad = scaler.ToPx (kNameLabelPadDip);
     int  nameTop  = 0;
     int  bootTop  = 0;
+    int  fluxTop  = 0;
     int  optTop   = 0;
     int  x        = 0;
 
@@ -73,7 +67,8 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     nameTop = boundsPx.bottom - nameH;
     bootTop = nameTop - nameGap - bootH;
-    optTop  = bootTop - optGap - optH;
+    fluxTop = bootTop - bootH;
+    optTop  = fluxTop - optGap - optH;
 
     if (m_kids.pathLabel != nullptr)
     {
@@ -121,6 +116,13 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
         RECT  r = { x, optTop, x + scaler.ToPx (kImageTypeDropDip), optTop + optH };
 
         m_kids.imageType->Layout (r, scaler);
+    }
+
+    if (m_kids.flux != nullptr)
+    {
+        RECT  r = { boundsPx.left, fluxTop, boundsPx.right, fluxTop + bootH };
+
+        m_kids.flux->Layout (r, scaler);
     }
 
     x = boundsPx.left;
@@ -224,6 +226,12 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
         listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
         handled            = m_kids.list->OnMouse (listEv);
         pressed            = handled ? m_kids.list : nullptr;
+    }
+
+    if (!handled && m_kids.flux != nullptr)
+    {
+        handled = m_kids.flux->OnMouse (ev);
+        pressed = handled ? m_kids.flux : nullptr;
     }
 
     if (!handled && m_kids.bootable != nullptr)

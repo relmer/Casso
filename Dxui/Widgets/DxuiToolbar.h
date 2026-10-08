@@ -343,7 +343,8 @@ private:
         bool                            previewed = false;
     };
 
-    static bool  IsPointInRect (const RECT & rc, int x, int y);
+    static bool          IsPointInRect  (const RECT & rc, int x, int y);
+    static std::wstring  GetButtonText  (const DxuiCommand & cmd);
 
     //  An entry without a glyph is its label alone: it spends no room on an
     //  icon, never collapses to one, and as a drop-down shows a chevron.
@@ -362,6 +363,7 @@ private:
 
     void  PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme & theme);
 
+    std::wstring  GetFittedButtonText  (const DxuiCommand & cmd, IDxuiTextRenderer * text, float fontPx) const;
     const Slot *  FindSlot             (int commandId) const;
     Slot       *  FindSlot             (int commandId);
     int           MeasureLabelPx       (const wchar_t * text, float fontPx) const;
@@ -403,6 +405,7 @@ private:
     bool                     m_flyoutPressed  = false;
     RECT                     m_flyoutRc       = {};
     int                      m_focusIndex     = -1;
+    mutable std::wstring     m_tipText;                  // backs the pointer GetTooltipAt returns
 
     IDxuiTextRenderer             * m_textRenderer    = nullptr;
     const wchar_t                 * m_iconFace        = kMdl2IconFace;

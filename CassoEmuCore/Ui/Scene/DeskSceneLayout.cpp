@@ -383,6 +383,14 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         }
     }
 
+    // The cassette recorder joins both bounds, so the camera fit contains it
+    // and its shadow exactly as it does the stack.
+    if (metrics.hasRecorder)
+    {
+        PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, deviceMin, deviceMax,
+                       sceneMin, sceneMax, out);
+    }
+
     // The camera looks at the glass center from slightly above (a person at
     // a desk), so top surfaces show and every device picks up its position's
     // parallax automatically. The straight-axis closed form seeds the
@@ -396,8 +404,16 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // the monitor's front plane, sitting kEyeAboveMonitorTopMm above the
     // monitor's top, looking at the middle of the screen. Every perspective
     // in the frame follows from that one position.
+    //
+    // Center on everything on the desk, not on the monitor. The eye, the gaze
+    // and the orbit pivot sit over the middle of all the devices, so a scene
+    // with the recorder beside the stack is framed and turned as one group
+    // rather than about the monitor with the recorder off to one side. Without
+    // the recorder the stack is symmetric and this is the monitor's center.
     {
-        float   at[3]     = { 0.0f, glassCy, 0.0f };
+        float   midX      = (deviceMin[0] + deviceMax[0]) * 0.5f;
+        float   midZ      = (deviceMin[2] + deviceMax[2]) * 0.5f;
+        float   at[3]     = { midX, glassCy, 0.0f };
         float   eyeUp     = metrics.monitorMax[2] + monitorLiftMm + kEyeAboveMonitorTopMm;
         float   backOff   = 1.0f;
         float   fovY      = 0.0f;
@@ -419,7 +435,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         // pathological viewport from turning the frame into a fisheye.
         for (int pass = 0; pass < 4; pass++)
         {
-            float   eye[3]   = { 0.0f, glassCy + (eyeUp - glassCy) * backOff, kViewingDistanceMm * backOff };
+            float   eye[3]   = { midX, glassCy + (eyeUp - glassCy) * backOff, kViewingDistanceMm * backOff };
             float   needTanX = 0.0f;
             float   needTanY = 0.0f;
             float   tanLo    = FLT_MAX;
@@ -522,7 +538,11 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             float  sp = std::sin (view.orbitPitchRad);
 
             // RotY(-yaw) * RotX(+pitch), row-vector convention, then the
-            // pivot carried through and put back: p' = (p - at) * R + at.
+            // pivot subtracted and added back: p' = (p - pivot) * R + pivot.
+            // The pivot is the gaze target pushed back to the middle of the
+            // devices' depth, so a turn spins the group about its own center.
+            float  pivot[3] = { at[0], at[1], midZ };
+
             float  rot[16] =
             {
                 cy,        sy * sp,        -sy * cp,       0.0f,
@@ -531,9 +551,9 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                 0.0f,      0.0f,            0.0f,          1.0f,
             };
 
-            rot[12] = at[0] - (at[0] * rot[0] + at[1] * rot[4] + at[2] * rot[8]);
-            rot[13] = at[1] - (at[0] * rot[1] + at[1] * rot[5] + at[2] * rot[9]);
-            rot[14] = at[2] - (at[0] * rot[2] + at[1] * rot[6] + at[2] * rot[10]);
+            rot[12] = pivot[0] - (pivot[0] * rot[0] + pivot[1] * rot[4] + pivot[2] * rot[8]);
+            rot[13] = pivot[1] - (pivot[0] * rot[1] + pivot[1] * rot[5] + pivot[2] * rot[9]);
+            rot[14] = pivot[2] - (pivot[0] * rot[2] + pivot[1] * rot[6] + pivot[2] * rot[10]);
 
             {
                 float  rotated[16] = {};
@@ -545,6 +565,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                 {
                     SceneCamera::Mul44 (out.driveWorld[i], rot, rotated);
                     memcpy (out.driveWorld[i], rotated, sizeof (rotated));
+                }
+
+                if (out.hasRecorder != 0)
+                {
+                    SceneCamera::Mul44 (out.recorderWorld, rot, rotated);
+                    memcpy (out.recorderWorld, rotated, sizeof (rotated));
                 }
             }
         }
@@ -662,6 +688,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         }
     }
 
+    if (out.hasRecorder != 0)
+    {
+        ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
+                         out.viewProj, viewportPx, out.recorderRectPx);
+    }
+
     // Scene scale and the projected glass rect: the glass's on-screen
     // bounds against the 2D chrome's native 384 dp. All four glass corners
     // project (the downward gaze keystones the quad slightly), and the rect
@@ -704,6 +736,104 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::PlaceRecorder
+//
+//  The cassette recorder lies flat on the desk to the right of the stack,
+//  key end toward the viewer: its left edge kRecorderGapMm clear of whatever
+//  the stack's right edge is (the monitor's or a drive's, whichever reaches
+//  further), and its front kRecorderForwardMm ahead of the drives' front
+//  plane. `frontZ` is that plane in world Z. Grows both bounds by it, the
+//  scene bounds by its shadow's ground clearance as well.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::PlaceRecorder (const DeskSceneMetrics & metrics,
+                                     float                    frontZ,
+                                     float                    deviceMin[3],
+                                     float                    deviceMax[3],
+                                     float                    sceneMin[3],
+                                     float                    sceneMax[3],
+                                     DeskSceneComposition   & out)
+{
+    float   tx     = deviceMax[0] + kRecorderGapMm - metrics.recorderMin[0];
+    float   tz     = frontZ + kRecorderForwardMm;
+    float   lo[3]  = { metrics.recorderMin[0] + tx, metrics.recorderMin[2], tz - metrics.recorderMax[1] };
+    float   hi[3]  = { metrics.recorderMax[0] + tx, metrics.recorderMax[2], tz - metrics.recorderMin[1] };
+
+
+
+    MakeDeviceWorld (tx, 0.0f, tz, 1.0f, out.recorderWorld);
+    out.hasRecorder = 1;
+
+    for (int axis = 0; axis < 3; axis++)
+    {
+        deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
+        deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
+    }
+
+    sceneMin[0] = std::min (sceneMin[0], lo[0] - metrics.recorderPadSideMm);
+    sceneMax[0] = std::max (sceneMax[0], hi[0] + metrics.recorderPadSideMm);
+    sceneMin[1] = std::min (sceneMin[1], lo[1]);
+    sceneMax[1] = std::max (sceneMax[1], hi[1]);
+    sceneMin[2] = std::min (sceneMin[2], lo[2]);
+    sceneMax[2] = std::max (sceneMax[2], hi[2] + metrics.recorderPadDepthMm);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::ProjectModelBox
+//
+//  A model box through its world matrix to its screen bounds. Leaves `outPx`
+//  untouched when any corner fails to project.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::ProjectModelBox (const float    world[16],
+                                       const float    boxMin[3],
+                                       const float    boxMax[3],
+                                       const float    viewProj[16],
+                                       const RECT   & viewportPx,
+                                       RECT         & outPx)
+{
+    float   pxMin[2] = { FLT_MAX, FLT_MAX };
+    float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
+
+
+
+    for (int corner = 0; corner < 8; corner++)
+    {
+        float   pt[3]      = { (corner & 1) ? boxMax[0] : boxMin[0],
+                               (corner & 2) ? boxMax[1] : boxMin[1],
+                               (corner & 4) ? boxMax[2] : boxMin[2] };
+        float   worldPt[3] = {};
+        float   px[2]      = {};
+
+        if (!SceneCamera::TransformPoint (world, pt, worldPt) ||
+            !SceneCamera::ProjectToScreen (viewProj, worldPt, viewportPx, px))
+        {
+            return;
+        }
+
+        pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+        pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+    }
+
+    outPx.left   = (LONG) std::floor (pxMin[0]);
+    outPx.top    = (LONG) std::floor (pxMin[1]);
+    outPx.right  = (LONG) std::ceil (pxMax[0]);
+    outPx.bottom = (LONG) std::ceil (pxMax[1]);
 }
 
 
@@ -903,18 +1033,21 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
                                        DeskSceneComposition   & out,
                                        float                    gazeDownRad)
 {
-    HRESULT   hr          = S_OK;
-    int       viewportW   = viewportPx.right - viewportPx.left;
-    int       viewportH   = viewportPx.bottom - viewportPx.top;
-    float     aspect      = 0.0f;
-    float     tanHalfY    = std::tan (kFovY * 0.5f);
-    float     driveW      = metrics.driveMax[0] - metrics.driveMin[0];
-    float     driveCx     = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
-    float     rowCy       = 0.0f;
-    float     dist        = 0.0f;
-    float     sceneMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
-    float     sceneMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
-    float     driveTx[2]  = {};
+    HRESULT   hr           = S_OK;
+    int       viewportW    = viewportPx.right - viewportPx.left;
+    int       viewportH    = viewportPx.bottom - viewportPx.top;
+    float     aspect       = 0.0f;
+    float     tanHalfY     = std::tan (kFovY * 0.5f);
+    float     driveW       = metrics.driveMax[0] - metrics.driveMin[0];
+    float     driveCx      = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
+    float     rowCy        = 0.0f;
+    float     dist         = 0.0f;
+    float     sceneMin[3]  = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float     sceneMax[3]  = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float     deviceMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float     deviceMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float     driveTx[2]   = {};
+    float     shiftX       = 0.0f;
 
 
 
@@ -945,9 +1078,31 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
 
         for (int axis = 0; axis < 3; axis++)
         {
-            sceneMin[axis] = std::min (sceneMin[axis], lo[axis]);
-            sceneMax[axis] = std::max (sceneMax[axis], hi[axis]);
+            sceneMin[axis]  = std::min (sceneMin[axis], lo[axis]);
+            sceneMax[axis]  = std::max (sceneMax[axis], hi[axis]);
+            deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
+            deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
         }
+    }
+
+    // The recorder is placed beside the drives, as on the desk, so the strip
+    // that shows the drives shows it too. The row is then shifted sideways to
+    // center the whole group, since the camera solve below points straight
+    // down the middle.
+    if (metrics.hasRecorder)
+    {
+        PlaceRecorder (metrics, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);
+
+        shiftX       = -(sceneMin[0] + sceneMax[0]) * 0.5f;
+        sceneMin[0] += shiftX;
+        sceneMax[0] += shiftX;
+
+        for (int i = 0; i < driveCount; i++)
+        {
+            out.driveWorld[i][12] += shiftX;
+        }
+
+        out.recorderWorld[12] += shiftX;
     }
 
     rowCy = (sceneMin[1] + sceneMax[1]) * 0.5f;
@@ -1019,6 +1174,12 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
                 out.driveLabelWorld[i][2] = worldPt[2];
             }
         }
+    }
+
+    if (out.hasRecorder != 0)
+    {
+        ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
+                         out.viewProj, viewportPx, out.recorderRectPx);
     }
 
     out.sceneRectPx = viewportPx;
@@ -1281,7 +1442,32 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
                                              int                          gapPx,
                                              float                        outCorners[4][3])
 {
-    const float  * anchor   = nullptr;
+    memset (outCorners, 0, sizeof (float) * 4 * 3);
+
+    if (drive < 0 || drive >= 2 || drive >= comp.driveCount)
+    {
+        return false;
+    }
+
+    return TryMakeLabelQuad (comp, comp.driveLabelWorld[drive], labelPx, gapPx, outCorners);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::TryMakeLabelQuad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::TryMakeLabelQuad (const DeskSceneComposition & comp,
+                                        const float                  anchor[3],
+                                        const SIZE                 & labelPx,
+                                        int                          gapPx,
+                                        float                        outCorners[4][3])
+{
     float          right[3] = {};
     float          up[3]    = {};
     float          perPxX   = 0.0f;
@@ -1296,13 +1482,10 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
 
     memset (outCorners, 0, sizeof (float) * 4 * 3);
 
-    if (drive < 0 || drive >= 2 || drive >= comp.driveCount ||
-        labelPx.cx <= 0 || labelPx.cy <= 0)
+    if (labelPx.cx <= 0 || labelPx.cy <= 0)
     {
         return false;
     }
-
-    anchor = comp.driveLabelWorld[drive];
 
     if (!GetWorldPerPixel (comp, anchor, perPxX, perPxY))
     {

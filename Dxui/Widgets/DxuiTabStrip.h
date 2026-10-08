@@ -38,6 +38,12 @@ public:
     using NewTabFn = std::function<void ()>;
     using CloseFn  = std::function<void (int index)>;
 
+    // Label metrics: the font a tab label is drawn in, and the inset the
+    // label keeps from each side of its tab. Callers sizing tabs to their
+    // labels measure with the same font.
+    static constexpr float  kLabelFontDip = 13.0f;
+    static constexpr float  kLabelPadXDip = 8.0f;
+
     DxuiTabStrip() { m_focusable = true; }
 
     struct Tab

@@ -28,6 +28,8 @@ public:
         ControllerDeviceInfo  info;
         ControllerSample      sample;
         bool                  needsTimedPoll = false;
+        HANDLE                wakeEvent      = nullptr;
+        int                   readCount      = 0;
     };
 
     HRESULT Initialize (IControllerBackendEvents * pEvents) override
@@ -58,13 +60,18 @@ public:
 
     HRESULT ReadSample (const ControllerUnitKey & unit, ControllerSample & outSample) override
     {
-        HRESULT         hr     = S_OK;
-        const Device  * device = FindDevice (unit);
+        HRESULT   hr     = S_OK;
+        Device  * device = FindDevice (unit);
 
 
 
         readCount++;
         outSample = ControllerSample();
+
+        if (device != nullptr)
+        {
+            device->readCount++;
+        }
 
         if (failNextRead != S_OK)
         {
@@ -86,12 +93,24 @@ public:
 
     void GetWakeSources (const ControllerUnitKey & unit, std::vector<HANDLE> & outEvents, bool & outNeedsTimedPoll) override
     {
-        const Device  * device = FindDevice (unit);
+        Device  * device = FindDevice (unit);
 
 
 
         outEvents.clear();
         outNeedsTimedPoll = device != nullptr && device->needsTimedPoll;
+
+        if (device != nullptr && device->wakeEvent != nullptr)
+        {
+            outEvents.push_back (device->wakeEvent);
+        }
+    }
+
+    int GetReadCount (const ControllerUnitKey & unit)
+    {
+        Device  * device = FindDevice (unit);
+
+        return device != nullptr ? device->readCount : 0;
     }
 
     void AddDevice (const ControllerDeviceInfo & info, bool needsTimedPoll = false)

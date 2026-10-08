@@ -321,15 +321,18 @@ jobs:
           }
           if ($bad) { throw "Unsigned or tampered after signing: $($bad -join ', ')" }
 
-      - name: Warn that the release is unsigned
+      # A hard stop rather than a warning: Casso treats any executable without
+      # the publisher's signature as a developer build and never updates it in
+      # place, so an unsigned release would strand everyone who installs it.
+      - name: Fail an unsigned release
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID == ''
         shell: pwsh
         run: |
-          Write-Host ('::warning::AZURE_CLIENT_ID is not set, so this release ships UNSIGNED and ' +
-                      'SmartScreen will warn on first run. Add the AZURE_CLIENT_ID, ' +
-                      'AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID secrets, and register a ' +
-                      'federated credential for ' +
+          Write-Host ('::error::AZURE_CLIENT_ID is not set, so this release would ship unsigned. ' +
+                      'Add the AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID ' +
+                      'secrets, and register a federated credential for ' +
                       'repo:${{ github.repository }}:environment:release.')
+          throw 'Error: unsigned release. Every release must be signed, because Casso updates only signed copies in place.'
 
       # After signing: signing the bundle does not reach the executables
       # inside it. Skipped without a credential, since an unsigned
@@ -398,6 +401,23 @@ jobs:
               throw ("The bundle's Publisher and the signing certificate's subject differ, so " +
                      "Windows will reject the package.`n  manifest: $publisher`n  cert:     $subject`n" +
                      'Update Identity/@Publisher in Installer/Package.appxmanifest to the subject above.')
+          }
+
+          # The running Casso decides whether it is an official copy by
+          # comparing its own signer to a constant compiled into the core, so
+          # that constant has to match the certificate too.
+          $header = Get-Content -Raw CassoEmuCore/Update/AuthenticodeVerifier.h
+          $match  = [regex]::Match($header, 'kpszOfficialPublisher\s*=\s*L"([^"]+)"')
+          if (-not $match.Success) { throw 'kpszOfficialPublisher was not found in CassoEmuCore/Update/AuthenticodeVerifier.h.' }
+
+          $corePublisher = $match.Groups[1].Value
+          Write-Host "  core publisher:     $corePublisher"
+
+          if ($corePublisher -ne $subject) {
+              throw ("The publisher compiled into Casso and the signing certificate's subject differ, so " +
+                     "every release would count as a developer build and never update itself.`n" +
+                     "  core: $corePublisher`n  cert: $subject`n" +
+                     'Update kpszOfficialPublisher in CassoEmuCore/Update/AuthenticodeVerifier.h to the subject above.')
           }
 
       - name: Package release zips

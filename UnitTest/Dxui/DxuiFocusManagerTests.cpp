@@ -2,6 +2,7 @@
 
 #include "MockDxuiControl.h"
 
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -341,5 +342,104 @@ public:
 
         Assert::AreEqual (static_cast<void *> (&ctlB), static_cast<void *> (focus.GetFocusedControl()),
             L"Tab from a now-hidden control lands on the visible page");
+    }
+
+
+    //  A sheet scrolled down shows its page through a viewport between the tab
+    //  strip and the button row, and lays the page's controls out past it: one
+    //  above the tab strip, a table's row and the page's last control below
+    //  the buttons. Tab still takes the page's controls, table row included,
+    //  after the tab strip and before the buttons.
+    TEST_METHOD (Tab_ReachesAScrolledPageBeforeTheButtonsBelowIt)
+    {
+        DxuiPanel            root;
+        MockDxuiControl    & tabs     = root.Add<MockDxuiControl>();
+        DxuiPropertyPage   & page     = root.Add<DxuiPropertyPage> (std::wstring (L"Page"));
+        MockDxuiControl    & ok       = root.Add<MockDxuiControl>();
+        MockDxuiControl    & first    = page.Add<MockDxuiControl>();
+        DxuiScrollPanel    & table    = page.Add<DxuiScrollPanel>();
+        MockDxuiControl    & row      = table.Add<MockDxuiControl>();
+        MockDxuiControl    & reset    = page.Add<MockDxuiControl>();
+        RECT                 viewport = MakeRect (0, 30, 300, 200);
+        DxuiFocusManager     focus;
+
+
+
+        tabs.SetBounds     (MakeRect (0,   0,   300, 24));
+        page.SetViewport   (&viewport);
+        page.SetBounds     (MakeRect (0,   -100, 300, 500));
+        first.SetBounds    (MakeRect (10,  -90,  100, -70));
+        table.SetBounds    (MakeRect (10,  250,  200, 300));
+        row.SetBounds      (MakeRect (10,  260,  190, 280));
+        reset.SetBounds    (MakeRect (10,  400,  100, 420));
+        ok.SetBounds       (MakeRect (200, 210,  290, 234));
+
+        focus.SetRowEpsilonDip (16.0f);
+        focus.Attach (&root);
+
+        Assert::AreEqual ((size_t) 5, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&tabs),  static_cast<void *> (focus.GetTabOrderAt (0)), L"the tab strip first");
+        Assert::AreEqual (static_cast<void *> (&first), static_cast<void *> (focus.GetTabOrderAt (1)), L"then the page, from its top");
+        Assert::AreEqual (static_cast<void *> (&row),   static_cast<void *> (focus.GetTabOrderAt (2)), L"the table's row in the page's order");
+        Assert::AreEqual (static_cast<void *> (&reset), static_cast<void *> (focus.GetTabOrderAt (3)), L"the page's last control before the buttons");
+        Assert::AreEqual (static_cast<void *> (&ok),    static_cast<void *> (focus.GetTabOrderAt (4)));
+    }
+
+
+    //  A control taken away while it has focus, as a mapping row set to None
+    //  is, passes focus to the next control in the tab order, with the focus
+    //  rectangle it had, rather than dropping it.
+    TEST_METHOD (RemovingTheFocusedControl_MovesFocusToTheNext)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl  & a     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & b     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & c     = panel.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+
+        a.SetBounds (MakeRect (0,   0, 50,  20));
+        b.SetBounds (MakeRect (60,  0, 110, 20));
+        c.SetBounds (MakeRect (120, 0, 170, 20));
+        focus.SetRowEpsilonDip (32.0f);
+        focus.Attach (&panel);
+        focus.SetFocused (&b);
+
+        b.SetVisible (false);
+        focus.Rebuild();
+
+        Assert::AreEqual (static_cast<void *> (&c), static_cast<void *> (focus.GetFocusedControl()), L"the next control");
+        Assert::IsTrue   (c.IsFocusCueVisible(), L"with the focus rectangle");
+        Assert::IsTrue   (c.lastFocused);
+    }
+
+
+    //  Past the end of the order, focus goes back to the nearest control
+    //  before it that is still there, rather than around to the first.
+    TEST_METHOD (RemovingTheFocusedControlAtTheEnd_MovesFocusToThePrevious)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl  & a     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & b     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & c     = panel.Add<MockDxuiControl>();
+        MockDxuiControl  & d     = panel.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+
+        a.SetBounds (MakeRect (0,   0, 50,  20));
+        b.SetBounds (MakeRect (60,  0, 110, 20));
+        c.SetBounds (MakeRect (120, 0, 170, 20));
+        d.SetBounds (MakeRect (180, 0, 230, 20));
+        focus.SetRowEpsilonDip (32.0f);
+        focus.Attach (&panel);
+        focus.SetFocused (&c);
+
+        c.SetVisible (false);
+        d.SetVisible (false);
+        focus.Rebuild();
+
+        Assert::AreEqual (static_cast<void *> (&b), static_cast<void *> (focus.GetFocusedControl()), L"the previous control, not the first");
     }
 };

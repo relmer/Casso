@@ -118,6 +118,7 @@ enum class DxuiCaptionStyle
     None,
     Standard,
     CloseOnly,
+    MaxClose,       // maximize + close: a resizable dialog that is never minimized alone
 };
 
 
@@ -240,6 +241,12 @@ public:
         // the owner rather than the owner's whole frame. Ignored by every
         // other mode.
         RECT                     placementAnchorRectPx    = {};
+
+        // Shrink the initial size to the work area of the monitor the window
+        // opens on, so a tall dialog on a small or scaled display keeps its
+        // bottom edge above the taskbar. Only for content that can scroll or
+        // reflow into less room. Ignored when useInitialWindowRectPx is set.
+        bool                     fitToWorkArea            = false;
     };
 
 
@@ -260,6 +267,13 @@ public:
     //  leaves the bottom button row under the taskbar.
     //
     static POINT  ClampToWorkArea  (const RECT & windowRect, const RECT & work);
+
+    //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Returns `windowSizePx` reduced on each axis to the size of
+    //  `work`. A size that already fits comes back unchanged.
+    //
+    static SIZE   FitSizeToWorkArea (const SIZE & windowSizePx, const RECT & work);
 
     //
     //  Which side of the owner PlaceBesideOwner tries first. The other
@@ -350,6 +364,11 @@ public:
     DxuiPanel  &  GetRoot          ()       { return *GetRootPanel(); }
     const DxuiDpiScaler &  GetScaler  () const { return m_scaler; }
 
+    //  Where the placement this window was created with puts a frame of
+    //  `windowSizePx`. False for a Default placement, or when the system
+    //  will not say where the anchor or its monitor is.
+    bool  TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const;
+
     //  The rect of the system button (minimize, maximize, close) under a
     //  screen point, in client pixels -- the space a tooltip anchor takes.
     //  False when the point is over no system button.
@@ -381,6 +400,13 @@ public:
     // NC mouse. No-op on a window without a host caption; the consumer's
     // next layout pass picks up the height change.
     void          SetCaptionVisible (bool visible) { m_captionVisible = visible; }
+
+    // A consumer control shown in the host caption, left of the system
+    // buttons (see DxuiCaptionBar::SetAccessory). Non-owning; pass null to
+    // remove it before the control is destroyed. No-op without a host caption.
+    void          SetCaptionAccessory (IDxuiControl * accessory);
+    void          SetCaptionAccessoryWidth (int widthDip);
+    int           GetCaptionReservedWidthDip () const;
 
     // Turns the resize borders off and on at runtime. A window that has gone
     // borderless-fullscreen fills the monitor and has nothing to resize TO:
@@ -694,6 +720,11 @@ private:
                                                  DxuiWindowPlacement mode, const RECT & anchorRectPx,
                                                  POINT & outTopLeft);
 
+    // Work area of the monitor a window placed against `anchorHwnd` opens
+    // on: the anchor's monitor (its restored rect's, when minimized), or the
+    // primary monitor with no anchor. False when the system will not say.
+    static bool           TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork);
+
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();
     void     ReleaseRenderResources    ();
@@ -735,10 +766,12 @@ private:
     void     DispatchNcUpToTrackedButton (LPARAM lp);
     void     HandleDpiChanged          (WPARAM wp, LPARAM lp);
     void     HandleSize                (WPARAM wp, LPARAM lp);
+    void     HandleSettingChange       ();
     void     HandleThemeChange         ();
     void     MaybeRelayoutRoot         (const RECT & clientPx);
     DxuiPanel *  GetRootPanel             () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }
     void     LayoutCaption             (const RECT & clientDip);
+    void     RelayoutCaptionNow        ();
     void     BuildCaption              ();
     bool     RouteCaptionNcMouse       (UINT msg, WPARAM wp, LPARAM lp);
 

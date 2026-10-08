@@ -27,7 +27,8 @@ MachineHost::MachineHost() :
     m_memoryBus (std::make_unique<MemoryBus>()),
     m_charRom   (std::make_unique<CharacterRomData>()),
     m_diskStore (std::make_unique<DiskImageStore>()),
-    m_config    (std::make_unique<MachineConfig>())
+    m_config    (std::make_unique<MachineConfig>()),
+    m_tapeDeck  (std::make_unique<TapeDeck>())
 {
 }
 
@@ -271,6 +272,10 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
 void MachineHost::SoftReset()
 {
+    // A reset stops the recorder, as pressing reset mid-load would leave a real
+    // one running into a guest that is no longer listening. The tape stays in.
+    StopTape();
+
     m_memoryBus->SoftResetAll();
 
     if (m_mmu != nullptr)
@@ -312,7 +317,7 @@ void MachineHost::SoftReset()
 //
 //  MachineHost::PowerCycle
 //
-//  Reseeds every DRAM-owning device from the shared Prng, then runs the
+//  Refills every DRAM-owning device with the power-on pattern, then runs the
 //  reset sequence.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -327,6 +332,8 @@ void MachineHost::PowerCycle()
     {
         return;
     }
+
+    StopTape();
 
     // Auto-flush dirty disks before reseeding device state so writes don't
     // get lost across a power cycle. Mounts persist (matching
@@ -362,12 +369,62 @@ void MachineHost::PowerCycle()
         m_cpu->PowerCycle (*m_prng);
     }
 
+    // After the CPU's power cycle, which is what fills main RAM.
+    ApplyPowerOnOverrides();
+
     // Last: the CPU's power cycle zeroes the cycle counter, and the window
     // is measured from that zero.
     if (m_joyport != nullptr)
     {
         m_joyport->OnMachineReset();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ApplyPowerOnOverrides
+//
+//  Bytes whose power-on contents software reads before writing, and which the
+//  fill must not decide.
+//
+//  $03F2-$03F4: the autostart ROM treats a reset as warm, and jumps through
+//  the soft-entry vector at $03F2, when the power-up byte at $03F4 equals the
+//  vector's high byte XOR $A5. Zeroing all three fails that check, so a power
+//  cycle always cold-boots. Without it, a power-on fill that happened to pass
+//  sent the ROM into garbage with the screen never cleared (GH #157).
+//
+//  $4E/$4F: the monitor's random seed, counted up while the ROM waits for a
+//  key. A disk that autostarts never waits, so a program that seeds from it
+//  sees the fill, and the pattern puts 00 00 here. Pooyan loops forever on a
+//  zero seed, so each byte is forced nonzero, the rest of it from the Prng.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ApplyPowerOnOverrides()
+{
+    constexpr Word  kSoftEntryLo  = 0x03F2;
+    constexpr Word  kPowerUpByte  = 0x03F4;
+    constexpr Word  kRandomSeedLo = 0x004E;
+    constexpr Word  kRandomSeedHi = 0x004F;
+    constexpr Byte  kNonzeroBit   = 0x20;
+
+
+
+    Word  address = 0;
+
+
+
+    for (address = kSoftEntryLo; address <= kPowerUpByte; address++)
+    {
+        m_memoryBus->WriteByte (address, 0);
+    }
+
+    m_memoryBus->WriteByte (kRandomSeedLo, static_cast<Byte> (kNonzeroBit | m_prng->NextByte()));
+    m_memoryBus->WriteByte (kRandomSeedHi, static_cast<Byte> (kNonzeroBit | m_prng->NextByte()));
 }
 
 
@@ -404,3 +461,29 @@ void MachineHost::AttachObservers (const MachineObservers & observers)
         m_refs.gamePort->SetInputEventSink (observers.input);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::StopTape
+//
+//  Stops the recorder at the current bus cycle; the tape stays inserted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::StopTape()
+{
+    uint64_t  now = m_cpu != nullptr ? *m_cpu->GetBusCyclePtr() : 0;
+
+
+
+    m_tapeDeck->Stop (now);
+    m_tapeResetCount.fetch_add (1, std::memory_order_release);
+}
+
+
+
+

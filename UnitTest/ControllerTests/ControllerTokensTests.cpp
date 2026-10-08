@@ -106,7 +106,7 @@ namespace ControllerTests
 
         // Two Xbox controllers are one model and two units, told apart by the
         // XInput slot. The model token must not gain the slot, or profiles and
-        // deadzone would split per slot.
+        // dead zone would split per slot.
         TEST_METHOD (Unit_XInputSlotRoundTrips)
         {
             ControllerUnitKey  first   = { { ControllerKind::XInput, 0, 0 }, "0", ControllerUnitSource::XInputSlot };
@@ -118,7 +118,7 @@ namespace ControllerTests
             Assert::AreEqual (std::string ("xinput/slot:0"), token);
             Assert::AreEqual (std::string ("xinput/slot:3"), ControllerTokens::UnitToToken (second));
             Assert::AreEqual (std::string ("xinput"),        ControllerTokens::ModelToToken (first.model),
-                L"the model key stays id-less, so every Xbox controller shares its profiles and deadzone");
+                L"the model key stays id-less, so every Xbox controller shares its profiles and dead zone");
             Assert::AreEqual (S_OK, hr);
             Assert::IsTrue   (parsed == first, L"the slot survives the round trip");
             Assert::IsFalse  (first == second, L"two slots are two units");

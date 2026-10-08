@@ -10,8 +10,6 @@
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Seams/Win32IntentChannel.h"
-#include "Theme/DxuiDarkTheme.h"
-#include "Theme/DxuiLightTheme.h"
 
 
 

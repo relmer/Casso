@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "CassoTheme.h"
-#include "Core/IDxuiControl.h"
 #include "LedIndicator.h"
 #include "../DriveWidgetState.h"
 
@@ -172,9 +171,9 @@ private:
     static constexpr float            kBasenameFontDip    = 11.0f;
     static constexpr const wchar_t  * kFontFamily         = DxuiTheme::kBodyFace;
 
-    // Marquee timing for an overflowing basename label. The hold delay is
-    // both the lead-in before a freshly mounted disk first scrolls and the
-    // pause between replays while the pointer lingers over the widget.
+    // Marquee timing for an overflowing basename label, which scrolls only
+    // while the pointer is over the widget. The hold delay is the pause
+    // between replays while it lingers.
     static constexpr int64_t kMarqueeHoldMs         = 2000;
     static constexpr float   kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float   kMarqueeGapDip         = 25.0f;

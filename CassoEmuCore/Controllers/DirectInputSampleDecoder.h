@@ -44,15 +44,16 @@ struct DirectInputJoystickState
 //  DirectInputObjectLayout
 //
 //  Which of DIJOYSTATE2's slots a device actually reports, as its object
-//  enumeration found them.
+//  enumeration found them, and each axis's role (AxisRoleRules::Classify).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DirectInputObjectLayout
 {
-    std::bitset<ControllerSample::kAxisCount>  presentAxes;
-    int                                        hatCount    = 0;
-    int                                        buttonCount = 0;
+    std::bitset<ControllerSample::kAxisCount>            presentAxes;
+    std::array<AxisRole, ControllerSample::kAxisCount>   axisRoles   = {};
+    int                                                  hatCount    = 0;
+    int                                                  buttonCount = 0;
 };
 
 

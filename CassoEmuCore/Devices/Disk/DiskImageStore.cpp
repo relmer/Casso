@@ -771,7 +771,7 @@ wstring DiskImageStore::FormatMountFailureMessage (const string & path,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
+wstring DiskImageStore::FormatDamagedImageMessage (const string & path, bool hasDamagedTracks)
 {
     wstring  widePath = fs::path (path).wstring();
 
@@ -783,9 +783,12 @@ wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
     }
 
     return L"This disk is damaged, so Casso will not write to it:\n\n" + widePath +
-           L"\n\nRewriting it would give the file a newly computed checksum, "
-           L"leaving nothing able to detect the damage it already carries. The "
-           L"disk stays readable and the emulated machine sees it as "
+           (hasDamagedTracks
+               ? L"\n\nRewriting it would replace the tracks that could not be read "
+                 L"with blank ones, hiding the damage. "
+               : L"\n\nRewriting it would give the file a newly computed checksum, "
+                 L"hiding the damage. ") +
+           L"The disk stays readable and the emulated machine sees it as "
            L"write-protected. Work on a copy if you need to write to it.";
 }
 
@@ -1015,6 +1018,11 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // whole image to carry one bit is what SetImageWriteProtect exists to
     // avoid. An API that cannot be asked to do that cannot be misused into it.
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
+
+    // A write still open on a flux track has not reached the image yet, so
+    // the image is not dirty until it is committed.
+    entry.image->CommitPendingWrite();
+
     BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
 
     if (entry.image->IsWriteProtected())
@@ -1370,8 +1378,8 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         // recomputes the header checksum, and that checksum failing to match
         // IS the damage report -- so the one write that is otherwise harmless
         // is the one write that would destroy the evidence.
-        isDamaged = entry.image->HasSourceCrcMismatch();
-        CBRN (!isDamaged, FormatDamagedImageMessage (entry.path).c_str());
+        isDamaged = entry.image->IsDamaged();
+        CBRN (!isDamaged, FormatDamagedImageMessage (entry.path, entry.image->HasDamagedTracks()).c_str());
 
         // Guest writes go out FIRST, while the image still accepts a flush.
         // Patching the flag byte afterwards edits a file that already holds
@@ -1569,7 +1577,7 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
         // protected track burns its whole attempt budget before giving up.
         // Salvage is only ever offered for a damaged disk, so an undamaged one
         // never needs the decode at all.
-        isDamaged = entry.image->HasSourceCrcMismatch();
+        isDamaged = entry.image->IsDamaged();
         BAIL_OUT_IF (!isDamaged, S_OK);
 
         hr = DecodeForSalvage (entry, sectors, out.report);

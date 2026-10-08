@@ -1221,7 +1221,7 @@ public:
         const JsonValue *  uiPrefs = nullptr;
         bool               found   = doc.HasObject ("$cassoUiPrefs", uiPrefs);
 
-        Assert::IsTrue (found && uiPrefs != nullptr, L"no $cassoUiPrefs block");
+        Assert::IsTrue (found, L"no $cassoUiPrefs block");
         return uiPrefs;
     }
 
@@ -2191,17 +2191,18 @@ public:
     }
 
 
-    //  Saves one game-port adapter token into a machine's block the way the
-    //  shell's persist path does: splice into $cassoUiPrefs, then SaveDelta.
-    static void SaveGamePortAdapter (InMemoryFileSystem & fs, UserConfigStore & store,
-                                     const std::string & machine, const char * token)
+    //  Saves one ui pref into a machine's block the way the shell does:
+    //  splice into $cassoUiPrefs, then SaveDelta. The game-port adapter key is
+    //  what builds before the Joyport setting went global wrote here.
+    static void SaveUiPref (InMemoryFileSystem & fs, UserConfigStore & store,
+                            const std::string & machine, const char * key, const char * token)
     {
         JsonValue  defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1}");
         JsonValue  merged;
         JsonValue  updated;
 
         AssertSucceeded (store.Load (machine, defaultJson, fs, merged));
-        updated = UserConfigStore::SpliceUiPrefs (merged, { { "gamePortAdapter", JsonValue (std::string (token)) } });
+        updated = UserConfigStore::SpliceUiPrefs (merged, { { key, JsonValue (std::string (token)) } });
         AssertSucceeded (store.SaveDelta (machine, updated, defaultJson, fs));
     }
 
@@ -2211,24 +2212,99 @@ public:
         InMemoryFileSystem  fs;
         UserConfigStore     store (L"C:\\Casso\\User");
 
-        SaveGamePortAdapter (fs, store, "Apple2e", "none");
+        SaveUiPref (fs, store, "Apple2e", "gamePortAdapter", "none");
 
         Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2e").find ("gamePortAdapter") == std::string::npos,
                         L"a machine with no adapter carries no key for it");
     }
 
 
-    TEST_METHOD (GamePortAdapter_TheJoyportIsKeptForItsOwnMachineOnly)
+    //  Nothing writes the per-machine key now, and nothing drops it either:
+    //  a later save of the machine's block leaves it as an older build wrote
+    //  it, so that build still finds its setting.
+    TEST_METHOD (GamePortAdapter_ALegacyKeySurvivesALaterSaveUntouched)
     {
         InMemoryFileSystem  fs;
         UserConfigStore     store (L"C:\\Casso\\User");
+        std::string         text;
 
-        SaveGamePortAdapter (fs, store, "Apple2e", "siriusJoyport");
-        SaveGamePortAdapter (fs, store, "Apple2Plus", "none");
 
-        Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2e").find ("siriusJoyport") != std::string::npos,
-                        L"the //e keeps its Joyport");
-        Assert::IsTrue (MachineTextOrFail (fs, store, "Apple2Plus").find ("gamePortAdapter") == std::string::npos,
-                        L"and the ][+ does not pick it up");
+
+        SaveUiPref (fs, store, "Apple2e", "gamePortAdapter", "siriusJoyport");
+        SaveUiPref (fs, store, "Apple2e", "speedMode",       "maximum");
+
+        text = MachineTextOrFail (fs, store, "Apple2e");
+
+        Assert::IsTrue (text.find ("siriusJoyport") != std::string::npos, L"the //e's legacy key is still there");
+        Assert::IsTrue (text.find ("maximum")       != std::string::npos, L"beside the pref the later save wrote");
+    }
+
+
+    //  Two stores over one file stand in for two running instances: the
+    //  second writes an update record after the first has loaded, and the
+    //  first reads it back without reloading.
+    TEST_METHOD (ReadGlobalPrefs_SeesTheUpdateRecordAnotherInstanceWrote)
+    {
+        InMemoryFileSystem           fs;
+        UserConfigStore              waiter (L"C:\\Casso\\User");
+        UserConfigStore              holder (L"C:\\Casso\\User");
+        GlobalUserPrefs              waiterPrefs;
+        GlobalUserPrefs              holderPrefs;
+        GlobalUserPrefs              read;
+        UserConfigStore::LoadReport  report;
+
+
+
+        AssertSucceeded (waiter.LoadAll (waiterPrefs, fs, report));
+        AssertSucceeded (waiter.SaveAll (waiterPrefs, fs));
+        AssertSucceeded (holder.LoadAll (holderPrefs, fs, report));
+
+        holderPrefs.lastUpdateCheckUtc = 1790000000;
+        holderPrefs.latestKnownVersion = "1.31.0";
+        holderPrefs.skippedVersion     = "1.30.5";
+        AssertSucceeded (holder.SaveAll (holderPrefs, fs));
+
+        AssertSucceeded (waiter.ReadGlobalPrefs (fs, read));
+
+        Assert::AreEqual ((long long) 1790000000, (long long) read.lastUpdateCheckUtc);
+        Assert::AreEqual (std::string ("1.31.0"), read.latestKnownVersion);
+        Assert::AreEqual (std::string ("1.30.5"), read.skippedVersion);
+        Assert::AreEqual ((long long) 0, (long long) waiterPrefs.lastUpdateCheckUtc, L"the loaded prefs are not touched");
+    }
+
+
+    TEST_METHOD (ReadGlobalPrefs_UnreadableFileFailsAndStaysWhereItIs)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+        GlobalUserPrefs     read;
+        std::string         text;
+        HRESULT             hr = S_OK;
+
+
+
+        AssertSucceeded (fs.WriteAllText (store.GetUserPrefsFilePath(), "{ not json"));
+
+        hr = store.ReadGlobalPrefs (fs, read);
+
+        Assert::IsTrue  (FAILED (hr), L"a file that will not parse is a failed read");
+        AssertSucceeded (fs.ReadAllText (store.GetUserPrefsFilePath(), text));
+        Assert::AreEqual (std::string ("{ not json"), text, L"and is not moved aside");
+    }
+
+
+    TEST_METHOD (ReadGlobalPrefs_MissingFileFails)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso\\User");
+        GlobalUserPrefs     read;
+        HRESULT             hr = S_OK;
+
+
+
+        hr = store.ReadGlobalPrefs (fs, read);
+
+        Assert::IsTrue  (FAILED (hr));
+        Assert::IsFalse (fs.Exists (store.GetUserPrefsFilePath()), L"a read writes nothing");
     }
 };

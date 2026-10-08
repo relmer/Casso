@@ -23,12 +23,6 @@
 #include "Core/MachineScanner.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
-#include "Widgets/DxuiContextMenu.h"
-#include "Core/DxuiClipboard.h"
-#include "Theme/DxuiColor.h"
-#include "Theme/DxuiDwm.h"
-#include "Theme/DxuiWindowsThemeColors.h"
-#include "Window/DxuiMessageBox.h"
 #include "resource.h"
 
 

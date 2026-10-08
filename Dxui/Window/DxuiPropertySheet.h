@@ -3,11 +3,27 @@
 #include "Pch.h"
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiTabStrip.h"
+#include "Widgets/DxuiScrollbar.h"
 #include "Core/DxuiDpiScaler.h"
 
 
 class DxuiPropertyPage;
 class DxuiButton;
+class IDxuiTextRenderer;
+
+
+
+
+
+//
+//  One tab's input to DxuiPropertySheet::LayoutTabRects: the measured width
+//  of its label, and whether its page is shown. A hidden tab takes no space.
+//
+struct DxuiSheetTab
+{
+    float  labelWidthDip = 0.0f;
+    bool   isVisible     = true;
+};
 
 
 
@@ -86,6 +102,69 @@ public:
                                   std::span<const int>   widthsDip,
                                   std::span<RECT>        outRects);
 
+    //
+    //  Tab sizing. Each tab is as wide as its label, measured in the tab
+    //  strip's font, plus kTabPadXDip on both sides, but never narrower than
+    //  kTabMinWidthDip. LayoutTabRects is the pure rule (exposed for tests):
+    //  visible tabs sit edge to edge from the strip's left pad, and a hidden
+    //  tab gets an empty rect. outRects must be at least tabs.size() long.
+    //  MeasureTabLabelDip measures one label the way the strip draws it.
+    //
+    static constexpr int  kTabMinWidthDip = 64;
+    static constexpr int  kTabPadXDip     = 12;
+
+    static void     LayoutTabRects     (const RECT                     & stripPx,
+                                        const DxuiDpiScaler            & scaler,
+                                        std::span<const DxuiSheetTab>    tabs,
+                                        std::span<RECT>                  outRects);
+    static HRESULT  MeasureTabLabelDip (IDxuiTextRenderer   & text,
+                                        const std::wstring  & label,
+                                        float               & outWidthDip);
+
+    //
+    //  Page scrolling. SetDesignHeightDip gives the window height the pages
+    //  were designed for (0, the default, means they fill whatever room the
+    //  window leaves). When the window is shorter than that -- fitted to a
+    //  small or scaled screen -- the pages keep the height they would have
+    //  had and scroll behind a viewport between the tab strip and the button
+    //  row, so OK and Cancel stay on screen. Call before Create. A page whose
+    //  content runs taller than that (DxuiPropertyPage::SetContentHeightPx)
+    //  scrolls the same way, at any window height.
+    //
+    void  SetDesignHeightDip (int heightDip) { m_designHeightDip = heightDip; }
+    void  SetDesignWidthDip  (int widthDip)  { m_designWidthDip  = widthDip; }
+    bool  IsPageScrollable   () const { return m_scrollable; }
+    int   GetPageScrollPos   () const { return m_scrollPosPx; }
+    RECT  GetPageViewportPx  () const { return m_viewportPx; }
+    void  SetPageScrollPos   (int posPx);
+
+    //
+    //  Pure scrolling helpers (exposed for tests). ClampScrollPos keeps a
+    //  position within [0, contentPx - viewportPx]. GetScrollPosToReveal
+    //  returns the smallest change to posPx that brings targetPx -- a rect
+    //  laid out at posPx -- inside viewportPx, top edge first when the
+    //  target is taller than the viewport.
+    //
+    static int  ClampScrollPos       (int posPx, int contentPx, int viewportPx);
+    static int  GetScrollPosToReveal (int posPx, const RECT & targetPx, const RECT & viewportPx);
+
+    //
+    //  The largest client size worth having: every page shown whole with no
+    //  room left over. A page reports its content extents
+    //  (DxuiPropertyPage::SetContentWidthPx / SetContentHeightPx); one that
+    //  reports none fits the design size, so that is the least either
+    //  dimension can be. The strip, the insets and the button row are added
+    //  around the widest and tallest content. GetMaxClientSizePx gives it for
+    //  the pages as last laid out, and ComputeMaxClientSizePx is the pure
+    //  rule (exposed for tests), with designPx the design client size and
+    //  captionPx the height of the caption above the sheet's bounds.
+    //
+    SIZE         GetMaxClientSizePx     () const;
+    static SIZE  ComputeMaxClientSizePx (const SIZE           & designPx,
+                                         const SIZE           & contentPx,
+                                         int                    captionPx,
+                                         const DxuiDpiScaler  & scaler);
+
 
 protected:
     //
@@ -113,8 +192,13 @@ protected:
     int   IndexOfPage (const DxuiPropertyPage * page) const;
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     void  OnCreate () override;
     bool  OnDialogTabSwitch (bool backward) override;
+    void  OnDialogKeyHandled (IDxuiControl * focused) override;
+    bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
 
     //
     //  Commit hooks (Template Method). The button row calls these so a
@@ -141,6 +225,16 @@ private:
     int   TabIndexOfPage      (int pageIndex) const;
     int   PageIndexOfTab      (int tabIndex) const;
     void  BuildTabList        (std::vector<DxuiTabStrip::Tab> & out) const;
+    void  MeasureTabs         (std::vector<DxuiSheetTab> & out) const;
+
+    void                LayoutPages                (const RECT & pageAreaPx, const DxuiDpiScaler & scaler);
+    void                PlacePages                 (const DxuiDpiScaler & scaler);
+    void                UpdateScrollRange          ();
+    void                ConfigureScrollbar         (const DxuiDpiScaler & scaler);
+    void                OnPageContentHeightChanged (const DxuiPropertyPage * page);
+    void                OnPageRevealRequested      (const DxuiPropertyPage * page, const RECT & rectPx);
+    DxuiPropertyPage *  FindOwningPage             (const IDxuiControl * ctl) const;
+    bool                IsPage                     (const IDxuiControl * ctl) const;
 
     DxuiTabStrip *                   m_tabs   = nullptr;
     DxuiButton   *                   m_ok     = nullptr;
@@ -160,4 +254,20 @@ private:
     bool                             m_applyVisible = true;
     std::wstring                     m_okText       = L"OK";
     int                              m_okWidthDip   = 0;   // 0 => s_kButtonWidthDip
+
+    // Page scrolling (see SetDesignHeightDip). The viewport is where the
+    // pages show; they are laid out m_scrollPosPx above it, at full height.
+    // m_designContentPx is the height every page gets at the design size;
+    // m_contentPx is the active page's, which is taller when its content is.
+    int                              m_designHeightDip   = 0;
+    int                              m_designWidthDip    = 0;
+    int                              m_designPageWidthPx = 0;
+    bool                             m_scrollable        = false;
+    int                              m_scrollPosPx       = 0;
+    int                              m_designContentPx   = 0;
+    int                              m_contentPx         = 0;
+    bool                             m_isLayingOutPages  = false;
+    RECT                             m_pageAreaPx        = {};
+    RECT                             m_viewportPx        = {};
+    DxuiScrollbar                    m_scrollbar;
 };

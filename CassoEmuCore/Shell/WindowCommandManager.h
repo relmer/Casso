@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Shell/DiskMru.h"
 
 
 class EmulatorShell;
@@ -26,7 +27,6 @@ enum class WindowCommandRoute
     Help,
     ExternalDrive,
     MouseConnect,
-    GamePort,
 };
 
 
@@ -78,7 +78,6 @@ public:
     void  OnHelpCommand        (int id);
     void  OnExternalDriveCommand (int id);
     void  OnMouseConnectCommand  (int id);
-    void  OnGamePortCommand      (int id);
 
     bool  OnInitMenuPopup      (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
 
@@ -88,6 +87,12 @@ public:
     // and BrowseForDisk needs the difference to restore the drive door.
     HRESULT  PromptForDiskImage   (int drive, bool & outMountStarted);
     HRESULT  PromptInsertDiskMru  (int drive, const RECT * anchorRectPx, bool & outMountStarted);
+    HRESULT  PromptInsertTapeMru  (const RECT * anchorRectPx);
+    void     GetRecentMedia       (bool (* isWanted) (const std::wstring &), std::vector<DiskMru::Entry> & entries);
+
+    //  Where new disks and tapes are created: the last create's folder while it
+    //  still exists, otherwise Documents\Casso Disks, created on demand.
+    std::wstring  GetDiskCreateFolder ();
 
     // The create-a-blank-disk flow behind the picker's <Create new disk...>
     // row: dialog -> BlankDiskBuilder -> atomic write -> Mount.

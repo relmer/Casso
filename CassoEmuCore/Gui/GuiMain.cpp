@@ -20,7 +20,6 @@
 #include "Shell/DiskMru.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "Window/DxuiMessageBox.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -294,7 +293,7 @@ static HRESULT LoadMachineConfig (
         IGNORE_RETURN_VALUE (hrSave, S_OK);
 
         CHRN (hr, format (L"Asset download failed:\n{}",
-                          wstring (error.begin(), error.end())).c_str());
+                          TextEncoding::NarrowToWide (error)).c_str());
 
         // User chose Exit rather than downloading. Stop here with no
         // config; wCassoMain shuts down quietly.
@@ -333,6 +332,7 @@ static HRESULT LoadMachineConfig (
             Win32FileSystem        fs_prefs;
             DiskMru                mru;
             vector<DiskMru::Entry> mruPruned;
+            vector<DiskMru::Entry> mruExisting;
             HRESULT                hrPrefs    = S_OK;
             bool                   userClosed = false;
 
@@ -342,21 +342,30 @@ static HRESULT LoadMachineConfig (
             IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
             mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
+            mruExisting = mru.Prune ([] (const fs::path & p)
+                                     {
+                                         return fs::exists (p)
+                                                && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                     });
+
+            // The recent list holds tapes too; a boot disk is a disk.
             mruPruned = mru.Prune ([] (const fs::path & p)
                                    {
                                        return fs::exists (p)
-                                              && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                              && !AssetBootstrap::IsForeignCheckoutDisk (p)
+                                              && IsSupportedDiskImageExtension (p.wstring());
                                    });
 
             AssetBootstrap::AppendSiblingDisksFromFolders (
                 KnownFolderStore::LoadPickerFolders (fs_prefs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
-                                                     mruPruned,
+                                                     mruExisting,
                                                      (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
                                                          std::chrono::system_clock::now().time_since_epoch()).count()),
-                mruPruned);
+                mruPruned,
+                IsSupportedDiskImageExtension);
 
-            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
-            AssetBootstrap::AppendBundledDemoDisks (mruPruned);
+            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned, mruExisting, IsSupportedDiskImageExtension);
+            AssetBootstrap::AppendBundledDemoDisks (mruPruned, IsSupportedDiskImageExtension);
 
             hr = AssetBootstrap::PromptBootDiskMru (
                 hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);
@@ -365,7 +374,7 @@ static HRESULT LoadMachineConfig (
             // comes back; what reaches here is a machine whose embedded
             // config could not be read.
             CHRN (hr, format (L"Boot disk picker failed:\n{}",
-                              wstring (error.begin(), error.end())).c_str());
+                              TextEncoding::NarrowToWide (error)).c_str());
 
             // Closing the boot-disk picker is the same clean-shutdown
             // request as choosing Exit above.
@@ -426,7 +435,7 @@ static HRESULT LoadMachineConfig (
                                     outConfig,
                                     error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
-                      wstring (error.begin(), error.end())).c_str());
+                      TextEncoding::NarrowToWide (error)).c_str());
 
     // Validate disk images
     if (!inoutDisk1Path.empty())
@@ -637,6 +646,7 @@ extern "C" int WINAPI wCassoMain (
     wstring                              machineName;
     wstring                              disk1Path;
     wstring                              disk2Path;
+    wstring                              tapePath;
     wstring                              titlePrefix;
     size_t                               traceCapacity = 0;
     bool                                 noImageWatch  = false;
@@ -709,15 +719,25 @@ extern "C" int WINAPI wCassoMain (
     machineName   = TextEncoding::NarrowToWide (parsed.machine);
     disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);
     disk2Path     = TextEncoding::NarrowToWide (parsed.disk2);
+    tapePath      = TextEncoding::NarrowToWide (parsed.tape);
     titlePrefix   = TextEncoding::NarrowToWide (parsed.titlePrefix);
     traceCapacity = parsed.traceEntries;
     noImageWatch  = parsed.noImageWatch;
 
     shell->SetImageWatchDisabled (noImageWatch);
 
+    if (parsed.hasSeed)
+    {
+        shell->SetPrngSeed (parsed.seed);
+    }
+
     // --title: set before the window exists, so the first caption the shell
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
+
+    // --updated / --cleanup-old: a relaunch by a finished zip update, which
+    // removes the old files once the process that ran them has exited.
+    shell->SetUpdateLaunch (parsed.wasUpdated, (DWORD) parsed.cleanupOldPid);
 
     // --trace: size the CPU ring and install the crash-time dump filter
     // before the CPU thread starts, so an illegal-opcode/__debugbreak or
@@ -771,8 +791,7 @@ extern "C" int WINAPI wCassoMain (
 
         hrLoad = earlyPrefs.Load (assetBaseDir, earlyFs);
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
-        machineName.assign (earlyPrefs.lastSelectedMachine.begin(),
-                            earlyPrefs.lastSelectedMachine.end());
+        machineName = TextEncoding::Utf8ToWide (earlyPrefs.lastSelectedMachine);
     }
 
     // Resolve the requested machine (from --machine or last-selected prefs)
@@ -813,19 +832,17 @@ extern "C" int WINAPI wCassoMain (
     // same machine without --machine.
     hr = shell->Initialize (hInstance, machineName, config,
                             fs::path (disk1Path).string(),
-                            fs::path (disk2Path).string());
+                            fs::path (disk2Path).string(),
+                            fs::path (tapePath).string());
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
 
+    // No trace dump on a normal exit: --trace can stay on for weeks waiting
+    // for a fault, and a file on every exit would bury the one that matters.
+    // Debug > Save CPU trace writes it on request, and TraceCrashFilter on a
+    // crash.
     exitCode = shell->RunMessageLoop();
-
-    // --trace graceful-exit dump. No-op (one-shot guard) if a crash
-    // already flushed the ring via TraceCrashFilter.
-    if (shell->IsTracing())
-    {
-        shell->DumpTrace (L"exit");
-    }
 
     // Success falls into the same tail the bails jump to: clearing the trace
     // back-pointer must happen exactly once, on every path, before the shell

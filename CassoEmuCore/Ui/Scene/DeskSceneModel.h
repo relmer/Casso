@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "Render/CurvedDisplayMath.h"
-#include "Render/Dxui3DRenderer.h"
 
 
 
@@ -56,6 +55,7 @@ enum class DeskDeviceKind
     Monitor2,      // the //e's beige 12-inch (Monitor II)
     DiskII,
     Disk2c,        // the platinum 5.25 that pairs with the //c
+    CassetteRecorder,  // the Panasonic RQ-309DS beside the stack: no lamp, door or glass
 };
 
 
@@ -152,6 +152,7 @@ class DeskSceneModel
 public:
     // Parses and splits the OBJ/MTL text. Monitor2c must carry exactly one
     // valid spherical-sag glass sheet; DiskII must carry its activity lamp.
+    // CassetteRecorder has none of those and needs only geometry.
     HRESULT  Load (DeskDeviceKind kind, std::span<const uint8_t> meshBlob);
 
     DeskDeviceKind                                Kind         () const { return m_kind; }
@@ -165,6 +166,49 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   GlassVerts   () const { return m_glass; }
     const std::vector<Dxui3DRenderer::Vertex> &   LampVerts    () const { return m_lamp; }
     const std::vector<Dxui3DRenderer::Vertex> &   DoorVerts    () const { return m_door; }
+
+    // The recorder's keys, each its own geometry so it can go down by itself,
+    // left to right as the deck has them: Record, Rewind, Fast-forward, Play,
+    // Stop, Eject.
+    // KeyBoxes holds each key's model-space box as lo xyz then hi xyz.
+    static constexpr size_t  kRecorderKeyCount = 6;
+
+    const std::vector<Dxui3DRenderer::Vertex> &   KeyVerts     (size_t key) const { return m_keys[key]; }
+    const float *                                 KeyBoxes     () const { return &m_keyBoxes[0][0]; }
+
+    // The recorder's cassette door (the smoked frame and what is printed on
+    // it), which the scene swings open, and the cassette behind it, which it
+    // leaves out with no tape in. LidBox is the door's box, lo xyz then hi xyz.
+    const std::vector<Dxui3DRenderer::Vertex> &   LidVerts      () const { return m_lid; }
+    const std::vector<Dxui3DRenderer::Vertex> &   CassetteVerts () const { return m_cassette; }
+    const std::vector<Dxui3DRenderer::Vertex> &   LidGlassVerts () const { return m_lidGlass; }
+    const std::vector<Dxui3DRenderer::Vertex> &   LidReliefVerts () const { return m_lidRelief; }   // molded up out of the pane
+    const std::vector<Dxui3DRenderer::Vertex> &   CassetteGlassVerts () const { return m_cassetteGlass; }   // its window, see-through
+    const float *                                 LidBox        () const { return m_lidBox.data(); }
+
+    // The recorder's volume thumbwheel, which the scene turns and the pointer
+    // takes hold of. It lies flat, so it turns about the model's up axis
+    // through the middle of its box, lo xyz then hi xyz.
+    const std::vector<Dxui3DRenderer::Vertex> &   VolumeWheelVerts () const { return m_volumeWheel; }
+    const float *                                 VolumeWheelBox   () const { return m_volumeWheelBox.data(); }
+
+    // The recorder's two spindles, and the cassette hubs that sit on them,
+    // which the scene turns while the tape moves: each about the model's up
+    // axis through the middle of its spindle's box, lo xyz then hi xyz. The
+    // hubs go out with the cassette; the spindles are always there.
+    static constexpr size_t  kRecorderReelCount = 2;
+
+    const std::vector<Dxui3DRenderer::Vertex> &   SpindleVerts (size_t reel) const { return m_spindles[reel]; }
+    const std::vector<Dxui3DRenderer::Vertex> &   HubVerts     (size_t reel) const { return m_hubs[reel]; }
+    const float *                                 SpindleBox   (size_t reel) const { return m_spindleBoxes[reel].data(); }
+
+    // Where a title is written on the cassette's label, lo xyz then hi xyz;
+    // empty (lo above hi) on a model without one.
+    const float *                                 CassetteTitleBox () const { return m_cassetteTitleBox.data(); }
+
+    // Polished chrome (the recorder's handle), with its normals smoothed and
+    // flagged for the shader to draw as a mirror.
+    const std::vector<Dxui3DRenderer::Vertex> &   ChromeVerts   () const { return m_chrome; }
     const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
     const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
@@ -375,6 +419,17 @@ public:
     static constexpr const char *  s_kpszLever       = "lever";   // the //c's door
     static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
     static constexpr const char *  s_kpszAcPinPrefix = "acpin";   // the mains blades
+    static constexpr const char *  s_kpszKeyPrefix   = "keys_";   // the recorder's keys, keys_0 to keys_5
+    static constexpr const char *  s_kpszLidParts[]  = { "door_print" };
+    static constexpr const char *  s_kpszLidGlass    = "door_glass";   // the smoked pane and its struts
+    static constexpr const char *  s_kpszCassetteGlass = "cassette_window";   // the cassette's clear window
+    static constexpr const char *  s_kpszLidRelief     = "door_relief";       // the arrow and legends raised on the pane
+    static constexpr const char *  s_kpszChromePrefix = "chrome";     // polished metal, as the blades
+    static constexpr const char *  s_kpszCassettePrefix = "cassette";   // cassette, cassette_label, ...
+    static constexpr const char *  s_kpszVolumeWheel    = "volume_wheel";   // volume_wheel, volume_wheel_mark
+    static constexpr const char *  s_kpszSpindlePrefix  = "spindle_";       // spindle_0, spindle_1
+    static constexpr const char *  s_kpszHubPrefix      = "cassette_hub_";  // cassette_hub_0, cassette_hub_1
+    static constexpr const char *  s_kpszCassetteTitleAnchor = "cassette_title_anchor";
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
 
@@ -576,21 +631,37 @@ private:
     void     GrowTiltGrip          (int direction, size_t firstVert);
     void     ComputeTiltTravel     ();
     void     ComputeGroundFootprint ();
+    void     SmoothChromeNormals    ();
 
-    DeskDeviceKind                       m_kind        = DeskDeviceKind::Monitor2c;
-    std::vector<Dxui3DRenderer::Vertex>  m_opaque;
-    std::vector<Dxui3DRenderer::Vertex>  m_glass;
-    std::vector<Dxui3DRenderer::Vertex>  m_lamp;
-    std::vector<Dxui3DRenderer::Vertex>  m_door;
-    std::vector<Dxui3DRenderer::Vertex>  m_tiltable;
-    std::vector<DeskTiltGrip>            m_tiltGrips;
-    float                                m_tiltPivotY  = 0.0f;
-    float                                m_tiltPivotZ  = 0.0f;
-    float                                m_maxTiltRad  = 0.0f;
-    std::vector<Dxui3DRenderer::Vertex>  m_padlock;
-    std::vector<DeskLampAnchor>          m_lamps;
-    std::vector<DeskRegionBox>           m_regions;
-    CurvedDisplaySurface                 m_surface;
+    DeskDeviceKind                                                      m_kind             = DeskDeviceKind::Monitor2c;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_opaque;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_glass;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_lamp;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_door;
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderKeyCount>  m_keys;
+    std::array<std::array<float, 6>, kRecorderKeyCount>                 m_keyBoxes         = {};
+    std::vector<Dxui3DRenderer::Vertex>                                 m_lid;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_cassette;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_lidGlass;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_lidRelief;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_cassetteGlass;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_chrome;
+    std::array<float, 6>                                                m_lidBox           = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    std::vector<Dxui3DRenderer::Vertex>                                 m_volumeWheel;
+    std::array<float, 6>                                                m_volumeWheelBox   = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderReelCount> m_spindles;
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderReelCount> m_hubs;
+    std::array<std::array<float, 6>, kRecorderReelCount>                m_spindleBoxes     = {};
+    std::array<float, 6>                                                m_cassetteTitleBox = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    std::vector<Dxui3DRenderer::Vertex>                                 m_tiltable;
+    std::vector<DeskTiltGrip>                                           m_tiltGrips;
+    float                                                               m_tiltPivotY       = 0.0f;
+    float                                                               m_tiltPivotZ       = 0.0f;
+    float                                                               m_maxTiltRad       = 0.0f;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_padlock;
+    std::vector<DeskLampAnchor>                                         m_lamps;
+    std::vector<DeskRegionBox>                                          m_regions;
+    CurvedDisplaySurface                                                m_surface;
     // The door assembly's extent with the door SHUT, which GetDoorBoundsAt
     // poses to wherever the door has travelled.
     float                                m_doorMin[3]  = {};

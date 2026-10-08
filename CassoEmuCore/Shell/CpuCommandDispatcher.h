@@ -10,6 +10,33 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TapeCommand
+//
+//  The tape-deck operations run on the CPU thread. Insert takes the tape the
+//  UI thread has already read and decoded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class TapeCommand
+{
+    Insert,
+    Eject,
+    Play,
+    Stop,
+    Rewind,
+    ArmRecord,
+    ReleaseRecord,
+    Unload,     // out of the deck but still remembered: a machine switch
+    Seek,       // to the position TapeManager::Seek last stored
+    FastForward,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ICpuCommandTarget
 //
 //  What a command from the UI thread can ask the CPU thread to do.
@@ -33,6 +60,7 @@ public:
     virtual void     HoldAppleKeysThroughReset (bool openApple, bool closedApple)               = 0;
     virtual void     PowerCycle               ()                                                = 0;
     virtual void     StepInstruction          ()                                                = 0;
+    virtual void     SaveTrace                ()                                                = 0;
     virtual void     RemountDisks             ()                                                = 0;
     virtual HRESULT  MountDisk                (int drive, const std::string & path)             = 0;
     virtual void     EjectDisk                (int drive)                                       = 0;
@@ -45,6 +73,7 @@ public:
     virtual void     SetDriveAudioVolumes     (float motor, float head, float door)             = 0;
     virtual void     SetDriveAudioPan         (int drive, float pan)                            = 0;
     virtual void     PlayDriveTestSound       (int drive, int kind)                             = 0;
+    virtual void     ControlTape              (TapeCommand command)                             = 0;
 };
 
 

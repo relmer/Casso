@@ -2,6 +2,36 @@
 
 #include "Pch.h"
 
+#include "Core/DxuiTextElide.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLabelFit
+//
+//  A cap on how wide a surface may draw a command's label, and how a label
+//  over it is shortened. `keptSuffix` is never cut when the label ends with
+//  it, so a marker after a changing description stays whole. A label that
+//  can end in more than one marker lists the others in `keptSuffixes`; the
+//  longest one the label ends with is kept.
+//
+//  The surface fits the label once and uses that one string both to measure
+//  the entry and to paint it, so the space it reserves and the text it draws
+//  cannot disagree.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiLabelFit
+{
+    float                      maxWidthDip = 0.0f;
+    DxuiElide                  mode        = DxuiElide::Tail;
+    std::wstring               keptSuffix;
+    std::vector<std::wstring>  keptSuffixes;
+};
+
 
 
 
@@ -71,6 +101,9 @@ struct DxuiCommand
     //  One of a group where one is chosen, as Explorer's Sort menu's rows are:
     //  checked, it is marked with a dot rather than a check.
     bool                           radio        = false;
+
+    //  Absent means the label is drawn at its full width.
+    std::optional<DxuiLabelFit>    labelFit;
 
     //  Absent means never checked.
     bool          IsChecked    () const { return isChecked ? isChecked() : false; }

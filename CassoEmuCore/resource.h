@@ -44,7 +44,7 @@
 #define IDM_DISK_SALVAGE2           40071
 
 // Start the disk browser beside this executable.
-#define IDM_DISK_OPEN_CASSO_EXPLORER       40080
+#define IDM_DISK_OPEN_CASSO_EXPLORER       40089
 
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
@@ -85,10 +85,26 @@
 #define IDM_MOUSE_CONNECT             40058
 #define IDM_MOUSE_DISCONNECT          40059
 
-// The device on the game socket, posted by the Settings apply sink on OK: the
-// Sirius Joyport attached or detached with no reset. Not menu items.
-#define IDM_GAMEPORT_ADAPTER_NONE     40076
-#define IDM_GAMEPORT_ADAPTER_JOYPORT  40077
+// 40076 and 40077 were IDM_GAMEPORT_ADAPTER_NONE and _JOYPORT (removed: the
+// Joyport is on while a player's mode puts that player in one of its jacks).
+
+// Cassette tape deck. Insert, New and Eject start on the UI thread; the deck
+// commands run on the CPU thread.
+#define IDM_TAPE_INSERT             40078
+#define IDM_TAPE_NEW                40079
+#define IDM_TAPE_EJECT              40080
+#define IDM_TAPE_PLAY               40081
+#define IDM_TAPE_STOP               40082
+#define IDM_TAPE_REWIND             40083
+#define IDM_TAPE_RECORD             40084
+#define IDM_TAPE_SEEK               40085
+#define IDM_TAPE_FASTFORWARD        40086
+
+// Connect or disconnect a storage device -- the second drive and the
+// cassette recorder -- from the Storage menu or a device's right-click menu.
+// Live: neither needs a reset, and each is saved with the machine.
+#define IDM_STORAGE_DRIVE2          40087
+#define IDM_STORAGE_RECORDER        40088
 
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).
@@ -103,6 +119,7 @@
 #define IDM_PRINTER_MODERN_SENT     40066
 #define IDM_PRINTER_MODERN_FAILED   40067
 #define IDM_VIEW_DRIVE_STRIP        40068  // Fullscreen drive overlay strip toggle
+#define IDM_DEBUG_SAVE_TRACE        40069  // Write the --trace ring to the desktop
 
 
 // Frames per second over the picture. On by default in a debug build and
@@ -114,6 +131,7 @@
 #define IDM_VIEW_SCENE_VIEW         40073
 
 #define IDM_HELP_KEYMAP             40040
+#define IDM_HELP_CHECK_UPDATES      40041
 #define IDM_HELP_ABOUT              40042
 
 // Accelerator table
@@ -185,6 +203,7 @@
 #define IDR_MODEL_MONITOR2_MESH              406
 #define IDR_MODEL_DISK2C_MESH                408
 #define IDR_MODEL_DUODISK_MESH               410
+#define IDR_MODEL_CASSETTE_RECORDER_MESH     412
 
 // Embedded ImageWriter II mechanical sound set (extracted to
 // %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ by EnsureImageWriterSounds).

@@ -4,28 +4,31 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/PlayerModeRules.h"
+#include "Core/TextEncoding.h"
+
 
 
 
 
 
 // Layout metrics (DIP), matching the other settings pages.
-static constexpr int  s_kRowHeightDp           = 28;
-static constexpr int  s_kLabelWidthDp          = 90;
-static constexpr int  s_kRowWidthDp            = 220;
-static constexpr int  s_kAddWidthDp            = 28;
-static constexpr int  s_kStickSizeDp           = 190;
-static constexpr int  s_kLightSizeDp           = 14;
-static constexpr int  s_kWideWidthDp           = 340;
-static constexpr int  s_kButtonWidthDp         = 130;
-static constexpr int  s_kProfileButtonWidthDp  = 90;
-static constexpr int  s_kOptionWidthDp         = 110;
-static constexpr int  s_kMapsWidthDp           = 56;
-static constexpr int  s_kPlayerTargetWidthDp   = 210;
-static constexpr int  s_kChildIndentDp         = 18;
-static constexpr int  s_kGapDp                 = 6;
-static constexpr int  s_kSectionGapDp          = 14;
-static constexpr int  s_kPagePadDp             = 16;
+static constexpr int  s_kRowHeightDp            = 28;
+static constexpr int  s_kLabelWidthDp           = 120;
+static constexpr int  s_kRowWidthDp             = 220;
+static constexpr int  s_kAddWidthDp             = 28;
+static constexpr int  s_kStickSizeDp            = 190;
+static constexpr int  s_kLightSizeDp            = 22;
+static constexpr int  s_kWideWidthDp            = 340;
+static constexpr int  s_kButtonWidthDp          = 130;
+static constexpr int  s_kProfileButtonWidthDp   = 90;
+static constexpr int  s_kOptionWidthDp          = 110;
+static constexpr int  s_kPlayerModeWidthDp      = 170;
+static constexpr int  s_kGapDp                  = 6;
+static constexpr int  s_kMessageGapDp           = 4;
+static constexpr int  s_kSectionGapDp           = 14;
+static constexpr int  s_kPagePadDp              = 16;
+static constexpr int  s_kWarningPadYDp          = 4;
 
 static constexpr const wchar_t *  s_kTargetNames[ControllersPage::kTargetCount] =
 {
@@ -49,22 +52,33 @@ ControllersPage::ControllersPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
     size_t  target = 0;
-    size_t  row    = 0;
 
 
-
-    Adopt (m_multiplayerHeading);
 
     for (target = 0; target < kPlayerCount; target++)
     {
         Adopt (m_playerLabel[target]);
-        Adopt (m_playerController[target]);
-        Adopt (m_playerMapsLabel[target]);
-        Adopt (m_playerTarget[target]);
+        Adopt (m_playerEntry[target]);
+        Adopt (m_playerMode[target]);
+        Adopt (m_playerWarning[target]);
+
+        // A description or a mode too long for its drop-down keeps its end,
+        // where two units of a model differ.
+        m_playerEntry[target].SetElide (DxuiElide::Middle);
+        m_playerMode[target].SetElide  (DxuiElide::Middle);
+
+        m_playerWarning[target].SetSeverity (DxuiInfoBanner::Severity::Info);
+        m_playerWarning[target].SetVisible  (false);
+
+        // A one-line notice among the player rows, so it hugs its text.
+        m_playerWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);
     }
 
     Adopt (m_controllerLabel);
     Adopt (m_controller);
+
+    // A device description keeps both ends, as the players' entries do.
+    m_controller.SetElide (DxuiElide::Middle);
     Adopt (m_profileLabel);
     Adopt (m_profile);
     Adopt (m_newProfile);
@@ -74,15 +88,15 @@ ControllersPage::ControllersPage (std::wstring title)
     Adopt (m_stick);
     Adopt (m_buttonsHeading);
 
+    // Each target's rows sit in its table, which makes them as they are
+    // needed; every target has its first.
     for (target = 0; target < kTargetCount; target++)
     {
         Adopt (m_targetLabel[target]);
+        Adopt (m_tables[target]);
         Adopt (m_addRow[target]);
 
-        for (row = 0; row < kMaxRows; row++)
-        {
-            Adopt (m_rows[target][row]);
-        }
+        EnsureRows (target, 1);
     }
 
     for (target = 0; target < kButtonCount; target++)
@@ -90,18 +104,32 @@ ControllersPage::ControllersPage (std::wstring title)
         Adopt (m_lights[target]);
     }
 
+
     Adopt (m_switchView);
 
     for (target = 0; target < kAxisCount; target++)
     {
+        Adopt (m_paddleBars[target]);
         Adopt (m_invert[target]);
         Adopt (m_response[target]);
+        Adopt (m_speedLabel[target]);
         Adopt (m_speed[target]);
     }
 
-    Adopt (m_sharedWarning);
-    Adopt (m_deadzoneLabel);
-    Adopt (m_deadzone);
+    // A warning under each target's rows, compact like the players', with the
+    // outlined MDL2 warning glyph the app's other warnings show.
+    for (target = 0; target < kTargetCount; target++)
+    {
+        Adopt (m_sharedWarning[target]);
+
+        m_sharedWarning[target].SetSeverity           (DxuiInfoBanner::Severity::Warning);
+        m_sharedWarning[target].SetIconGlyph          (s_kpszMdl2Warning);
+        m_sharedWarning[target].SetVisible            (false);
+        m_sharedWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);
+    }
+
+    Adopt (m_deadZoneLabel);
+    Adopt (m_deadZone);
     Adopt (m_calibrationLabel);
     Adopt (m_calibrationStatus);
     Adopt (m_calibrate);
@@ -160,21 +188,22 @@ void ControllersPage::SetState (ControllersPageState * state)
         }
     });
 
+
     for (size_t target = 0; target < kPlayerCount; target++)
     {
-        m_playerController[target].SetSelect ([this, target] (int item)
+        m_playerEntry[target].SetSelect ([this, target] (int item)
         {
             if (!m_isSyncing)
             {
-                OnPlayerControllerSelect (target, item);
+                OnPlayerEntrySelect (target, item);
             }
         });
 
-        m_playerTarget[target].SetSelect ([this, target] (int item)
+        m_playerMode[target].SetSelect ([this, target] (int item)
         {
             if (!m_isSyncing)
             {
-                OnPlayerTargetSelect (target, item);
+                OnPlayerModeSelect (target, item);
             }
         });
     }
@@ -185,17 +214,6 @@ void ControllersPage::SetState (ControllersPageState * state)
 
     for (size_t target = 0; target < kTargetCount; target++)
     {
-        for (size_t row = 0; row < kMaxRows; row++)
-        {
-            m_rows[target][row].SetSelect ([this, target, row] (int item)
-            {
-                if (!m_isSyncing)
-                {
-                    OnRowSelect (target, row, item);
-                }
-            });
-        }
-
         // Bounded again, although the loop already bounds it. The analyzer
         // widens the index across the loop body and reads this as a write
         // past the end.
@@ -232,11 +250,11 @@ void ControllersPage::SetState (ControllersPageState * state)
         });
     }
 
-    m_deadzone.SetOnChange ([this] (float percent)
+    m_deadZone.SetOnChange ([this] (float percent)
     {
         if (!m_isSyncing && m_state != nullptr)
         {
-            m_state->SetDeadzone (percent / 100.0f);
+            m_state->SetDeadZone (percent / 100.0f);
             MarkDirty (m_state->IsDirty());
         }
     });
@@ -318,24 +336,26 @@ void ControllersPage::SetOnInspect (InspectFn onInspect)
 void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 {
     size_t  target = 0;
-    size_t  row    = 0;
 
 
 
-    m_controller.SetPopupHost (host);
-    m_profile.SetPopupHost    (host);
+    m_popupHost = host;
+
+    m_controller.SetPopupHost    (host);
+    m_profile.SetPopupHost       (host);
+    m_profileDialog.SetPopupHost (host);
 
     for (target = 0; target < kPlayerCount; target++)
     {
-        m_playerController[target].SetPopupHost (host);
-        m_playerTarget[target].SetPopupHost     (host);
+        m_playerEntry[target].SetPopupHost (host);
+        m_playerMode[target].SetPopupHost  (host);
     }
 
     for (target = 0; target < kTargetCount; target++)
     {
-        for (row = 0; row < kMaxRows; row++)
+        for (const std::unique_ptr<DxuiComboBox> & row : m_rows[target])
         {
-            m_rows[target][row].SetPopupHost (host);
+            row->SetPopupHost (host);
         }
     }
 
@@ -351,50 +371,101 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMeasuringRenderer
+//
+//  The renderer Layout measures text with: one set for the page, else the
+//  popup host's, asked each time because the host rebuilds it when the
+//  device is lost. Null before the host has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiTextRenderer * ControllersPage::GetMeasuringRenderer() const
+{
+    if (m_textRenderer != nullptr)
+    {
+        return m_textRenderer;
+    }
+
+    return (m_popupHost != nullptr) ? m_popupHost->GetTextRenderer() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Layout
 //
 //  The controller picker across the top, and under it the profile picker
-//  with New, Rename and Delete. Below them the joystick: the stick
-//  circle on the left, and to its right each paddle axis's rows followed by
-//  its options. Then the buttons, each with its light, then the deadzone,
-//  calibration and Reset profile.
+//  with New, Rename and Delete. Below them the joystick: under its heading,
+//  indented, each paddle axis's rows followed by its options, and to their
+//  right the picture of the controller -- the stick circle, the Joyport's
+//  switches or the paddle bars. Then the buttons, each row indented the same
+//  and its light in the picture's column, then the dead zone, calibration
+//  and Reset profile. The mapping drop-downs, Invert, the paddle speed
+//  slider's track and the dead zone slider's track share one left edge.
 //
 //  Row counts change as mappings are added and removed, so everything below
 //  a target's rows moves with them; Relayout reruns this with the last
 //  rectangle whenever they change.
 //
+//  The page is taller than the sheet has room for once the players sit above
+//  the rest, so it reports its content height -- down to Reset profile and
+//  the page padding under it -- and the sheet scrolls it. The height is
+//  reported last, after the page is fully laid out, since the sheet may lay
+//  the page out again in response.
+//
+//  Each player's row is its entry and its mode, with a warning under it
+//  while the Joyport has taken the player's buttons. Both rows are always
+//  there: Player 2's Disabled entry is how two-player play is turned off.
+//  The mode drop-down is as wide as the widest mode and ends at the right
+//  edge of the Profile row at the design width, moving right with a wider
+//  sheet; the entry, and Editing below it, take the rest of the row. What each player drives is the heading above the input
+//  picture, for the controller in Editing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT    dpi         = scaler.GetDpi();
-    int     pad         = scaler.ToPx (s_kPagePadDp);
-    int     rowH        = scaler.ToPx (s_kRowHeightDp);
-    int     labelWidth  = scaler.ToPx (s_kLabelWidthDp);
-    int     rowWidth    = scaler.ToPx (s_kRowWidthDp);
-    int     addWidth    = scaler.ToPx (s_kAddWidthDp);
-    int     stickSize   = scaler.ToPx (s_kStickSizeDp);
-    int     lightSize   = scaler.ToPx (s_kLightSizeDp);
-    int     wideWidth   = scaler.ToPx (s_kWideWidthDp);
-    int     buttonWidth = scaler.ToPx (s_kButtonWidthDp);
-    int     profileBtnW = scaler.ToPx (s_kProfileButtonWidthDp);
-    int     optionWidth = scaler.ToPx (s_kOptionWidthDp);
-    int     indent      = scaler.ToPx (s_kChildIndentDp);
-    int     gap         = scaler.ToPx (s_kGapDp);
-    int     sectionGap  = scaler.ToPx (s_kSectionGapDp);
-    int     mapsWidth   = scaler.ToPx (s_kMapsWidthDp);
-    int     targetWidth = scaler.ToPx (s_kPlayerTargetWidthDp);
-    int     x           = rect.left + pad;
-    int     y           = rect.top  + pad;
-    int     axesX       = x + stickSize + sectionGap;
-    int     stickTop    = 0;
-    int     axesBottom  = 0;
-    int     playerX     = 0;
-    bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
-    bool    isJoyport   = IsJoyportAttached();
-    size_t  target      = 0;
-    size_t  player      = 0;
-    size_t  row         = 0;
+    UINT                 dpi         = scaler.GetDpi();
+    int                  pad         = scaler.ToPx (s_kPagePadDp);
+    int                  rowH        = scaler.ToPx (s_kRowHeightDp);
+    int                  labelWidth  = scaler.ToPx (s_kLabelWidthDp);
+    int                  rowWidth    = scaler.ToPx (s_kRowWidthDp);
+    int                  addWidth    = scaler.ToPx (s_kAddWidthDp);
+    int                  stickSize   = scaler.ToPx (s_kStickSizeDp);
+    int                  lightSize   = scaler.ToPx (s_kLightSizeDp);
+    int                  wideWidth   = scaler.ToPx (s_kWideWidthDp);
+    int                  buttonWidth = scaler.ToPx (s_kButtonWidthDp);
+    int                  profileBtnW = scaler.ToPx (s_kProfileButtonWidthDp);
+    int                  optionWidth = scaler.ToPx (s_kOptionWidthDp);
+    int                  indent      = scaler.ToPx (DxuiTreeView::kIndentDip);
+    int                  gap         = scaler.ToPx (s_kGapDp);
+    int                  sectionGap  = scaler.ToPx (s_kSectionGapDp);
+    int                  trackInset  = scaler.ToPx (DxuiSlider::kTrackInsetDip);
+    int                  x           = rect.left + pad;
+    int                  y           = rect.top  + pad;
+    int                  rowsX       = x + indent;
+    int                  columnX     = x + labelWidth;
+    int                  columnEnd   = columnX + rowWidth + gap + addWidth;
+    int                  labelW      = columnX - gap - rowsX;
+    int                  profileEnd  = x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2 + profileBtnW;
+    int                  pictureX    = profileEnd - stickSize;
+    int                  stickTop    = 0;
+    int                  axesBottom  = 0;
+    int                  contentH    = 0;
+    int                  playerStep  = rowH + gap;
+    int                  warnW       = columnEnd - rowsX;
+    int                  stretch     = GetDesignWidthPx() > 0 ? std::max (0, (int) (rect.right - rect.left) - GetDesignWidthPx()) : 0;
+    bool                 isJoyport   = IsJoyportMode();
+    bool                 isPaddles   = !isJoyport && IsPaddlesMode();
+    int                  responseW   = 0;
+    int                  responseX   = 0;
+    int                  messageX    = pictureX + lightSize + scaler.ToPx (s_kMessageGapDp);
+    size_t               target      = 0;
+    size_t               player      = 0;
+    IDxuiTextRenderer  * text        = GetMeasuringRenderer();
 
 
 
@@ -402,59 +473,55 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_lastScaler = scaler;
     m_hasLayout  = true;
 
-    // The two player slots lead the page while the machine is in that mode,
-    // since who is playing decides what everything below it edits. With the
-    // mode off there are no slots to fill, so the section is not there at all
-    // rather than sitting empty on every machine.
-    playerX = x + indent;
+    m_revealedWarning.reset();
 
-    m_multiplayerHeading.SetVisible (isTwoPlayer);
-    m_multiplayerHeading.SetRect    (MakeRect (x, y, wideWidth, rowH));
-    m_multiplayerHeading.SetText    (L"Multiplayer");
-
-    if (isTwoPlayer)
-    {
-        y += rowH;
-    }
-
-
+    // The players lead the page, since who is playing decides what
+    // everything below edits. A player whose buttons the Joyport has taken
+    // has a warning under its row, as wide as the row's drop-downs.
     for (player = 0; player < kPlayerCount; player++)
     {
-        m_playerLabel[player].SetVisible (isTwoPlayer);
-        m_playerLabel[player].SetRect    (MakeRect (playerX, y, labelWidth, rowH));
-        m_playerLabel[player].SetText    (player == 0 ? L"Player 1:" : L"Player 2:");
+        int           warnW   = profileEnd - (x + labelWidth);
+        int           warnH   = 0;
+        std::wstring  warning = m_state != nullptr ? m_state->GetButtonsCutNotice (player) : std::wstring();
 
-        m_playerController[player].SetVisible (isTwoPlayer);
-        m_playerController[player].SetRect    (MakeRect (playerX + labelWidth, y, rowWidth, rowH));
+        m_playerLabel[player].SetRect (MakeRect (x, y, labelWidth, rowH));
+        m_playerLabel[player].SetText (player == 0 ? L"Player 1:" : L"Player 2:");
+        m_playerEntry[player].SetRect (MakeRect (x + labelWidth, y, 0, rowH));
+        m_playerMode[player].SetRect  (MakeRect (x + labelWidth, y, 0, rowH));
 
-        // With the Joyport attached a player's slot is their jack, and the
-        // paddles the slot maps to play no part, so the jack takes the place
-        // of that choice. The choice is kept for when the Joyport comes off.
-        m_playerMapsLabel[player].SetVisible (isTwoPlayer);
-        m_playerMapsLabel[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap, y,
-                                                        isJoyport ? targetWidth : mapsWidth, rowH));
-        m_playerMapsLabel[player].SetText    (isJoyport ? (player == 0 ? L"left jack" : L"right jack") : L"maps to");
+        y += playerStep;
 
-        m_playerTarget[player].SetVisible (isTwoPlayer && !isJoyport);
-        m_playerTarget[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
+        m_isWarningShown[player] = !warning.empty();
+        m_playerWarning[player].SetText    (warning);
+        m_playerWarning[player].SetVisible (m_isWarningShown[player]);
+        m_playerWarning[player].SetDpi     (dpi);
 
-        if (isTwoPlayer)
+        if (!m_isWarningShown[player])
         {
-            y += rowH + gap;
+            continue;
         }
+
+        // Measured whenever there is a renderer to measure with: the estimate
+        // is generous, and a line it reserves that the text does not use
+        // shows as a blank band inside the border.
+        if (text != nullptr)
+        {
+            warnH = (int) std::ceil (m_playerWarning[player].GetMeasuredHeightPx (*text, (float) warnW, scaler));
+        }
+        else
+        {
+            warnH = (int) std::ceil (m_playerWarning[player].GetPreferredHeightPx ((float) warnW, scaler));
+        }
+
+        m_playerWarning[player].SetRect (MakeRect (x + labelWidth, y, warnW, warnH));
+
+        y += warnH + gap;
     }
 
-    if (isTwoPlayer)
-    {
-        y += sectionGap - gap;
-    }
-
+    y += sectionGap - gap;
     m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
 
-    // While two people play, this drop-down chooses whose mappings the rest
-    // of the page edits rather than who drives the game port, which the
-    // slots above decide.
-    m_controllerLabel.SetText (isTwoPlayer ? L"Editing:" : L"Controller:");
+    m_controllerLabel.SetText (L"Controller:");
     m_controller.SetRect      (MakeRect (x + labelWidth, y, wideWidth, rowH));
     y += rowH + gap;
 
@@ -469,145 +536,183 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_deleteProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2, y, profileBtnW, rowH));
     y += rowH + sectionGap;
 
-    // With the Joyport attached the heading gives the jack this controller
-    // drives, and the stick's square shows the switches it closes instead.
+    // The heading gives what this controller drives: its joystick, paddle,
+    // paddles or Joyport jack. In a jack the stick's square shows the
+    // switches it closes instead, and in a paddle mode a bar per paddle.
     m_isJoyportShown = isJoyport;
+    m_isPaddlesShown = isPaddles;
 
     m_joystickHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
-    m_joystickHeading.SetText (isJoyport && m_state != nullptr
-                                   ? ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack())
-                                   : std::wstring (L"Joystick"));
+    m_joystickHeading.SetText (m_state != nullptr ? m_state->GetEditedHeading() : std::wstring (L"Joystick"));
     y += rowH;
 
     stickTop   = y;
     axesBottom = y;
 
-    m_stick.SetVisible (!isJoyport);
-    m_stick.Layout (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    // The stick and the Joyport's switches end at the Delete button's right
+    // edge, as the players' rows do; a paddle's bar goes in its own row below.
+    m_stick.SetVisible (!isJoyport && !isPaddles);
+    m_stick.Layout (MakeRect (pictureX, stickTop, stickSize, stickSize), scaler);
     m_switchView.SetVisible (isJoyport);
-    m_switchView.Layout     (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+    m_switchView.Layout     (MakeRect (pictureX, stickTop, stickSize, stickSize), scaler);
 
-    // The two axes, stacked to the right of the stick. An axis this
+    // The two axes, stacked under the heading, their labels indented as a
+    // child setting's are, with the picture to their right. An axis this
     // controller's player does not drive is GONE rather than grayed: a row
     // that cannot do anything is one more thing to read past.
     for (target = 0; target < kAxisCount; target++)
     {
-        size_t        shown     = GetShownRows (target);
+        int           tableH    = 0;
         bool          isInPlay  = IsTargetShown (target);
+        bool          isSpeed   = isInPlay && m_state != nullptr && m_state->IsPaddleSpeedShown (TargetAt (target));
         std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_targetLabel[target].SetVisible (isInPlay);
-        m_targetLabel[target].SetRect    (MakeRect (axesX, axesBottom, labelWidth, rowH));
+        m_targetLabel[target].SetVisible   (isInPlay);
+        m_targetLabel[target].SetRect      (MakeRect (rowsX, axesBottom, labelW, rowH));
+        m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-        // While two play, a row is named for the paddle the guest reads it
+        // While two play, a row is labeled with the paddle the guest reads it
         // on: a player holding the second joystick drives PDL2 and PDL3. With
-        // the Joyport attached it is named for the switches it closes.
-        m_targetLabel[target].SetText (GetRowLabel (target, playLabel, isJoyport));
+        // the Joyport attached its label is the switches it closes.
+        m_targetLabel[target].SetText (GetRowLabel (target, playLabel, isJoyport, isPaddles));
 
-        for (row = 0; row < kMaxRows; row++)
-        {
-            m_rows[target][row].SetVisible (isInPlay && row < shown);
-            m_rows[target][row].SetRect    (MakeRect (axesX + labelWidth, axesBottom + (int) row * (rowH + gap), rowWidth, rowH));
-        }
+        // A paddle's bar is on its first row, level with its label, ending
+        // where the stick would.
+        m_paddleBars[target].SetVisible (isPaddles && isInPlay);
+        m_paddleBars[target].Layout     (MakeRect (pictureX, axesBottom, profileEnd - pictureX, rowH), scaler);
+
+        tableH = LayOutTable (target, columnX, axesBottom, rowWidth, isInPlay, scaler);
 
         m_addRow[target].SetLabel   (L"+");
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].Layout     (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+        m_addRow[target].Layout     (MakeRect (columnX + rowWidth + gap, axesBottom, addWidth, rowH));
 
         if (!isInPlay)
         {
-            m_invert[target].SetVisible   (false);
-            m_response[target].SetVisible (false);
-            m_speed[target].SetVisible    (false);
+            m_invert[target].SetVisible     (false);
+            m_response[target].SetVisible   (false);
+            m_speedLabel[target].SetVisible (false);
+            m_speed[target].SetVisible      (false);
+            LayOutSharedWarning (target, rowsX, axesBottom, warnW, text, scaler);
             continue;
         }
 
-        axesBottom += (int) shown * (rowH + gap);
-
-        m_invert[target].SetVisible (true);
-        m_invert[target].SetRect    (MakeRect (axesX + labelWidth + indent, axesBottom, optionWidth - indent, rowH));
-        m_invert[target].SetLabel   (L"Invert");
+        axesBottom += tableH;
 
         // Right-aligned with the mapping drop-down above it: the two option
         // widths and the row width are the same span in DIPs, but each is
         // scaled to pixels on its own, so the rounding left the edges a pixel
         // or two apart. Taking the remainder of the row lands it exactly.
-        // Position or paddle speed decides the paddle value only. A Joyport
-        // switch follows the stick's deflection either way, so the choice and
-        // its speed are not on the page while one is attached.
-        m_response[target].SetVisible (!isJoyport);
-        m_response[target].SetRect    (MakeRect (axesX + labelWidth + optionWidth, axesBottom, rowWidth - optionWidth, rowH));
-        m_response[target].SetItems   ({ L"Position", L"Paddle speed" });
+        // It is widened, leftward, to show its longest item whole beside its
+        // arrow, and Invert takes what is left. Only a Paddle profile has a
+        // paddle speed, and only a knob's offers Position beside it: a
+        // Joystick profile's axes always give position, and a Joyport switch
+        // follows the stick's deflection either way.
+        m_response[target].SetItems ({ L"Position", L"Paddle speed" });
+        m_response[target].SetDpi   (dpi);
 
-        m_speed[target].SetVisible (!isJoyport);
+        responseW = rowWidth - optionWidth;
 
-        // The speed slider starts at the "+" above it so the column edge reads
-        // straight, and runs to where that column ends. A slider keeps a fixed
-        // readout column on its right, so at the option width its track was a
-        // stub sitting far left of everything it lines up with.
-        m_speed[target].SetRect          (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom,
-                                                    optionWidth + addWidth, rowH));
+        if (text != nullptr)
+        {
+            responseW = std::max (responseW, (int) std::ceil (m_response[target].GetFitWidthPx (*text)));
+        }
+
+        responseX = columnX + rowWidth - responseW;
+
+        m_invert[target].SetVisible (true);
+        m_invert[target].SetRect    (MakeRect (columnX, axesBottom, responseX - columnX, rowH));
+        m_invert[target].SetLabel   (L"Invert");
+
+        m_response[target].SetVisible (m_state != nullptr && m_state->IsPositionOffered (TargetAt (target)));
+        m_response[target].SetRect    (MakeRect (responseX, axesBottom, responseW, rowH));
+
+        // The speed slider takes the row under Invert, with its label in the
+        // target labels' column, while the axis plays at paddle speed: its
+        // track, not the puck's room left of it, starts at the drop-down
+        // column's edge and runs to the end of the "+" column, as the dead
+        // zone's does.
+        m_speedLabel[target].SetVisible (isSpeed);
+        m_speed[target].SetVisible      (isSpeed);
+
+        if (isSpeed)
+        {
+            axesBottom += rowH + gap;
+        }
+
+        m_speedLabel[target].SetRect (MakeRect (rowsX, axesBottom, columnX - trackInset - rowsX, rowH));
+        m_speedLabel[target].SetText (L"Paddle speed:");
+
+        m_speed[target].SetRect          (MakeRect (columnX - trackInset, axesBottom, columnEnd - (columnX - trackInset), rowH));
         m_speed[target].SetRange         (ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
         m_speed[target].SetStep          (16.0f);
         m_speed[target].SetDecimalPlaces (0);
         m_speed[target].SetSuffix        (L"/s");
         m_speed[target].SetTickInterval  (256.0f);
 
-        axesBottom += rowH + sectionGap;
+        axesBottom += rowH + gap;
+        axesBottom += LayOutSharedWarning (target, rowsX, axesBottom, warnW, text, scaler);
+        axesBottom += sectionGap - gap;
     }
 
-    y = std::max (stickTop + stickSize, axesBottom) + sectionGap;
+    PollPaddleBars (nullptr);
 
-    // The buttons, each with a light that fills while it reads pressed.
+    y = std::max (isPaddles ? stickTop : stickTop + stickSize, axesBottom) + sectionGap;
+
+    // The buttons, each with a light that fills while it reads pressed, in
+    // the picture's column beside its row. A lit light's message runs from
+    // the light to the page padding, past the pictures' right edge, so it
+    // is not counted in the page's content width.
     m_buttonsHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
     m_buttonsHeading.SetText (L"Buttons");
     y += rowH;
 
     for (target = kAxisCount; target < kTargetCount; target++)
     {
-        size_t        shown     = GetShownRows (target);
-        size_t        light     = target - kAxisCount;
-        bool          isInPlay  = IsTargetShown (target);
-        std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
+        int           tableH      = 0;
+        int           rowMessageX = isJoyport ? pictureX : messageX;
+        size_t        light       = target - kAxisCount;
+        bool          isInPlay    = IsTargetShown (target);
+        std::wstring  playLabel   = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_lights[light].SetVisible (isInPlay && !isJoyport);
-        m_lights[light].Layout     (MakeRect (x, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
+        // The Joyport's art shows fire itself, so there the light is not
+        // drawn and its message starts at the art's left edge instead.
+        m_lights[light].SetVisible       (isInPlay);
+        m_lights[light].SetCircleShown   (!isJoyport);
+        m_lights[light].Layout           (MakeRect (pictureX, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
+        m_lights[light].SetMessageBounds (MakeRect (rowMessageX, y, std::max (0, (int) rect.right - pad - rowMessageX), rowH));
 
-        // With the Joyport attached the button lights are gone, so the label
-        // takes their place at the margin rather than indenting for nothing.
-        m_targetLabel[target].SetVisible (isInPlay);
-        m_targetLabel[target].SetRect    (isJoyport ? MakeRect (x, y, labelWidth, rowH)
-                                                    : MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
-        m_targetLabel[target].SetText    (GetRowLabel (target, playLabel, isJoyport));
+        m_targetLabel[target].SetVisible   (isInPlay);
+        m_targetLabel[target].SetRect      (MakeRect (rowsX, y, labelW, rowH));
+        m_targetLabel[target].SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+        m_targetLabel[target].SetText      (GetRowLabel (target, playLabel, isJoyport, isPaddles));
 
-        for (row = 0; row < kMaxRows; row++)
-        {
-            m_rows[target][row].SetVisible (isInPlay && row < shown);
-            m_rows[target][row].SetRect    (MakeRect (x + labelWidth, y + (int) row * (rowH + gap), rowWidth, rowH));
-        }
+        tableH = LayOutTable (target, columnX, y, rowWidth, isInPlay, scaler);
 
         m_addRow[target].SetLabel   (L"+");
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].Layout     (MakeRect (x + labelWidth + rowWidth + gap, y + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+        m_addRow[target].Layout     (MakeRect (columnX + rowWidth + gap, y, addWidth, rowH));
 
         if (isInPlay)
         {
-            y += (int) shown * (rowH + gap);
+            y += tableH;
         }
+
+        y += LayOutSharedWarning (target, rowsX, y, warnW, text, scaler);
     }
 
-    m_sharedWarning.SetRect  (MakeRect (x, y, wideWidth + labelWidth + buttonWidth, rowH));
-    m_sharedWarning.SetColor (0xFFF0A030);   // amber caution, as the sheet's restart notice
-    y += rowH + gap;
+    // A section gap above and below, and the track, not the puck's room
+    // left of it, starting at the drop-down column above.
+    y += sectionGap - gap;
 
-    m_deadzoneLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
-    m_deadzoneLabel.SetText (L"Deadzone:");
-    m_deadzone.SetRect          (MakeRect (x + labelWidth, y, wideWidth, rowH));
-    m_deadzone.SetRange         (0.0f, 90.0f);
-    m_deadzone.SetStep          (1.0f);
-    m_deadzone.SetDecimalPlaces (0);
-    m_deadzone.SetSuffix        (L"%");
-    m_deadzone.SetTickInterval  (10.0f);
+    m_deadZoneLabel.SetRect (MakeRect (x, y, columnX - trackInset - x, rowH));
+    m_deadZoneLabel.SetText (L"Dead zone:");
+    m_deadZone.SetRect          (MakeRect (columnX - trackInset, y, columnEnd - (columnX - trackInset), rowH));
+    m_deadZone.SetRange         (0.0f, 90.0f);
+    m_deadZone.SetStep          (1.0f);
+    m_deadZone.SetDecimalPlaces (0);
+    m_deadZone.SetSuffix        (L"%");
+    m_deadZone.SetTickInterval  (10.0f);
     y += rowH + sectionGap;
 
     m_calibrationLabel.SetRect  (MakeRect (x, y, labelWidth, rowH));
@@ -624,15 +729,13 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_reset.SetLabel (L"Reset profile");
     m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
-
-    m_multiplayerHeading.SetDpi (dpi);
+    contentH = y + rowH + pad - rect.top;
 
     for (player = 0; player < kPlayerCount; player++)
     {
-        m_playerLabel[player].SetDpi      (dpi);
-        m_playerController[player].SetDpi (dpi);
-        m_playerMapsLabel[player].SetDpi  (dpi);
-        m_playerTarget[player].SetDpi     (dpi);
+        m_playerLabel[player].SetDpi (dpi);
+        m_playerEntry[player].SetDpi (dpi);
+        m_playerMode[player].SetDpi  (dpi);
     }
 
     m_controllerLabel.SetDpi (dpi);
@@ -650,22 +753,22 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_targetLabel[target].SetDpi (dpi);
         m_addRow[target].SetDpi      (dpi);
 
-        for (row = 0; row < kMaxRows; row++)
+        for (const std::unique_ptr<DxuiComboBox> & row : m_rows[target])
         {
-            m_rows[target][row].SetDpi (dpi);
+            row->SetDpi (dpi);
         }
     }
 
     for (target = 0; target < kAxisCount; target++)
     {
-        m_invert[target].SetDpi   (dpi);
-        m_response[target].SetDpi (dpi);
-        m_speed[target].SetDpi    (dpi);
+        m_invert[target].SetDpi     (dpi);
+        m_response[target].SetDpi   (dpi);
+        m_speedLabel[target].SetDpi (dpi);
+        m_speed[target].SetDpi      (dpi);
     }
 
-    m_sharedWarning.SetDpi     (dpi);
-    m_deadzoneLabel.SetDpi     (dpi);
-    m_deadzone.SetDpi          (dpi);
+    m_deadZoneLabel.SetDpi     (dpi);
+    m_deadZone.SetDpi          (dpi);
     m_calibrationLabel.SetDpi  (dpi);
     m_calibrationStatus.SetDpi (dpi);
     m_calibrate.SetDpi         (dpi);
@@ -676,7 +779,190 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     RebuildChoices();
     Refresh();
 
+    // The content width is taken with the player rows at their design
+    // extent, so stretching them never raises the width the sheet may grow
+    // to.
+    StretchPlayerRows    (x + labelWidth, profileEnd, gap, scaler);
     DxuiPanel::SetBounds (rect);
+    SetContentWidthPx    (GetRightmostChildEdgePx() + pad - rect.left);
+    StretchPlayerRows    (x + labelWidth, profileEnd + stretch, gap, scaler);
+    SetContentHeightPx   (contentH);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StretchPlayerRows
+//
+//  The entry column and the mode column each at least as wide as the longest
+//  string it can show, with any room left over shared between them in
+//  proportion to those widths; the mode drop-downs end at `right`. When both
+//  cannot fit, the mode column keeps its width and the entries elide. The
+//  Editing drop-down is as wide as the entries, and the warning under a
+//  player spans both. Only the widths change; Layout has placed the rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::StretchPlayerRows (int left, int right, int gap, const DxuiDpiScaler & scaler)
+{
+    int     modeWidth  = GetModeWidthPx (scaler);
+    int     entryFit   = GetEntryFitWidthPx();
+    int     available  = right - left - gap;
+    int     entryWidth = available - modeWidth;
+    RECT    editing    = m_controller.GetRect();
+    size_t  player     = 0;
+
+
+
+    if (entryFit > 0 && available > entryFit + modeWidth)
+    {
+        modeWidth  = MulDiv (available, modeWidth, entryFit + modeWidth);
+        entryWidth = available - modeWidth;
+    }
+
+    m_controller.SetRect (MakeRect (left, editing.top, entryWidth, editing.bottom - editing.top));
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        RECT  entry   = m_playerEntry[player].GetRect();
+        RECT  warning = m_playerWarning[player].GetBounds();
+
+        m_playerEntry[player].SetRect (MakeRect (left, entry.top, entryWidth, entry.bottom - entry.top));
+        m_playerMode[player].SetRect  (MakeRect (right - modeWidth, entry.top, modeWidth, entry.bottom - entry.top));
+
+        if (m_isWarningShown[player])
+        {
+            m_playerWarning[player].SetRect (MakeRect (left, warning.top, right - left, warning.bottom - warning.top));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModeWidthPx
+//
+//  Wide enough for the longest label a mode drop-down can show -- every
+//  mode, and Player 2's Automatic with each mode it can resolve to --
+//  beside its arrow, measured in the drop-down's font. With nothing to
+//  measure with, the design width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::GetModeWidthPx (const DxuiDpiScaler & scaler) const
+{
+    constexpr PlayerMode         kModes[] = { PlayerMode::Joystick, PlayerMode::JoyportLeft, PlayerMode::JoyportRight, PlayerMode::Paddle, PlayerMode::TwoPaddles, PlayerMode::SameAsPlayer1 };
+    IDxuiTextRenderer          * text     = GetMeasuringRenderer();
+    DxuiComboBox                 measure;
+    std::vector<std::wstring>    labels;
+
+
+
+    if (text == nullptr)
+    {
+        return scaler.ToPx (s_kPlayerModeWidthDp);
+    }
+
+    for (PlayerMode mode : kModes)
+    {
+        labels.push_back (PlayerModeRules::GetModeLabel (mode));
+        labels.push_back (PlayerModeRules::GetAutomaticModeLabel (mode));
+    }
+
+    measure.SetDpi   (scaler.GetDpi());
+    measure.SetItems (labels);
+
+    return (int) std::ceil (measure.GetFitWidthPx (*text));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEntryFitWidthPx
+//
+//  Wide enough for the longest entry the player and Editing drop-downs now
+//  list, beside their arrow. Zero with nothing to measure with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::GetEntryFitWidthPx() const
+{
+    IDxuiTextRenderer  * text   = GetMeasuringRenderer();
+    float                width  = 0.0f;
+    size_t               player = 0;
+
+
+
+    if (text == nullptr)
+    {
+        return 0;
+    }
+
+    width = m_controller.GetFitWidthPx (*text);
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        width = std::max (width, m_playerEntry[player].GetFitWidthPx (*text));
+    }
+
+    return (int) std::ceil (width);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAnimationsEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::SetAnimationsEnabled (bool isEnabled)
+{
+    for (ButtonLightView & light : m_lights)
+    {
+        light.SetAnimationsEnabled (isEnabled);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPollIntervalMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT ControllersPage::GetPollIntervalMs() const
+{
+    return IsVisible() ? kLivePollMs : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Poll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::Poll()
+{
+    Poll ((int64_t) GetTickCount64());
 }
 
 
@@ -689,41 +975,63 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 //  The page asks the service to read the controller it shows, whether or not
 //  that controller is the one selected, and then hands the latest reading to
-//  whatever is waiting on it.
+//  whatever is waiting on it. Each button's light takes every reading since
+//  the last poll, so a press that came and went in between still lights it.
+//
+//  A hidden page reads nothing, and lets the controller go so the service
+//  stops reading it for the page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::Poll()
+void ControllersPage::Poll (int64_t nowMs)
 {
-    std::optional<size_t>             selected;
-    std::optional<ControllerUnitKey>  unit;
-    std::optional<ControllerSample>   sample;
-    GamePortContribution              reading;
-    size_t                            light    = 0;
+    constexpr float                                  kMsPerSecond = 1000.0f;
+    std::optional<size_t>                            selected;
+    std::optional<ControllerUnitKey>                 unit;
+    std::optional<ControllerSample>                  sample;
+    std::vector<ControllerSample>                    history;
+    GamePortContribution                             reading;
+    std::bitset<GamePortContribution::kButtonCount>  wasPressed;
+    float                                            elapsed      = m_lastPollMs > 0 ? (float) (nowMs - m_lastPollMs) / kMsPerSecond : 0.0f;
+    bool                                             isLive       = false;
+    size_t                                           light        = 0;
 
 
+
+    m_lastPollMs = nowMs;
 
     if (m_state == nullptr)
     {
         return;
     }
 
-    if (m_state->GetControllers().size() != m_lastControllerCount)
+    if (!IsVisible())
     {
+        if (m_inspected.has_value() && m_onInspect)
+        {
+            m_inspected.reset();
+            m_onInspect (std::nullopt);
+        }
+
+        return;
+    }
+
+    if (m_state->GetControllers().size() != m_lastControllerCount || m_state->IsEditedControllerConnected() != m_wasEditedConnected)
+    {
+        m_capturing.reset();
         RebuildChoices();
         Refresh();
     }
 
-    // The Joyport can be attached or detached from the command bar while the
-    // page is open; the readout above the rows changes form with it.
-    if (IsJoyportAttached() != m_isJoyportShown)
-    {
-        Relayout();
-    }
+    // A player can move into or out of a Joyport jack from the command bar
+    // while the page is open; the readout above the rows and the warnings
+    // under the players follow.
+    SyncJoyportLayout();
 
     selected = m_state->GetSelectedIndex();
 
-    if (selected.has_value())
+    // An unplugged controller in Editing has nothing to show: the views idle.
+    if (selected.has_value() && m_state->IsEditedControllerConnected())
     {
         unit = m_state->GetControllers()[selected.value()].unit;
     }
@@ -749,13 +1057,19 @@ void ControllersPage::Poll()
 
     m_stick.SetActive (sample.has_value());
 
+    for (PaddleBarView & bar : m_paddleBars)
+    {
+        bar.SetActive (sample.has_value());
+    }
+
     if (!sample.has_value())
     {
         m_stick.SetValues (127, 127);
+        PollPaddleBars    (nullptr);
 
         for (light = 0; light < kButtonCount; light++)
         {
-            m_lights[light].SetLit (false);
+            m_lights[light].Clear();
         }
 
         PollSwitchLights (nullptr);
@@ -774,7 +1088,19 @@ void ControllersPage::Poll()
         m_state->FeedCalibration (sample.value());
     }
 
-    reading = m_state->ComputeLiveReading (sample.value());
+    // The readings between polls count only for their buttons, so they move
+    // no rate paddle; the latest moves it for the time since the last poll.
+    if (m_historySource)
+    {
+        history = m_historySource (unit.value());
+    }
+
+    for (const ControllerSample & between : history)
+    {
+        wasPressed |= m_state->ComputeLiveReading (between, 0.0f).buttons;
+    }
+
+    reading = m_state->ComputeLiveReading (sample.value(), elapsed);
 
     // A target this controller does not drive reads as if it were not bound:
     // the row is grayed out, and a dot or a light that still moved with the
@@ -817,10 +1143,14 @@ void ControllersPage::Poll()
 
     for (light = 0; light < kButtonCount; light++)
     {
-        // A button the machine lacks stays dark whatever is pressed.
-        m_lights[light].SetLit (reading.buttons.test (light) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light)));
+        // A button the machine lacks, or this controller does not drive,
+        // stays dark whatever is pressed.
+        isLive = m_state->IsTargetInPlay (TargetAt (kAxisCount + light)) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light));
+
+        m_lights[light].Update (isLive && wasPressed[light], isLive && reading.buttons.test (light), nowMs);
     }
 
+    PollPaddleBars   (&reading);
     PollSwitchLights (&reading);
 }
 
@@ -830,13 +1160,112 @@ void ControllersPage::Poll()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsJoyportAttached
+//  IsJoyportMode
+//
+//  The page shows the Joyport's switches where the stick is while the
+//  controller in Editing plays for a player in one of its jacks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ControllersPage::IsJoyportAttached() const
+bool ControllersPage::IsJoyportMode() const
 {
-    return m_isJoyportAttached && m_isJoyportAttached();
+    return m_state != nullptr && m_state->IsEditedOnJoyport();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPaddlesMode
+//
+//  The page shows a bar per paddle where the stick is while the controller
+//  in Editing plays for a player in Paddle or Two paddles mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsPaddlesMode() const
+{
+    return m_state != nullptr && m_state->IsEditedOnPaddles();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollPaddleBars
+//
+//  Each paddle row's bar, for the paddle the guest reads it on, at the value
+//  this reading gives it; at center with no reading. Layout shows only the
+//  rows in play.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::PollPaddleBars (const GamePortContribution * reading)
+{
+    HRESULT  hr        = S_OK;
+    size_t   axis      = 0;
+    bool     isShowing = m_isPaddlesShown && m_state != nullptr;
+
+
+
+    BAIL_OUT_IF (!isShowing, S_OK);
+
+    for (axis = 0; axis < kAxisCount; axis++)
+    {
+        PaddleBar     bar;
+        std::wstring  name = m_state->GetTargetPlayLabel (TargetAt (axis));
+
+        if (!name.empty())
+        {
+            name.pop_back();
+        }
+
+        bar.name  = name.empty() ? std::format (L"PDL{}", axis) : name;
+        bar.value = (reading != nullptr) ? reading->paddle[axis].value_or (PaddleBar::kCenter) : PaddleBar::kCenter;
+
+        m_paddleBars[axis].SetBar (bar);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncJoyportLayout
+//
+//  Each poll: the page is laid out again when the controller in Editing
+//  moves into or out of a Joyport jack or a paddle mode, or a warning under
+//  a player comes or goes, since each changes what the page shows, not just
+//  its values.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::SyncJoyportLayout()
+{
+    bool    isPaddles = !IsJoyportMode() && IsPaddlesMode();
+    bool    isChanged = IsJoyportMode() != m_isJoyportShown || isPaddles != m_isPaddlesShown;
+    size_t  player    = 0;
+
+
+
+    for (player = 0; player < kPlayerCount && m_state != nullptr; player++)
+    {
+        isChanged = isChanged || m_state->GetButtonsCutNotice (player).empty() == m_isWarningShown[player];
+    }
+
+    if (isChanged)
+    {
+        Relayout();
+    }
 }
 
 
@@ -863,7 +1292,7 @@ void ControllersPage::PollSwitchLights (const GamePortContribution * reading)
 
     BAIL_OUT_IF (!isShowing, S_OK);
 
-    m_joystickHeading.SetText (ControllersPageState::GetJoyportHeading (m_state->GetJoyportJack()));
+    m_joystickHeading.SetText (m_state->GetEditedHeading());
 
     m_switchView.SetActive   (reading != nullptr);
     m_switchView.SetSwitches (reading != nullptr ? reading->switches : JoystickSwitches());
@@ -907,14 +1336,20 @@ bool ControllersPage::IsTargetShown (size_t target) const
 //
 //  With the Joyport attached, what the row closes; otherwise the paddle or
 //  button the guest reads it on, which while two play is the player's own.
+//  A paddle has one axis, so in a paddle mode its row carries no axis letter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ControllersPage::GetRowLabel (size_t target, const std::wstring & playLabel, bool isJoyport)
+std::wstring ControllersPage::GetRowLabel (size_t target, const std::wstring & playLabel, bool isJoyport, bool isPaddles)
 {
     std::wstring  label = isJoyport ? ControllersPageState::GetJoyportRowLabel (TargetAt (target)) : std::wstring();
 
 
+
+    if (label.empty() && playLabel.empty() && isPaddles && target < kAxisCount)
+    {
+        label = std::format (L"PDL{}:", target);
+    }
 
     if (label.empty())
     {
@@ -922,6 +1357,189 @@ std::wstring ControllersPage::GetRowLabel (size_t target, const std::wstring & p
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTargetLabel
+//
+//  A target as its row's label shows it, without the trailing colon, for
+//  use inside a sentence: "Fire", "PDL0 (X)", "PB2".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPage::GetTargetLabel (PaddleTarget target) const
+{
+    std::wstring  label;
+    std::wstring  playLabel;
+    size_t        index     = 0;
+    size_t        i         = 0;
+
+
+
+    for (i = 0; i < kTargetCount; i++)
+    {
+        if (TargetAt (i) == target)
+        {
+            index = i;
+        }
+    }
+
+    playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (target) : std::wstring();
+    label     = GetRowLabel (index, playLabel, IsJoyportMode(), !IsJoyportMode() && IsPaddlesMode());
+
+    if (!label.empty() && label.back() == L':')
+    {
+        label.pop_back();
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeSharedNotice
+//
+//  One sentence, a line each, for every control whose sharing warning goes
+//  under this target: the control as its rows show it, then every other
+//  target it is on, as in "B is also assigned to Fire and PB1." Empty when
+//  no warning goes here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPage::MakeSharedNotice (PaddleTarget target) const
+{
+    ControllerKind             kind   = GetSelectedKind();
+    std::wstring               notice;
+    std::vector<std::wstring>  others;
+
+
+
+    if (m_state == nullptr)
+    {
+        return notice;
+    }
+
+    for (const ControlId & control : m_state->GetSharedControls())
+    {
+        if (m_state->GetSharedWarningTarget (control) != target)
+        {
+            continue;
+        }
+
+        others.clear();
+
+        for (PaddleTarget other : m_state->GetControlTargets (control))
+        {
+            if (other != target)
+            {
+                others.push_back (GetTargetLabel (other));
+            }
+        }
+
+        notice += notice.empty() ? L"" : L"\n";
+        notice += ControlLabels::For (kind, control) + L" is also assigned to " + ControllersPageState::JoinWithAnd (others) + L".";
+    }
+
+    return notice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayOutSharedWarning
+//
+//  The sharing warning under one target's rows, at (x, y), shown only while
+//  it has sentences and as tall as they are. Returns the height it takes,
+//  with the gap below it, or 0 while it is hidden. A warning whose text is
+//  new is the one the sheet scrolls to after an edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::LayOutSharedWarning (
+    size_t                  target,
+    int                     x,
+    int                     y,
+    int                     width,
+    IDxuiTextRenderer     * text,
+    const DxuiDpiScaler   & scaler)
+{
+    DxuiInfoBanner  & banner   = m_sharedWarning[target];
+    std::wstring      notice   = IsTargetShown (target) ? MakeSharedNotice (TargetAt (target)) : std::wstring();
+    bool              isNew    = !notice.empty() && notice != banner.GetText();
+    int               heightPx = 0;
+
+
+
+    banner.SetText    (notice);
+    banner.SetVisible (!notice.empty());
+    banner.SetDpi     (scaler.GetDpi());
+
+    if (notice.empty())
+    {
+        return 0;
+    }
+
+    // Measured whenever there is a renderer to measure with, as the players'
+    // warnings are.
+    if (text != nullptr)
+    {
+        heightPx = (int) std::ceil (banner.GetMeasuredHeightPx (*text, (float) width, scaler));
+    }
+    else
+    {
+        heightPx = (int) std::ceil (banner.GetPreferredHeightPx ((float) width, scaler));
+    }
+
+    banner.SetRect (MakeRect (x, y, width, heightPx));
+
+    if (isNew)
+    {
+        m_revealedWarning = target;
+    }
+
+    return heightPx + scaler.ToPx (s_kGapDp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasSharedNoticeChanged
+//
+//  Whether any target's sharing warning would now read differently from the
+//  one laid out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::HasSharedNoticeChanged() const
+{
+    size_t  target  = 0;
+    bool    changed = false;
+
+
+
+    for (target = 0; target < kTargetCount && !changed; target++)
+    {
+        std::wstring  notice = IsTargetShown (target) ? MakeSharedNotice (TargetAt (target)) : std::wstring();
+
+        changed = notice != m_sharedWarning[target].GetText();
+    }
+
+    return changed;
 }
 
 
@@ -941,6 +1559,7 @@ void ControllersPage::Refresh()
     int                        selectedItem  = 0;
     size_t                     index         = 0;
     bool                       isPlayersOnly = false;
+    bool                       isEditable    = false;
 
 
 
@@ -960,7 +1579,7 @@ void ControllersPage::Refresh()
     {
         const ControllersPageState::ControllerEntry &  entry = m_state->GetControllers()[index];
 
-        if (isPlayersOnly && !ControllerSelectionPolicy::FindPlayer (m_state->GetMultiplayer(), entry.unit).has_value())
+        if (isPlayersOnly && m_state->GetPlayerUnit (0) != entry.unit && m_state->GetPlayerUnit (kPlayerTwo) != entry.unit)
         {
             continue;
         }
@@ -975,7 +1594,9 @@ void ControllersPage::Refresh()
     }
 
     selected              = m_state->GetSelectedIndex();
+    isEditable            = m_state->IsEditedControllerConnected();
     m_lastControllerCount = m_state->GetControllers().size();
+    m_wasEditedConnected  = isEditable;
     m_isSyncing           = true;
 
     for (index = 0; selected.has_value() && index < m_editingIndices.size(); index++)
@@ -990,17 +1611,25 @@ void ControllersPage::Refresh()
     m_controller.SetSelected (selectedItem);
     m_controller.SetEnabled  (selected.has_value() && !m_editingIndices.empty());
 
-    RefreshMultiplayer();
+    RefreshPlayers();
     RefreshProfiles();
     RefreshRows();
     RefreshAxisOptions();
     RefreshCalibration();
 
-    m_deadzone.SetValue   (m_state->GetDeadzone() * 100.0f);
-    m_deadzone.SetEnabled (selected.has_value());
-    m_reset.SetEnabled    (selected.has_value());
+    m_deadZone.SetValue   (m_state->GetDeadZone() * 100.0f);
+    m_deadZone.SetEnabled (isEditable);
+    m_reset.SetEnabled    (isEditable);
 
     m_isSyncing = false;
+
+    // A sharing warning's height follows its sentences, so a change to them
+    // is a change to the page's layout. Layout sets the text before it
+    // refreshes, so this cannot loop.
+    if (m_hasLayout && HasSharedNoticeChanged())
+    {
+        Relayout();
+    }
 }
 
 
@@ -1020,8 +1649,8 @@ void ControllersPage::RefreshProfiles()
 {
     std::vector<std::wstring>  items;
     std::string                edited   = m_state->GetEditedProfileName();
-    bool                       hasUnit  = m_state->GetSelectedIndex().has_value();
-    bool                       canEdit  = hasUnit && !m_state->IsEditingDefaultProfile();
+    bool                       hasUnit  = m_state->IsEditedControllerConnected();
+    bool                       canEdit  = hasUnit && !m_state->IsEditingBuiltInProfile();
     size_t                     i        = 0;
     int                        selected = 0;
 
@@ -1116,7 +1745,7 @@ void ControllersPage::SwitchProfile (const std::string & name)
 
 void ControllersPage::OnNewProfile()
 {
-    if (m_state == nullptr || !m_state->GetSelectedIndex().has_value())
+    if (m_state == nullptr || !m_state->IsEditedControllerConnected())
     {
         return;
     }
@@ -1171,7 +1800,7 @@ void ControllersPage::AskToSaveProfileEdits (std::function<void()> proceed)
     Refresh();
 
     m_profileDialog.OpenSaveOrDiscard (Utf8ToWide (m_state->GetEditedProfileName()),
-        [this, proceed] (const std::wstring &, ProfileSource)
+        [this, proceed] (const std::wstring &, ProfileSource, const std::wstring &)
         {
             HRESULT  hr = m_onCommitProfile ? m_state->SaveProfileEdits (m_onCommitProfile) : E_FAIL;
 
@@ -1208,18 +1837,38 @@ void ControllersPage::AskToSaveProfileEdits (std::function<void()> proceed)
 //
 //  OpenNewProfileDialog
 //
+//  The starting points of the mode in effect, and the profiles of that mode
+//  a copy can start from, opening on the edited profile when it is one of
+//  them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::OpenNewProfileDialog()
 {
-    std::string  current = m_state->GetEditedProfileName();
+    std::vector<std::string>   names    = m_state->GetCopySourceNames();
+    std::string                edited   = m_state->GetEditedProfileName();
+    std::vector<std::wstring>  copies;
+    size_t                     selected = 0;
+    size_t                     i        = 0;
 
 
 
-    m_profileDialog.OpenNew (Utf8ToWide (current),
-        [this, current] (const std::wstring & name, ProfileSource source)
+    for (i = 0; i < names.size(); i++)
+    {
+        copies.push_back (Utf8ToWide (names[i]));
+
+        if (names[i] == edited)
         {
-            ProfileEditResult  result = m_state->CreateProfile (WideToUtf8 (name), source, current);
+            selected = i;
+        }
+    }
+
+    m_profileDialog.OpenNew (ControllersPageState::GetStartingPoints (m_state->GetProfileMode(), !names.empty()),
+                             copies,
+                             selected,
+        [this] (const std::wstring & name, ProfileSource source, const std::wstring & copySource)
+        {
+            ProfileEditResult  result = m_state->CreateProfile (WideToUtf8 (name), source, WideToUtf8 (copySource));
 
             if (result == ProfileEditResult::Ok)
             {
@@ -1246,13 +1895,13 @@ void ControllersPage::OpenNewProfileDialog()
 
 void ControllersPage::OnRenameProfile()
 {
-    if (m_state == nullptr || m_state->IsEditingDefaultProfile())
+    if (m_state == nullptr || m_state->IsEditingBuiltInProfile())
     {
         return;
     }
 
     m_profileDialog.OpenRename (Utf8ToWide (m_state->GetEditedProfileName()),
-        [this] (const std::wstring & name, ProfileSource)
+        [this] (const std::wstring & name, ProfileSource, const std::wstring &)
         {
             ProfileEditResult  result = m_state->RenameProfile (WideToUtf8 (name));
 
@@ -1279,13 +1928,13 @@ void ControllersPage::OnRenameProfile()
 
 void ControllersPage::OnDeleteProfile()
 {
-    if (m_state == nullptr || m_state->IsEditingDefaultProfile())
+    if (m_state == nullptr || m_state->IsEditingBuiltInProfile())
     {
         return;
     }
 
     m_profileDialog.OpenConfirmDelete (Utf8ToWide (m_state->GetEditedProfileName()),
-        [this] (const std::wstring &, ProfileSource)
+        [this] (const std::wstring &, ProfileSource, const std::wstring &)
         {
             ProfileEditResult  result = m_state->DeleteProfile();
 
@@ -1385,11 +2034,10 @@ void ControllersPage::RebuildChoices()
 
 void ControllersPage::RefreshRows()
 {
-    ControllerKind          kind    = GetSelectedKind();
-    bool                    hasUnit = m_state->GetSelectedIndex().has_value();
-    std::vector<ControlId>  shared  = m_state->GetSharedControls();
-    size_t                  target  = 0;
-    size_t                  row     = 0;
+    ControllerKind  kind    = GetSelectedKind();
+    bool            hasUnit = m_state->IsEditedControllerConnected();
+    size_t          target  = 0;
+    size_t          row     = 0;
 
 
 
@@ -1402,11 +2050,17 @@ void ControllersPage::RefreshRows()
         // at all while two people play. Layout leaves its rows out; this has
         // to agree, or a re-sync puts them back on top of the rows below.
         bool          isInPlay     = IsTargetShown (target);
-        bool          isEditable   = available && isInPlay;
+
+        // A player beside the Joyport keeps its button rows, disabled: the
+        // Joyport has its buttons, and the bindings wait in the profile.
+        bool          isCut        = target >= kAxisCount && m_state->AreEditedButtonsCut();
+        bool          isEditable   = available && isInPlay && !isCut;
         size_t        count        = GetBindingCount (target);
         size_t        shown        = GetShownRows (target);
 
-        for (row = 0; row < kMaxRows; row++)
+        EnsureRows (target, shown);
+
+        for (row = 0; row < m_rows[target].size(); row++)
         {
             std::vector<std::wstring>  items;
             std::vector<std::wstring>  glyphs;
@@ -1414,8 +2068,7 @@ void ControllersPage::RefreshRows()
             int                        choice      = FindChoice (target, row);
 
             items.push_back (isCapturing ? L"Press a control..." : L"Press to assign...");
-            items.push_back (available ? L"None"
-                                       : L"Not supported on " + (m_state->GetMachineName().empty() ? std::wstring (L"this machine") : m_state->GetMachineName()));
+            items.push_back (m_state->GetUnassignedLabel (paddleTarget));
             glyphs.resize   (items.size());
 
             for (const ControlChoice & entry : m_choices[target])
@@ -1434,35 +2087,20 @@ void ControllersPage::RefreshRows()
                 choice = (int) items.size() - 1;
             }
 
-            m_rows[target][row].SetItems      (items);
-            m_rows[target][row].SetItemGlyphs (glyphs);
+            m_rows[target][row]->SetItems      (items);
+            m_rows[target][row]->SetItemGlyphs (glyphs);
             // A target the machine lacks says so, rather than showing a
             // binding saved from a machine that has it as though it applied.
-            m_rows[target][row].SetSelected (!available  ? kNoneItem
-                                             : isCapturing ? kPressToAssignItem
-                                             : (row < count ? choice : kNoneItem));
-            m_rows[target][row].SetEnabled  (isEditable);
-            m_rows[target][row].SetVisible  (isInPlay && row < shown);
+            m_rows[target][row]->SetSelected (!available  ? kNoneItem
+                                              : isCapturing ? kPressToAssignItem
+                                              : (row < count ? choice : kNoneItem));
+            m_rows[target][row]->SetEnabled  (isEditable);
+            m_rows[target][row]->SetVisible  (isInPlay && row < shown);
         }
 
         m_addRow[target].SetVisible (isInPlay);
-        m_addRow[target].SetEnabled (isEditable && count > 0 && shown < kMaxRows && !m_hasExtraRow[target]);
-    }
-
-    if (shared.empty())
-    {
-        m_sharedWarning.SetText (L"");
-    }
-    else
-    {
-        std::wstring  names;
-
-        for (const ControlId & control : shared)
-        {
-            names += (names.empty() ? L"" : L", ") + ControlLabels::For (kind, control);
-        }
-
-        m_sharedWarning.SetText (L"Assigned to more than one target: " + names);
+        // Never unavailable for the number of rows: the table scrolls.
+        m_addRow[target].SetEnabled (isEditable && count > 0 && !m_hasExtraRow[target]);
     }
 }
 
@@ -1472,73 +2110,68 @@ void ControllersPage::RefreshRows()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RefreshMultiplayer
+//  RefreshPlayers
 //
-//  Each player's two drop-downs. The controller list offers None and every
-//  controller, the other player's included: picking that one swaps the two
-//  players' controllers. The targets come from the policy, which has already
-//  left out the paddles this machine lacks and the ones the other player
-//  claimed (FR-035, FR-036).
+//  Each player's two drop-downs and the note of what it drives. The entries
+//  are the picker's own, the other player's controller included: picking
+//  that one returns the other player to Automatic. The modes are the
+//  picker's too, a Joyport jack the other player holds listed and disabled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::RefreshMultiplayer()
+void ControllersPage::RefreshPlayers()
 {
     size_t  player = 0;
     size_t  i      = 0;
 
 
 
-    if (!m_state->IsMultiplayerEnabled())
-    {
-        return;
-    }
-
     for (player = 0; player < kPlayerCount; player++)
     {
-        const MultiplayerSlot &    slot     = m_state->GetMultiplayer().players[player];
-        std::vector<std::wstring>  items;
-        int                        selected = 0;
+        std::vector<InputModeRules::PlayerChoice>      choices      = m_state->GetEntryChoices (player);
+        std::vector<InputModeRules::PlayerModeChoice>  modes        = m_state->GetModeChoices (player);
+        std::vector<std::wstring>                      items;
+        std::vector<std::wstring>                      modeItems;
+        std::vector<bool>                              modeEnabled;
+        int                                            selected     = 0;
+        int                                            selectedMode = 0;
 
-        m_playerUnits[player].clear();
-        m_playerUnits[player].push_back (std::nullopt);
-        items.push_back (L"None");
+        m_playerEntries[player].clear();
 
-        for (const ControllersPageState::ControllerEntry & entry : m_state->GetControllers())
+        for (i = 0; i < choices.size(); i++)
         {
-            if (slot.unit.has_value() && slot.unit.value() == entry.unit)
-            {
-                selected = (int) items.size();
-            }
-
-            m_playerUnits[player].push_back (entry.unit);
-            items.push_back (entry.isConnected ? entry.description : entry.description + L" (not connected)");
-        }
-
-        m_playerController[player].SetItems    (items);
-        m_playerController[player].SetSelected (selected);
-
-        items.clear();
-        selected                = 0;
-        m_playerTargets[player] = m_state->GetTargetChoices (player);
-
-        for (i = 0; i < m_playerTargets[player].size(); i++)
-        {
-            if (m_playerTargets[player][i] == slot.target)
+            if (choices[i].isChecked)
             {
                 selected = (int) i;
             }
 
-            items.push_back (ControllersPageState::GetTargetLabel (m_playerTargets[player][i]));
+            m_playerEntries[player].push_back (choices[i].entry);
+            items.push_back (choices[i].label);
         }
 
-        m_playerTarget[player].SetItems    (items);
-        m_playerTarget[player].SetSelected (selected);
+        m_playerEntry[player].SetItems    (items);
+        m_playerEntry[player].SetSelected (selected);
 
-        // An empty slot plays nothing, so what it would map to is not a
-        // question yet.
-        m_playerTarget[player].SetEnabled (slot.unit.has_value() && !items.empty());
+        m_playerModes[player].clear();
+
+        for (i = 0; i < modes.size(); i++)
+        {
+            if (modes[i].isChecked)
+            {
+                selectedMode = (int) i;
+            }
+
+            m_playerModes[player].push_back (modes[i].mode);
+            modeItems.push_back   (modes[i].label);
+            modeEnabled.push_back (modes[i].isEnabled);
+        }
+
+        m_playerMode[player].SetItems        (modeItems);
+        m_playerMode[player].SetItemsEnabled (modeEnabled);
+        m_playerMode[player].SetSelected     (selectedMode);
     }
+
+    m_joystickHeading.SetText (m_state->GetEditedHeading());
 }
 
 
@@ -1547,43 +2180,43 @@ void ControllersPage::RefreshMultiplayer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnPlayerControllerSelect
+//  OnPlayerEntrySelect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
+void ControllersPage::OnPlayerEntrySelect (size_t player, int item)
 {
-    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerUnits[player].size())
+    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerEntries[player].size())
     {
         return;
     }
 
-    std::optional<ControllerUnitKey>  pick      = m_playerUnits[player][(size_t) item];
-    std::optional<ControllerUnitKey>  playerOne = m_state->GetMultiplayer().players[0].unit;
+    PlayerEntry                       pick      = m_playerEntries[player][(size_t) item];
+    std::optional<ControllerUnitKey>  playerOne = m_state->GetPlayerUnit (0);
     bool                              movesOne  = false;
 
 
 
     // Player one changes when its own drop-down picks something else, or
-    // when player two takes player one's controller and swaps.
-    movesOne = (player == 0) ? pick != playerOne
-                             : pick.has_value() && pick == playerOne;
+    // when player two takes player one's controller.
+    movesOne = (player == 0) ? !(pick == m_state->GetPlayerEntries()[0])
+                             : pick.unit.has_value() && pick.unit == playerOne;
 
     if (!movesOne)
     {
-        ApplyPlayerController (player, pick);
+        ApplyPlayerEntry (player, pick);
         return;
     }
 
     // ASKED BEFORE THE PICK IS APPLIED, not after. Editing follows player one,
     // so a pick that moves player one leaves the edited profile; asking first
-    // means Cancel takes back the whole gesture -- the assignment as well as
-    // the move -- rather than leaving the players swapped and Editing on a
+    // means Cancel takes back the whole gesture -- the pick as well as the
+    // move -- rather than leaving the players changed and Editing on a
     // controller that is no longer player one's. The prompt re-syncs the
     // drop-downs as it opens, so a canceled pick shows as never made.
     AskToSaveProfileEdits ([this, player, pick] ()
     {
-        ApplyPlayerController (player, pick);
+        ApplyPlayerEntry (player, pick);
         FollowPlayerOne();
     });
 }
@@ -1594,16 +2227,16 @@ void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyPlayerController
+//  ApplyPlayerEntry
 //
-//  The slots decide which rows below are in play, so the whole page follows a
-//  pick here.
+//  Who plays decides which rows below are in play, so the whole page follows
+//  a pick here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::ApplyPlayerController (size_t player, const std::optional<ControllerUnitKey> & unit)
+void ControllersPage::ApplyPlayerEntry (size_t player, const PlayerEntry & entry)
 {
-    m_state->SetMultiplayerUnit (player, unit);
+    m_state->PickPlayerEntry (player, entry);
     Relayout();
 }
 
@@ -1626,7 +2259,7 @@ void ControllersPage::ApplyPlayerController (size_t player, const std::optional<
 void ControllersPage::FollowPlayerOne()
 {
     std::optional<ControllerUnitKey>  unit;
-    size_t                            index = 0;
+    std::optional<size_t>             index;
 
 
 
@@ -1635,11 +2268,11 @@ void ControllersPage::FollowPlayerOne()
         return;
     }
 
-    unit = m_state->GetMultiplayer().players[0].unit;
+    unit = m_state->GetPlayerUnit (0);
 
     if (!unit.has_value())
     {
-        unit = m_state->GetMultiplayer().players[1].unit;
+        unit = m_state->GetPlayerUnit (kPlayerTwo);
     }
 
     if (!unit.has_value())
@@ -1647,20 +2280,14 @@ void ControllersPage::FollowPlayerOne()
         return;
     }
 
-    for (index = 0; index < m_state->GetControllers().size(); index++)
-    {
-        if (m_state->GetControllers()[index].unit == unit.value())
-        {
-            break;
-        }
-    }
+    index = m_state->FindController (unit.value());
 
-    if (index >= m_state->GetControllers().size() || m_state->GetSelectedIndex() == std::optional<size_t> (index))
+    if (!index.has_value() || m_state->GetSelectedIndex() == index)
     {
         return;
     }
 
-    AskToSaveProfileEdits ([this, index] () { SwitchController (index); });
+    AskToSaveProfileEdits ([this, index] () { SwitchController (index.value()); });
 }
 
 
@@ -1669,18 +2296,68 @@ void ControllersPage::FollowPlayerOne()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnPlayerTargetSelect
+//  StartNewProfile
+//
+//  New... from a player's profile section in the picker: Editing moves to
+//  that player's controller and the New profile dialog opens for it. Leaving
+//  a profile with unapplied edits asks once, before either, exactly as New
+//  on the page does; Cancel leaves the page as it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::OnPlayerTargetSelect (size_t player, int item)
+void ControllersPage::StartNewProfile (const ControllerUnitKey & unit)
 {
-    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerTargets[player].size())
+    std::optional<size_t>  index;
+
+
+
+    if (m_state == nullptr)
     {
         return;
     }
 
-    m_state->SetMultiplayerTarget (player, m_playerTargets[player][(size_t) item]);
+    index = m_state->FindController (unit);
+
+    if (!index.has_value())
+    {
+        return;
+    }
+
+    AskToSaveProfileEdits ([this, index] ()
+    {
+        if (m_state->GetSelectedIndex() != index)
+        {
+            SwitchController (index.value());
+        }
+
+        OpenNewProfileDialog();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPlayerModeSelect
+//
+//  The player's mode applies at once, and changes which rows the controller
+//  in Editing drives and which kind of profile the page lists, so the page
+//  is laid out again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnPlayerModeSelect (size_t player, int item)
+{
+    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerModes[player].size())
+    {
+        return;
+    }
+
+    m_state->SetPlayerMode (player, m_playerModes[player][(size_t) item]);
+    m_capturing.reset();
+    m_hasExtraRow = {};
     Relayout();
 }
 
@@ -1699,8 +2376,8 @@ void ControllersPage::OnPlayerTargetSelect (size_t player, int item)
 
 void ControllersPage::RefreshAxisOptions()
 {
-    const ControlMapping &  mapping = m_state->GetMapping();
-    size_t                  axis    = 0;
+    ControlMapping  mapping = m_state->GetMapping();   // a copy: IsPositionOffered rebuilds what GetMapping returns
+    size_t          axis    = 0;
 
 
 
@@ -1721,7 +2398,11 @@ void ControllersPage::RefreshAxisOptions()
         // An axis this controller's player does not drive takes no options
         // either: the row it belongs to is not editable, so neither is what
         // shapes it.
-        bool  isEditable = m_state->IsTargetInPlay (TargetAt (axis));
+        bool  isEditable = m_state->IsEditedControllerConnected() && m_state->IsTargetInPlay (TargetAt (axis));
+
+        m_response[axis].SetVisible   (IsTargetShown (axis) && m_state->IsPositionOffered (TargetAt (axis)));
+        m_speed[axis].SetVisible      (IsTargetShown (axis) && m_state->IsPaddleSpeedShown (TargetAt (axis)));
+        m_speedLabel[axis].SetVisible (IsTargetShown (axis) && m_state->IsPaddleSpeedShown (TargetAt (axis)));
 
         m_invert[axis].SetEnabled   (analog != nullptr && isEditable);
         m_response[axis].SetEnabled (analog != nullptr && isEditable);
@@ -1765,6 +2446,8 @@ void ControllersPage::RefreshCalibration()
     m_calibrate.SetVisible         (canCalibrate);
     m_calibrationCancel.SetVisible (canCalibrate && step != CalibrationStep::None);
     m_useAutomatic.SetVisible      (canCalibrate && step == CalibrationStep::None && hasUser);
+    m_calibrate.SetEnabled         (m_state->IsEditedControllerConnected());
+    m_useAutomatic.SetEnabled      (m_state->IsEditedControllerConnected());
 
     if (!selected.has_value())
     {
@@ -1926,7 +2609,8 @@ void ControllersPage::OnRowSelect (size_t target, size_t row, int item)
 //  Waits at once for the control the new row will hold. The sheet shows a
 //  prompt over the page while it waits, so the user is not left wondering
 //  what a click on "+" did; Escape or a click calls it off, and the row is
-//  never added.
+//  never added. A target takes any number of rows; the new one is scrolled
+//  into view in the target's table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1938,7 +2622,7 @@ void ControllersPage::AddRow (size_t target)
 
 
 
-    if (m_state == nullptr || count >= kMaxRows)
+    if (m_state == nullptr)
     {
         return;
     }
@@ -2084,6 +2768,14 @@ void ControllersPage::Relayout()
     {
         m_onLayoutChanged();
     }
+
+    // A sharing warning that just appeared or changed can land below the
+    // part of the page in view; bring it in.
+    if (m_revealedWarning.has_value())
+    {
+        RequestReveal (m_sharedWarning[m_revealedWarning.value()].GetBounds());
+        m_revealedWarning.reset();
+    }
 }
 
 
@@ -2203,8 +2895,8 @@ size_t ControllersPage::GetBindingCount (size_t target) const
 //  GetShownRows
 //
 //  One row per control, plus an empty row "+" asked for, plus a row waiting
-//  on press-to-assign past the end; never fewer than one, never more than
-//  kMaxRows.
+//  on press-to-assign past the end; never fewer than one. Past kTableRows the
+//  target's table scrolls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2225,7 +2917,108 @@ size_t ControllersPage::GetShownRows (size_t target) const
         shown = std::max (shown, m_capturing->second + 1);
     }
 
-    return std::clamp (shown, (size_t) 1, kMaxRows);
+    return std::max (shown, (size_t) 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureRows
+//
+//  A target's table holds at least `count` drop-downs, each wired to its row
+//  and to the popup host, at the page's DPI. Rows are never taken away; the
+//  ones past what the target shows are hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::EnsureRows (size_t target, size_t count)
+{
+    RowList  & rows = m_rows[target];
+
+
+
+    while (rows.size() < count)
+    {
+        size_t  row = rows.size();
+
+        rows.push_back (std::make_unique<DxuiComboBox>());
+
+        rows[row]->SetSelect ([this, target, row] (int item)
+        {
+            if (!m_isSyncing)
+            {
+                OnRowSelect (target, row, item);
+            }
+        });
+
+        rows[row]->SetPopupHost (m_popupHost);
+        rows[row]->SetDpi       (m_lastScaler.GetDpi());
+        m_tables[target].Adopt  (*rows[row]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayOutTable
+//
+//  A target's rows at (x, y), `width` wide, in its table: as tall as its
+//  rows up to kTableRows, and scrolling past that, with the scrollbar at the
+//  right of the width and the rows narrowed to leave it room. The viewport
+//  reaches half a gap above the first row and below the last shown, so a
+//  row's focus rectangle is not cut off. A row waiting on press-to-assign,
+//  a new one included, is scrolled into view. Returns the height the table
+//  takes on the page, the gap below it included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::LayOutTable (
+    size_t                  target,
+    int                     x,
+    int                     y,
+    int                     width,
+    bool                    isInPlay,
+    const DxuiDpiScaler   & scaler)
+{
+    DxuiScrollPanel  & table     = m_tables[target];
+    RowList          & rows      = m_rows[target];
+    int                rowH      = scaler.ToPx (s_kRowHeightDp);
+    int                gap       = scaler.ToPx (s_kGapDp);
+    int                step      = rowH + gap;
+    int                inset     = gap / 2;
+    size_t             shown     = GetShownRows (target);
+    size_t             visible   = std::min (shown, kTableRows);
+    bool               canScroll = shown > kTableRows;
+    int                rowWidth  = canScroll ? width - scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip) - inset : width;
+    size_t             row       = 0;
+
+
+
+    EnsureRows (target, shown);
+
+    table.SetVisible    (isInPlay);
+    table.SetLineStepPx (step);
+
+    for (row = 0; row < rows.size(); row++)
+    {
+        rows[row]->SetVisible (isInPlay && row < shown);
+        table.PlaceChild      (*rows[row], MakeRect (x, y + (int) row * step, rowWidth, rowH));
+    }
+
+    table.Layout (MakeRect (x, y - inset, width, (int) visible * step - gap + 2 * inset), scaler);
+
+    if (m_capturing.has_value() && m_capturing->first == target && m_capturing->second < rows.size())
+    {
+        table.RevealDescendant (*rows[m_capturing->second]);
+    }
+
+    return (int) visible * step;
 }
 
 
@@ -2404,27 +3197,7 @@ std::wstring ControllersPage::DescribeButton (ControllerKind kind, const ButtonB
 
 std::wstring ControllersPage::Utf8ToWide (const std::string & text)
 {
-    int           length = 0;
-    std::wstring  wide;
-
-
-
-    if (text.empty())
-    {
-        return wide;
-    }
-
-    length = MultiByteToWideChar (CP_UTF8, 0, text.data(), (int) text.size(), nullptr, 0);
-
-    if (length <= 0)
-    {
-        return wide;
-    }
-
-    wide.resize ((size_t) length);
-    MultiByteToWideChar (CP_UTF8, 0, text.data(), (int) text.size(), wide.data(), length);
-
-    return wide;
+    return TextEncoding::Utf8ToWide (text);
 }
 
 
@@ -2439,25 +3212,5 @@ std::wstring ControllersPage::Utf8ToWide (const std::string & text)
 
 std::string ControllersPage::WideToUtf8 (const std::wstring & text)
 {
-    int          length = 0;
-    std::string  narrow;
-
-
-
-    if (text.empty())
-    {
-        return narrow;
-    }
-
-    length = WideCharToMultiByte (CP_UTF8, 0, text.data(), (int) text.size(), nullptr, 0, nullptr, nullptr);
-
-    if (length <= 0)
-    {
-        return narrow;
-    }
-
-    narrow.resize ((size_t) length);
-    WideCharToMultiByte (CP_UTF8, 0, text.data(), (int) text.size(), narrow.data(), length, nullptr, nullptr);
-
-    return narrow;
+    return TextEncoding::WideToUtf8 (text);
 }

@@ -14,8 +14,6 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/IShellIcons.h"
 #include "Seams/IShellItemVerbs.h"
-#include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiTreeView.h"
 
 class IDiskFileIo;
 

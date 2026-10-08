@@ -4,7 +4,7 @@
 #include "DxuiTabStrip.h"
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiTextElide.h"
-#include "Core/UnicodeSymbols.h"
+#include "Core/DxuiUnicodeSymbols.h"
 #include "Render/DxuiTextRenderer.h"
 
 
@@ -1036,10 +1036,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                   uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,
                                   uint32_t textArgb, uint32_t focusArgb) const
 {
-    constexpr float  s_kFontDip        = 13.0f;
     constexpr float  s_kFocusThickDip  = 1.0f;
     constexpr float  s_kFocusInsetDip  = 1.0f;
-    constexpr float  s_kPadXDp         = 8.0f;
     constexpr float  s_kDividerDip     = 16.0f;
     constexpr float  s_kMutedTextScale = 0.8f;    // Explorer's #CCCCCC on an unselected tab
     constexpr float  s_kBaseLineDip    = 1.0f;    // Explorer's 2 px at 150%
@@ -1052,8 +1050,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     size_t    n          = m_tabs.size();
     float     focusThick = m_scaler.ToPxf (s_kFocusThickDip);
     float     focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
-    float     padX       = m_scaler.ToPxf (s_kPadXDp);
-    float     fontDip    = m_scaler.ToPxf (s_kFontDip);
+    float     padX       = m_scaler.ToPxf (kLabelPadXDip);
+    float     fontDip    = m_scaler.ToPxf (kLabelFontDip);
     float     corner     = m_scaler.ToPxf ((float) s_kCornerDip);
     float     iconPx     = m_scaler.ToPxf ((float) s_kIconDip);
     float     dividerH   = m_scaler.ToPxf (s_kDividerDip);
@@ -1306,9 +1304,11 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  per-gesture handlers, which take plain coordinates and are testable without
 //  framework events.
 //
-//  A move only updates hover and is reported unhandled, so the pointer
-//  crossing the strip does not consume moves other widgets want, unless it
-//  is dragging a tab.
+//  A move is reported handled only when it drags a tab or changes which tab,
+//  close button, scroll arrow or + button is hovered or armed, as DxuiButton
+//  does: that is what makes the window repaint at once rather than on its
+//  half-second tick, and a move that changes nothing still passes through to
+//  the widgets that handle it.
 //
 //  Only the left button acts; a right-click belongs to the host.
 //
@@ -1316,7 +1316,12 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  handled = false;
+    int   prevHover   = m_hover;
+    int   prevPressed = m_pressed;
+    int   prevArrow   = m_hoverArrow;
+    int   prevClose   = m_hoverClose;
+    bool  prevNewTab  = m_hoverNewTab;
+    bool  handled     = false;
 
 
 
@@ -1324,6 +1329,8 @@ bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
     {
     case DxuiMouseEventKind::Move:
         handled = OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+        handled = handled || m_hover != prevHover || m_pressed != prevPressed ||
+                  m_hoverArrow != prevArrow || m_hoverClose != prevClose || m_hoverNewTab != prevNewTab;
         break;
     case DxuiMouseEventKind::Wheel:
         //  A horizontal wheel's positive notch is rightward, a vertical one's

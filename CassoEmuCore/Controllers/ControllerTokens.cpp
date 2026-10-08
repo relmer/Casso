@@ -126,7 +126,7 @@ Error:
 //
 //  The model token, then "/serial:<id>" or "/guid:<id>" for a DirectInput
 //  unit with an identity, or "/slot:<n>" for an XInput unit. The model token
-//  itself never carries the slot, so profiles and deadzone stay shared by
+//  itself never carries the slot, so profiles and dead zone stay shared by
 //  every Xbox-class controller.
 //
 ////////////////////////////////////////////////////////////////////////////////

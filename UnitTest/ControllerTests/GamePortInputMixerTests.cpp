@@ -395,16 +395,24 @@ namespace ControllerTests
 
         //  Every source that could reach the switches, all at once, so each
         //  owner's row of the rule is checked against the others' noise.
-        static void SubmitEverySource (GamePortInputMixer & mixer)
+        //  `isKeysInJack` is Player 1 playing the keys in a Joyport jack,
+        //  which their contribution marks.
+        static void SubmitEverySource (GamePortInputMixer & mixer, bool isKeysInJack = true)
         {
             GamePortContribution  controller;
+            GamePortContribution  arrows     = MakePaddle (0, 255);
             JoyportJacks          jacks;
 
             jacks.jack[JoyportJacks::kRightJack].set (static_cast<size_t> (JoystickSwitch::Down));
             controller.jacks = jacks;
 
+            if (isKeysInJack)
+            {
+                arrows.keyJacks.set();
+            }
+
             mixer.Submit (GamePortSource::Controller,        controller);
-            mixer.Submit (GamePortSource::ArrowKeys,         MakePaddle (0, 255));
+            mixer.Submit (GamePortSource::ArrowKeys,         arrows);
             mixer.Submit (GamePortSource::FireKeys,          MakeButtons (true, false, false));
             mixer.Submit (GamePortSource::MousePaddle,       MakePaddle (0, 0));
             mixer.Submit (GamePortSource::AppleModifierKeys, MakeButtons (true, true, true));
@@ -425,13 +433,17 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Jacks_TheArrowKeysAreOnePlayerOnBothJacks)
+        //  With no controller placing anyone on a jack, the arrow keys played
+        //  in a jack are one player on both jacks. In a jack they own no
+        //  paddle input, which is left to the controllers.
+        TEST_METHOD (Jacks_TheArrowKeysInAJackAreOnePlayerOnBothJacks)
         {
             GamePortInputMixer  mixer;
             GamePortState       state;
 
-            mixer.SetAxisOwner (AxisOwner::ArrowKeys);
+            mixer.SetAxisOwner (AxisOwner::Controller);
             SubmitEverySource (mixer);
+            mixer.ReleaseSource (GamePortSource::Controller);
             state = mixer.GetTargetState();
 
             for (size_t jack = 0; jack < JoyportJacks::kJackCount; jack++)
@@ -445,7 +457,31 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Jacks_TheMousePaddleAndNoOwnerCloseNothing)
+        //  The keys outside a jack close no switch, whoever owns the axes:
+        //  Player 1 on Joystick with the keys beside Player 2 in a jack, the
+        //  mouse, and no owner at all.
+        TEST_METHOD (Jacks_TheKeysOutsideAJackCloseNothing)
+        {
+            for (AxisOwner owner : { AxisOwner::ArrowKeys, AxisOwner::MousePaddle, AxisOwner::None })
+            {
+                GamePortInputMixer  mixer;
+                GamePortState       state;
+
+                mixer.SetAxisOwner (owner);
+                SubmitEverySource (mixer, false);
+                mixer.ReleaseSource (GamePortSource::Controller);
+                state = mixer.GetTargetState();
+
+                Assert::IsTrue (state.jacks == JoyportJacks(),
+                    L"a joystick on the keys is not an Atari stick, and neither is the mouse");
+            }
+        }
+
+
+        //  The controllers' placement reaches the jacks whoever owns the
+        //  joystick axes: a player on a controller beside Player 1 on the
+        //  mouse, or on nothing, is still on the jacks the controllers gave.
+        TEST_METHOD (Jacks_TheControllersPlacementHoldsWhateverOwnsTheAxes)
         {
             for (AxisOwner owner : { AxisOwner::MousePaddle, AxisOwner::None })
             {
@@ -456,9 +492,36 @@ namespace ControllerTests
                 SubmitEverySource (mixer);
                 state = mixer.GetTargetState();
 
-                Assert::IsTrue (state.jacks == JoyportJacks(),
-                    L"an Atari stick has no paddle for the mouse, and with no owner even a fire key held from arrows mode is open");
+                Assert::IsTrue (IsClosed (state, JoyportJacks::kRightJack, JoystickSwitch::Down), L"the controller's right jack");
+                Assert::IsTrue (state.jacks.jack[JoyportJacks::kLeftJack].none(),                 L"and nothing from the keys, which no jack was given to");
             }
+        }
+
+
+        //  A jack the controllers give to Player 1 on the arrow keys takes the
+        //  keys' switches, beside a controller on the other jack.
+        TEST_METHOD (Jacks_TheKeysFillTheJacksTheControllersGiveThem)
+        {
+            GamePortInputMixer    mixer;
+            GamePortState         state;
+            GamePortContribution  controller;
+            JoyportJacks          jacks;
+
+
+
+            jacks.jack[JoyportJacks::kRightJack].set (static_cast<size_t> (JoystickSwitch::Up));
+            controller.jacks = jacks;
+            controller.keyJacks.set (JoyportJacks::kLeftJack);
+
+            mixer.SetAxisOwner (AxisOwner::ArrowKeys);
+            mixer.Submit (GamePortSource::Controller, controller);
+            mixer.Submit (GamePortSource::ArrowKeys,  MakePaddle (0, 255));
+            mixer.Submit (GamePortSource::FireKeys,   MakeButtons (true, false, false));
+            state = mixer.GetTargetState();
+
+            Assert::IsTrue  (IsClosed (state, JoyportJacks::kLeftJack,  JoystickSwitch::Left), L"the keys on the left jack");
+            Assert::IsTrue  (IsClosed (state, JoyportJacks::kLeftJack,  JoystickSwitch::Fire));
+            Assert::IsTrue  (state.jacks.jack[JoyportJacks::kRightJack] == jacks.jack[JoyportJacks::kRightJack], L"the controller alone on the right");
         }
 
 

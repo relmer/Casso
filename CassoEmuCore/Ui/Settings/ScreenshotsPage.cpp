@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ScreenshotsPage.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -145,7 +146,7 @@ std::wstring ScreenshotsPage::FolderForDisplay (const std::string &  configured,
         return defaultFolder;
     }
 
-    return std::wstring (configured.begin(), configured.end());
+    return TextEncoding::Utf8ToWide (configured);
 }
 
 
@@ -325,6 +326,10 @@ void ScreenshotsPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_browseFolder.SetDpi (dpi);
 
     DxuiPanel::SetBounds (rect);
+
+    // Every control here is a fixed height, so the lowest one is where the
+    // content ends, whatever the rect.
+    SetContentHeightPx (GetLowestChildBottomPx() + scaler.ToPx (s_kPagePadDp) - rect.top);
 }
 
 

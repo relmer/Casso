@@ -4,10 +4,6 @@
 
 #include "SettingsPanelState.h"
 
-#include "Window/DxuiPropertyPage.h"
-#include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiComboBox.h"
-#include "Widgets/DxuiTreeView.h"
 
 
 class IDxuiTheme;
@@ -91,32 +87,17 @@ public:
 
     // Pure helper: convert one hardware-entry list into the DxuiTreeNode
     // tree the underlying DxuiTreeView consumes. Exposed for unit tests.
-    // When supportsExternalDrive is set (the //c), synthetic checkable
-    // "External drive" and "Mouse" nodes are appended, reflecting
-    // externalDriveConnected and mouseConnected.
+    // When supportsMouse is set (the //c), a synthetic checkable "Mouse" node
+    // is appended, reflecting mouseConnected.
     //
-    // Otherwise, when supportsSecondDrive is set (any machine with a Disk ][
-    // card), a "Drive 2" node is appended instead. The two are mutually
-    // exclusive: a machine's second drive is either an external unit on the
-    // //c's disk port or a drive on the card's second connector, never both.
+    // The second drive and the cassette recorder are not here: they connect
+    // live, from the Storage menu and their right-click menus.
     static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries,
-                                                  bool supportsExternalDrive   = false,
-                                                  bool externalDriveConnected  = false,
-                                                  bool mouseConnected          = true,
-                                                  bool supportsSecondDrive     = false,
-                                                  bool secondDriveAttached     = false,
-                                                  bool supportsGamePortAdapter = false,
-                                                  GamePortAdapter gamePortAdapter = GamePortAdapter::None);
-
-    // The game port's rows as a radio pair: exactly one checked, and what a
-    // click on either chooses. Pure, so the page's handler is testable.
-    static void             SetGamePortChecks     (std::vector<DxuiTreeNode> & nodes, GamePortAdapter adapter);
-    static GamePortAdapter  ResolveGamePortToggle (const std::wstring & label, bool checked, GamePortAdapter current);
+                                                  bool supportsMouse  = false,
+                                                  bool mouseConnected = true);
 
 private:
-    static RECT                    MakeRect           (int l, int t, int w, int h);
-    static DxuiTreeNode            BuildGamePortGroup (GamePortAdapter adapter);
-    static void                    SetGamePortChecks  (DxuiTreeNode & group, GamePortAdapter adapter);
+    static RECT                    MakeRect (int l, int t, int w, int h);
     static DxuiTreeCapabilityFlag  MapFlag  (CapabilityFlag flag);
     static std::wstring            Widen    (const std::string & narrow);
 

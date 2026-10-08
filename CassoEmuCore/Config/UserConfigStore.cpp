@@ -9,6 +9,7 @@
 #include "Core/MachineConfigUpgrade.h"
 
 #include "Devices/Disk/PreservedCopy.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -22,17 +23,7 @@
 
 std::wstring UserConfigStore::Widen (const std::string & narrow)
 {
-    std::wstring  out;
-
-
-
-    out.reserve (narrow.size());
-    for (char c : narrow)
-    {
-        out.push_back ((wchar_t) (unsigned char) c);
-    }
-
-    return out;
+    return TextEncoding::Utf8ToWide (narrow);
 }
 
 
@@ -741,6 +732,12 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
     uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
+    uiObj.emplace_back ("fastTapeLoading",    JsonValue (true));
+    uiObj.emplace_back ("tapeVolume",         JsonValue (1.0));
+    uiObj.emplace_back ("tapeAutoStop",       JsonValue (true));
+    uiObj.emplace_back ("tapeIdleStop",       JsonValue (true));
+    uiObj.emplace_back ("tapeEightBit",       JsonValue (false));
+    uiObj.emplace_back ("tapeRecorderConnected", JsonValue (true));
     uiObj.emplace_back ("gamePortAdapter",    JsonValue (std::string (ControllerTokens::kpszAdapterNone)));
     wp.emplace_back (JsonValue (false));
     wp.emplace_back (JsonValue (false));
@@ -1233,7 +1230,7 @@ HRESULT UserConfigStore::LoadAll (
                                                    path,
                                                    err.line,
                                                    err.column,
-                                                   std::wstring (err.message.begin(), err.message.end())));
+                                                   TextEncoding::Utf8ToWide (err.message)));
 
     hr = LoadCombinedJson (root, prefs);
     CHR (hr);
@@ -1262,6 +1259,53 @@ Error:
     // fallback defaults over settings that were only ever unreachable.
     m_loadUnresolved = FAILED (hr) && outReport.preservedPath.empty();
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::ReadGlobalPrefs
+//
+//  The global section of the prefs file as it is on disk now, for a value
+//  another running Casso may have written since this one loaded. Unlike
+//  LoadAll it migrates nothing, caches nothing and never moves a file
+//  aside: a file that will not read or parse is only a failed read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::ReadGlobalPrefs (
+    IFileSystem      & fs,
+    GlobalUserPrefs  & outPrefs) const
+{
+    HRESULT            hr        = S_OK;
+    std::string        text;
+    JsonValue          root;
+    JsonParseError     err;
+    const JsonValue  * global    = nullptr;
+    bool               hasGlobal = false;
+
+
+
+    outPrefs = GlobalUserPrefs {};
+
+    hr = fs.ReadAllText (GetUserPrefsFilePath(), text);
+    CHR (hr);
+
+    hr = JsonParser::Parse (text, root, err);
+    CHR (hr);
+
+    global    = FindObjectValue (root, kpszGlobalKey);
+    hasGlobal = global != nullptr;
+    CBREx (hasGlobal, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    hr = outPrefs.FromJson (*global);
+    CHR (hr);
+
+Error:
     return hr;
 }
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "RamDevice.h"
+#include "Core/DramPowerOnPattern.h"
 #include "Core/Prng.h"
 
 
@@ -90,15 +91,15 @@ void RamDevice::SoftReset()
 //
 //  PowerCycle
 //
-//  Phase 4 / FR-035: re-seed the buffer from the shared Prng. Real DRAM
-//  is undefined at power-on; the Prng-pattern stand-in is deterministic
-//  whenever the caller pinned the seed (audit §10).
+//  Refill the buffer with the DRAM power-on pattern. Its few seeded bytes
+//  come from the shared Prng, so it is deterministic whenever the caller
+//  pinned the seed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void RamDevice::PowerCycle (Prng & prng)
 {
-    prng.Fill (m_data.data(), m_data.size());
+    DramPowerOnPattern::Fill (m_data.data(), m_data.size(), prng);
 }
 
 

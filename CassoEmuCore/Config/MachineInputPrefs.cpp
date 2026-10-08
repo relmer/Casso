@@ -248,45 +248,12 @@ std::string MachineInputPrefs::ReadProfileName (const JsonValue * uiPrefs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineInputPrefs::BuildControllerEntries
-//
-//  An EMPTY TOKEN IS STILL WRITTEN, as an empty string. The absence of the
-//  key means this machine has never chosen a controller, and the policy is
-//  free to choose one for it; the empty string means the user turned the
-//  controller off in favor of the arrows or the paddle, and choosing one for
-//  them again on the next launch would undo that (FR-032).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildControllerEntries (
-    const std::string &  controllerToken,
-    const std::string &  profileName)
-{
-    std::vector<std::pair<std::string, JsonValue>>  entries;
-
-
-
-    entries.emplace_back (kpszControllerKey, JsonValue (controllerToken));
-
-    if (!profileName.empty())
-    {
-        entries.emplace_back (kpszProfileKey, JsonValue (profileName));
-    }
-
-    return entries;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MachineInputPrefs::ReadGamePortAdapter
 //
-//  The device on the machine's game socket. A machine with no annunciators
+//  The Joyport setting as a build before it became global saved it for this
+//  machine, which the launch adopts once. A machine with no annunciators
 //  (the //c) reads None whatever the file says, so a key copied into its
-//  block by hand cannot attach a Joyport it has no lines for.
+//  block by hand cannot turn on a Joyport it has no lines for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,66 +280,13 @@ GamePortAdapter MachineInputPrefs::ReadGamePortAdapter (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineInputPrefs::BuildGamePortAdapterEntry
-//
-//  Always written, None included, so detaching replaces a saved Joyport
-//  rather than leaving it behind; the store drops the entry again when it
-//  matches the default.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::pair<std::string, JsonValue> MachineInputPrefs::BuildGamePortAdapterEntry (GamePortAdapter adapter)
-{
-    return { kpszGamePortAdapterKey, JsonValue (ControllerTokens::GamePortAdapterToToken (adapter)) };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineInputPrefs::TargetToToken
-//
-//  What a player slot maps to, in its persisted spelling. Names rather than
-//  ordinals, for the same reason the mapping modes use them: inserting a
-//  target later cannot silently reinterpret a saved slot as another one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const char * MachineInputPrefs::TargetToToken (PlayerAxisTarget target)
-{
-    // Joystick 0 is both the first target and the safe spelling for one this
-    // build does not know: every machine with a game port has PDL0 and PDL1.
-    const char *  token = s_kpszTargetJoystick0;
-
-
-
-    switch (target)
-    {
-        case PlayerAxisTarget::Joystick1:  token = s_kpszTargetJoystick1; break;
-        case PlayerAxisTarget::Paddle0:    token = s_kpszTargetPaddle0;   break;
-        case PlayerAxisTarget::Paddle1:    token = s_kpszTargetPaddle1;   break;
-        case PlayerAxisTarget::Paddle2:    token = s_kpszTargetPaddle2;   break;
-        case PlayerAxisTarget::Paddle3:    token = s_kpszTargetPaddle3;   break;
-
-        case PlayerAxisTarget::Joystick0:
-        default:                                                          break;
-    }
-
-    return token;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MachineInputPrefs::TargetFromToken
 //
-//  The inverse, answering with `fallback` for an empty or unrecognized token
-//  so a file written by a newer build degrades to a playable slot.
+//  What a player slot mapped to, from the spelling an earlier build saved:
+//  names rather than ordinals, so inserting a target could not silently
+//  reinterpret a saved slot as another one. An empty or unrecognized token
+//  is `fallback`, so a file written by a newer build degrades to a playable
+//  slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -427,9 +341,8 @@ MultiplayerSetup MachineInputPrefs::ReadMultiplayer (const JsonValue * uiPrefs)
         return setup;
     }
 
-    // Each null test stands on its own: joined to its lookup by ||, it is
-    // one the code analysis on the build server does not carry to the
-    // dereference that follows.
+    // The x86-hosted code analysis the build server runs loses track of the
+    // pointer across the || above and reports C6011 without this test.
     if (block == nullptr)
     {
         return setup;
@@ -441,11 +354,6 @@ MultiplayerSetup MachineInputPrefs::ReadMultiplayer (const JsonValue * uiPrefs)
     }
 
     if (!block->HasArray (s_kpszPlayersKey, players))
-    {
-        return setup;
-    }
-
-    if (players == nullptr)
     {
         return setup;
     }
@@ -492,41 +400,67 @@ MultiplayerSetup MachineInputPrefs::ReadMultiplayer (const JsonValue * uiPrefs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineInputPrefs::BuildMultiplayerEntry
+//  MachineInputPrefs::ReadAdoptedPlayers
 //
-//  BOTH SLOTS ARE ALWAYS WRITTEN, an empty one as an empty controller token.
-//  The block is spliced key by key, so a slot left out would leave the one
-//  already in the file behind, and a player the user cleared would come back
-//  on the next launch.
+//  The block's arrows-to-joystick gives Player 1 the keys, and its paddle
+//  pointer mapping the mouse when the keys have not taken Player 1. A saved
+//  controller only becomes Player 1's last holder: the old selection was
+//  usually made automatically too, and making it a pick would take Automatic
+//  away without the user asking. A two-player block that is turned on was set
+//  up by hand, so each filled slot becomes that player's pick with its target,
+//  and Player 1's outranks the keys and the mouse. Everything else, and a
+//  //c's own mouse, leaves the player on Automatic.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<std::string, JsonValue> MachineInputPrefs::BuildMultiplayerEntry (
-    const MultiplayerSetup &  setup)
+PlayerEntries MachineInputPrefs::ReadAdoptedPlayers (
+    const JsonValue    * uiPrefs,
+    PlayerLastHolders  & outLastHolders)
 {
-    std::vector<std::pair<std::string, JsonValue>>  block;
-    std::vector<JsonValue>                          players;
-    size_t                                          i     = 0;
+    HRESULT            hr      = S_OK;
+    PlayerEntries      entries;
+    MultiplayerSetup   setup   = ReadMultiplayer (uiPrefs);
+    std::string        token   = ReadControllerToken (uiPrefs);
+    std::string        pointer;
+    bool               arrows  = false;
+    ControllerUnitKey  unit;
+    size_t             player  = 0;
 
 
 
-    for (i = 0; i < MultiplayerSetup::kPlayerCount; i++)
+    outLastHolders = PlayerLastHolders();
+
+    if (uiPrefs != nullptr && uiPrefs->HasBool (kpszArrowsKey, arrows) && arrows)
     {
-        std::vector<std::pair<std::string, JsonValue>>  entry;
-        std::string                                     token;
-
-        if (setup.players[i].unit.has_value())
-        {
-            token = ControllerTokens::UnitToToken (setup.players[i].unit.value());
-        }
-
-        entry.emplace_back (kpszControllerKey, JsonValue (token));
-        entry.emplace_back (s_kpszMapsKey,     JsonValue (std::string (TargetToToken (setup.players[i].target))));
-        players.emplace_back (std::move (entry));
+        entries[0].kind = PlayerEntryKind::ArrowKeys;
+    }
+    else if (uiPrefs != nullptr && uiPrefs->HasString (kpszPointerKey, pointer) && pointer == s_kpszInputModePaddle)
+    {
+        entries[0].kind = PlayerEntryKind::MousePaddle;
     }
 
-    block.emplace_back (s_kpszEnabledKey, JsonValue (setup.isEnabled));
-    block.emplace_back (s_kpszPlayersKey, JsonValue (std::move (players)));
+    if (!token.empty())
+    {
+        hr = ControllerTokens::UnitFromToken (token, unit);
 
-    return { kpszMultiplayerKey, JsonValue (std::move (block)) };
+        if (SUCCEEDED (hr))
+        {
+            outLastHolders[0] = unit;
+        }
+    }
+
+    for (player = 0; setup.isEnabled && player < PlayerSlotPolicy::kPlayerCount; player++)
+    {
+        if (!setup.players[player].unit.has_value())
+        {
+            continue;
+        }
+
+        entries[player].kind = PlayerEntryKind::Controller;
+        entries[player].unit = setup.players[player].unit;
+        entries[player].mode = PlayerTargetRules::IsPaddleTarget (setup.players[player].target) ? PlayerMode::Paddle
+                                                                                                : PlayerMode::Joystick;
+    }
+
+    return PlayerSlotPolicy::NormalizeEntries (entries);
 }

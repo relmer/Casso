@@ -93,6 +93,11 @@ public:
         // The screen rect BelowAnchorRect opens under. Ignored by every
         // other mode.
         RECT                placementAnchorRectPx = {};
+
+        // Shrink the initial size to fit the monitor's work area. For
+        // content that can scroll into less room; see DxuiPropertySheet::
+        // SetDesignHeightDip.
+        bool                fitToWorkArea         = false;
     };
 
 
@@ -191,6 +196,38 @@ public:
     //  prior control drops its caret / focus cue and the new one arms.
     void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
 
+    //
+    //  Each dimension of size held within [minSize, maxSize], a maximum
+    //  below the minimum giving way to it.
+    //
+    static SIZE  ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize);
+
+    //
+    //  The window rect at maxPx, cut to the work area and moved only as far
+    //  as it takes to stay inside it.
+    //
+    static RECT  FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx);
+
+    //
+    //  Grows or shrinks the window to TryGetMaxClientSizePx within its
+    //  monitor's work area. For a window opened before its content was laid
+    //  out.
+    //
+    void     FitToMaxSize ();
+
+    //
+    //  The window rect grown to maxPx in whichever dimension maxPx exceeds
+    //  it, cut to the work area and kept inside it; false when it would not
+    //  grow in either dimension.
+    //
+    static bool  TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx);
+
+    //
+    //  Like FitToMaxSize, but never shrinks the window. For content that
+    //  grows while the window is open.
+    //
+    void     GrowToMaxSize ();
+
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
 
@@ -258,6 +295,20 @@ protected:
     virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
 
     //
+    //  A dialog key (Tab, an arrow, Enter) was consumed, and `focused` holds
+    //  the keyboard focus afterward (null for none). A scrolling window
+    //  brings it into view here. Default no-op.
+    //
+    virtual void  OnDialogKeyHandled (IDxuiControl * focused) { UNREFERENCED_PARAMETER (focused); }
+
+    //
+    //  The largest client size the user can drag a resizable window to, in
+    //  pixels at the current DPI; false for no limit beyond the OS's. A
+    //  window whose content has a natural size reports it here. Default none.
+    //
+    virtual bool  TryGetMaxClientSizePx (SIZE & outSizePx) const { UNREFERENCED_PARAMETER (outSizePx); return false; }
+
+    //
     //  Modal in-content overlay (e.g. the Settings color picker). While
     //  HasModalOverlay() returns true the window paints PaintModalOverlay on
     //  top of the whole page every frame and routes ALL mouse / char / key
@@ -276,11 +327,13 @@ protected:
     virtual bool  OnOverlayKey      (WPARAM vk)                 { UNREFERENCED_PARAMETER (vk); return false; }
 
     //
-    //  Tune the dialog repaint / tick cadence (ms) before
-    //  ShowModalDialog / ShowModelessDialog. The default suits caret
+    //  Tune the dialog repaint / tick cadence (ms). The default suits caret
     //  blink; a poller (e.g. download progress) sets a faster interval.
+    //  Set while a dialog is showing, it takes effect at once.
     //
-    void  SetDialogTickIntervalMs (UINT ms) { m_dialogTickMs = ms; }
+    static constexpr UINT  kDefaultDialogTickMs = 250;
+
+    void  SetDialogTickIntervalMs (UINT ms);
 
     //
     //  Tear down the backend (HWND + swap chain). Safe to call from a
@@ -316,6 +369,7 @@ private:
                                       bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
+    void               ResizeToMaxSize   (bool growOnly);
 
     //
     //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
@@ -343,7 +397,7 @@ private:
     bool                               m_modalDone       = false;
     int                                m_modalResult     = 0;
     int                                m_defaultButtonId = 0;
-    UINT                               m_dialogTickMs    = 250;   // dialog repaint / tick cadence (caret-blink default)
+    UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
 };

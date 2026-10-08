@@ -70,12 +70,16 @@ void DxuiCaptionBar::ConfigureButtons (Buttons buttons)
     if (buttons == Buttons::MinMaxClose)
     {
         m_minBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Min);
-        m_maxBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Max);
         Adopt (*m_minBtn);
+    }
+
+    if (buttons == Buttons::MinMaxClose || buttons == Buttons::MaxClose)
+    {
+        m_maxBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Max);
         Adopt (*m_maxBtn);
     }
 
-    if (buttons == Buttons::MinMaxClose || buttons == Buttons::CloseOnly)
+    if (buttons != Buttons::None)
     {
         m_closeBtn = std::make_unique<DxuiSystemButton> (DxuiSystemButtonKind::Close);
         Adopt (*m_closeBtn);
@@ -158,6 +162,42 @@ void DxuiCaptionBar::SetMaximized (bool maximized)
     if (m_maxBtn)
     {
         m_maxBtn->SetMaximized (maximized);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAccessory
+//
+//  Adopts the consumer's control into the caption so it paints over the
+//  gradient and takes part in hit classification. The previous one, if any,
+//  is released first; the caption never owns either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCaptionBar::SetAccessory (IDxuiControl * accessory)
+{
+    HRESULT  hrRemove = S_OK;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_accessory != nullptr)
+    {
+        hrRemove = RemoveAdopted (*m_accessory);
+        IGNORE_RETURN_VALUE (hrRemove, S_OK);
+    }
+
+    m_accessory = accessory;
+
+    if (m_accessory != nullptr)
+    {
+        Adopt (*m_accessory);
     }
 }
 
@@ -263,6 +303,12 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         m_minBtn->Layout (rc, scaler);
         right -= kButtonWidthDip;
     }
+
+    if (m_accessory != nullptr)
+    {
+        rc = { right - m_accessoryWidthDip, top, right, bottom };
+        m_accessory->Layout (rc, scaler);
+    }
 }
 
 
@@ -359,8 +405,9 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         textOffsetPx = m_scaler.ToPxf (kTitlePadDip) + iconSizePx + iconPadPx;
     }
 
-    buttonCount   = (m_buttons == Buttons::MinMaxClose) ? 3 : (m_buttons == Buttons::CloseOnly ? 1 : 0);
+    buttonCount   = (m_minBtn ? 1 : 0) + (m_maxBtn ? 1 : 0) + (m_closeBtn ? 1 : 0);
     buttonStripPx = (float) buttonCount * m_scaler.ToPxf ((float) kButtonWidthDip);
+    buttonStripPx += (m_accessory != nullptr && m_accessory->IsVisible()) ? m_scaler.ToPxf ((float) m_accessoryWidthDip) : 0.0f;
 
     textLeftPx   = xPx + textOffsetPx;
     titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.ToPxf (kTitlePadDip);
@@ -456,3 +503,28 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReservedWidthDip
+//
+//  What the caption keeps for everything but the title and the accessory:
+//  the system buttons, and the icon with the padding around it. A consumer
+//  sizing its accessory subtracts this from the caption width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiCaptionBar::GetReservedWidthDip() const
+{
+    constexpr int  kIconAndPadDip = 56;
+
+
+
+    int  buttons = (m_minBtn ? 1 : 0) + (m_maxBtn ? 1 : 0) + (m_closeBtn ? 1 : 0);
+
+
+
+    return buttons * kButtonWidthDip + kIconAndPadDip;
+}

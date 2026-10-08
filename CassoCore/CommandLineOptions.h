@@ -187,6 +187,10 @@ struct CommandLineOptions
         std::string  bootableFrom;                     // --bootable <os image>, when named
         std::string  directBootFile;                   // --boot <binary>
 
+        //  --flux, bare for every track or with a list such as "0-2,17".
+        bool         flux           = false;          // --flux, with or without a list
+        std::string  fluxTracks;                       // --flux <tracks>, when given
+
         //  --exec, for a direct-boot payload whose first byte is not its
         //  first instruction. A header, a jump table or a length word at the
         //  front is ordinary, and making the entry follow the load address
@@ -341,9 +345,15 @@ struct CommandLineOptions
         std::string  machine;                          // --machine <name>
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
+        std::string  tape;                             // --tape <file>
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
 
-        Verdict      verdict      = Verdict::Clean;
+        //  The power-on DRAM seed, so a startup fault seen once can be
+        //  replayed. The trace file records the seed each run used.
+        bool         hasSeed      = false;             // --seed <value>
+        uint64_t     seed         = 0;
+
+        Verdict     verdict      = Verdict::Clean;
 
         //  Why the command line was refused, in the words a user reads. Empty
         //  when it was not. Composed here rather than at the window that shows
@@ -383,6 +393,16 @@ struct CommandLineOptions
         //  window readable while it runs, and a label that took the whole
         //  caption would buy identity at the cost of all of it.
         std::string  titlePrefix;                       // --title <text>
+
+        //  Set by Casso itself when it relaunches after replacing its own
+        //  files from a release zip: `--updated` marks the launch, and
+        //  `--cleanup-old` gives the id of the process that ran the old files,
+        //  which this one waits out before deleting them.
+        //
+        //  UNDOCUMENTED AND NOT IN THE HELP. Nobody types these; they are a
+        //  message from one process to its successor.
+        bool           wasUpdated    = false;           // --updated
+        std::uint32_t  cleanupOldPid = 0;               // --cleanup-old <pid>
     };
 
     DiskOptions   disk;

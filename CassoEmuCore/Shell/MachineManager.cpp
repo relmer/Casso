@@ -44,6 +44,7 @@
 #include "Shell/DiskManager.h"
 #include "../Ui/Disk2DebugPanel.h"
 #include "../Ui/InputDebugPanel.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -76,8 +77,6 @@ WORD  MachineManager::ResolveMachineSpeedCommand (const JsonValue & mergedJson)
 
     if (SUCCEEDED (hr) && uiPrefs != nullptr)
     {
-        _Analysis_assume_ (uiPrefs != nullptr);
-
         hr = uiPrefs->GetString ("speedMode", speed);
     }
 
@@ -287,8 +286,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     bool               mouseConn  = false;
                     bool               fFromPort  = false;
 
-                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
-                        extPrefs != nullptr)
+                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs))
                     {
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
@@ -297,8 +295,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     // The back-panel disk port is the answer when the machine
                     // declares one; the legacy boolean above stays as the
                     // fallback for a config that has not been folded yet.
-                    if (mergedJson.HasArray ("ports", portsArray) &&
-                        portsArray != nullptr)
+                    if (mergedJson.HasArray ("ports", portsArray))
                     {
                         for (size_t p = 0; !fFromPort && p < portsArray->GetArraySize(); p++)
                         {
@@ -340,6 +337,20 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     m_shell.m_mouseConnected = mouseConn;
 
+                    // The cassette recorder: the switched-to machine's own
+                    // setting, connected unless it was disconnected.
+                    {
+                        bool  recorder = true;
+
+                        if (extPrefs != nullptr)
+                        {
+                            HRESULT  hrR = extPrefs->GetBool ("tapeRecorderConnected", recorder);
+                            IGNORE_RETURN_VALUE (hrR, S_OK);
+                        }
+
+                        m_shell.m_tapeRecorderConnected = recorder;
+                    }
+
                     // The block the switched-to machine's input mapping is
                     // restored from. HELD, not applied: the config loader
                     // below can still refuse the switch, and the mapping
@@ -378,7 +389,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                                     newConfig,
                                     error);
     CHRN (hr, std::format (L"Failed to load machine config:\n{}",
-                           std::wstring (error.begin(), error.end())).c_str());
+                           TextEncoding::NarrowToWide (error)).c_str());
 
     // The mapping and the //c pointer nudge are applied HERE, past the last
     // refusal. The loader above can still reject the config, and until it has
@@ -497,6 +508,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // destroyed; the rebuilt machine re-registers from a fresh pool.
         m_shell.m_machine.GetInterruptController().ResetSources();
 
+        // The recorder outlives the machine; stop it while the old CPU's
+        // cycle count is still valid. The tape stays inserted.
+        m_shell.m_machine.StopTape();
+
         m_shell.m_machine.SetCpu (nullptr);
         // The //c ROM-bank coordinator holds references into the language card
         // (owned) + MMU; drop it before those owners are torn down.
@@ -519,9 +534,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         hr = m_shell.BuildMachineDevices (newConfig);
         CHR (hr);
 
-        // The new machine's Joyport comes up detached; its own saved setting
-        // attaches it, before the power cycle below opens the reset window.
-        m_shell.AdoptGamePortAdapterForMachine (inputUiPrefs);
+        // The new machine's Joyport comes up detached; the global setting
+        // attaches it where it is in effect, before the power cycle below opens
+        // the reset window. The //c reads it as off and leaves it as it was.
+        m_shell.ApplyJoyportToMachine();
     }
 
     // The new devices hold none of the game-port state the mixer wrote to the
@@ -598,6 +614,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
+
+    // Each machine keeps its own tape, as it keeps its own disks.
+    m_shell.m_tapeManager->OnMachineSwitched();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.

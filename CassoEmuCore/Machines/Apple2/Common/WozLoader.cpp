@@ -21,6 +21,7 @@ static constexpr Byte    kInfoMagic[]   = { 'I', 'N', 'F', 'O' };
 static constexpr Byte    kTmapMagic[]   = { 'T', 'M', 'A', 'P' };
 static constexpr Byte    kTrksMagic[]   = { 'T', 'R', 'K', 'S' };
 static constexpr Byte    kMetaMagic[]   = { 'M', 'E', 'T', 'A' };
+static constexpr Byte    kFluxMagic[]   = { 'F', 'L', 'U', 'X' };
 static constexpr Byte    kTmapEmptyTrack = 0xFF;
 static constexpr int     kQuarterTracksPerTrack = 4;
 static constexpr int     kMaxTracks      = 40;
@@ -51,6 +52,7 @@ static constexpr size_t  kInfoBitTimingOff    = 39;
 static constexpr size_t  kInfoLargestTrackOff = 44;
 
 static constexpr Byte    kInfoVersion2        = 2;
+static constexpr Byte    kInfoVersion3        = 3;
 static constexpr Byte    kDiskType525         = 1;
 static constexpr Byte    kSingleSided         = 1;
 static constexpr Byte    kCleaned             = 1;
@@ -275,6 +277,7 @@ static HRESULT ParseV2Track (
     size_t     byteOffset    = 0;
     size_t     byteCount     = 0;
     size_t     rawSize       = 0;
+    bool       insideFile    = false;
 
 
 
@@ -287,8 +290,17 @@ static HRESULT ParseV2Track (
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
     byteCount  = (bitCount + 7) / 8;
     rawSize    = raw.size();
+    insideFile = (byteOffset + byteCount <= rawSize);
 
-    CBR (byteOffset + byteCount <= rawSize);
+    // A track whose data is not in the file is damage to that track alone.
+    // The slot stays blank, the image is held read-only, and the rest of the
+    // disk still mounts.
+    if (!insideFile)
+    {
+        out.AddDamagedTrack ({ destTrack, false, DamageReason::OutsideFile });
+    }
+
+    BAIL_OUT_IF (!insideFile, S_OK);
 
     out.ResizeTrack (destTrack, bitCount);
 
@@ -304,6 +316,87 @@ static HRESULT ParseV2Track (
     }
 
     out.SetTrackBitCount (destTrack, bitCount);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseV2FluxTrack
+//
+//  Populates one flux slot from its TRKS record, where Bit Count is a byte
+//  count. The bytes are kept exactly as stored. A record with no data is a
+//  flux track with no transitions, which reads as a blank surface.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT ParseV2FluxTrack (
+    const vector<Byte>  &  raw,
+    const Byte          *  trkRecord,
+    int                    destTrack,
+    DiskImage           &  out)
+{
+    HRESULT       hr         = S_OK;
+    uint16_t      startBlock = 0;
+    uint16_t      blockCount = 0;
+    uint32_t      byteCount  = 0;
+    size_t        byteOffset = 0;
+    size_t        rawSize    = raw.size();
+    bool          isValid    = false;
+    bool          damaged    = false;
+    DamageReason  damage     = DamageReason::OutsideFile;
+    vector<Byte>  flux;
+
+
+
+    startBlock = Read16LE (trkRecord);
+    blockCount = Read16LE (trkRecord + 2);
+    byteCount  = Read32LE (trkRecord + 4);
+
+    // The slot is a flux track from here on, even if it turns out to hold
+    // nothing; the real bytes replace this once they check out.
+    out.SetFluxTrack (destTrack, flux);
+
+    BAIL_OUT_IF (startBlock == 0 || blockCount == 0 || byteCount == 0, S_OK);
+
+    byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
+
+    // Any of these is damage to this track alone: the slot stays a flux
+    // track with nothing on it, the image is held read-only, and the rest of
+    // the disk still mounts.
+    if (byteOffset + byteCount > rawSize)
+    {
+        damaged = true;
+        damage  = DamageReason::OutsideFile;
+    }
+    else if (byteCount > static_cast<size_t> (blockCount) * WozLoader::kV2BlockSize)
+    {
+        damaged = true;
+        damage  = DamageReason::CountExceedsBlocks;
+    }
+    else
+    {
+        flux.assign (raw.begin() + static_cast<ptrdiff_t> (byteOffset),
+                     raw.begin() + static_cast<ptrdiff_t> (byteOffset + byteCount));
+
+        isValid = FluxTrack::IsValidStream (flux);
+        damaged = !isValid;
+        damage  = DamageReason::TruncatedRun;
+    }
+
+    if (damaged)
+    {
+        out.AddDamagedTrack ({ destTrack, true, damage });
+    }
+
+    BAIL_OUT_IF (damaged, S_OK);
+
+    out.SetFluxTrack (destTrack, flux);
 
 Error:
     return hr;
@@ -453,10 +546,12 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     bool           sawInfo              = false;
     bool           sawTmap              = false;
     bool           sawTrks              = false;
+    bool           sawFlux              = false;
     bool           writeProtected       = false;
     size_t         pos                  = 0;
     size_t         chunkPos             = 0;
     Byte           tmap[kTmapChunkSize] = {};
+    Byte           flux[kTmapChunkSize] = {};
     const Byte *   trksData             = nullptr;
     size_t         trksSize             = 0;
     int            qt                   = 0;
@@ -566,6 +661,17 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
             trksSize = chunkSize;
             sawTrks  = true;
         }
+        else if (MatchMagic (id, kFluxMagic))
+        {
+            // Read whatever INFO says. The reference wants INFO version 3
+            // and both flux fields set before a reader trusts this chunk,
+            // but the chunk walk found it without them, and using it is the
+            // only way such a file boots. A map too short to hold 160
+            // entries is the one thing that cannot be used.
+            CBR (chunkSize >= kTmapChunkSize);
+            memcpy (flux, raw.data() + chunkPos, kTmapChunkSize);
+            sawFlux = true;
+        }
         else
         {
             // META, and whatever a later revision of the format adds. Casso
@@ -598,6 +704,11 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
             {
                 maxSlot = tmap[qt];
             }
+
+            if (sawFlux && flux[qt] != kTmapEmptyTrack && flux[qt] > maxSlot)
+            {
+                maxSlot = flux[qt];
+            }
         }
 
         out.EnsureTrackSlots (maxSlot + 1);
@@ -605,7 +716,8 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     if (isV2)
     {
-        vector<bool>   parsed (kV2TrkRecordCount, false);
+        vector<bool>   parsed     (kV2TrkRecordCount, false);
+        vector<bool>   parsedFlux (kV2TrkRecordCount, false);
 
         CBR (trksSize >= kV2TrkRecordCount * kV2TrkRecordSize);
 
@@ -632,6 +744,33 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
             out.SetQuarterTrackSlot (qt, trackIndex);
         }
+
+        // FLUX after TMAP, so a quarter track both maps claim ends up on
+        // the flux track, which is what the format says a reader does with
+        // a file made that way.
+        for (qt = 0; sawFlux && qt < static_cast<int> (kTmapChunkSize); qt++)
+        {
+            trackIndex = flux[qt];
+            if (trackIndex == kTmapEmptyTrack || trackIndex >= kV2TrkRecordCount)
+            {
+                continue;
+            }
+
+            if (!parsedFlux[trackIndex])
+            {
+                HRESULT   hrTrack = ParseV2FluxTrack (
+                    raw,
+                    trksData + static_cast<size_t> (trackIndex) * kV2TrkRecordSize,
+                    trackIndex,
+                    out);
+
+                CHR (hrTrack);
+
+                parsedFlux[trackIndex] = true;
+            }
+
+            out.SetQuarterTrackSlot (qt, trackIndex);
+        }
     }
     else
     {
@@ -647,14 +786,20 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
             {
                 size_t   recOffset = static_cast<size_t> (trackIndex) * kV1TrackRecordSize;
+                bool     inTrks    = (recOffset + kV1TrackRecordSize <= trksSize);
 
-                CBR (recOffset + kV1TrackRecordSize <= trksSize);
-
-                if (!parsed[trackIndex])
+                // A record past the end of TRKS is damage to that track
+                // alone; the rest of the disk still mounts.
+                if (!inTrks && !parsed[trackIndex])
+                {
+                    out.AddDamagedTrack ({ trackIndex, false, DamageReason::V1RecordPastTrks });
+                }
+                else if (!parsed[trackIndex])
                 {
                     ParseV1Track (trksData + recOffset, trackIndex, out);
-                    parsed[trackIndex] = true;
                 }
+
+                parsed[trackIndex] = true;
             }
 
             out.SetQuarterTrackSlot (qt, trackIndex);
@@ -848,6 +993,7 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
         bool          known     = MatchMagic (id, kInfoMagic)
                                || MatchMagic (id, kTmapMagic)
                                || MatchMagic (id, kTrksMagic)
+                               || MatchMagic (id, kFluxMagic)
                                || MatchMagic (id, kMetaMagic);
 
         if (!known || chunkPos + chunkSize > rawSize)
@@ -1016,6 +1162,141 @@ HRESULT WozLoader::BuildSyntheticV2 (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildSyntheticV21
+//
+//  Test helper: a WOZ 2.1 image holding any mix of bit and flux tracks, laid
+//  out as Applesauce writes one -- header, INFO (version 3), TMAP, TRKS with
+//  its block-aligned track data, then the FLUX chunk starting on the next
+//  block boundary, since a FLUX chunk always occupies its own block. The
+//  header CRC is left zero, which the format defines as "not computed".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::BuildSyntheticV21 (
+    const vector<WozSyntheticTrack>  &  tracks,
+    vector<Byte>                     &  outBytes)
+{
+    HRESULT           hr            = S_OK;
+    size_t            trackCount    = tracks.size();
+    size_t            trksRecBytes  = kV2TrkRecordCount * kV2TrkRecordSize;
+    size_t            nextBlock     = kV2FirstDataBlock;
+    size_t            fluxBlock     = 0;
+    size_t            largestBits   = 0;
+    size_t            largestFlux   = 0;
+    size_t            fileSize      = 0;
+    size_t            pos           = 0;
+    size_t            i             = 0;
+    size_t            q             = 0;
+    bool              hasFlux       = false;
+    Byte          *   info          = nullptr;
+    Byte          *   tmap          = nullptr;
+    Byte          *   trks          = nullptr;
+    vector<size_t>    startBlocks (trackCount, 0);
+    vector<size_t>    blockCounts (trackCount, 0);
+
+
+
+    CBRAEx (trackCount <= kV2TrkRecordCount, E_INVALIDARG);
+
+    for (i = 0; i < trackCount; i++)
+    {
+        size_t  bytes = tracks[i].isFlux ? tracks[i].data.size() : (tracks[i].bitCount + 7) / 8;
+
+        startBlocks[i] = nextBlock;
+        blockCounts[i] = (bytes + kV2BlockSize - 1) / kV2BlockSize;
+        nextBlock     += blockCounts[i];
+
+        if (tracks[i].isFlux)
+        {
+            hasFlux     = true;
+            largestFlux = max (largestFlux, blockCounts[i]);
+        }
+        else
+        {
+            largestBits = max (largestBits, blockCounts[i]);
+        }
+    }
+
+    fluxBlock = hasFlux ? nextBlock : 0;
+    fileSize  = hasFlux ? fluxBlock * kV2BlockSize + kChunkHeaderSize + kTmapChunkSize
+                        : nextBlock * kV2BlockSize;
+
+    outBytes.assign (fileSize, 0);
+    memcpy (outBytes.data(), kSigV2, kSigLen);
+
+    pos = kHeaderSize;
+    memcpy    (outBytes.data() + pos, kInfoMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (kInfoChunkSize));
+
+    info                        = outBytes.data() + pos + kChunkHeaderSize;
+    info[kInfoVersionOff]       = kInfoVersion3;
+    info[kInfoDiskTypeOff]      = kDiskType525;
+    info[kInfoCleanedOff]       = kCleaned;
+    info[kInfoDiskSidesOff]     = kSingleSided;
+    info[kInfoBitTimingOff]     = kBitTiming525;
+    Write16LE (info + kInfoOffsetLargestTrack, static_cast<uint16_t> (largestBits));
+    Write16LE (info + kInfoOffsetFluxBlock,    static_cast<uint16_t> (fluxBlock));
+    Write16LE (info + kInfoOffsetLargestFlux,  static_cast<uint16_t> (largestFlux));
+
+    pos += kChunkHeaderSize + kInfoChunkSize;
+    memcpy    (outBytes.data() + pos, kTmapMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (kTmapChunkSize));
+
+    tmap = outBytes.data() + pos + kChunkHeaderSize;
+    memset (tmap, kTmapEmptyTrack, kTmapChunkSize);
+
+    pos += kChunkHeaderSize + kTmapChunkSize;
+    memcpy    (outBytes.data() + pos, kTrksMagic, 4);
+    Write32LE (outBytes.data() + pos + 4,
+               static_cast<uint32_t> (trksRecBytes + (nextBlock - kV2FirstDataBlock) * kV2BlockSize));
+
+    trks = outBytes.data() + pos + kChunkHeaderSize;
+
+    if (hasFlux)
+    {
+        Byte *  fluxChunk = outBytes.data() + fluxBlock * kV2BlockSize;
+
+        memcpy    (fluxChunk, kFluxMagic, 4);
+        Write32LE (fluxChunk + 4, static_cast<uint32_t> (kTmapChunkSize));
+        memset    (fluxChunk + kChunkHeaderSize, kTmapEmptyTrack, kTmapChunkSize);
+    }
+
+    for (i = 0; i < trackCount; i++)
+    {
+        const WozSyntheticTrack  &  track = tracks[i];
+        Byte                     *  rec   = trks + i * kV2TrkRecordSize;
+        Byte                     *  map   = track.isFlux
+                                            ? outBytes.data() + fluxBlock * kV2BlockSize + kChunkHeaderSize
+                                            : tmap;
+        size_t                      count = track.isFlux ? track.data.size() : track.bitCount;
+        size_t                      bytes = track.isFlux ? track.data.size() : (track.bitCount + 7) / 8;
+
+        Write16LE (rec,     static_cast<uint16_t> (blockCounts[i] > 0 ? startBlocks[i] : 0));
+        Write16LE (rec + 2, static_cast<uint16_t> (blockCounts[i]));
+        Write32LE (rec + 4, static_cast<uint32_t> (count));
+
+        bytes = min (bytes, track.data.size());
+        if (bytes > 0)
+        {
+            memcpy (outBytes.data() + startBlocks[i] * kV2BlockSize, track.data.data(), bytes);
+        }
+
+        for (q = 0; q < track.quarterTracks.size(); q++)
+        {
+            map[track.quarterTracks[q]] = static_cast<Byte> (i);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozLoader::Serialize
 //
 //  Emit a WOZ v2 byte image from a DiskImage's live per-track bit streams,
@@ -1048,6 +1329,11 @@ HRESULT WozLoader::BuildSyntheticV2 (
 //  Casso stamps its own name into creator only on a disk it authored -- one
 //  with no retained source INFO.
 //
+//  Flux tracks go out as flux. Their bytes are copied exactly as held, so a
+//  track nothing wrote to is identical to the source, and the FLUX chunk is
+//  rebuilt from the map on the first block boundary after the track data,
+//  followed by the retained chunks.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
@@ -1057,21 +1343,26 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         uint16_t   startBlock = 0;
         uint16_t   blockCount = 0;
         uint32_t   bitCount   = 0;
+        bool       isFlux     = false;
     };
 
-    HRESULT               hr            = S_OK;
-    int                   slotCount     = img.GetTrackCount();
-    uint16_t              nextBlock     = kV2FirstDataBlock;
-    uint16_t              largestTrack  = 0;
-    size_t                trksRecBytes  = kV2TrkRecordCount * kV2TrkRecordSize;
-    size_t                trksSize      = 0;
-    size_t                pos           = 0;
-    int                   slot          = 0;
-    int                   qt            = 0;
-    const WozMetadata &   meta          = img.GetWozMetadata();
-    bool                  hasSourceInfo = false;
-    size_t                chunkCount    = 0;
-    size_t                chunkIdx      = 0;
+    HRESULT              hr                      = S_OK;
+    int                  slotCount               = img.GetTrackCount();
+    uint16_t             nextBlock               = kV2FirstDataBlock;
+    uint16_t             largestTrack            = 0;
+    uint16_t             largestFlux             = 0;
+    uint16_t             fluxBlock               = 0;
+    bool                 hasFlux                 = false;
+    Byte                 fluxMap[kTmapChunkSize] = {};
+    size_t               trksRecBytes            = kV2TrkRecordCount * kV2TrkRecordSize;
+    size_t               trksSize                = 0;
+    size_t               pos                     = 0;
+    int                  slot                    = 0;
+    int                  qt                      = 0;
+    const WozMetadata  & meta                    = img.GetWozMetadata();
+    bool                 hasSourceInfo           = false;
+    size_t               chunkCount              = 0;
+    size_t               chunkIdx                = 0;
     vector<TrkGeom>       geom (kV2TrkRecordCount);
 
     if (slotCount > static_cast<int> (kV2TrkRecordCount))
@@ -1083,27 +1374,37 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     chunkCount    = meta.passThrough.size();
 
     // Pass 1: assign each populated slot a block-aligned region after the
-    // three fixed header blocks.
+    // three fixed header blocks. A flux track's Bit Count is its byte count,
+    // and its bytes go out exactly as they are held.
     for (slot = 0; slot < slotCount; slot++)
     {
-        size_t  bitCount  = img.GetTrackBitCount (slot);
+        bool    isFlux    = (img.GetTrackKind (slot) == TrackKind::Flux);
+        size_t  count     = isFlux ? img.GetFluxTrack (slot).GetBytes().size() : img.GetTrackBitCount (slot);
         size_t  byteCount = 0;
         size_t  blocks    = 0;
 
-        if (bitCount == 0)
+        geom[slot].isFlux = isFlux;
+        hasFlux           = hasFlux || isFlux;
+
+        if (count == 0)
         {
             continue;
         }
 
-        byteCount = (bitCount + 7) / 8;
+        byteCount = isFlux ? count : (count + 7) / 8;
         blocks    = (byteCount + kV2BlockSize - 1) / kV2BlockSize;
 
         geom[slot].startBlock = nextBlock;
         geom[slot].blockCount = static_cast<uint16_t> (blocks);
-        geom[slot].bitCount   = static_cast<uint32_t> (bitCount);
+        geom[slot].bitCount   = static_cast<uint32_t> (count);
 
         nextBlock = static_cast<uint16_t> (nextBlock + blocks);
-        if (blocks > largestTrack)
+
+        if (isFlux && blocks > largestFlux)
+        {
+            largestFlux = static_cast<uint16_t> (blocks);
+        }
+        else if (!isFlux && blocks > largestTrack)
         {
             largestTrack = static_cast<uint16_t> (blocks);
         }
@@ -1113,6 +1414,10 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     // the record table plus every block assigned above.
     trksSize = trksRecBytes
              + static_cast<size_t> (nextBlock - kV2FirstDataBlock) * kV2BlockSize;
+
+    // A FLUX chunk always occupies its own block, so it starts on the first
+    // block boundary after the track data, which is where Applesauce puts it.
+    fluxBlock = hasFlux ? nextBlock : 0;
 
     outBytes.assign (static_cast<size_t> (nextBlock) * kV2BlockSize, 0);
 
@@ -1165,6 +1470,17 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         // the image bytes.
         info[kInfoWriteProtectOff] = static_cast<Byte> (img.IsImageWriteProtected() ? 1 : 0);
         Write16LE (info + kInfoLargestTrackOff, largestTrack);
+
+        // The flux fields describe this file's FLUX chunk, so they are
+        // Casso's to write too, and zero when there is none. A reader is
+        // told to look for flux only at INFO version 3 or later.
+        Write16LE (info + kInfoOffsetFluxBlock,   fluxBlock);
+        Write16LE (info + kInfoOffsetLargestFlux, largestFlux);
+
+        if (hasFlux && info[kInfoVersionOff] < kInfoVersion3)
+        {
+            info[kInfoVersionOff] = kInfoVersion3;
+        }
     }
 
     pos += 8 + kInfoChunkSize;
@@ -1175,13 +1491,16 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     {
         Byte *   tmap = outBytes.data() + pos + 8;
 
+        // Each quarter track goes in the map for its slot's kind and is
+        // empty in the other, so no quarter track is claimed twice.
         for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
-            int   resolved = img.ResolveQuarterTrack (qt);
+            int    resolved = img.ResolveQuarterTrack (qt);
+            bool   inRange  = (resolved >= 0 && resolved < slotCount);
+            bool   isFlux   = inRange && geom[resolved].isFlux;
 
-            tmap[qt] = (resolved >= 0 && resolved < slotCount)
-                       ? static_cast<Byte> (resolved)
-                       : kTmapEmptyTrack;
+            tmap[qt]    = (inRange && !isFlux) ? static_cast<Byte> (resolved) : kTmapEmptyTrack;
+            fluxMap[qt] = isFlux               ? static_cast<Byte> (resolved) : kTmapEmptyTrack;
         }
     }
 
@@ -1204,7 +1523,8 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         }
     }
 
-    // Per-track bit-stream payload at each slot's block offset.
+    // Per-track payload at each slot's block offset: packed bits for a bit
+    // track, the flux bytes as held for a flux track.
     for (slot = 0; slot < slotCount; slot++)
     {
         const vector<Byte> *  bits      = nullptr;
@@ -1216,8 +1536,8 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
             continue;
         }
 
-        bits      = &img.GetTrackBits (slot);
-        byteCount = (geom[slot].bitCount + 7) / 8;
+        bits      = geom[slot].isFlux ? &img.GetFluxTrack (slot).GetBytes() : &img.GetTrackBits (slot);
+        byteCount = geom[slot].isFlux ? geom[slot].bitCount : (geom[slot].bitCount + 7) / 8;
         dstOff    = static_cast<size_t> (geom[slot].startBlock) * kV2BlockSize;
 
         if (byteCount > bits->size())
@@ -1226,6 +1546,17 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         }
 
         memcpy (outBytes.data() + dstOff, bits->data(), byteCount);
+    }
+
+    if (hasFlux)
+    {
+        size_t  at = outBytes.size();
+
+        outBytes.resize (at + kChunkHeaderSize + kTmapChunkSize);
+
+        memcpy    (outBytes.data() + at, kFluxMagic, 4);
+        Write32LE (outBytes.data() + at + 4, static_cast<uint32_t> (kTmapChunkSize));
+        memcpy    (outBytes.data() + at + kChunkHeaderSize, fluxMap, kTmapChunkSize);
     }
 
     // Chunks Casso does not model, re-emitted after the last bit-stream

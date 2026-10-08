@@ -1,14 +1,14 @@
 #include "Pch.h"
 
 #include "SettingsSheet.h"
+#include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Config/GlobalUserPrefs.h"
+#include "GeneralPageModel.h"
 #include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
-#include "Widgets/DxuiLabel.h"
-#include "Window/DxuiButtonRow.h"
 #include "resource.h"
 
 
@@ -29,6 +29,11 @@ static constexpr int    s_kSheetWidthDip     = 720;
 // one size for every page and every mode, so it is sized to the taller case.
 // With the mode off the page ends further above OK / Cancel than it used to.
 static constexpr int    s_kSheetHeightDip    = 880;   // the Controllers page in multiplayer, the tallest, ends a section gap above OK / Cancel
+// THE SMALLEST THE USER CAN MAKE IT. The pages scroll vertically below their
+// content height, so the height can come down to where a few rows still show
+// between the tab strip and OK / Cancel. They do not scroll sideways, and
+// every page is laid out for the design width, so that is the least width.
+static constexpr int    s_kSheetMinHeightDip = 480;
 
 
 
@@ -78,8 +83,9 @@ SettingsSheet::~SettingsSheet()
 
 void SettingsSheet::OnBuildPages()
 {
+    m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
-    m_diskPage     = CreatePage<DiskPage>     (L"Disk");
+    m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
@@ -125,7 +131,12 @@ void SettingsSheet::OnBuildPages()
 //  back on revert (FR-131) -- so it is never wider than Cancel while it just
 //  reads "OK".
 //
-//  Minimum size equals the initial size: the pages have no smaller valid form.
+//  The sheet opens at its design size when the screen has room for it, and
+//  otherwise at the height of the monitor's work area, with the pages
+//  scrolling between the tab strip and OK / Cancel. The pages have no smaller
+//  valid form, so they keep their design height and scroll rather than
+//  squeezing; the buttons stay on screen either way (GH #154: 880 DIP at 125%
+//  is taller than a 1080p screen).
 //
 //  The app icon is loaded LR_SHARED, which hands back a process-cached handle
 //  needing no DestroyIcon, so the sheet is not generic in alt-tab.
@@ -155,6 +166,13 @@ HRESULT SettingsSheet::OpenModeless (
     // No Apply button. Set BEFORE Create so OnCreate honors the hidden Apply.
     SetApplyVisible (false);
 
+    // Every page but Theme reports how tall its content is, and scrolls in a
+    // window shorter than that; Theme fits whatever room it has. So there is
+    // no design height to hold the pages to, and the tallest content sets the
+    // largest the window can be made. Every page is laid out for the design
+    // width, so that is the least of the largest width.
+    SetDesignWidthDip (s_kSheetWidthDip);
+
     // OK stays the standard command-button width (matching Cancel) until a
     // pending reboot relabels it "OK (reboot)"; RefreshOkLabel widens it then
     // and narrows it back on revert (FR-131), so it is never wider than Cancel
@@ -163,9 +181,13 @@ HRESULT SettingsSheet::OpenModeless (
     params.title                    = L"Settings";
     params.hInstance                = hInstance;
     params.ownerHwnd                = ownerHwnd;
-    params.initialSizeDip           = { s_kSheetWidthDip, s_kSheetHeightDip };
-    params.minSizeDip               = { s_kSheetWidthDip, s_kSheetHeightDip };
-    params.resizable                = false;
+    // The size the user last left it at, or the design size. The work area
+    // is applied as the window is created; once the pages have been laid out
+    // it is refitted to their content, growing as well as shrinking.
+    params.minSizeDip               = { s_kSheetWidthDip, s_kSheetMinHeightDip };
+    params.initialSizeDip           = SettingsSheetSize::GetInitialSizeDip (prefs, { s_kSheetWidthDip, s_kSheetHeightDip }, params.minSizeDip);
+    params.fitToWorkArea            = true;
+    params.resizable                = true;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
@@ -195,16 +217,20 @@ HRESULT SettingsSheet::OpenModeless (
     // dim the panel and reveal the emulator through the overlap region.
     params.composited               = true;
 
-    // Open alongside the emulator window (its left edge, or its right when
-    // the left will not fit on that monitor) rather than wherever the OS
-    // would drop it -- which for a WS_POPUP window is the top-left corner
-    // of the primary monitor. When neither side fits the sheet stays on the
-    // emulator's monitor and overlaps it; splitting across two screens or
-    // wandering onto another one is the worse outcome.
-    params.placement                = DxuiWindowPlacement::BesideOwnerLeft;
+    // Centered on the emulator window rather than wherever the OS would drop
+    // it -- which for a WS_POPUP window is the top-left corner of the primary
+    // monitor -- and clamped to the emulator's monitor, so it never splits
+    // across two screens or wanders onto another one.
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);
+
+    // Opened as tall and wide as the content wants, up to the work area, so a
+    // page scrolls only when the monitor is too small for it. A size the user
+    // chose is kept for the rest of this visit only.
+    FitToMaxSize();
+    m_openedSizeDip = GetSizeDip();
 
     SetTheme (&emuShell.m_chromeTheme);
 
@@ -287,6 +313,39 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
         m_emuShell->SetCrtMonitorEnabled (enabled);
+    });
+
+    // The General page: every control is live and persisted on the click,
+    // like the CRT opt-in above, so Cancel has nothing to revert.
+    m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
+    m_generalPage->SetAudioOfferChecked (GeneralPageModel::IsOfferChecked (prefs.audioDownloadConsent));
+    m_generalPage->SetRomOfferChecked   (GeneralPageModel::IsOfferChecked (prefs.romRefreshConsent));
+    RefreshUpdateStatus();
+
+    m_generalPage->SetOnAutoUpdateToggled ([this] (bool enabled)
+    {
+        m_emuShell->SetAutoUpdateCheck (enabled);
+    });
+    m_generalPage->SetOnAudioOfferToggled ([this] (bool checked)
+    {
+        m_emuShell->SetAudioDownloadConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+    });
+    m_generalPage->SetOnRomOfferToggled ([this] (bool checked)
+    {
+        m_emuShell->SetRomRefreshConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+    });
+    m_generalPage->SetOnCheckNow ([this] ()
+    {
+        m_emuShell->CheckForUpdatesNow();
+    });
+    m_generalPage->SetOnStopSkipping ([this] ()
+    {
+        m_emuShell->StopSkippingVersion();
+    });
+    m_generalPage->SetFolderPath   (EmulatorShell::GetSettingsFolder());
+    m_generalPage->SetOnOpenFolder ([this] ()
+    {
+        m_emuShell->OpenSettingsFolder();
     });
 
     // Scene antialiasing rides the same live-and-persist channel: the cost is
@@ -443,27 +502,51 @@ HRESULT SettingsSheet::OpenModeless (
 
             // The page opens on the machine's selected controller, with every
             // controller's own active profile.
+            m_controllersState.SetJoyportAvailable (snapshot.hasJoyport);
             m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
                                      !m_emuShell->MachineHasCaseSwitches(),
                                      snapshot.activeProfiles,
-                                     snapshot.selection);
+                                     snapshot.slots[0].holder);
+
+            for (ProfileMode mode : { ProfileMode::Joystick, ProfileMode::Paddle, ProfileMode::Joyport })
+            {
+                m_controllersState.SetActiveProfiles (mode, service->GetActiveProfiles (mode));
+            }
+
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
 
-            // The machine's mode and its axis budget. Unlike the mappings,
-            // these are not copies the page edits and OK commits: they are
-            // machine input settings, so an edit goes to the service and to
-            // the machine's prefs as it is made, exactly as a pick from the
-            // toolbar's paddle picker does.
-            m_controllersState.SetMultiplayer (service->GetLiveMultiplayer(), snapshot.axisCount);
+            // The players and the machine's axis budget. Unlike the mappings,
+            // these are not copies the page edits and OK commits: a pick on
+            // the page goes through the same path as a pick from the command
+            // bar's picker, so it applies and is saved as it is made, and the
+            // page is handed the players as the service then plays them.
+            m_controllersState.SetPlayers (snapshot.entries, snapshot.slots, snapshot.axisCount);
 
-            m_controllersState.SetOnMultiplayerChanged ([this, service] (const MultiplayerSetup & setup)
+            m_controllersState.SetOnPlayerPicked ([this, service] (size_t player, const PlayerEntry & entry)
             {
-                service->SetMultiplayer (setup);
-                m_emuShell->PersistInputModeForMachine();
-                m_emuShell->SyncPaddleSourceList();
+                ControllerInputService::Snapshot  current;
+
+
+
+                m_emuShell->PickPlayer (player, entry);
+
+                current = service->GetSnapshot();
+                m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
+            });
+
+            m_controllersState.SetOnPlayerModeSet ([this, service] (size_t player, PlayerMode mode)
+            {
+                ControllerInputService::Snapshot  current;
+
+
+
+                m_emuShell->SetPlayerMode (player, mode);
+
+                current = service->GetSnapshot();
+                m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
             });
 
             m_controllersPage->SetSampleSource ([service] (const ControllerUnitKey & unit)
@@ -471,15 +554,18 @@ HRESULT SettingsSheet::OpenModeless (
                 return service->GetInspectedSample (unit);
             });
 
+            m_controllersPage->SetHistorySource ([service] (const ControllerUnitKey & unit)
+            {
+                return service->TakeInspectedSamples (unit);
+            });
+
+            m_controllersPage->SetAnimationsEnabled (DxuiSystemSettings::Instance().AreAnimationsEnabled());
+
             m_controllersPage->SetOnInspect ([service] (const std::optional<ControllerUnitKey> & unit)
             {
                 service->SetInspectedUnit (unit);
             });
 
-            m_controllersPage->SetJoyportAttachedFn ([this] ()
-            {
-                return m_emuShell->GetGamePortAdapter() == GamePortAdapter::SiriusJoyport;
-            });
         }
 
         m_controllersPage->SetState (&m_controllersState);
@@ -491,6 +577,7 @@ HRESULT SettingsSheet::OpenModeless (
             RefreshFocusOrder (m_controllersPage);
             Invalidate();
         });
+
         m_apply.BindControllers (&m_controllersState, service);
 
         // Save on the profile-switch prompt commits through the same prefs
@@ -590,29 +677,48 @@ Error:
 
 void SettingsSheet::ShowControllersPage()
 {
-    int  index = IndexOfPage (m_controllersPage);
+    bool  isSynced = TrySyncControllersPlayers();
 
 
 
-    // The picker's Multiplayer row turns the mode on and then lands here, so
-    // a sheet that was already open would otherwise go on showing the mode as
-    // it stood when it opened, without the section the user came for.
-    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr && m_controllersPage != nullptr)
+    if (isSynced)
     {
-        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
-
-        // Laid out again rather than merely re-synced: the section is not a
-        // value on the page, it is rows that come and go, and every row below
-        // it moves with them.
-        m_controllersState.SetMultiplayer (m_emuShell->GetControllerService()->GetLiveMultiplayer(), snapshot.axisCount);
-        m_controllersPage->Relayout();
         m_controllersPage->FollowPlayerOne();
     }
 
-    if (index >= 0)
+    ActivateControllersPage();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshUpdateStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RefreshUpdateStatus()
+{
+    const GlobalUserPrefs  & prefs = m_emuShell->m_globalPrefs;
+    std::wstring             skipped;
+
+
+
+    if (m_generalPage == nullptr)
     {
-        SetActivePage (index);
+        return;
     }
+
+    if (!prefs.skippedVersion.empty())
+    {
+        skipped = GeneralPageModel::MakeSkippedText (prefs.skippedVersion);
+    }
+
+    m_generalPage->SetLastCheckedText (GeneralPageModel::MakeLastCheckedTextNow (prefs.lastUpdateCheckUtc));
+    m_generalPage->SetSkippedText     (skipped);
+    Invalidate();
 }
 
 
@@ -623,13 +729,80 @@ void SettingsSheet::ShowControllersPage()
 //
 //  StartNewControllerProfile
 //
+//  New... from a player's profile section in the picker: the Controllers
+//  page, on that player's controller rather than player one's, with the New
+//  profile dialog up for it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::StartNewControllerProfile()
+void SettingsSheet::StartNewControllerProfile (const ControllerUnitKey & unit)
 {
-    if (m_controllersPage != nullptr)
+    bool  isSynced = TrySyncControllersPlayers();
+
+
+
+    ActivateControllersPage();
+
+    if (isSynced)
     {
-        m_controllersPage->StartNewProfile();
+        m_controllersPage->StartNewProfile (unit);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrySyncControllersPlayers
+//
+//  The picker's Controller settings... and New... land on the Controllers
+//  page, so a sheet that was already open would otherwise go on showing the
+//  players as they stood when it opened. False with no page or no service.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::TrySyncControllersPlayers()
+{
+    ControllerInputService::Snapshot  snapshot;
+
+
+
+    if (m_emuShell == nullptr || m_emuShell->GetControllerService() == nullptr || m_controllersPage == nullptr)
+    {
+        return false;
+    }
+
+    snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+
+    // Laid out again rather than merely re-synced: the section is not a value
+    // on the page, it is rows that come and go, and every row below it moves
+    // with them.
+    m_controllersState.SetPlayers (snapshot.entries, snapshot.slots, snapshot.axisCount);
+    m_controllersPage->Relayout();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActivateControllersPage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::ActivateControllersPage()
+{
+    int  index = IndexOfPage (m_controllersPage);
+
+
+
+    if (index >= 0)
+    {
+        SetActivePage (index);
     }
 }
 
@@ -667,6 +840,112 @@ void SettingsSheet::OnCancel()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryStoreResizedSize
+//
+//  Only a size the user changed is remembered. One the sheet merely opened
+//  at -- the design size fitted to a small screen, say -- would otherwise
+//  pin it there on every larger screen after.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::TryStoreResizedSize()
+{
+    if (m_prefs == nullptr || !IsUserResized())
+    {
+        return false;
+    }
+
+    return SettingsSheetSize::TryStoreSizeDip (*m_prefs, GetSizeDip());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsUserResized
+//
+//  The sheet is not at the size it opened at or last grew to, so the user
+//  dragged it there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::IsUserResized() const
+{
+    SIZE  sizeDip = GetSizeDip();
+
+
+
+    return sizeDip.cx != m_openedSizeDip.cx || sizeDip.cy != m_openedSizeDip.cy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GrowToContent
+//
+//  A page whose content grew after the sheet opened -- the Controllers page
+//  gaining a controller's settings, say -- would otherwise scroll in a sheet
+//  with room to grow. The sheet grows to fit, within the work area, unless
+//  the user has resized it this visit. It does not shrink when the content
+//  does, so it holds still while the content comes and goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::GrowToContent()
+{
+    if (IsUserResized())
+    {
+        return;
+    }
+
+    GrowToMaxSize();
+    m_openedSizeDip = GetSizeDip();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSizeDip
+//
+//  The window's size in DIPs at its current DPI, or zero before it exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE SettingsSheet::GetSizeDip() const
+{
+    HRESULT  hr     = S_OK;
+    HWND     hwnd   = GetHwnd();
+    RECT     rect   = {};
+    SIZE     result = {};
+    BOOL     gotIt  = FALSE;
+
+
+
+    CBRA (hwnd != nullptr);
+
+    gotIt = GetWindowRect (hwnd, &rect);
+    CWRA (gotIt);
+
+    result = SettingsSheetSize::PxToDip (SIZE { rect.right - rect.left, rect.bottom - rect.top }, GetDpi());
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDialogTick / RefreshOkLabel
 //
 //  The reboot state can change from either the Machine dropdown or a Hardware
@@ -681,19 +960,8 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+    UpdateTickInterval();
 
-    // The command bar's Sirius Joyport row works while the sheet is open. The
-    // Machine tab follows it, and OK then writes what is live rather than
-    // what the sheet opened with.
-    if (m_emuShell != nullptr && m_hardwarePage != nullptr)
-    {
-        bool  isGamePortChanged = m_state.ObserveLiveGamePortAdapter (m_emuShell->GetGamePortAdapter());
-
-        if (isGamePortChanged)
-        {
-            m_hardwarePage->Rebuild();
-        }
-    }
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.
@@ -703,21 +971,16 @@ void SettingsSheet::OnDialogTick()
 
         m_controllersState.UpdateDevices (snapshot.devices);
 
-        // The mode can be turned on from the picker while the sheet is open,
-        // which is exactly what the picker's Multiplayer... row does: it turns
-        // the mode on and opens this page. Without this the page would go on
-        // showing the mode it opened in, and the player slots would stay
-        // hidden until the sheet was closed and opened again.
-        // AS PLAYED, so a player's controller coming or going moves the page
-        // between the two-player and single-player settings the same way it
-        // moves the toolbar picker, even though it never touches the saved
-        // setup (FR-040).
-        MultiplayerSetup  live = m_emuShell->GetControllerService()->GetLiveMultiplayer();
-
-        if (m_controllersState.GetMultiplayer() != live ||
-            m_controllersState.GetAxisCount()   != snapshot.axisCount)
+        // The players can change from the picker while the sheet is open, and
+        // a player's controller coming or going moves the page between the
+        // two-player and single-player settings the same way it moves the
+        // picker. Without this the page would go on showing the players it
+        // opened with until the sheet was closed and opened again.
+        if (m_controllersState.GetPlayerEntries() != snapshot.entries ||
+            m_controllersState.GetPlayerSlots()   != snapshot.slots   ||
+            m_controllersState.GetAxisCount()     != snapshot.axisCount)
         {
-            m_controllersState.SetMultiplayer (live, snapshot.axisCount);
+            m_controllersState.SetPlayers (snapshot.entries, snapshot.slots, snapshot.axisCount);
 
             // The section comes and goes with the mode, which moves every row
             // below it, so the page is laid out again rather than merely
@@ -741,6 +1004,44 @@ void SettingsSheet::OnDialogTick()
     }
 
     UpdatePreviewCompose();
+    GrowToContent();
+
+    // The pages' controls get the tick too. Nothing else ticks them, and a
+    // timed control -- an info tip's tooltip, which opens only once its
+    // dwell has passed -- would otherwise never advance.
+    DxuiPanel::Tick ((int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateTickInterval
+//
+//  While the Controllers page is shown the sheet ticks at its live rate, so
+//  the stick and the lights follow the controller at display rate; on any
+//  other page it drops back to the default, and the page stops reading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateTickInterval()
+{
+    UINT  wanted = kDefaultDialogTickMs;
+
+
+
+    if (m_controllersPage != nullptr && m_controllersPage->GetPollIntervalMs() > 0)
+    {
+        wanted = m_controllersPage->GetPollIntervalMs();
+    }
+
+    if (wanted != m_tickMs)
+    {
+        m_tickMs = wanted;
+        SetDialogTickIntervalMs (m_tickMs);
+    }
 }
 
 
@@ -776,6 +1077,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     int                             fbH      = 0;
     const uint32_t                * fbPixels = nullptr;
     CrtUvRect                       uv       = { 0.0f, 0.0f, 1.0f, 1.0f };
+    RECT                            viewport = {};
 
 
 
@@ -785,6 +1087,18 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     }
 
     request = m_themePage->TakeSceneRequest();
+
+    // This pass runs after the panel tree, outside the sheet's page clip, so
+    // a scrolled preview has to be cropped to the viewport here as well.
+    if (IsPageScrollable())
+    {
+        viewport = GetPageViewportPx();
+
+        if (IntersectRect (&request.clipPx, &request.clipPx, &viewport) == FALSE)
+        {
+            return;
+        }
+    }
 
     if (request.mode == ThemePage::PreviewSceneMode::None ||
         request.rectPx.right <= request.rectPx.left ||

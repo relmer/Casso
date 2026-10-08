@@ -527,7 +527,8 @@ HRESULT WasapiAudio::SubmitFrame (
     uint32_t                        numSamplesToGenerate,
     DriveAudioMixer *               driveMixer,
     uint64_t                        currentCycleCount,
-    DriveAudioMixer *               mockingboardMixer)
+    DriveAudioMixer *               mockingboardMixer,
+    DriveAudioMixer *               tapeMixer)
 {
     HRESULT    hr             = S_OK;
     size_t     prevFrames     = 0;
@@ -546,6 +547,27 @@ HRESULT WasapiAudio::SubmitFrame (
         std::lock_guard<std::mutex>   lock (m_pendingMutex);
 
         prevFrames = m_pendingSamples.size() / 2;
+    }
+
+    // A dropped slice is a splice. At Maximum speed most slices are, and what
+    // plays is short stretches of real-time sound butted together -- the right
+    // pitch, but with a click at every cut. So the sound already queued fades
+    // out where the first slice is dropped, and the next one kept fades in.
+    if (numSamplesToGenerate > 0 && prevFrames >= m_samplesPerFrame * 3 && !m_droppedSlice)
+    {
+        std::lock_guard<std::mutex>   lock (m_pendingMutex);
+        size_t                        frames = m_pendingSamples.size() / 2;
+        size_t                        fade   = std::min (frames, (size_t) s_kSpliceFadeFrames);
+
+        for (size_t f = 0; f < fade; f++)
+        {
+            float  scale = (float) f / (float) fade;
+
+            m_pendingSamples[(frames - 1 - f) * 2]     *= scale;
+            m_pendingSamples[(frames - 1 - f) * 2 + 1] *= scale;
+        }
+
+        m_droppedSlice = true;
     }
 
     if (numSamplesToGenerate > 0 && prevFrames < m_samplesPerFrame * 3)
@@ -603,11 +625,22 @@ HRESULT WasapiAudio::SubmitFrame (
                 stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
         }
 
+        // The cassette recorder's speaker, its own mixer so neither the drive
+        // nor the Mockingboard setting silences it.
+        if (tapeMixer != nullptr)
+        {
+            tapeMixer->GeneratePCM (m_driveScratch.data(), numSamplesToGenerate);
+
+            DriveAudioMixer::MixDriveIntoSpeakerStereo (
+                stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
+        }
+
         // Master volume: one gain over the completed mix so every source
         // scales together (mute == 0). Applied at generation, not drain, so
         // pending samples keep the gain they were produced under.
         {
-            float  gain = m_masterGain.load (std::memory_order_relaxed);
+            float  gain = m_isSuppressed.load (std::memory_order_relaxed) ? 0.0f
+                                                                           : m_masterGain.load (std::memory_order_relaxed);
 
             if (gain != 1.0f)
             {
@@ -616,6 +649,21 @@ HRESULT WasapiAudio::SubmitFrame (
                     stereoPtr[i] *= gain;
                 }
             }
+        }
+
+        if (m_droppedSlice)
+        {
+            UINT32  fade = std::min (numSamplesToGenerate, s_kSpliceFadeFrames);
+
+            for (i = 0; i < fade; i++)
+            {
+                float  scale = (float) i / (float) fade;
+
+                stereoPtr[i * 2]     *= scale;
+                stereoPtr[i * 2 + 1] *= scale;
+            }
+
+            m_droppedSlice = false;
         }
 
         // Diagnostic tap (CASSO_AUDIO_DUMP): the generated mix exactly as

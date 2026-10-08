@@ -102,6 +102,7 @@ public:
     // The game-port adapter, asked first for every $C061-$C063 read. Null on
     // the //c, which has no annunciators to drive one.
     void SetJoyport (const class SiriusJoyport * joyport) { m_joyport = joyport; }
+    void SetCassettePort (class CassettePort * port) { m_cassettePort = port; }
 
     // Apple //c case switches (two latching pushbuttons on the top of the
     // case). SetApple2cMode enables the //c-only behaviors below; on the //e
@@ -185,6 +186,7 @@ private:
     class LanguageCard *           m_lc                = nullptr;
     class IVideoTiming *           m_videoTiming       = nullptr;
     class AppleMouse *             m_mouse             = nullptr;
+    class CassettePort *           m_cassettePort      = nullptr;
     atomic<bool>                   m_openApple   {false};
     atomic<bool>                   m_closedApple {false};
 

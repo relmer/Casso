@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/DxuiPanel.h"
 
 
 class DxuiButton;
@@ -46,6 +45,7 @@ public:
         DxuiComboBox  * format         = nullptr;
         DxuiLabel     * imageTypeLabel = nullptr;   // WOZ / DSK / PO
         DxuiComboBox  * imageType      = nullptr;
+        DxuiCheckbox  * flux           = nullptr;   // WOZ only
         DxuiCheckbox  * bootable       = nullptr;
         DxuiButton    * download       = nullptr;
         DxuiLabel     * nameLabel      = nullptr;

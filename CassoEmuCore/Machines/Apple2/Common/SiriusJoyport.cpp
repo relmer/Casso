@@ -44,6 +44,25 @@ bool SiriusJoyport::IsAttached() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetPaddlesConnected
+//
+//  UI thread. Whether something stands in the rear sockets, which the
+//  hardware reads at the paddle inputs whichever jacks the front switch
+//  selects: a player on Joystick or Paddle beside a player in a jack.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SiriusJoyport::SetPaddlesConnected (bool isConnected)
+{
+    m_arePaddlesConnected.store (isConnected, memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetJackSwitches
 //
 //  UI thread, from the game-port sink. Written whether or not the Joyport is
@@ -136,13 +155,14 @@ Error:
 //  IsDrivingPaddles
 //
 //  An Atari joystick has no potentiometers, so while the Joyport is attached
-//  the paddle inputs read as nothing connected, reset window or not.
+//  with nothing in the rear sockets the paddle inputs read as nothing
+//  connected, reset window or not. With something there they read it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SiriusJoyport::IsDrivingPaddles() const
 {
-    return IsAttached();
+    return IsAttached() && !m_arePaddlesConnected.load (memory_order_acquire);
 }
 
 

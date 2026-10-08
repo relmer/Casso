@@ -27,7 +27,7 @@ float DeadzoneShaper::GetDefaultDeadzone (ControllerKind kind)
 //
 //  ShapeAxis
 //
-//  One axis on its own. Inside the deadzone reads exactly center; outside it,
+//  One axis on its own. Inside the dead zone reads exactly center; outside it,
 //  the remaining travel is stretched back over the full range.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +59,7 @@ float DeadzoneShaper::ShapeAxis (float value, float deadzone)
 //
 //  ShapeStick
 //
-//  Both axes of one stick. The deadzone is a circle around center: how far
+//  Both axes of one stick. The dead zone is a circle around center: how far
 //  the stick is pushed decides whether it is inside it, not how far each axis
 //  happens to be on its own.
 //

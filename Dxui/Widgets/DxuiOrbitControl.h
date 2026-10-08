@@ -97,7 +97,8 @@ public:
     // tooltips' WantsTick.
     bool  WantsTick () const { return m_armed && !m_repeatBlocked && m_armed_on != Part::Orb; }
 
-    bool  Dragging () const { return m_armed && m_dragging; }
+    bool  Dragging  () const { return m_armed && m_dragging; }
+    bool  IsHovered () const { return m_hover != Part::None; }
 
     //
     //  IDxuiControl.

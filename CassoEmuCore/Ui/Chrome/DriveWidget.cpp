@@ -1,10 +1,7 @@
 #include "Pch.h"
-#include "Theme/DxuiTheme.h"
-#include "Theme/DxuiColor.h"
 #include "DriveWidget.h"
 #include "../IDriveCommandSink.h"
 #include "Core/UnicodeSymbols.h"
-#include "Widgets/DxuiWarningBadge.h"
 
 
 
@@ -667,7 +664,7 @@ Error:
 //
 //  Paints the mounted disk's basename inside m_labelRect, the name row.
 //  Hidden when no disk is mounted; ellipsis-truncated to the label
-//  strip width via the pure TruncateToWidth algorithm.
+//  strip width.
 //
 //  THE WRITE-PROTECT PADLOCK SITS HERE TOO, and it does not scroll. Protection
 //  is a fact about the mounted image, so it belongs with the image's name --
@@ -711,7 +708,7 @@ void DriveWidget::PaintBasenameLabel (
     float                  drawX         = 0.0f;
     bool                   clipped       = false;
     bool                   locked        = m_state.writeProtect.Any();
-    bool                   damaged       = m_state.writeProtect.checksumMismatch;
+    bool                   damaged       = m_state.writeProtect.IsDamaged();
     float                  badgeW        = 0.0f;
     float                  badgeH        = 0.0f;
     float                  badgeGap      = 0.0f;
@@ -741,10 +738,8 @@ void DriveWidget::PaintBasenameLabel (
     imagePath = std::filesystem::path (m_state.mountedImagePath);
     basename  = imagePath.filename().wstring();
 
-    // On a fresh mount, schedule the first scroll after a readable lead-in
-    // delay (m_marqueeStartMs is the moment scroll motion begins). A hover
-    // enter instead sets it to "now" (UpdateMarqueeHover) for an immediate
-    // scroll.
+    // A fresh mount resets the schedule; the scroll does not start until the
+    // pointer arrives, which sets it to "now" (UpdateMarqueeHover).
     if (m_state.mountedImagePath != m_marqueePath)
     {
         m_marqueePath    = m_state.mountedImagePath;
@@ -871,9 +866,11 @@ void DriveWidget::PaintBasenameLabel (
                         : 0;
         scrollEnd = m_marqueeStartMs + scrollMs;
 
-        if (scrollMs <= 0 || nowMs < m_marqueeStartMs)
+        // Only under the pointer: at rest a long name shows its head, and the
+        // rest scrolls into view only while the user hovers over it.
+        if (scrollMs <= 0 || nowMs < m_marqueeStartMs || !m_marqueeHovered)
         {
-            offset = 0.0f;                                        // pre-scroll, at head
+            offset = 0.0f;                                        // pre-scroll or not hovered, at head
         }
         else if (nowMs < scrollEnd)
         {

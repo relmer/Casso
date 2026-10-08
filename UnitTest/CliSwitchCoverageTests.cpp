@@ -375,6 +375,10 @@ namespace CliSwitchCoverageTests
               { return o.disk.bootable && o.disk.bootableFrom.empty(); },
               "--bootable bare finds the stock master itself" },
 
+            { "disk", "flux", { "CassoCli", "disk", "create", "d.woz", "--flux", "0-2,17" },
+              [] (const CommandLineOptions & o) { return o.disk.flux && o.disk.fluxTracks == "0-2,17"; },
+              "--flux stores tracks as flux, optionally only the ones listed" },
+
             { "disk", "boot", { "CassoCli", "disk", "create", "d.dsk", "--boot", "p.bin" },
               [] (const CommandLineOptions & o) { return o.disk.directBootFile == "p.bin"; },
               "--boot makes a disk that starts a binary with no operating system" },

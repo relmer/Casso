@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "Core/IDxuiControl.h"
-
 
 
 
@@ -57,7 +55,14 @@ private:
 //  ButtonLightView
 //
 //  One pushbutton's state: a ring that fills while the guest reads the
-//  button pressed.
+//  button pressed. A press, however brief, stays fully lit for at least
+//  kMinLitMs so it can be seen; with animations on it fills over
+//  kPressRampMs and fades over kFadeMs once released. The clock and the
+//  animation setting are passed in, so all of it is testable without either.
+//
+//  Each press shows a short message picked at random from a fixed list to
+//  its right, which stays while the light holds and then fades over
+//  kMessageFadeMs; a new press replaces it and starts it over.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,13 +70,59 @@ class ButtonLightView : public IDxuiControl
 {
 public:
 
-    void  SetLit    (bool isLit);
+    static constexpr int64_t  kMinLitMs        = 90;
+    static constexpr int64_t  kPressRampMs     = 40;
+    static constexpr int64_t  kFadeMs          = 120;
+    static constexpr int64_t  kMessageFadeMs   = 2000;
+    static constexpr float    kPressStartLevel = 0.5f;
 
-    void  Layout    (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    // The button's state at `nowMs`: whether it read pressed at any time
+    // since the last update, and whether it reads pressed now.
+    void   Update               (bool wasPressed, bool isPressed, int64_t nowMs);
+    void   Clear                ();
+    void   SetAnimationsEnabled (bool isEnabled) { m_isAnimated = isEnabled; }
+
+    // How lit the circle is, 0 dark to 1 fully lit, as of the last update.
+    float  GetLevel             () const { return m_level; }
+    bool   IsLit                () const { return m_level > 0.0f; }
+
+    // The message beside the light, empty once it has faded, and where it
+    // goes: a row to the light's right, which it is elided to fit.
+    std::wstring  GetFunMessage     () const;
+    void          SetMessageBounds  (const RECT & bounds) { m_messageBounds = bounds; }
+
+    // Whether the circle itself is drawn; the message shows either way.
+    void          SetCircleShown    (bool isShown)      { m_isCircleShown = isShown; }
+
+    // The list the messages come from, and a pick from it given a random
+    // number: never `previous`, so a press never repeats the one before.
+    static size_t           GetFunMessageCount ();
+    static const wchar_t  * GetFunMessageAt    (size_t index);
+    static size_t           PickFunMessage     (std::optional<size_t> previous, uint32_t random);
+
+    void   Layout               (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void   Paint                (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
 
+    static uint32_t  BlendColor (uint32_t from, uint32_t to, float amount);
+
+    void             UpdateMessage   (int64_t nowMs);
+    void             PaintFunMessage (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+
     DxuiDpiScaler  m_scaler;
-    bool           m_isLit = false;
+    bool           m_isAnimated    = true;
+    bool           m_isCircleShown = true;
+    bool           m_hasPress      = false;
+    bool           m_isHeld        = false;
+    int64_t        m_pressStartMs  = 0;
+    int64_t        m_lastSeenMs    = 0;
+    float          m_level         = 0.0f;
+
+    RECT                   m_messageBounds = {};
+    std::optional<size_t>  m_message;
+    int64_t                m_messageEnd    = 0;
+    float                  m_messageLevel  = 0.0f;
+    std::optional<size_t>  m_lastMessage;
+    std::mt19937           m_random { std::random_device{}() };
 };

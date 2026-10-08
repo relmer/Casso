@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "CrtPostProcess.h"
-#include "Render/Dxui3DRenderer.h"
 #include "Ui/Scene/DeskSceneLayout.h"
 #include "Ui/Scene/DeskSceneModel.h"
 
@@ -47,9 +46,12 @@ public:
     // `monitorKind` selects which monitor is being loaded, which decides
     // where its brand stamp lands -- the //c wears it on the chin, the
     // Monitor II on its divided right strip.
+    // An empty `recorderMesh` leaves the cassette recorder off the desk,
+    // as for a machine with no cassette jacks.
     HRESULT  LoadModels (DeskDeviceKind             monitorKind,
                          std::span<const uint8_t>   monitorMesh,
-                         std::span<const uint8_t>   driveMesh);
+                         std::span<const uint8_t>   driveMesh,
+                         std::span<const uint8_t>   recorderMesh = {});
 
     // Share another scene's parsed models rather than parsing the same text
     // again. The data is pure CPU vertex arrays, so a scene on a different
@@ -107,7 +109,14 @@ public:
                                         outMin, outMax);
     }
 
-    const DeskSceneModel &  DriveModel   () const { return m_drive; }
+    const DeskSceneModel &  DriveModel    () const { return m_drive; }
+    const DeskSceneModel &  RecorderModel () const { return m_recorder; }
+    // Whether the recorder is on the desk: its model loaded, and shown.
+    // Loaded follows the machine's cassette port; shown follows whether it
+    // is attached, and flips without reloading anything.
+    bool                    HasRecorder      () const { return m_hasRecorder && m_recorderShown; }
+    bool                    IsRecorderLoaded () const { return m_hasRecorder; }
+    void                    SetRecorderShown (bool shown);
 
     // THE MOUNTED IMAGE'S NAME, as a surface in the scene rather than as
     // chrome laid over it.
@@ -130,6 +139,14 @@ public:
     // replace the first and both drives would wear the same name -- and that
     // texture is grown rather than resized, so even a lone label rarely
     // covers all of it.
+    // The baked labels the scene draws: the drives' names and the
+    // recorder's (see EmulatorShell::s_kSceneLabelCount).
+    static constexpr int  kLabelCount = 6;
+    // The name of the recorder key under the pointer. A tip rather than a
+    // decal, so it is drawn over everything, and the recorder's own front
+    // lip never cuts through it.
+    static constexpr int  kTipLabel   = 4;
+
     void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
                         const float uv[4]);
 
@@ -149,6 +166,54 @@ public:
     // openness (0 closed .. 1 open, from the drive's door FSM), and the
     // write-protect padlock. Only an actual change dirties geometry.
     void  SetDriveVisuals  (int drive, bool lampOn, float doorProgress, bool writeProtected);
+
+    // How far down the front of each of the recorder's keys stands, in
+    // millimeters, left to right; each key pivots on the hinge at its back.
+    // The keys are re-posed only when one of these changes.
+    void  SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kRecorderKeyCount> & depthsMm);
+
+    // How far the recorder's cassette door stands open, in radians, and
+    // whether a cassette shows behind it.
+    void  SetRecorderLid       (float openRad, bool hasCassette);
+
+    // How far the volume wheel is turned, in radians about its own axis.
+    void  SetRecorderVolumeTurn (float turnRad);
+    // How far the spindles, and the hubs on them, have turned, clockwise
+    // seen from above.
+    void  SetRecorderReelTurn   (float turnRad);
+
+    // The baked label texture was redrawn in place. The view and the quads
+    // are the same objects, so nothing else signals that the picture changed.
+    void  OnLabelsRebaked      () { InvalidatePlate(); }
+
+    // The door's hinge pin is at the struts' rear end: the back of the door's
+    // box, this far above its floor (half the struts' breadth).
+    static constexpr float  kLidHingeAboveMm  = 5.0f;
+
+    // The chrome's reflection: the cube map's edge, the near and far planes
+    // its six views clip at, and what shows where no device stands -- the
+    // dark room around the desk.
+    static constexpr UINT   kEnvTexels        = 256;
+    static constexpr float  kEnvNearMm        = 2.0f;
+    static constexpr float  kEnvFrontInsetMm  = 2.5f;     // the capture point, back from the bar's front
+    static constexpr float  kEnvFarMm         = 6000.0f;
+    static constexpr float  kEnvClearRgba[4]  = { 0.11f, 0.13f, 0.18f, 1.0f };
+
+    // The room the chrome reflects: how far it reaches each way from the
+    // handle, how high its ceiling is above the desk, how big each light
+    // fixture is, and the colors of desk, walls, ceiling and fixtures.
+    static constexpr float  kEnvRoomHalfMm    = 2500.0f;
+    static constexpr float  kEnvRoomHeightMm  = 2000.0f;
+    static constexpr float  kEnvLampHalfMm    = 300.0f;
+    static constexpr float  kEnvDeskRgb[3]    = { 0.30f, 0.24f, 0.18f };
+    static constexpr float  kEnvWallRgb[3]    = { 0.42f, 0.42f, 0.44f };
+    static constexpr float  kEnvCeilingRgb[3] = { 0.62f, 0.62f, 0.64f };
+    static constexpr float  kEnvLampRgb[3]    = { 1.00f, 1.00f, 1.00f };
+
+    // How much of the room the smoked pane lets through.
+    static constexpr float  kLidGlassAlpha      = 0.35f;
+    static constexpr float  kLidReliefAlpha     = 0.45f;    // raised on the pane: plainer, but still see-through
+    static constexpr float  kCassetteGlassAlpha = 0.55f;   // the cassette's window: dims what is under it
 
     // Draws the scene into `dstRtv` (bound here -- the CRT offscreen pass
     // that runs just before leaves ITS target bound, so relying on ambient
@@ -451,6 +516,24 @@ private:
     void     BuildDerivedGeometry ();
     void     BuildGlassSheen  (const CurvedDisplaySurface & surface, float tiltRad);
     HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawRecorder     (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+
+    // Appends `in` turned by `angleRad` about the model's left-right axis
+    // through (pivotY, pivotZ), positive turning the front (low Y) down.
+    // The chrome's reflection: the scene captured into a cube map around
+    // the recorder's handle, and one face of it drawn.
+    HRESULT  RenderEnvironment   (const DeskSceneComposition & comp);
+    HRESULT  DrawEnvironmentFace (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    void     BuildEnvironmentRoom (const float center[3]);
+
+    // Where the camera stands in the world, from its view matrix.
+    static void  GetEyeWorld (const float view[16], float out[3]);
+
+    static void  AppendTurned (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotX, float pivotY,
+                               float angleRad, std::vector<Dxui3DRenderer::Vertex> & out);
+
+    static void  AppendHinged (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotY, float pivotZ,
+                               float angleRad, std::vector<Dxui3DRenderer::Vertex> & out);
 
     // The mounted-image names, drawn after every opaque body so the depth
     // they test against is the whole scene's.
@@ -567,11 +650,14 @@ private:
                                      std::vector<Dxui3DRenderer::Vertex> & out);
 
     Dxui3DRenderer          m_renderer;
-    ID3D11DeviceContext   * m_context      = nullptr;   // non-owning
+    ID3D11DeviceContext   * m_context       = nullptr;   // non-owning
     DeskSceneModel          m_monitor;
     DeskSceneModel          m_drive;
+    DeskSceneModel          m_recorder;
+    bool                    m_hasRecorder   = false;
+    bool                    m_recorderShown = true;
     DeskSceneComposition    m_comp;
-    bool                    m_modelsLoaded = false;
+    bool                    m_modelsLoaded  = false;
 
     std::vector<Dxui3DRenderer::Vertex>   m_glassVerts;         // the tube: dark, untextured
     std::vector<Dxui3DRenderer::Vertex>   m_pictureVerts;       // band-exact curved grid, textured
@@ -597,6 +683,7 @@ private:
     // Contact shadows, likewise built once in model space.
     std::vector<Dxui3DRenderer::Vertex>   m_monitorShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_driveShadowVerts;
+    std::vector<Dxui3DRenderer::Vertex>   m_recorderShadowVerts;
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
@@ -608,7 +695,17 @@ private:
 
     // Door assemblies, rotated copies of the model's cached door verts;
     // progress -1 forces the first build.
-    std::vector<Dxui3DRenderer::Vertex>   m_driveDoorVerts[2];
+    std::vector<Dxui3DRenderer::Vertex>                   m_driveDoorVerts[2];
+    std::vector<Dxui3DRenderer::Vertex>                   m_recorderKeyVerts;
+    std::vector<Dxui3DRenderer::Vertex>                   m_recorderGlassVerts;
+    std::vector<Dxui3DRenderer::Vertex>                   m_envRoomVerts;
+    bool                                                  m_envReady          = false;   // the chrome's cube holds this scene
+    bool                                                  m_inEnvCapture      = false;   // drawing into that cube
+    std::array<float, DeskSceneModel::kRecorderKeyCount>  m_recorderKeyDepth  = {};
+    float                                                 m_recorderLidRad    = 0.0f;
+    bool                                                  m_recorderCassette  = true;
+    float                                                 m_recorderVolumeRad = 0.0f;
+    float                                                 m_recorderReelRad   = 0.0f;
 
     // GPU-resident copies of every array that is NOT rebuilt per frame, which
     // is all of them but the doors. Re-uploading the lot each frame made the
@@ -630,6 +727,7 @@ private:
     // memory holding a duplicate.
     Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
+    Dxui3DRenderer::StaticMesh            m_recorderOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 
     // The mounted image's name: its quad in WORLD space, and the texture the
@@ -637,15 +735,16 @@ private:
     // it. Its own revision, because these six vertices move whenever the
     // camera does and the shared one would re-upload the whole scene's
     // furniture with them.
-    std::vector<Dxui3DRenderer::Vertex>   m_diskLabelVerts[2];
-    ID3D11ShaderResourceView            * m_diskLabelSrv[2] = { nullptr, nullptr };
-    Dxui3DRenderer::StaticMesh            m_diskLabelMesh[2];
-    uint32_t                              m_diskLabelRev    = 1;
+    std::vector<Dxui3DRenderer::Vertex>    m_diskLabelVerts[kLabelCount];
+    ID3D11ShaderResourceView             * m_diskLabelSrv[kLabelCount]   = {};
+    Dxui3DRenderer::StaticMesh             m_diskLabelMesh[kLabelCount];
+    uint32_t                               m_diskLabelRev                = 1;
 
     Dxui3DRenderer::StaticMesh             m_labelMesh[2];
     Dxui3DRenderer::StaticMesh             m_monitorTiltMesh;
     Dxui3DRenderer::StaticMesh             m_monitorShadowMesh;
     Dxui3DRenderer::StaticMesh             m_driveShadowMesh;
+    Dxui3DRenderer::StaticMesh             m_recorderShadowMesh;
     Dxui3DRenderer::StaticMesh             m_monitorGlowMesh;
     Dxui3DRenderer::StaticMesh             m_driveGlowMesh;
     Dxui3DRenderer::StaticMesh             m_glassMesh;

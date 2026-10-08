@@ -3,7 +3,6 @@
 #include "InMemoryFileSystem.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
-#include "Core/DxuiDpiScaler.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "../CassoExplorer/FakeProcessLauncher.h"
 

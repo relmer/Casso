@@ -39,9 +39,10 @@ public:
     void  SetAnnunciatorSource (const AppleSoftSwitchBank * bank) { m_annunciatorSource = bank; }
     void  SetCycleSource       (const uint64_t * totalCycles)     { m_cycleSource       = totalCycles; }
 
-    void  SetAttached     (bool attached);
-    bool  IsAttached      () const;
-    void  SetJackSwitches (size_t jack, JoystickSwitches switches);
+    void  SetAttached          (bool attached);
+    bool  IsAttached           () const;
+    void  SetPaddlesConnected  (bool isConnected);
+    void  SetJackSwitches      (size_t jack, JoystickSwitches switches);
 
     void  OnMachineReset();
 
@@ -64,10 +65,11 @@ private:
     bool            IsAnnunciatorOn   (int index) const;
     JoystickSwitch  GetSelectedSwitch (int index) const;
 
-    const AppleSoftSwitchBank  * m_annunciatorSource = nullptr;
-    const uint64_t             * m_cycleSource       = nullptr;
-    atomic<bool>                 m_isAttached        { false };
-    JackStore                    m_jacks             {};
-    uint64_t                     m_resetCycle        = 0;
-    bool                         m_hasResetStamp     = false;
+    const AppleSoftSwitchBank  * m_annunciatorSource   = nullptr;
+    const uint64_t             * m_cycleSource         = nullptr;
+    atomic<bool>                 m_isAttached          { false };
+    atomic<bool>                 m_arePaddlesConnected { false };
+    JackStore                    m_jacks               {};
+    uint64_t                     m_resetCycle          = 0;
+    bool                         m_hasResetStamp       = false;
 };

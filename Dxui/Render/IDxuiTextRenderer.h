@@ -214,6 +214,22 @@ public:
                                     float          & outWidthDip,
                                     float          & outHeightDip)              = 0;
 
+    // Measurement in a given weight, for text drawn bold: a bold word is
+    // wider than the same word measured in the regular face. The default
+    // forwards to the regular measure so renderers without weights keep
+    // their existing behavior.
+    virtual HRESULT  MeasureStringWeighted (const wchar_t  * text,
+                                            float            fontSizeDip,
+                                            const wchar_t  * fontFamily,
+                                            DxuiFontWeight   weight,
+                                            float          & outWidthDip,
+                                            float          & outHeightDip)
+    {
+        UNREFERENCED_PARAMETER (weight);
+
+        return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+    }
+
     // Word-wrapped measurement inside maxWidthDip: outWidthDip is the widest
     // wrapped line, outHeightDip the stacked line height -- the box a
     // wrapping DrawString of the same text needs. The default forwards to
@@ -328,6 +344,18 @@ public:
         return MeasureString (L"Ag", fontSizePx, fontFamily, width, outHeightPx);
     }
 
+    // Blit an opaque BGRA8 frame that changes from call to call (an emulator
+    // framebuffer, a picture preview) scaled into the destination rect.
+    // Implementations keep the frame in its own cached GPU bitmap, separate
+    // from the icon cache, and re-upload the pixels on every call.
+    virtual HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
+                                      int              srcWidthPx,
+                                      int              srcHeightPx,
+                                      float            destXDip,
+                                      float            destYDip,
+                                      float            destWidthDip,
+                                      float            destHeightDip)           = 0;
+
     // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested
     // from an HICON) into the target. Implementations cache the source
     // pixels in a GPU bitmap; callers should keep the buffer stable
@@ -339,22 +367,6 @@ public:
                                      float            destYDip,
                                      float            destWidthDip,
                                      float            destHeightDip)            = 0;
-
-    // Blit an opaque BGRA8 framebuffer that changes from call to call (an
-    // emulator frame, a picture preview). Opaque pixels are already
-    // premultiplied, so the default draws through the icon path; the
-    // concrete renderer keeps a separate cache so the two do not thrash.
-    virtual HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
-                                      int              srcWidthPx,
-                                      int              srcHeightPx,
-                                      float            destXDip,
-                                      float            destYDip,
-                                      float            destWidthDip,
-                                      float            destHeightDip)
-    {
-        return DrawIconBitmap (srcBgraPixels, srcWidthPx, srcHeightPx,
-                               destXDip, destYDip, destWidthDip, destHeightDip);
-    }
 
     // Global alpha multiplier (matches IDxuiPainter::SetGlobalAlpha).
     // Defaulted to a no-op on the interface so test mocks don't have to
@@ -402,6 +414,11 @@ public:
         outWidthDip  = 0.0f;
         outHeightDip = 0.0f;
         return E_NOTIMPL;
+    }
+
+    HRESULT  DrawFramebuffer (const uint32_t *, int, int, float, float, float, float) override
+    {
+        return S_OK;
     }
 
     HRESULT  DrawIconBitmap (const uint32_t *, int, int, float, float, float, float) override

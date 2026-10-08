@@ -112,8 +112,6 @@ def main():
 
     out('#pragma once')
     out('')
-    out('#include "Render/DxuiVectorIcon.h"')
-    out('')
     out('')
     out('')
     out('')
