@@ -651,7 +651,8 @@ void DxuiPropertySheet::LayoutTabRects (
 //
 //  MeasureTabLabelDip
 //
-//  Measures a tab label in the font DxuiTabStrip draws it in.
+//  Measures a tab label in the font DxuiTabStrip draws it in: its label size
+//  and face, at normal weight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -667,7 +668,7 @@ HRESULT DxuiPropertySheet::MeasureTabLabelDip (
 
     outWidthDip = 0.0f;
 
-    hr = text.MeasureString (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTheme::GetUiFace(), outWidthDip, heightDip);
+    hr = text.MeasureString (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTabStrip::GetLabelFace(), outWidthDip, heightDip);
     CHRA (hr);
 
 Error:

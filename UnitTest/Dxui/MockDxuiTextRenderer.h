@@ -44,8 +44,11 @@ struct RecordedTextCall
     float             height       = 0.0f;
     uint32_t          argb         = 0;
     float             fontSizeDip  = 0.0f;
+    std::wstring      fontFamily;
     DxuiTextHAlign    hAlign       = DxuiTextHAlign::Left;
     DxuiTextVAlign    vAlign       = DxuiTextVAlign::Top;
+    DxuiFontWeight    weight       = DxuiFontWeight::Normal;
+    bool              wrap         = true;
 };
 
 
@@ -128,9 +131,13 @@ public:
     int  GetLastFramebufferWidth  () const { return m_lastFramebufferW; }
     int  GetLastFramebufferHeight () const { return m_lastFramebufferH; }
 
+    //  The face the last MeasureString call measured in.
+    const std::wstring &  GetLastMeasureFamily() const { return m_lastMeasureFamily; }
+
 private:
     std::vector<RecordedTextCall>          m_calls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;
+    std::wstring                           m_lastMeasureFamily;
     bool                                   m_measureReturnsZero = false;
     int                                    m_lastFramebufferW   = 0;
     int                                    m_lastFramebufferH   = 0;

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 
 
@@ -673,5 +675,72 @@ public:
 
         Assert::AreEqual (S_OK, hr);
         Assert::AreEqual (47.0f, widthDip);
+        Assert::AreEqual (std::wstring (DxuiTabStrip::GetLabelFace()), text.GetLastMeasureFamily(), L"in the face the strip draws labels in");
+    }
+
+
+    //  The sheet sizes each tab to its label and the strip draws the label
+    //  inside its tab, so the two have to agree on the inset, or every label
+    //  is cut short.
+    TEST_METHOD (TabStrip_DrawsEachLabelWholeInsideItsTab)
+    {
+        const wchar_t *                 labels[3] = { L"General", L"Hardware", L"Disk" };
+        LONG                            widths[3] = { 47, 58, 25 };
+        MockDxuiTextRenderer            text;
+        MockDxuiPainter                 painter;
+        MockDxuiTheme                   theme;
+        DxuiDpiScaler                   scaler;
+        DxuiTabStrip                    strip;
+        RECT                            stripRect = MakeRect (0, 0, 720, 36);
+        std::array<DxuiSheetTab, 3>     sheetTabs = {};
+        std::array<RECT, 3>             rects     = {};
+        std::vector<DxuiTabStrip::Tab>  tabs;
+        HRESULT                         hr        = S_OK;
+
+        scaler.SetDpi (96);
+
+        for (size_t i = 0; i < 3; i++)
+        {
+            text.SetCannedMetrics (labels[i], SIZE { widths[i], 17 });
+
+            hr = DxuiPropertySheet::MeasureTabLabelDip (text, labels[i], sheetTabs[i].labelWidthDip);
+            Assert::AreEqual (S_OK, hr);
+            sheetTabs[i].isVisible = true;
+        }
+
+        DxuiPropertySheet::LayoutTabRects (stripRect, scaler, sheetTabs, rects);
+
+        for (size_t i = 0; i < 3; i++)
+        {
+            DxuiTabStrip::Tab  tab;
+
+            tab.rect  = rects[i];
+            tab.label = labels[i];
+            tabs.push_back (tab);
+        }
+
+        strip.SetTabs     (tabs);
+        strip.SetSelected (0);
+        strip.Layout      (stripRect, scaler);
+        strip.Paint       (painter, text, theme);
+
+        for (size_t i = 0; i < 3; i++)
+        {
+            const RecordedTextCall  * drawn = nullptr;
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString && call.text == labels[i])
+                {
+                    drawn = &call;
+                }
+            }
+
+            Assert::IsNotNull (drawn, labels[i]);
+            Assert::IsTrue    (drawn->x >= (float) rects[i].left, labels[i]);
+            Assert::IsTrue    (drawn->x + drawn->width <= (float) rects[i].right, labels[i]);
+            Assert::IsTrue    (drawn->width >= (float) widths[i], labels[i]);
+            Assert::IsTrue    (drawn->weight == DxuiFontWeight::Normal, L"The weight the sheet measured at");
+        }
     }
 };
