@@ -5,6 +5,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiColor.h"
+#include "Core/DxuiPaneMetrics.h"
 #include "Core/DxuiUnicodeSymbols.h"
 
 
@@ -458,14 +459,17 @@ RECT DxuiTabGroup::GetTitleRect() const
 //
 //  DxuiTabGroup::GetStripRect
 //
-//  Along a document group's top, or along a tool window's bottom below its
-//  title bar; empty along the bottom when the group shows no tabs.
+//  The tab band: along a document group's top, or along a tool window's
+//  bottom, below its title bar and the line under the pane; empty along the
+//  bottom when the group shows no tabs. The line between the band and the
+//  pane is not part of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiTabGroup::GetStripRect() const
 {
-    long  height = HasStrip() ? m_scaler.ToPx (kStripDip) : 0;
+    long  height = m_scaler.ToPx (kStripDip);
+    long  line   = DxuiPaneMetrics::GetLinePx (m_scaler);
     long  title  = GetTitleRect().bottom;
 
 
@@ -475,7 +479,12 @@ RECT DxuiTabGroup::GetStripRect() const
         return RECT { m_boundsDip.left, m_boundsDip.top, m_boundsDip.right, std::min (m_boundsDip.bottom, m_boundsDip.top + height) };
     }
 
-    return RECT { m_boundsDip.left, std::max (title, m_boundsDip.bottom - height), m_boundsDip.right, m_boundsDip.bottom };
+    if (!HasStrip())
+    {
+        return RECT { m_boundsDip.left, m_boundsDip.bottom, m_boundsDip.right, m_boundsDip.bottom };
+    }
+
+    return RECT { m_boundsDip.left, std::max (title + line, m_boundsDip.bottom - height), m_boundsDip.right, m_boundsDip.bottom };
 }
 
 
@@ -486,20 +495,14 @@ RECT DxuiTabGroup::GetStripRect() const
 //
 //  DxuiTabGroup::GetBodyRect
 //
+//  Inside the pane's outline, below a document's tabs or a tool window's
+//  title bar, and above a tool window's tabs.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiTabGroup::GetBodyRect() const
 {
-    RECT  strip = GetStripRect();
-
-
-
-    if (m_kind == Kind::Document)
-    {
-        return RECT { m_boundsDip.left, strip.bottom, m_boundsDip.right, m_boundsDip.bottom };
-    }
-
-    return RECT { m_boundsDip.left, GetTitleRect().bottom, m_boundsDip.right, strip.top };
+    return DxuiPaneFrame::GetBodyRect (GetFrameSpec());
 }
 
 
@@ -528,7 +531,8 @@ bool DxuiTabGroup::IsCloseShown() const
 //  DxuiTabGroup::GetTitleButtonRect
 //
 //  The title bar's buttons from its right end: close, when shown, then the
-//  pin, then the menu, as Visual Studio orders them.
+//  pin, then the menu, as Visual Studio orders them. The close button ends
+//  inside the pane's outline.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -549,7 +553,7 @@ RECT DxuiTabGroup::GetTitleButtonRect (TitleButton button) const
 
     slot  = (button == TitleButton::Close) ? 0 : (button == TitleButton::Pin) ? 1 : 2;
     slot -= (button != TitleButton::Close && !IsCloseShown()) ? 1 : 0;
-    right = title.right - m_scaler.ToPx (1) - slot * size;
+    right = title.right - DxuiPaneMetrics::GetLinePx (m_scaler) - slot * size;
 
     return RECT { right - size, top, right, top + size };
 }
@@ -880,16 +884,15 @@ void DxuiTabGroup::LayoutContent()
 //
 //  DxuiTabGroup::Paint
 //
-//  The title bar of a tool window, the tabs, and, while the user is working
-//  in the group, an accent border round it. The strip carries a hairline
-//  along the edge it shares with the pane.
+//  The frame's under parts -- the band, the title bar's fill, the gap
+//  outside their rounded corners and the joins' fillets -- then the title
+//  bar of a tool window, then the tabs. The outline is PaintFrame's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t  frame = m_focusedLook ? theme.FocusAccent() : theme.Border();
-    RECT      strip = GetStripRect();
+    RECT  strip = GetStripRect();
 
 
 
@@ -900,6 +903,8 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         SyncStrip();
     }
 
+    DxuiPaneFrame::Paint (painter, DxuiPaneFrame::Build (GetFrameSpec()), DxuiPaneFramePhase::Under, GetFrameColors (theme));
+
     if (m_kind == Kind::ToolWindow)
     {
         PaintTitle (painter, text, theme);
@@ -907,16 +912,9 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     if (HasStrip() && strip.bottom > strip.top)
     {
-        m_strip.SetSelectedFill    (theme.ContentBackground());
-        //  A tool window's bottom band is a shade darker than the window's
-        //  surface, as Visual Studio draws it, so it reads apart from the pane
-        //  above it.
-        m_strip.SetStripFill       ((m_kind == Kind::ToolWindow) ? DxuiColor::Darken (theme.Background(), kBandDarken) : theme.Background());
-        m_strip.SetSelectedOutline (frame);
+        m_strip.SetSelectedFill (theme.ContentBackground());
         m_strip.Paint (painter, text, theme);
     }
-
-    PaintFrame (painter, frame);
 }
 
 
@@ -927,42 +925,80 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  DxuiTabGroup::PaintFrame
 //
-//  A border round the pane and its title bar, in the accent color while the
-//  user is working in the group. Along the tabs it runs in the strip's first
-//  row -- its last, for a document -- and is broken where the selected tab
-//  joins, whose own outline carries it on round the tab.
+//  The frame's over parts: the gap outside the pane's rounded corners where
+//  its controls fill the body, and the outline round the pane and its
+//  selected tab. The dock site calls it after every sibling has painted, so
+//  the outline and the corner caps lie over the pane's controls whatever the
+//  child order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTabGroup::PaintFrame (IDxuiPainter & painter, uint32_t argb) const
+void DxuiTabGroup::PaintFrame (IDxuiPainter & painter, const IDxuiTheme & theme) const
 {
-    float  line     = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    RECT   strip    = GetStripRect();
-    bool   hasStrip = HasStrip() && strip.bottom > strip.top;
-    float  left     = (float) m_boundsDip.left;
-    float  right    = (float) m_boundsDip.right;
-    float  top      = (float) ((hasStrip && m_kind == Kind::Document) ? strip.bottom - (long) line : m_boundsDip.top);
-    float  bottom   = (float) ((hasStrip && m_kind == Kind::ToolWindow) ? strip.top + (long) line : m_boundsDip.bottom);
-    float  edgeY    = (m_kind == Kind::Document) ? top : bottom - line;
-    long   joinL    = 0;
-    long   joinR    = 0;
+    DxuiPaneFrame::Paint (painter, DxuiPaneFrame::Build (GetFrameSpec()), DxuiPaneFramePhase::Over, GetFrameColors (theme));
+}
 
 
 
-    painter.FillRect (left,         top, line, bottom - top, argb);
-    painter.FillRect (right - line, top, line, bottom - top, argb);
-    painter.FillRect (left, (m_kind == Kind::Document) ? bottom - line : top, right - left, line, argb);
 
-    //  The edge along the tabs, less the selected tab's join.
-    if (hasStrip && m_strip.GetJoinSpan (joinL, joinR))
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabGroup::GetFrameSpec
+//
+//  The frame as the group stands: its bounds, its title bar and tab band,
+//  and where its selected tab shows along the band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneFrameSpec DxuiTabGroup::GetFrameSpec() const
+{
+    DxuiPaneFrameSpec  spec;
+    RECT               title = GetTitleRect();
+    RECT               strip = GetStripRect();
+
+
+
+    spec.pane       = m_boundsDip;
+    spec.toolWindow = m_kind == Kind::ToolWindow;
+    spec.titlePx    = title.bottom - title.top;
+    spec.bandPx     = HasStrip() ? strip.bottom - strip.top : 0;
+    spec.linePx     = DxuiPaneMetrics::GetLinePx (m_scaler);
+    spec.cornerPx   = DxuiPaneMetrics::GetCornerPx (m_scaler);
+
+    if (spec.bandPx > 0)
     {
-        painter.FillRect (left,          edgeY, std::max (0.0f, (float) joinL - left),  line, argb);
-        painter.FillRect ((float) joinR, edgeY, std::max (0.0f, right - (float) joinR), line, argb);
+        spec.hasSelected = m_strip.GetSelectedSpan (spec.selLeft, spec.selRight, spec.openLeft, spec.openRight);
     }
-    else
-    {
-        painter.FillRect (left, edgeY, right - left, line, argb);
-    }
+
+    return spec;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabGroup::GetFrameColors
+//
+//  The outline is in the focus accent while the user works in the group,
+//  and in the border color otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPaneFrameColors DxuiTabGroup::GetFrameColors (const IDxuiTheme & theme) const
+{
+    DxuiPaneFrameColors  colors;
+
+
+
+    colors.gap     = theme.DockGap();
+    colors.band    = theme.PaneBand();
+    colors.content = theme.ContentBackground();
+    colors.outline = m_focusedLook ? theme.FocusAccent() : theme.Border();
+
+    return colors;
 }
 
 
@@ -973,8 +1009,10 @@ void DxuiTabGroup::PaintFrame (IDxuiPainter & painter, uint32_t argb) const
 //
 //  DxuiTabGroup::PaintTitle
 //
-//  The active pane's title, and the menu, pin and close buttons at the right
-//  end, washed while hovered and a shade darker while pressed.
+//  The active pane's title, from the pane's text inset, and the menu, pin and
+//  close buttons at the right end, each washed in a rounded square while
+//  hovered and a shade darker while pressed. The title bar's fill is a part
+//  of the frame, drawn before this.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -982,20 +1020,21 @@ void DxuiTabGroup::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text,
 {
     static constexpr float        kPressedScale = 0.82f;
     static constexpr float        kGlyphDip     = 10.0f;
+    static constexpr int          kWashInsetDip = 3;
     static constexpr TitleButton  kButtons[]    = { TitleButton::Menu, TitleButton::Pin, TitleButton::Close };
     static const wchar_t * const  kGlyphs[]     = { s_kpszMdl2ChevronDown, s_kpszMdl2Pin, s_kpszMdl2Cancel };
     DxuiFontHandle                font          = theme.BodyFont();
     RECT                          title         = GetTitleRect();
-    float                         pad           = m_scaler.ToPxf ((float) kTabPadDip);
+    float                         pad           = (float) DxuiPaneMetrics::GetTextInsetPx (m_scaler);
     float                         height        = (float) (title.bottom - title.top);
+    float                         washInset     = (float) m_scaler.ToPx (kWashInsetDip);
+    float                         washCorner    = (float) m_scaler.ToPx (DxuiPaneMetrics::kCornerDip);
     uint32_t                      hover         = (theme.Foreground() & 0x00FFFFFFu) | 0x14000000u;
     long                          textRight     = title.right;
     const Tab                   * active        = (m_active >= 0 && m_active < (int) m_tabs.size()) ? &m_tabs[(size_t) m_active] : nullptr;
     HRESULT                       hr            = S_OK;
 
 
-
-    painter.FillRect ((float) title.left, (float) title.top, (float) (title.right - title.left), height, theme.Background());
 
     for (size_t i = 0; i < std::size (kButtons); i++)
     {
@@ -1010,8 +1049,9 @@ void DxuiTabGroup::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         if (m_hoverButton == (int) kButtons[i])
         {
-            painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top),
-                              (m_pressButton == (int) kButtons[i]) ? DxuiColor::Darken (hover, kPressedScale) : hover);
+            painter.FillRoundedRect ((float) r.left + washInset, (float) r.top + washInset,
+                                     (float) (r.right - r.left) - 2.0f * washInset, (float) (r.bottom - r.top) - 2.0f * washInset, washCorner,
+                                     (m_pressButton == (int) kButtons[i]) ? DxuiColor::Darken (hover, kPressedScale) : hover);
         }
 
         hr = text.DrawString (kGlyphs[i], (float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top),

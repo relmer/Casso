@@ -15,17 +15,27 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiTabGroupBandTests
 //
-//  A tool window's bottom tabs lie in a band a shade off the window's own
-//  surface, as Visual Studio draws them, so the band reads apart from the
-//  pane above it.
+//  A group's tabs lie in a band across the pane's full width, a step darker
+//  than the pane, as Visual Studio draws them: along a document's top and
+//  along a tool window's bottom. The band is rounded at the pane's outer
+//  corners, so it is a rounded fill held to the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DxuiTabGroupBandTests)
+namespace DxuiTabGroupBandTests
 {
-public:
+    struct Band
+    {
+        RECT      strip = {};
+        bool      found = false;
+        uint32_t  argb  = 0;
+    };
 
-    TEST_METHOD (TheBottomBandIsAShadeOffTheBackground)
+
+
+    //  The band of a group of two panes, of the kind given: the rounded fill
+    //  clipped to the strip, in the theme's band color.
+    static Band PaintBand (DxuiTabGroup::Kind kind, const MockDxuiTheme & theme)
     {
         DxuiTabGroup          group;
         MockDxuiControl       a;
@@ -33,70 +43,77 @@ public:
         DxuiDpiScaler         scaler;
         MockDxuiPainter       painter;
         MockDxuiTextRenderer  text;
-        MockDxuiTheme         theme;
-        RECT                  strip  = {};
-        bool                  filled = false;
-        uint32_t              band   = 0;
+        Band                  band;
+
+
 
         group.AddTab  (L"Memory 1", &a);
         group.AddTab  (L"Memory 2", &b);
-        group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+        group.SetKind (kind);
         group.Layout  (RECT { 0, 0, 400, 300 }, scaler);
         group.Paint   (painter, text, theme);
 
-        strip = group.GetStripRect();
+        band.strip = group.GetStripRect();
 
         for (const RecordedPaintCall & call : painter.Calls())
         {
-            if (call.kind == RecordedPaintKind::FillRect && call.x == (float) strip.left && call.y == (float) strip.top &&
-                call.width == (float) (strip.right - strip.left) && call.height == (float) (strip.bottom - strip.top))
+            bool  clippedToStrip = call.isClipped && call.clip.left == band.strip.left && call.clip.top == band.strip.top &&
+                                   call.clip.right == band.strip.right && call.clip.bottom == band.strip.bottom;
+
+            if (call.kind == RecordedPaintKind::FillRoundedRect && clippedToStrip && call.argb == theme.PaneBand())
             {
-                filled = true;
-                band   = call.argb;
+                band.found = true;
+                band.argb  = call.argb;
             }
         }
 
-        Assert::IsTrue      (filled, L"the band is filled across the strip");
-        Assert::AreNotEqual (theme.Background(), band, L"the band is a shade off the background");
+        return band;
     }
 
 
 
-    TEST_METHOD (TheBottomBandIsDarkerThanTheBackground)
+    static int SumChannels (uint32_t argb)
     {
-        DxuiTabGroup          group;
-        MockDxuiControl       a;
-        MockDxuiControl       b;
-        DxuiDpiScaler         scaler;
-        MockDxuiPainter       painter;
-        MockDxuiTextRenderer  text;
-        MockDxuiTheme         theme;
-        RECT                  strip   = {};
-        uint32_t              band    = 0;
-        uint32_t              back    = theme.Background();
-        int                   bandSum = 0;
-        int                   backSum = 0;
+        return (int) ((argb >> 16) & 0xFF) + (int) ((argb >> 8) & 0xFF) + (int) (argb & 0xFF);
+    }
 
-        group.AddTab  (L"Memory 1", &a);
-        group.AddTab  (L"Memory 2", &b);
-        group.SetKind (DxuiTabGroup::Kind::ToolWindow);
-        group.Layout  (RECT { 0, 0, 400, 300 }, scaler);
-        group.Paint   (painter, text, theme);
 
-        strip = group.GetStripRect();
 
-        for (const RecordedPaintCall & call : painter.Calls())
+    TEST_CLASS (DxuiTabGroupBandTests)
+    {
+    public:
+
+        TEST_METHOD (TheBandIsFilledAcrossTheStrip)
         {
-            if (call.kind == RecordedPaintKind::FillRect && call.x == (float) strip.left && call.y == (float) strip.top &&
-                call.width == (float) (strip.right - strip.left) && call.height == (float) (strip.bottom - strip.top))
+            MockDxuiTheme  theme;
+
+
+
+            for (DxuiTabGroup::Kind kind : { DxuiTabGroup::Kind::Document, DxuiTabGroup::Kind::ToolWindow })
             {
-                band = call.argb;
+                Band  band = PaintBand (kind, theme);
+
+                Assert::IsTrue   (band.strip.bottom > band.strip.top, L"the group shows its tabs");
+                Assert::IsTrue   (band.found,                         L"a rounded fill in the band color, clipped to the strip");
+                Assert::AreEqual (400L, band.strip.right - band.strip.left, L"across the pane's full width");
             }
         }
 
-        bandSum = (int) ((band >> 16) & 0xFF) + (int) ((band >> 8) & 0xFF) + (int) (band & 0xFF);
-        backSum = (int) ((back >> 16) & 0xFF) + (int) ((back >> 8) & 0xFF) + (int) (back & 0xFF);
 
-        Assert::IsTrue (bandSum < backSum, L"the band is darker than the background, not lighter");
-    }
-};
+        TEST_METHOD (TheBandIsDarkerThanTheContent)
+        {
+            MockDxuiTheme  theme;
+
+
+
+            for (DxuiTabGroup::Kind kind : { DxuiTabGroup::Kind::Document, DxuiTabGroup::Kind::ToolWindow })
+            {
+                Band  band = PaintBand (kind, theme);
+
+                Assert::IsTrue      (band.found, L"the band is painted");
+                Assert::AreNotEqual (theme.ContentBackground(), band.argb, L"the band is a step off the pane");
+                Assert::IsTrue      (SumChannels (band.argb) < SumChannels (theme.ContentBackground()), L"darker, not lighter");
+            }
+        }
+    };
+}

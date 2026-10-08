@@ -126,7 +126,7 @@ namespace DxuiDockSiteFloatingTests
             Assert::AreEqual ((size_t) 1, rig.site.GetGroupCount());
             Assert::IsTrue   (rig.site.GetGroup (0)->GetKind() == DxuiTabGroup::Kind::ToolWindow, L"a document too has the title bar");
             Assert::AreEqual ((long) DxuiTabGroup::kTitleDip, rig.source.GetBounds().top, L"the pane starts below the title bar");
-            Assert::AreEqual ((long) 300, rig.source.GetBounds().bottom, L"no tab strip under it");
+            Assert::AreEqual ((long) 299, rig.source.GetBounds().bottom, L"no tab strip under it, inside the outline");
         }
 
 

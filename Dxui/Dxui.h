@@ -173,6 +173,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiFieldError.h"
 #include "Widgets/DxuiHexView.h"
+#include "Widgets/DxuiPaneFrame.h"
 #include "Widgets/DxuiTabGroup.h"
 #include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbarEditBox.h"

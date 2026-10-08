@@ -261,6 +261,7 @@ public:
 
     static constexpr int  kSashDip      = 6;
     static constexpr int  kSlideMinDip  = 240;
+    static constexpr int  kEdgeStripDip = 28;   // an auto-hide edge's strip, which keeps its depth when a group's band changes
 
     //  An edge tab's bar, against the window's outer edge, and how far it
     //  stops short of each end so the bars of neighboring tabs stay apart.

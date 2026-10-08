@@ -658,6 +658,7 @@
     <ClCompile Include="Dxui\DxuiTextViewFindOptionsTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewGutterTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabStripTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTabStripJoinTests.cpp" />
     <ClCompile Include="Dxui\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\DebuggerOpenKeyTests.cpp" />
@@ -717,6 +718,7 @@
     <ClCompile Include="Dxui\DxuiPropertyPageTests.cpp" />
     <ClCompile Include="Dxui\DxuiPropertySheetTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPaneFrameTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneLayoutDockBackTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneMetricsTests.cpp" />

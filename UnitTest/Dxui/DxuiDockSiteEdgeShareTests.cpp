@@ -82,6 +82,6 @@ public:
         rig.site.ClearEdgeShare();
         rig.site.Relayout();
 
-        Assert::AreEqual ((long) 0, rig.code.GetBounds().left);
+        Assert::AreEqual ((long) DxuiPaneMetrics::GetLinePx (rig.scaler), rig.code.GetBounds().left, L"against the left edge, inside its outline");
     }
 };

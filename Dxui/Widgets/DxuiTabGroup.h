@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Widgets/DxuiPaneFrame.h"
 #include "Widgets/DxuiTabStrip.h"
 
 
@@ -22,8 +23,11 @@
 //    title, a menu button, a pin and a close button -- and, holding more
 //    than one pane, its tabs along its bottom.
 //
-//  A group with focus shows a 1-pixel accent border and an accent outline on
-//  its selected tab.
+//  Each group has one outline, round the pane and its selected tab, in the
+//  focus accent while the user works in the group and in the border color
+//  otherwise. PaintFrame draws it, with the rounded corners and the joins
+//  where the selected tab meets the line along its band (see DxuiPaneFrame),
+//  after every sibling has painted, so it lies over the pane's controls.
 //
 //  THE TABS ARE A DxuiTabStrip, the strip Casso Explorer uses, in its document
 //  or tool-window style; the group draws no tab of its own.
@@ -101,7 +105,7 @@ public:
     void  SetKind        (Kind kind);
     Kind  GetKind        () const { return m_kind; }
 
-    //  The accent border and outline of the group the user is working in.
+    //  The accent outline of the group the user is working in.
     void  SetFocusedLook (bool focused) { m_focusedLook = focused; }
     bool  HasFocusedLook () const       { return m_focusedLook; }
 
@@ -173,17 +177,23 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Tabs"; }
 
-    static constexpr int  kStripDip       = 28;
-    static constexpr int  kTitleDip       = 24;
-    static constexpr int  kTitleButtonDip = 22;
+    //  The outline and the corner caps, which the dock site paints after
+    //  every sibling has painted, so they lie over the pane's controls
+    //  whatever the child order.
+    void  PaintFrame (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+
+    //  The tab band, without the line between it and the pane: Visual
+    //  Studio's 31 px at 125%.
+    static constexpr int  kStripDip       = 25;
+    static constexpr int  kTitleDip       = 25;
+
+    //  A title bar button's square: Visual Studio's 30-px pitch at 125%.
+    static constexpr int  kTitleButtonDip = 24;
     static constexpr int  kTabPadDip      = 10;
     static constexpr int  kCharDip        = 7;
     static constexpr int  kIndicatorDip   = 10;
     static constexpr int  kDragDip        = 4;
     static constexpr int  kNewTabDip      = 24;
-
-    //  How much darker than the background a tool window's tab band is.
-    static constexpr float  kBandDarken = 0.85f;
 
 private:
     struct Tab
@@ -204,7 +214,9 @@ private:
     int   GetTitleButtonAt (POINT pointDip) const;
     void  PaintTitle    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void  RunPending    ();
-    void  PaintFrame    (IDxuiPainter & painter, uint32_t argb) const;
+
+    DxuiPaneFrameSpec    GetFrameSpec   () const;
+    DxuiPaneFrameColors  GetFrameColors (const IDxuiTheme & theme) const;
 
     std::vector<Tab>     m_tabs;
     int                  m_active        = -1;
