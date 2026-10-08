@@ -85,7 +85,7 @@ void ColorKeyPopup::Show (
     m_isShown    = true;
     m_rows       = MakeRows (pane, palette);
     m_background = theme.ContentBackground();
-    m_border     = theme.Border();
+    m_border     = DxuiColor::Darken (m_background, DxuiTheme::kTooltipBorderScale);
     m_foreground = theme.Foreground();
 
     //  A window with no popup host, as in a test, keeps the key's state

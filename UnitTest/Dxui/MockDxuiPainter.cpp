@@ -275,16 +275,81 @@ void MockDxuiPainter::DrawLine (float x0, float y0, float x1, float y1, float th
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PushClip
+//
+//  Kept as a RECT, each edge rounded to the nearest whole pixel, so a test
+//  compares it with integer bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockDxuiPainter::PushClip (float xPx, float yPx, float widthPx, float heightPx)
+{
+    m_clipStack.push_back (RECT { std::lround (xPx), std::lround (yPx), std::lround (xPx + widthPx), std::lround (yPx + heightPx) });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PopClip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockDxuiPainter::PopClip()
+{
+    if (!m_clipStack.empty())
+    {
+        m_clipStack.pop_back();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Record
 //
-//  Each call carries the clip in force when it was drawn.
+//  Each call records the clip in force when it was drawn: the intersection
+//  of the SetClipRect clip and every pushed one. Pushed clips that do not
+//  overlap leave the call clipped, to an empty rect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MockDxuiPainter::Record (RecordedPaintCall & call)
 {
-    call.isClipped = m_hasClip;
-    call.clip      = m_clip;
+    RECT  clip      = m_clip;
+    bool  isClipped = m_hasClip;
+
+
+
+    for (const RECT & pushed : m_clipStack)
+    {
+        if (isClipped)
+        {
+            clip = RECT { (std::max) (clip.left,   pushed.left),
+                          (std::max) (clip.top,    pushed.top),
+                          (std::min) (clip.right,  pushed.right),
+                          (std::min) (clip.bottom, pushed.bottom) };
+        }
+        else
+        {
+            clip = pushed;
+        }
+
+        isClipped = true;
+    }
+
+    if (!m_clipStack.empty() && (clip.right <= clip.left || clip.bottom <= clip.top))
+    {
+        clip = RECT {};
+    }
+
+    call.isClipped = isClipped;
+    call.clip      = clip;
     m_calls.push_back (call);
 }
 

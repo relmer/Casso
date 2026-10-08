@@ -35,6 +35,9 @@ TEST_CLASS (DxuiPanelTests)
 {
 public:
 
+    //  Each Paint (false) and PaintAfterSiblings (true), in the order they ran.
+    using PaintLog = std::vector<std::pair<const MockDxuiControl *, bool>>;
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
@@ -452,8 +455,9 @@ public:
     }
 
 
-    //  The clips a painter is given, and how many times the child had painted
-    //  when each was pushed and popped.
+    //  The clips a painter is given, how many times the child had painted
+    //  when each was pushed and popped, and how many times it had run its
+    //  after pass when each was popped.
     class ClipRecordingPainter : public MockDxuiPainter
     {
     public:
@@ -461,20 +465,24 @@ public:
 
         void  PushClip (float xPx, float yPx, float widthPx, float heightPx) override
         {
+            MockDxuiPainter::PushClip (xPx, yPx, widthPx, heightPx);
             pushed.push_back (RECT { (LONG) xPx, (LONG) yPx, (LONG) (xPx + widthPx), (LONG) (yPx + heightPx) });
             paintsAtPush = m_child.paintCount;
         }
 
         void  PopClip() override
         {
+            MockDxuiPainter::PopClip();
             popped++;
             paintsAtPop = m_child.paintCount;
+            aftersAtPop = m_child.afterCount;
         }
 
         std::vector<RECT>  pushed;
         int                popped       = 0;
         int                paintsAtPush = -1;
         int                paintsAtPop  = -1;
+        int                aftersAtPop  = -1;
 
     private:
         const MockDxuiControl  & m_child;
@@ -508,6 +516,109 @@ public:
         panel.Paint (painter, text, theme);
 
         Assert::AreEqual ((size_t) 0, painter.pushed.size(),          L"cleared");
+    }
+
+
+    TEST_METHOD (NestedPushClipsIntersect)
+    {
+        MockDxuiPainter  painter;
+        RECT             inner   = MakeRect (50, 20, 100, 100);
+        RECT             outer   = MakeRect (0, 0, 100, 100);
+
+
+
+        painter.PushClip (0.0f, 0.0f, 100.0f, 100.0f);
+        painter.PushClip (50.0f, 20.0f, 100.0f, 100.0f);
+        painter.FillRect (0.0f, 0.0f, 10.0f, 10.0f, MockDxuiTheme::s_kForeground);
+
+        painter.PopClip();
+        painter.FillRect (0.0f, 0.0f, 10.0f, 10.0f, MockDxuiTheme::s_kForeground);
+
+        painter.PopClip();
+        painter.FillRect (0.0f, 0.0f, 10.0f, 10.0f, MockDxuiTheme::s_kForeground);
+
+        Assert::AreEqual ((size_t) 3, painter.Calls().size());
+        Assert::IsTrue   (painter.Calls()[0].isClipped);
+        Assert::IsTrue   (EqualRect (&inner, &painter.Calls()[0].clip) != FALSE, L"inside both clips");
+        Assert::IsTrue   (painter.Calls()[1].isClipped);
+        Assert::IsTrue   (EqualRect (&outer, &painter.Calls()[1].clip) != FALSE, L"the outer clip once the inner is popped");
+        Assert::IsFalse  (painter.Calls()[2].isClipped,                          L"no clip once both are popped");
+    }
+
+
+    TEST_METHOD (PaintAfterSiblings_RunsAfterEverySibling)
+    {
+        DxuiPanel               panel;
+        MockDxuiControl       & a        = panel.Add<MockDxuiControl>();
+        MockDxuiControl       & b        = panel.Add<MockDxuiControl>();
+        MockDxuiPainter         painter;
+        MockDxuiTextRenderer    text;
+        MockDxuiTheme           theme;
+        PaintLog                log;
+        PaintLog                expected = { { &a, false }, { &b, false }, { &a, true }, { &b, true } };
+
+
+
+        a.paintLog = &log;
+        b.paintLog = &log;
+        panel.Paint (painter, text, theme);
+
+        Assert::AreEqual ((size_t) 4, log.size());
+        Assert::IsTrue   (log == expected, L"every child paints before any child's after pass");
+    }
+
+
+    TEST_METHOD (PaintAfterSiblings_SkipsHiddenAndTopLayerChildren)
+    {
+        DxuiPanel               panel;
+        MockDxuiControl       & shown    = panel.Add<MockDxuiControl>();
+        MockDxuiControl       & hidden   = panel.Add<MockDxuiControl>();
+        MockDxuiControl       & top      = panel.Add<MockDxuiControl>();
+        MockDxuiControl       & raised   = panel.Add<MockDxuiControl>();
+        MockDxuiPainter         painter;
+        MockDxuiTextRenderer    text;
+        MockDxuiTheme           theme;
+        PaintLog                log;
+        PaintLog                expected = { { &top, false }, { &top, true }, { &raised, false }, { &raised, true } };
+
+
+
+        hidden.SetVisible     (false);
+        panel.SetTopLayer     ({ &top });
+        panel.SetRaisedChild  (&raised);
+        panel.Paint           (painter, text, theme);
+
+        Assert::AreEqual (1, shown.afterCount,  L"a child the page paints");
+        Assert::AreEqual (0, hidden.afterCount, L"not a hidden child");
+        Assert::AreEqual (0, top.afterCount,    L"not a top-layer child, which the page passes over");
+        Assert::AreEqual (0, raised.afterCount, L"nor the raised child");
+
+        top.paintLog    = &log;
+        raised.paintLog = &log;
+        panel.PaintTopLayer (painter, text, theme);
+
+        Assert::IsTrue   (log == expected,      L"the top layer runs each one's after pass, after its Paint");
+        Assert::AreEqual (1, shown.afterCount,  L"and not the page's children again");
+    }
+
+
+    TEST_METHOD (PaintAfterSiblings_IsOutsideTheChildClip)
+    {
+        DxuiPanel               panel;
+        MockDxuiControl       & clipped  = panel.Add<MockDxuiControl>();
+        ClipRecordingPainter    painter (clipped);
+        MockDxuiTextRenderer    text;
+        MockDxuiTheme           theme;
+
+
+
+        panel.SetChildClip (&clipped, MakeRect (10, 20, 110, 70));
+        panel.Paint        (painter, text, theme);
+
+        Assert::AreEqual ((size_t) 1, painter.pushed.size(), L"one clip, around the child's Paint only");
+        Assert::AreEqual (1, painter.paintsAtPop,            L"popped after the child's Paint");
+        Assert::AreEqual (0, painter.aftersAtPop,            L"and before its after pass");
+        Assert::AreEqual (1, clipped.afterCount);
     }
 };
 

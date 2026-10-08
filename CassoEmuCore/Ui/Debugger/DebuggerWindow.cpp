@@ -2647,6 +2647,11 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
     if (m_theme != nullptr)
     {
         m_tooltip.SetTheme (*m_theme);
+
+        for (const auto & entry : m_floatTips)
+        {
+            entry.second->SetTheme (*m_theme);
+        }
     }
 
     for (const auto & entry : m_floats)

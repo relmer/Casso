@@ -936,10 +936,11 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //
 //  RenderPopup
 //
-//  Popup-host render hook. The host has already cleared the back buffer
-//  to s_kBgArgb, so this only draws the border (painter / D3D, under the
-//  text) and the text (D2D, composited on top). Coordinates are popup-
-//  local pixels with the origin at the balloon's top-left.
+//  Popup-host render hook. The host has already filled the card with
+//  m_bgArgb, passed as showParams.backgroundArgb, so this only draws the
+//  border (painter / D3D, under the text) and the text (D2D, composited on
+//  top). Coordinates are popup-local pixels with the origin at the balloon's
+//  top-left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -76,6 +76,9 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  buttonHover              = 0;
     uint32_t  buttonPressed            = 0;
     uint32_t  buttonBorder             = 0;
+
+    //  The tooltip's fill and border. Zero, the default, takes the window
+    //  background and half its brightness.
     uint32_t  tooltipBg                = 0;
     uint32_t  tooltipBorder            = 0;
     uint32_t  tooltipText              = 0;
@@ -104,6 +107,17 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  mapRom                   = 0;
     uint32_t  mapSlotRom               = 0;
     uint32_t  mapIo                    = 0;
+
+    //  The gap between docked panes, the band behind a pane's tabs, and the
+    //  drop targets a dragged pane shows. Zero takes the derived color.
+    uint32_t  dockGap                  = 0;
+    uint32_t  paneBand                 = 0;
+    uint32_t  dockGuideBorder          = 0;
+    uint32_t  dockGuideFill            = 0;
+    uint32_t  dockGuideButtonBorder    = 0;
+    uint32_t  dockGuideButtonFill      = 0;
+    uint32_t  dockGuideGlyph           = 0;
+    uint32_t  dockGuideArrow           = 0;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
@@ -138,6 +152,15 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  Border              () const override { return panelEdge;          }
     uint32_t  Divider             () const override { return buttonBorder;       }
 
+    uint32_t  DockGap               () const override { return (dockGap != 0) ? dockGap : IDxuiTheme::DockGap(); }
+    uint32_t  PaneBand              () const override { return (paneBand != 0) ? paneBand : IDxuiTheme::PaneBand(); }
+    uint32_t  DockGuideBorder       () const override { return (dockGuideBorder != 0) ? dockGuideBorder : IDxuiTheme::DockGuideBorder(); }
+    uint32_t  DockGuideFill         () const override { return (dockGuideFill != 0) ? dockGuideFill : IDxuiTheme::DockGuideFill(); }
+    uint32_t  DockGuideButtonBorder () const override { return (dockGuideButtonBorder != 0) ? dockGuideButtonBorder : IDxuiTheme::DockGuideButtonBorder(); }
+    uint32_t  DockGuideButtonFill   () const override { return (dockGuideButtonFill != 0) ? dockGuideButtonFill : IDxuiTheme::DockGuideButtonFill(); }
+    uint32_t  DockGuideGlyph        () const override { return (dockGuideGlyph != 0) ? dockGuideGlyph : IDxuiTheme::DockGuideGlyph(); }
+    uint32_t  DockGuideArrow        () const override { return (dockGuideArrow != 0) ? dockGuideArrow : IDxuiTheme::DockGuideArrow(); }
+
     uint32_t  ButtonIdle          () const override { return buttonIdle;         }
     uint32_t  ButtonHover         () const override { return buttonHover;        }
     uint32_t  ButtonPressed       () const override { return buttonPressed;      }
@@ -153,8 +176,8 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  SystemCloseHover    () const override { return sysButtonCloseHover; }
     uint32_t  SystemClosePressed  () const override { return sysButtonClosePressed; }
 
-    uint32_t  TooltipBackground   () const override { return tooltipBg;     }
-    uint32_t  TooltipBorder       () const override { return tooltipBorder; }
+    uint32_t  TooltipBackground   () const override { return (tooltipBg     != 0) ? tooltipBg     : Background(); }
+    uint32_t  TooltipBorder       () const override { return (tooltipBorder != 0) ? tooltipBorder : DxuiColor::Darken (TooltipBackground(), kTooltipBorderScale); }
     uint32_t  TooltipForeground   () const override { return tooltipText;   }
 
     // Typography. Faces and sizes are centralized here so widgets read
@@ -177,6 +200,10 @@ struct DxuiTheme : public IDxuiTheme
     //  OverlayCornerRadius is, which makes a control-radius card inset by the
     //  difference sit exactly concentric inside one.
     static constexpr float         kOverlayCornerRadiusDip = 8.0f;
+
+    //  A tooltip's border against its fill: each channel of the fill scaled
+    //  by this, so the border is half the fill's brightness.
+    static constexpr float         kTooltipBorderScale = 0.5f;
 
     DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
     DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
@@ -219,8 +246,6 @@ struct DxuiTheme : public IDxuiTheme
         theme.buttonHover               = 0xFF45494F;
         theme.buttonPressed             = 0xFF23252A;
         theme.buttonBorder              = 0xFF55595F;
-        theme.tooltipBg                 = 0xFF2E3035;
-        theme.tooltipBorder             = 0xFF55595F;
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                     = 0xFFFF6666;
         theme.resultText                = 0xFF4EC9E0;
@@ -259,8 +284,6 @@ struct DxuiTheme : public IDxuiTheme
         theme.buttonHover               = 0xFFD0D0D0;
         theme.buttonPressed             = 0xFFC0C0C0;
         theme.buttonBorder              = 0xFFB0B0B0;
-        theme.tooltipBg                 = 0xFFFFFFFF;
-        theme.tooltipBorder             = 0xFFB0B0B0;
         theme.tooltipText               = 0xFF1A1A1A;
         theme.errorText                     = 0xFFC02020;
         theme.resultText                = 0xFF00727D;

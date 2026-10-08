@@ -54,11 +54,18 @@ DxuiLightTheme::DxuiLightTheme()
     buttonHover              = 0xFFF6F6F6;
     buttonPressed            = 0xFFF0F0F0;
     buttonBorder             = 0xFFD1D1D1;
-    tooltipBg                = 0xFFF9F9F9;
-    tooltipBorder            = 0xFFD1D1D1;
     tooltipText              = 0xFF1A1A1A;
     errorText                = 0xFFC42B1C;
     resultText               = 0xFF00727D;
+    dockGuideBorder          = 0xFFCCCEDB;
+    dockGuideFill            = 0xAAEAEAEE;
+
+    //  Transparent, not zero, which would take the derived color: Visual
+    //  Studio's light theme draws no border around a drop target's button.
+    dockGuideButtonBorder    = 0x00F3F3F4;
+    dockGuideButtonFill      = 0xFFF3F3F4;
+    dockGuideGlyph           = 0xFF4893CE;
+    dockGuideArrow           = 0xFF5D5D5E;
 }
 
 

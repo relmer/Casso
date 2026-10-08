@@ -94,6 +94,14 @@ public:
                                    IDxuiTextRenderer   & text,
                                    const IDxuiTheme    & theme)                 = 0;
 
+    // The panel holding the control calls this after every child has painted,
+    // outside the control's child clip, for chrome that must lie over its
+    // neighbors, such as a dock site's pane frames and drop targets. A
+    // container that paints its own children does not run it.
+    virtual void  PaintAfterSiblings (IDxuiPainter        & painter,
+                                      IDxuiTextRenderer   & text,
+                                      const IDxuiTheme    & theme)              { (void) painter; (void) text; (void) theme; }
+
     virtual bool  OnMouse         (const DxuiMouseEvent & ev)                   { (void) ev; return false; }
     virtual bool  OnKey           (const DxuiKeyEvent   & ev)                   { (void) ev; return false; }
     virtual bool  OnChar          (wchar_t ch)                                 { (void) ch; return false; }

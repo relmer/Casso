@@ -120,7 +120,9 @@ public:
     //  their order, for a window to flush after the page. Text is drawn after
     //  every fill of a flush, so a child painted with the rest could not
     //  cover the text of those beneath it. A subclass can add what it draws
-    //  around them.
+    //  around them. Each pass then runs PaintAfterSiblings on the children it
+    //  painted, outside their clips, so their chrome lies over their
+    //  neighbors.
     void              SetTopLayer   (std::vector<IDxuiControl *> children) { m_topLayer = std::move (children); }
     virtual bool      HasTopLayer   () const                               { return !m_topLayer.empty() || m_raised != nullptr; }
 

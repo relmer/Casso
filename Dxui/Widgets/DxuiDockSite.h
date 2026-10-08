@@ -245,13 +245,14 @@ public:
     //  The gap a hovered strip opens for the dropped tab.
     static constexpr int  kInsertGapDip = 96;
 
-    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse           (const DxuiMouseEvent & ev) override;
-    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
-    DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
-    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
-    std::wstring        GetAccessibleName () const override { return L"Dock site"; }
+    void                Layout             (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void                PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse            (const DxuiMouseEvent & ev) override;
+    LPCWSTR             GetCursorForPoint  (POINT clientPx) const override;
+    DxuiHitTestKind     ClassifyHit        (POINT clientDip) const override;
+    DxuiAccessibleRole  GetAccessibleRole  () const override { return DxuiAccessibleRole::Custom; }
+    std::wstring        GetAccessibleName  () const override { return L"Dock site"; }
 
     static bool  Contains (const RECT & rect, POINT point);
 
@@ -289,6 +290,7 @@ private:
 
     void          Arrange       ();
     RECT          GetDockedArea () const;
+    RECT          GetPaneArea   () const;
     void          ArrangeEdges  (const RECT & area);
     int           HitTestEdgeTab (POINT pointDip) const;
     void          PaintEdges    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
@@ -309,6 +311,7 @@ private:
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
     void          AddDottedHalf (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, uint32_t argb, int line) const;
     void          AddGlyph      (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, const IDxuiTheme & theme, int line) const;
+    void          PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;

@@ -42,6 +42,11 @@ public:
     RECT  paintClip          = {};
     bool  wasPaintClipped    = false;
 
+    // PaintAfterSiblings calls, and a log shared by several controls of each
+    // Paint (false) and PaintAfterSiblings (true) in the order they ran.
+    int                                                     afterCount = 0;
+    std::vector<std::pair<const MockDxuiControl *, bool>> * paintLog   = nullptr;
+
     void  Layout         (const RECT          & boundsDip,
                           const DxuiDpiScaler & /*scaler*/) override
     {
@@ -55,6 +60,23 @@ public:
     {
         wasPaintClipped = painter.GetClipRect (paintClip);
         paintCount++;
+
+        if (paintLog != nullptr)
+        {
+            paintLog->push_back ({ this, false });
+        }
+    }
+
+    void  PaintAfterSiblings (IDxuiPainter      & /*painter*/,
+                              IDxuiTextRenderer & /*text*/,
+                              const IDxuiTheme  & /*theme*/) override
+    {
+        afterCount++;
+
+        if (paintLog != nullptr)
+        {
+            paintLog->push_back ({ this, true });
+        }
     }
 
     bool  OnMouse        (const DxuiMouseEvent & /*ev*/) override

@@ -52,7 +52,8 @@ namespace DxuiDockSiteDragMarksTests
         size_t CountPaintCalls()
         {
             painter.Reset();
-            site.Paint (painter, text, theme);
+            site.Paint              (painter, text, theme);
+            site.PaintAfterSiblings (painter, text, theme);
             return painter.Calls().size();
         }
     };
@@ -111,6 +112,35 @@ namespace DxuiDockSiteDragMarksTests
 
             rig.site.SetDragMarksDrawnElsewhere (true);
             Assert::AreEqual (resting, rig.CountPaintCalls(), L"the overlay paints them instead");
+        }
+
+
+        //  The marks lie over every pane control, whichever order the site and
+        //  the panes paint in, so the site draws them in its after pass and
+        //  its own Paint leaves them out.
+        TEST_METHOD (MarksArePaintedAfterTheSiblings)
+        {
+            Rig     rig;
+            size_t  resting = rig.CountPaintCalls();
+            size_t  marks   = 0;
+
+
+
+            rig.site.BeginDrag (L"console");
+            for (const DxuiDockDragMark & mark : rig.site.GetDragMarks (rig.theme))
+            {
+                marks += mark.dotted ? DxuiDockSite::GetOutlineStrips (mark).size() : 1;
+            }
+
+            Assert::IsTrue (marks > 0, L"a drag shows marks");
+
+            rig.painter.Reset();
+            rig.site.Paint (rig.painter, rig.text, rig.theme);
+            Assert::AreEqual (resting, rig.painter.Calls().size(), L"Paint draws the site as it rests");
+
+            rig.painter.Reset();
+            rig.site.PaintAfterSiblings (rig.painter, rig.text, rig.theme);
+            Assert::AreEqual (marks, rig.painter.Calls().size(), L"the after pass draws the marks");
         }
 
 

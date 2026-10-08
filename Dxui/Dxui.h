@@ -82,6 +82,7 @@
 #include "Core/DxuiAnimation.h"
 #include "Core/DxuiCommand.h"
 #include "Core/DxuiDpiScaler.h"
+#include "Core/DxuiPaneMetrics.h"
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiHitTester.h"
 #include "Core/DxuiInput.h"

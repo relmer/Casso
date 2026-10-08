@@ -78,10 +78,16 @@ public:
     void  SetClipRect       (const RECT * clipPx) override        { m_hasClip = (clipPx != nullptr); m_clip = m_hasClip ? *clipPx : RECT {}; }
     bool  GetClipRect       (RECT & clipPx) const override        { clipPx = m_clip; return m_hasClip; }
 
+    // Nested clips, each inside the one before; a recorded call holds the
+    // intersection of every one pushed and the SetClipRect clip.
+    void  PushClip          (float xPx, float yPx, float widthPx, float heightPx) override;
+    void  PopClip           () override;
+
 private:
     void  Record (RecordedPaintCall & call);
 
     std::vector<RecordedPaintCall>  m_calls;
-    bool                            m_hasClip = false;
-    RECT                            m_clip    = {};
+    bool                            m_hasClip   = false;
+    RECT                            m_clip      = {};
+    std::vector<RECT>               m_clipStack;
 };

@@ -719,6 +719,7 @@
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneLayoutDockBackTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneLayoutTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPaneMetricsTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockDropZonesTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteDragMarksTests.cpp" />
@@ -821,6 +822,7 @@
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerWidthTests.cpp" />
+    <ClCompile Include="Dxui\DxuiThemePaneColorsTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
     <ClCompile Include="Dxui\DxuiSlideTests.cpp" />

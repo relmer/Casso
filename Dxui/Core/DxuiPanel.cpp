@@ -463,8 +463,12 @@ void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  Paint
 //
-//  Fan out to visible children in insertion order (back-to-front so
-//  later siblings paint on top).
+//  Two passes over the visible children, in insertion order. The first
+//  paints each one, inside its clip, back to front, so later siblings paint
+//  on top. The second runs each one's PaintAfterSiblings, with no child clip,
+//  so a control's chrome lies over every neighbor whatever the child order.
+//  A clip pushed per child for the second pass would double the clip work of
+//  a window with many children, and the pass exists to draw past them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -497,6 +501,14 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 #endif
         }
     }
+
+    for (auto & slot : m_children)
+    {
+        if (slot.raw->IsVisible() && slot.raw != m_raised && std::find (m_topLayer.begin(), m_topLayer.end(), slot.raw) == m_topLayer.end())
+        {
+            slot.raw->PaintAfterSiblings (painter, text, theme);
+        }
+    }
 }
 
 
@@ -507,8 +519,10 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 //
 //  PaintTopLayer
 //
-//  The children Paint passed over, in the order they were given. One removed
-//  since it was given is no longer a child and is skipped, never touched.
+//  The children Paint passed over, in the order they were given, then the
+//  PaintAfterSiblings of each, as Paint runs it; then the raised child and
+//  its own. One removed since it was given is no longer a child and is
+//  skipped, never touched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -526,9 +540,20 @@ void DxuiPanel::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text,
         }
     }
 
+    for (IDxuiControl * child : m_topLayer)
+    {
+        bool  isChild = std::any_of (m_children.begin(), m_children.end(), [child] (const ChildSlot & slot) { return slot.raw == child; });
+
+        if (isChild && child->IsVisible())
+        {
+            child->PaintAfterSiblings (painter, text, theme);
+        }
+    }
+
     if (m_raised != nullptr && m_raised->IsVisible())
     {
         PaintChild (m_raised, painter, text, theme);
+        m_raised->PaintAfterSiblings (painter, text, theme);
     }
 }
 

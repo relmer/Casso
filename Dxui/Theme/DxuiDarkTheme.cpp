@@ -27,6 +27,11 @@
 //  In the list, a row under the pointer is #4D4D4D and a selected row #505050,
 //  outlined in #C3C3C3 while the list has focus. Measured on 2026-09-15.
 //
+//  The drop targets a dragged pane shows are measured from Visual Studio
+//  2026's dark drop targets at 125% on 2026-10-08: the cross's border
+//  #333333 over a translucent #202020, each button #212121 inside a #363636
+//  border, and its picture and arrow #A0A0A0.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiDarkTheme::DxuiDarkTheme()
@@ -65,11 +70,15 @@ DxuiDarkTheme::DxuiDarkTheme()
     buttonHover              = 0xFF323232;
     buttonPressed            = 0xFF272727;
     buttonBorder             = 0xFF4A4A4A;
-    tooltipBg                = 0xFF2C2C2C;
-    tooltipBorder            = 0xFF4A4A4A;
     tooltipText              = 0xFFFFFFFF;
     errorText                = 0xFFFF99A4;
     resultText               = 0xFF4EC9E0;
+    dockGuideBorder          = 0xFF333333;
+    dockGuideFill            = 0x99202020;
+    dockGuideButtonBorder    = 0xFF363636;
+    dockGuideButtonFill      = 0xFF212121;
+    dockGuideGlyph           = 0xFFA0A0A0;
+    dockGuideArrow           = 0xFFA0A0A0;
 }
 
 

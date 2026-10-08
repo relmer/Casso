@@ -198,6 +198,79 @@ public:
     virtual uint32_t  Border              () const = 0;
     virtual uint32_t  Divider             () const = 0;
 
+    //  The background between docked panes and around them: the darker of
+    //  the panel and content fills, darkened. Visual Studio's dark theme puts
+    //  #1C1C1C between panes of #282828, 0.70 of it.
+    virtual uint32_t  DockGap             () const
+    {
+        constexpr float  kLightLuminance = 0.5f;
+        constexpr float  kLightScale     = 0.94f;
+        constexpr float  kDarkScale      = 0.70f;
+
+        uint32_t  background = Background();
+        uint32_t  content    = ContentBackground();
+        bool      isLight    = DxuiColor::ComputeRelativeLuminance (content) > kLightLuminance;
+        uint32_t  darker     = (DxuiColor::ComputeRelativeLuminance (background) < DxuiColor::ComputeRelativeLuminance (content)) ? background : content;
+
+        return DxuiColor::Darken (darker, isLight ? kLightScale : kDarkScale);
+    }
+
+    //  The band behind a pane's tabs, across the pane's full width: a step
+    //  below the content fill, as Visual Studio's #262626 is below #282828.
+    virtual uint32_t  PaneBand            () const
+    {
+        constexpr float  kLightLuminance = 0.5f;
+        constexpr float  kLightScale     = 0.97f;
+        constexpr float  kDarkScale      = 0.95f;
+
+        uint32_t  content = ContentBackground();
+        bool      isLight = DxuiColor::ComputeRelativeLuminance (content) > kLightLuminance;
+
+        return DxuiColor::Darken (content, isLight ? kLightScale : kDarkScale);
+    }
+
+    //  A drop target's cross while a pane is dragged: its border ring, and
+    //  its translucent fill.
+    virtual uint32_t  DockGuideBorder     () const
+    {
+        constexpr float  kBorderMix = 0.38f;
+
+        return DxuiColor::Mix (ContentBackground(), Border(), kBorderMix);
+    }
+
+    virtual uint32_t  DockGuideFill       () const
+    {
+        constexpr float     kLightLuminance = 0.5f;
+        constexpr float     kFillScale      = 0.80f;
+        constexpr uint32_t  kLightAlpha     = 0xAA000000u;
+        constexpr uint32_t  kDarkAlpha      = 0x99000000u;
+
+        uint32_t  content = ContentBackground();
+        bool      isLight = DxuiColor::ComputeRelativeLuminance (content) > kLightLuminance;
+
+        return (DxuiColor::Darken (content, kFillScale) & 0x00FFFFFFu) | (isLight ? kLightAlpha : kDarkAlpha);
+    }
+
+    //  A drop target's button: its border and its fill.
+    virtual uint32_t  DockGuideButtonBorder () const
+    {
+        constexpr float  kBorderMix = 0.50f;
+
+        return DxuiColor::Mix (ContentBackground(), Border(), kBorderMix);
+    }
+
+    virtual uint32_t  DockGuideButtonFill () const
+    {
+        constexpr float  kFillScale = 0.83f;
+
+        return DxuiColor::Darken (ContentBackground(), kFillScale);
+    }
+
+    //  The picture on a drop target's button, of where the pane would go,
+    //  and the arrow toward it.
+    virtual uint32_t  DockGuideGlyph      () const { return ForegroundMuted(); }
+    virtual uint32_t  DockGuideArrow      () const { return DockGuideGlyph(); }
+
     //  The color of the shadow under a surface lifted off its place, such as
     //  a toolbar carried by its handle; the shadow brings its own alpha.
     virtual uint32_t  LiftShadow          () const { return 0xFF000000u; }
@@ -250,8 +323,9 @@ public:
     virtual uint32_t  SystemCloseHover    () const = 0;
     virtual uint32_t  SystemClosePressed  () const = 0;
 
-    // Tooltip surface (popup bubble: distinct from the elevated surface so
-    // it reads above whatever it overlays). Border + text complete it.
+    // Tooltip surface. The tooltip takes the window background, so it is
+    // never brighter than the window under it, and a border at half its
+    // brightness sets it off.
     virtual uint32_t  TooltipBackground   () const = 0;
     virtual uint32_t  TooltipBorder       () const = 0;
     virtual uint32_t  TooltipForeground   () const = 0;

@@ -2470,19 +2470,14 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
 //
 //  DxuiDockSite::Paint
 //
-//  The strips, a seam down each sash, and during a drag the drop zones with
-//  the hovered one's area shaded in the accent color.
+//  The groups, a seam down each sash, and the edge strips. A drag's marks are
+//  drawn after the siblings, in PaintAfterSiblings.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float                      line   = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    auto                       fill   = [&] (const RECT & r, uint32_t argb)
-    {
-        painter.FillRect ((float) r.left, (float) r.top,
-                          (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
-    };
+    float  line = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
 
 
 
@@ -2506,11 +2501,71 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     }
 
     PaintEdges (painter, text, theme);
+}
 
-    if (!IsDragging() || m_marksElsewhere)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::PaintAfterSiblings
+//
+//  A drag's marks, unless an overlay draws them. This pass draws over every
+//  pane control whatever the child order, which a floating window needs: its
+//  site is its first child, so the panes paint after the site's own Paint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    if (IsDragging() && !m_marksElsewhere)
     {
-        return;
+        PaintDragMarks (painter, text, theme);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetPaneArea
+//
+//  The area the panes are laid out in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDockSite::GetPaneArea() const
+{
+    return GetDockedArea();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::PaintDragMarks
+//
+//  Each mark of GetDragMarks, top to bottom: a fill, a dotted outline drawn
+//  as its strips, or a solid outline.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    auto  fill = [&] (const RECT & r, uint32_t argb)
+    {
+        painter.FillRect ((float) r.left, (float) r.top,
+                          (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
+    };
+
+
+
+    (void) text;
 
     for (const DxuiDockDragMark & mark : GetDragMarks (theme))
     {
@@ -2534,3 +2589,8 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         }
     }
 }
+
+
+
+
+

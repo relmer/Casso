@@ -104,8 +104,8 @@ public:
     static constexpr uint32_t  s_kSystemButtonPressed  = 0xFF505050;
     static constexpr uint32_t  s_kSystemCloseHover     = 0xFFC42B1C;
     static constexpr uint32_t  s_kSystemClosePressed   = 0xFFB02014;
-    static constexpr uint32_t  s_kTooltipBackground    = 0xFF2E3035;
-    static constexpr uint32_t  s_kTooltipBorder        = 0xFF55595F;
+    static constexpr uint32_t  s_kTooltipBackground    = 0xFF101010;
+    static constexpr uint32_t  s_kTooltipBorder        = 0xFF080808;
     static constexpr uint32_t  s_kTooltipForeground    = 0xFFF0F0F0;
     static constexpr uint32_t  s_kErrorForeground      = 0xFFFF6B6B;
 
