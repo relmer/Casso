@@ -60,7 +60,7 @@ namespace DxuiDocumentWellDockTests
 
     static std::vector<DxuiDockDropZone> BuildZones (const DxuiPaneLayout & layout, const std::wstring & pane)
     {
-        return DxuiDockDropZones::Build (layout.Arrange (kArea, nullptr, nullptr), kArea, pane,
+        return DxuiDockDropZones::Build (layout.Arrange (kArea, nullptr, nullptr), kArea, pane, DxuiDpiScaler(),
                                          [] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
     }
 

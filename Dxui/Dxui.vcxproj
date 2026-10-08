@@ -158,6 +158,7 @@
     <ClCompile Include="Core\DxuiPaneLayout.cpp" />
     <ClCompile Include="Core\DxuiPaneMetrics.cpp" />
     <ClCompile Include="Core\DxuiDockDropZones.cpp" />
+    <ClCompile Include="Core\DxuiDockGuide.cpp" />
     <ClCompile Include="Core\DxuiFormLayout.cpp" />
     <ClCompile Include="Core\DxuiGridLayout.cpp" />
     <ClCompile Include="Core\DxuiHitTester.cpp" />
@@ -171,6 +172,7 @@
     <ClCompile Include="Core\DxuiViewport.cpp" />
     <ClCompile Include="Core\IDxuiControl.cpp" />
     <ClCompile Include="Render\Dxui3DRenderer.cpp" />
+    <ClCompile Include="Render\DxuiCoverageRaster.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
     <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
@@ -265,6 +267,7 @@
     <ClInclude Include="Core\DxuiKeyMap.h" />
     <ClInclude Include="Core\DxuiPaneLayout.h" />
     <ClInclude Include="Core\DxuiDockDropZones.h" />
+    <ClInclude Include="Core\DxuiDockGuide.h" />
     <ClInclude Include="Core\DxuiFormLayout.h" />
     <ClInclude Include="Core\DxuiGridLayout.h" />
     <ClInclude Include="Core\DxuiHitTester.h" />
@@ -282,6 +285,7 @@
     <ClInclude Include="Core\IDxuiLayout.h" />
     <ClInclude Include="Core\IDxuiViewportInputSink.h" />
     <ClInclude Include="Render\Dxui3DRenderer.h" />
+    <ClInclude Include="Render\DxuiCoverageRaster.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
     <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />

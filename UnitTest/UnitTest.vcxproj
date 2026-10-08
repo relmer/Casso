@@ -733,6 +733,9 @@
     <ClCompile Include="Dxui\DxuiDockCarryAndCompassTests.cpp" />
     <ClCompile Include="Dxui\DxuiDragMarkVisibilityTests.cpp" />
     <ClCompile Include="Dxui\DxuiDocumentWellDockTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockGuideTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockCompassVisibilityTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCoverageRasterTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTearOffTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupOverflowTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />

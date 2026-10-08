@@ -1618,92 +1618,6 @@ DxuiTabGroup * DxuiDockSite::FindGroupOf (const std::wstring & pane) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::AddDottedHalf
-//
-//  A split square's picture: a dotted outline of the half of the square on
-//  its side, where the new tab group would go.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::AddDottedHalf (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, uint32_t argb, int line) const
-{
-    RECT  r     = zone.target;
-    long  inset = m_scaler.ToPx (6);
-    long  dot   = std::max (1L, (long) line);
-    long  midX  = (r.left + r.right) / 2;
-    long  midY  = (r.top + r.bottom) / 2;
-
-
-
-    r = RECT { r.left + inset, r.top + inset, r.right - inset, r.bottom - inset };
-
-    switch (zone.side)
-    {
-    case DxuiDockSide::Left:   r.right  = midX; break;
-    case DxuiDockSide::Right:  r.left   = midX; break;
-    case DxuiDockSide::Top:    r.bottom = midY; break;
-    case DxuiDockSide::Bottom: r.top    = midY; break;
-    default:                                    break;
-    }
-
-    marks.push_back ({ r, argb, (int) dot, true });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::AddGlyph
-//
-//  A square's picture of a window: its frame in the muted text color, and
-//  in the accent color the part the dropped pane would take -- the half on
-//  the square's side, or for a tab drop the whole window below a title.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::AddGlyph (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, const IDxuiTheme & theme, int line) const
-{
-    long  inset = m_scaler.ToPx (6);
-    RECT  frame = { zone.target.left + inset, zone.target.top + inset, zone.target.right - inset, zone.target.bottom - inset };
-    RECT  fill  = frame;
-    long  midX  = (frame.left + frame.right) / 2;
-    long  midY  = (frame.top + frame.bottom) / 2;
-
-
-
-    if (frame.right <= frame.left || frame.bottom <= frame.top)
-    {
-        return;
-    }
-
-    if (zone.kind == DxuiDockDropZone::Kind::Tab)
-    {
-        fill.top = std::min (fill.bottom, fill.top + 3 * (long) line);
-    }
-    else
-    {
-        switch (zone.side)
-        {
-        case DxuiDockSide::Left:   fill.right  = midX; break;
-        case DxuiDockSide::Right:  fill.left   = midX; break;
-        case DxuiDockSide::Top:    fill.bottom = midY; break;
-        case DxuiDockSide::Bottom: fill.top    = midY; break;
-        default:                                       break;
-        }
-    }
-
-    marks.push_back ({ fill,  theme.Accent(),          0    });
-    marks.push_back ({ frame, theme.ForegroundMuted(), line });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockSite::GetOutlineStrips
 //
 //  The filled rectangles that draw an outlined mark: four strips along the
@@ -1834,11 +1748,12 @@ void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, cons
         Arrange();
     }
 
-    m_dragPane  = active;
-    m_dragPanes = panes;
-    m_zones     = DxuiDockDropZones::Build (m_layout.Arrange (GetDockedArea(), m_shown, m_minSize), GetDockedArea(), active,
-                                            [this] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
-    m_hoverZone = -1;
+    m_dragPane     = active;
+    m_dragPanes    = panes;
+    m_zones        = DxuiDockDropZones::Build (m_layout.Arrange (GetPaneArea(), m_shown, m_minSize), GetPaneArea(), active, m_scaler,
+                                               [this] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
+    m_hoverZone    = -1;
+    m_compassGroup = -1;
 
     if (panes.size() > 1)
     {
@@ -2042,7 +1957,168 @@ void DxuiDockSite::CancelDrag()
 {
     m_dragPane.clear();
     m_zones.clear();
-    m_hoverZone = -1;
+    m_hoverZone    = -1;
+    m_compassGroup = -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::UpdateCompass
+//
+//  The one cross a drag shows is the cross of the group under the pointer.
+//  It stays while the pointer is anywhere on it, so a cross wider than its
+//  group's pane can still be used to its ends; off it, the group under the
+//  pointer takes the cross, and outside every group none shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::UpdateCompass (POINT pointDip)
+{
+    DxuiDockGuideKind  kind   = DxuiDockGuideKind::SmallCross;
+    POINT              origin = {};
+
+
+
+    if (TryGetCompass (m_compassGroup, kind, origin) && DxuiDockGuide::IsInside (kind, origin, pointDip, m_scaler))
+    {
+        return;
+    }
+
+    m_compassGroup = -1;
+
+    for (const DxuiDockDropZone & zone : m_zones)
+    {
+        if (zone.group >= 0 && Contains (zone.groupRect, pointDip))
+        {
+            m_compassGroup = zone.group;
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::HitTestShown
+//
+//  As DxuiDockDropZones::HitTest, the last zone holding the point, but only
+//  among the zones on show: the edge guides and the one cross.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiDockSite::HitTestShown (POINT pointDip) const
+{
+    int  hit = -1;
+
+
+
+    for (size_t i = 0; i < m_zones.size(); i++)
+    {
+        const DxuiDockDropZone  & zone  = m_zones[i];
+        bool                      shown = zone.kind == DxuiDockDropZone::Kind::Edge || (m_compassGroup >= 0 && zone.group == m_compassGroup);
+
+        hit = (shown && Contains (zone.target, pointDip)) ? (int) i : hit;
+    }
+
+    return hit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TryGetCompass
+//
+//  A group's cross, as Build placed it: large when the group has split
+//  zones, centered on the group. False when the group has no zones.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & origin) const
+{
+    const DxuiDockDropZone  * found = nullptr;
+    bool                      split = false;
+
+
+
+    for (const DxuiDockDropZone & zone : m_zones)
+    {
+        if (group >= 0 && zone.group == group)
+        {
+            found = &zone;
+            split = split || zone.kind == DxuiDockDropZone::Kind::Split;
+        }
+    }
+
+    if (found == nullptr)
+    {
+        return false;
+    }
+
+    kind   = split ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::SmallCross;
+    origin = DxuiDockGuide::GetOrigin (kind, POINT { (found->groupRect.left + found->groupRect.right) / 2,
+                                                     (found->groupRect.top + found->groupRect.bottom) / 2 }, m_scaler);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetGuideImage
+//
+//  Drawn once for each look of each guide and kept, so the frames of a drag
+//  draw the same buffers and a renderer's bitmap cache stays warm. The cache
+//  starts over once it fills, which takes a change of theme or DPI.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> DxuiDockSite::GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered, const IDxuiTheme & theme) const
+{
+    GuideImage  wanted;
+
+
+
+    wanted.key.kind                = kind;
+    wanted.key.edge                = edge;
+    wanted.key.hovered             = hovered;
+    wanted.key.dpi                 = m_scaler.GetDpi();
+    wanted.key.colors.border       = theme.DockGuideBorder();
+    wanted.key.colors.fill         = theme.DockGuideFill();
+    wanted.key.colors.buttonBorder = theme.DockGuideButtonBorder();
+    wanted.key.colors.buttonFill   = theme.DockGuideButtonFill();
+    wanted.key.colors.glyph        = theme.DockGuideGlyph();
+    wanted.key.colors.arrow        = theme.DockGuideArrow();
+    wanted.key.colors.hover        = theme.FocusAccent();
+
+    for (const GuideImage & cached : m_guideImages)
+    {
+        if (cached.key == wanted.key)
+        {
+            return cached.image;
+        }
+    }
+
+    if (m_guideImages.size() >= kGuideCacheMax)
+    {
+        m_guideImages.clear();
+    }
+
+    wanted.image = std::make_shared<const DxuiIconImage> (DxuiDockGuide::Render (kind, edge, hovered, wanted.key.colors, m_scaler));
+    m_guideImages.push_back (wanted);
+
+    return wanted.image;
 }
 
 
@@ -2054,13 +2130,15 @@ void DxuiDockSite::CancelDrag()
 //  DxuiDockSite::EndDrag
 //
 //  A drop on a zone is that zone's operation; a drop outside the site asks
-//  for the pane to float there; a drop anywhere else changes nothing.
+//  for the pane to float there; a drop anywhere else changes nothing. The
+//  zone is found as a move to the drop point would have shown it, so a drop
+//  with no move before it still lands in the group under the point.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDockSite::EndDrag (POINT pointDip)
 {
-    const DxuiDockDropZone           * hit     = DxuiDockDropZones::HitTest (m_zones, pointDip);
+    const DxuiDockDropZone           * hit     = nullptr;
     std::optional<DxuiDockDropZone>    zone;
     std::wstring                       pane    = m_dragPane;
     bool                               changed = false;
@@ -2068,6 +2146,10 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     int                                index   = -1;
 
 
+
+    UpdateCompass (pointDip);
+    m_hoverZone = HitTestShown (pointDip);
+    hit         = GetHoveredZone();
 
     //  Copied before the list is cleared, since hit points into it.
     if (hit != nullptr)
@@ -2083,7 +2165,8 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
 
     ClearStripTarget();
     m_zones.clear();
-    m_hoverZone = -1;
+    m_hoverZone    = -1;
+    m_compassGroup = -1;
 
     if (pane.empty())
     {
@@ -2224,8 +2307,9 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     {
         if (ev.kind == DxuiMouseEventKind::Move)
         {
-            zone        = DxuiDockDropZones::HitTest (m_zones, ev.positionDip);
-            m_hoverZone = (zone != nullptr) ? (int) (zone - m_zones.data()) : -1;
+            UpdateCompass (ev.positionDip);
+            m_hoverZone = HitTestShown (ev.positionDip);
+            zone        = GetHoveredZone();
 
             if (zone != nullptr)
             {
@@ -2408,18 +2492,31 @@ LPCWSTR DxuiDockSite::GetCursorForPoint (POINT clientPx) const
 //
 //  DxuiDockSite::GetDragMarks
 //
-//  The hovered target's area shaded in the accent color, a hovered strip's
-//  group tinted with the gap its tab will take, then every target square,
-//  the hovered one outlined in the accent color.
+//  The hovered target's area shaded in the accent color and a hovered
+//  strip's group tinted with the gap its tab will take, then the guides:
+//  one at the middle of each window edge, and the cross of the group under
+//  the pointer, each with the border of the button under the pointer lit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & theme) const
 {
     std::vector<DxuiDockDragMark>   marks;
-    const DxuiDockDropZone        * hover = GetHoveredZone();
-    int                             line  = std::max (1, (int) std::lround (m_scaler.ToPxf (1.0f)));
-    uint32_t                        tint  = (theme.Accent() & 0x00FFFFFFu) | 0x50000000u;
+    const DxuiDockDropZone        * hover    = GetHoveredZone();
+    uint32_t                        tint     = (theme.Accent() & 0x00FFFFFFu) | 0x50000000u;
+    DxuiDockGuideKind               kind     = DxuiDockGuideKind::SmallCross;
+    DxuiDockGuideButton             button   = DxuiDockGuideButton::Center;
+    POINT                           origin   = {};
+    int                             hovered  = -1;
+    auto                            addGuide = [&] (DxuiDockGuideKind guide, DxuiDockSide edge, POINT at, int lit)
+    {
+        DxuiDockDragMark  mark;
+        SIZE              size = DxuiDockGuide::GetSizePx (guide, m_scaler);
+
+        mark.rect  = RECT { at.x, at.y, at.x + size.cx, at.y + size.cy };
+        mark.image = GetGuideImage (guide, edge, lit, theme);
+        marks.push_back (mark);
+    };
 
 
 
@@ -2439,24 +2536,22 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
         marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & 0x00FFFFFFu) | 0xA0000000u, 0 });
     }
 
-    //  Each square stands out from the page under it: an elevated fill, an
-    //  edge in the muted text color, and a picture in the accent color of
-    //  where the pane would go.
     for (const DxuiDockDropZone & zone : m_zones)
     {
-        bool  hovered = (&zone == hover);
-
-        marks.push_back ({ zone.target, theme.BackgroundElevated(),                            0                         });
-        marks.push_back ({ zone.target, hovered ? theme.Accent() : theme.ForegroundMuted(), hovered ? 2 * line : line });
-
-        if (zone.kind == DxuiDockDropZone::Kind::Split)
+        if (zone.kind != DxuiDockDropZone::Kind::Edge)
         {
-            AddDottedHalf (marks, zone, theme.Accent(), line);
+            continue;
         }
-        else
-        {
-            AddGlyph (marks, zone, theme, line);
-        }
+
+        button  = DxuiDockGuide::GetDockButton (zone.side);
+        hovered = (&zone == hover) ? (int) button : -1;
+        addGuide (DxuiDockGuideKind::Edge, zone.side, DxuiDockGuide::GetOriginOfButton (DxuiDockGuideKind::Edge, button, zone.target, m_scaler), hovered);
+    }
+
+    if (TryGetCompass (m_compassGroup, kind, origin))
+    {
+        hovered = (hover != nullptr && hover->group == m_compassGroup) ? (int) DxuiDockDropZones::GetGuideButton (*hover) : -1;
+        addGuide (kind, DxuiDockSide::Left, origin, hovered);
     }
 
     return marks;
@@ -2551,13 +2646,16 @@ RECT DxuiDockSite::GetPaneArea() const
 //  DxuiDockSite::PaintDragMarks
 //
 //  Each mark of GetDragMarks, top to bottom: a fill, a dotted outline drawn
-//  as its strips, or a solid outline.
+//  as its strips, a solid outline, or a guide's picture. The pictures go
+//  through the text pass, which draws after every fill, so the guides lie
+//  over the panes and over the tints.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    auto  fill = [&] (const RECT & r, uint32_t argb)
+    HRESULT  hr   = S_OK;
+    auto     fill = [&] (const RECT & r, uint32_t argb)
     {
         painter.FillRect ((float) r.left, (float) r.top,
                           (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
@@ -2565,11 +2663,16 @@ void DxuiDockSite::PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & t
 
 
 
-    (void) text;
-
     for (const DxuiDockDragMark & mark : GetDragMarks (theme))
     {
-        if (mark.outlinePx == 0)
+        if (mark.image != nullptr)
+        {
+            hr = text.DrawIconBitmap (mark.image->bgraPremul.data(), mark.image->width, mark.image->height,
+                                      (float) mark.rect.left, (float) mark.rect.top,
+                                      (float) mark.image->width, (float) mark.image->height);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else if (mark.outlinePx == 0)
         {
             fill (mark.rect, mark.argb);
         }

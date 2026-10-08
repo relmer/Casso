@@ -11,15 +11,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiDockDropZonesTests
 //
-//  Where a dragged pane can land (FR-039): the compass on each group, the
-//  window's edge squares, what the overlay shades for each, and the layout
+//  Where a dragged pane can land (FR-039): the cross on each group, the
+//  window's edge guides, what the overlay shades for each, and the layout
 //  operation each one is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace DxuiDockDropZonesTests
 {
-    static const RECT  s_kArea = { 0, 0, 1000, 600 };
+    static const RECT           s_kArea   = { 0, 0, 1000, 600 };
+    static const DxuiDpiScaler  s_kScaler;
 
 
 
@@ -62,7 +63,7 @@ namespace DxuiDockDropZonesTests
         {
             DxuiPaneLayout                 layout = MakeSample();
             std::vector<DxuiDockDropZone>  zones  = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr),
-                                                                              s_kArea, L"trace");
+                                                                              s_kArea, L"trace", s_kScaler);
 
 
 
@@ -77,7 +78,7 @@ namespace DxuiDockDropZonesTests
         {
             DxuiPaneLayout                 layout = MakeSample();
             std::vector<DxuiDockDropZone>  zones  = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr),
-                                                                              s_kArea, L"regs");
+                                                                              s_kArea, L"regs", s_kScaler);
 
 
 
@@ -90,14 +91,14 @@ namespace DxuiDockDropZonesTests
         {
             DxuiPaneLayout                 layout = MakeSample();
             std::vector<DxuiDockDropZone>  zones  = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr),
-                                                                              s_kArea, L"trace");
+                                                                              s_kArea, L"trace", s_kScaler);
             const DxuiDockDropZone       * tab    = Find (zones, DxuiDockDropZone::Kind::Tab, DxuiDockSide::Left, L"code");
 
 
 
             Assert::AreEqual ((long) 250, (tab->target.left + tab->target.right) / 2);
             Assert::AreEqual ((long) 300, (tab->target.top + tab->target.bottom) / 2);
-            Assert::AreEqual ((long) DxuiDockDropZones::kSquareDip, tab->target.right - tab->target.left);
+            Assert::AreEqual ((long) s_kScaler.ToPx (DxuiDockGuide::kButtonDip), tab->target.right - tab->target.left);
         }
 
 
@@ -105,7 +106,7 @@ namespace DxuiDockDropZonesTests
         {
             DxuiPaneLayout                 layout = MakeSample();
             std::vector<DxuiDockDropZone>  zones  = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr),
-                                                                              s_kArea, L"trace");
+                                                                              s_kArea, L"trace", s_kScaler);
 
 
 
@@ -119,7 +120,7 @@ namespace DxuiDockDropZonesTests
         {
             DxuiPaneLayout                 layout = MakeSample();
             std::vector<DxuiDockDropZone>  zones  = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr),
-                                                                              s_kArea, L"trace");
+                                                                              s_kArea, L"trace", s_kScaler);
             const DxuiDockDropZone       * left   = Find (zones, DxuiDockDropZone::Kind::Side, DxuiDockSide::Left, L"code");
             POINT                          inside = { left->target.left + 2, left->target.top + 2 };
 
@@ -138,12 +139,12 @@ namespace DxuiDockDropZonesTests
 
 
             layout.Add (L"trace", L"regs");
-            zones = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr), s_kArea, L"trace");
+            zones = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr), s_kArea, L"trace", s_kScaler);
 
             Assert::IsTrue   (DxuiDockDropZones::Apply (*Find (zones, DxuiDockDropZone::Kind::Tab, DxuiDockSide::Left, L"code"), layout, L"trace"));
             Assert::AreEqual ((size_t) 2, layout.GetGroup (L"code").size());
 
-            zones = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr), s_kArea, L"trace");
+            zones = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr), s_kArea, L"trace", s_kScaler);
             Assert::IsTrue   (DxuiDockDropZones::Apply (*Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Bottom, L""), layout, L"trace"));
             Assert::AreEqual ((size_t) 1, layout.GetGroup (L"trace").size());
             Assert::AreEqual ((long) 600, [&] ()
