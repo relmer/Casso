@@ -364,4 +364,138 @@ public:
         Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdPaddle).get());
         Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdMouse).get());
     }
+
+
+    TEST_METHOD (Storage_Menu_Gives_E_To_Casso_Explorer_Alone)
+    {
+        // The menu bar acts on the first row whose access key matches, so a
+        // second E above Casso Explorer would leave it unreachable by key.
+        int  explorerKeys = 0;
+        int  otherKeys    = 0;
+
+        for (const EmulatorMenuEntry & e : EmulatorCommands::GetMenuEntries())
+        {
+            std::wstring  stripped;
+            int           index = -1;
+            wchar_t       key   = 0;
+
+            if (EmulatorCommands::IsSeparator (e) || e.menu != MainMenuId::Disk)
+            {
+                continue;
+            }
+
+            DxuiMenuBar::ParseMnemonic (e.label, stripped, index, key);
+
+            if (key == L'e' && e.commandId == IDM_DISK_OPEN_CASSO_EXPLORER)
+            {
+                explorerKeys++;
+            }
+            else if (key == L'e')
+            {
+                otherKeys++;
+            }
+        }
+
+        Assert::AreEqual (1, explorerKeys, L"Casso Explorer's access key is E");
+        Assert::AreEqual (0, otherKeys,    L"and no other Storage row uses it");
+    }
+
+
+    // The Storage menu's labels in table order, with the second-drive row's
+    // label replaced by `drive2Label` when one is given, as the live label
+    // query replaces it.
+    static std::vector<std::wstring> GetStorageLabels (const std::wstring & drive2Label)
+    {
+        std::vector<std::wstring>  labels;
+
+
+
+        for (const EmulatorMenuEntry & e : EmulatorCommands::GetMenuEntries())
+        {
+            bool  isReplaced = (e.commandId == IDM_STORAGE_DRIVE2 && !drive2Label.empty());
+
+            if (EmulatorCommands::IsSeparator (e) || e.menu != MainMenuId::Disk)
+            {
+                continue;
+            }
+
+            labels.push_back (isReplaced ? drive2Label : std::wstring (e.label));
+        }
+
+        return labels;
+    }
+
+
+    // Fails unless every row of one open menu can be picked by its access
+    // key. DxuiMenuBar::HandleKey passes only A-Z on to the rows, so a digit
+    // key or none leaves a row unreachable from the keyboard, and it acts on
+    // the first row whose key matches, so a repeated letter leaves the later
+    // row unreachable.
+    static void AssertEveryRowHasItsOwnLetter (const std::vector<std::wstring> & labels)
+    {
+        std::unordered_map<wchar_t, std::wstring>  seen;
+
+
+
+        Assert::IsFalse (labels.empty(), L"The menu has no rows to check");
+
+        for (const std::wstring & label : labels)
+        {
+            std::wstring  stripped;
+            int           index    = -1;
+            wchar_t       key      = 0;
+            wchar_t       msg[160] = {};
+            bool          isLetter = false;
+            bool          isNew    = false;
+
+            DxuiMenuBar::ParseMnemonic (label, stripped, index, key);
+
+            isLetter = (key >= L'a' && key <= L'z');
+            swprintf_s (msg, L"\"%s\" has no letter access key", label.c_str());
+            Assert::IsTrue (isLetter, msg);
+
+            isNew = seen.emplace (key, label).second;
+            swprintf_s (msg, L"\"%s\" and \"%s\" share the access key %c", seen[key].c_str(), label.c_str(), key);
+            Assert::IsTrue (isNew, msg);
+        }
+    }
+
+
+    TEST_METHOD (Storage_Menu_Rows_Each_Have_Their_Own_Letter)
+    {
+        AssertEveryRowHasItsOwnLetter (GetStorageLabels (L""));
+    }
+
+
+    TEST_METHOD (Second_Drive_Rows_Leave_E_To_Casso_Explorer)
+    {
+        // The label query replaces the table's second-drive label, with the
+        // //c's external drive or drive 2, attached or not.
+        static constexpr bool  kFlags[] = { false, true };
+        int                    checked  = 0;
+
+
+
+        for (bool isExternal : kFlags)
+        {
+            for (bool isAttached : kFlags)
+            {
+                std::wstring  label    = EmulatorCommands::GetDrive2Label (isExternal, isAttached);
+                std::wstring  stripped;
+                int           index    = -1;
+                wchar_t       key      = 0;
+                wchar_t       msg[160] = {};
+
+                DxuiMenuBar::ParseMnemonic (label, stripped, index, key);
+
+                swprintf_s (msg, L"\"%s\" takes Casso Explorer's E", label.c_str());
+                Assert::IsTrue (key != L'e', msg);
+
+                AssertEveryRowHasItsOwnLetter (GetStorageLabels (label));
+                checked++;
+            }
+        }
+
+        Assert::AreEqual (4, checked, L"Every second-drive label was checked");
+    }
 };

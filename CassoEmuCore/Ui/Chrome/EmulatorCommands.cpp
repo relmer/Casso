@@ -34,12 +34,12 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { 0,                            MainMenuId::Machine, nullptr,                   nullptr          },
     { IDM_VIEW_CONTROLLER_SETTINGS, MainMenuId::Machine, L"&Controller settings...", nullptr         },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
-    { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
+    { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"Eject dri&ve 1",         L"Ctrl+Shift+1"  },
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
     { IDM_DISK_SALVAGE1,            MainMenuId::Disk,    L"Sa&lvage readable sectors...", nullptr    },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
     { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attach &drive 2",        nullptr          },
-    { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
+    { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"I&nsert drive 2...",     L"Ctrl+2"        },
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
     { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr          },
     { IDM_DISK_SALVAGE2,            MainMenuId::Disk,    L"Salvage readable sec&tors...", nullptr    },
@@ -49,7 +49,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_TAPE_PLAY,                MainMenuId::Disk,    L"Pla&y tape",             nullptr          },
     { IDM_TAPE_STOP,                MainMenuId::Disk,    L"St&op tape",             nullptr          },
     { IDM_TAPE_REWIND,              MainMenuId::Disk,    L"&Rewind tape",           nullptr          },
-    { IDM_TAPE_FASTFORWARD,         MainMenuId::Disk,    L"Fast-for&ward tape",     nullptr          },
+    { IDM_TAPE_FASTFORWARD,         MainMenuId::Disk,    L"&Fast-forward tape",     nullptr          },
     { IDM_TAPE_EJECT,               MainMenuId::Disk,    L"E&ject tape",            nullptr          },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
     { IDM_DISK_OPEN_CASSO_EXPLORER, MainMenuId::Disk,    L"Browse disks in Casso &Explorer...", nullptr },
@@ -301,6 +301,39 @@ const wchar_t * EmulatorCommands::GetMenuName (MainMenuId menu)
 bool EmulatorCommands::IsSeparator (const EmulatorMenuEntry & entry)
 {
     return entry.commandId == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetDrive2Label
+//
+//  The second-drive row gives the action a click takes: attach the drive
+//  when it is detached, detach it when it is attached. On the //c
+//  (`isExternal`) the second drive is an external unit on the disk port, and
+//  the row shows that, with X as its access key, since E is Casso Explorer's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetDrive2Label (bool isExternal, bool isAttached)
+{
+    const wchar_t *  label = nullptr;
+
+
+
+    if (isExternal)
+    {
+        label = isAttached ? L"Detach e&xternal drive" : L"Attach e&xternal drive";
+    }
+    else
+    {
+        label = isAttached ? L"Detach &drive 2" : L"Attach &drive 2";
+    }
+
+    return label;
 }
 
 

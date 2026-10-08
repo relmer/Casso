@@ -779,12 +779,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             {
                 bool  isC = m_machine.GetConfig().systemRom.romBankSize != 0;
 
-                if (ShouldShowExternalDrive())
-                {
-                    return isC ? std::wstring (L"Detach &external drive") : std::wstring (L"Detach &drive 2");
-                }
-
-                return isC ? std::wstring (L"Attach &external drive") : std::wstring (L"Attach &drive 2");
+                return EmulatorCommands::GetDrive2Label (isC, ShouldShowExternalDrive());
             }
 
             case IDM_STORAGE_RECORDER:
