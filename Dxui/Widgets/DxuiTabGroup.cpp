@@ -189,6 +189,56 @@ void DxuiTabGroup::SetTabTip (IDxuiControl * content, const std::wstring & tip)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabGroup::SetTitleExtra
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabGroup::SetTitleExtra (IDxuiControl * content, int widthDip)
+{
+    int  index = IndexOf (content);
+
+
+
+    if (index >= 0)
+    {
+        m_tabs[(size_t) index].titleExtraDip = std::max (0, widthDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabGroup::GetTitleExtraRect
+//
+//  Just ahead of the menu button, as tall as the buttons; empty where the
+//  group has no title bar or its active tab keeps no room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTabGroup::GetTitleExtraRect() const
+{
+    RECT  menu  = GetTitleButtonRect (TitleButton::Menu);
+    int   extra = (m_active >= 0 && m_active < (int) m_tabs.size()) ? m_tabs[(size_t) m_active].titleExtraDip : 0;
+
+
+
+    if (extra <= 0 || menu.right <= menu.left)
+    {
+        return RECT {};
+    }
+
+    return RECT { menu.left - m_scaler.ToPx (extra), menu.top, menu.left, menu.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabGroup::SetLeadingMark
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -973,6 +1023,11 @@ void DxuiTabGroup::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text,
     if (active == nullptr)
     {
         return;
+    }
+
+    if (active->titleExtraDip > 0)
+    {
+        textRight = std::min (textRight, GetTitleExtraRect().left);
     }
 
     hr = text.DrawString (active->title.c_str(), (float) title.left + pad, (float) title.top,

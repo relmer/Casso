@@ -31,7 +31,8 @@ std::vector<ColorKeyPopup::Row> ColorKeyPopup::MakeRows (ColorLegend::Pane pane,
         row.argb   = ColorLegend::GetArgb (entry.meaning, palette);
         row.text   = ColorLegend::GetText (entry.meaning);
 
-        if (entry.swatch != ColorLegend::Swatch::Row && entry.swatch != ColorLegend::Swatch::Text && entry.swatch != ColorLegend::Swatch::Marker)
+        if (entry.swatch != ColorLegend::Swatch::Row && entry.swatch != ColorLegend::Swatch::Text && entry.swatch != ColorLegend::Swatch::Italic &&
+            entry.swatch != ColorLegend::Swatch::Marker)
         {
             row.icon = ColorLegend::MakeSwatchIcon (entry.swatch, row.argb);
         }
@@ -299,6 +300,11 @@ void ColorKeyPopup::Render (IDxuiPainter & painter, IDxuiTextRenderer & text) co
         case ColorLegend::Swatch::Text:
             hr = text.DrawString (kSample, pad, boxY, swatch, swatch, row.argb, fontPx * kSampleEm, DxuiTheme::kBodyFace,
                                   DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+            break;
+
+        case ColorLegend::Swatch::Italic:
+            hr = text.DrawString (kSample, pad, boxY, swatch, swatch, m_foreground, fontPx * kSampleEm, DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Italic);
             break;
 
         case ColorLegend::Swatch::Marker:

@@ -1127,7 +1127,7 @@ void DebuggerWindow::PlaceCodeBars()
         bar->SetTextRenderer   (host->GetTextRenderer());
         bar->SetPopupHost      (host->GetPopupHost());
         bar->SetHostClientRect (host->GetBounds());
-        bar->Layout            (ColorKeyButton::GetStripBeside (place, m_scaler), m_scaler);
+        bar->Layout            (GetBarStrip (DebuggerLayout::GetCodePaneId (view), place), m_scaler);
 
         host->SetChildClip (bar, place);
     }
@@ -1195,7 +1195,7 @@ void DebuggerWindow::PlaceSourceBars()
         document.bar->SetTextRenderer   (host->GetTextRenderer());
         document.bar->SetPopupHost      (host->GetPopupHost());
         document.bar->SetHostClientRect (host->GetBounds());
-        document.bar->Layout            (ColorKeyButton::GetStripBeside (place, m_scaler), m_scaler);
+        document.bar->Layout            (GetBarStrip (DebuggerLayout::GetSourcePaneId (slot), place), m_scaler);
 
         host->SetChildClip (document.bar, place);
     }

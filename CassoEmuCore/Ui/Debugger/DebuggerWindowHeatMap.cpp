@@ -274,7 +274,7 @@ void DebuggerWindow::PlaceHeatMapBar()
     m_heatMapBar->SetTextRenderer   (host->GetTextRenderer());
     m_heatMapBar->SetPopupHost      (host->GetPopupHost());
     m_heatMapBar->SetHostClientRect (host->GetBounds());
-    m_heatMapBar->Layout            (ColorKeyButton::GetStripBeside (slot, m_scaler), m_scaler);
+    m_heatMapBar->Layout            (GetBarStrip (DebuggerLayout::kHeatMap, slot), m_scaler);
 
     host->SetChildClip (m_heatMapBar, slot);
 }

@@ -82,6 +82,7 @@ public:
         Fill,
         Row,
         Text,
+        Italic,         // a sample in the text's own color, in italics
         Marker,
         Dot,
         Ring,
@@ -160,4 +161,9 @@ public:
     static std::shared_ptr<DxuiIconImage>  MakeSwatchIcon (Swatch swatch, uint32_t argb);
     //  Lines joined one to a line, empty ones left out.
     static std::wstring  JoinLines (const std::vector<std::wstring> & lines);
+
+    //  A color in a word or two, for a tip that names one: its hue, "Dark"
+    //  ahead of a deep one, and gray, black or white for one with little
+    //  color, "Blue", "Dark green".
+    static std::wstring  GetColorName (uint32_t argb);
 };

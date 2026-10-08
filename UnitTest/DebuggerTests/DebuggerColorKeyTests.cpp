@@ -198,7 +198,9 @@ namespace DebuggerColorKeyTests
         }
 
 
-        TEST_METHOD (TheButtonEndsTheToolbarWithoutCoveringIt)
+        //  A tool window's button sits in its title bar, so its toolbar runs
+        //  the pane's whole width beneath.
+        TEST_METHOD (TheButtonSitsInTheTitleBarAboveAFullToolbar)
         {
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
             ColorKeyHost      host;
@@ -216,9 +218,8 @@ namespace DebuggerColorKeyTests
             bar    = window.GetHeatMapBar()->GetBounds();
 
             Assert::IsTrue   (key->IsVisible(), L"the heat map's button is not shown");
-            Assert::AreEqual (bar.right, button.left, L"the toolbar runs up to the button");
-            Assert::AreEqual (bar.top,   button.top,  L"in the toolbar's band");
-            Assert::AreEqual (bar.bottom - bar.top, button.bottom - button.top);
+            Assert::IsTrue   (button.bottom <= bar.top, L"in the title bar, above the toolbar");
+            Assert::IsTrue   (bar.right > button.right, L"the toolbar runs past the button to the pane's edge");
         }
 
 
@@ -318,7 +319,7 @@ namespace DebuggerColorKeyTests
 
         //  A device panel's key follows what it shows: a memory map's sources,
         //  a disk head's states, and nothing for meters or a list alone, when
-        //  its band and button go.
+        //  its button goes.
         TEST_METHOD (ADevicePanelsKeyFollowsItsGraphic)
         {
             DxuiListView         list;
@@ -344,7 +345,7 @@ namespace DebuggerColorKeyTests
             (void) pane.Apply (snapshot);
             Assert::IsFalse (pane.GetColorKey().has_value(), L"meters have a key");
 
-            Assert::IsTrue  (pane.GetControls().front() == pane.GetKeySlot(), L"the band is not the pane's top part");
+            Assert::IsTrue  (pane.GetControls().front() == &map, L"the pane keeps no band for its button; the map is its top part");
         }
     };
 }

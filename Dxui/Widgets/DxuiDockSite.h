@@ -156,6 +156,13 @@ public:
     void  SetLeadingMark (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark);
     void  SetTabTip     (const std::wstring & pane, const std::wstring & tip);
 
+    //  Room a pane keeps in its tool window's title bar for a control of its
+    //  own (see DxuiTabGroup::SetTitleExtra), and where that room is now:
+    //  false while the pane is not the one its title bar shows, or its group
+    //  has no title bar.
+    void  SetTitleExtra        (const std::wstring & pane, int widthDip);
+    bool  TryGetTitleExtraRect (const std::wstring & pane, RECT & rect) const;
+
     //  The pane whose tab is under a point, with the tab's rect and tip, or
     //  empty.
     std::wstring  GetTabAt (POINT pointDip, RECT & tab, std::wstring & tip) const;
@@ -266,10 +273,11 @@ private:
     struct Pane
     {
         std::wstring                 title;
-        IDxuiControl               * content   = nullptr;
-        bool                         indicator = false;
+        IDxuiControl               * content       = nullptr;
+        bool                         indicator     = false;
         DxuiTabGroup::LeadingMark    leadMark;
         std::wstring                 tip;
+        int                          titleExtraDip = 0;
     };
 
     struct EdgeTab

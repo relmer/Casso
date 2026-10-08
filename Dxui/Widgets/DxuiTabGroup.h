@@ -77,6 +77,12 @@ public:
     void  SetIndicator (IDxuiControl * content, bool on);
     void  SetTabTip    (IDxuiControl * content, const std::wstring & tip);
 
+    //  Room a tab's pane keeps in a tool window's title bar, ahead of the
+    //  menu button, for a control of its own; zero keeps none. Only the
+    //  active tab's room is kept, and the title stops short of it.
+    void  SetTitleExtra    (IDxuiControl * content, int widthDip);
+    RECT  GetTitleExtraRect () const;
+
     //  A mark ahead of a tab's title: a mark of the tab's own state, not a
     //  change to look at. A glyph drawn in the given face, so a caller can
     //  repeat a mark its content already uses, or a dot when no glyph is
@@ -183,10 +189,11 @@ private:
     struct Tab
     {
         std::wstring    title;
-        IDxuiControl  * content   = nullptr;
-        bool            indicator = false;
+        IDxuiControl  * content       = nullptr;
+        bool            indicator     = false;
         LeadingMark     leadMark;
         std::wstring    tip;
+        int             titleExtraDip = 0;
     };
 
     void  LayoutContent ();

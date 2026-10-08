@@ -12,8 +12,8 @@
 //  MemoryMapBar
 //
 //  All 256 pages of the address space in two strips, what each page reads
-//  from over what it writes to, colored by source, with a key below naming
-//  the colors.
+//  from over what it writes to, colored by source. A run's tip says what its
+//  color is and the addresses it covers.
 //
 //  Bounds are pixels, like every Dxui control; the bar scales only its own
 //  metrics.
@@ -26,22 +26,21 @@ public:
     static constexpr int  kStripDip     = 12;
     static constexpr int  kLabelDip     = 16;
     static constexpr int  kGapDip       = 2;
-    static constexpr int  kKeyDip       = 16;
-    static constexpr int  kSwatchDip    = 10;
-    static constexpr int  kKeyGapDip    = 12;
-    static constexpr int  kKeyIndentDip = 14;
 
     void                          SetMap (const DiagnosticsMemoryMap & map) { m_map = map; }
     const DiagnosticsMemoryMap &  GetMap () const                           { return m_map; }
 
-    //  The key wraps to as many rows as the width needs, so a narrow pane still
-    //  shows every source it uses.
     int                           GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
+
+    //  The tip over a run of pages from one source in either strip, or false
+    //  off the strips.
+    bool                          TryGetTipAt (POINT point, std::wstring & text) const;
 
     //  One color per source; None is drawn in the theme's divider color, so it
     //  has no entry of its own.
     static uint32_t               GetSourceColor (MemorySource source);
     static const wchar_t *        GetSourceName  (MemorySource source);
+    static const wchar_t *        GetSourceDescription (MemorySource source);
 
     //  The theme's colors in place of the mid-tones, one per source in
     //  MemorySource order; a zero keeps that source's mid-tone.
@@ -60,14 +59,8 @@ public:
 
 private:
     void  PaintStrip (IDxuiPainter & painter, const IDxuiTheme & theme, float y, bool isWrite) const;
-    void  PaintKey   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float y) const;
-
-    //  Where each key entry the map uses goes, wrapped to the width: its left
-    //  and its row. The key's rows are the last entry's row plus one.
-    std::vector<std::pair<MemorySource, POINT>>  LayOutKey (float widthPx, const DxuiDpiScaler & scaler) const;
 
     DiagnosticsMemoryMap  m_map;
     DxuiDpiScaler         m_scaler;
-    float                 m_fontDip = 12.0f;     // the key's font, as last painted
     SourceColors          m_colors  = {};
 };

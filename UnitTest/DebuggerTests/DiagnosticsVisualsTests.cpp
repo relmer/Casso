@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Ui/Debugger/ColorLegend.h"
 
 #include "Ui/Debugger/Panes/DiskHeadView.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
@@ -105,8 +106,64 @@ namespace DebuggerTests
             }
 
             Assert::AreEqual ((size_t) 5, readFills, L"aux, main, I/O, main, ROM");
-            Assert::IsTrue   (HasText (text, L"aux") && HasText (text, L"ROM"), L"the key names the sources in use");
-            Assert::IsFalse  (HasText (text, L"slot ROM"),                      L"and only those");
+        }
+
+
+        //  A run of pages from one source tells, in its tip, its color, what
+        //  it is, which way the strip goes, and its addresses.
+        TEST_METHOD (AMemoryMapRunsTipSaysItsColorWhatAndWhere)
+        {
+            constexpr LONG        kLabel = MemoryMapBar::kLabelDip;
+            constexpr LONG        kWrite = MemoryMapBar::kStripDip + MemoryMapBar::kGapDip;
+            MemoryMapBar          bar;
+            DiagnosticsMemoryMap  map;
+            std::wstring          tip;
+
+
+
+            for (DiagnosticsMemoryMap::Page & page : map.pages)
+            {
+                page = { MemorySource::Main, MemorySource::Main };
+            }
+
+            map.pages[0x00] = { MemorySource::Aux, MemorySource::Aux };
+            map.pages[0x01] = { MemorySource::Aux, MemorySource::Main };
+
+            for (size_t page = 0xD0; page < DiagnosticsMemoryMap::kPageCount; page++)
+            {
+                map.pages[page] = { MemorySource::Rom, MemorySource::None };
+            }
+
+            bar.SetMap (map);
+            bar.Layout (RECT { 0, 0, kLabel + 256, 60 }, Scaler96());
+
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kLabel + 1, 2 }, tip));
+            Assert::AreEqual (std::wstring (L"Orange: reads come from Aux RAM ($0000-$01FF)"), tip);
+
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kLabel + 0x40, 2 }, tip));
+            Assert::AreEqual (std::wstring (L"Blue: reads come from Main RAM ($0200-$CFFF)"), tip);
+
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kLabel + 0xE0, kWrite + 2 }, tip));
+            Assert::AreEqual (std::wstring (L"Nothing is written here ($D000-$FFFF)"), tip);
+
+            Assert::IsFalse  (bar.TryGetTipAt (POINT { 2, 2 }, tip), L"none over the R label");
+            Assert::IsFalse  (bar.TryGetTipAt (POINT { kLabel + 1, 50 }, tip), L"none below the strips");
+        }
+
+
+        TEST_METHOD (EveryMemoryMapSourceHasAColorNameOfItsOwn)
+        {
+            std::set<std::wstring>  names;
+
+
+
+            for (int source = (int) MemorySource::Main; source < (int) MemorySource::Count; source++)
+            {
+                names.insert (ColorLegend::GetColorName (MemoryMapBar::GetSourceColor ((MemorySource) source)));
+            }
+
+            Assert::AreEqual ((size_t) MemorySource::Count - 1, names.size(), L"two sources share a color name");
+            Assert::AreEqual (std::wstring (L"Gray"), ColorLegend::GetColorName (0xFF808080));
         }
 
 
@@ -268,40 +325,6 @@ namespace DebuggerTests
 
             Assert::AreEqual (view.GetPreferredHeightPx (kFits, Scaler96()) + DiskHeadView::kRowDip,
                               view.GetPreferredHeightPx (kNarrow, Scaler96()), L"a row more for the break");
-        }
-
-
-        //  In a narrow pane the key wraps rather than running its names into
-        //  one another or leaving sources out, and the bar asks for the rows.
-        TEST_METHOD (TheMemoryMapKeyWrapsAndNamesEverySource)
-        {
-            constexpr int         kNarrow = 120;
-            MemoryMapBar          bar;
-            DiagnosticsMemoryMap  map;
-            MockDxuiPainter       painter;
-            MockDxuiTextRenderer  text;
-            MockDxuiTheme         theme;
-            const MemorySource    sources[] = { MemorySource::Main, MemorySource::Aux, MemorySource::LcBank1,
-                                                MemorySource::Rom,  MemorySource::SlotRom, MemorySource::Io };
-
-
-
-            for (size_t page = 0; page < DiagnosticsMemoryMap::kPageCount; page++)
-            {
-                map.pages[page] = { sources[page % std::size (sources)], MemorySource::Main };
-            }
-
-            bar.SetMap (map);
-            bar.Layout (RECT { 0, 0, kNarrow, 200 }, Scaler96());
-            bar.Paint  (painter, text, theme);
-
-            for (MemorySource source : sources)
-            {
-                Assert::IsTrue (HasText (text, MemoryMapBar::GetSourceName (source)), MemoryMapBar::GetSourceName (source));
-            }
-
-            Assert::IsTrue (bar.GetPreferredHeightPx (kNarrow, Scaler96()) > bar.GetPreferredHeightPx (2000, Scaler96()),
-                            L"the narrow bar's key takes more rows");
         }
 
 

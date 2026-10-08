@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/ColorLegend.h"
 
 
 
@@ -104,20 +105,20 @@ const wchar_t * MemoryMapBar::GetSourceName (MemorySource source)
 //
 //  MemoryMapBar::GetPreferredHeightPx
 //
-//  The read strip, the write strip, and the key, in as many rows as it wraps
-//  to at this width.
+//  The read strip and the write strip. What each color is, each run's tip
+//  says (TryGetTipAt).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int MemoryMapBar::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 {
-    constexpr int                                       kStrips = 2;
-    std::vector<std::pair<MemorySource, POINT>>         key     = LayOutKey ((float) widthPx, scaler);
-    int                                                 rows    = key.empty() ? 1 : (int) key.back().second.y + 1;
+    constexpr int  kStrips = 2;
 
 
 
-    return scaler.ToPx ((kStripDip + kGapDip) * kStrips + kKeyDip * rows);
+    UNREFERENCED_PARAMETER (widthPx);
+
+    return scaler.ToPx ((kStripDip + kGapDip) * kStrips);
 }
 
 
@@ -126,51 +127,101 @@ int MemoryMapBar::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryMapBar::LayOutKey
+//  MemoryMapBar::TryGetTipAt
 //
-//  Each entry as wide as its swatch and name, the names measured by the
-//  monospace advance, and a new row where the next would pass the right edge.
-//  An entry wider than the whole bar still gets a row of its own.
+//  Over a run of pages from one source, in either strip: the source's color
+//  and what it is, which way the strip goes, and the run's addresses, "Blue:
+//  reads come from Main RAM ($0000-$BFFF)".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::pair<MemorySource, POINT>> MemoryMapBar::LayOutKey (float widthPx, const DxuiDpiScaler & scaler) const
+bool MemoryMapBar::TryGetTipAt (POINT point, std::wstring & text) const
 {
-    static constexpr float                        kAdvancePerDip = 0.6f;
-    float                                         indent         = scaler.ToPxf ((float) kKeyIndentDip);
-    float                                         gap            = scaler.ToPxf ((float) kKeyGapDip);
-    float                                         advance        = scaler.ToPxf (m_fontDip) * kAdvancePerDip;
-    float                                         x              = 0.0f;
-    LONG                                          row            = 0;
-    std::vector<std::pair<MemorySource, POINT>>   key;
+    float         strip   = m_scaler.ToPxf ((float) kStripDip);
+    float         gap     = m_scaler.ToPxf ((float) kGapDip);
+    float         top     = (float) m_boundsDip.top;
+    float         y       = (float) point.y;
+    float         x       = (float) point.x;
+    float         left    = GetPageX (0);
+    float         right   = GetPageX ((int) DiagnosticsMemoryMap::kPageCount);
+    bool          isWrite = false;
+    int           page    = 0;
+    int           first   = 0;
+    int           end     = 0;
+    MemorySource  source  = MemorySource::None;
+    auto          sourceOf = [this, &isWrite] (int at) { return isWrite ? m_map.pages[(size_t) at].write : m_map.pages[(size_t) at].read; };
 
 
 
-    for (int index = (int) MemorySource::Main; index < (int) MemorySource::Count; index++)
+    if (!m_visible || x < left || x >= right || right <= left)
     {
-        MemorySource  source = (MemorySource) index;
-        float         width  = indent + (float) wcslen (GetSourceName (source)) * advance;
-        bool          used   = std::any_of (m_map.pages.begin(), m_map.pages.end(), [source] (const DiagnosticsMemoryMap::Page & page)
-        {
-            return page.read == source || page.write == source;
-        });
-
-        if (!used)
-        {
-            continue;
-        }
-
-        if (x > 0.0f && x + width > widthPx)
-        {
-            x = 0.0f;
-            row++;
-        }
-
-        key.push_back ({ source, POINT { (LONG) x, row } });
-        x += width + gap;
+        return false;
     }
 
-    return key;
+    if (y >= top && y < top + strip)
+    {
+        isWrite = false;
+    }
+    else if (y >= top + strip + gap && y < top + strip + gap + strip)
+    {
+        isWrite = true;
+    }
+    else
+    {
+        return false;
+    }
+
+    page   = std::clamp ((int) ((x - left) / (right - left) * (float) DiagnosticsMemoryMap::kPageCount), 0, (int) DiagnosticsMemoryMap::kPageCount - 1);
+    source = sourceOf (page);
+    first  = page;
+    end    = page + 1;
+
+    while (first > 0 && sourceOf (first - 1) == source)
+    {
+        first--;
+    }
+
+    while (end < (int) DiagnosticsMemoryMap::kPageCount && sourceOf (end) == source)
+    {
+        end++;
+    }
+
+    if (source == MemorySource::None)
+    {
+        text = std::format (L"Nothing is {} here (${:04X}-${:04X})", isWrite ? L"written" : L"read", first * 0x100, end * 0x100 - 1);
+        return true;
+    }
+
+    text = std::format (L"{}: {} {} (${:04X}-${:04X})", ColorLegend::GetColorName (GetColorOf (source)),
+                        isWrite ? L"writes go to" : L"reads come from", GetSourceDescription (source), first * 0x100, end * 0x100 - 1);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetSourceDescription
+//
+//  The memory map key's own words for the source.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * MemoryMapBar::GetSourceDescription (MemorySource source)
+{
+    switch (source)
+    {
+    case MemorySource::Main:    return ColorLegend::GetText (ColorLegend::Meaning::MapMain);
+    case MemorySource::Aux:     return ColorLegend::GetText (ColorLegend::Meaning::MapAux);
+    case MemorySource::LcBank1: return ColorLegend::GetText (ColorLegend::Meaning::MapLcBank1);
+    case MemorySource::LcBank2: return ColorLegend::GetText (ColorLegend::Meaning::MapLcBank2);
+    case MemorySource::Rom:     return ColorLegend::GetText (ColorLegend::Meaning::MapRom);
+    case MemorySource::SlotRom: return ColorLegend::GetText (ColorLegend::Meaning::MapSlotRom);
+    case MemorySource::Io:      return ColorLegend::GetText (ColorLegend::Meaning::MapIo);
+    default:                    return GetSourceName (source);
+    }
 }
 
 
@@ -236,12 +287,8 @@ void MemoryMapBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         return;
     }
 
-    //  The key's rows are counted at this size before the next layout.
-    m_fontDip = font.sizeDip;
-
     PaintStrip (painter, theme, top,               false);
     PaintStrip (painter, theme, top + strip + gap, true);
-    PaintKey   (painter, text, theme, top + (strip + gap) + (strip + gap));
 
     hr = text.DrawString (L"R", left, top, label, strip, theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
@@ -286,44 +333,5 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, const IDxuiTheme & theme,
 
         painter.FillRect (GetPageX (first), y, GetPageX (end) - GetPageX (first), strip, color);
         first = end;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryMapBar::PaintKey
-//
-//  Only the sources the map uses, so the key names what is on screen, each
-//  entry as wide as its name and the key wrapped to the bar's width.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryMapBar::PaintKey (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float y) const
-{
-    DxuiFontHandle  font   = theme.MonospaceFont();
-    float           key    = m_scaler.ToPxf ((float) kKeyDip);
-    float           swatch = m_scaler.ToPxf ((float) kSwatchDip);
-    float           indent = m_scaler.ToPxf ((float) kKeyIndentDip);
-    float           left   = (float) m_boundsDip.left;
-    float           width  = (float) (m_boundsDip.right - m_boundsDip.left);
-    HRESULT         hr     = S_OK;
-
-
-
-    for (const auto & [source, at] : LayOutKey (width, m_scaler))
-    {
-        float  x   = left + (float) at.x;
-        float  top = y + key * (float) at.y;
-
-        painter.FillRect (x, top + (key - swatch) / 2, swatch, swatch, GetColorOf (source));
-
-        hr = text.DrawString (GetSourceName (source), x + indent, top, width - (float) at.x - indent, key,
-                              theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
-                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }

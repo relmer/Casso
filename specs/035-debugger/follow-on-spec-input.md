@@ -31,6 +31,15 @@ Run `/speckit-specify` with the text below as a new feature once 035 closes.
    typed tools (run a command in a mode, step, set a breakpoint, read memory,
    take a screenshot) to the existing debug channel, for AI clients without
    shell access. No change inside Casso. GS2's author ships one.
+   GS2's demo of its own, which ours should be able to match: an agent is
+   asked to start the emulator, wait five seconds for the boot to fail,
+   press Ctrl+Reset, then type in a BASIC program that draws a lo-res (GR)
+   color bar demo. So the tools must include starting and stopping the
+   emulator, waiting, keys and key chords (Ctrl+Reset among them), typing
+   text into the machine (GS2's paste_text fills the paste buffer in one
+   round trip), and reading the screen back to check the result. GS2's
+   author also said his binary debug protocol was meant to let a richer
+   debugger front end drive GS2, its own being limited.
 6. **Code and data analysis in the code pane.** A recursive-descent pass from
    known entry points (reset, IRQ and NMI vectors, PC, breakpoints, symbols)
    follows branches, JSR and JMP, stops at RTS, RTI and indirect jumps, and

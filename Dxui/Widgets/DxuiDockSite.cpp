@@ -216,6 +216,7 @@ void DxuiDockSite::Arrange()
             group->AddTab         (found->second.title, found->second.content);
             group->SetLeadingMark (found->second.content, found->second.leadMark);
             group->SetTabTip      (found->second.content, found->second.tip);
+            group->SetTitleExtra  (found->second.content, found->second.titleExtraDip);
             placed.insert (found->second.content);
         }
 
@@ -490,6 +491,12 @@ DxuiHitTestKind DxuiDockSite::ClassifyHit (POINT clientDip) const
             {
                 return DxuiHitTestKind::Client;
             }
+        }
+
+        //  A pane's own control in the title bar is pressed, not dragged.
+        if (Contains (group->GetTitleExtraRect(), clientDip))
+        {
+            return DxuiHitTestKind::Client;
         }
 
         return DxuiHitTestKind::Caption;
@@ -1107,6 +1114,73 @@ void DxuiDockSite::SetTabTip (const std::wstring & pane, const std::wstring & ti
     {
         found->second.tip = tip;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetTitleExtra
+//
+//  Kept with the pane as it moves between groups, and given to the group
+//  that holds it now, so the room shows without a new arrangement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetTitleExtra (const std::wstring & pane, int widthDip)
+{
+    auto  found = m_panes.find (pane);
+
+
+
+    if (found == m_panes.end() || found->second.titleExtraDip == widthDip)
+    {
+        return;
+    }
+
+    found->second.titleExtraDip = widthDip;
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->SetTitleExtra (found->second.content, widthDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TryGetTitleExtraRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TryGetTitleExtraRect (const std::wstring & pane, RECT & rect) const
+{
+    auto  found = m_panes.find (pane);
+
+
+
+    rect = {};
+
+    if (found == m_panes.end() || found->second.content == nullptr)
+    {
+        return false;
+    }
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        if (group->IsVisible() && group->GetActiveContent() == found->second.content)
+        {
+            rect = group->GetTitleExtraRect();
+            break;
+        }
+    }
+
+    return rect.right > rect.left;
 }
 
 

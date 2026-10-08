@@ -4539,7 +4539,7 @@ void DebuggerWindow::PlaceMemoryBar()
     m_memoryBar->SetTextRenderer   (host->GetTextRenderer());
     m_memoryBar->SetPopupHost      (host->GetPopupHost());
     m_memoryBar->SetHostClientRect (host->GetBounds());
-    m_memoryBar->Layout            (ColorKeyButton::GetStripBeside (slot, m_scaler), m_scaler);
+    m_memoryBar->Layout            (GetBarStrip (m_memoryBarPane, slot), m_scaler);
 
     host->SetChildClip (m_memoryBar, slot);
     host->SetChildClip (m_memoryBox, slot);
@@ -4751,7 +4751,9 @@ void DebuggerWindow::MoveMemoryBar (DxuiWindow * to)
 //  DebuggerWindow::ClipPaneControls
 //
 //  Each pane's controls paint inside the pane, so nothing a control draws
-//  past its edge lands on a neighbor.
+//  past its edge lands on a neighbor. The pane's info button is left out:
+//  it sits in the pane's title bar, outside the body, and PlaceColorKeys
+//  clips it to its own place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4773,7 +4775,7 @@ void DebuggerWindow::ClipPaneControls()
 
         SetChildClip (content, clip);
 
-        for (IDxuiControl * control : GetPaneControls (pane))
+        for (IDxuiControl * control : GetOwnControls (pane))
         {
             SetChildClip (control, clip);
         }
@@ -7251,8 +7253,11 @@ void DebuggerWindow::ApplySnapshot()
             DxuiListView::Cell                          name  = { Widen (line.label) };
             DxuiListView::Cell                          value = { Widen (line.value) };
 
-            name.dim = line.isPrevious;
-            name.tip = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
+            //  What the previous instruction touched is in italics, apart
+            //  from a disabled watch's muted text.
+            name.weight  = line.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
+            value.weight = name.weight;
+            name.tip     = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
 
             if (m_stopChanges.IsChanged ("A:" + line.key))
             {
@@ -9111,8 +9116,8 @@ bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstrin
 //
 //  DebuggerWindow::TryGetGraphicTip
 //
-//  Over a device panel's disk head, what its colors mean; over the status
-//  bar's history section, what its meter's do.
+//  Over a device panel's memory map or disk head, what its colors mean; over
+//  the status bar's history section, what its meter's do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9121,6 +9126,14 @@ bool DebuggerWindow::TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstri
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
         DiskHeadView  * head = pane->GetHead();
+        MemoryMapBar  * map  = pane->GetMap();
+
+        //  Over a memory map's run of pages, what its color is and where.
+        if (map != nullptr && IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, text))
+        {
+            anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+            return true;
+        }
 
         if (head == nullptr || !IsRoutable (head))
         {

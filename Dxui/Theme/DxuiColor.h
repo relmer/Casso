@@ -306,6 +306,7 @@ private:
     }
 
 
+public:
     //  Hue in degrees, saturation and value 0..1.
     static void ToHsv (uint32_t argb, float & h, float & s, float & v)
     {
@@ -335,6 +336,7 @@ private:
     }
 
 
+private:
     static uint32_t FromHsv (float h, float s, float v, uint32_t alpha)
     {
         constexpr float  s_kSectorDeg = 60.0f;

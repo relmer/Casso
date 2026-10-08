@@ -37,7 +37,7 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { Pane::Source,      Meaning::Result,             Swatch::Text    },
         { Pane::Registers,   Meaning::Changed,            Swatch::Text    },
         { Pane::Watch,       Meaning::Changed,            Swatch::Text    },
-        { Pane::Watch,       Meaning::PreviousAutoWatch,  Swatch::Text    },
+        { Pane::Watch,       Meaning::PreviousAutoWatch,  Swatch::Italic  },
         { Pane::Watch,       Meaning::DisabledWatch,      Swatch::Text    },
         { Pane::Stack,       Meaning::Changed,            Swatch::Text    },
         { Pane::CallStack,   Meaning::UnverifiedFrame,    Swatch::Text    },
@@ -478,4 +478,68 @@ std::wstring ColorLegend::JoinLines (const std::vector<std::wstring> & lines)
     }
 
     return joined;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetColorName
+//
+//  The hue's name from where it falls on the wheel, by the bounds below,
+//  in degrees; a color with little saturation is gray, or black or white at
+//  its ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ColorLegend::GetColorName (uint32_t argb)
+{
+    static constexpr float  kGraySaturation = 0.15f;
+    static constexpr float  kBlackValue     = 0.2f;
+    static constexpr float  kWhiteValue     = 0.9f;
+    static constexpr float  kDarkValue      = 0.6f;
+    static constexpr std::pair<float, const wchar_t *>  kHues[] =
+    {
+        {  15.0f, L"red"    },
+        {  40.0f, L"orange" },
+        {  70.0f, L"yellow" },
+        { 165.0f, L"green"  },
+        { 195.0f, L"teal"   },
+        { 250.0f, L"blue"   },
+        { 290.0f, L"purple" },
+        { 335.0f, L"pink"   },
+        { 360.0f, L"red"    },
+    };
+    float          hue        = 0.0f;
+    float          saturation = 0.0f;
+    float          value      = 0.0f;
+    std::wstring   name       = L"red";
+
+
+
+    DxuiColor::ToHsv (argb, hue, saturation, value);
+
+    if (saturation < kGraySaturation)
+    {
+        return (value < kBlackValue) ? L"Black" : (value > kWhiteValue) ? L"White" : L"Gray";
+    }
+
+    for (const auto & [bound, each] : kHues)
+    {
+        if (hue < bound)
+        {
+            name = each;
+            break;
+        }
+    }
+
+    if (value < kDarkValue)
+    {
+        return L"Dark " + name;
+    }
+
+    name[0] = (wchar_t) towupper (name[0]);
+    return name;
 }

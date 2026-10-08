@@ -1212,6 +1212,8 @@ private:
     void  AddColorKey         (const std::wstring & pane, DebuggerPaneFrame * slot, ColorLegend::Pane legend,
                                std::function<std::optional<ColorLegend::Pane> ()> dynamic = nullptr);
     void  PlaceColorKeys      ();
+    bool  TryGetColorKeyTitleRect (const std::wstring & pane, bool keep, RECT * rect = nullptr);
+    RECT  GetBarStrip         (const std::wstring & pane, const RECT & slot);
     bool  RouteColorKeyMouse  (const DxuiMouseEvent & ev);
     void  ShowColorKey        (ColorKeyButton * button, bool hold);
     void  ToggleColorKey      (ColorKeyButton * button);

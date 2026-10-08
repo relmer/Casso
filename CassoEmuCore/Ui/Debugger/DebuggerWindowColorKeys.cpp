@@ -11,9 +11,10 @@
 //
 //  DebuggerWindow::CreateColorKeys
 //
-//  An info button for every pane whose colors mean something, in the band
-//  its toolbar sits in; the call stack's and a device panel's are bands of
-//  their own. Made after the panes' frames, which hold the bands.
+//  An info button for every pane whose colors mean something. It sits in
+//  the pane's title bar, ahead of the menu button; a pane in a document
+//  group, which has none, has it at the end of its toolbar's band instead.
+//  Made after the panes' frames, which hold the bands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +56,7 @@ void DebuggerWindow::CreateColorKeys()
     {
         DiagnosticsPane  * each = pane.get();
 
-        AddColorKey (DebuggerLayout::GetDiagnosticsPaneId (each->GetId()), each->GetKeySlot(), ColorLegend::Pane::MemoryMap,
+        AddColorKey (DebuggerLayout::GetDiagnosticsPaneId (each->GetId()), nullptr, ColorLegend::Pane::MemoryMap,
                      [each] { return each->GetColorKey(); });
     }
 }
@@ -132,9 +133,10 @@ ColorKeyButton * DebuggerWindow::GetColorKey (const std::wstring & pane) const
 //
 //  DebuggerWindow::PlaceColorKeys
 //
-//  Each button takes the trailing end of its band, where its pane shows it
-//  and has colors to explain, and goes with the pane into a floating window.
-//  A key whose button has gone closes.
+//  Each button sits in its pane's title bar while the pane has colors to
+//  explain and its title bar shows it, or else at the trailing end of its
+//  toolbar's band, and goes with the pane into a floating window. A key
+//  whose button has gone closes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,11 +144,18 @@ void DebuggerWindow::PlaceColorKeys()
 {
     for (PaneColorKey & key : m_colorKeys)
     {
-        std::optional<ColorLegend::Pane>  legend = key.legend ? key.legend() : std::optional<ColorLegend::Pane> (key.button->GetLegend());
-        bool                              shown  = key.slot != nullptr && key.slot->IsVisible() && legend.has_value();
-        RECT                              slot   = {};
-        RECT                              place  = {};
-        DxuiWindow                      * host   = nullptr;
+        std::optional<ColorLegend::Pane>  legend  = key.legend ? key.legend() : std::optional<ColorLegend::Pane> (key.button->GetLegend());
+        bool                              inTitle = legend.has_value() && TryGetColorKeyTitleRect (key.button->GetPane(), true);
+        bool                              inSlot  = !inTitle && legend.has_value() && key.slot != nullptr && key.slot->IsVisible();
+        bool                              shown   = inTitle || inSlot;
+        RECT                              slot    = {};
+        RECT                              place   = {};
+        DxuiWindow                      * host    = nullptr;
+
+        if (!legend.has_value())
+        {
+            (void) TryGetColorKeyTitleRect (key.button->GetPane(), false);
+        }
 
         key.button->SetVisible (shown);
         key.button->SetPressed (shown && m_colorKeyOwner == key.button && m_colorKeyPopup.IsShown());
@@ -163,13 +172,84 @@ void DebuggerWindow::PlaceColorKeys()
 
         key.button->SetLegend (*legend);
 
-        slot  = key.slot->GetBounds();
-        place = { std::max (slot.left, slot.right - (long) m_scaler.ToPx (ColorKeyButton::kWidthDip)), slot.top, slot.right, slot.bottom };
-        host  = GetPaneHost (key.button->GetPane());
+        if (inTitle)
+        {
+            (void) TryGetColorKeyTitleRect (key.button->GetPane(), true, &place);
+        }
+        else
+        {
+            slot  = key.slot->GetBounds();
+            place = { std::max (slot.left, slot.right - (long) m_scaler.ToPx (ColorKeyButton::kWidthDip)), slot.top, slot.right, slot.bottom };
+        }
+
+        host = GetPaneHost (key.button->GetPane());
 
         key.button->Layout (place, m_scaler);
         host->SetChildClip (key.button, place);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetColorKeyTitleRect
+//
+//  Keeps room for the pane's info button in its title bar, or none when
+//  `keep` is false, in the dock site the pane is in, and says whether the
+//  title bar shows the pane, and so the button, and where.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetColorKeyTitleRect (const std::wstring & pane, bool keep, RECT * rect)
+{
+    auto            found = m_floats.find (pane);
+    DxuiDockSite  * site  = (found != m_floats.end() && found->second != nullptr) ? &found->second->GetSite() : m_dockSite;
+    RECT            place = {};
+    bool            isIn  = false;
+
+
+
+    if (site == nullptr)
+    {
+        return false;
+    }
+
+    site->SetTitleExtra (pane, keep ? ColorKeyButton::kWidthDip : 0);
+
+    isIn = keep && site->TryGetTitleExtraRect (pane, place);
+
+    if (rect != nullptr)
+    {
+        *rect = place;
+    }
+
+    return isIn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBarStrip
+//
+//  A pane's toolbar runs the width of its band, less the trailing end where
+//  the pane's info button sits when its title bar cannot hold it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DebuggerWindow::GetBarStrip (const std::wstring & pane, const RECT & slot)
+{
+    if (GetColorKey (pane) == nullptr || TryGetColorKeyTitleRect (pane, true))
+    {
+        return slot;
+    }
+
+    return ColorKeyButton::GetStripBeside (slot, m_scaler);
 }
 
 
