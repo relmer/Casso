@@ -662,7 +662,7 @@ RECT DxuiDockSite::GetDockedArea() const
     //  A shared edge is as deep as the deeper of its tabs and what shares it.
     for (size_t edge = 0; edge < 4; edge++)
     {
-        depth[edge] = used[edge] ? m_scaler.ToPx (DxuiTabGroup::kStripDip) : 0;
+        depth[edge] = used[edge] ? m_scaler.ToPx (kEdgeStripDip) : 0;
 
         if (m_shareOn && (size_t) m_shareEdge == edge)
         {
@@ -976,25 +976,21 @@ void DxuiDockSite::PaintSlidUnder (IDxuiPainter & painter, const IDxuiTheme & th
 //
 //  DxuiDockSite::PaintSlidOver
 //
-//  Its title bar and an outline in the accent color.
+//  Its title bar and its frame, which follows its focused look as every
+//  other group's does. The frame's corner pieces round off the square
+//  background PaintSlidUnder laid.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::PaintSlidOver (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float  line = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
-
-
-
     if (!m_slidGroup.IsVisible())
     {
         return;
     }
 
-    m_slidGroup.Paint (painter, text, theme);
-
-    painter.OutlineRect ((float) m_slidRect.left, (float) m_slidRect.top, (float) (m_slidRect.right - m_slidRect.left),
-                         (float) (m_slidRect.bottom - m_slidRect.top), line, theme.FocusAccent());
+    m_slidGroup.Paint      (painter, text, theme);
+    m_slidGroup.PaintFrame (painter, theme);
 }
 
 
@@ -2511,14 +2507,20 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  DxuiDockSite::PaintAfterSiblings
 //
-//  A drag's marks, unless an overlay draws them. This pass draws over every
-//  pane control whatever the child order, which a floating window needs: its
-//  site is its first child, so the panes paint after the site's own Paint.
+//  Every group's frame -- its outline and corner caps -- then a drag's marks,
+//  unless an overlay draws them. This pass draws over every pane control
+//  whatever the child order, which a floating window needs: its site is its
+//  first child, so the panes paint after the site's own Paint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->PaintFrame (painter, theme);
+    }
+
     if (IsDragging() && !m_marksElsewhere)
     {
         PaintDragMarks (painter, text, theme);

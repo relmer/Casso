@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "MockDxuiControl.h"
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -87,7 +90,7 @@ namespace DxuiDockSiteTests
             Assert::AreEqual ((size_t) 3, rig.site.GetGroupCount());
             Assert::IsTrue   (rig.code.IsVisible());
             Assert::IsTrue   (rig.console.GetBounds().top >= rig.code.GetBounds().bottom, L"console below code");
-            Assert::AreEqual ((long) DxuiTabGroup::kStripDip, rig.code.GetBounds().top, L"below its strip");
+            Assert::AreEqual ((long) DxuiTabGroup::kStripDip + 1, rig.code.GetBounds().top, L"below its strip and the line under it");
             Assert::IsTrue   (rig.stack.IsVisible() != rig.regs.IsVisible(), L"tabbed: one shown");
         }
 
@@ -171,7 +174,7 @@ namespace DxuiDockSiteTests
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { 700, 300 }));
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   POINT { 700, 300 }));
 
-            Assert::AreEqual ((long) 700, rig.stack.GetBounds().left, L"the shown tab of the right-hand group");
+            Assert::AreEqual (700L + DxuiPaneMetrics::GetLinePx (rig.scaler), rig.stack.GetBounds().left, L"the shown tab of the right-hand group, inside its outline");
             Assert::AreEqual (1, rig.changes, L"reported once, when the drag ends");
             //  A cursor id is an integer resource, so compare the pointers.
             Assert::IsTrue (IDC_SIZEWE == rig.site.GetCursorForPoint (POINT { 700, 300 }));
@@ -269,7 +272,7 @@ namespace DxuiDockSiteTests
             Assert::IsTrue   (tabbedWithCode);
             Assert::AreEqual (std::wstring (L"Dock left"), items.at (0).label);
             Assert::IsTrue   (items.at (0).action());
-            Assert::AreEqual ((long) 0, rig.console.GetBounds().left);
+            Assert::AreEqual ((long) DxuiPaneMetrics::GetLinePx (rig.scaler), rig.console.GetBounds().left, L"against the left edge, inside its outline");
             Assert::AreEqual (1, rig.changes);
         }
 
@@ -308,7 +311,7 @@ namespace DxuiDockSiteTests
 
             Assert::AreEqual (std::wstring (L"console"), rig.site.GetSlidPane());
             Assert::IsTrue   (rig.console.IsVisible());
-            Assert::AreEqual (slid.bottom, rig.console.GetBounds().bottom);
+            Assert::AreEqual (slid.bottom - DxuiPaneMetrics::GetLinePx (rig.scaler), rig.console.GetBounds().bottom, L"to the slid rect's bottom, inside its outline");
             Assert::AreEqual (std::wstring (L"console"), rig.site.GetPaneAt (Center (slid)));
 
             //  A press elsewhere slides it back.
@@ -417,7 +420,7 @@ namespace DxuiDockSiteTests
             rig.site.Relayout();
 
             Assert::IsFalse  (rig.console.IsVisible());
-            Assert::AreEqual ((long) 600, rig.code.GetBounds().bottom, L"code takes the console's area");
+            Assert::AreEqual (600L - DxuiPaneMetrics::GetLinePx (rig.scaler), rig.code.GetBounds().bottom, L"code takes the console's area");
             Assert::IsTrue   (rig.site.GetPaneLayout().IsDocked (L"console"));
         }
 
@@ -566,7 +569,7 @@ namespace DxuiDockSiteTests
             rig.site.Relayout();
             tab = rig.site.GetEdgeTabRect (L"regs");
 
-            Assert::AreEqual ((long) DxuiTabGroup::kStripDip, tab.right - tab.left, L"one tab high");
+            Assert::AreEqual ((long) DxuiDockSite::kEdgeStripDip, tab.right - tab.left, L"one tab high");
             Assert::IsTrue   (tab.bottom - tab.top > tab.right - tab.left, L"its title runs down the edge");
             Assert::AreEqual ((long) 1000, tab.right);
         }
@@ -586,6 +589,33 @@ namespace DxuiDockSiteTests
 
                 Assert::AreEqual (group->IndexOf (&rig.stack) >= 0, group->HasFocusedLook());
             }
+        }
+
+
+        //  The groups' outlines lie over the pane controls whatever the child
+        //  order, so the site draws them in its after pass, not in Paint.
+        TEST_METHOD (FramesArePaintedAfterTheSiblings)
+        {
+            Rig                   rig;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            auto                  countRuns = [&]
+            {
+                return std::count_if (painter.Calls().begin(), painter.Calls().end(), [&] (const RecordedPaintCall & call)
+                {
+                    return call.kind == RecordedPaintKind::FillRect && call.argb == theme.Border();
+                });
+            };
+
+
+
+            rig.site.Paint (painter, text, theme);
+            Assert::AreEqual ((ptrdiff_t) 0, countRuns(), L"Paint draws no outline run");
+
+            painter.Reset();
+            rig.site.PaintAfterSiblings (painter, text, theme);
+            Assert::IsTrue (countRuns() >= (ptrdiff_t) (4 * rig.site.GetGroupCount()), L"the after pass draws every group's outline runs");
         }
     };
 }

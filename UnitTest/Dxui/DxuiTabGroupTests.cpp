@@ -69,8 +69,8 @@ namespace DxuiTabGroupTests
             Assert::AreEqual (0, rig.group.GetActive());
             Assert::IsTrue   (rig.a.IsVisible());
             Assert::IsFalse  (rig.b.IsVisible());
-            Assert::AreEqual ((long) DxuiTabGroup::kStripDip, rig.a.GetBounds().top, L"below the strip");
-            Assert::AreEqual ((long) 300, rig.a.GetBounds().bottom);
+            Assert::AreEqual ((long) DxuiTabGroup::kStripDip + 1, rig.a.GetBounds().top, L"below the strip and the line under it");
+            Assert::AreEqual ((long) 299, rig.a.GetBounds().bottom, L"inside the outline");
         }
 
 
@@ -223,7 +223,7 @@ namespace DxuiTabGroupTests
             group.Layout  (RECT { 0, 0, 400, 300 }, scaler);
 
             Assert::AreEqual ((long) DxuiTabGroup::kTitleDip, a.GetBounds().top,    L"below the title bar");
-            Assert::AreEqual ((long) 300,                     a.GetBounds().bottom, L"no strip below");
+            Assert::AreEqual ((long) 299,                     a.GetBounds().bottom, L"no strip below, inside the outline");
             Assert::AreEqual (-1, group.HitTestTab (POINT { 5, 5 }));
             Assert::IsTrue   (group.IsChromeAt (POINT { 5, 5 }));
             Assert::IsFalse  (group.IsChromeAt (POINT { 5, 290 }));
@@ -240,9 +240,9 @@ namespace DxuiTabGroupTests
             rig.group.SetKind (DxuiTabGroup::Kind::ToolWindow);
             tab = rig.group.GetTabRect (0);
 
-            Assert::AreEqual ((long) DxuiTabGroup::kTitleDip,        rig.a.GetBounds().top);
-            Assert::AreEqual ((long) (300 - DxuiTabGroup::kStripDip), rig.a.GetBounds().bottom, L"above the strip");
-            Assert::AreEqual ((long) (300 - DxuiTabGroup::kStripDip), tab.top);
+            Assert::AreEqual ((long) DxuiTabGroup::kTitleDip,            rig.a.GetBounds().top);
+            Assert::AreEqual ((long) (300 - DxuiTabGroup::kStripDip - 1), rig.a.GetBounds().bottom, L"above the strip and the line over it");
+            Assert::AreEqual ((long) (300 - DxuiTabGroup::kStripDip),     tab.top);
             Assert::AreEqual (1, rig.group.HitTestTab (POINT { rig.group.GetTabRect (1).left + 3, tab.top + 3 }));
         }
 
@@ -327,6 +327,145 @@ namespace DxuiTabGroupTests
             rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   tab.right - 12, (tab.top + tab.bottom) / 2));
             Assert::AreEqual (0, closed);
             Assert::AreEqual (0, rig.group.GetActive(), L"a close is not a press on the tab");
+        }
+
+
+        //  A tool window's title bar is the pane's own color, rounded at the
+        //  pane's top corners, with no separator under it.
+        TEST_METHOD (TitleIsFilledWithTheContentColor)
+        {
+            DxuiTabGroup          group;
+            MockDxuiControl       a;
+            DxuiDpiScaler         scaler;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            RECT                  title  = {};
+            bool                  filled = false;
+
+
+
+            group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+            group.AddTab  (L"Registers", &a);
+            group.Layout  (RECT { 30, 20, 430, 320 }, scaler);
+            group.Paint   (painter, text, theme);
+            title = group.GetTitleRect();
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                filled = filled || (call.kind == RecordedPaintKind::FillRoundedRect && call.isClipped && call.argb == theme.ContentBackground() &&
+                                    call.clip.left == title.left && call.clip.top == title.top && call.clip.right == title.right && call.clip.bottom == title.bottom);
+            }
+
+            Assert::IsTrue (filled, L"a rounded fill in the content color, clipped to the title bar");
+        }
+
+
+        //  A title starts at the pane's text inset from its outer edge, the
+        //  same at every scale.
+        TEST_METHOD (TitleTextStartsAtTheTextInset)
+        {
+            for (UINT dpi : { 96u, 144u })
+            {
+                DxuiTabGroup          group;
+                MockDxuiControl       a;
+                DxuiDpiScaler         scaler;
+                MockDxuiPainter       painter;
+                MockDxuiTextRenderer  text;
+                MockDxuiTheme         theme;
+                bool                  drawn = false;
+                float                 x     = 0.0f;
+
+                scaler.SetDpi (dpi);
+                group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+                group.AddTab  (L"Registers", &a);
+                group.Layout  (RECT { 30, 20, 430, 320 }, scaler);
+                group.Paint   (painter, text, theme);
+
+                for (const RecordedTextCall & call : text.Calls())
+                {
+                    if (!drawn && call.kind == RecordedTextKind::DrawString && call.text == L"Registers")
+                    {
+                        drawn = true;
+                        x     = call.x;
+                    }
+                }
+
+                Assert::IsTrue   (drawn, L"the title is drawn");
+                Assert::AreEqual ((float) (30 + DxuiPaneMetrics::GetTextInsetPx (scaler)), x, L"at the text inset");
+            }
+        }
+
+
+        //  A document's first tab's label starts where a tool window's title
+        //  does, so the two line up down a column of panes.
+        TEST_METHOD (TheFirstTabsLabelStartsWhereATitleWould)
+        {
+            for (UINT dpi : { 96u, 144u })
+            {
+                DxuiTabGroup          group;
+                MockDxuiControl       a;
+                MockDxuiControl       b;
+                DxuiDpiScaler         scaler;
+                MockDxuiPainter       painter;
+                MockDxuiTextRenderer  text;
+                MockDxuiTheme         theme;
+                bool                  drawn = false;
+                float                 x     = 0.0f;
+
+                scaler.SetDpi (dpi);
+                group.AddTab (L"Registers", &a);
+                group.AddTab (L"Stack",     &b);
+                group.Layout (RECT { 30, 20, 430, 320 }, scaler);
+                group.Paint  (painter, text, theme);
+
+                for (const RecordedTextCall & call : text.Calls())
+                {
+                    if (!drawn && call.kind == RecordedTextKind::DrawString && call.text == L"Registers")
+                    {
+                        drawn = true;
+                        x     = call.x;
+                    }
+                }
+
+                Assert::IsTrue   (drawn, L"the first tab's label is drawn");
+                Assert::AreEqual ((float) (30 + DxuiPaneMetrics::GetTextInsetPx (scaler)), x, L"where a title starts");
+            }
+        }
+
+
+        //  The outline is the frame's, drawn after the siblings: Paint draws
+        //  none of it, and PaintFrame draws it in the border color, or in the
+        //  focus accent while the group has the focused look.
+        TEST_METHOD (PaintDrawsNoOutlinePaintFrameDoes)
+        {
+            Rig                   rig;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            auto                  countIn = [&] (uint32_t argb)
+            {
+                return std::count_if (painter.Calls().begin(), painter.Calls().end(),
+                                      [argb] (const RecordedPaintCall & call) { return call.argb == argb; });
+            };
+
+
+
+            Assert::AreNotEqual (theme.Border(), theme.FocusAccent(), L"the two looks differ");
+
+            rig.group.Paint (painter, text, theme);
+            Assert::AreEqual ((ptrdiff_t) 0, countIn (theme.Border()),      L"Paint draws no outline");
+            Assert::AreEqual ((ptrdiff_t) 0, countIn (theme.FocusAccent()), L"in either color");
+
+            painter.Reset();
+            rig.group.PaintFrame (painter, theme);
+            Assert::IsTrue   (countIn (theme.Border()) > 0,                 L"PaintFrame draws it in the border color");
+
+            painter.Reset();
+            rig.group.SetFocusedLook (true);
+            rig.group.PaintFrame (painter, theme);
+            Assert::IsTrue   (countIn (theme.FocusAccent()) > 0,            L"and in the focus accent while focused");
+            Assert::AreEqual ((ptrdiff_t) 0, countIn (theme.Border()),      L"and not in the border color then");
         }
     };
 }

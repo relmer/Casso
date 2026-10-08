@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiIconImage.h"
+#include "Core/DxuiPaneMetrics.h"
 
 
 
@@ -30,12 +31,15 @@
 //    and, with a close handler set, a close button, the selected tab filled
 //    with the color of the row below so that it joins it.
 //  - DOCUMENT, as Visual Studio draws its document tabs: compact, the
-//    selected tab a rounded chip filled with the pane's color and outlined,
-//    the others plain text, a close button on the selected tab and on the
-//    one under the pointer only.
+//    selected tab filled with the pane's color, rounded at its far corners
+//    and open into the pane, the others plain text, a close button on the
+//    selected tab and on the one under the pointer only.
 //  - TOOL WINDOW, as Visual Studio draws the tabs under a tool window: the
-//    strip BELOW its pane, the selected tab the same rounded chip, the
-//    others plain text.
+//    strip BELOW its pane, the selected tab filled the same way, the others
+//    plain text.
+//
+//  In the compact styles the strip draws no outline: the pane's frame
+//  (DxuiPaneFrame) runs round the selected tab and joins it to the pane.
 //
 //  In every style a tab can carry a leading mark ahead of its label, a glyph
 //  in a face and color of the host's choosing, and a tip the host shows.
@@ -93,17 +97,12 @@ public:
     void  SetSelectedFill (uint32_t argb)        { m_selectedFill = argb; }
     void  SetIconFace     (const wchar_t * face) { m_iconFace     = face; }
 
-    //  The strip's own fill, painted behind the tabs and cut from the selected
-    //  tab's flared corners; none leaves the host's background showing.
+    //  The strip's own fill, painted behind the tabs; none leaves the host's
+    //  background showing.
     void  SetStripFill    (uint32_t argb)        { m_stripFill    = argb; }
 
     void  SetStyle        (Style style)          { m_style        = style; }
     Style GetStyle        () const               { return m_style; }
-
-    //  The document and tool-window styles' outline round the selected tab:
-    //  the accent in a focused group, a neutral color in another. Zero draws
-    //  none.
-    void  SetSelectedOutline (uint32_t argb)     { m_outlineArgb  = argb; }
 
     //  With a handler set, a tab dragged past the strip's top or bottom is
     //  handed to the host, and the strip lets go of it. With no move handler
@@ -153,9 +152,15 @@ public:
     int   GetInsertIndexAt  (int x) const;
 
     //  In the document and tool-window styles, where along the strip the
-    //  selected tab joins its pane, flares and all, so the host can break
-    //  the pane's border there. False while no selected tab shows.
-    bool  GetJoinSpan      (long & left, long & right) const;
+    //  selected tab shows, cut to the part between the scroll arrows, and
+    //  whether an arrow cuts it off on either side, so the host can draw the
+    //  pane's outline round it. False while no selected tab shows.
+    bool  GetSelectedSpan  (long & left, long & right, bool & openLeft, bool & openRight) const;
+
+    //  How far a hovered tab's wash stands in from the strip's edges. It
+    //  keeps a hover pill out of the rows where the selected tab joins the
+    //  line along the band.
+    static int  GetHoverInsetPx (const DxuiDpiScaler & scaler);
 
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);
@@ -196,7 +201,7 @@ private:
 
     //  Visual Studio's document and tool-window tabs.
     static constexpr int  s_kCompactFontDip   = 12;
-    static constexpr int  s_kCompactPadDip    = 8;    // label from each end of the tab
+    static constexpr int  s_kCompactPadDip    = DxuiPaneMetrics::kTextInsetDip;   // label from each end of the tab, where a title starts
     static constexpr int  s_kCompactMarkDip   = 12;   // a leading mark's room
     static constexpr int  s_kCompactCloseDip  = 16;   // the close button's square
     static constexpr int  s_kCompactCornerDip = 4;
@@ -228,9 +233,9 @@ private:
                          uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,
                          uint32_t textArgb, uint32_t focusArgb) const;
     void  PaintCompactTab (IDxuiPainter & painter, IDxuiTextRenderer & text, int index,
-                           uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const;
-    void  PaintJoinedTab  (IDxuiPainter & painter, float left, float top, float width, float height,
-                           uint32_t fillArgb, uint32_t stripArgb, bool joinBelow) const;
+                           uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const;
+    void  PaintSelectedBody (IDxuiPainter & painter, const RECT & tab, uint32_t fillArgb) const;
+    void  PaintHoverPill  (IDxuiPainter & painter, const RECT & rect, uint32_t argb) const;
     bool  IsCloseShown  (int index) const;
 
 
@@ -244,7 +249,6 @@ private:
     int               m_pressY        = 0;
     POINT             m_grabOffset    = {};
     Style             m_style         = Style::Explorer;
-    uint32_t          m_outlineArgb   = 0;
     DragOutFn         m_dragOut;
     int               m_scrollPx      = 0;
     bool              m_dragging      = false;

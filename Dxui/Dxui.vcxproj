@@ -212,6 +212,7 @@
     <ClCompile Include="Widgets\DxuiFieldError.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
     <ClCompile Include="Widgets\DxuiSplitter.cpp" />
+    <ClCompile Include="Widgets\DxuiPaneFrame.cpp" />
     <ClCompile Include="Widgets\DxuiTabGroup.cpp" />
     <ClCompile Include="Widgets\DxuiDockSite.cpp" />
     <ClCompile Include="Window\DxuiCaptionDragTracker.cpp" />
@@ -331,6 +332,7 @@
     <ClInclude Include="Render\DxuiStroke.h" />
     <ClInclude Include="Widgets\DxuiTreeView.h" />
     <ClInclude Include="Widgets\DxuiSplitter.h" />
+    <ClInclude Include="Widgets\DxuiPaneFrame.h" />
     <ClInclude Include="Widgets\DxuiTabGroup.h" />
     <ClInclude Include="Widgets\DxuiDockSite.h" />
     <ClInclude Include="Window\DxuiCaptionDragTracker.h" />
