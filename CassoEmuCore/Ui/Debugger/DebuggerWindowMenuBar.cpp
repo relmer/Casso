@@ -199,6 +199,7 @@ void DebuggerWindow::SetWindowMenus()
 {
     std::vector<DxuiPopupMenuItem>               file;
     std::vector<DxuiPopupMenuItem>               edit;
+    std::vector<DxuiPopupMenuItem>               machine;
     std::vector<DxuiPopupMenuItem>               view;
     std::vector<DxuiPopupMenuItem>               debug;
     std::vector<DxuiPopupMenuItem>               tools;
@@ -296,8 +297,8 @@ void DebuggerWindow::SetWindowMenus()
     view.push_back (DxuiPopupMenuItem::ForSeparator());
     add (view, MakeMenuCommand (L"Reset window layout", false, [this] { ResetPaneLayout(); }));
 
-    //  Debug: running and stopping, the steps and how they step, then the
-    //  machine's own restarts at the end.
+    //  Debug: running and stopping, the steps and how they step. The
+    //  machine's own restarts are in Machine.
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRun,   L"Run"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kPause, L"Break"));
     add (debug, MakeMenuCommand (L"Detach", false, [this] { Detach(); }));
@@ -342,10 +343,10 @@ void DebuggerWindow::SetWindowMenus()
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
 
-    debug.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (debug, emulator (L"Reset",                  IDM_MACHINE_RESET));
-    add (debug, emulator (L"Power cycle",            IDM_MACHINE_POWERCYCLE));
-    add (debug, emulator (L"Restart under debugger", IDM_DEBUG_RESTART));
+    //  Machine: the machine's own restarts.
+    add (machine, emulator (L"Reset",                  IDM_MACHINE_RESET));
+    add (machine, emulator (L"Power cycle",            IDM_MACHINE_POWERCYCLE));
+    add (machine, emulator (L"Restart under debugger", IDM_DEBUG_RESTART));
 
     //  Tools: which editor's keys the window takes.
     for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
@@ -401,11 +402,12 @@ void DebuggerWindow::SetWindowMenus()
 
     m_menuBarItems =
     {
-        { L"&File",   0, std::move (file)   },
-        { L"&Edit",   0, std::move (edit)   },
-        { L"&View",   0, std::move (view)   },
-        { L"&Debug",  0, std::move (debug)  },
-        { L"&Tools",  0, std::move (tools)  },
+        { L"&File",    0, std::move (file)    },
+        { L"&Edit",    0, std::move (edit)    },
+        { L"&Machine", 0, std::move (machine) },
+        { L"&View",    0, std::move (view)    },
+        { L"&Debug",   0, std::move (debug)   },
+        { L"&Tools",   0, std::move (tools)   },
     };
 
     if (m_menuBar != nullptr && !m_menuBar->IsOpen())

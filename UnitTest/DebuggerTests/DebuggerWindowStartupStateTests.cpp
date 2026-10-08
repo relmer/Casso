@@ -243,12 +243,12 @@ namespace DebuggerStartupStateTests
         }
 
 
-        TEST_METHOD (TheDebugMenuEndsWithTheMachineRestarts)
+        TEST_METHOD (TheMachineMenuHoldsTheMachineRestarts)
         {
-            CassoTheme                              theme  = CassoTheme::MakeSkeuomorphic();
+            CassoTheme                              theme   = CassoTheme::MakeSkeuomorphic();
             StartupHost                             host;
-            StartupWindow                           window (theme, host);
-            const std::vector<DxuiPopupMenuItem>  * debug  = nullptr;
+            StartupWindow                           window  (theme, host);
+            const std::vector<DxuiPopupMenuItem>  * machine = nullptr;
             std::vector<std::wstring>               labels;
 
 
@@ -258,21 +258,20 @@ namespace DebuggerStartupStateTests
 
             for (const DxuiMenuBarItem & item : window.GetMenuBarItems())
             {
-                debug = (item.label == L"&Debug") ? &item.submenu : debug;
+                machine = (item.label == L"&Machine") ? &item.submenu : machine;
             }
 
-            Assert::IsNotNull (debug);
+            Assert::IsNotNull (machine);
 
-            for (const DxuiPopupMenuItem & row : *debug)
+            for (const DxuiPopupMenuItem & row : *machine)
             {
                 labels.push_back ((row.command != nullptr) ? row.command->label : std::wstring (L"-"));
             }
 
-            Assert::IsTrue   (labels.size() >= 4);
-            Assert::AreEqual (std::wstring (L"Restart under debugger"), labels[labels.size() - 1]);
-            Assert::AreEqual (std::wstring (L"Power cycle"),            labels[labels.size() - 2]);
-            Assert::AreEqual (std::wstring (L"Reset"),                  labels[labels.size() - 3]);
-            Assert::AreEqual (std::wstring (L"-"),                      labels[labels.size() - 4], L"a separator sets them apart");
+            Assert::AreEqual ((size_t) 3, labels.size());
+            Assert::AreEqual (std::wstring (L"Reset"),                  labels[0]);
+            Assert::AreEqual (std::wstring (L"Power cycle"),            labels[1]);
+            Assert::AreEqual (std::wstring (L"Restart under debugger"), labels[2]);
         }
 
 

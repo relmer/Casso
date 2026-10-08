@@ -142,6 +142,15 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
                  :                row.tip;
     }
 
+    //  A break says what broke the chain across the rest of its row, which
+    //  sets no column's width: power-on's long note would otherwise widen
+    //  the routine column for every frame.
+    if (row.isBreak)
+    {
+        cells[1].spansRow = true;
+        cells.pop_back();
+    }
+
     if (row.isDim || row.isBreak || colors.syntax.address == 0)
     {
         return cells;
@@ -226,6 +235,9 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
             row         = Row();
             row.site    = std::format (L"${:04X}", each.chainBreak->pc);
             row.routine = widen (CallStack::DescribeBreak (*each.chainBreak));
+
+            //  It stands alone on its row, so it starts with a capital.
+            row.routine[0] = (wchar_t) towupper (row.routine[0]);
             row.isBreak = true;
             row.address = each.chainBreak->pc;
 

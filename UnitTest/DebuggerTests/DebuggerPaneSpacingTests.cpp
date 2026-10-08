@@ -290,8 +290,8 @@ namespace DebuggerTests
 
             cells = CallStackPane::GetCells (rows[0], colors);
 
-            Assert::AreEqual ((size_t) 3, cells.size(), L"a separator keeps its three cells");
-            Assert::IsFalse  (cells[1].spansRow);
+            Assert::AreEqual ((size_t) 2, cells.size(), L"a separator is its address and what broke the chain");
+            Assert::IsTrue   (cells[1].spansRow, L"which runs across the row and widens no column");
         }
 
 

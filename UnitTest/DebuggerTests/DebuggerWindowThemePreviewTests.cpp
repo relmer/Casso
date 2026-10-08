@@ -110,7 +110,7 @@ namespace DebuggerThemePreviewTests
     {
     public:
 
-        static constexpr int  kToolsMenu = 4;
+        static constexpr int  kToolsMenu = 5;
 
 
         //  Tools by keyboard, down to Theme, into its rows, and down one to

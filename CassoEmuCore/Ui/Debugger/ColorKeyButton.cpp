@@ -83,7 +83,8 @@ void ColorKeyButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 //
 //  The strip's fill and bottom hairline, as the toolbar beside it draws
 //  them, then the info glyph, on the hover fill while the pointer is over it
-//  and the pressed fill while its key is open.
+//  and the pressed fill while its key is open. In a title bar, no strip:
+//  the glyph and washes the title bar's own buttons have (DxuiTabGroup).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +107,12 @@ void ColorKeyButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
+    if (m_isInTitleBar)
+    {
+        PaintInTitleBar (painter, text, theme);
+        return;
+    }
+
     painter.FillRect (left, top, width, height, theme.Background());
     painter.FillRect (left, top + height - 1.0f, width, 1.0f, theme.ContentEdge());
 
@@ -116,6 +123,39 @@ void ColorKeyButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
 
     hr = text.DrawString (s_kpszMdl2Info, left, top, width, height, ink, m_scaler.ToPxf (kGlyphDip),
+                          DxuiToolbar::kMdl2IconFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorKeyButton::PaintInTitleBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ColorKeyButton::PaintInTitleBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    constexpr float  kPressedScale = 0.82f;
+    constexpr float  kGlyphDip     = 10.0f;
+    HRESULT          hr            = S_OK;
+    float            left          = (float) m_boundsDip.left;
+    float            top           = (float) m_boundsDip.top;
+    float            width         = (float) (m_boundsDip.right - m_boundsDip.left);
+    float            height        = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    uint32_t         hover         = (theme.Foreground() & 0x00FFFFFFu) | 0x14000000u;
+
+
+
+    if (m_isPressed || m_isHovered)
+    {
+        painter.FillRect (left, top, width, height, m_isPressed ? DxuiColor::Darken (hover, kPressedScale) : hover);
+    }
+
+    hr = text.DrawString (s_kpszMdl2Info, left, top, width, height, theme.ForegroundMuted(), m_scaler.ToPxf (kGlyphDip),
                           DxuiToolbar::kMdl2IconFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

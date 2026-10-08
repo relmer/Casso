@@ -105,11 +105,11 @@ namespace DebuggerWindowDetachTests
     {
     public:
 
-        static const DxuiPopupMenuItem * GetDebugRow (const DetachWindow & window, const std::wstring & label)
+        static const DxuiPopupMenuItem * GetDebugRow (const DetachWindow & window, const std::wstring & label, const wchar_t * menu = L"&Debug")
         {
             for (const DxuiMenuBarItem & item : window.GetMenuBarItems())
             {
-                if (item.label != L"&Debug")
+                if (item.label != menu)
                 {
                     continue;
                 }
@@ -139,7 +139,8 @@ namespace DebuggerWindowDetachTests
 
             Assert::IsNotNull (GetDebugRow (window, L"Detach"));
             Assert::IsNull    (GetDebugRow (window, L"Stop debugging"));
-            Assert::IsNotNull (GetDebugRow (window, L"Restart under debugger"), L"restart under debugger stays");
+            Assert::IsNotNull (GetDebugRow (window, L"Restart under debugger", L"&Machine"), L"restart under debugger stays, in Machine");
+            Assert::IsNotNull (GetDebugRow (window, L"Power cycle",            L"&Machine"), L"with the machine's other restarts");
         }
 
 

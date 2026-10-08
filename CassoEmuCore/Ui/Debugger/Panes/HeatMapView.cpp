@@ -640,7 +640,7 @@ void HeatMapView::PlaceMap()
     m_rowPx      = contentW;
     m_map        = { left, top, left + std::min (width, contentW), top + std::min (height, contentH) };
 
-    m_zoomWidget.Place (GetZoomCorner(), m_boundsDip, m_scaler);
+    PlaceZoomWidget();
     ClampScroll();
 }
 
@@ -2193,7 +2193,7 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     PaintHeaders  (text, theme);
     PaintHover    (text, theme);
 
-    m_zoomWidget.Place (GetZoomCorner(), m_boundsDip, m_scaler);
+    PlaceZoomWidget();
     m_zoomWidget.Paint (text, theme, m_cellPx, GetStartCellPx(), kMaxCellPx);
 
     if (m_hasVertBar)
@@ -3032,7 +3032,7 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
 
 
 
-    m_zoomWidget.Place (GetZoomCorner(), m_boundsDip, m_scaler);
+    PlaceZoomWidget();
     hit = m_zoomWidget.HitTest (ev.positionDip);
 
     if (m_zoomWidget.IsDragging())
@@ -3089,21 +3089,47 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::PlaceZoomWidget
+//
+//  In the corner, except while its slider is open in a pane the same size:
+//  zooming there brings scrollbars and takes them away, and the slider
+//  stays under the pointer rather than moving with the corner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PlaceZoomWidget()
+{
+    if (m_zoomWidget.IsOpen() && EqualRect (&m_zoomPlacedFor, &m_boundsDip))
+    {
+        return;
+    }
+
+    m_zoomPlacedFor = m_boundsDip;
+    m_zoomWidget.Place (GetZoomCorner(), m_boundsDip, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::GetZoomCorner
 //
-//  The map's area inside the scrollbars' room, whether they show or not, so
-//  the zoom widget stays put as zooming changes the map's size and brings the
-//  scrollbars and takes them away.
+//  The pane's bottom right, inside whichever scrollbar shows there, so the
+//  zoom widget sits its own margin in from the corner. The map starts
+//  fitted, with no scrollbars, so that is where it usually is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT HeatMapView::GetZoomCorner() const
 {
-    long  room = m_scaler.ToPx (kInsetDip) + m_scaler.ToPx (kScrollbarDip);
+    long  right  = m_boundsDip.right  - (m_hasVertBar ? m_scaler.ToPx (kScrollbarDip) : 0);
+    long  bottom = m_boundsDip.bottom - (m_hasHorzBar ? m_scaler.ToPx (kScrollbarDip) : 0);
 
 
 
-    return { m_boundsDip.left + m_gutterPx, m_boundsDip.top + m_scaler.ToPx (kBarDip), m_boundsDip.right - room, m_boundsDip.bottom - room };
+    return { m_boundsDip.left + m_gutterPx, m_boundsDip.top + m_scaler.ToPx (kBarDip), right, bottom };
 }
 
 

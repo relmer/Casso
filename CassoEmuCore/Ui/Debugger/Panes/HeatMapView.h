@@ -423,6 +423,7 @@ private:
     bool                 OnWheel        (const DxuiMouseEvent & ev);
     bool                 OnZoomWidget   (const DxuiMouseEvent & ev);
     RECT                 GetZoomCorner  () const;
+    void                 PlaceZoomWidget();
     void                 SetHover       (const std::optional<Place> & hover);
     void                 MeasureGutter  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                 PaintBar       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
@@ -480,14 +481,15 @@ private:
     Bank                                      m_shownBank = Bank::Cpu;
     bool                                      m_hasAux    = false;
 
-    std::vector<Byte>                                 m_opcodes;
-    std::vector<int16_t>                              m_values;
-    std::shared_ptr<const std::vector<std::string>>   m_opcodeForms;
-    std::optional<Word>                               m_pc;
-    std::optional<Word>                               m_stack;
-    std::vector<Breakpoint>                           m_breakpoints;
-    std::shared_ptr<const HeatMapSymbols>             m_symbols;
-    Bank                                              m_symbolsBank = Bank::Cpu;
-    std::vector<Byte>                                 m_symbolMarks;
-    HeatMapZoomWidget                                 m_zoomWidget;
+    std::vector<Byte>                                m_opcodes;
+    std::vector<int16_t>                             m_values;
+    std::shared_ptr<const std::vector<std::string>>  m_opcodeForms;
+    std::optional<Word>                              m_pc;
+    std::optional<Word>                              m_stack;
+    std::vector<Breakpoint>                          m_breakpoints;
+    std::shared_ptr<const HeatMapSymbols>            m_symbols;
+    Bank                                             m_symbolsBank   = Bank::Cpu;
+    std::vector<Byte>                                m_symbolMarks;
+    HeatMapZoomWidget                                m_zoomWidget;
+    RECT                                             m_zoomPlacedFor = {};   // the bounds the zoom widget was placed in
 };

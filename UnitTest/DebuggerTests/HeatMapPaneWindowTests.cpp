@@ -512,13 +512,11 @@ namespace HeatMapPaneWindowTests
         //  to the largest with a Reset.
         TEST_METHOD (TheZoomWidgetZoomsTheMap)
         {
-            constexpr int  kCornerRoom = HeatMapZoomWidget::kMarginDip + HeatMapView::kScrollbarDip;
             CassoTheme     theme       = CassoTheme::MakeSkeuomorphic();
             HeatMapHost    host;
             HeatMapWindow  window (theme, host);
             HeatMapView  * view        = nullptr;
             RECT           button      = {};
-            RECT           map         = {};
             RECT           track       = {};
             RECT           moved       = {};
             RECT           anchor      = {};
@@ -534,12 +532,13 @@ namespace HeatMapPaneWindowTests
             window.Layout (RECT { 0, 0, 1400, 3000 }, scaler);
 
             view   = window.GetHeatMapView();
-            map    = view->GetMapRect();
             button = view->GetZoomWidget().GetButtonRect();
 
             Assert::IsTrue   (button.right > button.left, L"the widget is placed");
-            Assert::IsTrue   (button.right <= map.right && button.bottom <= map.bottom, L"over the map");
-            Assert::IsTrue   (button.right >= map.right - kCornerRoom && button.bottom >= map.bottom - kCornerRoom, L"in its bottom-right corner");
+            Assert::AreEqual (view->GetBounds().right  - HeatMapZoomWidget::kMarginDip - (view->HasVerticalScroll()   ? HeatMapView::kScrollbarDip : 0), button.right,
+                              L"its margin in from the pane's right, inside a scrollbar that shows");
+            Assert::AreEqual (view->GetBounds().bottom - HeatMapZoomWidget::kMarginDip - (view->HasHorizontalScroll() ? HeatMapView::kScrollbarDip : 0), button.bottom,
+                              L"and its bottom");
             Assert::AreEqual (100, HeatMapZoomWidget::GetPercent (view->GetCellPx(), view->GetStartCellPx()), L"the starting zoom is 100%");
 
             Assert::IsTrue   (view->TryGetZoomTipAt (GetCenter (button), anchor, text));

@@ -8757,6 +8757,15 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         return;
     }
 
+    //  Over a memory map's strips, the run of pages there and what it is, at
+    //  once and following the pointer, as a memory window's byte does.
+    if (TryGetMemoryMapTip (clientPx, text))
+    {
+        tip.SetMonospace   (false);
+        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
+        return;
+    }
+
     //  Over anything else drawn in a color that means something, what it
     //  means.
     if (TryGetCellTip (clientPx, cell, text) || TryGetGraphicTip (clientPx, cell, text))
@@ -9114,10 +9123,35 @@ bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstrin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::TryGetMemoryMapTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetMemoryMapTip (POINT clientPx, std::wstring & text) const
+{
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        MemoryMapBar  * map = pane->GetMap();
+
+        if (map != nullptr && IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, text))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::TryGetGraphicTip
 //
-//  Over a device panel's memory map or disk head, what its colors mean; over
-//  the status bar's history section, what its meter's do.
+//  Over a device panel's disk head, what its colors mean; over the status
+//  bar's history section, what its meter's do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9126,14 +9160,6 @@ bool DebuggerWindow::TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstri
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
         DiskHeadView  * head = pane->GetHead();
-        MemoryMapBar  * map  = pane->GetMap();
-
-        //  Over a memory map's run of pages, what its color is and where.
-        if (map != nullptr && IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, text))
-        {
-            anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
-            return true;
-        }
 
         if (head == nullptr || !IsRoutable (head))
         {

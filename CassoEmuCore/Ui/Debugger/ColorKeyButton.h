@@ -43,6 +43,10 @@ public:
     void  SetHovered    (bool hovered)  { m_isHovered = hovered; }
     bool  IsHovered     () const        { return m_isHovered; }
     void  SetPressed    (bool pressed)  { m_isPressed = pressed; }
+
+    //  In a pane's title bar the button is drawn as the title bar's own
+    //  buttons are, with no strip of its own behind it.
+    void  SetInTitleBar (bool inTitle)  { m_isInTitleBar = inTitle; }
     bool  IsFocused     () const        { return m_isFocused; }
 
     bool  Contains      (POINT point) const;
@@ -59,12 +63,15 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Button; }
 
 private:
+    void  PaintInTitleBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+
     std::wstring       m_pane;
-    ColorLegend::Pane  m_legend     = ColorLegend::Pane::Disassembly;
+    ColorLegend::Pane  m_legend       = ColorLegend::Pane::Disassembly;
     DxuiDpiScaler      m_scaler;
     ActivateFn         m_onActivate;
     FocusFn            m_onFocus;
-    bool               m_isHovered  = false;
-    bool               m_isPressed  = false;
-    bool               m_isFocused  = false;
+    bool               m_isHovered    = false;
+    bool               m_isPressed    = false;
+    bool               m_isFocused    = false;
+    bool               m_isInTitleBar = false;
 };

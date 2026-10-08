@@ -181,7 +181,7 @@ namespace DebuggerMenuBarTests
 
         //  Help held only Colors, which each pane's info button replaced, so
         //  there is no Help menu.
-        TEST_METHOD (MenuBarHoldsFileEditViewDebugAndTools)
+        TEST_METHOD (MenuBarHoldsFileEditMachineViewDebugAndTools)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
             MenuBarHost    host;
@@ -197,12 +197,13 @@ namespace DebuggerMenuBarTests
                 titles.push_back (item.label);
             }
 
-            Assert::AreEqual (5, (int) titles.size());
-            Assert::AreEqual (std::wstring (L"&File"),   titles[0]);
-            Assert::AreEqual (std::wstring (L"&Edit"),   titles[1]);
-            Assert::AreEqual (std::wstring (L"&View"),   titles[2]);
-            Assert::AreEqual (std::wstring (L"&Debug"),  titles[3]);
-            Assert::AreEqual (std::wstring (L"&Tools"),  titles[4]);
+            Assert::AreEqual (6, (int) titles.size());
+            Assert::AreEqual (std::wstring (L"&File"),    titles[0]);
+            Assert::AreEqual (std::wstring (L"&Edit"),    titles[1]);
+            Assert::AreEqual (std::wstring (L"&Machine"), titles[2]);
+            Assert::AreEqual (std::wstring (L"&View"),    titles[3]);
+            Assert::AreEqual (std::wstring (L"&Debug"),   titles[4]);
+            Assert::AreEqual (std::wstring (L"&Tools"),   titles[5]);
         }
 
 
@@ -264,7 +265,7 @@ namespace DebuggerMenuBarTests
         }
 
 
-        TEST_METHOD (DebugRestartRowsReachTheEmulator)
+        TEST_METHOD (MachineRestartRowsReachTheEmulator)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
             MenuBarHost    host;
@@ -276,7 +277,7 @@ namespace DebuggerMenuBarTests
 
             for (const wchar_t * label : { L"Reset", L"Power cycle", L"Restart under debugger" })
             {
-                const DxuiPopupMenuItem  * row = MenuRows::GetRow (window.GetMenuBarItems(), L"&Debug", label);
+                const DxuiPopupMenuItem  * row = MenuRows::GetRow (window.GetMenuBarItems(), L"&Machine", label);
 
 
 

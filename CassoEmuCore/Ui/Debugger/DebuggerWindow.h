@@ -580,6 +580,7 @@ protected:
     bool                  TryGetCellTip    (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool                  TryGetMemoryMapTip (POINT clientPx, std::wstring & text) const;
     ColorLegend::Palette  GetColorPalette  () const;
 
     //  Set by Create; protected so a test can build the controls without a

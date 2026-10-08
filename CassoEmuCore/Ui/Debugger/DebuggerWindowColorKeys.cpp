@@ -157,7 +157,8 @@ void DebuggerWindow::PlaceColorKeys()
             (void) TryGetColorKeyTitleRect (key.button->GetPane(), false);
         }
 
-        key.button->SetVisible (shown);
+        key.button->SetVisible    (shown);
+        key.button->SetInTitleBar (inTitle);
         key.button->SetPressed (shown && m_colorKeyOwner == key.button && m_colorKeyPopup.IsShown());
 
         if (!shown)
@@ -217,7 +218,7 @@ bool DebuggerWindow::TryGetColorKeyTitleRect (const std::wstring & pane, bool ke
         return false;
     }
 
-    site->SetTitleExtra (pane, keep ? ColorKeyButton::kWidthDip : 0);
+    site->SetTitleExtra (pane, keep ? DxuiTabGroup::kTitleButtonDip : 0);
 
     isIn = keep && site->TryGetTitleExtraRect (pane, place);
 
