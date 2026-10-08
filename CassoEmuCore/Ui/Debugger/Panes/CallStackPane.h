@@ -46,6 +46,9 @@ public:
         bool          isNote    = false;
         bool          isReturn  = false;
         Word          address   = 0;
+
+        //  An unverified frame's: why the call may already be over.
+        std::wstring  tip;
     };
 
     CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode);
@@ -63,6 +66,7 @@ public:
 
     static std::vector<Row>  GetRows           (const CallStackData & data);
     static std::wstring      GetUnrecordedNote (Word pc);
+    static std::wstring      GetUnverifiedTip  (const std::optional<CallStackBreak> & above);
     static std::string       GetNextModeLine   (CallStackMechanism current);
     static std::string       GetNextMechanism  (CallStackMechanism current);
     static std::wstring      GetModeLabel      (CallStackMechanism mechanism);

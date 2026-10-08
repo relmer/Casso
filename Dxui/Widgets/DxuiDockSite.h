@@ -160,6 +160,11 @@ public:
     //  empty.
     std::wstring  GetTabAt (POINT pointDip, RECT & tab, std::wstring & tip) const;
 
+    //  What the title-bar button under a point does, with the button's rect,
+    //  or empty off them: the menu's "Window position", the pin's "Auto hide"
+    //  or, on a slid-out or floating pane, "Dock", and "Close".
+    std::wstring  GetTitleButtonTipAt (POINT pointDip, RECT & button) const;
+
     //  The pane whose control holds `content`, or empty.
     std::wstring  GetPaneOf (const IDxuiControl * content) const;
 

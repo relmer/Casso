@@ -181,7 +181,6 @@ namespace DebuggerColorKeyTests
                                                  std::pair { std::wstring (DebuggerLayout::kRegisters),   ColorLegend::Pane::Registers   },
                                                  std::pair { std::wstring (DebuggerLayout::kWatches),     ColorLegend::Pane::Watch       },
                                                  std::pair { std::wstring (DebuggerLayout::kStack),       ColorLegend::Pane::Stack       },
-                                                 std::pair { std::wstring (DebuggerLayout::kCallStack),   ColorLegend::Pane::CallStack   },
                                                  std::pair { DebuggerLayout::GetMemoryPaneId (1),       ColorLegend::Pane::Memory      },
                                                  std::pair { std::wstring (DebuggerLayout::kHeatMap),     ColorLegend::Pane::HeatMap     },
                                                  std::pair { std::wstring (DebuggerLayout::kBreakpoints), ColorLegend::Pane::Breakpoints } })
@@ -195,6 +194,7 @@ namespace DebuggerColorKeyTests
             }
 
             Assert::IsNull (window.GetColorKey (DebuggerLayout::kConsole), L"the console has no colors to explain");
+            Assert::IsNull (window.GetColorKey (DebuggerLayout::kCallStack), L"the call stack's rows say what their colors mean");
         }
 
 
@@ -244,11 +244,11 @@ namespace DebuggerColorKeyTests
             Send (window, DxuiMouseEventKind::Move, POINT { 5, kHeight / 2 });
             Assert::IsFalse  (window.GetColorKeyPopup().IsShown(), L"the key stayed after the pointer left");
 
-            key = window.GetColorKey (DebuggerLayout::kCallStack);
-            Assert::IsTrue   (key->IsVisible(), L"the call stack's button is not shown");
+            key = window.GetColorKey (DebuggerLayout::kBreakpoints);
+            Assert::IsTrue   (key->IsVisible(), L"the breakpoints' button is not shown");
 
             Send (window, DxuiMouseEventKind::Move, GetCenter (key->GetBounds()));
-            Assert::IsTrue   (window.GetColorKeyPopup().GetPane() == ColorLegend::Pane::CallStack);
+            Assert::IsTrue   (window.GetColorKeyPopup().GetPane() == ColorLegend::Pane::Breakpoints);
         }
 
 

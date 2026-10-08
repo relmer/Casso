@@ -613,6 +613,36 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetReadableInk
+//
+//  `ink`, moved as little as it must to reach the WCAG AA ratio for text on
+//  `fill`. A list repaints every row every frame, and the measure takes
+//  powers, so each answer is kept; a list sees only a few colors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiListView::GetReadableInk (uint32_t ink, uint32_t fill) const
+{
+    constexpr float  kTextContrast = 4.5f;   // WCAG AA for text
+    uint64_t         key           = ((uint64_t) ink << 32) | fill;
+    auto             found         = m_readableInks.find (key);
+
+
+
+    if (found != m_readableInks.end())
+    {
+        return found->second;
+    }
+
+    return m_readableInks[key] = DxuiColor::ComputeInkForContrast (ink, fill, kTextContrast);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrySkipMonoMeasure
 //
 //  True when `cell` cannot widen column `column`: its text is printable
@@ -3193,6 +3223,9 @@ void DxuiListView::PaintDataRows (
         bool                       isSel = ((m_listFocused || m_alwaysShowSelection) && !m_hasTextSel &&
                                             (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
         bool                       spans = false;
+        uint32_t                   fill  = isSel ? pal.bgSel : (isHov ? pal.bgHover : pal.bgRow);
+
+        fill = DxuiColor::Composite (fill, pal.bgRow);
 
         if (isSel)
         {
@@ -3215,8 +3248,12 @@ void DxuiListView::PaintDataRows (
         for (size_t c = 0; c < m_columns.size() && c < cells.size() && !spans; ++c)
         {
             uint32_t  argb      = (cells[c].argb != 0) ? cells[c].argb : (cells[c].dim ? pal.fgDim : pal.fg);
+            uint32_t  under     = (cells[c].background != 0) ? DxuiColor::Composite (cells[c].background, fill) : fill;
             float     iconShift = 0.0f;
             float     cellW     = (float) colWPx[c];
+
+            //  Whatever the row is filled with, the text reads on it.
+            argb = GetReadableInk (argb, under);
 
             if (!m_columns[c].visible || colWPx[c] <= 0)
             {
@@ -3360,6 +3397,11 @@ void DxuiListView::PaintDataRows (
                     {
                         colors[(size_t) k] = pal.fgDim;
                     }
+                }
+
+                for (uint32_t & each : colors)
+                {
+                    each = GetReadableInk (each, under);
                 }
 
                 while (pos < (int) cellText.size())

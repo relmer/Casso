@@ -563,7 +563,7 @@ namespace HeatMapPaneWindowTests
             Assert::AreEqual (1, view->GetCellPx(), L"the left end is the smallest");
 
             ClickAt (window, GetCenter (view->GetZoomWidget().GetResetRect()));
-            Assert::AreEqual (3, view->GetCellPx(), L"Reset");
+            Assert::AreEqual (view->GetStartCellPx(), view->GetCellPx(), L"Reset fits the map again");
 
             ClickAt (window, GetCenter (button));
             Assert::IsFalse  (view->GetZoomWidget().IsOpen(), L"a second click closes it");
@@ -582,6 +582,7 @@ namespace HeatMapPaneWindowTests
             RECT            cell   = {};
             RECT            bounds = {};
             Word            target = 0;
+            int             before = 0;
 
 
 
@@ -590,6 +591,7 @@ namespace HeatMapPaneWindowTests
             target = (Word) (view->GetColumns() * 2 + 3);
             cell   = view->GetCellRect (target);
             zoom   = window.GetTextZoom();
+            before = view->GetCellPx();
 
             wheel.kind        = DxuiMouseEventKind::Wheel;
             wheel.ctrl        = true;
@@ -597,7 +599,7 @@ namespace HeatMapPaneWindowTests
             wheel.positionDip = { cell.left + 1, cell.top + 1 };
 
             Assert::IsTrue   (window.OnMouse (wheel));
-            Assert::IsTrue   (view->GetCellPx() > 3, L"the map zoomed");
+            Assert::IsTrue   (view->GetCellPx() > before, L"the map zoomed");
             Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
             Assert::IsTrue   (view->GetCellRect (target).top <= wheel.positionDip.y && wheel.positionDip.y <= view->GetCellRect (target).bottom, L"about the pointer");
 

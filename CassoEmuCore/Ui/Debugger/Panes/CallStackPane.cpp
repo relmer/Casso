@@ -134,10 +134,12 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
     }
 
     //  A dimmed frame is unverified, or the last return, which has left the
-    //  stack; the tip over it says which.
+    //  stack; the tip over it says which, and for an unverified frame, why.
     for (DxuiListView::Cell & cell : cells)
     {
-        cell.tip = !row.isDim ? L"" : ColorLegend::GetText (row.isReturn ? ColorLegend::Meaning::LastReturn : ColorLegend::Meaning::UnverifiedFrame);
+        cell.tip = !row.isDim   ? L""
+                 : row.isReturn ? ColorLegend::GetText (ColorLegend::Meaning::LastReturn)
+                 :                row.tip;
     }
 
     if (row.isDim || row.isBreak || colors.syntax.address == 0)
@@ -186,9 +188,10 @@ bool CallStackPane::IsSameText (const std::vector<Row> & a, const std::vector<Ro
 
 std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & data)
 {
-    std::vector<Row>  rows;
-    Row               row;
-    auto              widen = [] (const std::string & text) { return std::wstring (text.begin(), text.end()); };
+    std::vector<Row>                 rows;
+    Row                              row;
+    std::optional<CallStackBreak>    above;
+    auto                             widen = [] (const std::string & text) { return std::wstring (text.begin(), text.end()); };
     auto              frameRow = [&widen] (const CallStackFrame & frame)
     {
         Row  made;
@@ -234,10 +237,13 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
             }
 
             rows.push_back (row);
+            above = *each.chainBreak;
         }
         else if (each.frame.has_value())
         {
-            rows.push_back (frameRow (*each.frame));
+            row     = frameRow (*each.frame);
+            row.tip = each.frame->isVerified ? std::wstring() : GetUnverifiedTip (above);
+            rows.push_back (row);
         }
     }
 
@@ -269,6 +275,70 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
 std::wstring CallStackPane::GetUnrecordedNote (Word pc)
 {
     return std::format (L"Earlier calls weren't recorded (debugger opened at ${:04X})", pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetUnverifiedTip
+//
+//  A frame below a break is one the program may already have left: its
+//  return address is still on the stack, but after the break the recorder
+//  cannot tell whether anything will ever return through it. The tip says
+//  so, and what the break nearest above the frame did to cast that doubt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CallStackPane::GetUnverifiedTip (const std::optional<CallStackBreak> & above)
+{
+    static constexpr const wchar_t * kpszLead = L"Unverified: this call may already be over. Its return address is still on the stack, "
+                                                L"but the program may never return through it.";
+    std::string                      text;
+    std::wstring                     why;
+
+
+
+    if (!above.has_value())
+    {
+        return kpszLead;
+    }
+
+    switch (above->kind)
+    {
+    case CallBreakKind::Txs:
+        text = CallStack::DescribeBreak (*above);
+        why  = std::format (L"The {} above set the stack pointer directly, so the stack may not be where these calls left it.", std::wstring (text.begin(), text.end()));
+        break;
+
+    case CallBreakKind::PulledReturn:
+        why = std::format (L"The pull at ${:04X} above took a return address off the stack, so the routine it belonged to will not return to its caller.", above->pc);
+        break;
+
+    case CallBreakKind::EndedByJump:
+        why = std::format (L"The jump at ${:04X} above ended a call without a return, so the calls below it may have been abandoned the same way.", above->pc);
+        break;
+
+    case CallBreakKind::ReturnMismatch:
+        why = std::format (L"The return at ${:04X} above went somewhere its call did not push, so the stack no longer lines up with the calls below.", above->pc);
+        break;
+
+    case CallBreakKind::StackWrap:
+        why = std::format (L"The stack pointer wrapped at ${:04X} above, which can overwrite the return addresses below.", above->pc);
+        break;
+
+    case CallBreakKind::Reset:
+        why = std::format (L"A reset at ${:04X} above restarted the program without unwinding the calls below.", above->pc);
+        break;
+
+    default:
+        why = L"These calls were found on the stack rather than recorded as they ran, so they are read from what the stack holds.";
+        break;
+    }
+
+    return std::format (L"{}\n{}", kpszLead, why);
 }
 
 

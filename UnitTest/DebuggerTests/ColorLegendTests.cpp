@@ -330,14 +330,20 @@ namespace ColorLegendTests
             CallStackPane::Row  unverified;
             CallStackPane::Row  returned;
             CallStackPane::Row  live;
+            CallStackBreak      txs;
 
 
 
-            unverified.isDim = true;
-            returned.isDim   = true;
+            unverified.isDim  = true;
+            unverified.tip    = CallStackPane::GetUnverifiedTip (std::nullopt);
+            returned.isDim    = true;
             returned.isReturn = true;
+            txs.kind          = CallBreakKind::Txs;
+            txs.pc            = 0xD68C;
 
-            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::UnverifiedFrame)), CallStackPane::GetCells (unverified, {})[0].tip);
+            Assert::AreEqual (unverified.tip, CallStackPane::GetCells (unverified, {})[0].tip);
+            Assert::IsTrue   (unverified.tip.starts_with (L"Unverified: this call may already be over."), unverified.tip.c_str());
+            Assert::IsTrue   (CallStackPane::GetUnverifiedTip (txs).find (L"$D68C above set the stack pointer directly") != std::wstring::npos, L"the break above, and what it did");
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::LastReturn)),      CallStackPane::GetCells (returned,   {})[1].tip);
             Assert::IsTrue   (CallStackPane::GetCells (live, {})[0].tip.empty(), L"a live frame has a tip");
         }

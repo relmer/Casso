@@ -219,11 +219,9 @@ public:
     Mode   GetMode    () const { return m_options.view; }
 
     //  While the heat is rebuilt after a move through history, the bar says
-    //  so in place of the color key.
+    //  so.
     static constexpr const wchar_t * kpszRebuildingNote = L"Rebuilding";
 
-    //  The key's swatch for Blend's color for code that is also written.
-    static constexpr const wchar_t * kpszSelfModifyingKey = L"Self-modifying";
 
     void   SetRebuilding (bool isRebuilding) { m_isRebuilding = isRebuilding; }
     bool   IsRebuilding  () const            { return m_isRebuilding; }
@@ -300,13 +298,14 @@ public:
     void   ZoomAt     (POINT point, float notches);
     void   ZoomIn     ();
     void   ZoomOut    ();
+    void   ZoomTo     (int cellPx);
     void   ScrollBy   (int dx, int dy);
     void   ResetZoom  ();
 
     //  The cell size the map starts at, which the zoom's percentage is of;
     //  the zoom widget in the map's bottom-right corner; and its tip, for a
     //  point over its button.
-    int                        GetStartCellPx  () const { return std::max (1, m_scaler.ToPx (kDefaultCellDip)); }
+    int                        GetStartCellPx  () const { return (m_fitCellPx > 0) ? m_fitCellPx : std::max (1, m_scaler.ToPx (kDefaultCellDip)); }
     const HeatMapZoomWidget &  GetZoomWidget   () const { return m_zoomWidget; }
     bool                       TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & text) const;
 
@@ -382,9 +381,6 @@ public:
     std::wstring        GetAccessibleName () const override { return L"Heat map"; }
 
 private:
-    //  The swatches the bar shows: each kind's label and color.
-    using KeyList = std::vector<std::pair<std::wstring, uint32_t>>;
-
     //  Where a range lies in the map, in pixels from the map's top: its
     //  header, then its rows, each holding `columns` addresses.
     struct Placed
@@ -430,7 +426,6 @@ private:
     void                 SetHover       (const std::optional<Place> & hover);
     void                 MeasureGutter  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                 PaintBar       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 AddChannelKeys (KeyList & keys) const;
     void                 PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintHeaders   (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintHover     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
@@ -459,7 +454,9 @@ private:
     std::vector<Placed>        m_placed;
     long                       m_contentH     = 0;
     bool                       m_hasRanges    = false;
-    bool                       m_isFitted     = false;
+    bool                       m_isFitted     = true;
+    RECT                       m_fittedFor    = {};     // the bounds the map was last fitted to
+    int                        m_fitCellPx    = 0;      // the fitted cell size, the zoom's 100%
     double                     m_top          = 0.0;
     int                        m_cellPx       = 0;
     int                        m_columns      = kMaxColumns / 4;

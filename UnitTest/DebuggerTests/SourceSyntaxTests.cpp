@@ -190,9 +190,10 @@ namespace DebuggerTests
             list.SetRows    ({ { cell } });
             list.Paint      (painter, text, theme);
 
+            //  In its color, moved only as far as it must to read on the row.
             for (const RecordedTextCall & call : text.Calls())
             {
-                found = found || (call.text == L"LDA" && call.argb == 0xFF123456);
+                found = found || (call.text == L"LDA" && call.argb == DxuiColor::ComputeInkForContrast (0xFF123456, theme.ContentBackground(), 4.5f));
             }
 
             Assert::IsTrue (found);

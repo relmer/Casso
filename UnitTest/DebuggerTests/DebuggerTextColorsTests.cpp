@@ -76,6 +76,56 @@ public:
 
 
 
+    //  Every theme's own text colors reach the WCAG AA ratio on each surface
+    //  they are drawn on: body, muted, error and heading text on the panels
+    //  and lists, and each control's text on its own fill. Disabled text is
+    //  exempt, as WCAG exempts it. A hovered or selected row's fill is not
+    //  here: the list and the menu move their text until it reads on it,
+    //  whatever the theme gives.
+    TEST_METHOD (EveryThemesTextMeetsAaOnItsSurfaces)
+    {
+        CassoTheme                     skeuo    = CassoTheme::MakeSkeuomorphic();
+        CassoTheme                     modern   = CassoTheme::MakeDarkModern();
+        CassoTheme                     retro    = CassoTheme::MakeRetroTerminal();
+        DxuiLightTheme                 light;
+        DxuiDarkTheme                  dark;
+        std::wstring                   failures;
+        const std::pair<std::string, const DxuiTheme *>  themes[] =
+        {
+            { "Skeuomorphic", &skeuo }, { "Dark modern", &modern }, { "Retro terminal", &retro }, { "Light", &light }, { "Dark", &dark },
+        };
+
+
+
+        for (const auto & [name, theme] : themes)
+        {
+            for (const auto & [surface, background] : { std::pair { L"panel",    theme->Background()          },
+                                                        std::pair { L"content",  theme->ContentBackground()   },
+                                                        std::pair { L"elevated", theme->BackgroundElevated()  },
+
+                                                        std::pair { L"status",   theme->StatusBackground()    } })
+            {
+                CheckRatio (name, std::format (L"text on {}",    surface).c_str(), theme->Foreground(),        background, failures);
+                CheckRatio (name, std::format (L"muted on {}",   surface).c_str(), theme->ForegroundMuted(),   background, failures);
+                CheckRatio (name, std::format (L"heading on {}", surface).c_str(), theme->HeadingForeground(), background, failures);
+                CheckRatio (name, std::format (L"error on {}",   surface).c_str(), theme->ErrorForeground(),   background, failures);
+            }
+
+
+            CheckRatio (name, L"button idle",        theme->ButtonText(),           theme->ButtonIdle(),           failures);
+            CheckRatio (name, L"button hover",       theme->ButtonText(),           theme->ButtonHover(),          failures);
+            CheckRatio (name, L"button pressed",     theme->ButtonText(),           theme->ButtonPressed(),        failures);
+            CheckRatio (name, L"caption",            theme->CaptionForeground(),    theme->CaptionBackground(),    failures);
+            CheckRatio (name, L"tooltip",            theme->TooltipForeground(),    theme->TooltipBackground(),    failures);
+            CheckRatio (name, L"info banner",        theme->InfoBannerForeground(), DxuiColor::Composite (theme->InfoBannerBackground(), theme->Background()), failures);
+        }
+
+        Logger::WriteMessage (failures.c_str());
+        Assert::IsTrue (failures.empty(), failures.c_str());
+    }
+
+
+
     //  A memory window's ROM and I/O colors are each theme's own: the
     //  Skeuomorphic theme's light blue ROM reads as it is, so it is unmoved,
     //  and a theme without them gets colors for its darkness.

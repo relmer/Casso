@@ -57,4 +57,29 @@ public:
         Assert::IsTrue (DxuiColor::ComputeContrastRatio (fill, 0xFFFFFFFFu) >= DxuiHexView::kSelectionFillContrast);
         Assert::IsTrue (DxuiColor::ComputeRelativeLuminance (fill) < DxuiColor::ComputeRelativeLuminance (0xFFF0F0F0u));
     }
+
+
+    //  The byte the keys act on is white or black on the accent, whichever
+    //  reads: white on a bright cyan accent did not.
+    TEST_METHOD (TheCaretsInkReadsOnTheAccentInEveryTheme)
+    {
+        for (const CassoTheme & theme : { CassoTheme::MakeSkeuomorphic(), CassoTheme::MakeDarkModern(), CassoTheme::MakeRetroTerminal() })
+        {
+            Assert::IsTrue (DxuiColor::ComputeContrastRatio (DxuiHexView::GetCaretInk (theme), theme.Accent()) >= kTextContrast);
+        }
+
+        Assert::AreEqual (0xFF000000u, DxuiColor::ChooseInkFor (0xFF00E5FFu, 0xFFFFFFFFu, 0xFF000000u), L"black on bright cyan");
+    }
+
+
+    TEST_METHOD (AnInkThatReadsIsLeftAndOneThatDoesNotIsMovedUntilItDoes)
+    {
+        uint32_t  moved = DxuiColor::ComputeInkForContrast (0xFFB8C0CAu, 0xFF3D6FB5u, kTextContrast);
+
+
+
+        Assert::AreEqual (0xFFF0F0F0u, DxuiColor::ComputeInkForContrast (0xFFF0F0F0u, 0xFF101010u, kTextContrast), L"already reads");
+        Assert::IsTrue   (DxuiColor::ComputeContrastRatio (moved, 0xFF3D6FB5u) >= kTextContrast, L"muted gray on a blue hover is lightened");
+        Assert::AreEqual (0xFF808080u, DxuiColor::Composite (0x80FFFFFFu, 0xFF000000u) & 0xFFF0F0F0u, L"half white over black");
+    }
 };

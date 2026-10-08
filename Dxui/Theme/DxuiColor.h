@@ -132,6 +132,46 @@ public:
 
 
     //
+    //  `ink`, or the nearest color on the way from it to white or black,
+    //  whichever reads better on `background`, that reaches `minRatio`
+    //  against it: an ink kept as close to its own hue as the fill allows.
+    //  An ink that reads already, as it shows on the background, is
+    //  returned as it is, its alpha with it.
+    //
+    static uint32_t ComputeInkForContrast (uint32_t ink, uint32_t background, float minRatio)
+    {
+        constexpr int  kSteps = 20;
+        uint32_t       opaque = ink | 0xFF000000u;
+        uint32_t       toward = ChooseInkFor (background, 0xFFFFFFFFu, 0xFF000000u);
+        uint32_t       result = opaque;
+
+
+
+        if (ComputeContrastRatio (Composite (ink, background), background) >= minRatio)
+        {
+            return ink;
+        }
+
+        for (int step = 1; step <= kSteps && ComputeContrastRatio (result, background) < minRatio; step++)
+        {
+            result = Mix (opaque, toward, (float) step / (float) kSteps);
+        }
+
+        return result;
+    }
+
+
+    //
+    //  `top` laid over an opaque `bottom` by its own alpha: the color a
+    //  translucent fill shows on the surface under it.
+    //
+    static uint32_t Composite (uint32_t top, uint32_t bottom)
+    {
+        return Mix (bottom | 0xFF000000u, top | 0xFF000000u, (float) ((top >> 24) & 0xFFu) / 255.0f);
+    }
+
+
+    //
     //  Lightens a color toward white by fraction `f` (0 = unchanged, 1 = white).
     //
     static uint32_t Lighten (uint32_t argb, float f)

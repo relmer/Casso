@@ -686,6 +686,7 @@ private:
     // Drops selected rows past the end after the row count changes.
     void    PruneSelection           ();
     bool    TrySkipMonoMeasure       (size_t column, const Cell & cell) const;
+    uint32_t  GetReadableInk         (uint32_t ink, uint32_t fill) const;
     bool    OnKeyColumnResizeNav     (const DxuiKeyEvent & ev);
     bool    OnKeyBodyHeaderNav       (const DxuiKeyEvent & ev);
     void    ApplyBodyHeaderFocus     ();
@@ -716,6 +717,9 @@ private:
     //  pixels it was measured at. See TrySkipMonoMeasure.
     mutable std::vector<std::map<int, size_t>>  m_monoMeasuredChars;
     mutable float                               m_monoMeasuredFontPx = 0.0f;
+
+    //  GetReadableInk's answers, by ink and fill.
+    mutable std::unordered_map<uint64_t, uint32_t>  m_readableInks;
 
     std::vector<int>          m_overrideWPx;
     // Monotonic max glyph count per auto column (header + widest cell);

@@ -844,9 +844,16 @@ void DebuggerWindow::SetConsoleBarMenus()
             m_dialectCommand->label = GetModeLabel (label);
         }
 
+        //  A pick changes the mode and nothing more: the prompt shows the new
+        //  one, and the console gains no MODE line the user never typed.
         modes.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (label, current, [this, target]
         {
-            RunAction (DebuggerActions::GetSetMode (target, GetMode()));
+            DebuggerAction  action = DebuggerActions::GetSetMode (target, GetMode());
+
+
+
+            action.quiet = true;
+            RunAction (action);
         })));
     }
 

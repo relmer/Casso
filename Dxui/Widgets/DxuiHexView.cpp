@@ -1077,6 +1077,21 @@ uint32_t DxuiHexView::GetSelectionFill (const IDxuiTheme & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHexView::GetCaretInk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiHexView::GetCaretInk (const IDxuiTheme & theme)
+{
+    return DxuiColor::ChooseInkFor (theme.Accent(), 0xFFFFFFFF, 0xFF000000);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexView::GetSelectionInk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3021,7 +3036,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         if (m_hasFocus && m_caret >= offset && m_caret < offset + (uint64_t) present)
         {
             FillCell (text, GetValueSelectionRect (offset, cell), theme.Accent());
-            argb     = s_kCaretInkArgb;
+            argb     = GetCaretInk (theme);
             selected = false;
         }
         else if (selected)
@@ -3055,7 +3070,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         if (m_hasFocus && offset == m_caret)
         {
             FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), theme.Accent());
-            argb = s_kCaretInkArgb;
+            argb = GetCaretInk (theme);
         }
         else if (IsByteSelected (offset))
         {

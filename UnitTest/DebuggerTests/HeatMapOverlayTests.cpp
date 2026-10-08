@@ -469,10 +469,9 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (SelfModifyingCodeIsCalledOutInTheTipAndTheKey)
+        TEST_METHOD (SelfModifyingCodeIsCalledOutInTheTipAndTheBlend)
         {
             HeatMapView           view;
-            MockDxuiTextRenderer  text;
             HeatMapOptions        options;
             std::vector<Byte>     execute (kCount, 0);
             std::vector<Byte>     write   (kCount, 0);
@@ -488,14 +487,9 @@ namespace DebuggerTests
             Assert::IsTrue (Contains (view.GetTipText (0x0300), L"\nSelf-modifying: run as code and written"));
             Assert::IsFalse (Contains (view.GetTipText (0x0301), L"Self-modifying"));
 
-            Paint (view, text);
-            Assert::IsFalse (HasText (text, HeatMapView::kpszSelfModifyingKey), L"not in the key without Blend");
-
             options.blend = true;
             view.SetOptions (options);
-            Paint (view, text);
 
-            Assert::IsTrue   (HasText (text, HeatMapView::kpszSelfModifyingKey));
             Assert::AreEqual (kSelfModifying, view.GetCellColor (0x0300));
         }
 

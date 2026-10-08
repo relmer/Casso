@@ -62,6 +62,10 @@ namespace DebuggerTests
 
             view.SetPalette (MakePalette());
             view.Layout (RECT { 0, 0, width, height }, scaler);
+
+            //  The map starts fitted to the pane; these tests are of a map at
+            //  three-pixel cells, as the user can zoom it.
+            view.ZoomTo (3);
         }
 
         //  A point inside an address's cell, `inset` pixels in from its top left.
@@ -199,7 +203,38 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (CellsStartThreePixelsWideWithAOnePixelStreet)
+        //  All of memory starts at the largest cell that fits the pane with
+        //  no scrolling, which is the zoom's 100%; a notch larger scrolls, and
+        //  a larger pane fits it again.
+        TEST_METHOD (AllMemoryStartsFittedToThePane)
+        {
+            HeatMapView    view;
+            DxuiDpiScaler  scaler;
+            int            fitted = 0;
+
+
+
+            view.SetPalette (MakePalette());
+            view.Layout (RECT { 0, 0, 1200, 900 }, scaler);
+            fitted = view.GetCellPx();
+
+            Assert::IsFalse  (view.HasVerticalScroll(),   L"all of memory in view");
+            Assert::IsFalse  (view.HasHorizontalScroll());
+            Assert::AreEqual (fitted, view.GetStartCellPx(), L"the zoom's 100%");
+
+            view.ZoomIn();
+            Assert::IsTrue   (view.HasVerticalScroll(), L"a notch larger no longer fits");
+
+            view.ResetZoom();
+            Assert::AreEqual (fitted, view.GetCellPx(), L"Reset zoom fits it again");
+
+            view.Layout (RECT { 0, 0, 2400, 1800 }, scaler);
+            Assert::IsTrue   (view.GetCellPx() > fitted, L"a larger pane fits a larger cell");
+        }
+
+
+
+        TEST_METHOD (AThreePixelCellHasAOnePixelStreet)
         {
             HeatMapView  view;
             RECT         map = {};
@@ -492,7 +527,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (ResetZoomGoesBackToTheStart)
+        TEST_METHOD (ResetZoomGoesBackToTheFittedSize)
         {
             HeatMapView  view;
             POINT        point = {};
@@ -504,7 +539,7 @@ namespace DebuggerTests
             view.ZoomAt (point, 4.0f);
             view.ResetZoom();
 
-            Assert::AreEqual (3,  view.GetCellPx());
+            Assert::AreEqual (view.GetStartCellPx(), view.GetCellPx());
             Assert::AreEqual (0L, view.GetScroll().x);
             Assert::AreEqual (0L, view.GetScroll().y);
         }

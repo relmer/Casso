@@ -504,6 +504,63 @@ DxuiHitTestKind DxuiDockSite::ClassifyHit (POINT clientDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::GetTitleButtonTipAt
+//
+//  The pin says what pressing it does, as OnTitleButton carries it out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDockSite::GetTitleButtonTipAt (POINT pointDip, RECT & button) const
+{
+    static constexpr DxuiTabGroup::TitleButton  kButtons[] = { DxuiTabGroup::TitleButton::Menu, DxuiTabGroup::TitleButton::Pin,
+                                                               DxuiTabGroup::TitleButton::Close };
+
+
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        std::wstring  pane;
+
+        if (!group->IsVisible() || !Contains (group->GetTitleRect(), pointDip))
+        {
+            continue;
+        }
+
+        pane = GetPaneOf (group->GetActiveContent());
+
+        for (DxuiTabGroup::TitleButton kind : kButtons)
+        {
+            button = group->GetTitleButtonRect (kind);
+
+            if (!Contains (button, pointDip))
+            {
+                continue;
+            }
+
+            switch (kind)
+            {
+            case DxuiTabGroup::TitleButton::Menu:
+                return L"Window position";
+
+            case DxuiTabGroup::TitleButton::Pin:
+                return (m_onDock != nullptr || m_layout.IsAutoHidden (pane)) ? L"Dock" : L"Auto hide";
+
+            case DxuiTabGroup::TitleButton::Close:
+                return L"Close";
+            }
+        }
+    }
+
+    button = {};
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::SetFocusedPane
 //
 //  Only the looks change, so nothing is laid out again.

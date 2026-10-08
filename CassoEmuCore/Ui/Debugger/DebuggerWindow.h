@@ -875,6 +875,7 @@ private:
     void     CommitStackByte  (int row, Byte typed);
     void     CommitRegister   (const std::string & name, Byte typed);
     void     UpdateTooltip    (POINT clientPx);
+    std::wstring  GetTitleButtonTipAt (POINT clientPx, RECT & button) const;
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool     TryGetMemoryTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
 
@@ -1203,7 +1204,6 @@ private:
     };
 
     std::vector<PaneColorKey>              m_colorKeys;
-    std::unique_ptr<DebuggerPaneFrame>     m_callStackKeySlot;
     ColorKeyPopup                          m_colorKeyPopup;
     ColorKeyButton                       * m_colorKeyOwner = nullptr;
     ColorKeyButton                       * m_colorKeyHover = nullptr;

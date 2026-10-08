@@ -43,7 +43,6 @@ void DebuggerWindow::CreateColorKeys()
         AddColorKey (m_undoBars[index].pane, m_undoBars[index].slot.get(), legend);
     }
 
-    AddColorKey (DebuggerLayout::kCallStack,   m_callStackKeySlot.get(), ColorLegend::Pane::CallStack);
     AddColorKey (DebuggerLayout::kHeatMap,     m_heatMapBarSlot.get(),   ColorLegend::Pane::HeatMap);
     AddColorKey (DebuggerLayout::kBreakpoints, m_breakpointSlot.get(),   ColorLegend::Pane::Breakpoints);
 

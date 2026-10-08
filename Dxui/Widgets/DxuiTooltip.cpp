@@ -20,6 +20,13 @@ static constexpr float     s_kBorderDip       = 1.0f;
 static constexpr float     s_kMaxTextWidthDip = 340.0f;
 
 //
+//  A fixed-width tip's lines are columns, broken where the caller broke
+//  them, so they run far wider before they wrap: wrapping one moves the end
+//  of a line, a cycle count, say, under the start of the next.
+//
+static constexpr float     s_kMaxMonoWidthDip = 720.0f;
+
+//
 //  Fallback glyph metrics used to size the balloon when precise text
 //  measurement is unavailable (e.g. test mode, where the popup has no
 //  DWrite factory). Deliberately a little generous so text never clips.
@@ -607,6 +614,24 @@ void DxuiTooltip::ShowPopup()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMaxTextWidthDip
+//
+//  How wide a line may run before it wraps, which for a fixed-width tip is
+//  more than twice as wide.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetMaxTextWidthDip() const
+{
+    return m_monospace ? s_kMaxMonoWidthDip : s_kMaxTextWidthDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureBoxDip
 //
 //  The balloon's size for the current text.
@@ -635,7 +660,7 @@ SIZE DxuiTooltip::MeasureBoxDip()
     HRESULT  hr      = S_OK;
     UINT     dpi     = m_scaler.GetDpi();
     float    fontPx  = m_scaler.ToPxf (m_fontDip);
-    float    maxWPx  = m_scaler.ToPxf (s_kMaxTextWidthDip);
+    float    maxWPx  = m_scaler.ToPxf (GetMaxTextWidthDip());
     float    padXPx  = m_scaler.ToPxf (s_kPadXDip);
     float    padYPx  = m_scaler.ToPxf (s_kPadYDip);
     float    textWPx = 0.0f;
@@ -820,7 +845,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
              m_text.c_str(), fontPx, GetFace(),
-             m_scaler.ToPxf (s_kMaxTextWidthDip), textW, textH);
+             m_scaler.ToPxf (GetMaxTextWidthDip()), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     anchor  = GetPlacementAnchor();

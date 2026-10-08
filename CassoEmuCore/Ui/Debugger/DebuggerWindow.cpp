@@ -4895,9 +4895,8 @@ void DebuggerWindow::ConfigureDockSite()
     //  the button that cycled them is not shown.
     m_callStackButton->SetVisible (false);
 
-    //  The call stack has no toolbar; a band of its own holds its info button.
-    m_callStackKeySlot = std::make_unique<DebuggerPaneFrame> (L"Colors");
-    m_callStackFrame->AddPart (m_callStackKeySlot.get(), barHeight);
+    //  The call stack has no toolbar and no color key: its Found by column
+    //  says what each dimmed row is, and the row's tip says why.
     m_callStackFrame->AddPart (m_callStackList);
 
     //  The trace pane lists its keys above its rows.
@@ -8755,7 +8754,50 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         return;
     }
 
+    //  A pane's title-bar buttons, in this window or a floating one.
+    text = GetTitleButtonTipAt (clientPx, cell);
+
+    if (!text.empty())
+    {
+        tip.SetMonospace (false);
+        tip.RequestShow  (cell, text, now);
+        return;
+    }
+
     tip.RequestHide (now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTitleButtonTipAt
+//
+//  From the dock site of the window the mouse is in: this one's, or the
+//  floating window's the event was routed from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetTitleButtonTipAt (POINT clientPx, RECT & button) const
+{
+    const DxuiDockSite  * site  = m_dockSite;
+    auto                  found = m_floats.find (m_routingPane);
+
+
+
+    if (!m_routingPane.empty())
+    {
+        site = (found != m_floats.end() && found->second != nullptr) ? &found->second->GetSite() : nullptr;
+    }
+
+    if (site == nullptr)
+    {
+        return std::wstring();
+    }
+
+    return site->GetTitleButtonTipAt (clientPx, button);
 }
 
 
@@ -10601,7 +10643,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_undoBars[kWatchUndoBar].slot.get(), m_watchList, m_watchEditor, m_undoBars[kWatchUndoBar].bar }; }
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
-    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackKeySlot.get(), m_callStackButton, m_callStackList }; }
+    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
     if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapBarSlot.get(), m_heatMapView, m_heatMapBar }; }
     if (pane == DebuggerLayout::kHeatRanges)  { return { m_heatRangeSlot.get(), m_heatRangeError, m_heatRangeList, m_heatRangeEditor, m_heatRangeBar }; }

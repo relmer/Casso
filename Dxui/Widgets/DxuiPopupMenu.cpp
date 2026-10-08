@@ -2275,24 +2275,25 @@ void DxuiPopupMenu::PaintRow (
     float                width,
     float                fontDip) const
 {
-    HRESULT                    hr        = S_OK;
-    const DxuiPopupMenuItem &  row       = m_rows[(size_t) index];
-    int                        rowTopPx  = GetRowTopPx (index);
-    int                        rowH      = GetRowHeightPx (index);
-    int                        pad       = m_metrics.leftPadPx;
-    int                        gutter    = m_metrics.checkGutterPx;
-    int                        inset     = m_metrics.separatorInsetPx;
-    int                        labelLeft = m_labelLeftPx;
-    int                        padTop    = (rowH - m_metrics.lineHeightPx) / 2;
-    float                      y         = top + (float) (rowTopPx - GetScrollPx());
-    float                      labelW    = (float) (m_accelLeftPx - labelLeft);
-    float                      accelW    = width - (float) m_accelLeftPx - (float) m_metrics.rightPadPx;
+    constexpr float            kTextContrast = 4.5f;   // WCAG AA for text
+    HRESULT                    hr            = S_OK;
+    const DxuiPopupMenuItem  & row           = m_rows[(size_t) index];
+    int                        rowTopPx      = GetRowTopPx (index);
+    int                        rowH          = GetRowHeightPx (index);
+    int                        pad           = m_metrics.leftPadPx;
+    int                        gutter        = m_metrics.checkGutterPx;
+    int                        inset         = m_metrics.separatorInsetPx;
+    int                        labelLeft     = m_labelLeftPx;
+    int                        padTop        = (rowH - m_metrics.lineHeightPx) / 2;
+    float                      y             = top + (float) (rowTopPx - GetScrollPx());
+    float                      labelW        = (float) (m_accelLeftPx - labelLeft);
+    float                      accelW        = width - (float) m_accelLeftPx - (float) m_metrics.rightPadPx;
     std::wstring               stripped;
-    int                        mnIdx     = -1;
-    wchar_t                    mnCh      = 0;
-    bool                       enabled   = false;
-    uint32_t                   labelArgb = 0;
-    uint32_t                   accelArgb = 0;
+    int                        mnIdx         = -1;
+    wchar_t                    mnCh          = 0;
+    bool                       enabled       = false;
+    uint32_t                   labelArgb     = 0;
+    uint32_t                   accelArgb     = 0;
 
 
 
@@ -2326,7 +2327,7 @@ void DxuiPopupMenu::PaintRow (
                               y + (float) padTop,
                               labelW,
                               (float) rowH,
-                              pal.accel,
+                              DxuiColor::ComputeInkForContrast (pal.accel, pal.bg, kTextContrast),
                               fontDip,
                               DxuiTheme::kBodyFace);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -2350,6 +2351,16 @@ void DxuiPopupMenu::PaintRow (
                                  (float) rowH - insetY - insetY,
                                  m_scaler.ToPxf (kHoverRadiusDip),
                                  pal.hover);
+    }
+
+    //  An enabled row's text reads on whatever is behind it, the hover fill
+    //  among them. Disabled text is left as the theme has it.
+    if (enabled)
+    {
+        uint32_t  under = (index == m_hover) ? DxuiColor::Composite (pal.hover, pal.bg) : pal.bg;
+
+        labelArgb = DxuiColor::ComputeInkForContrast (labelArgb, under, kTextContrast);
+        accelArgb = DxuiColor::ComputeInkForContrast (accelArgb, under, kTextContrast);
     }
 
     hr = text.DrawString (stripped.c_str(),

@@ -132,6 +132,7 @@ public:
 
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
+    float            GetMaxTextWidthDip () const;
 
     //
     //  IDxuiControl overrides — additive shims so DxuiTooltip can

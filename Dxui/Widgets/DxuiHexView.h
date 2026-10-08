@@ -366,6 +366,10 @@ public:
     static uint32_t  GetSelectionFill (const IDxuiTheme & theme);
     static uint32_t  GetSelectionInk  (const IDxuiTheme & theme);
 
+    //  The byte the keys act on: white or black, whichever reads better on
+    //  the accent behind it.
+    static uint32_t  GetCaretInk      (const IDxuiTheme & theme);
+
     //  The most bytes Copy takes.
     static constexpr uint64_t  kMaxCopyBytes = 16 * 1024 * 1024;
 
@@ -425,7 +429,6 @@ private:
     static constexpr float  s_kAddressStrength  = 0.55f;
 
     //  The ink on the byte the keys act on, over the accent.
-    static constexpr uint32_t  s_kCaretInkArgb  = 0xFFFFFFFF;
 
     //  Cells one value spends, its text, and the fill behind a selected one.
     int           GetValueCells         () const;

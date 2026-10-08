@@ -136,7 +136,7 @@ void HeatMapView::SetRanges (std::vector<Band> ranges)
 //
 //  HeatMapView::ClearRanges
 //
-//  All of memory again, at the starting zoom.
+//  All of memory again, fitted to the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,7 +149,6 @@ void HeatMapView::ClearRanges()
 
     m_bands     = { Band { {}, 0, kAddressCount } };
     m_hasRanges = false;
-    m_isFitted  = false;
 
     m_hover.reset();
     ResetZoom();
@@ -164,15 +163,17 @@ void HeatMapView::ClearRanges()
 //  HeatMapView::FitRanges
 //
 //  The largest cell whose rows all fit the pane, with no scrolling either
-//  way; a pane too small for even one pixel a cell scrolls at one. While the
-//  user has not zoomed, a resize fits them again.
+//  way, for the ranges or for all of memory; a pane too small for even one
+//  pixel a cell scrolls at one. While the user has not zoomed, a resize fits
+//  them again. The fitted size is the zoom's 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::FitRanges()
 {
-    m_isFitted = true;
-    m_scroll   = {};
+    m_isFitted  = true;
+    m_scroll    = {};
+    m_fittedFor = m_boundsDip;
 
     for (int cell = kMaxCellPx; cell >= 1; cell--)
     {
@@ -185,6 +186,7 @@ void HeatMapView::FitRanges()
         }
     }
 
+    m_fitCellPx    = m_cellPx;
     m_isFrameStale = true;
 }
 
@@ -782,6 +784,24 @@ void HeatMapView::ZoomOut()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::ZoomTo
+//
+//  A cell cellPx tall, about the map's top left, as a zoom the user made:
+//  the map is no longer fitted to the pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ZoomTo (int cellPx)
+{
+    ApplyCellPx (cellPx, { m_map.left, m_map.top });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::ScrollBy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -803,24 +823,13 @@ void HeatMapView::ScrollBy (int dx, int dy)
 //
 //  HeatMapView::ResetZoom
 //
-//  Back to the starting cell size, with the map's top left in view; for a
-//  set of ranges, the size that fits them all.
+//  Back to the size that fits the map to the pane, from its top left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::ResetZoom()
 {
-    if (m_hasRanges)
-    {
-        FitRanges();
-        return;
-    }
-
-    m_cellPx = std::max (1, m_scaler.ToPx (kDefaultCellDip));
-    m_scroll = {};
-
-    PlaceMap();
-    m_isFrameStale = true;
+    FitRanges();
 }
 
 
@@ -2051,8 +2060,8 @@ bool HeatMapView::IsTipComplete (POINT point) const
 //
 //  HeatMapView::Layout
 //
-//  The first layout sets the starting zoom, which depends on the dpi. Ranges
-//  the user has not zoomed are fitted to the pane again at its new size.
+//  A map the user has not zoomed is fitted to the pane again at its new
+//  size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2071,7 +2080,14 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
         m_gutterPx = m_scaler.ToPx (kGutterDip);
     }
 
-    if (m_hasRanges && m_isFitted)
+    //  Fitting tries every cell size, so a map already fitted to these
+    //  bounds is left as it is.
+    if (m_isFitted && EqualRect (&m_fittedFor, &m_boundsDip))
+    {
+        return;
+    }
+
+    if (m_isFitted)
     {
         FitRanges();
         return;
@@ -2121,7 +2137,7 @@ void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & th
 
     m_gutterPx = gutter;
 
-    if (m_hasRanges && m_isFitted)
+    if (m_isFitted)
     {
         FitRanges();
         return;
@@ -2199,30 +2215,24 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //
 //  HeatMapView::PaintBar
 //
-//  The modes as tabs, the chosen one underlined in the accent; then a swatch
-//  for each color the mode shows, or, while the heat is being rebuilt after
-//  a move through history, a note saying so in the key's place, where a
-//  narrow pane still has room for it.
+//  The modes as tabs, the chosen one underlined in the accent; then, while
+//  the heat is being rebuilt after a move through history, a note saying so.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     constexpr int   kSwatchDip  = 10;
-    constexpr int   kKeyDip     = 56;
-    constexpr float kKeyRoom    = 2.5f;     // swatches across a key besides its label: the swatch, a gap, and one after
     DxuiFontHandle  font        = theme.BodyFont();
     float           size        = m_scaler.ToPxf (font.sizeDip);
     float           bar         = m_scaler.ToPxf ((float) kBarDip);
     float           tab         = m_scaler.ToPxf ((float) kTabDip);
     float           swatch      = m_scaler.ToPxf ((float) kSwatchDip);
-    float           key         = m_scaler.ToPxf ((float) kKeyDip);
     float           underline   = std::max (1.0f, m_scaler.ToPxf (2.0f));
     float           top         = (float) m_boundsDip.top;
     float           x           = (float) (m_boundsDip.left + m_gutterPx);
     float           right       = (float) m_boundsDip.right - m_scaler.ToPxf ((float) kInsetDip);
     HRESULT         hr          = S_OK;
-    KeyList         keys;
 
 
 
@@ -2245,81 +2255,13 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         x += tab;
     }
 
-    if (m_options.view != Mode::Data) { keys.emplace_back (L"Code",  m_palette.execute); }
-    if (m_options.view != Mode::Code) { keys.emplace_back (L"Read",  m_palette.read);    }
-    if (m_options.view != Mode::Code) { keys.emplace_back (L"Write", m_palette.write);   }
-
-    if (m_options.blend && m_options.view == Mode::All)
-    {
-        keys.emplace_back (kpszSelfModifyingKey, m_palette.selfModifying);
-    }
-
-    AddChannelKeys (keys);
-
-    x += swatch;
-
     if (m_isRebuilding)
     {
+        x += swatch;
+
         hr = text.DrawString (kpszRebuildingNote, x, top, std::max (right - x, 0.0f), bar, theme.ForegroundMuted(),
                               size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
-
-        keys.clear();
-    }
-
-    for (const auto & [label, color] : keys)
-    {
-        float  labelW = 0.0f;
-        float  labelH = 0.0f;
-        float  wide   = key;
-
-
-
-        hr = text.MeasureString (label.c_str(), size, font.face, labelW, labelH);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        wide = std::max (key, swatch * kKeyRoom + labelW);
-
-        if (x + wide > right)
-        {
-            break;
-        }
-
-        painter.FillRect (x, top + (bar - swatch) / 2, swatch, swatch, color | 0xFF000000u);
-
-        hr = text.DrawString (label.c_str(), x + swatch * 1.5f, top, wide - swatch * 1.5f, bar, theme.ForegroundMuted(),
-                              size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        x += wide;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HeatMapView::AddChannelKeys
-//
-//  Changed shows its own color alone; All and Data add the reads before
-//  written to their keys.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HeatMapView::AddChannelKeys (KeyList & keys) const
-{
-    if (m_options.view == Mode::Changed)
-    {
-        keys.clear();
-        keys.emplace_back (L"Value changed", m_palette.changed);
-        return;
-    }
-
-    if (m_options.view != Mode::Code)
-    {
-        keys.emplace_back (L"Read before written", m_palette.unwritten);
     }
 }
 

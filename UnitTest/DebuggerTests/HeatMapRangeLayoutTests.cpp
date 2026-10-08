@@ -54,6 +54,10 @@ namespace DebuggerTests
             palette.execute    = kExecute;
             view.SetPalette (palette);
             view.Layout (RECT { 0, 0, width, height }, scaler);
+
+            //  The map starts fitted to the pane; these tests are of a map at
+            //  three-pixel cells, as the user can zoom it.
+            view.ZoomTo (3);
         }
 
         static POINT GetPointOf (const HeatMapView & view, Word address)
@@ -165,8 +169,6 @@ namespace DebuggerTests
 
 
             Place (view);
-            Assert::AreEqual (3, view.GetCellPx(), L"all memory starts at three pixels");
-
             view.SetRanges (MakeRanges());
 
             Assert::IsFalse (view.HasVerticalScroll(),   L"every range in view");
@@ -186,7 +188,7 @@ namespace DebuggerTests
             view.ZoomIn();
             Assert::IsTrue  (view.GetCellPx() > fitted, L"the zoom applies to the set");
 
-            Place (view, kWidth, kHeight + 200);
+            view.Layout (RECT { 0, 0, kWidth, kHeight + 200 }, DxuiDpiScaler());
             Assert::IsTrue  (view.GetCellPx() > fitted, L"a resize after a zoom keeps the user's zoom");
 
             view.ResetZoom();
@@ -297,7 +299,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (AllMemoryComesBackAtItsStartingZoom)
+        TEST_METHOD (AllMemoryComesBackFittedToThePane)
         {
             HeatMapView  view;
 
@@ -308,7 +310,7 @@ namespace DebuggerTests
             view.ClearRanges();
 
             Assert::IsFalse  (view.HasRanges());
-            Assert::AreEqual (3, view.GetCellPx());
+            Assert::AreEqual (view.GetStartCellPx(), view.GetCellPx());
             Assert::AreEqual (HeatMapView::kAddressCount / view.GetColumns(), view.GetRows());
             Assert::AreEqual ((Word) 0x1234, view.GetAddressAt (GetPointOf (view, 0x1234)).value_or (0));
         }
