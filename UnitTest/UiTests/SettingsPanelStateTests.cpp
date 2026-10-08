@@ -47,6 +47,7 @@ public:
         SettingsSpeedMode  lastSpeed                  = SettingsSpeedMode::Authentic;
         SettingsColorMode  lastColor                  = SettingsColorMode::Color;
         bool               lastFloppySound            = true;
+        bool               lastWozBitTiming           = false;
         bool               lastFastTapeLoading        = true;
         float              lastTapeVolume             = 1.0f;
         bool               lastTapeAutoStop           = true;
@@ -67,6 +68,7 @@ public:
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
         void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
+        void ApplyWozBitTiming (bool enabled) override             { lastWozBitTiming = enabled; }
         void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
         void ApplyTapeVolume   (float gain) override               { lastTapeVolume = gain; }
         void ApplyTapeAutoStop (bool enabled) override             { lastTapeAutoStop = enabled; }
@@ -481,6 +483,28 @@ public:
         st.LoadFromMachine ("X", v, v);
 
         Assert::IsTrue (st.GetPrefs().colorMode == SettingsColorMode::Color);
+    }
+
+
+    TEST_METHOD (UseWozBitTiming_DefaultsOffAndRoundTrips)
+    {
+        SettingsPanelState  st;
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     reloaded;
+
+        st.LoadFromMachine ("X", v, v);
+        Assert::IsFalse (st.GetPrefs().useWozBitTiming, L"off when the machine has never saved it");
+
+        st.SetUseWozBitTiming (true);
+        Assert::IsTrue (st.IsDirty());
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.lastWozBitTiming, L"Apply hands the setting to the shell");
+
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        Assert::IsTrue (reloaded.useWozBitTiming, L"and writes it");
     }
 
 

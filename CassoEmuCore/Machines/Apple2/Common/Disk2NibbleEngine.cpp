@@ -193,13 +193,15 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 //
 //  Looks up the slot under the head once, so the sequencer does not have to
 //  on each of the 410,000 clocks a revolution takes. The disk's bit timing is
-//  picked up here too, since a new disk always arrives through this path.
+//  picked up here too, since a new disk always arrives through this path --
+//  the image's own, when the switch says to use it, otherwise the standard.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2NibbleEngine::ResolveSlot()
 {
-    uint64_t  timing = (m_disk != nullptr) ? m_disk->GetBitTiming() : WozLoader::kBitTimingStandard;
+    bool      useImage = m_useImageTiming != nullptr && m_useImageTiming->load (std::memory_order_relaxed);
+    uint64_t  timing   = (m_disk != nullptr && useImage) ? m_disk->GetBitTiming() : WozLoader::kBitTimingStandard;
 
 
 

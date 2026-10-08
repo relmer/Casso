@@ -24,6 +24,10 @@ TEST_CLASS (WozBitTimingTests)
 public:
 
     static constexpr size_t  kTrackBits     = 40000;
+
+    // The switch the shell owns, on: these tests are about playing an image
+    // at its own timing.
+    static inline const std::atomic<bool>  kImageTimingOn { true };
     static constexpr size_t  kInfoFileStart = WozLoader::kHeaderSize + 8;
 
     static const vector<uint8_t> & GetMarker()
@@ -187,6 +191,7 @@ public:
 
         LoadImage (timing, disk);
 
+        eng.SetBitTimingSwitch (&kImageTimingOn);
         eng.SetDiskImage    (&disk);
         eng.SetCurrentTrack (0);
         eng.SetMotorOn      (true);
@@ -210,12 +215,54 @@ public:
     }
 
 
+    TEST_METHOD (SwitchOffPlaysEveryImageAtTheStandardCell)
+    {
+        DiskImage                 disk;
+        Disk2NibbleEngine         eng;
+        const std::atomic<bool>   off { false };
+
+        LoadImage (28, disk);
+        eng.SetDiskImage (&disk);
+
+        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits(),
+                          L"a drive given no switch plays the standard cell");
+
+        eng.SetBitTimingSwitch (&off);
+        eng.SetDiskImage       (&disk);
+
+        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits(),
+                          L"and so does one whose switch is off");
+    }
+
+
+    TEST_METHOD (TurningTheSwitchOnTakesEffectAtTheNextStep)
+    {
+        DiskImage           disk;
+        Disk2NibbleEngine   eng;
+        std::atomic<bool>   on { false };
+
+        LoadImage (28, disk);
+        eng.SetBitTimingSwitch (&on);
+        eng.SetDiskImage       (&disk);
+        eng.SetCurrentTrack    (0);
+
+        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits());
+
+        on.store (true);
+        eng.SetCurrentTrack (4);
+
+        Assert::AreEqual (uint64_t (28) * Disk2NibbleEngine::kFluxUnitsPerTimingStep, eng.GetCellUnits(),
+                          L"the drive picks the switch up when it next resolves the track under the head");
+    }
+
+
     TEST_METHOD (OutOfRangeTimingPlaysAtTheStandardCell)
     {
         DiskImage          disk;
         Disk2NibbleEngine  eng;
 
         LoadImage (0, disk);
+        eng.SetBitTimingSwitch (&kImageTimingOn);
         eng.SetDiskImage (&disk);
 
         Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits());
@@ -242,6 +289,7 @@ public:
 
         LoadImage (timing, disk);
 
+        eng.SetBitTimingSwitch (&kImageTimingOn);
         eng.SetDiskImage    (&disk);
         eng.SetCurrentTrack (0);
         eng.SetMotorOn      (true);
@@ -301,6 +349,7 @@ public:
 
         LoadImage (28, disk);
 
+        eng.SetBitTimingSwitch (&kImageTimingOn);
         eng.SetDiskImage    (&disk);
         eng.SetCurrentTrack (0);
         eng.SetMotorOn      (true);

@@ -827,6 +827,10 @@ public:
     // Whether tape loads run at Maximum speed. Read by the CPU thread each
     // slice; written by Settings and at startup.
     void SetFastTapeLoading (bool enabled) { m_fastTapeLoading.store (enabled, std::memory_order_relaxed); }
+
+    // Whether WOZ images play at their own bit timing. Read by the drives on
+    // the CPU thread whenever they resolve the track under the head.
+    void SetUseWozBitTiming (bool enabled) { m_useWozBitTiming.store (enabled, std::memory_order_relaxed); }
     void SetTapeVolume      (float gain)   { m_tapeAudioSource.SetVolume (gain); }
     void SetTapeAutoStop    (bool enabled) { m_machine.GetTapeDeck().SetAutoStop (enabled); }
     void SetTapeIdleStop    (bool enabled) { m_machine.GetTapeDeck().SetIdleStop (enabled); }
@@ -2574,6 +2578,7 @@ private:
     std::unique_ptr<TapeManager>              m_tapeManager;
     std::unique_ptr<BackgroundWorkQueue>      m_tapeLoader;   // reads and decodes tape files
     std::atomic<bool>                         m_fastTapeLoading { true };
+    std::atomic<bool>                         m_useWozBitTiming { false };
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

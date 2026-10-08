@@ -210,6 +210,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     std::string            carryDisk1;
     std::string            carryDisk2;
     const JsonValue *      inputUiPrefs      = nullptr;
+    bool                   useWozTiming      = false;
+    HRESULT                hrWozTiming       = S_OK;
 
 
 
@@ -409,6 +411,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // sees the restored mapping rather than being overwritten by it.
     m_shell.AdoptInputModeForMachine (inputUiPrefs, newConfig.machineId);
     m_shell.ApplyDefaultPointerForMachine();
+
+    // The machine being switched to plays WOZ images at their own bit timing
+    // only if it was set to; the one being left must not hand its choice on.
+    if (inputUiPrefs != nullptr)
+    {
+        hrWozTiming = inputUiPrefs->GetBool ("useWozBitTiming", useWozTiming);
+        IGNORE_RETURN_VALUE (hrWozTiming, S_OK);
+    }
+
+    m_shell.SetUseWozBitTiming (useWozTiming);
 
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.

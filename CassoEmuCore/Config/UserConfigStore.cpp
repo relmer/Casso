@@ -732,6 +732,7 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
     uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
+    uiObj.emplace_back ("useWozBitTiming",    JsonValue (false));
     uiObj.emplace_back ("fastTapeLoading",    JsonValue (true));
     uiObj.emplace_back ("tapeVolume",         JsonValue (1.0));
     uiObj.emplace_back ("tapeAutoStop",       JsonValue (true));

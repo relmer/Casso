@@ -122,6 +122,34 @@ public:
         Assert::IsTrue (tape->GetRect().bottom     <= fastTape->GetRect().top);
     }
 
+    TEST_METHOD (WozBitTimingIsADiskOptionAndStartsOff)
+    {
+        DiskPage             page (L"Storage");
+        SettingsPanelState    state;
+        const DxuiLabel     * label  = nullptr;
+        const DxuiDivider   * rule   = nullptr;
+        RECT                  toggle = {};
+
+
+
+        page.SetState (&state);
+        LayOut (page, 0, 600);
+        label = FindChild<DxuiLabel> (page, L"Use WOZ bit timing:");
+        rule  = FindChild<DxuiDivider> (page);
+
+        Assert::IsNotNull (label);
+        Assert::IsNotNull (rule);
+        Assert::IsTrue    (label->GetRect().bottom <= rule->GetBounds().top, L"with the disk drives, above the rule");
+        Assert::IsFalse   (page.GetWozBitTimingToggle().IsChecked(), L"off until it is turned on");
+
+        toggle = page.GetWozBitTimingToggle().GetRect();
+        page.GetWozBitTimingToggle().OnLButtonDown ((toggle.left + toggle.right) / 2, (toggle.top + toggle.bottom) / 2);
+        page.GetWozBitTimingToggle().OnLButtonUp   ((toggle.left + toggle.right) / 2, (toggle.top + toggle.bottom) / 2);
+
+        Assert::IsTrue (state.GetPrefs().useWozBitTiming, L"and a click on it reaches the settings");
+    }
+
+
     TEST_METHOD (RestoreDefaultsResetsTheWholePageTapeIncluded)
     {
         DiskPage                page (L"Storage");
@@ -137,6 +165,7 @@ public:
         state.SetWriteProtect     (0, !defaults.writeProtect[0]);
         state.SetFloppySound      (!defaults.floppySoundEnabled);
         state.SetDriveMotorVolume (0.1f);
+        state.SetUseWozBitTiming  (!defaults.useWozBitTiming);
 
         LayOut (page, 0, 600);
         page.GetRestoreDefaultsButton().Click();
@@ -147,7 +176,9 @@ public:
         Assert::AreEqual (defaults.writeProtect[0],    state.GetPrefs().writeProtect[0]);
         Assert::AreEqual (defaults.floppySoundEnabled, state.GetPrefs().floppySoundEnabled);
         Assert::AreEqual (defaults.driveMotorVolume,   state.GetPrefs().driveMotorVolume);
+        Assert::AreEqual (defaults.useWozBitTiming,    state.GetPrefs().useWozBitTiming);
         Assert::AreEqual (defaults.fastTapeLoading,    page.GetFastTapeToggle().IsChecked(), L"and the widgets show it");
+        Assert::AreEqual (defaults.useWozBitTiming,    page.GetWozBitTimingToggle().IsChecked());
     }
 
 

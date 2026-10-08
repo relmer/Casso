@@ -136,6 +136,12 @@ public:
     // How long a bit-stream cell lasts under the head, in flux units.
     uint64_t   GetCellUnits() const { return m_cellUnits; }
 
+    // Whether a WOZ image's own bit timing is used, read each time the slot
+    // under the head is resolved: on a disk change, a step, a reset. Null or
+    // false plays every bit-stream track at the standard timing. The flag
+    // belongs to the shell, which changes it from the settings.
+    void       SetBitTimingSwitch (const std::atomic<bool> * useImageTiming) { m_useImageTiming = useImageTiming; }
+
 private:
     // Logic State Sequencer clocking. The P6 sequencer runs at 2 MHz --
     // two LSS clocks per 1.023 MHz CPU cycle. Eight LSS clocks make one
@@ -266,6 +272,10 @@ private:
     // sequencer clock, and a reading head moves one cell each time it wraps.
     uint64_t     m_cellUnits        = kFluxUnitsPerCell;
     uint64_t     m_cellPhase        = kCellPhaseLead * kFluxUnitsPerLssClock;
+
+    // The shell's switch for using a WOZ image's own bit timing; see
+    // SetBitTimingSwitch.
+    const std::atomic<bool>  * m_useImageTiming = nullptr;
 
     // Flux playback, in 1/45-tick units. m_fluxDue is when the next
     // transition reaches the head; m_fluxLastPulse is when the last real one

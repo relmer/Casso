@@ -66,6 +66,7 @@ DiskPage::DiskPage (std::wstring title)
 
     Adopt (m_wpLabel);
     Adopt (m_writeModeLabel);
+    Adopt (m_wozBitTimingLabel);
     Adopt (m_audioLabel);
     Adopt (m_mechLabel);
     Adopt (m_motorLabel);
@@ -87,6 +88,8 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_writeMode);
     Adopt (m_mechanism);
     Adopt (m_driveAudio);
+    Adopt (m_wozBitTiming);
+    Adopt (m_wozBitTimingInfo);
     Adopt (m_fastTape);
     Adopt (m_tapeAutoStop);
     Adopt (m_tapeIdleStop);
@@ -203,6 +206,19 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeMode.SetItems ({ L"Buffer and flush", L"Copy on write" });
     y += rowHeight + sectionGap;
 
+    // Off plays every WOZ image at the standard bit timing, which is what the
+    // most titles need. The info tip comes out of the label's width, as the
+    // tape format's does, so the toggle stays in line with the controls.
+    m_wozBitTimingLabel.SetRect (MakeRect (x, y, labelWidth - rowHeight, rowHeight));
+    m_wozBitTimingLabel.SetText (L"Use WOZ bit timing:");
+    m_wozBitTimingInfo.SetRect  (MakeRect (controlsX - rowHeight, y, rowHeight, rowHeight));
+    m_wozBitTiming.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
+    m_wozBitTimingInfo.SetText  (L"Some WOZ images record the bit timing their disk was written at. Playing "
+                                 L"a disk at that timing helps some titles load and keeps others from "
+                                 L"loading at all, depending on the title. When this is off, every disk "
+                                 L"plays at the standard timing.");
+    y += rowHeight + sectionGap;
+
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_audioLabel.SetText (L"Drive audio:");
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
@@ -310,6 +326,9 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_wpLabel.SetDpi         (dpi);
     m_writeModeLabel.SetDpi  (dpi);
+    m_wozBitTimingLabel.SetDpi (dpi);
+    m_wozBitTiming.SetDpi      (dpi);
+    m_wozBitTimingInfo.SetDpi  (dpi);
     m_audioLabel.SetDpi      (dpi);
     m_mechLabel.SetDpi       (dpi);
     m_writeMode.SetDpi       (dpi);
@@ -379,6 +398,7 @@ void DiskPage::Rebuild()
     m_writeMode.SetSelected ((int) state->GetPrefs().writeMode);
     m_mechanism.SetSelected (state->GetPrefs().floppyMechanism == "alps" ? 1 : 0);
     m_driveAudio.SetChecked (state->GetPrefs().floppySoundEnabled);
+    m_wozBitTiming.SetChecked (state->GetPrefs().useWozBitTiming);
     m_fastTape.SetChecked   (state->GetPrefs().fastTapeLoading);
     m_tapeAutoStop.SetChecked (state->GetPrefs().tapeAutoStop);
     m_tapeIdleStop.SetChecked (state->GetPrefs().tapeIdleStop);
@@ -400,6 +420,7 @@ void DiskPage::Rebuild()
         state->SetFloppySound (checked);
         ApplyDriveAudioChildEnabled (checked);
     });
+    m_wozBitTiming.SetOnChange ([state] (bool checked) { state->SetUseWozBitTiming (checked); });
     m_fastTape.SetOnChange ([state] (bool checked) { state->SetFastTapeLoading (checked); });
     m_tapeAutoStop.SetOnChange ([state] (bool checked) { state->SetTapeAutoStop (checked); });
     m_tapeIdleStop.SetOnChange ([state] (bool checked) { state->SetTapeIdleStop (checked); });
@@ -444,6 +465,7 @@ void DiskPage::SetPopupHost (DxuiHwndSource * host)
     m_mechanism.SetPopupHost         (host);
     m_tapeWavFormat.SetPopupHost     (host);
     m_tapeWavFormatInfo.SetPopupHost (host);
+    m_wozBitTimingInfo.SetPopupHost  (host);
 }
 
 
@@ -587,6 +609,7 @@ void DiskPage::ResetPageToDefaults()
     m_state->SetWriteMode        (defaults.writeMode);
     m_state->SetFloppySound      (defaults.floppySoundEnabled);
     m_state->SetMechanism        (defaults.floppyMechanism);
+    m_state->SetUseWozBitTiming  (defaults.useWozBitTiming);
     m_state->SetDriveMotorVolume (defaults.driveMotorVolume);
     m_state->SetDriveHeadVolume  (defaults.driveHeadVolume);
     m_state->SetDriveDoorVolume  (defaults.driveDoorVolume);

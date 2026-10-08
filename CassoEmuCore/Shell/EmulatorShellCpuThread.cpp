@@ -119,6 +119,12 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
         SetFastTapeLoading (enabled);
     }
 
+    hrOpt = uiPrefs->GetBool ("useWozBitTiming", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetUseWozBitTiming (enabled);
+    }
+
     hrOpt = uiPrefs->GetBool ("tapeAutoStop", enabled);
     if (SUCCEEDED (hrOpt))
     {
