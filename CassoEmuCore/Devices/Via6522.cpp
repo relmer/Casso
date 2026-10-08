@@ -602,16 +602,22 @@ void Via6522::UpdateIrq()
 //  The ports as the pins read, the timers' counts and latches, and IFR and
 //  IER with a decode of each interrupt source.
 //
+//  IER shows the enables alone. Its bit 7 is the set/clear control of a
+//  write, not an enable, and a read of the register returns it as 1, so
+//  showing the register as read would light it whatever is enabled.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const
 {
     using P = IDiagnosticsProvider;
 
-    static constexpr std::array<const char *, 8>  kIrqBits = { "IRQ", "T1", "T2", "CB1", "CB2", "SR", "CA1", "CA2" };
+    static constexpr std::array<const char *, 8>  kIrqBits  = { "IRQ", "T1", "T2", "CB1", "CB2", "SR", "CA1", "CA2" };
+    static constexpr std::array<const char *, 8>  kIerBits  = { "",    "T1", "T2", "CB1", "CB2", "SR", "CA1", "CA2" };
     constexpr int                                 kByteBits = 8;
     DiagnosticsGroup                              group     { title, {} };
     Word                                          t1Latch   = (Word) ((m_t1LatchHi << kByteBits) | m_t1LatchLo);
+    Byte                                          enables   = (Byte) (m_ier & ~kIerSetClear);
 
 
 
@@ -627,7 +633,7 @@ void Via6522::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot 
     group.rows.push_back (P::MakeHexRow  ("ACR",       m_acr,      P::kByteDigits));
     group.rows.push_back (P::MakeHexRow  ("PCR",       m_pcr,      P::kByteDigits));
     group.rows.push_back (P::MakeByteRow ("IFR",       GetIfr(),   kIrqBits));
-    group.rows.push_back (P::MakeByteRow ("IER",       GetIer(),   kIrqBits));
+    group.rows.push_back (P::MakeByteRow ("IER",       enables,    kIerBits));
 
     snapshot.groups.push_back (std::move (group));
 }

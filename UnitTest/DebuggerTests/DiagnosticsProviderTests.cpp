@@ -30,6 +30,7 @@ namespace DebuggerTests
     public:
 
         static inline const DiagnosticsRow  kMissing;
+        static inline const std::string     kMixer = "Mixer (lit = enabled)";
 
 
         static DiagnosticsSnapshot Snapshot (const IDiagnosticsProvider & provider)
@@ -293,7 +294,7 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 10, std::get<DiagnosticsMeters> (snapshot.visual).levels.size());
             (void) FindRow (snapshot, "IFR");
             (void) FindRow (snapshot, "T1 count");
-            (void) FindRow (snapshot, "Mixer");
+            (void) FindRow (snapshot, kMixer);
         }
 
 
@@ -325,6 +326,37 @@ namespace DebuggerTests
         }
 
 
+        //  A read of IER returns bit 7 as 1, the set/clear control of a write
+        //  rather than an enable, so the row shows the enables alone.
+        TEST_METHOD (TheIerRowShowsTheEnablesWithoutBit7)
+        {
+            Via6522              via;
+            DiagnosticsSnapshot  none;
+            DiagnosticsSnapshot  timer1;
+
+
+
+            via.AppendDiagnostics ("6522", none);
+            via.WriteRegister (Via6522::kRegIer, 0xC0);     // enable T1
+            via.AppendDiagnostics ("6522", timer1);
+
+            Assert::AreEqual ((Byte) 0xC0, via.ReadRegister (Via6522::kRegIer), L"the register still reads bit 7 as 1");
+
+            Assert::AreEqual (std::string ("$00"), FindRow (none, "IER").value, L"nothing enabled");
+            Assert::AreEqual ((size_t) 7, FindRow (none, "IER").bits.size(), L"T1 to CA2, and no bit 7");
+
+            for (const DiagnosticsBit & bit : FindRow (none, "IER").bits)
+            {
+                Assert::IsFalse (bit.set, std::wstring (bit.name.begin(), bit.name.end()).c_str());
+            }
+
+            Assert::AreEqual (std::string ("$40"), FindRow (timer1, "IER").value);
+            Assert::IsTrue   (IsBitSet (FindRow (timer1, "IER"), "T1"));
+            Assert::IsFalse  (IsBitSet (FindRow (timer1, "IER"), "T2"));
+            Assert::IsFalse  (IsBitSet (FindRow (timer1, "IFR"), "IRQ"), L"IFR keeps its IRQ bit, clear with no flag set");
+        }
+
+
         TEST_METHOD (TheAyPublishesItsRegistersAndChannelLevels)
         {
             Ay8910               ay;
@@ -339,12 +371,67 @@ namespace DebuggerTests
             ay.AppendDiagnostics ("AY", snapshot);
             ay.AppendChannelLevels ("AY", meters);
 
-            Assert::IsTrue   (IsBitSet (FindRow (snapshot, "Mixer"), "TB"), L"a set bit disables tone B");
-            Assert::IsFalse  (IsBitSet (FindRow (snapshot, "Mixer"), "TA"));
+            Assert::IsTrue   (IsBitSet (FindRow (snapshot, kMixer), "TA"), L"tone A is on");
+            Assert::IsFalse  (IsBitSet (FindRow (snapshot, kMixer), "TB"), L"a set bit turns tone B off");
             Assert::AreEqual (std::string ("$0F"), FindRow (snapshot, "Amplitude A").value);
             Assert::AreEqual ((size_t) 3, meters.levels.size());
-            Assert::AreEqual (1.0f, meters.levels[0].level, 0.001f, L"A at full amplitude");
-            Assert::AreEqual (0.0f, meters.levels[1].level, 0.001f, L"B is silenced by the mixer");
+            Assert::AreEqual (1.0f,         meters.levels[0].level, 0.001f, L"A at full amplitude");
+            Assert::AreEqual (8.0f / 15.0f, meters.levels[1].level, 0.001f, L"B, with tone and noise off, holds its amplitude");
+            Assert::AreEqual (0.0f,         meters.levels[2].level, 0.001f, L"C at amplitude 0");
+        }
+
+
+        //  The register turns a tone or noise source off with a set bit. The
+        //  row's value is the register as written, and its decode is lit for a
+        //  source that is on; the I/O port bits are lit for an output.
+        TEST_METHOD (TheMixerRowLightsTheSourcesThatAreOn)
+        {
+            Ay8910               ay;
+            DiagnosticsSnapshot  snapshot;
+            DiagnosticsRow       mixer;
+
+
+
+            ay.WriteRegister (Ay8910::kRegMixer, 0x6E);      // port A output, tone A and noise B on
+            ay.AppendDiagnostics ("AY", snapshot);
+            mixer = FindRow (snapshot, kMixer);
+
+            Assert::AreEqual (std::string ("$6E"), mixer.value);
+            Assert::AreEqual ((size_t) 8, mixer.bits.size());
+            Assert::IsTrue   (IsBitSet (mixer, "TA"));
+            Assert::IsFalse  (IsBitSet (mixer, "TB"));
+            Assert::IsFalse  (IsBitSet (mixer, "TC"));
+            Assert::IsFalse  (IsBitSet (mixer, "NA"));
+            Assert::IsTrue   (IsBitSet (mixer, "NB"));
+            Assert::IsFalse  (IsBitSet (mixer, "NC"));
+            Assert::IsTrue   (IsBitSet (mixer, "IOA"), L"port A is an output");
+            Assert::IsFalse  (IsBitSet (mixer, "IOB"), L"port B is an input");
+        }
+
+
+        //  With tone and noise both off a channel's output holds at its level,
+        //  which is how samples are played through the amplitude register, so
+        //  the meter shows that level, the same one the chip puts out.
+        TEST_METHOD (AChannelWithToneAndNoiseOffMetersItsLevel)
+        {
+            constexpr uint32_t   kSampleRate = 44100;
+            Ay8910               ay;
+            DiagnosticsMeters    meters;
+            float                sample      = 0.0f;
+
+
+
+            ay.WriteRegister (Ay8910::kRegMixer, 0x3F);      // every source off
+            ay.WriteRegister (Ay8910::kRegAmpB,  0x0A);
+            ay.AppendChannelLevels ("AY", meters);
+
+            ay.SetSampleRate (kSampleRate);
+            sample = ay.GenerateSample();
+
+            Assert::AreEqual (Ay8910::GetVolumeForLevel (10), sample, 0.0001f, L"the chip puts out B's level");
+            Assert::AreEqual ((size_t) 3, meters.levels.size());
+            Assert::AreEqual (10.0f / 15.0f, meters.levels[1].level, 0.001f, L"B's meter shows amplitude 10");
+            Assert::AreEqual (0.0f,          meters.levels[0].level, 0.001f, L"A at amplitude 0");
         }
 
 
