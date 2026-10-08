@@ -89,7 +89,7 @@ public:
     virtual int              GetMinWidthPx (const DxuiDpiScaler & scaler) const                                           { (void) scaler; return -1; }
 
     //  From the entry's left to its first ink, so a strip that lines its
-    //  first entry up with a pane's text knows where that ink falls; -1, the
+    //  first entry up with a pane's text can place that ink; -1, the
     //  default, is the toolbar's own button padding.
     virtual int              GetLeadPx     (const DxuiDpiScaler & scaler) const                                           { (void) scaler; return -1; }
     virtual void             OnMouseLeave  ()                                                                           {}

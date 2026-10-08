@@ -1366,7 +1366,7 @@ void DxuiListView::ApplyPendingFit()
 //  GetContentWidthPx
 //
 //  Sum of every visible column's natural width (no stretch fill), plus the
-//  pane lead the columns start after. This is the width the columns want,
+//  pane lead the columns start after. This is the columns' natural width,
 //  against which the horizontal scroll range is measured.
 //
 ////////////////////////////////////////////////////////////////////////////////

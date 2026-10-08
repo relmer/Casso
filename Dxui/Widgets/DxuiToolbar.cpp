@@ -898,8 +898,8 @@ std::wstring DxuiToolbar::GetFittedButtonText (
 //  DxuiToolbar::GetEntryLeadPx
 //
 //  From an entry's left to its first ink. A button's icon or label starts
-//  past the button padding; a custom entry gives its own, or takes the
-//  button padding when it does not say.
+//  past the button padding; a custom entry gives its own, or the button
+//  padding when its GetLeadPx returns -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

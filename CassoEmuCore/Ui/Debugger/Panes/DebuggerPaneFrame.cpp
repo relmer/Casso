@@ -134,7 +134,7 @@ void DebuggerPaneFrame::Relayout()
 //  Fixed parts take their heights first, then the part without one takes
 //  the rest; a gap separates each shown part from the next. A part's top
 //  inset is added to a fixed part's height and taken from a filling part's.
-//  A fixed part's height is asked for at the width it will be given.
+//  A fixed part's height is measured at the width it will be given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
