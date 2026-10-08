@@ -132,6 +132,12 @@ public:
     void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
                         const float uv[4]);
 
+    // The label texture was re-baked under the same view, which the text
+    // renderer reuses whenever its target is big enough. No quad moved, so
+    // SetDiskLabel sees nothing to do, but the cached plate is showing the
+    // old pixels and has to be drawn again.
+    void  OnDiskLabelPixelsChanged () { InvalidatePlate(); }
+
     // The measured metrics DeskSceneLayout composes with.
     DeskSceneMetrics  Metrics () const;
 

@@ -486,6 +486,8 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.animationStartTimeMs  = state.animationStartTimeMs;
     m_state.lastSyncEventId       = state.lastSyncEventId;
     m_state.writeProtect          = state.writeProtect;
+    m_state.wozRequirements       = state.wozRequirements;
+    m_state.wozConflict           = state.wozConflict;
     m_state.motorOn.store (motorOn, std::memory_order_relaxed);
     m_state.diskActive.store (active, std::memory_order_relaxed);
     m_state.headQuarterTrack.store (state.headQuarterTrack.load (std::memory_order_relaxed),
@@ -609,7 +611,11 @@ void DriveWidget::Paint (
 
     // The name row. While a roll is running it owns the row outright: the
     // marquee and the badges stand down, because both would move or pin the
-    // same string the roll is sliding.
+    // same string the roll is sliding. The info icon's target is cleared
+    // first and only the basename path puts it back, so no path that hides
+    // the icon leaves its hover target behind.
+    m_infoIconRect = {};
+
     {
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -678,11 +684,16 @@ Error:
 //  damaged image is already write-protected and the padlock beside the
 //  triangle would only restate the milder half.
 //
-//  When the name fits, the badge and the name are centered as a PAIR: pinning
-//  the badge at the left edge of a strip whose text is centered leaves a hole
-//  between them, and the two stop reading as one label about one disk. When
-//  the name overflows there is nothing to center, so the badge takes the left
-//  edge and the text marquees through what is left.
+//  The info icon after the name works the same way from the other end. It
+//  appears only when the mounted WOZ image's declared hardware or RAM
+//  conflicts with the running machine.
+//
+//  When the name fits, the badge, the name and the icon are centered as a
+//  GROUP: pinning the badge at the left edge of a strip whose text is centered
+//  leaves a hole between them, and they stop reading as one label about one
+//  disk. When the name overflows there is nothing to center, so the badge
+//  takes the left edge, the icon the right, and the text marquees through
+//  what is left between them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -711,11 +722,14 @@ void DriveWidget::PaintBasenameLabel (
     bool                   damaged       = m_state.writeProtect.IsDamaged();
     float                  badgeW        = 0.0f;
     float                  badgeH        = 0.0f;
-    float                  badgeGap      = 0.0f;
+    float                  partGap       = 0.0f;
     float                  badgeX        = 0.0f;
     float                  badgeY        = 0.0f;
     float                  nameLeft      = 0.0f;
     float                  nameW         = 0.0f;
+    float                  iconW         = 0.0f;
+    float                  iconH         = 0.0f;
+    DriveNameRowLayout     row;
     int64_t                nowMs          = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                 std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -728,6 +742,7 @@ void DriveWidget::PaintBasenameLabel (
     labelH = (float) (m_labelRect.bottom - m_labelRect.top);
     speedPxPerSec = kMarqueeSpeedDipPerSec * (float) dpi / (float) kBaseDpi;
     gap = kMarqueeGapDip * (float) dpi / (float) kBaseDpi;
+    partGap = (float) Scale (kWpBadgeLabelGapPx, dpi);
 
     if (m_state.mountedImagePath.empty())
     {
@@ -756,9 +771,8 @@ void DriveWidget::PaintBasenameLabel (
         // The padlock is a glyph, so its box is the glyph's own measure at
         // the label's size; the fixed size only stands in when measuring
         // fails.
-        badgeW   = (float) Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
-        badgeH   = (float) Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
-        badgeGap = (float) Scale (kWpBadgeLabelGapPx, dpi);
+        badgeW = (float) Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
+        badgeH = (float) Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
 
         if (!damaged)
         {
@@ -777,21 +791,51 @@ void DriveWidget::PaintBasenameLabel (
         }
     }
 
-    // What the name gets: the strip, less the badge and its gap.
-    nameW    = labelW - (badgeW + badgeGap);
-    nameLeft = labelLeft + badgeW + badgeGap;
+    if (m_state.wozConflict)
+    {
+        float  glyphW = 0.0f;
+        float  glyphH = 0.0f;
 
-    if (locked && textW <= nameW)
-    {
-        // Fits: the pair centers together, so the badge sits against the
-        // name rather than out at the edge of an otherwise empty strip.
-        badgeX   = labelLeft + (labelW - (badgeW + badgeGap + textW)) * 0.5f;
-        nameLeft = badgeX + badgeW + badgeGap;
-        nameW    = textW;
+        // Measured like the padlock, in its own family: the glyph is in the
+        // private use area and no other font has it.
+        iconW = (float) Scale (kInfoIconWidthPx,  dpi);
+        iconH = (float) Scale (kInfoIconHeightPx, dpi);
+
+        hr = text.MeasureString (s_kpszMdl2Info, basenameDip, kInfoIconFamily, glyphW, glyphH);
+
+        if (SUCCEEDED (hr) && glyphW > 0.0f && glyphH > 0.0f)
+        {
+            iconW = glyphW;
+            iconH = glyphH;
+        }
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
-    else
+
+    // What the name gets: the strip, less the badge, the icon and their gaps.
+    row      = LayoutNameRow (labelLeft, labelW, textW, badgeW, iconW, partGap);
+    badgeX   = row.badgeX;
+    nameLeft = row.nameLeft;
+    nameW    = row.nameW;
+
+    if (iconW > 0.0f)
     {
-        badgeX = labelLeft;
+        // The icon is drawn outside the marquee's clip, like the badge, so it
+        // stays put while the name scrolls. Its target is the icon plus half
+        // a gap either side, the full height of the row.
+        float  iconY   = labelTop + (labelH - iconH) * 0.5f;
+        float  halfGap = partGap * 0.5f;
+
+        hr = text.DrawString (s_kpszMdl2Info, row.iconX, iconY, iconW, iconH,
+                              theme.link, basenameDip, kInfoIconFamily,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_infoIconRect = { (LONG) std::floor (row.iconX - halfGap),
+                           m_labelRect.top,
+                           (LONG) std::ceil  (row.iconX + iconW + halfGap),
+                           m_labelRect.bottom };
     }
 
     if (locked)
@@ -823,7 +867,7 @@ void DriveWidget::PaintBasenameLabel (
     hr      = text.PushClipRect (nameLeft, labelTop, nameW, labelH);
     clipped = SUCCEEDED (hr);
 
-    if (textW <= nameW)
+    if (row.fits)
     {
         // Fits: static and centered.
         hr = text.DrawString (basename.c_str(),
@@ -911,6 +955,52 @@ void DriveWidget::PaintBasenameLabel (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LayoutNameRow
+//
+//  The badge leads the name and the icon trails it, each with a gap. When the
+//  name fits in what is left, the three center as a group; otherwise the
+//  badge takes the left edge, the icon the right, and the name gets the space
+//  between. With neither part the name has the whole strip, as it always had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DriveNameRowLayout DriveWidget::LayoutNameRow (
+    float  labelLeft,
+    float  labelW,
+    float  textW,
+    float  badgeW,
+    float  iconW,
+    float  gap)
+{
+    DriveNameRowLayout  row;
+    float               lead  = (badgeW > 0.0f) ? badgeW + gap : 0.0f;
+    float               trail = (iconW  > 0.0f) ? gap + iconW  : 0.0f;
+
+
+
+    row.badgeX   = labelLeft;
+    row.nameLeft = labelLeft + lead;
+    row.nameW    = labelW - lead - trail;
+    row.iconX    = labelLeft + labelW - iconW;
+    row.fits     = textW <= row.nameW;
+
+    if (row.fits && (lead > 0.0f || trail > 0.0f))
+    {
+        row.badgeX   = labelLeft + (labelW - (lead + textW + trail)) * 0.5f;
+        row.nameLeft = row.badgeX + lead;
+        row.nameW    = textW;
+        row.iconX    = row.nameLeft + textW + gap;
+    }
+
+    return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HitTest
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -918,12 +1008,17 @@ void DriveWidget::PaintBasenameLabel (
 DriveWidgetRegion DriveWidget::HitTest (int x, int y) const
 {
     // The eject rect is the whole control, caption column included (see
-    // Layout), so it is the only region the flat widget has.
+    // Layout). The info icon sits inside it and wins, so a click meant for
+    // the explanation does not eject the disk.
     DriveWidgetRegion  region = DriveWidgetRegion::None;
 
 
 
-    if (IsPointInRect (m_ejectRect, x, y))
+    if (IsPointInRect (m_infoIconRect, x, y))
+    {
+        region = DriveWidgetRegion::Info;
+    }
+    else if (IsPointInRect (m_ejectRect, x, y))
     {
         region = DriveWidgetRegion::Eject;
     }

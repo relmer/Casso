@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/IMachine.h"
+#include "Machines/Apple2/Common/WozCompatibility.h"
 
 
 
@@ -39,6 +40,8 @@ public:
     int   GetGamePortAxisCount () const override { return (4); }
     bool  HasGamePortDevice    () const override { return (true); }
     bool  HasAnnunciators      () const override { return (true); }
-    bool  HasCaseSwitches    () const override { return (false); }
-    bool  HasBuiltInDrive    () const override { return (false); }
+    bool  HasCaseSwitches      () const override { return (false); }
+    bool  HasBuiltInDrive      () const override { return (false); }
+
+    uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2); }
 };

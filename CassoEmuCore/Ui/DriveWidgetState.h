@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskImageStore.h"    // IsMountableImageExtension
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/IDiskImage.h"        // WriteProtectInfo
+#include "Machines/Apple2/Common/WozCompatibility.h"
 
 
 
@@ -96,6 +97,12 @@ struct DriveWidgetState
     // from the DiskImage in DiskManager::UpdateDriveWidgets. Drives the
     // padlock cue and the hover tooltip. UI-thread only.
     WriteProtectInfo  writeProtect;
+
+    // What the mounted WOZ image declares about the machine it needs, and
+    // whether that conflicts with the machine running now -- which is what
+    // shows the info icon after the title. Sampled with writeProtect.
+    WozRequirements   wozRequirements;
+    bool              wozConflict          = false;
 
     // Default Open: an empty drive at rest shows the door open
     // (matches real Apple Disk II). Drives that auto-mount at boot

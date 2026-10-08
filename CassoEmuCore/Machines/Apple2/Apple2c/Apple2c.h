@@ -50,4 +50,6 @@ public:
     //  drive soldered behind the disk port.
     bool  HasCaseSwitches () const override { return (true); }
     bool  HasBuiltInDrive () const override { return (true); }
+
+    uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2c); }
 };

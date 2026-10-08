@@ -179,6 +179,12 @@ static constexpr const char *  kpszDiskIiDevice = "disk-ii";
 static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";
 static constexpr int           kDiskIiPortCount = 2;
 
+// The internal device whose bank-switched RAM sits over the ROM, 16K of it to
+// each 64K bank. Counted by the RAM total below, which the config's regions
+// alone would leave short.
+static constexpr const char *  kpszLanguageCardDevice = "language-card";
+static constexpr uint32_t      kLanguageCardRamK      = 16;
+
 
 struct SlotConfig
 {
@@ -359,6 +365,37 @@ struct MachineConfig
         }
 
         return attached;
+    }
+
+
+    // Every byte of RAM the machine has, in K: its regions, plus a language
+    // card's 16K for each bank -- main, and aux on a machine that has one.
+    // ROM is not counted.
+    uint32_t  GetTotalRamK () const
+    {
+        constexpr uint32_t  kBytesPerK    = 1024;
+        constexpr uint32_t  kBanksWithAux = 2;
+
+        uint32_t  bytes           = 0;
+        uint32_t  banks           = 1;
+        bool      hasLanguageCard = false;
+
+        for (const RamRegion & region : ram)
+        {
+            bytes += region.size;
+
+            if (region.bank == "aux")
+            {
+                banks = kBanksWithAux;
+            }
+        }
+
+        for (const InternalDevice & device : internalDevices)
+        {
+            hasLanguageCard = hasLanguageCard || device.type == kpszLanguageCardDevice;
+        }
+
+        return bytes / kBytesPerK + (hasLanguageCard ? banks * kLanguageCardRamK : 0);
     }
 
 

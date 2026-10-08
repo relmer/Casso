@@ -76,4 +76,8 @@ public:
     //  Whether the machine's drive is built into it rather than plugged into a
     //  card. Decides which drive the desk scene draws.
     virtual bool  HasBuiltInDrive () const = 0;
+
+    //  The machine's bit in a WOZ disk image's compatible-hardware field, or
+    //  zero for a machine the format has no bit for.
+    virtual uint16_t  GetWozHardwareFlag () const = 0;
 };

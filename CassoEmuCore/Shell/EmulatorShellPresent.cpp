@@ -557,7 +557,7 @@ bool EmulatorShell::TryPresentUiFrame()
     bool     didPresent                = false;
     bool     anyDriveLive              = false;
     bool     framebufferDirtyThisFrame = false;
-    bool     wpMoved                   = false;
+    bool     badgeMoved                = false;
     uint32_t driveSig                  = 0;
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
 
@@ -734,7 +734,22 @@ bool EmulatorShell::TryPresentUiFrame()
         {
             m_driveWpShown[i] = wp;
             m_d3dRenderer.MarkRedrawNeeded();
-            wpMoved = true;
+            badgeMoved = true;
+        }
+    }
+
+    // The info icon after the name is the same kind of cue: a mount, an eject
+    // or a machine switch can bring it or take it away, and on a static
+    // screen nothing else would ask for the frame that shows the change.
+    for (int i = 0; i < (int) m_driveInfoShown.size(); i++)
+    {
+        bool  info = m_driveWidgetState[i].wozConflict;
+
+        if (info != m_driveInfoShown[i])
+        {
+            m_driveInfoShown[i] = info;
+            m_d3dRenderer.MarkRedrawNeeded();
+            badgeMoved = true;
         }
     }
 
@@ -768,10 +783,11 @@ bool EmulatorShell::TryPresentUiFrame()
 
         // A mount or eject changes the basename strip under the drive, and so
         // does write-protecting the disk, since the padlock is a glyph at the
-        // head of that name. Neither runs a layout pass, so watch both here
-        // and re-hang the labels (with their text measurement) on a change.
+        // head of that name, and so does the info icon after it. None of them
+        // runs a layout pass, so watch them here and re-hang the labels (with
+        // their text measurement) on a change.
         {
-            bool  labelsMoved = wpMoved;
+            bool  labelsMoved = badgeMoved;
 
             for (int i = 0; i < (int) m_sceneLabelPath.size(); i++)
             {

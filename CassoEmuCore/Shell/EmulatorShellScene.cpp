@@ -992,6 +992,8 @@ void EmulatorShell::SyncSceneDriveLabels()
     // label; the desk hands its names to the scene instead.
     bool                          inScene = visible && !onStrip;
     std::array<std::wstring, 2>   names;
+    std::array<RECT, 2>           icons   = {};
+    int                           iconGap = m_scaler.ToPx (s_kSceneInfoIconGapDp);
     int                           halfW   = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
     int                           stripH  = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     int                           gapPx   = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
@@ -1001,8 +1003,11 @@ void EmulatorShell::SyncSceneDriveLabels()
 
     for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
     {
-        std::wstring &  name = names[i];
-        RECT            rc   = {};
+        std::wstring &  name     = names[i];
+        RECT            rc       = {};
+        RECT            iconRc   = {};
+        bool            showIcon = false;
+        float           iconW    = 0.0f;
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
@@ -1021,6 +1026,10 @@ void EmulatorShell::SyncSceneDriveLabels()
             {
                 name = std::wstring (s_kpszLock) + L" " + name;
             }
+
+            // The info icon trails the name, so unlike the padlock it is not
+            // part of the string: a tail truncation would eat it.
+            showIcon = !name.empty() && m_driveWidgetState[i].wozConflict && text != nullptr;
         }
 
         // A FIXED TYPE SIZE, NOT SCENE GEOMETRY. Standing the name on the
@@ -1044,14 +1053,30 @@ void EmulatorShell::SyncSceneDriveLabels()
             {
                 // The same DIP-to-pixel the widget itself paints at, so the
                 // width this truncates to is the width it renders.
-                float  px = fontDip * (float) m_scaler.GetDpi() / 96.0f;
+                float  px     = fontDip * (float) m_scaler.GetDpi() / 96.0f;
+                float  budget = (float) (rc.right - rc.left);
+
+                // The name stays centered under the drive and the icon trails
+                // it, so the name gives up the icon's room on BOTH sides. A
+                // name that only made room on the right would push the icon
+                // out of the strip.
+                if (showIcon)
+                {
+                    iconW   = MeasureSceneInfoIcon (*text, px);
+                    budget -= 2.0f * ((float) iconGap + iconW);
+                }
 
                 name = DxuiTextElide::ToWidth (*text,
                                                name,
                                                px,
                                                DxuiTheme::kBodyFace,
-                                               (float) (rc.right - rc.left),
+                                               budget,
                                                DxuiElide::Tail);
+
+                if (showIcon)
+                {
+                    iconRc = PlaceSceneInfoIcon (*text, name, px, comp.driveLabelPx[i].x, rc, iconW, iconGap);
+                }
             }
         }
 
@@ -1062,6 +1087,23 @@ void EmulatorShell::SyncSceneDriveLabels()
         m_sceneDriveLabel[i].Layout         (rc, m_scaler);
         m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene);
 
+        m_sceneDriveInfoIcon[i].SetText        (s_kpszMdl2Info);
+        m_sceneDriveInfoIcon[i].SetFontFace    (s_kpszSceneInfoIconFace);
+        m_sceneDriveInfoIcon[i].SetFontSizeDip (fontDip);
+        m_sceneDriveInfoIcon[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        m_sceneDriveInfoIcon[i].SetDpi         (m_scaler.GetDpi());
+        m_sceneDriveInfoIcon[i].Layout         (iconRc, m_scaler);
+        m_sceneDriveInfoIcon[i].SetVisible     (!IsRectEmpty (&iconRc) && !inScene);
+
+        // Its own target, ahead of the name's, and the same pixels whichever
+        // way it was drawn. The bake takes it relative to the name's cell.
+        m_sceneInfoIconRect[i] = iconRc;
+
+        if (!IsRectEmpty (&iconRc))
+        {
+            icons[i] = { iconRc.left - rc.left, 0, iconRc.right - rc.left, cellPx.cy };
+        }
+
         // THE RECT STAYS HONEST EITHER WAY. It anchors the write-protect
         // tooltip, and the quad covers exactly these pixels, so the hover
         // target lands on the name whichever way the name was drawn.
@@ -1070,7 +1112,7 @@ void EmulatorShell::SyncSceneDriveLabels()
 
     if (inScene)
     {
-        SyncSceneDiskLabelQuads (names, cellPx, gapPx);
+        SyncSceneDiskLabelQuads (names, icons, cellPx, gapPx);
     }
     else
     {
@@ -1100,6 +1142,7 @@ void EmulatorShell::SyncSceneDriveLabels()
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> & names,
+                                             const std::array<RECT, 2>         & iconCells,
                                              const SIZE                        & cellPx,
                                              int                                 gapPx)
 {
@@ -1117,13 +1160,21 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
     }
 
     if (names != m_sceneDiskLabelText ||
+        memcmp (iconCells.data(), m_sceneDiskLabelIcon.data(), sizeof (RECT) * iconCells.size()) != 0 ||
         cellPx.cx != m_sceneDiskLabelCell.cx || cellPx.cy != m_sceneDiskLabelCell.cy)
     {
-        if (!TryBakeSceneDiskLabels (names, cellPx))
+        if (!TryBakeSceneDiskLabels (names, iconCells, cellPx))
         {
             ClearSceneDiskLabels();
             return;
         }
+
+        // The renderer hands back the same view whenever its texture is big
+        // enough already, and the scene skips a quad whose view and corners
+        // have not moved. A bake that changed only the pixels -- an icon
+        // coming or going under an unchanged name -- would leave the cached
+        // plate showing the old ones.
+        m_deskScene.OnDiskLabelPixelsChanged();
     }
 
     text->GetDrawToTextureSize (texW, texH);
@@ -1184,6 +1235,7 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> &
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & names,
+                                            const std::array<RECT, 2>         & iconCells,
                                             const SIZE                        & cellPx)
 {
     // Baked white, which is what the chrome label has always defaulted to;
@@ -1225,6 +1277,18 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & 
                                          kLabelArgb, fontPx, DxuiTheme::kBodyFace,
                                          DxuiTextHAlign::Center, DxuiTextVAlign::Center,
                                          DxuiShadowedText::kGlowReachPx);
+
+        // The info icon, in the same bake: the renderer has one texture, so
+        // anything drawn in a second pass would replace the names.
+        if (!IsRectEmpty (&iconCells[i]))
+        {
+            DxuiShadowedText::PaintShadowed (*text, s_kpszMdl2Info,
+                                             (float) iconCells[i].left, (float) (i * cellPx.cy),
+                                             (float) (iconCells[i].right - iconCells[i].left), (float) cellPx.cy,
+                                             kLabelArgb, fontPx, s_kpszSceneInfoIconFace,
+                                             DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                             DxuiShadowedText::kGlowReachPx);
+        }
     }
 
     hr = text->EndDrawToTexture (&srv);
@@ -1236,6 +1300,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & 
 
     m_sceneDiskLabelSrv  = srv;
     m_sceneDiskLabelText = names;
+    m_sceneDiskLabelIcon = iconCells;
     m_sceneDiskLabelCell = cellPx;
 
     return true;
@@ -1263,7 +1328,85 @@ void EmulatorShell::ClearSceneDiskLabels()
     }
 
     m_sceneDiskLabelSrv  = nullptr;
+    m_sceneDiskLabelIcon = {};
     m_sceneDiskLabelCell = SIZE {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::MeasureSceneInfoIcon
+//
+//  The info icon's width at the name's size, in the icon font. The fixed
+//  width stands in when measuring fails, as the 2D widget's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float EmulatorShell::MeasureSceneInfoIcon (IDxuiTextRenderer & text, float fontPx) const
+{
+    HRESULT  hr     = S_OK;
+    float    glyphW = 0.0f;
+    float    glyphH = 0.0f;
+    float    width  = (float) m_scaler.ToPx (s_kSceneInfoIconWidthDp);
+
+
+
+    hr = text.MeasureString (s_kpszMdl2Info, fontPx, s_kpszSceneInfoIconFace, glyphW, glyphH);
+    CHR (hr);
+
+    if (glyphW > 0.0f)
+    {
+        width = glyphW;
+    }
+
+Error:
+    return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PlaceSceneInfoIcon
+//
+//  The info icon's rect in client pixels: a gap after the name as it will be
+//  drawn, centered under the drive, the full height of the name's strip. Half
+//  a gap either side of the glyph belongs to it too, so the hover target is
+//  not as thin as the ink. Empty when the name cannot be measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::PlaceSceneInfoIcon (
+    IDxuiTextRenderer   & text,
+    const std::wstring  & name,
+    float                 fontPx,
+    LONG                  centerX,
+    const RECT          & labelRect,
+    float                 iconW,
+    int                   gapPx) const
+{
+    HRESULT  hr      = S_OK;
+    float    titleW  = 0.0f;
+    float    titleH  = 0.0f;
+    LONG     left    = 0;
+    LONG     halfGap = gapPx / 2;
+    RECT     icon    = {};
+
+
+
+    hr = text.MeasureString (name.c_str(), fontPx, DxuiTheme::kBodyFace, titleW, titleH);
+    CHR (hr);
+
+    left = centerX + (LONG) std::ceil (titleW * 0.5f) + gapPx;
+    icon = { left - halfGap, labelRect.top, left + (LONG) std::ceil (iconW) + halfGap, labelRect.bottom };
+
+Error:
+    return icon;
 }
 
 

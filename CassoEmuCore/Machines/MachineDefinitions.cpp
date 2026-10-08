@@ -129,6 +129,7 @@ std::map<std::string, MachineDefinition> MachineDefinitions::BuildTable()
         definition.hasAnnunciators = machine->HasAnnunciators();
         definition.hasCaseSwitches = machine->HasCaseSwitches();
         definition.hasBuiltInDrive = machine->HasBuiltInDrive();
+        definition.wozHardwareFlag = machine->GetWozHardwareFlag();
 
         table.emplace (definition.id, std::move (definition));
     }

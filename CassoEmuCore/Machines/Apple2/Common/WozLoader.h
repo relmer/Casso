@@ -183,6 +183,8 @@ public:
     static constexpr size_t  kInfoCreatorLength          = 32;
     static constexpr size_t  kInfoOffsetBootSectorFormat = 38;
     static constexpr size_t  kInfoOffsetBitTiming        = 39;
+    static constexpr size_t  kInfoOffsetCompatibleHw     = 40;
+    static constexpr size_t  kInfoOffsetRequiredRam      = 42;
     static constexpr size_t  kInfoOffsetLargestTrack     = 44;
     static constexpr size_t  kInfoOffsetFluxBlock        = 46;
     static constexpr size_t  kInfoOffsetLargestFlux      = 48;

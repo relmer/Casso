@@ -676,6 +676,12 @@ private:
     // every new machine with a switch panel would need another arm added here.
     bool    MachineHasCaseSwitches () const;
     bool    MachineHasBuiltInDrive () const;
+
+    // The info icon's tooltip for a drive: what its WOZ image declares about
+    // the machine, and what conflicts with the one running. Empty when nothing
+    // does.
+    std::wstring  ComposeDriveInfoTooltip (int drive) const;
+
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
@@ -1077,6 +1083,7 @@ private:
     // two strings into one texture when either has changed, then re-solves
     // the quads, which move whenever the camera does.
     void    SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> & names,
+                                     const std::array<RECT, 2>         & iconCells,
                                      const SIZE                        & cellPx,
                                      int                                 gapPx);
 
@@ -1085,11 +1092,23 @@ private:
     // bake replaces the first, so baking per drive would leave both wearing
     // whichever name went last.
     bool    TryBakeSceneDiskLabels  (const std::array<std::wstring, 2> & names,
+                                     const std::array<RECT, 2>         & iconCells,
                                      const SIZE                        & cellPx);
 
     // Retires both quads, for a theme or a presentation that draws no scene
     // drives at all.
     void    ClearSceneDiskLabels    ();
+
+    // The info icon after a scene name: its width in the icon font, and its
+    // rect after the name as drawn.
+    float   MeasureSceneInfoIcon    (IDxuiTextRenderer & text, float fontPx) const;
+    RECT    PlaceSceneInfoIcon      (IDxuiTextRenderer   & text,
+                                     const std::wstring  & name,
+                                     float                 fontPx,
+                                     LONG                  centerX,
+                                     const RECT          & labelRect,
+                                     float                 iconW,
+                                     int                   gapPx) const;
 
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
@@ -1645,11 +1664,17 @@ private:
     // it is read at a fixed size wherever the desk is posed.
     std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
 
+    // The info icon after each name, in the overlay strip where the names are
+    // chrome. A control of its own because the glyph needs the icon font and
+    // a label has one face. On the desk the icon is baked with the names.
+    std::array<DxuiShadowedText, 2>  m_sceneDriveInfoIcon;
+
     // What the in-scene quads currently say and the cell they were baked at,
     // so the texture is rendered on a change rather than on every
     // composition pass. The view belongs to the text renderer and stays good
     // until the next bake, which is why nothing else may use that path.
     std::array<std::wstring, 2>      m_sceneDiskLabelText;
+    std::array<RECT, 2>              m_sceneDiskLabelIcon = {};
     SIZE                             m_sceneDiskLabelCell = {};
     ID3D11ShaderResourceView       * m_sceneDiskLabelSrv  = nullptr;
 
@@ -1657,6 +1682,10 @@ private:
     // The write-protect tooltip belongs to the strip now that the padlock
     // does -- see SyncSceneDriveLabels.
     std::array<RECT, 2>       m_sceneDriveLabelRect = {};
+
+    // Where each name's info icon landed, in client pixels, and empty when
+    // the drive shows none. Its own tooltip target, ahead of the name's.
+    std::array<RECT, 2>       m_sceneInfoIconRect   = {};
 
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no
@@ -1667,6 +1696,11 @@ private:
     // protection moves no pixel the machine owns, so the frame that shows it
     // has to be asked for; see the guard in the present path.
     std::array<bool, 2>         m_driveWpShown = {};
+
+    // The info icon each drive last showed. The same reasoning: a machine
+    // switch or a mount can bring it or take it away with no other pixel
+    // changing.
+    std::array<bool, 2>         m_driveInfoShown = {};
 
     // "Press Esc to release the mouse and exit paddle mode", on screen for as
     // long as the capture holds. The joystick button carries the same words, but

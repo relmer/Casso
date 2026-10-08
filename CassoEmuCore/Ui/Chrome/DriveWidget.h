@@ -24,6 +24,25 @@ enum class DriveWidgetRegion
     // signals it, not to the whole drive: a dwell anywhere on the case was
     // answering a question the user had not asked.
     Padlock,
+
+    // The info icon after the name of a WOZ image whose declared hardware or
+    // RAM conflicts with the running machine. Its own region so a click on it
+    // does not eject the disk: the icon explains, it does not act.
+    Info,
+};
+
+
+//
+//  Where the name row's parts go: the badge before the name, the name, and
+//  the info icon after it. A zero width means the part is absent.
+//
+struct DriveNameRowLayout
+{
+    float  badgeX   = 0.0f;
+    float  nameLeft = 0.0f;
+    float  nameW    = 0.0f;
+    float  iconX    = 0.0f;
+    bool   fits     = false;
 };
 
 
@@ -51,12 +70,13 @@ public:
     // clears the latch.
     void               Hide            ()
     {
-        m_bodyRect    = {};
-        m_ejectRect   = {};
-        m_labelRect   = {};
-        m_barRect     = {};
-        m_captionRect = {};
-        m_hidden      = true;
+        m_bodyRect     = {};
+        m_ejectRect    = {};
+        m_labelRect    = {};
+        m_barRect      = {};
+        m_captionRect  = {};
+        m_infoIconRect = {};
+        m_hidden       = true;
     }
 
     void               SetFocused      (bool focused)    { m_focused = focused; }
@@ -114,6 +134,24 @@ public:
     // hover tooltip and to compose the source-specific message.
     const WriteProtectInfo & WriteProtect () const { return m_state.writeProtect; }
     bool               IsWriteProtected () const { return m_state.writeProtect.Any(); }
+
+    // What the mounted WOZ image declares about the machine it needs, and
+    // whether that conflicts with the running one, refreshed by SyncFromState.
+    const WozRequirements & GetWozRequirements () const { return m_state.wozRequirements; }
+    bool               HasWozConflict   () const { return m_state.wozConflict; }
+
+    // Where the info icon was last painted, or empty when it is not showing.
+    // Only Paint can place it, since it follows the measured name.
+    RECT               GetInfoIconRect  () const { return m_infoIconRect; }
+
+    // Places the name row's parts. Pure, so the arithmetic Paint relies on can
+    // be checked without a renderer.
+    static DriveNameRowLayout  LayoutNameRow (float  labelLeft,
+                                              float  labelW,
+                                              float  textW,
+                                              float  badgeW,
+                                              float  iconW,
+                                              float  gap);
 
     RECT               GetBodyRect  () const { return m_bodyRect; }
     RECT               GetOuterRect () const
@@ -258,6 +296,14 @@ private:
     static constexpr uint32_t kDamageEdgeArgb      = 0xFF7A4E00;   // darker amber edge
     static constexpr uint32_t kDamageMarkArgb      = 0xFF241500;   // exclamation mark
 
+    // Info icon after the name, shown when the mounted WOZ image's declared
+    // hardware or RAM conflicts with the running machine. A Segoe MDL2 glyph,
+    // which renders only in that family; the box stands in when measuring
+    // fails, as the padlock's does.
+    static constexpr int              kInfoIconWidthPx  = 13;
+    static constexpr int              kInfoIconHeightPx = 15;
+    static constexpr const wchar_t  * kInfoIconFamily   = L"Segoe MDL2 Assets";
+
     // The head-position bar under the disk name.
     void  PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme & theme, UINT dpi);
 
@@ -286,6 +332,10 @@ private:
     // The head-position bar and the "DRIVE N" caption beside it.
     RECT                 m_barRect           = {};
     RECT                 m_captionRect       = {};
+
+    // The info icon's hover and click target, set by Paint and empty whenever
+    // the icon is not on screen, so a stale target never outlives it.
+    RECT                 m_infoIconRect      = {};
 
     // True while the pointer is inside the hit band, which
     // gives the name its button treatment. The shell already tells the widget
