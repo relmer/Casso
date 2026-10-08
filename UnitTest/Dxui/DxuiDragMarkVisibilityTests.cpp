@@ -34,9 +34,9 @@ namespace DxuiDragMarkVisibilityTests
 
 
 
-    //  A drag of the console from outside the site, so the guides show with
-    //  no button lit: the four edge guides, and the documents' cross once the
-    //  pointer is over their group.
+    //  A drag of the console with the pointer in a corner of the documents'
+    //  group, clear of every button, so the guides show with no button lit:
+    //  the four edge guides and the documents' cross.
     struct Rig
     {
         DxuiDockSite     site;

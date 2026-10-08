@@ -171,17 +171,17 @@ namespace DxuiDockGuideTests
             Assert::AreEqual ((size_t) 16, cross.size());
             CheckPoint ( 36.0f,   0.0f, cross[0],  L"the top arm's left end");
             CheckPoint ( 76.0f,   0.0f, cross[1],  L"its right end");
-            CheckPoint ( 76.0f,  25.3f, cross[2],  L"the chamfer starts 10.7 DIP above the right arm");
-            CheckPoint ( 86.7f,  36.0f, cross[3],  L"and ends 10.7 DIP right of the top arm");
+            CheckPoint ( 76.0f,  26.0f, cross[2],  L"the chamfer starts 10 DIP above the right arm");
+            CheckPoint ( 86.0f,  36.0f, cross[3],  L"and ends 10 DIP right of the top arm");
             CheckPoint (112.0f,  36.0f, cross[4],  L"the right arm's end");
-            CheckPoint ( 25.3f,  76.0f, cross[11], L"the bottom left chamfer");
+            CheckPoint ( 26.0f,  76.0f, cross[11], L"the bottom left chamfer");
 
             Assert::AreEqual ((size_t) 16, wide.size());
-            CheckPoint ( 90.0f,    0.0f,    wide[0], L"72 DIP at 125%");
-            CheckPoint (140.0f,    0.0f,    wide[1]);
-            CheckPoint (140.0f,   77.25f,   wide[2], L"61.8 DIP");
-            CheckPoint (152.75f,  90.0f,    wide[3], L"122.2 DIP");
-            CheckPoint (230.0f,   90.0f,    wide[4]);
+            CheckPoint ( 90.0f,      0.0f,      wide[0], L"72 DIP at 125%");
+            CheckPoint (140.0f,      0.0f,      wide[1]);
+            CheckPoint (140.0f,     78.4375f,   wide[2], L"62.75 DIP");
+            CheckPoint (151.5625f,  90.0f,      wide[3], L"121.25 DIP");
+            CheckPoint (230.0f,     90.0f,      wide[4]);
 
             for (size_t i = 0; i < wide.size(); i++)
             {

@@ -11,9 +11,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiDockDropZonesTests
 //
-//  Where a dragged pane can land (FR-039): the cross on each group, the
-//  window's edge guides, what the overlay shades for each, and the layout
-//  operation each one is.
+//  Where a dragged pane can land: the cross on each group, the window's
+//  edge guides, what the overlay shades for each, the layout operation each
+//  one is, and the size and place of each target at every scale.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +99,55 @@ namespace DxuiDockDropZonesTests
             Assert::AreEqual ((long) 250, (tab->target.left + tab->target.right) / 2);
             Assert::AreEqual ((long) 300, (tab->target.top + tab->target.bottom) / 2);
             Assert::AreEqual ((long) s_kScaler.ToPx (DxuiDockGuide::kButtonDip), tab->target.right - tab->target.left);
+        }
+
+
+        //  At 125% and 150% every target is as big as the button drawn there,
+        //  40 and 48 px, on a pitch of 45 and 54 px, and an edge guide's
+        //  button lies 8 DIP in from the window's edge, centered along it.
+        TEST_METHOD (TheTargetsScaleWithTheDpi)
+        {
+            constexpr UINT  kDpis[]    = { 120, 144 };
+            constexpr long  kButtons[] = { 40, 48 };
+            constexpr long  kPitches[] = { 45, 54 };
+            constexpr long  kInsets[]  = { 10, 12 };
+
+
+
+            for (size_t i = 0; i < std::size (kDpis); i++)
+            {
+                DxuiDpiScaler                  scaler;
+                DxuiPaneLayout                 layout = MakeSample();
+                std::vector<DxuiDockDropZone>  zones;
+                const DxuiDockDropZone       * tab    = nullptr;
+                const DxuiDockDropZone       * side   = nullptr;
+                const DxuiDockDropZone       * left   = nullptr;
+                const DxuiDockDropZone       * top    = nullptr;
+                std::wstring                   at     = std::format (L"{} dpi", kDpis[i]);
+
+                scaler.SetDpi (kDpis[i]);
+                zones = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr), s_kArea, L"trace", scaler);
+                tab   = Find (zones, DxuiDockDropZone::Kind::Tab,  DxuiDockSide::Left, L"code");
+                side  = Find (zones, DxuiDockDropZone::Kind::Side, DxuiDockSide::Left, L"code");
+                left  = Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Left, L"");
+                top   = Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Top,  L"");
+
+                if (tab == nullptr || side == nullptr || left == nullptr || top == nullptr)
+                {
+                    Assert::Fail ((L"every zone is there, " + at).c_str());
+                    return;
+                }
+
+                Assert::AreEqual (kButtons[i], tab->target.right  - tab->target.left,  (L"a cross's button, " + at).c_str());
+                Assert::AreEqual (kButtons[i], tab->target.bottom - tab->target.top,   (L"a cross's button, " + at).c_str());
+                Assert::AreEqual (kButtons[i], left->target.right - left->target.left, (L"an edge guide's button, " + at).c_str());
+                Assert::AreEqual (kPitches[i], (tab->target.left + tab->target.right) / 2 - (side->target.left + side->target.right) / 2,
+                                  (L"the pitch, " + at).c_str());
+                Assert::AreEqual (s_kArea.left + kInsets[i], left->target.left, (L"in from the left edge, " + at).c_str());
+                Assert::AreEqual (s_kArea.top  + kInsets[i], top->target.top,   (L"in from the top edge, " + at).c_str());
+                Assert::AreEqual ((s_kArea.top + s_kArea.bottom) / 2, (left->target.top + left->target.bottom) / 2, (L"centered along its edge, " + at).c_str());
+                Assert::AreEqual ((s_kArea.left + s_kArea.right) / 2, (top->target.left + top->target.right) / 2,   (L"centered along its edge, " + at).c_str());
+            }
         }
 
 

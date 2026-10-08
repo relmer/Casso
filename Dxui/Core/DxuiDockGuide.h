@@ -114,10 +114,10 @@ private:
     static constexpr int    kEdgeSlots        = 1;
     static constexpr int    kArmDip           = kPitchDip + kInsetDip;
 
-    //  How far each chamfer runs along the arms, fitted to Visual Studio's
-    //  own pixels at 125%: its outer edge, not the middle of its border.
-    static constexpr float  kSmallChamferDip  = 10.7f;
-    static constexpr float  kLargeChamferDip  = 10.2f;
+    //  How far each chamfer runs along the arms, as Visual Studio's guides
+    //  are measured at 125%.
+    static constexpr float  kSmallChamferDip  = 10.0f;
+    static constexpr float  kLargeChamferDip  = 9.25f;
 
     static constexpr float  kBorderDip        = 1.0f;
     static constexpr float  kButtonRadiusDip  = 3.0f;

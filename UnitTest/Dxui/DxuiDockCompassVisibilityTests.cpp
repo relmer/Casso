@@ -33,10 +33,11 @@ namespace DxuiDockCompassVisibilityTests
         DxuiDpiScaler    scaler;
         DxuiDarkTheme    theme;
 
-        explicit Rig (long height)
+        explicit Rig (long height, UINT dpi = 96)
         {
             DxuiPaneLayout  layout = DxuiPaneLayout::MakeSingle (L"code");
 
+            scaler.SetDpi     (dpi);
             layout.Add        (L"regs",    L"");
             layout.Add        (L"console", L"");
             layout.DockToSide (L"console", L"code", DxuiDockSide::Bottom);
@@ -241,51 +242,60 @@ namespace DxuiDockCompassVisibilityTests
 
 
         //  Every button of every guide shown, edges and cross alike, is hit
-        //  exactly where it is drawn.
+        //  exactly where it is drawn, at 100%, 125% and 150%: 32, 40 and 48
+        //  px square.
         TEST_METHOD (EachHitSquareIsTheDrawnButton)
         {
-            Rig                            rig (600);
-            RECT                           code    = rig.GetGroupRect (rig.code);
-            std::vector<DxuiDockDragMark>  guides;
-            size_t                         checked = 0;
+            constexpr UINT  kDpis[]    = { 96, 120, 144 };
+            constexpr long  kButtons[] = { 32, 40, 48 };
 
 
 
-            rig.site.BeginDrag (L"stack");
-            rig.site.OnMouse   (Mouse (DxuiMouseEventKind::Move, Center (code)));
-            guides = rig.GetGuides();
-
-            for (size_t g = 0; g < guides.size(); g++)
+            for (size_t i = 0; i < std::size (kDpis); i++)
             {
-                bool                              isCross = g + 1 == guides.size();
-                DxuiDockGuideKind                 kind    = isCross ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::Edge;
-                POINT                             origin  = { guides[g].rect.left, guides[g].rect.top };
-                std::vector<DxuiDockGuideButton>  buttons = isCross ? DxuiDockGuide::GetButtons (kind, DxuiDockSide::Left)
-                                                                    : std::vector<DxuiDockGuideButton> { DxuiDockGuideButton::DockLeft };
+                Rig                            rig (600, kDpis[i]);
+                RECT                           code    = rig.GetGroupRect (rig.code);
+                std::vector<DxuiDockDragMark>  guides;
+                size_t                         checked = 0;
+                std::wstring                   at      = std::format (L"{} dpi", kDpis[i]);
 
-                for (DxuiDockGuideButton button : buttons)
+                rig.site.BeginDrag (L"stack");
+                rig.site.OnMouse   (Mouse (DxuiMouseEventKind::Move, Center (code)));
+                guides = rig.GetGuides();
+
+                for (size_t g = 0; g < guides.size(); g++)
                 {
-                    RECT                       drawn = DxuiDockGuide::GetButtonRect (kind, button, origin, rig.scaler);
-                    const DxuiDockDropZone   * hover = nullptr;
+                    bool                              isCross = g + 1 == guides.size();
+                    DxuiDockGuideKind                 kind    = isCross ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::Edge;
+                    POINT                             origin  = { guides[g].rect.left, guides[g].rect.top };
+                    std::vector<DxuiDockGuideButton>  buttons = isCross ? DxuiDockGuide::GetButtons (kind, DxuiDockSide::Left)
+                                                                        : std::vector<DxuiDockGuideButton> { DxuiDockGuideButton::DockLeft };
 
-                    rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (drawn)));
-                    hover = rig.site.GetHoveredZone();
-
-                    if (hover == nullptr)
+                    for (DxuiDockGuideButton button : buttons)
                     {
-                        Assert::Fail (L"every drawn button is hit");
-                        return;
+                        RECT                       drawn = DxuiDockGuide::GetButtonRect (kind, button, origin, rig.scaler);
+                        const DxuiDockDropZone   * hover = nullptr;
+
+                        rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (drawn)));
+                        hover = rig.site.GetHoveredZone();
+
+                        if (hover == nullptr)
+                        {
+                            Assert::Fail ((L"every drawn button is hit, " + at).c_str());
+                            return;
+                        }
+
+                        Assert::AreEqual (kButtons[i],  drawn.right - drawn.left, (L"the drawn button, " + at).c_str());
+                        Assert::AreEqual (drawn.left,   hover->target.left,       at.c_str());
+                        Assert::AreEqual (drawn.top,    hover->target.top,        at.c_str());
+                        Assert::AreEqual (drawn.right,  hover->target.right,      at.c_str());
+                        Assert::AreEqual (drawn.bottom, hover->target.bottom,     at.c_str());
+                        checked++;
                     }
-
-                    Assert::AreEqual (drawn.left,   hover->target.left);
-                    Assert::AreEqual (drawn.top,    hover->target.top);
-                    Assert::AreEqual (drawn.right,  hover->target.right);
-                    Assert::AreEqual (drawn.bottom, hover->target.bottom);
-                    checked++;
                 }
-            }
 
-            Assert::AreEqual ((size_t) (4 + 9), checked, L"four edge buttons and the large cross's nine");
+                Assert::AreEqual ((size_t) (4 + 9), checked, (L"four edge buttons and the large cross's nine, " + at).c_str());
+            }
         }
     };
 }

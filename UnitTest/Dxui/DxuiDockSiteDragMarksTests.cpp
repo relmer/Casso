@@ -106,7 +106,7 @@ namespace DxuiDockSiteDragMarksTests
     {
     public:
 
-        TEST_METHOD (MarksListEveryTargetOnlyDuringADrag)
+        TEST_METHOD (MarksShowTheEdgeGuidesAndOneCrossOnlyDuringADrag)
         {
             Rig                            rig;
             std::vector<DxuiDockDragMark>  marks;
