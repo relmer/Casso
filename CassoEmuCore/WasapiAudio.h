@@ -52,7 +52,8 @@ public:
         uint32_t                        numSamplesToGenerate,
         DriveAudioMixer *               driveMixer         = nullptr,
         uint64_t                        currentCycleCount  = 0,
-        DriveAudioMixer *               mockingboardMixer  = nullptr);
+        DriveAudioMixer *               mockingboardMixer  = nullptr,
+        DriveAudioMixer *               tapeMixer          = nullptr);
     void    RecordDriveDoorSyncEvent (int drive, int64_t timestampMs);
     int64_t GetLastDriveDoorSyncEventMs (int drive) const;
 
@@ -64,6 +65,10 @@ public:
     // toolbar's volume slider; mute passes 0 while the UI keeps the slider
     // value). Set on the UI thread, read on the submitting thread: atomic.
     void  SetMasterGain (float gain01) { m_masterGain.store (gain01, std::memory_order_relaxed); }
+
+    //  Silences every source without touching the user's volume or mute,
+    //  for a fast tape load, whose audio would only be noise.
+    void  SetSuppressed (bool isSuppressed) { m_isSuppressed.store (isSuppressed, std::memory_order_relaxed); }
 
 private:
     // How long to wait after losing the endpoint before trying to open the
@@ -140,6 +145,13 @@ private:
     vector<float> m_mixScratch;
 
     std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
+    std::atomic<bool>   m_isSuppressed { false }; // see SetSuppressed
+    bool                m_droppedSlice = false;   // a slice was dropped since the last one kept
+
+    // How long the sound fades out and in around a dropped slice: about a
+    // millisecond and a half, short enough to keep the slice, long enough to
+    // take the click out of the cut.
+    static constexpr UINT32  s_kSpliceFadeFrames = 64;
 
     // Endpoint loss and the throttled reopen. The PUMP ONLY REPORTS: it
     // records the failing hr and stops, because Shutdown joins the render

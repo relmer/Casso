@@ -686,6 +686,81 @@ void SettingsPanelState::SetFloppySound (bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetFastTapeLoading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetFastTapeLoading (bool enabled)
+{
+    m_current.prefs.fastTapeLoading = enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTapeVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetTapeVolume (float gain)
+{
+    m_current.prefs.tapeVolume = gain;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTapeAutoStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetTapeAutoStop (bool enabled)
+{
+    m_current.prefs.tapeAutoStop = enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTapeIdleStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetTapeIdleStop (bool enabled)
+{
+    m_current.prefs.tapeIdleStop = enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTapeEightBit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetTapeEightBit (bool enabled)
+{
+    m_current.prefs.tapeEightBit = enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMechanism
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1014,7 +1089,58 @@ Error:
 
 void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
 {
+    std::vector<SettingsMachinePort>  ports;
+    std::vector<HardwareEntry>        hardware;
+    JsonValue                         augmented;
+    HRESULT                           hr        = S_OK;
+
+
+
     m_mergedJson = CloneJson (mergedJson);
+
+    // The second drive is taken from disk too. No page edits it -- it is
+    // connected from the Storage menu and the drives' right-click menus,
+    // which save it the moment it changes -- so the copy read when the sheet
+    // opened is the stale one, and BuildJson writes it out on OK.
+    hr = ExtractMachinePorts (mergedJson, ports);
+
+    if (SUCCEEDED (hr))
+    {
+        m_current.machinePorts  = ports;
+        m_original.machinePorts = ports;
+    }
+
+    augmented = CloneJson (mergedJson);
+    AddDefinedDevices (m_machineName, augmented);
+    hr = ExtractHardware (augmented, hardware);
+
+    for (size_t i = 0; SUCCEEDED (hr) && i < hardware.size() && i < m_current.hardware.size(); i++)
+    {
+        if (hardware[i].type == m_current.hardware[i].type && hardware[i].slot == m_current.hardware[i].slot)
+        {
+            m_current.hardware[i].ports  = hardware[i].ports;
+            m_original.hardware[i].ports = hardware[i].ports;
+        }
+    }
+
+    // The recorder likewise: connected from the Storage menu, never a page.
+    {
+        SettingsUiPrefs  fresh;
+
+        hr = ExtractUiPrefs (mergedJson, fresh);
+
+        if (SUCCEEDED (hr))
+        {
+            m_current.prefs.tapeRecorderConnected  = fresh.tapeRecorderConnected;
+            m_original.prefs.tapeRecorderConnected = fresh.tapeRecorderConnected;
+        }
+    }
+
+    if (HasSecondDriveStore())
+    {
+        m_current.prefs.externalDriveConnected  = SecondDriveAttached();
+        m_original.prefs.externalDriveConnected = m_current.prefs.externalDriveConnected;
+    }
 }
 
 
@@ -1046,6 +1172,11 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplyColorMode   (m_current.prefs.colorMode);
     sink.ApplyFloppySound (m_current.prefs.floppySoundEnabled);
     sink.ApplyMechanism   (m_current.prefs.floppyMechanism);
+    sink.ApplyFastTapeLoading (m_current.prefs.fastTapeLoading);
+    sink.ApplyTapeVolume      (m_current.prefs.tapeVolume);
+    sink.ApplyTapeAutoStop    (m_current.prefs.tapeAutoStop);
+    sink.ApplyTapeIdleStop    (m_current.prefs.tapeIdleStop);
+    sink.ApplyTapeEightBit    (m_current.prefs.tapeEightBit);
     sink.ApplyDriveVolumes (m_current.prefs.driveMotorVolume,
                             m_current.prefs.driveHeadVolume,
                             m_current.prefs.driveDoorVolume);
@@ -1150,6 +1281,12 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs.floppySoundEnabled = TryGetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
+    outPrefs.fastTapeLoading    = TryGetBoolOpt   (*uiObj, "fastTapeLoading",     true);
+    outPrefs.tapeAutoStop       = TryGetBoolOpt   (*uiObj, "tapeAutoStop",        true);
+    outPrefs.tapeIdleStop       = TryGetBoolOpt   (*uiObj, "tapeIdleStop",        true);
+    outPrefs.tapeEightBit       = TryGetBoolOpt   (*uiObj, "tapeEightBit",        false);
+    outPrefs.tapeRecorderConnected = TryGetBoolOpt (*uiObj, "tapeRecorderConnected", true);
+    outPrefs.tapeVolume         = (float) GetNumberOpt (*uiObj, "tapeVolume",   SettingsUiPrefs::kDefaultTapeVolume);
 
     outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);
     outPrefs.mouseConnected         = TryGetBoolOpt (*uiObj, "mouseConnected", true);
@@ -1630,6 +1767,7 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "apple2-family-keyboard",         "Keyboard" },
         { "apple2-family-speaker",          "Speaker" },
         { "apple2-family-softswitches",     "Soft switches" },
+        { "apple2-family-cassette",         "Cassette port" },
         // The //e-generation keyboard/soft-switch controllers are shared by the
         // //e and the //c, so the label stays machine-neutral (the machine name
         // is already shown at the top of the panel) rather than hardcoding //e.
@@ -1981,6 +2119,12 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
+    uiObj.emplace_back ("fastTapeLoading",    JsonValue (prefs.fastTapeLoading));
+    uiObj.emplace_back ("tapeVolume",         JsonValue ((double) prefs.tapeVolume));
+    uiObj.emplace_back ("tapeAutoStop",       JsonValue (prefs.tapeAutoStop));
+    uiObj.emplace_back ("tapeIdleStop",       JsonValue (prefs.tapeIdleStop));
+    uiObj.emplace_back ("tapeEightBit",       JsonValue (prefs.tapeEightBit));
+    uiObj.emplace_back ("tapeRecorderConnected", JsonValue (prefs.tapeRecorderConnected));
     // The legacy boolean is written ONLY when the machine has no disk port to
     // hold the answer. Where a port exists it is authoritative, and writing
     // both would put two answers to one question back on disk -- exactly what
@@ -2102,6 +2246,12 @@ bool SettingsPanelState::ArePrefsEqual (
         && a.writeMode              == b.writeMode
         && a.floppySoundEnabled     == b.floppySoundEnabled
         && a.floppyMechanism        == b.floppyMechanism
+        && a.fastTapeLoading        == b.fastTapeLoading
+        && a.tapeVolume             == b.tapeVolume
+        && a.tapeAutoStop           == b.tapeAutoStop
+        && a.tapeIdleStop           == b.tapeIdleStop
+        && a.tapeEightBit           == b.tapeEightBit
+        && a.tapeRecorderConnected  == b.tapeRecorderConnected
         && a.externalDriveConnected == b.externalDriveConnected
         && a.mouseConnected         == b.mouseConnected
         && a.driveMotorVolume       == b.driveMotorVolume

@@ -299,6 +299,7 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "machine",
     "disk1",
     "disk2",
+    "tape",
     "trace",
     "seed",
 
@@ -308,6 +309,32 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     //  `title` is here on the same terms -- see CommandLineOptions.
     "no-image-watch",
     "title",
+
+    //  Also undocumented: what a relaunch after a self-update passes.
+    "updated",
+    "cleanup-old",
+};
+
+
+//  What a relaunch after a self-update does with each option above. EVERY
+//  OPTION NEEDS A ROW: a sweep fails on one without, so a new switch cannot be
+//  added without deciding whether a relaunch repeats it.
+//
+//  The machine, the disks and the tape are saved in the preferences already,
+//  so repeating them would undo a change made during the session. A seed is
+//  for reproducing one startup, not every startup after it.
+static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRules[] =
+{
+    { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "disk1",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "disk2",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "tape",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "trace",          CommandLineParser::OptionValue::OptionalSize, CommandLineParser::RelaunchRule::Repeat },
+    { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "no-image-watch", CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Repeat },
+    { "title",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Repeat },
+    { "updated",        CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
+    { "cleanup-old",    CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
 };
 
 
@@ -325,6 +352,7 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--tape",    " <file>",  "Insert this WAV, AIFF, MP3, or FLAC recording into the cassette recorder." },
     { "--trace",   " [size]",  "Record a CPU execution trace, written to the desktop "
                               "by Debug > Save CPU trace or on a crash. A size takes "
                               "a K, M or G suffix." },
@@ -4280,6 +4308,7 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         if      (arg == "--machine" && hasValue) { parsed.machine = argv[++i]; }
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
+        else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
         else if (arg == "--trace")
         {
             parsed.traceEntries = CommandLineOptions::EmulatorOptions::kTraceDefaultEntries;
@@ -4309,6 +4338,14 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--title" && hasValue)
         {
             parsed.titlePrefix = argv[++i];
+        }
+        else if (arg == "--updated")
+        {
+            parsed.wasUpdated = true;
+        }
+        else if (arg == "--cleanup-old" && hasValue)
+        {
+            ApplyCleanupPid (argv[++i], parsed);
         }
         else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
         {
@@ -4368,7 +4405,8 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
     }
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
-          || canonical == "--seed")
+          || canonical == "--tape"    || canonical == "--seed"
+          || canonical == "--cleanup-old")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }
@@ -4474,6 +4512,86 @@ std::span<const CommandLineParser::EmulatorFlag> CommandLineParser::GetEmulatorF
 std::span<const char * const> CommandLineParser::GetEmulatorLongOptions()
 {
     return std::span<const char * const> (s_kpszEmulatorOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetEmulatorRelaunchRules
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::EmulatorRelaunchRule> CommandLineParser::GetEmulatorRelaunchRules()
+{
+    return std::span<const EmulatorRelaunchRule> (s_kEmulatorRelaunchRules);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::SelectRelaunchArguments
+//
+//  Walks the command line the way ParseEmulator does, so a value is taken
+//  with its option exactly when the parser took it, and keeps the options
+//  whose rule is Repeat. An option without a rule is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandLineParser::SelectRelaunchArguments (int argc, char * argv[])
+{
+    std::vector<std::string>      kept;
+    std::string                   arg;
+    std::string                   name;
+    const EmulatorRelaunchRule  * rule     = nullptr;
+    bool                          hasEqual = false;
+    bool                          hasValue = false;
+    bool                          takes    = false;
+    int                           i        = 0;
+
+
+
+    for (i = 0; i < argc; i++)
+    {
+        arg      = GetCanonicalLongFlag (argv[i], std::span<const char * const> (s_kpszEmulatorOptions));
+        hasEqual = arg.find ('=') != std::string::npos;
+        name     = arg.starts_with ("--") ? arg.substr (2, arg.find ('=') - 2) : std::string();
+        rule     = nullptr;
+
+        for (const EmulatorRelaunchRule & candidate : s_kEmulatorRelaunchRules)
+        {
+            rule = (rule == nullptr && name == candidate.option) ? &candidate : rule;
+        }
+
+        if (rule == nullptr)
+        {
+            continue;
+        }
+
+        hasValue = (i + 1) < argc;
+        takes    = !hasEqual && hasValue &&
+                   (rule->value == OptionValue::Required ||
+                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])));
+
+        if (rule->rule == RelaunchRule::Repeat)
+        {
+            kept.push_back (arg);
+
+            if (takes)
+            {
+                kept.push_back (argv[i + 1]);
+            }
+        }
+
+        i += takes ? 1 : 0;
+    }
+
+    return kept;
 }
 
 
@@ -4603,5 +4721,41 @@ void CommandLineParser::ApplySeed (const std::string                   & text,
     {
         parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
         parsed.refusalMessage = "Error: invalid seed " + text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyCleanupPid
+//
+//  Records the --cleanup-old process id: a decimal number that fits 32 bits
+//  and is not zero, since zero is no process. Anything else refuses the
+//  command line rather than leaving old files to a guess.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplyCleanupPid (const std::string                   & text,
+                                         CommandLineOptions::EmulatorOptions & parsed)
+{
+    std::uint32_t           value   = 0;
+    const char            * first   = text.data();
+    const char            * last    = text.data() + text.size();
+    std::from_chars_result  result  = std::from_chars (first, last, value);
+    bool                    isValid = result.ec == std::errc() && result.ptr == last && value != 0;
+
+
+
+    if (isValid)
+    {
+        parsed.cleanupOldPid = value;
+    }
+    else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+    {
+        parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+        parsed.refusalMessage = "Error: invalid process id " + text;
     }
 }

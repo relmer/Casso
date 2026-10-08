@@ -114,6 +114,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -133,6 +134,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -148,6 +150,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -167,6 +170,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -182,6 +186,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -201,6 +206,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -216,6 +222,20 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="UiTests\StoragePageTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRecorderTests.cpp" />
+    <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
+    <ClCompile Include="UiTests\TapeDeckWidgetTests.cpp" />
+    <ClCompile Include="UiTests\TapeManagerTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRecordScannerTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRomLoadTests.cpp" />
+    <ClCompile Include="EmuTests\TapeDeckTests.cpp" />
+    <ClCompile Include="EmuTests\CassettePortTests.cpp" />
+    <ClCompile Include="EmuTests\TapeImageLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\TapeSignalDecoderTests.cpp" />
+    <ClCompile Include="EmuTests\AiffCodecTests.cpp" />
+    <ClCompile Include="EmuTests\WavCodecTests.cpp" />
+    <ClCompile Include="EmuTests\TapeTestEncoder.cpp" />
     <ClCompile Include="CpuInitializationTests.cpp" />
     <ClCompile Include="CpuOperationTests.cpp" />
     <ClCompile Include="UndocumentedOpcodeTests.cpp" />
@@ -462,6 +482,24 @@
     <ClCompile Include="UiTests\MachineInputPrefsTests.cpp" />
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UpdateTests\AuthenticodeVerifierTests.cpp" />
+    <ClCompile Include="UpdateTests\InflateTests.cpp" />
+    <ClCompile Include="UpdateTests\InstallTypeDetectorTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseInfoTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesExtractorTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesFormatterTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseVersionTests.cpp" />
+    <ClCompile Include="UpdateTests\LocalFeedHttpClientTests.cpp" />
+    <ClCompile Include="UpdateTests\RelaunchAndPendingTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateScheduleTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateServiceTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateDialogModelTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesLayoutTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesImageTests.cpp" />
+    <ClCompile Include="UpdateTests\SizeGripTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateIndicatorModelTests.cpp" />
+    <ClCompile Include="UpdateTests\ZipArchiveTests.cpp" />
+    <ClCompile Include="UpdateTests\ZipUpdateInstallerTests.cpp" />
     <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />
@@ -494,6 +532,7 @@
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="EmuTests\CreateDiskChoicesTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
+    <ClCompile Include="UiTests\DriveBandTapeLayoutTests.cpp" />
     <ClCompile Include="UiTests\HardwarePageTests.cpp" />
     <ClCompile Include="UiTests\JoyportSwitchViewTests.cpp" />
     <ClCompile Include="UiTests\InputDeviceGlyphsTests.cpp" />
@@ -502,6 +541,8 @@
     <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
     <ClCompile Include="UiTests\CrtResolverTests.cpp" />
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
+    <ClCompile Include="UiTests\GeneralPageModelTests.cpp" />
+    <ClCompile Include="UiTests\GeneralPageTests.cpp" />
     <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\SettingsPageEnablementTests.cpp" />
     <ClCompile Include="UiTests\ControllersPageLayoutTests.cpp" />
@@ -512,6 +553,7 @@
     <ClCompile Include="UiTests\DeskSceneLayoutTests.cpp" />
     <ClCompile Include="UiTests\ChromeBandLayoutTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneModelTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneRecorderTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneHitTesterTests.cpp" />
     <ClCompile Include="UiTests\FullscreenStripStateTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
@@ -522,6 +564,8 @@
     <ClCompile Include="Dxui\DxuiCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiFrameRateTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiInfoTipTests.cpp" />
+    <ClCompile Include="Dxui\DxuiShadowedTextTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextElideTests.cpp" />
     <ClCompile Include="Dxui\DxuiLinkFocusRingTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
@@ -587,6 +631,8 @@
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
+    <ClInclude Include="EmuTests\TapeTestEncoder.h" />
     <ClInclude Include="EmuTests\DamagedDisk.h" />
     <ClInclude Include="EmuTests\DemoAssets.h" />
     <ClInclude Include="Pch.h" />
@@ -603,6 +649,14 @@
     <ClInclude Include="EmuTests\FixtureProvider.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />
+    <ClInclude Include="UpdateTests\FakeInstallEnvironment.h" />
+    <ClInclude Include="UpdateTests\FakeSignatureVerifier.h" />
+    <ClInclude Include="UpdateTests\MockUpdateFileSystem.h" />
+    <ClInclude Include="UpdateTests\TestZipBuilder.h" />
+    <ClInclude Include="UpdateTests\FakePackageDeployer.h" />
+    <ClInclude Include="UpdateTests\FakeUpdateHost.h" />
+    <ClInclude Include="UpdateTests\MockHttpClient.h" />
+    <ClInclude Include="UpdateTests\RecordingResultPoster.h" />
     <ClInclude Include="Casso\FakeHostClipboard.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
     <ClInclude Include="EmuTests\GuestSession.h" />

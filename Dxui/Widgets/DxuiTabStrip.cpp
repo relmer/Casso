@@ -253,10 +253,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                   uint32_t idleArgb, uint32_t hoverArgb, uint32_t selectedArgb,
                                   uint32_t textArgb, uint32_t focusArgb) const
 {
-    constexpr float     s_kFontDip       = 13.0f;
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kFocusInsetDip = 1.0f;
-    constexpr float     s_kPadXDp        = 8.0f;
     constexpr float     s_kPadYDp        = 4.0f;
     constexpr float     s_kPressedScale  = 0.82f;   // armed-tab tint, a touch darker than hover
 
@@ -270,9 +268,9 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     size_t   n           = m_tabs.size();
     float    focusThick  = m_scaler.ToPxf (s_kFocusThickDip);
     float    focusInset  = m_scaler.ToPxf (s_kFocusInsetDip);
-    float    padX        = m_scaler.ToPxf (s_kPadXDp);
+    float    padX        = m_scaler.ToPxf (kLabelPadXDip);
     float    padY        = m_scaler.ToPxf (s_kPadYDp);
-    float    fontDip     = m_scaler.ToPxf (s_kFontDip);
+    float    fontDip     = m_scaler.ToPxf (kLabelFontDip);
     float    underline   = m_scaler.ToPxf (s_kUnderlineDip);
     uint32_t mutedText   = DxuiColor::Scale (textArgb, s_kMutedTextScale);
 
@@ -395,8 +393,10 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  per-gesture handlers, which take plain coordinates and are testable without
 //  framework events.
 //
-//  A move only updates hover and is reported unhandled, so the pointer
-//  crossing the strip does not consume moves other widgets want.
+//  A move is reported handled only when it changes which tab is hovered or
+//  armed, as DxuiButton does: that is what makes the window repaint at once
+//  rather than on its half-second tick, and a move that changes nothing still
+//  passes through to the widgets that handle it.
 //
 //  Only the left button acts; a right-click belongs to the host.
 //
@@ -404,7 +404,9 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  handled = false;
+    int   prevHover   = m_hover;
+    int   prevPressed = m_pressed;
+    bool  handled     = false;
 
 
 
@@ -412,6 +414,7 @@ bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
     {
     case DxuiMouseEventKind::Move:
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        handled = m_hover != prevHover || m_pressed != prevPressed;
         break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)

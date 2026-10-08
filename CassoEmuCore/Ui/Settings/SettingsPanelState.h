@@ -77,6 +77,12 @@ struct SettingsUiPrefs
     SettingsWriteMode  writeMode             = SettingsWriteMode::BufferAndFlush;
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
+    bool               fastTapeLoading       = true;        // tape loads run at Maximum speed
+    float              tapeVolume            = kDefaultTapeVolume;   // the tape heard when loading at real speed
+    bool               tapeAutoStop          = true;        // the deck stops at the end of the tape
+    bool               tapeIdleStop          = true;        // playback stops once the computer stops reading
+    bool               tapeEightBit          = false;       // new blank tapes are 8-bit WAVs rather than 16-bit
+    bool               tapeRecorderConnected = true;        // the cassette recorder is plugged in (Storage menu)
     bool               writeProtect[2]       = { false, false };
     // //c only: whether the optional external 5.25" drive is plugged into
     // the disk port. Reveals/hides the second drive-mount widget. Defaults
@@ -90,6 +96,7 @@ struct SettingsUiPrefs
     // Drive-audio component gains (0..1). Defaults mirror the
     // DriveAudioMixer / Disk2AudioSource sound-mix defaults.
     static constexpr float kDefaultDriveMotorVolume = 0.90f;
+    static constexpr float kDefaultTapeVolume       = 1.0f;
     static constexpr float kDefaultDriveHeadVolume  = 1.00f;
     static constexpr float kDefaultDriveDoorVolume  = 1.00f;
     // Per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
@@ -202,6 +209,11 @@ public:
     virtual void ApplyColorMode      (SettingsColorMode mode)        = 0;
     virtual void ApplyFloppySound    (bool enabled)                  = 0;
     virtual void ApplyMechanism      (const std::string & mechanism) = 0;
+    virtual void ApplyFastTapeLoading (bool enabled)                 = 0;
+    virtual void ApplyTapeVolume     (float gain)                    = 0;
+    virtual void ApplyTapeAutoStop   (bool enabled)                  = 0;
+    virtual void ApplyTapeIdleStop   (bool enabled)                  = 0;
+    virtual void ApplyTapeEightBit   (bool enabled)                  = 0;
     virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
     virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
@@ -263,6 +275,11 @@ public:
     // changes are reverted on OK.
     void    RefreshMergedJson (const JsonValue & mergedJson);
 
+    // The machine document as it would be saved now, for a caller that
+    // changes a setting without a sheet -- the Storage menu's second drive.
+    void       SetTapeRecorderConnected (bool connected) { m_current.prefs.tapeRecorderConnected = connected; }
+    JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
+
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed
 
@@ -301,6 +318,11 @@ public:
     void    SetWriteMode       (SettingsWriteMode mode);
     void    SetFloppySound     (bool enabled);
     void    SetMechanism       (const std::string & mechanism);
+    void    SetFastTapeLoading (bool enabled);
+    void    SetTapeVolume      (float gain);
+    void    SetTapeAutoStop    (bool enabled);
+    void    SetTapeIdleStop    (bool enabled);
+    void    SetTapeEightBit    (bool enabled);
     void    SetDriveMotorVolume (float gain);
     void    SetDriveHeadVolume  (float gain);
     void    SetDriveDoorVolume  (float gain);

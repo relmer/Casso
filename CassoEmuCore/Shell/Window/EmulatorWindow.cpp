@@ -533,19 +533,43 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
+    m_host->GetRoot().Adopt (m_tapeChrome);
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
     m_host->GetRoot().Adopt (m_sceneDriveInfoIcon[0]);
     m_host->GetRoot().Adopt (m_sceneDriveInfoIcon[1]);
+    m_host->GetRoot().Adopt (m_stripTapeLabel[0]);
+    m_host->GetRoot().Adopt (m_stripTapeLabel[1]);
+    m_host->GetRoot().Adopt (m_stripTapeLabel[2]);
     m_host->GetRoot().Adopt (m_sceneCompass);
+    m_host->GetRoot().Adopt (m_compassHint);
 
     // The compass reports gestures; the shell owns what they mean. The signs
     // follow the drag's bargain -- the CONTENT goes where the arrow points --
     // so the right arrow and a rightward drag turn the scene the same way.
+    // With Ctrl held the compass pans instead, as Ctrl does to a drag on the
+    // scene itself: an arrow click moves the scene a pan step its way, and a
+    // drag moves it with the pointer.
     m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
     {
+        float  step = s_kScenePanStep;
+
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            switch (part)
+            {
+                case DxuiOrbitControl::Part::Left:   PanSceneByCompass (-step, 0.0f); break;
+                case DxuiOrbitControl::Part::Right:  PanSceneByCompass ( step, 0.0f); break;
+                case DxuiOrbitControl::Part::Up:     PanSceneByCompass (0.0f, -step); break;
+                case DxuiOrbitControl::Part::Down:   PanSceneByCompass (0.0f,  step); break;
+                default: break;
+            }
+
+            return;
+        }
+
         switch (part)
         {
             case DxuiOrbitControl::Part::Left:   OrbitSceneBy ( kCompassStepYawRad,   0.0f); break;
@@ -560,6 +584,19 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         float  rate = OrbitRadPerPx();
 
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            const RECT &  vp = m_deskScene.Composition().viewportPx;
+
+            if (vp.right > vp.left && vp.bottom > vp.top)
+            {
+                PanSceneByCompass (dxPx / (float) (vp.right - vp.left) * 2.0f,
+                                   dyPx / (float) (vp.bottom - vp.top) * 2.0f);
+            }
+
+            return;
+        }
+
         // Axis-locked to the arrow the drag started on: the arrow names an
         // axis, and a free two-axis tumble from a single arrow would make
         // the four of them meaningless.
@@ -573,8 +610,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
+    // Ctrl+click on the center is Ctrl+0: the whole view reset, zoom and
+    // window size included, with the window's placement saved.
     m_sceneCompass.SetOnHome ([this] ()
     {
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            PostMessage (m_hwnd, WM_COMMAND, IDM_VIEW_RESET_SIZE, 0);
+            return;
+        }
+
         m_sceneView.orbitYawRad   = 0.0f;
         m_sceneView.orbitPitchRad = 0.0f;
         InvalidateSceneComposition();
@@ -774,6 +819,17 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
             case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
+            case IDM_STORAGE_DRIVE2:   return IsSecondDriveOffered();
+            case IDM_STORAGE_RECORDER: return MachineHasCassettePort();
+            case IDM_DISK_INSERT2:     return ShouldShowExternalDrive();
+            case IDM_DISK_EJECT2:      return ShouldShowExternalDrive();
+            case IDM_TAPE_INSERT:      return IsTapeRecorderShown();
+            case IDM_TAPE_NEW:         return IsTapeRecorderShown();
+            case IDM_TAPE_PLAY:        return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        GetTapeView());
+            case IDM_TAPE_STOP:        return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,        GetTapeView());
+            case IDM_TAPE_REWIND:      return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      GetTapeView());
+            case IDM_TAPE_FASTFORWARD: return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, GetTapeView());
+            case IDM_TAPE_EJECT:       return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       GetTapeView());
             default:           return true;
         }
     });
@@ -782,6 +838,27 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
+            // The action the click takes: attach what is not there, detach
+            // what is. The //c's second drive is an external unit on its
+            // disk port, and its menu item shows that.
+            case IDM_STORAGE_DRIVE2:
+            {
+                bool  isC = m_machine.GetConfig().systemRom.romBankSize != 0;
+
+                if (ShouldShowExternalDrive())
+                {
+                    return isC ? std::wstring (L"Detach &external drive") : std::wstring (L"Detach &drive 2");
+                }
+
+                return isC ? std::wstring (L"Attach &external drive") : std::wstring (L"Attach &drive 2");
+            }
+
+            case IDM_STORAGE_RECORDER:
+            {
+                return IsTapeRecorderShown() ? std::wstring (L"Detach ca&ssette recorder")
+                                             : std::wstring (L"Attach ca&ssette recorder");
+            }
+
             case IDM_DISK_WP1:
             case IDM_DISK_WP2:
             {
@@ -980,9 +1057,57 @@ SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int f
     else
     {
         client = GetClientSizeForCenterPx (framebufferWpx, framebufferHpx);
+
+        // Never narrower than the drive row. With the recorder beside the
+        // drives the row outgrows a 100% screen, and a window wrapped tightly
+        // around the screen cut the recorder off at its right edge.
+        client.cx = max (client.cx, (LONG) GetDriveRowWidthPx());
     }
 
     return client;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetDriveRowWidthPx
+//
+//  How wide the flat drive row is -- the drives that show, the recorder when
+//  the machine has one, the gaps between them and a gap at either end --
+//  measured on throwaway widgets so the live ones keep their layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetDriveRowWidthPx()
+{
+    UINT            dpi    = m_scaler.GetDpi();
+    int             gap    = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
+    int             count  = ShouldShowExternalDrive() ? 2 : 1;
+    DxuiDpiScaler   scaler;
+    DriveWidget     drive;
+    TapeDeckWidget  tape;
+    RECT            outer  = {};
+    int             width  = 0;
+
+
+
+    scaler.SetDpi (dpi);
+
+    drive.Layout (RECT {}, scaler);
+    outer = drive.GetOuterRect();
+    width = count * (outer.right - outer.left) + (count + 1) * gap;
+
+    if (IsTapeRecorderShown())
+    {
+        tape.Layout (RECT {}, scaler);
+        outer  = tape.GetOuterRect();
+        width += (outer.right - outer.left) + gap;
+    }
+
+    return width;
 }
 
 
@@ -1416,6 +1541,12 @@ int EmulatorShell::RunMessageLoop()
         {
             WaitForFrameOrMessage();
         }
+        else if (!m_updateCheckStarted)
+        {
+            // After the first frame is on screen, so the update check never
+            // stands between a launch and a picture.
+            StartAutomaticUpdateCheck();
+        }
     }
 
     m_cpuManager.Stop();
@@ -1475,6 +1606,7 @@ void EmulatorShell::WaitForFrameOrMessage()
     DWORD                   timeout      = s_kIdleUpkeepMs;
     DWORD                   waited       = 0;
     std::optional<int64_t>  nextChangeMs = m_notices.GetNextChangeMs();
+    std::optional<int64_t>  shimmerMs    = m_updateIndicator.IsVisible() ? m_updateIndicator.GetMsUntilShimmer ((int64_t) GetTickCount64()) : std::nullopt;
     int64_t                 untilMs      = 0;
     int64_t                 nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -1485,7 +1617,9 @@ void EmulatorShell::WaitForFrameOrMessage()
         m_driveTooltip.WantsTick()     ||
         m_captionTooltip.WantsTick()   ||
         m_sceneCompass.WantsTick()     ||
+        m_compassHintOpacity != (m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
         m_mainMenu.WantsTick()         ||
+        (m_host != nullptr && m_host->GetContextMenu().WantsTick()) ||
         m_toolbar.WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;
@@ -1495,6 +1629,12 @@ void EmulatorShell::WaitForFrameOrMessage()
     {
         untilMs = std::clamp (*nextChangeMs - nowMs, (int64_t) 0, (int64_t) timeout);
         timeout = (DWORD) untilMs;
+    }
+
+    // Wake for the update indicator's next shimmer sweep, no sooner.
+    if (shimmerMs.has_value())
+    {
+        timeout = (DWORD) std::clamp (*shimmerMs, (int64_t) 0, (int64_t) timeout);
     }
 
     waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
@@ -1977,6 +2117,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                         m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
                     }
                 }
+
+                RegisterTapeDropTarget();
             }
         }
 
@@ -2058,7 +2200,8 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 //
 //  The coalescing global-prefs write. It is a one-shot: the timer is armed by
 //  SaveGlobalPrefsDeferred, re-armed by each further change, and killed here
-//  once the changes have stopped long enough for it to fire.
+//  once the changes have stopped long enough for it to fire. Also the poll
+//  for another instance's update check record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2067,6 +2210,12 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
     HRESULT  hr = S_OK;
 
 
+
+    if (timerId == kSharedCheckTimerId)
+    {
+        PollSharedCheckRecord();
+        return DxuiMessageResult::Handled;
+    }
 
     if (timerId != kPrefsSaveTimerId)
     {
@@ -2540,6 +2689,20 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         if (carried != nullptr)
         {
             HandleMountCompletion (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A piece of update work finished on the update service's thread.
+    if (msg == WM_APP_UPDATE_RESULT)
+    {
+        UpdateResult *  carried = reinterpret_cast<UpdateResult *> (lParam);
+
+        if (carried != nullptr)
+        {
+            HandleUpdateResult (*carried);
             delete carried;
         }
 

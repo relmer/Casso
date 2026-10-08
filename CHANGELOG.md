@@ -8,14 +8,64 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-10-07: The one where Casso updates itself
+
+### Added
+
+- Casso checks for a new release at startup, at most once a day, and shows a
+  title-bar indicator when one is available. Help > Check for updates checks
+  right away.
+- The update dialog shows the new release's highlights and its changelog
+  entries for every version since the one running, newest first, with the
+  release's screenshots.
+- Update now downloads the new version, checks it, installs it and restarts
+  Casso. Update when closed installs it the next time Casso closes. Copies
+  installed from the MSIX package and copies unzipped from the release zip both
+  update in place; a copy built from source does not.
+- Skip this version hides the indicator until a newer release comes out.
+- A General settings page for app-wide options: automatic update checks, with
+  the time of the last check, a Check now button and a way to cancel a skipped
+  version; the download offers at startup (disk drive sounds and updated ROMs),
+  which could not be changed after the first answer; and a link to the settings
+  folder.
+
+### Changed
+
+- A release build fails rather than publishing unsigned files.
+- Settings tabs are sized to their labels.
+
+## [1.31.0] - 2026-10-06: The one with cassette tape support
+
 ### Added
 
 - `disk create` appends the default file extension for `--type` if one is not
   specified
+- GH #160: Cassette tape support for the Apple ][, ][+ and //e. Programs load
+  through the machine's own ROM with `LOAD` and save with `SAVE`, from WAV,
+  AIFF, MP3 and FLAC recordings. Tested against the 25 most-downloaded Apple II
+  cassette titles on the Internet Archive.
+- GH #160: A Panasonic RQ-309DS cassette recorder on the desk, with working
+  Record, Rewind, Fast-forward, Play, Stop and Eject keys, a volume wheel, a
+  counter, and the tape's title handwritten on the cassette label. A tape deck
+  also appears in the flat themes and on the fullscreen drive strip.
+- GH #160: Fast tape loading, on by default: loading from tape runs at full
+  speed, with short slices of the tape's audio played at normal pitch.
+- GH #160: Recording onto a blank tape, created from the insert-tape dialog,
+  as a 16-bit or 8-bit WAV (Settings > Storage).
+- GH #160: The `--tape` command-line option inserts a recording at startup.
+- GH #160: Attach and detach the second drive and the cassette recorder from
+  the Storage menu, or by right-clicking a drive or the recorder. The choice is
+  saved per machine.
+- A "Hold Ctrl to pan" hint appears under the scene compass on hover. With
+  Ctrl held, the compass arrows pan the scene, and Ctrl+click on its center is
+  the same as Ctrl+0.
 
 ### Changed
 
 - The usage text lists `--title`, which adds a label to the window title.
+- GH #160: The Disk menu is now the Storage menu.
+- GH #160: The second drive (the external drive on the //c) is attached from
+  the Storage menu instead of Settings > Hardware.
 
 ### Fixed
 

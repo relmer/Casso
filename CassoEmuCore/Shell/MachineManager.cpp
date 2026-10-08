@@ -337,6 +337,20 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     m_shell.m_mouseConnected = mouseConn;
 
+                    // The cassette recorder: the switched-to machine's own
+                    // setting, connected unless it was disconnected.
+                    {
+                        bool  recorder = true;
+
+                        if (extPrefs != nullptr)
+                        {
+                            HRESULT  hrR = extPrefs->GetBool ("tapeRecorderConnected", recorder);
+                            IGNORE_RETURN_VALUE (hrR, S_OK);
+                        }
+
+                        m_shell.m_tapeRecorderConnected = recorder;
+                    }
+
                     // The block the switched-to machine's input mapping is
                     // restored from. HELD, not applied: the config loader
                     // below can still refuse the switch, and the mapping
@@ -494,6 +508,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // destroyed; the rebuilt machine re-registers from a fresh pool.
         m_shell.m_machine.GetInterruptController().ResetSources();
 
+        // The recorder outlives the machine; stop it while the old CPU's
+        // cycle count is still valid. The tape stays inserted.
+        m_shell.m_machine.StopTape();
+
         m_shell.m_machine.SetCpu (nullptr);
         // The //c ROM-bank coordinator holds references into the language card
         // (owned) + MMU; drop it before those owners are torn down.
@@ -596,6 +614,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
+
+    // Each machine keeps its own tape, as it keeps its own disks.
+    m_shell.m_tapeManager->OnMachineSwitched();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.

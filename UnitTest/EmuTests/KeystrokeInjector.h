@@ -12,11 +12,11 @@
 //
 //  KeystrokeInjector
 //
-//  Injects ASCII keystrokes into an //e machine via
-//  Apple2eKeyboard::PressKey, pumping CPU cycles between strokes until the
-//  ROM consumes the strobe. The //e keyboard passes lowercase through, so
-//  what is injected is what the guest latches; the ][ / ][+ keyboard would
-//  fold it to uppercase, which is why this injector is //e-only.
+//  Injects ASCII keystrokes into any Apple II through AppleKeyboard::PressKey,
+//  pumping CPU cycles between strokes until the ROM consumes the strobe. The
+//  //e keyboard passes lowercase through, so what is injected is what the
+//  guest latches; the ][ / ][+ keyboard folds it to uppercase, so tests for
+//  those machines inject uppercase.
 //
 //  Caller responsibilities:
 //    - The machine must already be powered on with the ROM idling at the

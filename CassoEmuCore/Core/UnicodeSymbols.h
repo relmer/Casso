@@ -39,6 +39,7 @@ static constexpr LPCWSTR s_kpszMdl2Copy      = L"\xE8C8";       // U+E8C8 Segoe 
 static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe MDL2 Accept (check mark)
 static constexpr LPCWSTR s_kpszMdl2Info      = L"\xE946";       // U+E946 Segoe MDL2 Info ("i" in a ring)
 static constexpr LPCWSTR s_kpszMdl2Warning   = L"\xE7BA";       // U+E7BA Segoe MDL2 Warning (outlined triangle)
+static constexpr LPCWSTR s_kpszMdl2Download  = L"\xE896";       // U+E896 Segoe MDL2 Download (arrow down onto a line)
 
 // Xbox controller inputs, as Segoe MDL2 Assets draws them.
 static constexpr LPCWSTR s_kpszMdl2ButtonA       = L"\xF093";   // U+F093 Segoe MDL2 ButtonA (circled A)

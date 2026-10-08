@@ -149,5 +149,74 @@ public:
         Assert::IsFalse (t.IsVisible(),
             L"A resting pointer must not keep renewing the tooltip deadline.");
     }
-};
 
+    //  An instant tip shows on the request itself, with no dwell, and follows
+    //  the pointer from one anchor to the next at once; the tooltip's dwell
+    //  for an ordinary request is unchanged.
+    TEST_METHOD (RequestShowNow_ShowsAtOnceAndLeavesTheDwellAlone)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShowNow (MakeRect (0, 0, 10, 10), L"$0400", 0);
+        Assert::IsTrue   (t.IsVisible(), L"no dwell, and no Tick needed");
+        Assert::AreEqual (std::wstring (L"$0400"), t.GetText());
+
+        t.RequestShowNow (MakeRect (10, 0, 20, 10), L"$0401", 1);
+        Assert::AreEqual (std::wstring (L"$0401"), t.GetText(), L"the next byte's tip, at once");
+        Assert::AreEqual (10L, t.GetAnchor().left);
+
+        t.HideImmediate();
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"ordinary", 100);
+        Assert::IsFalse (t.IsVisible(), L"an ordinary request still waits");
+
+        t.Tick (599);
+        Assert::IsFalse (t.IsVisible());
+
+        t.Tick (600);
+        Assert::IsTrue  (t.IsVisible());
+    }
+
+    //  A pointer twenty pixels tall below its hot spot, and two above it.
+    static DxuiTooltip::PointerExtent  GetTallPointer() { return DxuiTooltip::PointerExtent { 2, 20 }; }
+
+    //  An instant tip follows the pointer, so it is placed clear of the
+    //  pointer's whole image plus a gap, below it, or above it where below
+    //  would run off the work area. A dwelled tip keeps its control's anchor.
+    TEST_METHOD (RequestShowNow_PlacesTheTipClearOfThePointer)
+    {
+        constexpr int  kGapPx   = 4;
+        DxuiTooltip    t;
+        RECT           cell     = MakeRect (100, 200, 120, 216);
+        RECT           anchor   = {};
+        RECT           work     = MakeRect (0, 0, 1000, 800);
+        RECT           placed   = {};
+        SIZE           tipPx    = { 60, 22 };
+
+
+
+        t.SetPointerMeasurer (GetTallPointer);
+        t.RequestShowNow (cell, L"$0400", 0);
+
+        anchor = t.GetPlacementAnchor();
+
+        Assert::AreEqual (cell.left,                 anchor.left,   L"along the byte, as before");
+        Assert::AreEqual (cell.bottom + 20 + kGapPx, anchor.bottom, L"below the lowest the pointer's image reaches from anywhere in the byte, and a gap");
+        Assert::AreEqual (cell.top - 2 - kGapPx,     anchor.top,    L"above the highest it reaches, and a gap");
+
+        placed = DxuiPopupHost::ComputePlacementForTest (anchor, work, DxuiPopupPlacement::Below, tipPx, true);
+        Assert::IsTrue (placed.top >= cell.bottom + 20, L"below the pointer, not over it");
+
+        work.bottom = cell.bottom + 20;
+        placed      = DxuiPopupHost::ComputePlacementForTest (anchor, work, DxuiPopupPlacement::Below, tipPx, true);
+        Assert::IsTrue (placed.bottom <= cell.top - 2, L"above the pointer where below would leave the work area");
+
+        t.HideImmediate();
+        t.SetDwellOpenMs (0);
+        t.RequestShow (cell, L"a control's tip", 0);
+        t.Tick (0);
+        anchor = t.GetPlacementAnchor();
+
+        Assert::IsTrue (EqualRect (&anchor, &cell) != FALSE, L"a dwelled tip keeps its control's anchor");
+    }
+};

@@ -87,7 +87,7 @@ struct GlobalUserPrefs
     std::string  audioDownloadConsent  = "ask";
 
     // Whether to offer a replacement for a ROM Casso itself installed and
-    // has since corrected. The machine boots on the old file, so the offer
+    // has since updated. The machine boots on the old file, so the offer
     // is optional: "ask" until the user skips it, then "decline".
     // AssetBootstrap::RunStartupDownloader reads + writes this.
     std::string  romRefreshConsent     = "ask";
@@ -238,6 +238,24 @@ struct GlobalUserPrefs
     // and to the monitor's work area.
     int          settingsWidthDip         = 0;
     int          settingsHeightDip        = 0;
+
+    // THE UPDATE CHECK. Whether the once-a-day check runs at all; when it last
+    // ran (Unix seconds, 0 == never); the newest release it found, so the
+    // title-bar indicator can show between checks without a request; and the
+    // release the user chose to skip. Both versions are bare "1.30.0" strings,
+    // empty when unknown or nothing is skipped.
+    bool          autoUpdateCheck          = true;
+    std::int64_t  lastUpdateCheckUtc       = 0;
+    std::string   latestKnownVersion;
+    std::string   skippedVersion;
+
+    // AN UPDATE APPLIED WHEN CASSO CLOSES. The version it installs and how
+    // ("zip" or "msix"), empty when none is waiting, and the failure of a zip
+    // swap at exit as an UpdateFailure value (0 == none), for the next launch
+    // to report.
+    std::string   pendingUpdateVersion;
+    std::string   pendingUpdateKind;
+    int           pendingUpdateFailure     = 0;
 
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;

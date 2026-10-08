@@ -635,6 +635,8 @@ bool EmulatorShell::TryPresentUiFrame()
         m_diskManager->UpdateDriveWidgets();
     }
 
+    SyncTapeChrome();
+
     // The capture bar and the fullscreen top chrome's reveal, both per-frame
     // because both answer where the pointer is right now.
     //
@@ -781,6 +783,10 @@ bool EmulatorShell::TryPresentUiFrame()
             m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
         }
 
+        // The volume wheel stands where the tape volume is, however it was
+        // last set -- dragged, or from the Settings slider.
+        m_deskScene.SetRecorderVolumeTurn (m_tapeAudioSource.GetVolume() * s_kVolumeWheelTurnRad);
+
         // A mount or eject changes the basename strip under the drive, and so
         // does write-protecting the disk, since the padlock is a glyph at the
         // head of that name, and so does the info icon after it. None of them
@@ -798,6 +804,20 @@ bool EmulatorShell::TryPresentUiFrame()
                     m_sceneLabelPath[i] = source;
                     labelsMoved         = true;
                 }
+            }
+
+            // The recorder's keys follow the transport, and a clicked key's
+            // dip needs frames until it is back up.
+            if (SyncRecorderKeys ((int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                      std::chrono::steady_clock::now().time_since_epoch()).count()))
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+
+            // A name scrolling under the pointer moves every frame.
+            if (m_sceneLabelHover >= 0 && m_sceneDiskLabelPeriod[(size_t) m_sceneLabelHover] > 0.0f)
+            {
+                labelsMoved = true;
             }
 
             if (labelsMoved)
@@ -898,8 +918,15 @@ bool EmulatorShell::TryPresentUiFrame()
                     // windowed drive band reserves it: the disk's name and its
                     // padlock belong under the drive here too, and a row composed
                     // into the whole band would put them off the screen's edge.
+                    // The recorder has a second row, its counter, under its
+                    // tape name, so it needs one more strip.
                     driveRow         = m_stripRectPx;
                     driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
+                    if (m_deskScene.HasRecorder() && IsTapeRecorderShown())
+                    {
+                        driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+                    }
 
                     // The drive band's calibrated look-down, not the desk's
                     // near-level default: the band angle is what shows the
@@ -1051,6 +1078,13 @@ bool EmulatorShell::TryPresentUiFrame()
         m_driveTooltip.Tick     (nowMs);
         m_captionTooltip.Tick   (nowMs);
 
+        // The update indicator's shimmer asks for frames only while it sweeps;
+        // between sweeps the idle loop sleeps until the next one is due.
+        if (TickUpdateIndicator ((int64_t) GetTickCount64()))
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
         // An open menu's submenu waits out the system's show delay before it
         // opens, and the pointer resting on the row produces no messages, so
         // a present is requested every frame one is armed, as for the compass.
@@ -1058,6 +1092,16 @@ bool EmulatorShell::TryPresentUiFrame()
         {
             m_mainMenu.TickMenus (nowMs);
             m_toolbar.TickMenus  (nowMs);
+
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
+        // The devices' right-click menu unfolds as it opens, and nothing but
+        // a tick moves that along: unticked, it stays on its first frame, a
+        // sliver a pixel or two tall.
+        if (m_host != nullptr && m_host->GetContextMenu().WantsTick())
+        {
+            m_host->GetContextMenu().Tick (nowMs);
 
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1071,6 +1115,11 @@ bool EmulatorShell::TryPresentUiFrame()
         {
             m_sceneCompass.Tick (nowMs);
 
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
+        if (StepCompassHint (nowMs))
+        {
             m_d3dRenderer.MarkRedrawNeeded();
         }
     }
@@ -1179,7 +1228,7 @@ Error:
 
 bool EmulatorShell::ShouldPublishFrame()
 {
-    SpeedMode  speed = m_cpuManager.GetSpeedMode();
+    SpeedMode  speed = m_cpuManager.GetEffectiveSpeedMode();
 
 
 
@@ -1506,6 +1555,7 @@ void EmulatorShell::SetStandInOverlaysHidden (bool hidden)
     if (hidden)
     {
         m_sceneCompass.SetVisible     (false);
+        m_compassHint.SetVisible      (false);
         m_fpsReadout.SetVisible       (false);
         m_sceneViewReadout.SetVisible (false);
         //  The pointer-capture bar is docked chrome in a window, and a

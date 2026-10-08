@@ -40,6 +40,7 @@ public:
     int   GetGamePortAxisCount () const override { return (4); }
     bool  HasGamePortDevice    () const override { return (true); }
     bool  HasAnnunciators      () const override { return (true); }
+    bool  HasCassettePort      () const override { return (true); }
     bool  HasCaseSwitches      () const override { return (false); }
     bool  HasBuiltInDrive      () const override { return (false); }
 

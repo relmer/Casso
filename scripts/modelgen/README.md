@@ -17,6 +17,7 @@ without touching the loader.
 | `cad_disk2c.py` | `Resources/Models/Disk2c/` | Apple //c external Drive A2M4020 (152×216×70) |
 | `cad_monitor2c.py` | `Resources/Models/Monitor2c/` | Apple Monitor //c G090H (248×280×200) |
 | `cad_monitor2.py` | `Resources/Models/Monitor2/` | Apple Monitor II A2M2010 (343×348×292) |
+| `cad_rq309ds.py` | `Resources/Models/CassetteRecorder/` | Panasonic RQ-309DS cassette recorder (140×260×70) |
 | `gen_duodisk.py` | `Resources/Models/DuoDisk/` | Apple DuoDisk A9M0106 (386×89×222) — meshkit, not yet migrated |
 | `gen_profile.py` | `Resources/Models/ProFile/` | Apple ProFile 5 MB (439×110×226) — meshkit, not yet migrated |
 

@@ -9,6 +9,21 @@
 
 class DxuiPropertyPage;
 class DxuiButton;
+class IDxuiTextRenderer;
+
+
+
+
+
+//
+//  One tab's input to DxuiPropertySheet::LayoutTabRects: the measured width
+//  of its label, and whether its page is shown. A hidden tab takes no space.
+//
+struct DxuiSheetTab
+{
+    float  labelWidthDip = 0.0f;
+    bool   isVisible     = true;
+};
 
 
 
@@ -86,6 +101,25 @@ public:
                                   const DxuiDpiScaler  & scaler,
                                   std::span<const int>   widthsDip,
                                   std::span<RECT>        outRects);
+
+    //
+    //  Tab sizing. Each tab is as wide as its label, measured in the tab
+    //  strip's font, plus kTabPadXDip on both sides, but never narrower than
+    //  kTabMinWidthDip. LayoutTabRects is the pure rule (exposed for tests):
+    //  visible tabs sit edge to edge from the strip's left pad, and a hidden
+    //  tab gets an empty rect. outRects must be at least tabs.size() long.
+    //  MeasureTabLabelDip measures one label the way the strip draws it.
+    //
+    static constexpr int  kTabMinWidthDip = 64;
+    static constexpr int  kTabPadXDip     = 12;
+
+    static void     LayoutTabRects     (const RECT                     & stripPx,
+                                        const DxuiDpiScaler            & scaler,
+                                        std::span<const DxuiSheetTab>    tabs,
+                                        std::span<RECT>                  outRects);
+    static HRESULT  MeasureTabLabelDip (IDxuiTextRenderer   & text,
+                                        const std::wstring  & label,
+                                        float               & outWidthDip);
 
     //
     //  Page scrolling. SetDesignHeightDip gives the window height the pages
@@ -191,6 +225,7 @@ private:
     int   TabIndexOfPage      (int pageIndex) const;
     int   PageIndexOfTab      (int tabIndex) const;
     void  BuildTabList        (std::vector<DxuiTabStrip::Tab> & out) const;
+    void  MeasureTabs         (std::vector<DxuiSheetTab> & out) const;
 
     void                LayoutPages                (const RECT & pageAreaPx, const DxuiDpiScaler & scaler);
     void                PlacePages                 (const DxuiDpiScaler & scaler);

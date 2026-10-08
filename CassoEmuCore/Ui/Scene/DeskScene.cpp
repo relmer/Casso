@@ -66,7 +66,8 @@ void DeskScene::Shutdown()
 
 HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
                                std::span<const uint8_t>   monitorMesh,
-                               std::span<const uint8_t>   driveMesh)
+                               std::span<const uint8_t>   driveMesh,
+                               std::span<const uint8_t>   recorderMesh)
 {
     DeskDeviceKind  driveKind = (monitorKind == DeskDeviceKind::Monitor2c)
                                 ? DeskDeviceKind::Disk2c : DeskDeviceKind::DiskII;
@@ -76,6 +77,19 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
 
     hr = m_monitor.Load (monitorKind, monitorMesh);
     CHRA (hr);
+
+    // Reset whether or not a recorder follows, so switching to a machine
+    // without cassette jacks leaves no recorder from the last one behind.
+    m_hasRecorder = false;
+    m_recorder    = DeskSceneModel {};
+
+    if (!recorderMesh.empty())
+    {
+        hr = m_recorder.Load (DeskDeviceKind::CassetteRecorder, recorderMesh);
+        CHRA (hr);
+
+        m_hasRecorder = true;
+    }
 
     // The drive that comes with the monitor. They are never mixed -- the //c
     // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
@@ -138,6 +152,9 @@ HRESULT DeskScene::AdoptModelsFrom (const DeskScene & other)
     m_monitor = other.m_monitor;
     m_drive   = other.m_drive;
 
+    m_recorder    = other.m_recorder;
+    m_hasRecorder = other.m_hasRecorder;
+
     m_driveLabelVerts[0] = other.m_driveLabelVerts[0];
     m_driveLabelVerts[1] = other.m_driveLabelVerts[1];
 
@@ -176,6 +193,9 @@ void DeskScene::BuildDerivedGeometry()
         m_doorProgress[drive] = -1.0f;
     }
 
+    // So were the recorder's keys, for the same reason.
+    m_recorderKeyVerts.clear();
+
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   DriveGlowRgb (m_drive.Kind()), m_driveGlowVerts);
 
@@ -184,11 +204,42 @@ void DeskScene::BuildDerivedGeometry()
     BuildContactShadow (m_drive,   kShadowMarginSideMm,        kShadowMarginDepthMm,
                         m_driveShadowVerts);
 
+    m_recorderShadowVerts.clear();
+
+    if (m_hasRecorder)
+    {
+        BuildContactShadow (m_recorder, kShadowMarginSideMm, kShadowMarginDepthMm,
+                            m_recorderShadowVerts);
+    }
+
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
 
     TouchGeometry();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetRecorderShown
+//
+//  Attaching or detaching the recorder. Its model stays loaded, so this is
+//  instant; the layout that places it is the caller's to redo.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderShown (bool shown)
+{
+    if (shown != m_recorderShown)
+    {
+        m_recorderShown = shown;
+        m_recorderKeyVerts.clear();
+        TouchGeometry();
+    }
 }
 
 
@@ -224,6 +275,17 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.monitorPadDepthMm = kMonitorShadowMarginDepthMm;
     metrics.drivePadSideMm    = kShadowMarginSideMm;
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
+
+    metrics.hasRecorder = HasRecorder();
+
+    if (HasRecorder())
+    {
+        m_recorder.BoundsMin (metrics.recorderMin);
+        m_recorder.BoundsMax (metrics.recorderMax);
+
+        metrics.recorderPadSideMm  = kShadowMarginSideMm;
+        metrics.recorderPadDepthMm = kShadowMarginDepthMm;
+    }
 
     return metrics;
 }
@@ -512,6 +574,26 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
                 lighting.lampConeCosInner = std::cos (kLampConeInnerDeg * 3.14159265f / 180.0f);
             }
         }
+    }
+
+    // A mirror needs two inputs: the scene captured around the recorder's
+    // handle, whose directions are the world's, and the real eye position,
+    // in this device's own space, to reflect off it. The fixed eye direction above is a
+    // shading convention and no use to a mirror, which shows whatever lies
+    // along the actual line of sight.
+    if (m_envReady && !m_inEnvCapture)
+    {
+        float  eyeWorld[3] = {};
+
+        memcpy (lighting.envMatrix, world, sizeof (lighting.envMatrix));
+        lighting.envMatrix[12] = 0.0f;
+        lighting.envMatrix[13] = 0.0f;
+        lighting.envMatrix[14] = 0.0f;
+
+        GetEyeWorld (m_comp.view, eyeWorld);
+        SceneCamera::TransformPoint (toModel, eyeWorld, lighting.envEye);
+
+        lighting.hasEnvironment = true;
     }
 
     m_renderer.SetLighting (lighting);
@@ -1011,6 +1093,11 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
     {
         accumulate (m_drive, comp.driveWorld[drive]);
     }
+
+    if (comp.hasRecorder != 0 && HasRecorder())
+    {
+        accumulate (m_recorder, comp.recorderWorld);
+    }
 }
 
 
@@ -1184,6 +1271,16 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
                                         m_geometryRev, mvp, false, viewport, true);
         }
 
+        if (comp.hasRecorder != 0 && HasRecorder() && SUCCEEDED (hr))
+        {
+            SceneCamera::Mul44 (comp.recorderWorld, m_lightVp[k], mvp);
+
+            hr = m_renderer.DrawStatic (m_recorderOpaqueMesh,
+                                        m_recorder.OpaqueVerts().data(),
+                                        m_recorder.OpaqueVerts().size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+        }
+
         m_renderer.EndShadowPass();
         CHRA (hr);
     }
@@ -1291,6 +1388,332 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
                                            mvp, false, viewport, true);
             CHRA (hr);
         }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetRecorderKeyDepths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderKeyDepths (const std::array<float, DeskSceneModel::kRecorderKeyCount> & depthsMm)
+{
+    if (depthsMm != m_recorderKeyDepth)
+    {
+        m_recorderKeyDepth = depthsMm;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+
+        // The keys are part of the cached plate, so a key that moved has to
+        // throw it away, as a door does -- or the plate keeps drawing them
+        // where they were.
+        InvalidatePlate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetRecorderLid
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderLid (float openRad, bool hasCassette)
+{
+    if (openRad != m_recorderLidRad || hasCassette != m_recorderCassette)
+    {
+        m_recorderLidRad   = openRad;
+        m_recorderCassette = hasCassette;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+        InvalidatePlate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetRecorderVolumeTurn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderVolumeTurn (float turnRad)
+{
+    if (turnRad != m_recorderVolumeRad)
+    {
+        m_recorderVolumeRad = turnRad;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+        InvalidatePlate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetRecorderReelTurn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetRecorderReelTurn (float turnRad)
+{
+    if (turnRad != m_recorderReelRad)
+    {
+        m_recorderReelRad = turnRad;
+        m_recorderKeyVerts.clear();   // rebuilt lazily in DrawRecorder
+        InvalidatePlate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::AppendTurned
+//
+//  Turns geometry about the model's up axis through (pivotX, pivotY), the
+//  way a wheel lying flat turns. Normals turn with the faces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::AppendTurned (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotX, float pivotY,
+                              float angleRad, std::vector<Dxui3DRenderer::Vertex> & out)
+{
+    float  c = cosf (angleRad);
+    float  s = sinf (angleRad);
+
+
+
+    for (Dxui3DRenderer::Vertex v : in)
+    {
+        float  dx = v.x - pivotX;
+        float  dy = v.y - pivotY;
+        float  nx = v.nx;
+        float  ny = v.ny;
+
+        v.x  = pivotX + dx * c - dy * s;
+        v.y  = pivotY + dx * s + dy * c;
+        v.nx = nx * c - ny * s;
+        v.ny = nx * s + ny * c;
+
+        out.push_back (v);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::AppendHinged
+//
+//  The model is X right, Y back, Z up, so a hinge running left to right is
+//  the X axis through (pivotY, pivotZ). Normals turn with the faces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::AppendHinged (const std::vector<Dxui3DRenderer::Vertex> & in, float pivotY, float pivotZ,
+                              float angleRad, std::vector<Dxui3DRenderer::Vertex> & out)
+{
+    float  c = cosf (angleRad);
+    float  s = sinf (angleRad);
+
+
+
+    for (Dxui3DRenderer::Vertex v : in)
+    {
+        float  dy = v.y - pivotY;
+        float  dz = v.z - pivotZ;
+        float  ny = v.ny;
+        float  nz = v.nz;
+
+        v.y  = pivotY + dy * c - dz * s;
+        v.z  = pivotZ + dy * s + dz * c;
+        v.ny = ny * c - nz * s;
+        v.nz = ny * s + nz * c;
+
+        out.push_back (v);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::DrawRecorder
+//
+//  The cassette recorder beside the stack, when the composition placed one:
+//  a single opaque body with no lamp, door or label to pose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawRecorder (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT   hr      = S_OK;
+    float     mvp[16] = {};
+
+
+
+    BAIL_OUT_IF (comp.hasRecorder == 0 || !HasRecorder(), S_OK);
+
+    SceneCamera::Mul44 (comp.recorderWorld, comp.viewProj, mvp);
+
+    SetModelLighting (m_recorder, comp.recorderWorld);
+
+    hr = m_renderer.DrawStatic (m_recorderOpaqueMesh,
+                                m_recorder.OpaqueVerts().data(),
+                                m_recorder.OpaqueVerts().size(),
+                                m_geometryRev, mvp, false, viewport, true);
+    CHRA (hr);
+
+    // The keys, each pivoted down on its rear hinge so its front drops by its
+    // depth; the door turned open on its hinge in the grille; the cassette
+    // only with a tape in. Rebuilt only when something moved.
+    if (m_recorderKeyVerts.empty())
+    {
+        const float *  lid = m_recorder.LidBox();
+
+        for (size_t key = 0; key < DeskSceneModel::kRecorderKeyCount; key++)
+        {
+            const float *  box   = m_recorder.KeyBoxes() + key * 6;
+            float          reach = box[4] - box[1];
+
+            if (reach > 0.0f)
+            {
+                AppendHinged (m_recorder.KeyVerts (key), box[4], box[5],
+                              atanf (m_recorderKeyDepth[key] / reach), m_recorderKeyVerts);
+            }
+        }
+
+        // The door turns about the hinge pin at the struts' rear end, just
+        // behind the door's back edge and down under the grille.
+        m_recorderGlassVerts.clear();
+
+        if (lid[4] > lid[1])
+        {
+            AppendHinged (m_recorder.LidVerts(), lid[4], lid[2] + kLidHingeAboveMm,
+                          -m_recorderLidRad, m_recorderKeyVerts);
+            AppendHinged (m_recorder.LidGlassVerts(), lid[4], lid[2] + kLidHingeAboveMm,
+                          -m_recorderLidRad, m_recorderGlassVerts);
+
+            // Smoked, so faint: premultiplied, as the renderer blends.
+            for (Dxui3DRenderer::Vertex & v : m_recorderGlassVerts)
+            {
+                v.a  = kLidGlassAlpha;
+                v.r *= kLidGlassAlpha;
+                v.g *= kLidGlassAlpha;
+                v.b *= kLidGlassAlpha;
+            }
+
+            // What is molded up out of the pane, more solid than the pane so
+            // its tops read as raised, but still showing what is under it.
+            size_t  first = m_recorderGlassVerts.size();
+
+            AppendHinged (m_recorder.LidReliefVerts(), lid[4], lid[2] + kLidHingeAboveMm,
+                          -m_recorderLidRad, m_recorderGlassVerts);
+
+            for (size_t i = first; i < m_recorderGlassVerts.size(); i++)
+            {
+                Dxui3DRenderer::Vertex &  v = m_recorderGlassVerts[i];
+
+                v.a  = kLidReliefAlpha;
+                v.r *= kLidReliefAlpha;
+                v.g *= kLidReliefAlpha;
+                v.b *= kLidReliefAlpha;
+            }
+        }
+
+        if (m_recorderCassette)
+        {
+            AppendHinged (m_recorder.CassetteVerts(), 0.0f, 0.0f, 0.0f, m_recorderKeyVerts);
+
+            // Its window, clear plastic: what lies under the cassette shows
+            // through it, dimmed.
+            for (Dxui3DRenderer::Vertex v : m_recorder.CassetteGlassVerts())
+            {
+                v.a  = kCassetteGlassAlpha;
+                v.r *= kCassetteGlassAlpha;
+                v.g *= kCassetteGlassAlpha;
+                v.b *= kCassetteGlassAlpha;
+
+                m_recorderGlassVerts.push_back (v);
+            }
+        }
+
+        // The spindles, and with a tape in the hubs on them, turned about
+        // each spindle's axis. Clockwise from above is a negative turn about
+        // the up axis.
+        for (size_t reel = 0; reel < DeskSceneModel::kRecorderReelCount; reel++)
+        {
+            const float *  box = m_recorder.SpindleBox (reel);
+            float          cx  = (box[0] + box[3]) * 0.5f;
+            float          cy  = (box[1] + box[4]) * 0.5f;
+
+            if (box[3] > box[0])
+            {
+                AppendTurned (m_recorder.SpindleVerts (reel), cx, cy, -m_recorderReelRad, m_recorderKeyVerts);
+
+                if (m_recorderCassette)
+                {
+                    AppendTurned (m_recorder.HubVerts (reel), cx, cy, -m_recorderReelRad, m_recorderKeyVerts);
+                }
+            }
+        }
+
+        // The volume wheel, turned about its own middle.
+        {
+            const float *  wheel = m_recorder.VolumeWheelBox();
+
+            if (wheel[3] > wheel[0])
+            {
+                AppendTurned (m_recorder.VolumeWheelVerts(), (wheel[0] + wheel[3]) * 0.5f,
+                              (wheel[1] + wheel[4]) * 0.5f, m_recorderVolumeRad, m_recorderKeyVerts);
+            }
+        }
+    }
+
+    if (!m_recorderKeyVerts.empty())
+    {
+        hr = m_renderer.DrawTriangles (m_recorderKeyVerts.data(), m_recorderKeyVerts.size(),
+                                       mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    // The chrome, which the shader shows as a mirror -- except while the
+    // scene is being captured for it to reflect, from inside it.
+    if (!m_recorder.ChromeVerts().empty() && !m_inEnvCapture)
+    {
+        hr = m_renderer.DrawTriangles (m_recorder.ChromeVerts().data(), m_recorder.ChromeVerts().size(),
+                                       mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    // The pane last, over what it covers, tested against the depth but not
+    // written to it, so the cassette and well behind it still show.
+    if (!m_recorderGlassVerts.empty())
+    {
+        hr = m_renderer.DrawTriangles (m_recorderGlassVerts.data(), m_recorderGlassVerts.size(),
+                                       mvp, false, viewport, true, false);
+        CHRA (hr);
     }
 
 Error:
@@ -1658,6 +2081,15 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
         CHRA (hr);
     }
 
+    if (comp.hasRecorder != 0 && !m_recorderShadowVerts.empty())
+    {
+        SceneCamera::Mul44 (comp.recorderWorld, comp.viewProj, mvp);
+
+        hr = m_renderer.DrawStatic (m_recorderShadowMesh, m_recorderShadowVerts.data(), m_recorderShadowVerts.size(),
+                                    m_geometryRev, mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
 Error:
     return hr;
 }
@@ -1758,6 +2190,9 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     CHRA (hr);
 
     hr = DrawDrives (strip, viewport);
+    CHRA (hr);
+
+    hr = DrawRecorder (strip, viewport);
     CHRA (hr);
 
     hr = DrawLampGlows (strip, viewport, false);
@@ -1942,6 +2377,11 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     hr = RenderShadowMaps (m_comp, viewport);
     CHRA (hr);
 
+    // Then what the chrome reflects, which is the scene itself, so it too
+    // must be in hand before the scene is drawn.
+    hr = RenderEnvironment (m_comp);
+    CHRA (hr);
+
     // Behind the picture first.
     rawPlate = m_backPlateRtv.Get();
     m_context->OMSetRenderTargets (1, &rawPlate, nullptr);
@@ -1978,6 +2418,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         CHRA (hr);
 
         hr = DrawDrives (m_comp, viewport);
+        CHRA (hr);
+
+        hr = DrawRecorder (m_comp, viewport);
         CHRA (hr);
     }
 
@@ -2109,6 +2552,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
             hr = DrawDrives (m_comp, viewport);
             CHRA (hr);
+
+            hr = DrawRecorder (m_comp, viewport);
+            CHRA (hr);
         }
 
         // The mask and the sheen are the faceplate's own layers, so they ride
@@ -2164,6 +2610,261 @@ Error:
     hrEnd = m_renderer.EndMultisampledScene();
     IGNORE_RETURN_VALUE (hrEnd, S_OK);
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::GetEyeWorld
+//
+//  The camera's position in the world: the view's translation undone through
+//  its rotation, which is orthonormal, so its transpose is its inverse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::GetEyeWorld (const float view[16], float out[3])
+{
+    for (int j = 0; j < 3; j++)
+    {
+        out[j] = -(view[12] * view[j * 4] + view[13] * view[j * 4 + 1] + view[14] * view[j * 4 + 2]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::RenderEnvironment
+//
+//  The chrome reflects the scene itself: the monitor, the drives and the
+//  rest of the recorder, drawn six times from the middle of the handle, once
+//  down each axis, into the faces of a cube map. The shader then looks up the
+//  eye's ray, bounced off the surface, in that cube.
+//
+//  Captured whenever the plate is redrawn, which is whenever anything in the
+//  scene moves, and not otherwise: a still scene costs nothing more.
+//
+//  Each face is a 90 degree view down its axis, mirrored left to right. The
+//  scene's cameras are right-handed and D3D's cube faces are laid out
+//  left-handed, so an unmirrored face would show the room backwards. Nothing
+//  in the color pass culls by winding, so the mirror costs nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::RenderEnvironment (const DeskSceneComposition & comp)
+{
+    // D3D's face order: +X, -X, +Y, -Y, +Z, -Z, each with the up its layout
+    // expects.
+    static constexpr float  kFaceDir[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 },
+                                               { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+    static constexpr float  kFaceUp[6][3]  = { { 0, 1, 0 }, { 0, 1, 0 }, { 0, 0, -1 },
+                                               { 0, 0, 1 }, { 0, 1, 0 }, { 0, 1, 0 } };
+    HRESULT               hr        = S_OK;
+    float                 lo[3]     = {  FLT_MAX,  FLT_MAX,  FLT_MAX };
+    float                 hi[3]     = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float                 mid[3]    = {};
+    float                 center[3] = {};
+    float                 proj[16]  = {};
+    D3D11_VIEWPORT        viewport  = {};
+    DeskSceneComposition  faceComp  = comp;
+
+
+
+    m_envReady = false;
+
+    BAIL_OUT_IF (comp.glassOnly != 0 || comp.hasRecorder == 0 || !HasRecorder(), S_OK);
+    BAIL_OUT_IF (m_recorder.ChromeVerts().empty(), S_OK);
+
+    // The middle of the handle, in the world.
+    for (const Dxui3DRenderer::Vertex & v : m_recorder.ChromeVerts())
+    {
+        lo[0] = std::min (lo[0], v.x);  hi[0] = std::max (hi[0], v.x);
+        lo[1] = std::min (lo[1], v.y);  hi[1] = std::max (hi[1], v.y);
+        lo[2] = std::min (lo[2], v.z);  hi[2] = std::max (hi[2], v.z);
+    }
+
+    // The middle of the bar across the front, not of the whole handle: its
+    // arms run back into the case, and the box around them has its middle
+    // inside the body, so a capture from there would show only the body.
+    mid[0] = (lo[0] + hi[0]) * 0.5f;
+    mid[1] = lo[1] + kEnvFrontInsetMm;
+    mid[2] = (lo[2] + hi[2]) * 0.5f;
+
+    SceneCamera::TransformPoint (comp.recorderWorld, mid, center);
+
+    BuildEnvironmentRoom (center);
+
+    SceneCamera::PerspectiveFovRH (3.14159265f * 0.5f, 1.0f, kEnvNearMm, kEnvFarMm, proj);
+
+    for (int i = 0; i < 4; i++)
+    {
+        proj[i * 4] = -proj[i * 4];
+    }
+
+    m_inEnvCapture = true;
+
+    for (int face = 0; face < 6; face++)
+    {
+        float  at[3] = { center[0] + kFaceDir[face][0], center[1] + kFaceDir[face][1], center[2] + kFaceDir[face][2] };
+
+        SceneCamera::LookAtUpRH (center, at, kFaceUp[face], faceComp.view);
+        SceneCamera::Mul44 (faceComp.view, proj, faceComp.viewProj);
+
+        hr = m_renderer.BeginEnvironmentFace (face, kEnvTexels, kEnvClearRgba);
+        CHRA (hr);
+
+        viewport = m_renderer.EnvironmentViewport();
+
+        hr = DrawEnvironmentFace (faceComp, viewport);
+        m_renderer.EndEnvironmentFace();
+        CHRA (hr);
+    }
+
+    m_envReady = true;
+
+Error:
+    m_inEnvCapture = false;
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::BuildEnvironmentRoom
+//
+//  Builds the room the desk stands in, for the chrome to reflect and for nothing
+//  else: the scene draws no room of its own, the host's backdrop shows
+//  through instead, and a mirror of a backdrop color is a black bar. So the
+//  capture gets the room the scene's lighting already assumes -- a desk at
+//  world height zero, walls, a ceiling, and a bright panel at each of the two
+//  ceiling fixtures that light everything else -- so what the chrome shows
+//  agrees with where the light comes from.
+//
+//  Unlit, in world space, colors as they look: a zero normal is the
+//  renderer's "unlit".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildEnvironmentRoom (const float center[3])
+{
+    float  x0 = center[0] - kEnvRoomHalfMm;
+    float  x1 = center[0] + kEnvRoomHalfMm;
+    float  z0 = center[2] - kEnvRoomHalfMm;
+    float  z1 = center[2] + kEnvRoomHalfMm;
+    float  y1 = kEnvRoomHeightMm;
+
+
+
+    auto  quad = [this] (const float a[3], const float b[3], const float c[3], const float d[3], const float rgb[3])
+    {
+        for (const float * p : { a, b, c, a, c, d })
+        {
+            Dxui3DRenderer::Vertex  v = {};
+
+            v.x = p[0];  v.y = p[1];  v.z = p[2];
+            v.r = rgb[0];  v.g = rgb[1];  v.b = rgb[2];  v.a = 1.0f;
+
+            m_envRoomVerts.push_back (v);
+        }
+    };
+
+    m_envRoomVerts.clear();
+
+    {
+        const float  f00[3] = { x0, 0.0f, z0 }, f10[3] = { x1, 0.0f, z0 }, f11[3] = { x1, 0.0f, z1 }, f01[3] = { x0, 0.0f, z1 };
+        const float  c00[3] = { x0, y1,   z0 }, c10[3] = { x1, y1,   z0 }, c11[3] = { x1, y1,   z1 }, c01[3] = { x0, y1,   z1 };
+
+        quad (f00, f10, f11, f01, kEnvDeskRgb);
+        quad (c00, c10, c11, c01, kEnvCeilingRgb);
+        quad (f00, f10, c10, c00, kEnvWallRgb);
+        quad (f01, f11, c11, c01, kEnvWallRgb);
+        quad (f00, f01, c01, c00, kEnvWallRgb);
+        quad (f10, f11, c11, c10, kEnvWallRgb);
+    }
+
+    // The fixtures, just under the ceiling over each room light.
+    for (const float * light : s_kRoomLightsWorld)
+    {
+        float        h     = kEnvLampHalfMm;
+        float        y     = y1 - 1.0f;
+        const float  a[3]  = { light[0] - h, y, light[2] - h };
+        const float  b[3]  = { light[0] + h, y, light[2] - h };
+        const float  c[3]  = { light[0] + h, y, light[2] + h };
+        const float  d[3]  = { light[0] - h, y, light[2] + h };
+
+        quad (a, b, c, d, kEnvLampRgb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::DrawEnvironmentFace
+//
+//  The opaque bodies as the main pass draws them, seen from one face of the
+//  capture. No picture: it is composited live and never part of the plate,
+//  so the reflected screen shows its dark tube.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawEnvironmentFace (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT  hr            = S_OK;
+    float    mvp[16]       = {};
+    float    tiltWorld[16] = {};
+
+
+
+    // The room first, already in the world.
+    hr = m_renderer.DrawTriangles (m_envRoomVerts.data(), m_envRoomVerts.size(), comp.viewProj,
+                                   false, viewport, true);
+    CHRA (hr);
+
+    SceneCamera::Mul44 (comp.monitorWorld, comp.viewProj, mvp);
+    SetModelLighting (m_monitor, comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
+
+    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh, m_monitor.OpaqueVerts().data(), m_monitor.OpaqueVerts().size(),
+                                m_geometryRev, mvp, false, viewport, true);
+    CHRA (hr);
+
+    BuildTiltedMonitorWorld (comp, tiltWorld);
+    SceneCamera::Mul44 (tiltWorld, comp.viewProj, mvp);
+    SetModelLighting (m_monitor, tiltWorld, m_powerLampOn, kMonitorGlowRgb);
+
+    if (!m_monitor.TiltableVerts().empty())
+    {
+        hr = m_renderer.DrawStatic (m_monitorTiltMesh, m_monitor.TiltableVerts().data(),
+                                    m_monitor.TiltableVerts().size(), m_geometryRev, mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    if (!m_glassVerts.empty())
+    {
+        hr = m_renderer.DrawStatic (m_glassMesh, m_glassVerts.data(), m_glassVerts.size(), m_geometryRev,
+                                    mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+    hr = DrawDrives (comp, viewport);
+    CHRA (hr);
+
+    hr = DrawRecorder (comp, viewport);
+    CHRA (hr);
+
+Error:
     return hr;
 }
 
@@ -2403,7 +3104,7 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
 
 
 
-    if (drive < 0 || drive >= 2)
+    if (drive < 0 || drive >= kLabelCount)
     {
         return;
     }
@@ -2464,8 +3165,9 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
 //  matrix in first; this one must not, or the name would turn with the drive
 //  and the constant pixel size the layout solved for would be undone.
 //
-//  Depth TESTED, never WRITTEN. A name is a transparent decal, and writing
-//  its rectangle into the buffer would let the blank corners occlude the lamp
+//  Depth tested, never written, except the key tip, which is not tested
+//  either: it floats over the recorder rather than sitting on it. A name is
+//  a transparent decal, and writing its rectangle into the buffer would let the blank corners occlude the lamp
 //  glows that come after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2476,7 +3178,8 @@ HRESULT DeskScene::DrawDiskLabels (const DeskSceneComposition & comp, const D3D1
 
 
 
-    for (int drive = 0; drive < comp.driveCount && drive < 2; drive++)
+    // Every label the shell set: the drives' names and the recorder's.
+    for (int drive = 0; drive < kLabelCount; drive++)
     {
         if (m_diskLabelVerts[drive].empty() || m_diskLabelSrv[drive] == nullptr)
         {
@@ -2490,7 +3193,7 @@ HRESULT DeskScene::DrawDiskLabels (const DeskSceneComposition & comp, const D3D1
         hr = m_renderer.DrawStatic (m_diskLabelMesh[drive],
                                     m_diskLabelVerts[drive].data(),
                                     m_diskLabelVerts[drive].size(),
-                                    m_diskLabelRev, comp.viewProj, true, viewport, true, false);
+                                    m_diskLabelRev, comp.viewProj, true, viewport, drive != kTipLabel, false);
 
         m_renderer.SetContentSrv (nullptr);
         CHRA (hr);

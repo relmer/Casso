@@ -3099,6 +3099,26 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("c.woz"),   slashed.disk1);
         }
 
+        //  A tape goes in by name either way, and a missing name is an error
+        //  rather than the next flag taken for a file.
+        TEST_METHOD (Emulator_TapeTakesAFileInEitherPrefix)
+        {
+            ArgVector  dashes  = { "--tape", "adventure.wav" };
+            ArgVector  slashes = { "/tape", "side-a.mp3" };
+            ArgVector  bare    = { "--tape" };
+
+            CommandLineOptions::EmulatorOptions  dashed  =
+                CommandLineParser::ParseEmulator (dashes.Count(),  dashes.Data());
+            CommandLineOptions::EmulatorOptions  slashed =
+                CommandLineParser::ParseEmulator (slashes.Count(), slashes.Data());
+            CommandLineOptions::EmulatorOptions  missing =
+                CommandLineParser::ParseEmulator (bare.Count(),    bare.Data());
+
+            Assert::AreEqual (std::string ("adventure.wav"), dashed.tape);
+            Assert::AreEqual (std::string ("side-a.mp3"),    slashed.tape);
+            Assert::IsFalse  (missing.refusalMessage.empty(), L"--tape with no file is refused");
+        }
+
         //  Bare, space-separated, and `=`; a suffix the table does not know
         //  leaves the bare number rather than failing at startup.
         TEST_METHOD (Emulator_TraceTakesItsThreeSpellings)
@@ -3199,6 +3219,44 @@ namespace CommandLineTests
 
             Assert::IsTrue (without.titlePrefix.empty(),
                 L"an invocation that names no label carries none");
+        }
+
+        //  THE RELAUNCH AFTER A SELF-UPDATE. Casso writes these itself, so they
+        //  are undocumented; a process id that is not one stops startup rather
+        //  than leaving the old files to a guess.
+        TEST_METHOD (Emulator_TakesTheUndocumentedUpdateRelaunchFlags)
+        {
+            ArgVector  relaunch = { "--updated", "--cleanup-old", "4242" };
+            ArgVector  slashed  = { "/cleanup-old", "17" };
+            ArgVector  junk     = { "--cleanup-old", "12abc" };
+            ArgVector  zero     = { "--cleanup-old", "0" };
+            ArgVector  missing  = { "--cleanup-old" };
+            ArgVector  absent   = { "--machine", "Apple2e" };
+
+            CommandLineOptions::EmulatorOptions  parsed =
+                CommandLineParser::ParseEmulator (relaunch.Count(), relaunch.Data());
+
+            Assert::IsTrue   (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::IsTrue   (parsed.wasUpdated);
+            Assert::AreEqual ((std::uint32_t) 4242, parsed.cleanupOldPid);
+
+            Assert::AreEqual ((std::uint32_t) 17,
+                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data()).cleanupOldPid);
+
+            for (ArgVector * args : { &junk, &zero })
+            {
+                CommandLineOptions::EmulatorOptions  bad = CommandLineParser::ParseEmulator (args->Count(), args->Data());
+
+                Assert::IsTrue (bad.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+                Assert::IsTrue (bad.refusalMessage.starts_with ("Error: invalid process id "));
+            }
+
+            Assert::AreEqual (std::string ("Error: missing value for --cleanup-old"),
+                CommandLineParser::ParseEmulator (missing.Count(), missing.Data()).refusalMessage);
+
+            parsed = CommandLineParser::ParseEmulator (absent.Count(), absent.Data());
+            Assert::IsFalse  (parsed.wasUpdated);
+            Assert::AreEqual ((std::uint32_t) 0, parsed.cleanupOldPid);
         }
 
 
@@ -3553,6 +3611,9 @@ namespace CommandLineTests
 
             Assert::IsTrue (parsed.erase ("no-image-watch") == 1,
                 L"the developer switch is parsed and deliberately not described");
+
+            Assert::IsTrue (parsed.erase ("updated") == 1 && parsed.erase ("cleanup-old") == 1,
+                L"the self-update relaunch flags are parsed and deliberately not described");
 
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");
