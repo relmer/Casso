@@ -41,7 +41,8 @@ public:
     static void  RenderMarks (const std::vector<DxuiDockDragMark> & marks, int width, int height, uint32_t * pixels);
 
 private:
-    static void  BlendRect (const RECT & rect, uint32_t argb, int width, int height, uint32_t * pixels);
+    static void  BlendRect  (const RECT & rect, uint32_t argb, int width, int height, uint32_t * pixels);
+    static void  BlendImage (const DxuiIconImage & image, POINT at, int width, int height, uint32_t * pixels);
 
     HRESULT  CreateHwnd (HWND owner);
 

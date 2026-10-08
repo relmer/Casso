@@ -108,6 +108,7 @@
 #include "Core/DxuiSlide.h"
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiDockDropZones.h"
+#include "Core/DxuiDockGuide.h"
 #include "Core/DxuiIconImage.h"
 #include "Core/DxuiPaneLayout.h"
 #include "Core/DxuiStandardCommand.h"
@@ -126,6 +127,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
+#include "Render/DxuiCoverageRaster.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
 #include "Render/Dxui3DRenderer.h"

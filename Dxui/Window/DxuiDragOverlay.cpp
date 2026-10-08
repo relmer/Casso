@@ -189,7 +189,9 @@ void DxuiDragOverlay::Hide()
 //  DxuiDragOverlay::RenderMarks
 //
 //  Clears the image to fully transparent, then lays each mark over it. An
-//  outlined mark is the strips DxuiDockSite::GetOutlineStrips gives.
+//  outlined mark is the strips DxuiDockSite::GetOutlineStrips gives, and a
+//  mark with a picture is that picture, so the overlay shows the same pixels
+//  the site would draw.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,6 +208,12 @@ void DxuiDragOverlay::RenderMarks (const std::vector<DxuiDockDragMark> & marks, 
     {
         const RECT &  r = mark.rect;
         int           t = mark.outlinePx;
+
+        if (mark.image != nullptr)
+        {
+            BlendImage (*mark.image, POINT { r.left, r.top }, width, height, pixels);
+            continue;
+        }
 
         if (t == 0)
         {
@@ -259,6 +267,55 @@ void DxuiDragOverlay::BlendRect (const RECT & rect, uint32_t argb, int width, in
                      ((r + ((d >> 16) & 0xFFu) * keep / 255u) << 16) |
                      ((g + ((d >>  8) & 0xFFu) * keep / 255u) <<  8) |
                       (b + ( d        & 0xFFu) * keep / 255u);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDragOverlay::BlendImage
+//
+//  Source-over of a premultiplied picture, its top left at `at`, clipped to
+//  the image, into premultiplied pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDragOverlay::BlendImage (const DxuiIconImage & image, POINT at, int width, int height, uint32_t * pixels)
+{
+    constexpr uint32_t  kChannel = 0xFFu;
+    constexpr uint32_t  kHalf    = 127u;
+    int                 left     = std::max (0L, at.x);
+    int                 top      = std::max (0L, at.y);
+    int                 right    = std::min ((LONG) width,  at.x + image.width);
+    int                 bot      = std::min ((LONG) height, at.y + image.height);
+    size_t              needed   = (size_t) std::max (0, image.width) * (size_t) std::max (0, image.height);
+
+
+
+    if (image.bgraPremul.size() < needed)
+    {
+        return;
+    }
+
+    for (int y = top; y < bot; y++)
+    {
+        uint32_t        * row = pixels + (size_t) y * (size_t) width;
+        const uint32_t  * src = image.bgraPremul.data() + (size_t) (y - at.y) * (size_t) image.width;
+
+        for (int x = left; x < right; x++)
+        {
+            uint32_t  s    = src[x - at.x];
+            uint32_t  d    = row[x];
+            uint32_t  keep = kChannel - (s >> 24);
+
+            row[x] = (((s >> 24)            + ((d >> 24)            * keep + kHalf) / kChannel) << 24) |
+                     ((((s >> 16) & kChannel) + (((d >> 16) & kChannel) * keep + kHalf) / kChannel) << 16) |
+                     ((((s >>  8) & kChannel) + (((d >>  8) & kChannel) * keep + kHalf) / kChannel) <<  8) |
+                      (( s        & kChannel) + (( d        & kChannel) * keep + kHalf) / kChannel);
         }
     }
 }

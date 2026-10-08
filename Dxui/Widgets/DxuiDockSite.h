@@ -3,6 +3,8 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiDockDropZones.h"
+#include "Core/DxuiDockGuide.h"
+#include "Core/DxuiIconImage.h"
 #include "Core/DxuiPaneLayout.h"
 #include "Widgets/DxuiTabGroup.h"
 
@@ -14,19 +16,22 @@
 //
 //  DxuiDockDragMark
 //
-//  One rectangle a drag shows over the site: a drop target, the area the
-//  hovered target would give the panes, or a hovered strip's tint and gap.
-//  `outlinePx` of 0 fills the rectangle; any other width outlines it, in
-//  dots of that size when `dotted`, as a split target's picture is drawn.
+//  One thing a drag shows over the site: the area the hovered target would
+//  give the panes, a hovered strip's tint and gap, or a drop guide. A mark
+//  with an `image` is that picture, its top left at the rectangle's top left
+//  and the rectangle its bounds. Otherwise `outlinePx` of 0 fills the
+//  rectangle, and any other width outlines it, in dots of that size when
+//  `dotted`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DxuiDockDragMark
 {
-    RECT      rect      = {};
-    uint32_t  argb      = 0;
-    int       outlinePx = 0;
-    bool      dotted    = false;
+    RECT                                  rect      = {};
+    uint32_t                              argb      = 0;
+    int                                   outlinePx = 0;
+    bool                                  dotted    = false;
+    std::shared_ptr<const DxuiIconImage>  image;
 };
 
 
@@ -321,8 +326,13 @@ private:
     void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
     bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
-    void          AddDottedHalf (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, uint32_t argb, int line) const;
-    void          AddGlyph      (std::vector<DxuiDockDragMark> & marks, const DxuiDockDropZone & zone, const IDxuiTheme & theme, int line) const;
+    void          UpdateCompass (POINT pointDip);
+    int           HitTestShown  (POINT pointDip) const;
+    bool          TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & origin) const;
+
+    //  A guide's picture, kept so every frame draws the same buffer.
+    std::shared_ptr<const DxuiIconImage>  GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered, const IDxuiTheme & theme) const;
+
     void          PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     DxuiPaneLayout                                m_layout;
@@ -362,6 +372,29 @@ private:
     int                            m_stripIndex     = -1;
     std::vector<DxuiDockDropZone>  m_zones;
     int                            m_hoverZone      = -1;
+    int                            m_compassGroup   = -1;
+
+    //  Guide pictures already drawn, for each look of each guide.
+    struct GuideKey
+    {
+        DxuiDockGuideKind    kind    = DxuiDockGuideKind::SmallCross;
+        DxuiDockSide         edge    = DxuiDockSide::Left;
+        int                  hovered = -1;
+        UINT                 dpi     = 0;
+        DxuiDockGuideColors  colors;
+
+        bool operator== (const GuideKey &) const = default;
+    };
+
+    struct GuideImage
+    {
+        GuideKey                              key;
+        std::shared_ptr<const DxuiIconImage>  image;
+    };
+
+    static constexpr size_t          kGuideCacheMax = 32;
+    mutable std::vector<GuideImage>  m_guideImages;
+
     bool                           m_marksElsewhere = false;
     int                            m_sashDrag       = -1;
     std::vector<EdgeTab>           m_edgeTabs;

@@ -60,32 +60,81 @@ namespace DxuiDockSiteDragMarksTests
 
 
 
+    //  A drag of the console held over the middle of the code's group, so
+    //  the drag shows the edge guides, that group's cross, and the shade of
+    //  the cross's center button.
+    static void HoverTheCodesCross (Rig & rig)
+    {
+        DxuiMouseEvent  ev;
+
+
+
+        for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+        {
+            if (rig.site.GetGroup (i)->IndexOf (&rig.code) >= 0)
+            {
+                ev.positionDip = POINT { (rig.site.GetGroup (i)->GetBounds().left + rig.site.GetGroup (i)->GetBounds().right) / 2,
+                                         (rig.site.GetGroup (i)->GetBounds().top + rig.site.GetGroup (i)->GetBounds().bottom) / 2 };
+            }
+        }
+
+        ev.kind   = DxuiMouseEventKind::Move;
+        ev.button = DxuiMouseButton::Left;
+
+        rig.site.BeginDrag (L"console");
+        rig.site.OnMouse   (ev);
+    }
+
+
+
+    //  How many painter calls the marks take, and how many pictures.
+    static void CountMarks (Rig & rig, size_t & fills, size_t & images)
+    {
+        fills  = 0;
+        images = 0;
+
+        for (const DxuiDockDragMark & mark : rig.site.GetDragMarks (rig.theme))
+        {
+            images += (mark.image != nullptr) ? 1 : 0;
+            fills  += (mark.image != nullptr) ? 0 : mark.dotted ? DxuiDockSite::GetOutlineStrips (mark).size() : 1;
+        }
+    }
+
+
+
     TEST_CLASS (DxuiDockSiteDragMarksTests)
     {
     public:
 
         TEST_METHOD (MarksListEveryTargetOnlyDuringADrag)
         {
-            Rig  rig;
+            Rig                            rig;
+            std::vector<DxuiDockDragMark>  marks;
+            size_t                         guides = 0;
 
 
 
             Assert::IsTrue (rig.site.GetDragMarks (rig.theme).empty(), L"no drag, no marks");
 
-            rig.site.BeginDrag (L"console");
-
-            std::vector<DxuiDockDragMark>  marks    = rig.site.GetDragMarks (rig.theme);
-            size_t                         outlines = 0;
-            size_t                         dotted   = 0;
+            HoverTheCodesCross (rig);
+            marks = rig.site.GetDragMarks (rig.theme);
 
             for (const DxuiDockDragMark & mark : marks)
             {
-                outlines += (mark.outlinePx > 0 && !mark.dotted) ? 1 : 0;
-                dotted   += mark.dotted ? 1 : 0;
+                if (mark.image == nullptr)
+                {
+                    continue;
+                }
+
+                guides++;
+                Assert::AreEqual ((long) mark.image->width,  mark.rect.right - mark.rect.left, L"a guide's mark bounds its picture");
+                Assert::AreEqual ((long) mark.image->height, mark.rect.bottom - mark.rect.top);
             }
 
-            Assert::IsTrue   (outlines > 0, L"each target square is outlined");
-            Assert::AreEqual (outlines * 2 + dotted, marks.size(), L"each target is a fill and an outline, and a split target adds its dotted picture");
+            Assert::IsNotNull (rig.site.GetHoveredZone(), L"the middle of the group is its cross's center button");
+            Assert::AreEqual  ((size_t) 5, guides, L"a guide at each edge and the cross of the group under the pointer");
+            Assert::AreEqual  (guides + 1, marks.size(), L"and the shade of the hovered target, under them");
+            Assert::IsTrue    (marks.front().image == nullptr);
 
             rig.site.CancelDrag();
             Assert::IsTrue (rig.site.GetDragMarks (rig.theme).empty(), L"the marks go when the drag ends");
@@ -98,32 +147,39 @@ namespace DxuiDockSiteDragMarksTests
         {
             Rig     rig;
             size_t  resting = rig.CountPaintCalls();
-            size_t  marks   = 0;
+            size_t  fills   = 0;
+            size_t  images  = 0;
 
 
 
-            rig.site.BeginDrag (L"console");
-            for (const DxuiDockDragMark & mark : rig.site.GetDragMarks (rig.theme))
-            {
-                marks += mark.dotted ? DxuiDockSite::GetOutlineStrips (mark).size() : 1;
-            }
+            HoverTheCodesCross (rig);
+            CountMarks (rig, fills, images);
 
-            Assert::AreEqual (resting + marks, rig.CountPaintCalls(), L"the site paints the marks itself");
+            Assert::IsTrue (fills > 0 && images > 0, L"a drag shows a shade and guides");
+
+            rig.text.Reset();
+            Assert::AreEqual (resting + fills, rig.CountPaintCalls(),        L"the site paints the marks itself");
+            Assert::AreEqual (images,          rig.text.IconCalls().size(), L"the guides as pictures");
 
             rig.site.SetDragMarksDrawnElsewhere (true);
+            rig.text.Reset();
             Assert::AreEqual (resting, rig.CountPaintCalls(), L"the overlay paints them instead");
+            Assert::IsTrue   (rig.text.IconCalls().empty());
         }
 
 
         //  The marks lie over every pane control, whichever order the site and
         //  the panes paint in, so the site draws them in its after pass, after
-        //  the groups' frames, and its own Paint leaves them out.
+        //  the groups' frames, and its own Paint leaves them out. The guides
+        //  go through the text pass, after every fill, so they lie over the
+        //  shade too.
         TEST_METHOD (MarksArePaintedAfterTheSiblings)
         {
             Rig     rig;
             size_t  resting = rig.CountPaintCalls();
             size_t  frames  = 0;
-            size_t  marks   = 0;
+            size_t  fills   = 0;
+            size_t  images  = 0;
 
 
 
@@ -131,23 +187,56 @@ namespace DxuiDockSiteDragMarksTests
             rig.site.PaintAfterSiblings (rig.painter, rig.text, rig.theme);
             frames = rig.painter.Calls().size();
 
-            rig.site.BeginDrag (L"console");
-            for (const DxuiDockDragMark & mark : rig.site.GetDragMarks (rig.theme))
-            {
-                marks += mark.dotted ? DxuiDockSite::GetOutlineStrips (mark).size() : 1;
-            }
+            HoverTheCodesCross (rig);
+            CountMarks (rig, fills, images);
 
-            Assert::IsTrue (marks > 0, L"a drag shows marks");
+            Assert::IsTrue (fills > 0 && images > 0, L"a drag shows marks");
 
             Assert::IsTrue (frames > 0, L"at rest the after pass draws the frames");
 
             rig.painter.Reset();
+            rig.text.Reset();
             rig.site.Paint (rig.painter, rig.text, rig.theme);
             Assert::AreEqual (resting - frames, rig.painter.Calls().size(), L"Paint draws the site as it rests");
+            Assert::IsTrue   (rig.text.IconCalls().empty());
 
             rig.painter.Reset();
+            rig.text.Reset();
             rig.site.PaintAfterSiblings (rig.painter, rig.text, rig.theme);
-            Assert::AreEqual (frames + marks, rig.painter.Calls().size(), L"the after pass draws the frames and the marks");
+            Assert::AreEqual (frames + fills, rig.painter.Calls().size(),   L"the after pass draws the frames and the marks");
+            Assert::AreEqual (images,         rig.text.IconCalls().size(), L"and the guides");
+        }
+
+
+        TEST_METHOD (RenderMarksBlendsPicturesInPremultipliedPixels)
+        {
+            std::vector<uint32_t>           pixels (4 * 4, 0xDEADBEEFu);
+            std::vector<DxuiDockDragMark>   marks;
+            std::shared_ptr<DxuiIconImage>  image = std::make_shared<DxuiIconImage>();
+            DxuiDockDragMark                guide;
+
+
+
+            image->width      = 2;
+            image->height     = 2;
+            image->bgraPremul = { 0xFF0000FFu, 0x80800000u, 0u, 0x40404040u };
+
+            marks.push_back ({ RECT { 0, 0, 4, 4 }, 0xFF00FF00u, 0 });
+
+            guide.rect  = RECT { 1, 1, 3, 3 };
+            guide.image = image;
+            marks.push_back (guide);
+
+            guide.rect = RECT { 3, 3, 5, 5 };
+            marks.push_back (guide);
+
+            DxuiDragOverlay::RenderMarks (marks, 4, 4, pixels.data());
+
+            Assert::AreEqual (0xFF00FF00u, pixels[0],          L"outside the picture");
+            Assert::AreEqual (0xFF0000FFu, pixels[1 * 4 + 1], L"an opaque picture pixel covers");
+            Assert::AreEqual (0xFF807F00u, pixels[1 * 4 + 2], L"half red over green");
+            Assert::AreEqual (0xFF00FF00u, pixels[2 * 4 + 1], L"a clear picture pixel leaves what is there");
+            Assert::AreEqual (0xFF0000FFu, pixels[3 * 4 + 3], L"a picture past the edge is clipped to it");
         }
 
 

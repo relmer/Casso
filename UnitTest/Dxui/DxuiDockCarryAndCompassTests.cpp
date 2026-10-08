@@ -14,8 +14,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  A pane torn off by its tab keeps that tab, in a strip, while it is
 //  carried, and the cursor keeps the spot of the tab it pressed. The drop
-//  targets follow Visual Studio's: five squares over a tool window group, a
-//  larger compass over a document group, and a tab drop that shades the
+//  targets follow Visual Studio's: five buttons over a tool window group, a
+//  larger cross over a document group, and a tab drop that shades the
 //  pane's body without covering its tabs.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +175,7 @@ namespace DxuiDockCarryAndCompassTests
 
 
             layout.Add (L"regs", L"");
-            zones = DxuiDockDropZones::Build (layout.Arrange (area, nullptr, nullptr), area, L"trace",
+            zones = DxuiDockDropZones::Build (layout.Arrange (area, nullptr, nullptr), area, L"trace", DxuiDpiScaler(),
                                               [] (const DxuiPaneLayout::GroupRect & group) { return group.active == L"code"; });
 
             Assert::AreEqual ((size_t) 4, Count (zones, DxuiDockDropZone::Kind::Split), L"only the document group splits");

@@ -10,22 +10,23 @@
 //
 //  DxuiDockDropZones::Build
 //
-//  The window's edge squares first, so a point near the middle of an edge
-//  over a group's compass still finds the compass: HitTest takes the last
-//  zone that holds the point.
+//  The window's edge guides first, so a point near the middle of an edge
+//  over a group's cross still finds the cross: HitTest takes the last zone
+//  that holds the point. Each edge guide's button lies kEdgeDip in from its
+//  edge, centered along it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPaneLayout::GroupRect> & groups,
                                                         const RECT & area, const std::wstring & pane,
+                                                        const DxuiDpiScaler & scaler,
                                                         const GroupTestFn & isDocument)
 {
     static constexpr DxuiDockSide  kSides[] = { DxuiDockSide::Left, DxuiDockSide::Top, DxuiDockSide::Right, DxuiDockSide::Bottom };
     std::vector<DxuiDockDropZone>  zones;
     long                           midX     = (area.left + area.right) / 2;
     long                           midY     = (area.top + area.bottom) / 2;
-    long                           half     = kSquareDip / 2;
-    long                           step     = kSquareDip + kGapDip;
+    long                           inset    = scaler.ToPx (kEdgeDip) + scaler.ToPx (DxuiDockGuide::kButtonDip) / 2;
     RECT                           well     = {};
     bool                           hasWell  = false;
 
@@ -46,61 +47,61 @@ std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPa
     for (DxuiDockSide side : kSides)
     {
         DxuiDockDropZone  zone;
-        long              x = (side == DxuiDockSide::Left)  ? area.left  + kEdgeDip + half
-                            : (side == DxuiDockSide::Right) ? area.right - kEdgeDip - half : midX;
-        long              y = (side == DxuiDockSide::Top)    ? area.top    + kEdgeDip + half
-                            : (side == DxuiDockSide::Bottom) ? area.bottom - kEdgeDip - half : midY;
+        POINT             center = { (side == DxuiDockSide::Left)   ? area.left   + inset
+                                   : (side == DxuiDockSide::Right)  ? area.right  - inset : midX,
+                                     (side == DxuiDockSide::Top)    ? area.top    + inset
+                                   : (side == DxuiDockSide::Bottom) ? area.bottom - inset : midY };
 
         zone.kind    = DxuiDockDropZone::Kind::Edge;
         zone.side    = side;
-        zone.target  = MakeSquare (x, y);
+        zone.target  = DxuiDockGuide::GetButtonRect (DxuiDockGuideKind::Edge, DxuiDockGuide::GetDockButton (side),
+                                                     DxuiDockGuide::GetOrigin (DxuiDockGuideKind::Edge, center, scaler), scaler);
         zone.preview = GetQuarter (area, side);
         zones.push_back (zone);
     }
 
-    for (const DxuiPaneLayout::GroupRect & group : groups)
+    for (size_t index = 0; index < groups.size(); index++)
     {
-        long              cx       = (group.rect.left + group.rect.right) / 2;
-        long              cy       = (group.rect.top + group.rect.bottom) / 2;
-        bool              document = false;
-        DxuiDockDropZone  tab;
+        const DxuiPaneLayout::GroupRect  & group    = groups[index];
+        bool                               document = isDocument && isDocument (group);
+        DxuiDockGuideKind                  kind     = document ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::SmallCross;
+        POINT                              center   = { (group.rect.left + group.rect.right) / 2, (group.rect.top + group.rect.bottom) / 2 };
+        POINT                              origin   = DxuiDockGuide::GetOrigin (kind, center, scaler);
+        DxuiDockDropZone                   base;
+        DxuiDockDropZone                   tab;
 
         if (group.panes.size() == 1 && group.panes[0] == pane)
         {
             continue;
         }
 
-        tab.kind       = DxuiDockDropZone::Kind::Tab;
-        tab.targetPane = group.active;
-        tab.target     = MakeSquare (cx, cy);
-        tab.preview    = group.rect;
-        zones.push_back (tab);
+        base.targetPane = group.active;
+        base.group      = (int) index;
+        base.groupRect  = group.rect;
 
-        document = isDocument && isDocument (group);
+        tab         = base;
+        tab.kind    = DxuiDockDropZone::Kind::Tab;
+        tab.target  = DxuiDockGuide::GetButtonRect (kind, DxuiDockGuideButton::Center, origin, scaler);
+        tab.preview = group.rect;
+        zones.push_back (tab);
 
         for (DxuiDockSide side : kSides)
         {
-            DxuiDockDropZone  zone;
-            long              dx   = (side == DxuiDockSide::Left) ? -step : (side == DxuiDockSide::Right)  ? step : 0;
-            long              dy   = (side == DxuiDockSide::Top)  ? -step : (side == DxuiDockSide::Bottom) ? step : 0;
-            long              ring = document ? 2 : 1;
+            DxuiDockDropZone  zone  = base;
+            DxuiDockDropZone  split = base;
 
             if (document)
             {
-                DxuiDockDropZone  split;
-
-                split.kind       = DxuiDockDropZone::Kind::Split;
-                split.side       = side;
-                split.targetPane = group.active;
-                split.target     = MakeSquare (cx + dx, cy + dy);
-                split.preview    = GetHalf (group.rect, side);
+                split.kind    = DxuiDockDropZone::Kind::Split;
+                split.side    = side;
+                split.target  = DxuiDockGuide::GetButtonRect (kind, DxuiDockGuide::GetSplitButton (side), origin, scaler);
+                split.preview = GetHalf (group.rect, side);
                 zones.push_back (split);
             }
 
-            zone.kind      = DxuiDockDropZone::Kind::Side;
+            zone.kind       = DxuiDockDropZone::Kind::Side;
             zone.side       = side;
-            zone.targetPane = group.active;
-            zone.target     = MakeSquare (cx + ring * dx, cy + ring * dy);
+            zone.target     = DxuiDockGuide::GetButtonRect (kind, DxuiDockGuide::GetDockButton (side), origin, scaler);
             zone.preview    = GetHalf (document ? well : group.rect, side);
             zone.besideWell = document;
             zones.push_back (zone);
@@ -140,6 +141,30 @@ const DxuiDockDropZone * DxuiDockDropZones::HitTest (const std::vector<DxuiDockD
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockDropZones::GetGuideButton
+//
+//  A tab drop is a cross's center button, a split its split button on that
+//  side, and a side or an edge drop the dock button on that side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDockGuideButton DxuiDockDropZones::GetGuideButton (const DxuiDockDropZone & zone)
+{
+    switch (zone.kind)
+    {
+    case DxuiDockDropZone::Kind::Split: return DxuiDockGuide::GetSplitButton (zone.side);
+    case DxuiDockDropZone::Kind::Side:  return DxuiDockGuide::GetDockButton  (zone.side);
+    case DxuiDockDropZone::Kind::Edge:  return DxuiDockGuide::GetDockButton  (zone.side);
+    default:                            return DxuiDockGuideButton::Center;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockDropZones::Apply
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,25 +190,6 @@ bool DxuiDockDropZones::Apply (const DxuiDockDropZone & zone, DxuiPaneLayout & l
     default:
         return false;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockDropZones::MakeSquare
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockDropZones::MakeSquare (long centerX, long centerY)
-{
-    long  half = kSquareDip / 2;
-
-
-
-    return RECT { centerX - half, centerY - half, centerX + half, centerY + half };
 }
 
 
