@@ -155,6 +155,70 @@ void DxuiDockedWindow::PaintHeaderFade (IDxuiPainter & painter, const RECT & row
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockedWindow::SetFocusedLook
+//
+//  The first group takes the focused look through its active pane, and
+//  Windows 11's border follows it. DWM is called, and the window repainted,
+//  only when the look or its color changed, so an owner can call this once a
+//  frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::SetFocusedLook (bool focused, const IDxuiTheme & theme)
+{
+    uint32_t      argb = focused ? theme.FocusAccent() : theme.Border();
+    std::wstring  pane;
+
+
+
+    if (m_site == nullptr)
+    {
+        return;
+    }
+
+    if (focused && m_site->GetGroupCount() > 0)
+    {
+        pane = m_site->GetPaneOf (m_site->GetGroup (0)->GetActiveContent());
+    }
+
+    m_site->SetFocusedPane (pane);
+
+    if (focused == m_focusedLook && argb == m_borderArgb)
+    {
+        return;
+    }
+
+    m_focusedLook = focused;
+    m_borderArgb  = argb;
+
+    DxuiDwm::ApplyBorderColor (GetHwnd(), argb);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::OnWindowFocusChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::OnWindowFocusChanged (bool focused)
+{
+    if (m_onFocusChanged)
+    {
+        m_onFocusChanged (focused);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockedWindow::OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////

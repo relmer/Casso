@@ -291,6 +291,7 @@ protected:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasTopLayer     () const override;
+    void     OnWindowFocusChanged (bool focused) override;
     void     PaintBranchArrow (IDxuiPainter & painter, int view);
     bool     GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
     bool     ClickBranchArrow (POINT pointPx);
@@ -1043,6 +1044,7 @@ private:
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>                        m_floats;
     std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
     std::map<std::wstring, std::unique_ptr<DxuiTooltip>>                             m_floatTips;
+    std::wstring                                                                     m_focusedFloat;
     DxuiDragOverlay                                                                  m_dragOverlay;
     std::wstring                                                                     m_routingPane;
     bool                                                                             m_syncFloats         = false;

@@ -283,6 +283,7 @@ void DebuggerWindow::OnCreate()
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
+    m_dockSite->SetPaneGap (DxuiDockSite::kPaneGapDip, DxuiDockSite::kPaneMarginDip);
 
     //  After even the site, so a watch being edited is drawn over its row.
     m_watchEditor = CreateChild<DxuiTextInput>();
@@ -4163,7 +4164,6 @@ void DebuggerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 void DebuggerWindow::LayoutWidgets()
 {
     auto  px       = [this] (int dip) { return m_scaler.ToPx (dip); };
-    int   pad      = px (8);
     int   boxH     = px (30);
     int   width    = m_widthDip;
     int   height   = m_heightDip;
@@ -4176,8 +4176,6 @@ void DebuggerWindow::LayoutWidgets()
     int   rowY     = captionH;
     int   top      = 0;
     int   bottom   = height;
-    int   barY     = 0;
-    int   x        = pad;
     RECT  area     = {};
 
 
@@ -4213,9 +4211,10 @@ void DebuggerWindow::LayoutWidgets()
     //  auto-hidden tabs when it is the innermost and the timeline is not in it.
     area = m_toolbarDocks.Layout (RECT { 0, rowY, width, bottom }, RECT { 0, 0, width, height }, m_scaler);
     top  = area.top;
-    barY = area.bottom - pad;
 
-    m_dockSite->Layout (RECT { area.left + pad, top, area.right - pad, barY }, m_scaler);
+    //  The site takes the whole area; its own margin, in the gap color, keeps
+    //  the panes off the window's edges and the toolbars' bands.
+    m_dockSite->Layout (RECT { area.left, top, area.right, area.bottom }, m_scaler);
 
     UpdateCodeLines();
     PlaceMemoryBar();
@@ -6383,8 +6382,15 @@ void DebuggerWindow::RenderFrame()
     SyncHeatMapRecording();
 
     //  Focus moves by click, key and command alike, so the group the user is
-    //  working in is found once a frame rather than at each of them.
-    m_dockSite->SetFocusedPane (GetPaneOfFocus());
+    //  working in is found once a frame rather than at each of them. Of this
+    //  window and the floating ones, the one that took the focus last shows
+    //  the accent.
+    m_dockSite->SetFocusedPane (m_focusedFloat.empty() ? GetPaneOfFocus() : std::wstring());
+
+    for (const auto & entry : m_floats)
+    {
+        entry.second->SetFocusedLook (entry.first == m_focusedFloat, *m_theme);
+    }
 
     //  A disassembly view's height changes with a window resize, a sash drag,
     //  a tab brought forward, a pane slid out or floated, a text-size change,
@@ -11319,6 +11325,30 @@ void DebuggerWindow::SyncFloats()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::OnWindowFocusChanged
+//
+//  The window, main or floating, that took the keyboard focus last shows the
+//  accent: this one taking it takes the accent back from a floating pane.
+//  Losing it to another application changes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OnWindowFocusChanged (bool focused)
+{
+    if (focused)
+    {
+        m_focusedFloat.clear();
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::FloatControls
 //
 //  A window for one floating pane, at the place the layout keeps for it,
@@ -11382,6 +11412,7 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     //  Dock To menu, opened in this window; its pin docks the pane back; and
     //  its close button closes the pane.
     window->GetSite().SetFloating    ([this] (const std::wstring & p) { DockFloatingPane (p); });
+    window->GetSite().SetPaneGap     (DxuiDockSite::kPaneGapDip, 0);
     window->GetSite().SetOnPaneMenu  ([this, pane] (const std::wstring & p, POINT clientPx)
     {
         m_routingPane = pane;
@@ -11400,6 +11431,18 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     window->SetOnClosed            ([this, pane]                             { CloseFloatingPane (pane); });
     window->SetOnFilesDropped      ([this] (const std::vector<std::wstring> & paths) { return OnFilesDropped (paths); });
     window->SetAcceptsDroppedFiles (true);
+
+    //  The window that took the focus last shows the accent, so a float
+    //  losing it to another application keeps it.
+    window->SetOnFocusChanged ([this, pane] (bool focused)
+    {
+        if (focused)
+        {
+            m_focusedFloat = pane;
+        }
+
+        Invalidate();
+    });
 
     if (rect.right > rect.left && rect.bottom > rect.top)
     {
@@ -11674,6 +11717,11 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
 
     m_floats.erase     (pane);
     m_floatFocus.erase (pane);
+
+    if (m_focusedFloat == pane)
+    {
+        m_focusedFloat.clear();
+    }
 
     if (m_floatTips.contains (pane))
     {

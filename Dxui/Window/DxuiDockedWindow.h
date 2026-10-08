@@ -34,12 +34,13 @@
 class DxuiDockedWindow : public DxuiWindow
 {
 public:
-    using  MouseFn   = std::function<bool (const DxuiMouseEvent & ev)>;
-    using  KeyFn     = std::function<bool (const DxuiKeyEvent & ev)>;
-    using  PointFn   = std::function<void (POINT screenPx)>;
-    using  ClosedFn  = std::function<void ()>;
-    using  CommandFn = std::function<bool (int commandId)>;
-    using  FilesFn   = std::function<bool (const std::vector<std::wstring> & paths)>;
+    using  MouseFn        = std::function<bool (const DxuiMouseEvent & ev)>;
+    using  KeyFn          = std::function<bool (const DxuiKeyEvent & ev)>;
+    using  PointFn        = std::function<void (POINT screenPx)>;
+    using  ClosedFn       = std::function<void ()>;
+    using  CommandFn      = std::function<bool (int commandId)>;
+    using  FilesFn        = std::function<bool (const std::vector<std::wstring> & paths)>;
+    using  FocusChangedFn = std::function<void (bool focused)>;
 
     DxuiDockedWindow  () = default;
     ~DxuiDockedWindow () override = default;
@@ -62,6 +63,14 @@ public:
     //  Files dropped on the window, once SetAcceptsDroppedFiles has turned
     //  that on, for an owner that takes them the same in all its windows.
     void  SetOnFilesDropped    (FilesFn fn)   { m_onFiles    = std::move (fn); }
+
+    //  The window took the keyboard focus, or lost it.
+    void  SetOnFocusChanged    (FocusChangedFn fn) { m_onFocusChanged = std::move (fn); }
+
+    //  The pane's outline, and on Windows 11 the window's border, in the
+    //  focus accent while `focused`, for an owner that keeps the accent on
+    //  whichever of its windows took the focus last.
+    void  SetFocusedLook       (bool focused, const IDxuiTheme & theme);
 
     //  Once a frame: reports the end of a caption drag the end of the move
     //  loop did not.
@@ -97,6 +106,7 @@ protected:
     bool  OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     void  OnWindowPlaced () override;
     void  OnDpiChanged   (UINT newDpi) override;
+    void  OnWindowFocusChanged (bool focused) override;
     bool  HasModalOverlay   () const override { return m_headerFade; }
     void  PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
@@ -117,6 +127,12 @@ private:
     ClosedFn                  m_onClosed;
     CommandFn                 m_onCommand;
     FilesFn                   m_onFiles;
+    FocusChangedFn            m_onFocusChanged;
     DxuiCaptionDragTracker    m_drag;
     bool                      m_headerFade   = false;
+
+    //  The look and border color last applied, so DWM is called only when
+    //  one of them changes.
+    bool                      m_focusedLook  = false;
+    uint32_t                  m_borderArgb   = 0;
 };

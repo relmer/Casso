@@ -332,6 +332,12 @@ protected:
     virtual void  OnWindowDestroy () {}
 
     //
+    //  The window took the keyboard focus (WM_SETFOCUS) or lost it
+    //  (WM_KILLFOCUS), after the window's own handling of either.
+    //
+    virtual void  OnWindowFocusChanged (bool focused) { UNREFERENCED_PARAMETER (focused); }
+
+    //
     //  The user finished dragging or resizing this window by its caption or
     //  border. A programmatic move never gets here, so this is the moment
     //  that means the user put the window where it is.

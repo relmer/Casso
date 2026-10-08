@@ -253,3 +253,67 @@ void DxuiDwm::ExtendFrameIntoClientArea (HWND hwnd, int inset)
 Error:
     return;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyBorderColor
+//
+//  Sets DWMWA_BORDER_COLOR, the color of the thin border Windows 11 draws
+//  around a window. No-op on pre-Win11.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDwm::ApplyBorderColor (HWND hwnd, uint32_t argb)
+{
+    HRESULT   hr        = S_OK;
+    HRESULT   hrAttrib  = S_OK;
+    COLORREF  color     = ArgbToColorref (argb);
+    bool      supported = false;
+
+
+
+    supported = IsWindows11OrGreater();
+    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
+
+    // Best-effort, same as ApplyRoundedCorners.
+    hrAttrib = DwmSetWindowAttribute (hwnd,
+                                      kDwmwaBorderColor,
+                                      &color,
+                                      sizeof (color));
+    IGNORE_RETURN_VALUE (hrAttrib, S_OK);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArgbToColorref
+//
+//  A COLORREF is 0x00BBGGRR, so red and blue swap places and the alpha is
+//  dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiDwm::ArgbToColorref (uint32_t argb)
+{
+    constexpr int  kRedShift   = 16;
+    constexpr int  kGreenShift = 8;
+
+
+
+    return (uint32_t) RGB ((BYTE) (argb >> kRedShift), (BYTE) (argb >> kGreenShift), (BYTE) argb);
+}
+
+
+
+
+

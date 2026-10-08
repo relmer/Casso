@@ -151,14 +151,26 @@ void DxuiDockSite::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //  Tab groups are reused by position, so arranging again after a small change
 //  keeps the controls that did not move.
 //
+//  With a gap or margin set, the layout divides the area inside the margin,
+//  and each group then gives up its share of the gap at every split, so the
+//  splits themselves stay where the layout puts them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::Arrange()
 {
     std::vector<DxuiPaneLayout::GroupRect>    groups;
     std::unordered_set<const IDxuiControl *>  placed;
-    RECT                                      area = GetDockedArea();
-    auto                                      slid = m_panes.end();
+    long                                      margin  = m_scaler.ToPx (m_marginDip);
+    long                                      gap     = m_scaler.ToPx (m_gapDip);
+    DxuiPaneLayout::MinSizeFn                 minSize = m_minSize;
+    auto                                      slid    = m_panes.end();
+    auto                                      grown   = [this, gap] (const std::wstring & pane)
+    {
+        SIZE  size = m_minSize (pane);
+
+        return SIZE { size.cx + gap, size.cy + gap };
+    };
 
 
 
@@ -167,11 +179,23 @@ void DxuiDockSite::Arrange()
         return;
     }
 
-    //  A slid-out pane lies over the docked panes, which keep their places.
-    ArrangeEdges (area);
+    m_dockedArea = GetDockedArea();
+    m_paneArea   = RECT { m_dockedArea.left + margin, m_dockedArea.top + margin, m_dockedArea.right - margin, m_dockedArea.bottom - margin };
 
-    groups      = m_layout.Arrange (area, m_shown, m_minSize);
-    m_splits    = m_layout.ArrangeSplits (area, m_shown, m_minSize);
+    m_paneArea.right  = std::max (m_paneArea.right,  m_paneArea.left);
+    m_paneArea.bottom = std::max (m_paneArea.bottom, m_paneArea.top);
+
+    //  A pane loses up to the gap on each axis, so it needs that much more.
+    if (gap > 0 && m_minSize)
+    {
+        minSize = grown;
+    }
+
+    //  A slid-out pane lies over the docked panes, which keep their places.
+    ArrangeEdges (m_dockedArea, m_paneArea);
+
+    groups      = m_layout.Arrange (m_paneArea, m_shown, minSize);
+    m_splits    = m_layout.ArrangeSplits (m_paneArea, m_shown, minSize);
     m_arranging = true;
 
     while (m_groups.size() < groups.size())
@@ -228,7 +252,7 @@ void DxuiDockSite::Arrange()
         group->SetFocusedLook (focused);
         group->SetStripForced (carried);
         group->SetActive      (active);
-        group->Layout         (groups[i].rect, m_scaler);
+        group->Layout         (GetInsetForGap (groups[i].rect, m_paneArea, gap), m_scaler);
     }
 
     //  A floating pane's controls are in another window, which shows them.
@@ -689,18 +713,20 @@ RECT DxuiDockSite::GetDockedArea() const
 //
 //  DxuiDockSite::ArrangeEdges
 //
-//  The edge tabs, in the order the panes were hidden, and the area a slid-out
-//  pane covers: a third of the docked area from its edge, and never less
-//  than it needs to be usable.
+//  The edge tabs, in the order the panes were hidden, between the site's edge
+//  and the docked area, and the area a slid-out pane covers: a third of the
+//  pane area from its edge, and never less than it needs to be usable. The
+//  pane area is the docked area less its margin, so the slid-out pane lines
+//  up with the docked ones.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDockSite::ArrangeEdges (const RECT & area)
+void DxuiDockSite::ArrangeEdges (const RECT & dockedArea, const RECT & paneArea)
 {
-    long          along[4]  = { area.top, area.left, area.top, area.left };
+    long          along[4]  = { dockedArea.top, dockedArea.left, dockedArea.top, dockedArea.left };
     long          minSlide  = m_scaler.ToPx (kSlideMinDip);
-    long          width     = area.right - area.left;
-    long          height    = area.bottom - area.top;
+    long          width     = paneArea.right - paneArea.left;
+    long          height    = paneArea.bottom - paneArea.top;
     bool          slidFound = false;
     DxuiDockSide  slidEdge  = DxuiDockSide::Left;
 
@@ -730,10 +756,10 @@ void DxuiDockSite::ArrangeEdges (const RECT & area)
 
         switch (hidden.edge)
         {
-        case DxuiDockSide::Left:   tab.rect = RECT { m_boundsDip.left, at, area.left,         at + length }; at += length;  break;
-        case DxuiDockSide::Right:  tab.rect = RECT { area.right,       at, m_boundsDip.right, at + length }; at += length;  break;
-        case DxuiDockSide::Top:    tab.rect = RECT { at, m_boundsDip.top, at + length, area.top };           at += length;  break;
-        case DxuiDockSide::Bottom: tab.rect = RECT { at, area.bottom, at + length, m_boundsDip.bottom };     at += length;  break;
+        case DxuiDockSide::Left:   tab.rect = RECT { m_boundsDip.left,  at, dockedArea.left,   at + length };  at += length;  break;
+        case DxuiDockSide::Right:  tab.rect = RECT { dockedArea.right,  at, m_boundsDip.right, at + length };  at += length;  break;
+        case DxuiDockSide::Top:    tab.rect = RECT { at, m_boundsDip.top, at + length, dockedArea.top };       at += length;  break;
+        case DxuiDockSide::Bottom: tab.rect = RECT { at, dockedArea.bottom, at + length, m_boundsDip.bottom }; at += length;  break;
         }
 
         m_edgeTabs.push_back (tab);
@@ -756,10 +782,10 @@ void DxuiDockSite::ArrangeEdges (const RECT & area)
 
     switch (slidEdge)
     {
-    case DxuiDockSide::Left:   m_slidRect = RECT { area.left, area.top, area.left + std::min (width, std::max (minSlide, width / 3)), area.bottom };      break;
-    case DxuiDockSide::Right:  m_slidRect = RECT { area.right - std::min (width, std::max (minSlide, width / 3)), area.top, area.right, area.bottom };    break;
-    case DxuiDockSide::Top:    m_slidRect = RECT { area.left, area.top, area.right, area.top + std::min (height, std::max (minSlide, height / 3)) };      break;
-    case DxuiDockSide::Bottom: m_slidRect = RECT { area.left, area.bottom - std::min (height, std::max (minSlide, height / 3)), area.right, area.bottom }; break;
+    case DxuiDockSide::Left:   m_slidRect = RECT { paneArea.left, paneArea.top, paneArea.left + std::min (width, std::max (minSlide, width / 3)), paneArea.bottom };       break;
+    case DxuiDockSide::Right:  m_slidRect = RECT { paneArea.right - std::min (width, std::max (minSlide, width / 3)), paneArea.top, paneArea.right, paneArea.bottom };     break;
+    case DxuiDockSide::Top:    m_slidRect = RECT { paneArea.left, paneArea.top, paneArea.right, paneArea.top + std::min (height, std::max (minSlide, height / 3)) };       break;
+    case DxuiDockSide::Bottom: m_slidRect = RECT { paneArea.left, paneArea.bottom - std::min (height, std::max (minSlide, height / 3)), paneArea.right, paneArea.bottom }; break;
     }
 }
 
@@ -2135,18 +2161,154 @@ const DxuiDockDropZone * DxuiDockSite::GetHoveredZone() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::SetPaneGap
+//
+//  The gap between neighboring panes and the margin between the outer panes
+//  and the docked area's edges, in DIP.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetPaneGap (int gapDip, int marginDip)
+{
+    m_gapDip    = gapDip;
+    m_marginDip = marginDip;
+
+    //  Before the site has bounds, its first layout takes these up.
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetInsetForGap
+//
+//  A group's rect less its share of the gaps. A side inside the pane area
+//  moves in by half the gap, a left or top side by the larger half, so the
+//  neighbors at a split are exactly the gap apart; a side on the pane area's
+//  edge stays where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDockSite::GetInsetForGap (const RECT & rect, const RECT & paneArea, long gapPx)
+{
+    long  lo    = gapPx / 2;
+    long  hi    = gapPx - lo;
+    RECT  inset = rect;
+
+
+
+    if (gapPx <= 0)
+    {
+        return rect;
+    }
+
+    if (rect.left > paneArea.left)
+    {
+        inset.left += hi;
+    }
+
+    if (rect.top > paneArea.top)
+    {
+        inset.top += hi;
+    }
+
+    if (rect.right < paneArea.right)
+    {
+        inset.right -= lo;
+    }
+
+    if (rect.bottom < paneArea.bottom)
+    {
+        inset.bottom -= lo;
+    }
+
+    inset.right  = std::max (inset.right,  inset.left);
+    inset.bottom = std::max (inset.bottom, inset.top);
+    return inset;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::PaintGaps
+//
+//  The margin around the panes and the gap at every split, in the theme's
+//  DockGap. None of it lies under a group: the main window's site paints
+//  after the pane controls, so a fill there would cover a pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::PaintGaps (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    uint32_t  argb      = theme.DockGap();
+    RECT      margins[] =
+    {
+        { m_dockedArea.left,  m_dockedArea.top,  m_dockedArea.right, m_paneArea.top       },
+        { m_dockedArea.left,  m_paneArea.bottom, m_dockedArea.right, m_dockedArea.bottom  },
+        { m_dockedArea.left,  m_paneArea.top,    m_paneArea.left,    m_paneArea.bottom    },
+        { m_paneArea.right,   m_paneArea.top,    m_dockedArea.right, m_paneArea.bottom    },
+    };
+    auto      fill      = [&painter, argb] (const RECT & r)
+    {
+        if (r.right > r.left && r.bottom > r.top)
+        {
+            painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
+        }
+    };
+
+
+
+    if (m_gapDip == 0 && m_marginDip == 0)
+    {
+        return;
+    }
+
+    for (const RECT & margin : margins)
+    {
+        fill (margin);
+    }
+
+    if (m_gapDip <= 0)
+    {
+        return;
+    }
+
+    for (const DxuiPaneLayout::SplitRect & split : m_splits)
+    {
+        fill (GetSashRect (split));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::GetSashRect
+//
+//  With a gap, exactly the gap, so a press anywhere between two panes drags
+//  their split and a press on a pane never does; without one, a band
+//  centered on the split.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiDockSite::GetSashRect (const DxuiPaneLayout::SplitRect & split) const
 {
-    long  half = m_scaler.ToPx (kSashDip) / 2;
+    long  gap = m_scaler.ToPx (m_gapDip);
+    long  lo  = (m_gapDip > 0) ? gap / 2 : m_scaler.ToPx (kSashDip) / 2;
+    long  hi  = (m_gapDip > 0) ? gap - lo : lo;
 
 
 
-    return split.horizontal ? RECT { split.position - half, split.area.top,  split.position + half, split.area.bottom }
-                            : RECT { split.area.left, split.position - half, split.area.right, split.position + half };
+    return split.horizontal ? RECT { split.position - lo, split.area.top,  split.position + hi, split.area.bottom }
+                            : RECT { split.area.left, split.position - lo, split.area.right, split.position + hi };
 }
 
 
@@ -2466,34 +2628,19 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
 //
 //  DxuiDockSite::Paint
 //
-//  The groups, a seam down each sash, and the edge strips. A drag's marks are
-//  drawn after the siblings, in PaintAfterSiblings.
+//  The gaps and margin, the groups, and the edge strips. With no gap, two
+//  neighbors' outlines meet at their split. A drag's marks are drawn after
+//  the siblings, in PaintAfterSiblings.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float  line = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
-
-
+    PaintGaps (painter, theme);
 
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
         group->Paint (painter, text, theme);
-    }
-
-    for (const DxuiPaneLayout::SplitRect & split : m_splits)
-    {
-        if (split.horizontal)
-        {
-            painter.FillRect ((float) split.position - line / 2, (float) split.area.top,
-                              line, (float) (split.area.bottom - split.area.top), theme.Divider());
-        }
-        else
-        {
-            painter.FillRect ((float) split.area.left, (float) split.position - line / 2,
-                              (float) (split.area.right - split.area.left), line, theme.Divider());
-        }
     }
 
     PaintEdges (painter, text, theme);
@@ -2541,7 +2688,7 @@ void DxuiDockSite::PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer
 
 RECT DxuiDockSite::GetPaneArea() const
 {
-    return GetDockedArea();
+    return (m_gapDip != 0 || m_marginDip != 0) ? m_paneArea : GetDockedArea();
 }
 
 
