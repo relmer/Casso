@@ -341,8 +341,7 @@ void Disk2NibbleEngine::SeekFlux (double angle)
 
 uint8_t Disk2NibbleEngine::StepFluxPulse()
 {
-    constexpr uint64_t  kWeakWindowCells = 4;
-    constexpr uint64_t  kWeakWindowUnits = kWeakWindowCells * kFluxUnitsPerCell;
+    constexpr uint64_t  kWeakWindowUnits = kHeadWindowCells * kFluxUnitsPerCell;
 
 
 
@@ -810,13 +809,17 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 
 uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 {
+    constexpr uint8_t  kWindowMask = (1 << kHeadWindowCells) - 1;
+
+
+
     uint8_t   outBit = 0;
 
 
 
-    m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & 0x0F);
+    m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & kWindowMask);
 
-    if ((m_headWindow & 0x0F) != 0)
+    if ((m_headWindow & kWindowMask) != 0)
     {
         outBit = static_cast<uint8_t> ((m_headWindow >> 1) & 1);
     }
