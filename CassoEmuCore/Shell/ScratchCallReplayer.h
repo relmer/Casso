@@ -34,19 +34,23 @@
 //  Each part of a job loads its keyframe over the job's disks, once the
 //  keyframe is found to have been saved with those very disks, and replays
 //  to its end with the recorded inputs, as reverse execution replays them.
-//  The record begins at the first part loaded -- at power-on when that
-//  keyframe is at cycle 0, and otherwise at the start of history -- and
-//  begins again after a gap, or after a part whose disks were others; a
-//  fresh job starts at the newest part that begins it again, since the
-//  record keeps nothing from the parts before. A keyframe loaded on the way
-//  is a change from outside, and the record goes on across it. A reset or
-//  power cycle in the replay reaches the record as one on the running
-//  machine reaches the debugger's. A job that continues starts where the
-//  last left the machine and the record.
+//  The record begins at the first part loaded -- from the part's seed when
+//  it holds one, at power-on when its keyframe is at cycle 0, and otherwise
+//  where history starts -- and begins again after a part whose disks were
+//  others; a fresh job starts at the newest part that begins it again,
+//  since the record keeps nothing from the parts before. A keyframe loaded
+//  on the way is a change from outside, and the record goes on across it. A
+//  reset or power cycle in the replay reaches the record as one on the
+//  running machine reaches the debugger's. A job that continues starts where
+//  the last left the machine and the record. At each keyframe the job lists
+//  that the replay passes with the record begun, a copy of the record goes
+//  in the result.
 //
 //  Jobs run one at a time on a pool thread of its own, or on a queue a test
 //  hands in, and are abandoned within about kChunkCycles of replay when a
-//  newer one comes in or they are cancelled.
+//  newer one comes in or they are cancelled. The progress shown is the
+//  newest job's: one abandoned or cancelled shows none, whatever it last
+//  published.
 //
 //  SetMachine is called on the thread that builds the running machine;
 //  Submit, TryTakeResult, Cancel and Rebuild on the thread that runs it;
@@ -79,7 +83,7 @@ public:
     bool        TryTakeResult  (CallStackRebuildResult & outResult) override;
     void        Cancel         () override;
     HRESULT     Rebuild        (const CallStackRebuildJob & job, CallStackRebuildResult & outResult) override;
-    float       GetProgress    () const override { return m_progress.load (std::memory_order_relaxed); }
+    float       GetProgress    () const override;
 
     // IOpcodeWatcher: the second machine's CPU, for the record.
     void        OnWatchedFetch (Word pc, Byte sp, Byte opcode) override;
@@ -97,6 +101,13 @@ private:
     static constexpr Word  kStackPage = 0x01;
     static constexpr int   kPageShift = 8;
 
+    //  The progress is published as one value: the low half of the
+    //  publishing job's generation in its high half, and the share
+    //  replayed, in millionths, in its low half.
+    static constexpr int       kGenerationShift = 32;
+    static constexpr uint64_t  kLowHalf         = 0xFFFFFFFF;
+    static constexpr float     kProgressScale   = 1'000'000.0f;
+
     static void RunJob          (void * context);
     void        RunPending      ();
     HRESULT     Run             (const CallStackRebuildJob & job, CallStackRebuildResult & outResult);
@@ -105,12 +116,15 @@ private:
     HRESULT     ReadPartMedia   (const CallStackRebuildPart & part, MachineHost::MediaIds & outSaved);
     HRESULT     RunPart         (const CallStackRebuildJob & job, const CallStackRebuildPart & part);
     HRESULT     LoadPart        (const CallStackRebuildJob & job, const CallStackRebuildPart & part, bool & outIsLoaded);
+    HRESULT     BeginRecord     (const CallStackRebuildPart & part);
     HRESULT     ReplayPart      (const CallStackRebuildJob & job, const CallStackRebuildPart & part);
-    void        Finish          (CallStackRebuildResult & outResult);
+    void        TakeCopyIfDue   (const CallStackRebuildJob & job);
+    void        Finish          (const CallStackRebuildJob & job, CallStackRebuildResult & outResult);
     void        AttachRecorder  ();
     void        DetachRecorder  ();
     void        SettleRecorder  ();
     void        OnReplayedReset (bool isPowerCycle);
+    void        PublishProgress (const CallStackRebuildJob & job, float fraction);
     Byte        PeekByte        (Word address) const;
     HRESULT     UseQueue        ();
     bool        IsAbandoned     (const CallStackRebuildJob & job) const;
@@ -122,8 +136,8 @@ private:
     std::shared_ptr<const CallStackRebuildJob>   m_next;
     std::deque<CallStackRebuildResult>           m_results;
     bool                                         m_isRunning  = false;
-    std::atomic<uint64_t>                        m_latest     = 0;      // the generation still wanted, 0 for none
-    std::atomic<float>                           m_progress   = 0.0f;
+    std::atomic<uint64_t>                        m_latest     = 0;      // the newest generation submitted and not cancelled, 0 for none
+    std::atomic<uint64_t>                        m_progress   = 0;      // see kGenerationShift
 
     ThreadPoolWorkQueue                          m_ownQueue;
     IWorkQueue                                 * m_queue      = nullptr;
@@ -141,4 +155,8 @@ private:
     uint64_t                                     m_recordFrom   = 0;
     uint64_t                                     m_jobStart     = 0;
     uint64_t                                     m_jobEnd       = 0;
+    size_t                                       m_copyNext     = 0;         // the job's next keyframe to copy the record at
+    std::vector<CallRecordCopy>                  m_madeCopies;
+    std::vector<Byte>                            m_packed;
+    std::vector<Byte>                            m_lastPacked;
 };

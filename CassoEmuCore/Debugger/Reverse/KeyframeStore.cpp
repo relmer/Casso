@@ -264,6 +264,30 @@ void KeyframeStore::SetWorkQueue (IWorkQueue * queue)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDropListener
+//
+//  The owner's listener replaces any it set before; a null one removes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::SetDropListener (
+    const void    * owner,
+    DropListener    listener)
+{
+    std::erase_if (m_dropListeners, [owner] (const std::pair<const void *, DropListener> & each) { return each.first == owner; });
+
+    if (listener)
+    {
+        m_dropListeners.emplace_back (owner, std::move (listener));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Add
 //
 //  Stores one machine state taken at the given position and cycle, which
@@ -1741,9 +1765,9 @@ void KeyframeStore::PopOldest()
 
 void KeyframeStore::NotifyDrop (KeyframeDrop drop)
 {
-    if (m_onDrop)
+    for (const auto & [owner, listener] : m_dropListeners)
     {
-        m_onDrop (drop);
+        listener (drop);
     }
 }
 

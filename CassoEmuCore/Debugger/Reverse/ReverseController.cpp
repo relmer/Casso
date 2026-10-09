@@ -119,6 +119,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetKeyframeListener
+//
+//  The owner's listener replaces any it set before; a null one removes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::SetKeyframeListener (
+    const void        * owner,
+    KeyframeListener    listener)
+{
+    std::erase_if (m_keyframeListeners, [owner] (const std::pair<const void *, KeyframeListener> & each) { return each.first == owner; });
+
+    if (listener)
+    {
+        m_keyframeListeners.emplace_back (owner, std::move (listener));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Stop
 //
 //  Detaches from the machine, drops all history and gives back the memory
@@ -1762,6 +1786,11 @@ HRESULT ReverseController::CaptureNow()
     journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);
 
     PruneRetainedMedia();
+
+    for (const auto & [owner, listener] : m_keyframeListeners)
+    {
+        listener (position);
+    }
 
 Error:
     ScheduleCaptures();

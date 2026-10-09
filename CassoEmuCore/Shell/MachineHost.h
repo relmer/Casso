@@ -342,7 +342,7 @@ public:
     using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
 
     //  The media a saved state's bays held, from its header alone, so a
-    //  second machine can tell whether the disks it mounted are the ones the
+    //  second machine can check whether the disks it mounted are the ones the
     //  state was saved with before it loads it over them.
     static HRESULT  ReadSavedMedia (const std::vector<Byte> & state, MediaIds & outIds);
 

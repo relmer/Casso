@@ -62,7 +62,7 @@ void HeatHistory::Attach (KeyframeStore * keyframes)
 
     if (m_keyframes != nullptr)
     {
-        m_keyframes->SetDropListener (nullptr);
+        m_keyframes->SetDropListener (this, nullptr);
     }
 
     m_keyframes = keyframes;
@@ -71,7 +71,7 @@ void HeatHistory::Attach (KeyframeStore * keyframes)
 
     if (m_keyframes != nullptr)
     {
-        m_keyframes->SetDropListener ([this] (KeyframeDrop drop) { OnKeyframeDrop (drop); });
+        m_keyframes->SetDropListener (this, [this] (KeyframeDrop drop) { OnKeyframeDrop (drop); });
     }
 }
 

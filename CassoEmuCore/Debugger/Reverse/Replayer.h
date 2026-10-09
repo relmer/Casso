@@ -114,8 +114,8 @@ public:
     void      SetStateLoadedCallback (std::function<void()> callback)          { m_onStateLoaded = std::move (callback); }
     void      SetOutputGate          (std::function<void (bool)> gate)         { m_outputGate    = std::move (gate); }
 
-    //  Told just after a recorded reset or power cycle is made again, true
-    //  for a power cycle, as the debugger is told of one live.
+    //  Called just after a recorded reset or power cycle is made again, true
+    //  for a power cycle, as the debugger's OnReset is called for one live.
     void      SetResetCallback       (std::function<void (bool)> callback)     { m_onReset       = std::move (callback); }
 
     HRESULT   RestoreKeyframe   (size_t index);
@@ -157,7 +157,7 @@ private:
     StateWriter                    m_checkWriter;       // saves the machine at each keyframe a replay checks; kept for its capacity
     size_t                         m_journalCursor = 0;
     size_t                         m_nextKeyframe  = 0;
-    uint64_t                       m_replayedCount = 0;                // instructions every replay has run, for tests and to tell whether a command replayed any
+    uint64_t                       m_replayedCount = 0;                // instructions every replay has run, for tests and to find whether a command replayed any
     size_t                         m_restoreCount  = 0;                // keyframes loaded, likewise
     bool                           m_isReplaying   = false;
     bool                           m_isOverMounted = false;

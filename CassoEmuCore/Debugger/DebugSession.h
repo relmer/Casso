@@ -190,17 +190,25 @@ public:
     bool                  IsCallRecording  () const { return m_callRecorder.IsActive(); }
 
     // A record started at PC again for a machine that moved through history,
-    // its bottom where history starts as far as the record knows, or
-    // power-on at cycle 0. Nothing happens while it is off.
+    // its bottom where history starts until a rebuild from history replaces
+    // it, or power-on at cycle 0. Nothing happens while it is off.
     void                  RestartCallRecording ();
 
+    // A record started again after a move that no rebuild from history will
+    // replace: its bottom stops claiming that history starts there.
+    void                  MarkCallRecordUnrebuilt ();
+
     // Counts each time the record starts, ends, or is reset, so a rebuild of
-    // it from history can tell when the record it was for has gone.
+    // it from history can detect that the record it was for has gone.
     uint64_t              GetCallRecordGeneration () const { return m_callRecordGeneration; }
 
     // The break at the bottom of the record: where it began, power-on, a
     // reset or where history starts. Empty while nothing is recorded.
     std::optional<CallStackBreak>  GetCallRecordBottom () const { return m_callRecorder.GetBottom(); }
+
+    // A copy of the record, its last instruction settled; called only
+    // between instructions.
+    CallRecord            GetCallRecord    ();
 
     // A record rebuilt from history up to where the machine stands, taken as
     // this one, so recording goes on from it.

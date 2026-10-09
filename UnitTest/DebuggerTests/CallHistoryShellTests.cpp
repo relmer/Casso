@@ -13,6 +13,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineBuilder.h"
+#include "Ui/Debugger/Panes/CallStackPane.h"
 #include "UiTests/InMemoryFileSystem.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -183,7 +184,7 @@ namespace CallHistoryShellTests
 
 
 
-        //  The pass that asks for the rebuild, the rebuild run, and the pass
+        //  The pass that requests the rebuild, the rebuild run, and the pass
         //  that takes it in.
         void Rebuild()
         {
@@ -266,9 +267,10 @@ namespace CallHistoryShellTests
     //  The shell's part in rebuilding the debugger's call record from
     //  history: each pass of the CPU thread looks after the rebuild, a
     //  reverse command starts the record again where the machine lands unless
-    //  it left the machine where it was, closing the debugger drops the
-    //  rebuild under way, and the debugger's view is built again while a
-    //  stopped machine waits on one.
+    //  it left the machine where it was, turning history off behind live
+    //  leaves a record whose bottom claims nothing about history, closing the
+    //  debugger drops the rebuild under way, and the debugger's view is built
+    //  again while a stopped machine waits on one.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,7 +286,7 @@ namespace CallHistoryShellTests
 
 
 
-        //  The debugger opened mid-run: a pass of the CPU thread asks for the
+        //  The debugger opened mid-run: a pass of the CPU thread requests the
         //  rebuild, and a later one takes it in, with the calls made before
         //  the debugger opened.
         TEST_METHOD (EachPassLooksAfterTheRebuild)
@@ -297,7 +299,7 @@ namespace CallHistoryShellTests
 
             rig.shell->ServiceDebugger();
 
-            Assert::IsTrue   (rig.debugger->GetCallHistory().IsRebuilding(), L"a pass asks for the rebuild");
+            Assert::IsTrue   (rig.debugger->GetCallHistory().IsRebuilding(), L"a pass requests the rebuild");
             Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(),      L"on the rebuilder's worker");
 
             rig.queue.WaitAll();
@@ -325,13 +327,13 @@ namespace CallHistoryShellTests
 
             rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
 
-            Assert::AreEqual    (landing, rig.shell->GetMachine().GetPosition(), L"the seek lands where asked");
+            Assert::AreEqual    (landing, rig.shell->GetMachine().GetPosition(), L"the seek lands at the position given");
             Assert::AreNotEqual (generation, rig.GetGeneration(),                L"and the record starts again there");
-            Assert::IsFalse     (ShellRig::HasCalls (rig.GetRecord()),           L"knowing no call before it");
+            Assert::IsFalse     (ShellRig::HasCalls (rig.GetRecord()),           L"holding no call before it");
 
             rig.shell->ServiceDebugger();
 
-            Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"the next pass asks for its rebuild");
+            Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"the next pass requests its rebuild");
 
             rig.queue.WaitAll();
             rig.shell->ServiceDebugger();
@@ -341,7 +343,7 @@ namespace CallHistoryShellTests
 
 
         //  A reverse command that cannot run -- history was turned off after
-        //  it was asked for -- leaves the machine and the record as they were.
+        //  it was posted -- leaves the machine and the record as they were.
         TEST_METHOD (AReverseCommandThatCannotRunKeepsTheRecord)
         {
             ShellRig    rig;
@@ -367,6 +369,47 @@ namespace CallHistoryShellTests
         }
 
 
+        //  Turning history off while the machine is behind live makes it live
+        //  first, which starts the record again where it lands, and then no
+        //  rebuild can follow: the record keeps what it holds, and its bottom
+        //  marks only that the calls before it are not available, not that
+        //  history starts there.
+        TEST_METHOD (TurningHistoryOffBehindLiveLeavesNoClaimAboutHistory)
+        {
+            uint64_t                         landing = ShellRig::kOpenAt + ShellRig::kOpenAt / 2;
+            uint64_t                         end     = ShellRig::kOpenAt * 2;
+            ShellRig                         rig;
+            std::optional<CallStackBreak>    bottom;
+            std::vector<CallStackPane::Row>  rows;
+
+
+
+            rig.Rebuild();
+            rig.RunTo (end);
+
+            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
+            rig.Rebuild();
+
+            Assert::AreEqual (landing, rig.shell->GetMachine().GetPosition(), L"behind live, where the seek landed");
+
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+            rig.shell->ServiceDebugger();
+
+            bottom = rig.debugger->GetSession().GetCallRecordBottom();
+            rows   = CallStackPane::GetRows (rig.debugger->GetSession().GetCallStack());
+
+            Assert::AreEqual (end, rig.shell->GetMachine().GetPosition(),        L"live again, where history ended");
+            Assert::IsFalse  (rig.debugger->GetCallHistory().IsRebuilding(),     L"with no rebuild");
+            Assert::IsTrue   (bottom.has_value() && bottom->kind == CallBreakKind::TrackingRestarted,
+                              L"the bottom marks only that the calls before it are not available");
+
+            Assert::IsTrue (std::ranges::any_of (rows, [&bottom] (const CallStackPane::Row & row)
+            {
+                return row.isNote && row.routine == CallStackPane::GetUnavailableNote (bottom->pc);
+            }), L"and the pane's note matches");
+        }
+
+
         //  Closing the debugger drops the rebuild under way: it never runs,
         //  and no result is left behind for a debugger opened later.
         TEST_METHOD (ClosingTheDebuggerDropsTheRebuild)
@@ -379,7 +422,7 @@ namespace CallHistoryShellTests
 
             rig.shell->ServiceDebugger();
 
-            Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"a rebuild was asked for");
+            Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"a rebuild was requested");
 
             rig.shell->CloseDebugger();
             rig.debugger = nullptr;

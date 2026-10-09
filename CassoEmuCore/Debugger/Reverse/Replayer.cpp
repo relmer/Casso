@@ -450,7 +450,7 @@ Error:
 //  ApplyInput
 //
 //  A record a device holds goes back to that device. A reset or power cycle
-//  is made again on the machine, and the reset callback told of it; a power
+//  is made again on the machine, and the reset callback called; a power
 //  cycle draws the same memory as it did live, since every keyframe holds
 //  the Prng, and leaves the drives on the disks in their bays. A drive's
 //  write-protect switch is set on its disk. A mount, an eject or a change to

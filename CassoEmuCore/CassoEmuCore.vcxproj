@@ -147,6 +147,7 @@
     <ClCompile Include="Debugger\DebugViewCapture.cpp" />
     <ClCompile Include="Debugger\RunStopHook.cpp" />
     <ClCompile Include="Debugger\StepFilter.cpp" />
+    <ClCompile Include="Debugger\CallRecordCopies.cpp" />
     <ClCompile Include="Debugger\CallStack.cpp" />
     <ClCompile Include="Debugger\CallStackHistory.cpp" />
     <ClCompile Include="Debugger\MachineDebugTarget.cpp" />
@@ -631,6 +632,7 @@
     <ClInclude Include="Debugger\DebugViewCapture.h" />
     <ClInclude Include="Debugger\RunStopHook.h" />
     <ClInclude Include="Debugger\StepFilter.h" />
+    <ClInclude Include="Debugger\CallRecordCopies.h" />
     <ClInclude Include="Debugger\CallStack.h" />
     <ClInclude Include="Debugger\CallStackHistory.h" />
     <ClInclude Include="Debugger\CallStackRebuildJob.h" />

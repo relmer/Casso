@@ -47,10 +47,12 @@ CallStackHistory::~CallStackHistory()
 //
 //  CallStackHistory::Attach
 //
-//  A rebuild under way was for the history and the rebuilder it started
-//  with, so a change of either drops it. Linking history again does not ask
-//  for a rebuild of the record already running: history that starts later
-//  than that record holds less than it does.
+//  A rebuild under way, or due, was for the history and the rebuilder it
+//  started with, so a change of either gives it up. Linking history again
+//  does not request a rebuild of the record already running: history that
+//  starts later than that record holds less than it does. The copies of the
+//  record were of the old history and go; the new one's keyframes, as they
+//  are taken and dropped, are followed from here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,15 +60,44 @@ void CallStackHistory::Attach (
     ReverseController    * history,
     ICallStackRebuilder  * rebuilder)
 {
+    bool  isOwed = m_isDue || m_awaited != 0;
+
+
+
     if (history == m_history && rebuilder == m_rebuilder)
     {
         return;
     }
 
-    Stop();
+    if (isOwed)
+    {
+        Abandon();
+    }
+    else
+    {
+        Stop();
+    }
 
-    m_history   = history;
-    m_rebuilder = rebuilder;
+    if (history != m_history)
+    {
+        if (m_history != nullptr)
+        {
+            m_history->SetKeyframeListener (this, nullptr);
+            m_history->GetKeyframes().SetDropListener (this, nullptr);
+        }
+
+        m_copies.Clear();
+
+        if (history != nullptr)
+        {
+            history->SetKeyframeListener (this, [this] (uint64_t position) { OnKeyframeTaken (position); });
+            history->GetKeyframes().SetDropListener (this, [this] (KeyframeDrop drop) { OnKeyframeDrop (drop); });
+        }
+    }
+
+    m_history      = history;
+    m_rebuilder    = rebuilder;
+    m_restoresSeen = GetRestoreCount();
 
     m_session.SetCallRebuildProgress (std::nullopt);
 }
@@ -113,7 +144,9 @@ void CallStackHistory::OnMoving()
 //  it stood and replayed nothing on it -- a step back out with no caller,
 //  or one that failed before it began -- fed the record nothing, and it goes
 //  on. Without the mark OnMoving took there is no telling, and the record
-//  starts again.
+//  starts again, as it does when a keyframe was loaded under the running
+//  machine before the command and no pass has followed since (CheckLoads).
+//  Either way, the keyframes loaded so far are accounted for here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,11 +160,13 @@ void CallStackHistory::OnMoved (bool isInterim)
 
     m_isDragging = isInterim;
 
-    isStill = isMarked && m_moveMark.has_value() &&
+    isStill = isMarked && m_moveMark.has_value() && m_moveMark->restores == m_restoresSeen &&
               now.position == m_moveMark->position && now.cycle    == m_moveMark->cycle &&
               now.replayed == m_moveMark->replayed && now.restores == m_moveMark->restores;
 
     m_moveMark.reset();
+
+    m_restoresSeen = GetRestoreCount();
 
     if (!isStill)
     {
@@ -147,37 +182,44 @@ void CallStackHistory::OnMoved (bool isInterim)
 //
 //  CallStackHistory::Service
 //
-//  A record that started again since the last pass drops the rebuild under
-//  way, and needs one of its own when it began mid-run: where the debugger
-//  attached, or where a move through history landed. Then any rebuild that
-//  has come in is taken in, and one due is asked for.
+//  A keyframe loaded under the running machine starts the record again
+//  (CheckLoads), and a record that started again since the last pass is
+//  looked at (OnRecordChanged). Without history to rebuild from, a rebuild
+//  due or under way is given up; with it, any rebuild that has come in is
+//  taken in, and one due is requested.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CallStackHistory::Service()
 {
-    uint64_t                       record   = m_session.GetCallRecordGeneration();
-    bool                           isOn     = m_session.IsCallRecording();
-    bool                           isLinked = m_history != nullptr && m_rebuilder != nullptr && m_history->IsRecording();
-    bool                           isMidRun = false;
-    std::optional<CallStackBreak>  bottom;
+    uint64_t  record   = 0;
+    bool      isOn     = m_session.IsCallRecording();
+    bool      isLinked = m_history != nullptr && m_rebuilder != nullptr && m_history->IsRecording();
+    bool      isOwed   = false;
 
 
+
+    CheckLoads();
+
+    record = m_session.GetCallRecordGeneration();
 
     if (record != m_seenRecord)
     {
-        Stop();
-
-        bottom       = m_session.GetCallRecordBottom();
-        isMidRun     = bottom.has_value() && (bottom->kind == CallBreakKind::TrackingBegan || bottom->kind == CallBreakKind::HistoryBegan);
-        m_seenRecord = record;
-        m_isDue      = isOn && isMidRun;
-        m_began      = m_machine.GetPosition();
+        OnRecordChanged (record, isOn);
     }
 
     if (!isLinked || !isOn)
     {
-        Stop();
+        isOwed = isOn && (m_isDue || m_awaited != 0);
+
+        if (isOwed)
+        {
+            Abandon();
+        }
+        else
+        {
+            Stop();
+        }
     }
     else
     {
@@ -200,15 +242,21 @@ void CallStackHistory::Service()
 //
 //  CallStackHistory::MakeJob
 //
-//  A part starts at the newest point the record would start again from
-//  (FindFreshStart), or where the last job stopped, and at every keyframe
-//  after it, up to the target, that a replay loads rather than reaches: one
-//  after a change from outside, or after a gap, the part before which ends
-//  where the gap began. A keyframe loaded at exactly the position a job
+//  A fresh job starts at the newest copy of the record at or after the
+//  newest point the record would start again from (FindFreshStart), seeded
+//  with the copy, or at that point itself; a job that continues starts where
+//  the last job stopped. A part starts there and at every keyframe after
+//  it, up to the target, that a replay loads rather than reaches: one after
+//  a change from outside. A keyframe loaded at exactly the position a job
 //  continues from is loaded again, which changes nothing if the last job
-//  loaded it too. The inputs run from the first part's journal index, or
-//  the last job's cursor, through the target; the disks are the ones in the
-//  bays now.
+//  loaded it too. Every keyframe from the start to the target without a copy
+//  of the record is listed for the replay to make one. The inputs run from
+//  the first part's journal index, or the last job's cursor, through the
+//  target; the disks are the ones in the bays now.
+//
+//  No part after the first follows a gap: a fresh job starts after the last
+//  one up to the target, and for a job that continues, a record begun again
+//  after one would hold less than the live record, so there is no job.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,8 +272,11 @@ HRESULT CallStackHistory::MakeJob (
     KeyframeStore        * keyframes = nullptr;
     size_t                 count     = 0;
     size_t                 index     = 0;
+    size_t                 start     = 0;
     bool                   isFound   = false;
+    bool                   isSeeded  = false;
     bool                   isCopied  = false;
+    std::span<const Byte>  seed;
     CallStackRebuildPart   part;
     KeyframeInfo           info;
 
@@ -261,15 +312,30 @@ HRESULT CallStackHistory::MakeJob (
     }
     else
     {
-        index = FindFreshStart (*keyframes, target);
-        info  = keyframes->GetInfo (index);
+        start    = FindFreshStart (*keyframes, target);
+        info     = keyframes->GetInfo (start);
+        isSeeded = TryFindSeed (*keyframes, info.position, target, index);
 
-        BAIL_OUT_IF (info.position >= target, S_OK);
+        BAIL_OUT_IF (!isSeeded && info.position >= target, S_OK);
+
+        if (!isSeeded)
+        {
+            index = start;
+            AddCopyAt (info, outJob);
+        }
 
         hr = CopyPart (index, part);
         CHR (hr);
 
-        outJob.inputsFrom = info.journalIndex;
+        if (isSeeded)
+        {
+            seed = m_copies.GetPacked (part.startPosition);
+
+            part.seed.assign (seed.begin(), seed.end());
+            part.seedFrom = info.position;
+        }
+
+        outJob.inputsFrom = part.journalIndex;
         index++;
     }
 
@@ -284,12 +350,16 @@ HRESULT CallStackHistory::MakeJob (
             break;
         }
 
-        if (!info.isBoundary && !info.hasGapBefore)
+        BAIL_OUT_IF (info.hasGapBefore, S_OK);
+
+        AddCopyAt (info, outJob);
+
+        if (!info.isBoundary)
         {
             continue;
         }
 
-        outJob.parts.back().endPosition = info.hasGapBefore ? (std::max) (info.gapStart, outJob.parts.back().startPosition) : info.position;
+        outJob.parts.back().endPosition = info.position;
 
         hr = CopyPart (index, part);
         CHR (hr);
@@ -319,7 +389,7 @@ Error:
 //
 //  CallStackHistory::Stop
 //
-//  Drops the rebuild under way, and any that was due.
+//  Drops the rebuild under way, any that was due, and the copies it made.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -336,6 +406,29 @@ void CallStackHistory::Stop()
     m_roundTo       = 0;
     m_continuations = 0;
     m_isDue         = false;
+
+    m_pendingCopies.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::Abandon
+//
+//  No rebuild will replace the record: the one due or under way is dropped,
+//  and a record begun again after a move marks only that the calls before
+//  it are not available, since history does not start where it began.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::Abandon()
+{
+    Stop();
+
+    m_session.MarkCallRecordUnrebuilt();
 }
 
 
@@ -346,20 +439,26 @@ void CallStackHistory::Stop()
 //
 //  CallStackHistory::Request
 //
-//  A rebuild from the newest point the record would start again from to
-//  where the machine stands, unless history cannot reach there -- recording
-//  paused at Maximum speed -- or the record it would give begins later than
-//  the live one.
+//  A rebuild to where the machine stands. Where the machine stands at the
+//  newest point the record would start again from, the record begun there
+//  is the one a rebuild would give, and none is needed. Where history cannot
+//  reach the machine -- recording paused at Maximum speed -- or the record a
+//  rebuild would give begins later than the live one, none can help, and the
+//  record is given up on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CallStackHistory::Request()
 {
     HRESULT                               hr         = S_OK;
+    KeyframeStore                       & keyframes  = m_history->GetKeyframes();
     uint64_t                              target     = m_machine.GetPosition();
     uint64_t                              recorded   = m_history->GetRecordedEnd();
     uint64_t                              recordFrom = 0;
+    size_t                                start      = 0;
     bool                                  hasJob     = false;
+    bool                                  isAtStart  = false;
+    bool                                  isSettled  = false;
     std::shared_ptr<CallStackRebuildJob>  job;
 
 
@@ -367,6 +466,22 @@ void CallStackHistory::Request()
     m_isDue = false;
 
     BAIL_OUT_IF (target > recorded, S_OK);
+
+    hr = keyframes.WaitForPending();
+    CHR (hr);
+
+    if (keyframes.GetCount() > 0)
+    {
+        start     = FindFreshStart (keyframes, target);
+        isAtStart = keyframes.GetInfo (start).position == target;
+    }
+
+    if (isAtStart)
+    {
+        NoteWhole();
+        isSettled = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     job = std::make_shared<CallStackRebuildJob>();
     CPRA (job);
@@ -376,7 +491,7 @@ void CallStackHistory::Request()
 
     BAIL_OUT_IF (!hasJob, S_OK);
 
-    recordFrom = GetRecordFrom (*job, 0);
+    recordFrom = GetRecordFrom (job->parts.front());
     BAIL_OUT_IF (recordFrom > m_began, S_OK);
 
     job->generation = ++m_generation;
@@ -389,8 +504,14 @@ void CallStackHistory::Request()
     m_roundFrom     = m_rebuildFrom;
     m_roundTo       = target;
     m_continuations = 0;
+    isSettled       = true;
 
 Error:
+    if (!isSettled)
+    {
+        Abandon();
+    }
+
     return;
 }
 
@@ -438,18 +559,18 @@ void CallStackHistory::TakeResults()
 //  CallStackHistory::Land
 //
 //  A rebuild that came in where the machine stands is taken as the record;
-//  one the machine has run on from is continued. A failed one, and one
-//  that had to begin later than the live record began, leave the live
-//  record as it is.
+//  one the machine has run on from is continued. Its copies wait until its
+//  record is taken. A failed one, and one that had to begin later than the
+//  live record began, leave the live record as it is, given up on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CallStackHistory::Land (const CallStackRebuildResult & result)
+HRESULT CallStackHistory::Land (CallStackRebuildResult & result)
 {
-    HRESULT   hr          = S_OK;
-    uint64_t  position    = m_machine.GetPosition();
-    bool      isUseful    = false;
-    bool      isInstalled = false;
+    HRESULT   hr        = S_OK;
+    uint64_t  position  = m_machine.GetPosition();
+    bool      isUseful  = false;
+    bool      isSettled = false;
 
 
 
@@ -457,20 +578,26 @@ HRESULT CallStackHistory::Land (const CallStackRebuildResult & result)
 
     CHR (result.hr);
 
+    KeepCopies (result.copies);
+
     isUseful = result.recordFrom <= m_began && result.position <= position;
     BAIL_OUT_IF (!isUseful, S_OK);
 
     if (result.position == position)
     {
-        isInstalled = TryInstall (result);
-        IGNORE_RETURN_VALUE (isInstalled, false);
+        isSettled = TryInstall (result);
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hr = Continue (result);
+    hr = Continue (result, isSettled);
     CHR (hr);
 
 Error:
+    if (!isSettled)
+    {
+        Abandon();
+    }
+
     return hr;
 }
 
@@ -484,26 +611,29 @@ Error:
 //
 //  From where the rebuild stopped to where the machine now stands: here, at
 //  once, when that is close, and on the rebuilder's worker otherwise, after
-//  which this runs again, closer each time.
+//  which this runs again, closer each time. outIsSettled when the record was
+//  taken or the next round is under way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CallStackHistory::Continue (const CallStackRebuildResult & result)
+HRESULT CallStackHistory::Continue (
+    const CallStackRebuildResult  & result,
+    bool                          & outIsSettled)
 {
-    HRESULT                               hr          = S_OK;
-    const EmuCpu                        * cpu         = m_machine.GetCpu();
-    uint64_t                              target      = m_machine.GetPosition();
-    uint64_t                              recorded    = m_history->GetRecordedEnd();
-    uint64_t                              cycle       = 0;
-    uint64_t                              limit       = 0;
-    uint64_t                              recordFrom  = 0;
-    bool                                  hasJob      = false;
-    bool                                  isClose     = false;
-    bool                                  isInstalled = false;
+    HRESULT                               hr       = S_OK;
+    const EmuCpu                        * cpu      = m_machine.GetCpu();
+    uint64_t                              target   = m_machine.GetPosition();
+    uint64_t                              recorded = m_history->GetRecordedEnd();
+    uint64_t                              cycle    = 0;
+    uint64_t                              limit    = 0;
+    bool                                  hasJob   = false;
+    bool                                  isClose  = false;
     std::shared_ptr<CallStackRebuildJob>  job;
     CallStackRebuildResult                caught;
 
 
+
+    outIsSettled = false;
 
     CBRA (cpu);
 
@@ -517,9 +647,6 @@ HRESULT CallStackHistory::Continue (const CallStackRebuildResult & result)
 
     BAIL_OUT_IF (!hasJob, S_OK);
 
-    recordFrom = GetRecordFrom (*job, result.recordFrom);
-    BAIL_OUT_IF (recordFrom > m_began, S_OK);
-
     job->generation = result.generation;
 
     cycle   = cpu->GetTotalCycles();
@@ -531,19 +658,21 @@ HRESULT CallStackHistory::Continue (const CallStackRebuildResult & result)
         hr = m_rebuilder->Rebuild (*job, caught);
         CHR (hr);
 
+        KeepCopies (caught.copies);
+
         BAIL_OUT_IF (caught.recordFrom > m_began, S_OK);
 
-        isInstalled = TryInstall (caught);
-        IGNORE_RETURN_VALUE (isInstalled, false);
+        outIsSettled = TryInstall (caught);
         BAIL_OUT_IF (true, S_OK);
     }
 
     hr = m_rebuilder->Submit (job);
     CHR (hr);
 
-    m_awaited   = job->generation;
-    m_roundFrom = result.position;
-    m_roundTo   = target;
+    m_awaited    = job->generation;
+    m_roundFrom  = result.position;
+    m_roundTo    = target;
+    outIsSettled = true;
 
     m_continuations++;
 
@@ -561,7 +690,8 @@ Error:
 //
 //  Only a record of the machine as it stands, to the cycle and every
 //  register, is taken: a second machine that stopped anywhere else replayed
-//  some other run.
+//  some other run. The record taken holds what a rebuild does, and the
+//  rebuild's copies are kept.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -585,9 +715,246 @@ bool CallStackHistory::TryInstall (const CallStackRebuildResult & result)
     if (isSame)
     {
         m_session.AdoptCallRecord (result.record);
+
+        NoteWhole();
+        CommitCopies();
     }
 
     return isSame;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::NoteWhole
+//
+//  The live record now holds what a rebuild to the machine would, so a
+//  copy of it is kept at each keyframe taken from here, until it starts
+//  again or is fed across a keyframe loaded under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::NoteWhole()
+{
+    m_isWhole     = true;
+    m_wholeRecord = m_session.GetCallRecordGeneration();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::KeepCopies
+//
+//  A result's copies, moved out of it, to wait for its record to be taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::KeepCopies (std::vector<CallRecordCopy> & copies)
+{
+    m_pendingCopies.insert (m_pendingCopies.end(), std::make_move_iterator (copies.begin()), std::make_move_iterator (copies.end()));
+    copies.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::CommitCopies
+//
+//  The copies the rebuild just taken made, each kept where its keyframe is
+//  still the one it was made at -- the same cycle and checksum -- and no
+//  copy is kept already. A copy without bytes is the one before it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::CommitCopies()
+{
+    const KeyframeStore    & keyframes = m_history->GetKeyframes();
+    std::span<const Byte>    last;
+    size_t                   index     = 0;
+    bool                     isSame    = false;
+    bool                     isAdded   = false;
+
+
+
+    m_copies.SetBudget (keyframes.GetSettings().budgetBytes / kCopyBudgetParts);
+
+    for (const CallRecordCopy & copy : m_pendingCopies)
+    {
+        if (!copy.packed.empty())
+        {
+            last = copy.packed;
+        }
+
+        isSame = keyframes.TryFindByPosition (copy.position, index);
+        isSame = isSame && keyframes.GetInfo (index).position == copy.position && keyframes.GetInfo (index).cycle == copy.cycle &&
+                 keyframes.GetInfo (index).checksum == copy.checksum;
+
+        if (!isSame || last.empty())
+        {
+            continue;
+        }
+
+        isAdded = m_copies.TryAdd (copy.position, last);
+        IGNORE_RETURN_VALUE (isAdded, false);
+    }
+
+    m_pendingCopies.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::CheckLoads
+//
+//  A keyframe the history's replayer loaded outside a reverse command was
+//  loaded under the machine as it ran on from the past -- past a gap, or
+//  back to the last good keyframe after its replay diverged -- and the
+//  record was fed across it, so it starts again where the machine stands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::CheckLoads()
+{
+    size_t  restores = GetRestoreCount();
+
+
+
+    if (restores == m_restoresSeen)
+    {
+        return;
+    }
+
+    m_restoresSeen = restores;
+
+    m_session.RestartCallRecording();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::OnRecordChanged
+//
+//  A record that started again drops the rebuild under way, and needs one
+//  of its own when it began mid-run: where the debugger attached, or where a
+//  move through history landed. A record from power-on holds what a rebuild
+//  would, and so does one a reset started again when the record before it
+//  did and nothing else started it again since.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::OnRecordChanged (
+    uint64_t  record,
+    bool      isOn)
+{
+    std::optional<CallStackBreak>  bottom   = m_session.GetCallRecordBottom();
+    bool                           hasKind  = bottom.has_value();
+    CallBreakKind                  kind     = hasKind ? bottom->kind : CallBreakKind::TrackingBegan;
+    bool                           isMidRun = hasKind && (kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::HistoryBegan);
+    bool                           wasWhole = m_isWhole && m_wholeRecord == m_seenRecord && record == m_seenRecord + 1;
+
+
+
+    Stop();
+
+    m_isWhole     = hasKind && (kind == CallBreakKind::PowerOn || (kind == CallBreakKind::Reset && wasWhole));
+    m_wholeRecord = record;
+    m_seenRecord  = record;
+    m_isDue       = isOn && isMidRun;
+    m_began       = m_machine.GetPosition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::OnKeyframeTaken
+//
+//  Live, just after a keyframe is taken: while the record holds what a
+//  rebuild would, a copy of it is kept there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::OnKeyframeTaken (uint64_t position)
+{
+    if (!IsCopying())
+    {
+        return;
+    }
+
+    CallRecordCopies::Pack (m_session.GetCallRecord(), m_packed);
+
+    m_copies.SetBudget (m_history->GetKeyframes().GetSettings().budgetBytes / kCopyBudgetParts);
+    m_copies.Set (position, m_packed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::OnKeyframeDrop
+//
+//  A copy goes with its keyframe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::OnKeyframeDrop (KeyframeDrop drop)
+{
+    const KeyframeStore  & keyframes = m_history->GetKeyframes();
+
+
+
+    switch (drop)
+    {
+    case KeyframeDrop::Oldest:
+        m_copies.Drop (keyframes.GetInfo (0).position);
+        break;
+
+    case KeyframeDrop::Newest:
+        m_copies.Drop (keyframes.GetInfo (keyframes.GetCount() - 1).position);
+        break;
+
+    default:
+        m_copies.Clear();
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::IsCopying
+//
+//  The live record holds what a rebuild would: it was found to, it has not
+//  started again since, and no keyframe has been loaded under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CallStackHistory::IsCopying() const
+{
+    return m_isWhole && m_history != nullptr && m_session.IsCallRecording() &&
+           m_session.GetCallRecordGeneration() == m_wholeRecord && GetRestoreCount() == m_restoresSeen;
 }
 
 
@@ -621,7 +988,6 @@ HRESULT CallStackHistory::CopyPart (
     CBRA (copy == KeyframeCopy::Copied);
 
     outPart.isLoaded      = true;
-    outPart.isAfterGap    = info.hasGapBefore;
     outPart.startPosition = info.position;
     outPart.startCycle    = info.cycle;
     outPart.journalIndex  = info.journalIndex;
@@ -636,15 +1002,64 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CallStackHistory::AddCopyAt
+//
+//  The keyframe goes on the job's list of those to copy the record at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackHistory::AddCopyAt (
+    const KeyframeInfo     & info,
+    CallStackRebuildJob    & ioJob) const
+{
+    ioJob.copyAt.push_back (CallRecordCopy { info.position, info.cycle, info.checksum, {} });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackHistory::TryFindSeed
+//
+//  The keyframe index of the newest copy of the record at or after from and
+//  at or before target; false when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CallStackHistory::TryFindSeed (
+    const KeyframeStore  & keyframes,
+    uint64_t               from,
+    uint64_t               target,
+    size_t               & outIndex) const
+{
+    uint64_t  position = 0;
+    bool      isFound  = m_copies.TryFindAtOrBefore (target, position);
+
+
+
+    isFound = isFound && position >= from && keyframes.TryFindByPosition (position, outIndex);
+    isFound = isFound && keyframes.GetInfo (outIndex).position == position;
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CallStackHistory::FindFreshStart
 //
-//  The keyframe a fresh job starts at: the newest point before target that
-//  the record starts again from, whatever ran before it. That is the newest
-//  keyframe after a gap, since what ran in the gap is not in history, or the
-//  oldest keyframe when there is none; then, after it, the newest keyframe
-//  taken before the last power cycle short of target, since a power cycle
-//  voids the whole record and dates it again. A reset is not such a point:
-//  the record goes on dating from where it began.
+//  The keyframe a rebuild with no copy of the record starts at: the newest
+//  point before target that the record starts again from, whatever ran
+//  before it. That is the newest keyframe after a gap, since what ran in the
+//  gap is not in history, or the oldest keyframe when there is none; then,
+//  after it, the newest keyframe taken before the last power cycle short of
+//  target, since a power cycle voids the whole record and dates it again. A
+//  reset is not such a point: the record goes on dating from where it began.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -735,6 +1150,23 @@ bool CallStackHistory::TryMarkMove (MoveMark & outMark) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CallStackHistory::GetRestoreCount
+//
+//  The keyframes the history's replayer has loaded; none without history.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CallStackHistory::GetRestoreCount() const
+{
+    return (m_history != nullptr) ? m_history->GetReplayer().GetRestoreCount() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CallStackHistory::Publish
 //
 //  The session shows a rebuild under way, or one that waits for a drag of
@@ -776,28 +1208,14 @@ void CallStackHistory::Publish()
 //
 //  CallStackHistory::GetRecordFrom
 //
-//  Where the record a job gives begins: at its first part, or where the
-//  record it continues began, unless a part after a gap begins it again.
+//  Where the record a fresh job gives begins: at its first part, or, for a
+//  seeded one, where a rebuild without the seed would have begun it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t CallStackHistory::GetRecordFrom (
-    const CallStackRebuildJob  & job,
-    uint64_t                     ongoing)
+uint64_t CallStackHistory::GetRecordFrom (const CallStackRebuildPart & first)
 {
-    uint64_t  from = job.isContinued ? ongoing : job.parts.front().startPosition;
-
-
-
-    for (const CallStackRebuildPart & part : job.parts)
-    {
-        if (part.isAfterGap)
-        {
-            from = part.startPosition;
-        }
-    }
-
-    return from;
+    return first.seed.empty() ? first.startPosition : first.seedFrom;
 }
 
 

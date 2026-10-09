@@ -1351,7 +1351,7 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
 //
 //  A reset abandons the stack a Monitor `G` pushed its return onto, so the
 //  stop at that return is disarmed. The call record starts over from the
-//  reset, so a rebuild of the old one from history is no longer wanted.
+//  reset, so a rebuild of the old one from history is no longer of use.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2744,8 +2744,7 @@ void DebugSession::SetCallRecording (bool isOn)
 //
 //  For a machine that moved through history, so the bottom is not where the
 //  debugger attached: the calls before here are in history, and until a
-//  rebuild from it replaces this record -- or where none can -- nothing
-//  before here is known.
+//  rebuild from it replaces this record, none of them is in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2762,6 +2761,43 @@ void DebugSession::RestartCallRecording()
 
     m_callRecordGeneration++;
     m_callRecorder.Begin (pc, PeekByte (pc), (m_target.GetCycleCount() == 0) ? CallBreakKind::PowerOn : CallBreakKind::HistoryBegan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::MarkCallRecordUnrebuilt
+//
+//  History was turned off, could not reach where the machine stands, or the
+//  rebuild failed or was not taken: the record keeps its calls, and its
+//  bottom marks only that the calls before it are not available, not where
+//  history starts. Any other bottom is left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::MarkCallRecordUnrebuilt()
+{
+    m_callRecorder.RelabelBottom (CallBreakKind::HistoryBegan, CallBreakKind::TrackingRestarted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetCallRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CallRecord DebugSession::GetCallRecord()
+{
+    SettleCallRecord();
+
+    return m_callRecorder.GetRecord();
 }
 
 

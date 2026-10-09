@@ -2,6 +2,7 @@
 
 #include "Shell/ScratchCallReplayer.h"
 
+#include "Debugger/CallRecordCopies.h"
 #include "Debugger/Reverse/Replayer.h"
 
 
@@ -83,8 +84,8 @@ void ScratchCallReplayer::WaitForWork()
 //
 //  The job waits in the one slot, replacing any there, and the one running
 //  is abandoned unless it is of the same generation; a worker is started
-//  when none is running. The progress starts again from nothing, so the
-//  last job's is not shown for this one while it waits.
+//  when none is running. The progress starts again from nothing, and what
+//  a job abandoned publishes after this is not shown (GetProgress).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,7 +101,7 @@ HRESULT ScratchCallReplayer::Submit (std::shared_ptr<const CallStackRebuildJob> 
     hr = UseQueue();
     CHR (hr);
 
-    m_progress.store (0.0f, std::memory_order_relaxed);
+    PublishProgress (*job, 0.0f);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
@@ -181,7 +182,7 @@ void ScratchCallReplayer::Cancel()
 //  ScratchCallReplayer::Rebuild
 //
 //  On the calling thread, once the worker has finished: the job becomes the
-//  one wanted, so nothing abandons it.
+//  newest, so nothing abandons it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,11 +211,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ScratchCallReplayer::GetProgress
+//
+//  The share of the newest job replayed. A value another job published --
+//  one abandoned, which can publish after a newer one is submitted, or one
+//  cancelled -- counts as none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float ScratchCallReplayer::GetProgress() const
+{
+    uint64_t  published = m_progress.load (std::memory_order_relaxed);
+    uint64_t  latest    = m_latest.load (std::memory_order_acquire);
+    bool      isNewest  = (published >> kGenerationShift) == (latest & kLowHalf);
+
+
+
+    return isNewest ? (float) (published & kLowHalf) / kProgressScale : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ScratchCallReplayer::OnWatchedFetch
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ScratchCallReplayer::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
+void ScratchCallReplayer::OnWatchedFetch (
+    Word  pc,
+    Byte  sp,
+    Byte  opcode)
 {
     m_recorder.OnInstruction (pc, sp, opcode);
 }
@@ -229,7 +258,9 @@ void ScratchCallReplayer::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ScratchCallReplayer::ShouldStopBefore (MachineHost & machine, Word pc)
+bool ScratchCallReplayer::ShouldStopBefore (
+    MachineHost  & machine,
+    Word           pc)
 {
     UNREFERENCED_PARAMETER (machine);
     UNREFERENCED_PARAMETER (pc);
@@ -264,7 +295,11 @@ bool ScratchCallReplayer::TakePendingStop()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ScratchCallReplayer::OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous)
+void ScratchCallReplayer::OnWatchedAccess (
+    Word                  address,
+    Byte                  value,
+    BusAccess             access,
+    std::optional<Byte>   previous)
 {
     if (access == BusAccess::Write && (address >> kPageShift) == kStackPage)
     {
@@ -296,7 +331,7 @@ void ScratchCallReplayer::RunJob (void * context)
 //  ScratchCallReplayer::RunPending
 //
 //  Replays the job waiting, then any that arrived meanwhile, and stops when
-//  none waits. A result is kept for the job still wanted only.
+//  none waits. A result is kept only for the newest job.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,11 +382,11 @@ void ScratchCallReplayer::RunPending()
 //
 //  The parts in order, from the newest that starts the record again for a
 //  fresh job, then the record as of where the last one ended, its last
-//  instruction settled. A job that cannot reach its end -- its last part
-//  was saved with other disks, say -- fails. The result holds how long the
-//  job took and how many instructions it replayed whether or not it got
-//  through; its hr says which. A job that fails leaves nothing for the next
-//  to continue.
+//  instruction settled, with the copies made on the way. A job that cannot
+//  reach its end -- its last part was saved with other disks, for example
+//  -- fails. The result holds how long the job took and how many
+//  instructions it replayed whether or not it got through; its hr shows
+//  which. A job that fails leaves nothing for the next to continue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -406,7 +441,9 @@ HRESULT ScratchCallReplayer::Run (
     isThrough = m_isBegun && m_scratch.GetMachine()->GetPosition() == m_jobEnd;
     CBREx (isThrough, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    Finish (outResult);
+    TakeCopyIfDue (job);
+
+    Finish (job, outResult);
 
     m_ongoing = job.generation;
 
@@ -455,8 +492,13 @@ HRESULT ScratchCallReplayer::Start (const CallStackRebuildJob & job)
 
     CBRAEx (hasParts, E_INVALIDARG);
 
-    m_jobEnd = job.parts.back().endPosition;
-    m_progress.store (0.0f, std::memory_order_relaxed);
+    m_jobEnd   = job.parts.back().endPosition;
+    m_copyNext = 0;
+
+    m_madeCopies.clear();
+    m_lastPacked.clear();
+
+    PublishProgress (job, 0.0f);
 
     if (job.isContinued)
     {
@@ -498,12 +540,12 @@ Error:
 //
 //  ScratchCallReplayer::FindStartPart
 //
-//  The newest part of a fresh job that starts the record again: one after a
-//  gap saved with the job's disks, or the first saved with them after one
-//  saved with other disks, as when a disk put in a drive is taken out again.
-//  The record keeps nothing from the parts before it, so they are not
-//  replayed. Only each part's saved media is read, newest first. 0 when no
-//  part starts the record again.
+//  The newest part of a fresh job that starts the record again: the first
+//  saved with the job's disks after one saved with other disks, as when a
+//  disk put in a drive is taken out again. The record keeps nothing from the
+//  parts before it, so they are not replayed. Only each part's saved media
+//  is read, newest first. 0 when no part starts the record again. No part
+//  but the first follows a gap: a fresh job starts after the last one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -533,12 +575,6 @@ HRESULT ScratchCallReplayer::FindStartPart (
         if (!isSame && isNewerSame)
         {
             outStart = index + 1;
-            break;
-        }
-
-        if (isSame && job.parts[index].isAfterGap)
-        {
-            outStart = index;
             break;
         }
 
@@ -591,7 +627,8 @@ Error:
 //  A part that loads its keyframe begins the record when none has begun or
 //  it must begin again; a part whose keyframe was saved with other disks is
 //  passed over, and the next one loaded begins the record again. A part
-//  that continues starts where the machine stands.
+//  that continues starts where the machine stands. The record is copied
+//  where the part starts when the job lists its keyframe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -616,6 +653,8 @@ HRESULT ScratchCallReplayer::RunPart (
 
         BAIL_OUT_IF (!isLoaded, S_OK);
     }
+
+    TakeCopyIfDue (job);
 
     hr = ReplayPart (job, part);
     CHR (hr);
@@ -644,11 +683,9 @@ HRESULT ScratchCallReplayer::LoadPart (
     bool                        & outIsLoaded)
 {
     HRESULT                 hr       = S_OK;
-    MachineHost           * machine  = m_scratch.GetMachine();
     Replayer              * replayer = m_scratch.GetReplayer();
     bool                    isSame   = false;
     bool                    isFresh  = false;
-    Word                    pc       = 0;
     MachineHost::MediaIds   saved    = {};
 
 
@@ -666,7 +703,7 @@ HRESULT ScratchCallReplayer::LoadPart (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    isFresh = !m_isBegun || m_isRestartDue || part.isAfterGap;
+    isFresh = !m_isBegun || m_isRestartDue;
 
     if (!isFresh)
     {
@@ -681,13 +718,8 @@ HRESULT ScratchCallReplayer::LoadPart (
 
     if (isFresh)
     {
-        pc = machine->GetCpu()->GetPC();
-
-        m_recorder.Begin (pc, PeekByte (pc), (part.startCycle == 0) ? CallBreakKind::PowerOn : CallBreakKind::HistoryBegan);
-
-        m_isBegun      = true;
-        m_isRestartDue = false;
-        m_recordFrom   = part.startPosition;
+        hr = BeginRecord (part);
+        CHR (hr);
     }
 
     outIsLoaded = true;
@@ -702,11 +734,62 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ScratchCallReplayer::BeginRecord
+//
+//  At the part's keyframe, just loaded: from the part's seed, the record
+//  as it stood there, when the part holds one and no record has begun;
+//  otherwise anew, at power-on when the keyframe is at cycle 0 and where
+//  history starts when it is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ScratchCallReplayer::BeginRecord (const CallStackRebuildPart & part)
+{
+    HRESULT         hr       = S_OK;
+    MachineHost   * machine  = m_scratch.GetMachine();
+    bool            isSeeded = !part.seed.empty() && !m_isBegun;
+    Word            pc       = machine->GetCpu()->GetPC();
+    CallRecord      seed;
+
+
+
+    if (isSeeded)
+    {
+        hr = CallRecordCopies::Unpack (part.seed, seed);
+        CHR (hr);
+
+        CBREx (seed.isActive, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        m_recorder.SetRecord (seed);
+        m_recordFrom = part.seedFrom;
+    }
+    else
+    {
+        m_recorder.Begin (pc, PeekByte (pc), (part.startCycle == 0) ? CallBreakKind::PowerOn : CallBreakKind::HistoryBegan);
+        m_recordFrom = part.startPosition;
+    }
+
+    m_isBegun      = true;
+    m_isRestartDue = false;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ScratchCallReplayer::ReplayPart
 //
-//  To the part's end in chunks, so a newer job is noticed within one, and
-//  the progress moves with each. A replay that ends anywhere but the part's
-//  end went wrong.
+//  To the part's end in chunks, so a newer job stops it within one, and the
+//  progress moves with each. The replay also stops at each keyframe before
+//  the end that the job lists, and copies the record there; one at the
+//  part's end is copied once the next part has loaded its keyframe, or at
+//  the job's end. A replay that ends anywhere but the part's end went
+//  wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -736,6 +819,11 @@ HRESULT ScratchCallReplayer::ReplayPart (
         target.position = part.endPosition;
         target.cycle    = cpu->GetTotalCycles() + kChunkCycles;
 
+        if (m_copyNext < job.copyAt.size() && job.copyAt[m_copyNext].position > position)
+        {
+            target.position = (std::min) (target.position, job.copyAt[m_copyNext].position);
+        }
+
         hr = replayer->RunTo (target, part.endPosition, this, report);
         CHR (hr);
 
@@ -743,7 +831,12 @@ HRESULT ScratchCallReplayer::ReplayPart (
 
         if (span > 0)
         {
-            m_progress.store ((float) (position - m_jobStart) / (float) span, std::memory_order_relaxed);
+            PublishProgress (job, (float) (position - m_jobStart) / (float) span);
+        }
+
+        if (position < part.endPosition)
+        {
+            TakeCopyIfDue (job);
         }
     }
 
@@ -759,14 +852,71 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ScratchCallReplayer::Finish
+//  ScratchCallReplayer::TakeCopyIfDue
 //
-//  The record as of where the machine stands, the instruction it holds
-//  settled from the registers it left, so the record is whole there.
+//  At a keyframe the job lists, a copy of the record, its last instruction
+//  settled, while one has begun and is not to begin again; the keyframes
+//  the replay passed without one are passed over. A copy equal to the one
+//  before it in the result goes without its bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ScratchCallReplayer::Finish (CallStackRebuildResult & outResult)
+void ScratchCallReplayer::TakeCopyIfDue (const CallStackRebuildJob & job)
+{
+    uint64_t        position = m_scratch.GetMachine()->GetPosition();
+    bool            isDue    = false;
+    CallRecordCopy  copy;
+
+
+
+    while (m_copyNext < job.copyAt.size() && job.copyAt[m_copyNext].position < position)
+    {
+        m_copyNext++;
+    }
+
+    isDue = m_copyNext < job.copyAt.size() && job.copyAt[m_copyNext].position == position;
+
+    if (!isDue)
+    {
+        return;
+    }
+
+    copy = job.copyAt[m_copyNext++];
+
+    if (!m_isBegun || m_isRestartDue)
+    {
+        return;
+    }
+
+    SettleRecorder();
+    CallRecordCopies::Pack (m_recorder.GetRecord(), m_packed);
+
+    if (m_packed != m_lastPacked)
+    {
+        copy.packed  = m_packed;
+        m_lastPacked = m_packed;
+    }
+
+    m_madeCopies.push_back (std::move (copy));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScratchCallReplayer::Finish
+//
+//  The record as of where the machine stands, the instruction it holds
+//  settled from the registers it left, so the record is whole there, and
+//  the copies made on the way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ScratchCallReplayer::Finish (
+    const CallStackRebuildJob  & job,
+    CallStackRebuildResult     & outResult)
 {
     MachineHost       * machine   = m_scratch.GetMachine();
     Cpu6502Registers    registers = machine->GetCpu()->GetCpu6502()->GetRegisters();
@@ -781,8 +931,11 @@ void ScratchCallReplayer::Finish (CallStackRebuildResult & outResult)
     outResult.journalCursor = m_scratch.GetReplayer()->GetJournalCursor();
     outResult.record        = m_recorder.GetRecord();
     outResult.recordFrom    = m_recordFrom;
+    outResult.copies        = std::move (m_madeCopies);
 
-    m_progress.store (1.0f, std::memory_order_relaxed);
+    m_madeCopies.clear();
+
+    PublishProgress (job, 1.0f);
 }
 
 
@@ -896,6 +1049,30 @@ void ScratchCallReplayer::OnReplayedReset (bool isPowerCycle)
 
 
     m_recorder.OnReset (pc, PeekByte (pc), isPowerCycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScratchCallReplayer::PublishProgress
+//
+//  The job's generation and its share replayed, stored together, so the
+//  share shows only while the job is the newest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ScratchCallReplayer::PublishProgress (
+    const CallStackRebuildJob  & job,
+    float                        fraction)
+{
+    uint64_t  share = (uint64_t) (std::clamp (fraction, 0.0f, 1.0f) * kProgressScale);
+
+
+
+    m_progress.store (((job.generation & kLowHalf) << kGenerationShift) | share, std::memory_order_relaxed);
 }
 
 

@@ -189,11 +189,11 @@ bool CallStackPane::IsSameText (const std::vector<Row> & a, const std::vector<Ro
 //  CallStackPane::GetRows
 //
 //  A break is a separator row: the instruction's address in the first column
-//  and what broke the chain in the second. Where recording began, and where
-//  the history a record knows of starts, is a note across the row instead;
-//  while the record is being rebuilt, the note shows that. An unverified
-//  frame is dimmed, as is the note on the last return, which is about a
-//  frame no longer on the stack.
+//  and what broke the chain in the second. Where recording began or began
+//  again, and where the history a rebuilt record replayed starts, is a note
+//  across the row instead; while the record is being rebuilt, the note shows
+//  that. An unverified frame is dimmed, as is the note on the last return,
+//  which is about a frame no longer on the stack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -264,6 +264,12 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
             {
                 row.site.clear();
                 row.routine = GetHistoryStartNote (each.chainBreak->pc);
+                row.isNote  = true;
+            }
+            else if (each.chainBreak->kind == CallBreakKind::TrackingRestarted)
+            {
+                row.site.clear();
+                row.routine = GetUnavailableNote (each.chainBreak->pc);
                 row.isNote  = true;
             }
 
@@ -341,13 +347,34 @@ std::wstring CallStackPane::GetRebuildingNote (float progress)
 //
 //  A record rebuilt from history begins where history does, which is after
 //  power-on once the oldest history has been let go, or after a stretch it
-//  could not replay: nothing is known of the calls made before that point.
+//  could not replay: the calls made before that point are not in it. The
+//  same sentence as the CALLS reply's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring CallStackPane::GetHistoryStartNote (Word pc)
 {
-    return std::format (L"Earlier calls are unknown (history starts at ${:04X})", pc);
+    return std::format (L"Calls before history starts at ${:04X} are not available.", pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetUnavailableNote
+//
+//  A record begun again after a move through history that no rebuild from
+//  history replaced -- history was turned off, could not reach there, or
+//  the rebuild failed -- holds no call made before it. The same sentence as
+//  the CALLS reply's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CallStackPane::GetUnavailableNote (Word pc)
+{
+    return std::format (L"Calls before ${:04X} are not available.", pc);
 }
 
 

@@ -68,6 +68,7 @@ public:
     static std::wstring      GetUnrecordedNote   (Word pc);
     static std::wstring      GetRebuildingNote   (float progress);
     static std::wstring      GetHistoryStartNote (Word pc);
+    static std::wstring      GetUnavailableNote  (Word pc);
     static std::wstring      GetUnverifiedTip    (const std::optional<CallStackBreak> & above);
     static std::string       GetNextModeLine     (CallStackMechanism current);
     static std::string       GetNextMechanism    (CallStackMechanism current);

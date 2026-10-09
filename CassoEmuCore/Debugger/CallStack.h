@@ -71,10 +71,12 @@ struct CallRecord;
 //  one pushed, a stack pointer that wraps, a reset, and the point at which
 //  recording began -- or power-on, below which nothing ran, or where history
 //  starts for a record rebuilt from it or begun again after a move through
-//  it. A store into a frame's return address marks that frame where it
-//  happens. A break is dropped once the frames beneath it have returned,
-//  since the chain it cast doubt on is gone. A return a few bytes past the
-//  address pushed is the inline-parameter idiom and is noted, not broken.
+//  it, or where recording began again after a move when no rebuild replaced
+//  that record. A store into a frame's return address marks that frame
+//  where it happens. A break is dropped once the frames beneath it have
+//  returned, since the chain it cast doubt on is gone. A return a few bytes
+//  past the address pushed is the inline-parameter idiom and is noted, not
+//  broken.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,10 +138,18 @@ public:
     const std::vector<Break>             & GetBreaks     () const { return m_breaks; }
     const std::optional<CallStackFrame>  & GetLastReturn () const { return m_lastReturn; }
 
-    //  The break at the bottom of the chain: where recording began, power-on,
-    //  a reset, or where history starts for a record rebuilt from it or
-    //  begun again after a move through it. Empty while the record is off.
+    //  The break at the bottom of the chain: where recording began or began
+    //  again, power-on, a reset, or where history starts for a record rebuilt
+    //  from it or begun again after a move through it. Empty while the record
+    //  is off.
     std::optional<CallStackBreak>  GetBottom () const;
+
+    //  The bottom becomes of kind to when it is of kind from.
+    void    RelabelBottom (CallBreakKind from, CallBreakKind to);
+
+    //  A bottom placed while the program was already running, so calls it
+    //  made before may still be on the stack.
+    static bool  IsMidRunBottom (CallBreakKind kind);
 
     //  A copy of the record's data, which a call stack can be built from on
     //  any thread.

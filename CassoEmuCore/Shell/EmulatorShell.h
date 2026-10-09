@@ -2371,7 +2371,7 @@ protected:
     //  call record's rebuilder, whose jobs a test runs on a queue of its own,
     //  and what Initialize and the debugger window would set up otherwise --
     //  the framebuffers a reverse command draws into, and whether the window
-    //  is showing, which decides whether its view is built.
+    //  is showing, since its view is built only while it is.
 
     // Opens and closes the debug channel. CPU thread only. Opening an open
     // channel does nothing; a channel that cannot open is reported and the

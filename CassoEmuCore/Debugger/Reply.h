@@ -377,6 +377,7 @@ enum class CallBreakKind
     TrackingBegan,
     PowerOn,
     HistoryBegan,
+    TrackingRestarted,
 };
 
 // callSite is the JSR or BRK, or the interrupted instruction; target is the

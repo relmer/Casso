@@ -92,7 +92,10 @@ std::vector<CallStackFrame> StackWalker::Walk (Byte sp, const CallStackPeek & pe
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CallStackRecorder::Begin (Word pc, Byte opcode, bool isPowerOn)
+void CallStackRecorder::Begin (
+    Word  pc,
+    Byte  opcode,
+    bool  isPowerOn)
 {
     Begin (pc, opcode, isPowerOn ? CallBreakKind::PowerOn : CallBreakKind::TrackingBegan);
 }
@@ -110,7 +113,10 @@ void CallStackRecorder::Begin (Word pc, Byte opcode, bool isPowerOn)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CallStackRecorder::Begin (Word pc, Byte opcode, CallBreakKind bottom)
+void CallStackRecorder::Begin (
+    Word           pc,
+    Byte           opcode,
+    CallBreakKind  bottom)
 {
     Pending  at;
 
@@ -359,6 +365,37 @@ std::optional<CallStackBreak> CallStackRecorder::GetBottom() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CallStackRecorder::RelabelBottom
+//
+//  The bottom of the chain, when it is of kind from, becomes of kind to,
+//  where it stands; nothing else changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CallStackRecorder::RelabelBottom (
+    CallBreakKind  from,
+    CallBreakKind  to)
+{
+    for (Break & each : m_breaks)
+    {
+        if (each.depth == 0 && IsBottom (each.info.kind))
+        {
+            if (each.info.kind == from)
+            {
+                each.info.kind = to;
+            }
+
+            return;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CallStackRecorder::HasNoCallSince
 //
 //  A record without a clock cannot date anything, and says nothing. Calls
@@ -468,7 +505,10 @@ void CallStackRecorder::MarkOpcodes (bool * opcodes)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word CallStackRecorder::FindStoreInProgress (const Microcode * set, Word pc, const CallStackPeek & peek)
+Word CallStackRecorder::FindStoreInProgress (
+    const Microcode      * set,
+    Word                   pc,
+    const CallStackPeek  & peek)
 {
     Disassembler  disassembler (set);
 
@@ -926,15 +966,33 @@ void CallStackRecorder::AddBreak (CallBreakKind kind, const Pending & held)
 //
 //  CallStackRecorder::IsBottom
 //
-//  Where recording began, a reset, power-on and where the history a rebuilt
-//  record replayed starts: the bottom of the chain, which no later break or
-//  dropped frame removes.
+//  A reset, power-on, or a bottom placed while the program ran: the bottom
+//  of the chain, which no later break or dropped frame removes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CallStackRecorder::IsBottom (CallBreakKind kind)
 {
-    return kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::Reset || kind == CallBreakKind::PowerOn || kind == CallBreakKind::HistoryBegan;
+    return kind == CallBreakKind::Reset || kind == CallBreakKind::PowerOn || IsMidRunBottom (kind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackRecorder::IsMidRunBottom
+//
+//  Where recording began or began again, and where the history a rebuilt
+//  record replayed starts: the program was already running there, so calls
+//  it made before may still be on the stack.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CallStackRecorder::IsMidRunBottom (CallBreakKind kind)
+{
+    return kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::HistoryBegan || kind == CallBreakKind::TrackingRestarted;
 }
 
 
@@ -1034,10 +1092,11 @@ Word CallStackRecorder::GetExpectedReturn (const CallStackFrame & frame)
 //
 //  CallStack::Build
 //
-//  Hybrid walks below the recorded frames only where recording began after
-//  the program did, or the history a rebuilt record replayed starts after
-//  it; below a reset there is nothing to find. A recorder that never began
-//  has no record, and hybrid is then the walk.
+//  Hybrid walks below the recorded frames only where the record began after
+//  the program did: where recording began or began again, or where the
+//  history a rebuilt record replayed starts. Below a reset there is nothing
+//  to find. A recorder that never began has no record, and hybrid is then
+//  the walk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1093,7 +1152,7 @@ CallStackData CallStack::Build (
     isWalkBelow = mechanism == CallStackMechanism::Hybrid &&
                   std::any_of (record.breaks.begin(), record.breaks.end(), [] (const CallStackRecorder::Break & each)
                   {
-                      return each.depth == 0 && (each.info.kind == CallBreakKind::TrackingBegan || each.info.kind == CallBreakKind::HistoryBegan);
+                      return each.depth == 0 && CallStackRecorder::IsMidRunBottom (each.info.kind);
                   });
 
     if (!isWalkBelow)
@@ -1216,15 +1275,16 @@ const char * CallStack::GetBreakKindName (CallBreakKind kind)
 {
     switch (kind)
     {
-    case CallBreakKind::Txs:            return "txs";
-    case CallBreakKind::PulledReturn:   return "pulledReturn";
-    case CallBreakKind::EndedByJump:    return "endedByJump";
-    case CallBreakKind::ReturnMismatch: return "returnMismatch";
-    case CallBreakKind::StackWrap:      return "stackWrap";
-    case CallBreakKind::Reset:          return "reset";
-    case CallBreakKind::PowerOn:        return "powerOn";
-    case CallBreakKind::HistoryBegan:   return "historyBegan";
-    default:                            return "trackingBegan";
+    case CallBreakKind::Txs:               return "txs";
+    case CallBreakKind::PulledReturn:      return "pulledReturn";
+    case CallBreakKind::EndedByJump:       return "endedByJump";
+    case CallBreakKind::ReturnMismatch:    return "returnMismatch";
+    case CallBreakKind::StackWrap:         return "stackWrap";
+    case CallBreakKind::Reset:             return "reset";
+    case CallBreakKind::PowerOn:           return "powerOn";
+    case CallBreakKind::HistoryBegan:      return "historyBegan";
+    case CallBreakKind::TrackingRestarted: return "trackingRestarted";
+    default:                               return "trackingBegan";
     }
 }
 
@@ -1247,15 +1307,16 @@ std::string CallStack::DescribeBreak (const CallStackBreak & chainBreak)
 
     switch (chainBreak.kind)
     {
-    case CallBreakKind::Txs:            return std::format ("{} at ${:04X}", (chainBreak.opcode == s_kTas || chainBreak.opcode == s_kLas) ? mnemonic : "TXS", pc);
-    case CallBreakKind::PulledReturn:   return std::format ("{} at ${:04X} pulled a return address", mnemonic, pc);
-    case CallBreakKind::EndedByJump:    return std::format ("{} at ${:04X} ended a call without a return", mnemonic, pc);
-    case CallBreakKind::ReturnMismatch: return std::format ("{} at ${:04X} returned to an address its call did not push", mnemonic, pc);
-    case CallBreakKind::StackWrap:      return std::format ("{} at ${:04X} wrapped the stack pointer", mnemonic, pc);
-    case CallBreakKind::Reset:          return std::format ("reset at ${:04X}", pc);
-    case CallBreakKind::PowerOn:        return std::format ("power-on at ${:04X}, cycle 0", pc);
-    case CallBreakKind::HistoryBegan:   return std::format ("history starts at ${:04X}, and no calls before it are known", pc);
-    default:                            return std::format ("debugger opened at ${:04X}, and no calls before it were recorded", pc);
+    case CallBreakKind::Txs:               return std::format ("{} at ${:04X}", (chainBreak.opcode == s_kTas || chainBreak.opcode == s_kLas) ? mnemonic : "TXS", pc);
+    case CallBreakKind::PulledReturn:      return std::format ("{} at ${:04X} pulled a return address", mnemonic, pc);
+    case CallBreakKind::EndedByJump:       return std::format ("{} at ${:04X} ended a call without a return", mnemonic, pc);
+    case CallBreakKind::ReturnMismatch:    return std::format ("{} at ${:04X} returned to an address its call did not push", mnemonic, pc);
+    case CallBreakKind::StackWrap:         return std::format ("{} at ${:04X} wrapped the stack pointer", mnemonic, pc);
+    case CallBreakKind::Reset:             return std::format ("reset at ${:04X}", pc);
+    case CallBreakKind::PowerOn:           return std::format ("power-on at ${:04X}, cycle 0", pc);
+    case CallBreakKind::HistoryBegan:      return std::format ("Calls before history starts at ${:04X} are not available.", pc);
+    case CallBreakKind::TrackingRestarted: return std::format ("Calls before ${:04X} are not available.", pc);
+    default:                               return std::format ("debugger opened at ${:04X}, and no calls before it were recorded", pc);
     }
 }
 

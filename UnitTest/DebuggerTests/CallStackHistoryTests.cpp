@@ -32,7 +32,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  rebuild that stopped anywhere but where the machine stands is not taken;
 //  and closing the debugger, a reset or a move through history drops it
 //  cleanly, while a reverse command that leaves the machine where it was
-//  does not.
+//  does not. Copies of the record kept at keyframes, as they are taken and
+//  by every rebuild, let a move replay one keyframe span at most and give
+//  the same record; they go with their keyframes and fit their share of the
+//  budget. A record no rebuild can replace marks only that the calls before
+//  it are not available.
 //
 //  The program runs on a //e with a Mockingboard: three nested calls, a TXS
 //  inside the innermost, and a loop calling a leaf routine and pushing and
@@ -201,7 +205,7 @@ namespace DebuggerTests
 
 
         //  A Ctrl+Reset or a power cycle as the CPU thread makes one:
-        //  journaled, carried out, then told to the debugger.
+        //  journaled, made, then reported to the debugger.
         static void Reset (MachineRig & rig, bool isPowerCycle)
         {
             rig.machine.RecordInput (isPowerCycle ? InputKind::PowerCycle : InputKind::Reset, 0, 0, {});
@@ -232,7 +236,7 @@ namespace DebuggerTests
             ScratchCallReplayer  replayer;
             CallStackHistory     history    { base.machine, base.session };
 
-            explicit HistoryRig (uint64_t historyFrom = 0, bool hasDisk = false)
+            explicit HistoryRig (uint64_t historyFrom = 0, bool hasDisk = false, const ReverseSettings & settings = ReverseSettings())
             {
                 HRESULT  hr = S_OK;
 
@@ -248,7 +252,7 @@ namespace DebuggerTests
                     MountDisk (base.machine, "first.dsk");
                 }
 
-                hr = controller.Start (ReverseSettings());
+                hr = controller.Start (settings);
                 AssertSucceeded (hr, L"Start");
 
                 replayer.SetWorkQueue (&queue);
@@ -430,6 +434,62 @@ namespace DebuggerTests
         static bool HasBreak (const CallRecord & record, CallBreakKind kind, size_t depth)
         {
             return std::ranges::any_of (record.breaks, [kind, depth] (const CallStackRecorder::Break & each) { return each.info.kind == kind && each.depth == depth; });
+        }
+
+
+
+        //  Whether history holds a keyframe at position, taken where recording
+        //  resumed after a gap.
+        static bool IsAfterGap (HistoryRig & rig, uint64_t position)
+        {
+            const KeyframeStore  & keyframes = rig.controller.GetKeyframes();
+            size_t                 index     = 0;
+            bool                   isFound   = keyframes.TryFindByPosition (position, index);
+
+
+
+            return isFound && keyframes.GetInfo (index).position == position && keyframes.GetInfo (index).hasGapBefore;
+        }
+
+
+
+        //  The position of the newest keyframe at or before position.
+        static uint64_t GetKeyframeAtOrBefore (HistoryRig & rig, uint64_t position)
+        {
+            const KeyframeStore  & keyframes = rig.controller.GetKeyframes();
+            size_t                 index     = 0;
+            bool                   isFound   = keyframes.TryFindByPosition (position, index);
+
+
+
+            Assert::IsTrue (isFound, L"history holds a keyframe at or before the position");
+            return keyframes.GetInfo (index).position;
+        }
+
+
+
+        //  Whether every copy of the record kept is at a keyframe history holds.
+        static bool AreCopiesAtKeyframes (HistoryRig & rig)
+        {
+            const CallRecordCopies  & copies    = rig.history.GetCopies();
+            const KeyframeStore     & keyframes = rig.controller.GetKeyframes();
+            size_t                    index     = 0;
+            size_t                    i         = 0;
+            bool                      isFound   = false;
+
+
+
+            for (i = 0; i < copies.GetCount(); i++)
+            {
+                isFound = keyframes.TryFindByPosition (copies.GetPosition (i), index);
+
+                if (!isFound || keyframes.GetInfo (index).position != copies.GetPosition (i))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
 
@@ -781,7 +841,7 @@ namespace DebuggerTests
 
             hr = rig.controller.SeekToPosition (landing, result);
             AssertSucceeded (hr, L"SeekToPosition");
-            Assert::AreEqual (landing, rig.base.machine.GetPosition(), L"the seek lands where asked");
+            Assert::AreEqual (landing, rig.base.machine.GetPosition(), L"the seek lands at the position given");
 
             rig.history.OnMoved (false);
             rig.history.Service();
@@ -934,26 +994,34 @@ namespace DebuggerTests
         }
 
 
-        //  Where history starts, as the bottom of a rebuilt record: its name
-        //  in the protocol, the line CALLS prints, and the pane's note across
-        //  the row; and the pane's note while a rebuild runs.
+        //  Where history starts, as the bottom of a rebuilt record, and where
+        //  recording began again after a move no rebuild replaced: each one's
+        //  name in the protocol, and the one sentence that both the line CALLS
+        //  prints and the pane's note across the row give; and the pane's
+        //  note while a rebuild runs.
         TEST_METHOD (WhereHistoryStartsIsDescribedInEveryForm)
         {
-            CallStackBreak                   began { CallBreakKind::HistoryBegan, 0x0803, 0 };
+            CallStackBreak                   began     { CallBreakKind::HistoryBegan, 0x0803, 0 };
+            CallStackBreak                   restarted { CallBreakKind::TrackingRestarted, 0x0905, 0 };
             CallStackData                    data;
             std::vector<CallStackPane::Row>  rows;
 
 
 
             data.rows.push_back ({ std::nullopt, began });
+            data.rows.push_back ({ std::nullopt, restarted });
             rows = CallStackPane::GetRows (data);
 
-            Assert::AreEqual (std::string ("historyBegan"), std::string (CallStack::GetBreakKindName (CallBreakKind::HistoryBegan)));
-            Assert::AreEqual (std::string ("history starts at $0803, and no calls before it are known"), CallStack::DescribeBreak (began));
+            Assert::AreEqual (std::string ("historyBegan"),      std::string (CallStack::GetBreakKindName (CallBreakKind::HistoryBegan)));
+            Assert::AreEqual (std::string ("trackingRestarted"), std::string (CallStack::GetBreakKindName (CallBreakKind::TrackingRestarted)));
 
-            Assert::AreEqual ((size_t) 1, rows.size());
-            Assert::IsTrue   (rows[0].isNote, L"a note across the row");
-            Assert::AreEqual (std::wstring (L"Earlier calls are unknown (history starts at $0803)"), rows[0].routine);
+            Assert::AreEqual (std::string ("Calls before history starts at $0803 are not available."), CallStack::DescribeBreak (began));
+            Assert::AreEqual (std::string ("Calls before $0905 are not available."),                   CallStack::DescribeBreak (restarted));
+
+            Assert::AreEqual ((size_t) 2, rows.size());
+            Assert::IsTrue   (rows[0].isNote && rows[1].isNote, L"each a note across the row");
+            Assert::AreEqual (std::wstring (L"Calls before history starts at $0803 are not available."), rows[0].routine);
+            Assert::AreEqual (std::wstring (L"Calls before $0905 are not available."),                   rows[1].routine);
 
             Assert::AreEqual (std::wstring (L"Rebuilding earlier calls from history (25%)"), CallStackPane::GetRebuildingNote (0.25f));
         }
@@ -1181,8 +1249,8 @@ namespace DebuggerTests
 
             Assert::IsTrue   (hasJob, L"history holds the run");
             Assert::AreEqual ((size_t) 1, job.parts.size(), L"nothing before the gap is replayed");
-            Assert::IsTrue   (job.parts[0].isAfterGap, L"the one part follows the gap");
             Assert::AreEqual (kGapEnd, job.parts[0].startPosition, L"from where recording resumed");
+            Assert::IsTrue   (IsAfterGap (rig, job.parts[0].startPosition), L"the one part follows the gap");
 
             rig.Attach();
             rig.Drain();
@@ -1266,7 +1334,9 @@ namespace DebuggerTests
 
         //  A rebuilt record is taken only for the machine as it stands: a
         //  second machine that stopped on any other cycle count or register
-        //  replayed some other run, and the live record stays.
+        //  replayed some other run, and the live record stays. Begun where
+        //  the debugger opened, its bottom still marks that; begun again after
+        //  a move, its bottom no longer claims that history starts there.
         TEST_METHOD (ARebuildThatStoppedOnAnotherStateIsNotTaken)
         {
             static const std::vector<std::pair<const wchar_t *, std::function<void (CallStackRebuildResult &)>>>  kChanges =
@@ -1284,6 +1354,7 @@ namespace DebuggerTests
             HistoryRig                     rig;
             CallStackRebuildResult         result;
             std::optional<CallStackBreak>  bottom;
+            CallBreakKind                  left = CallBreakKind::TrackingBegan;
 
 
 
@@ -1303,10 +1374,12 @@ namespace DebuggerTests
                 bottom = rig.base.session.GetCallRecordBottom();
 
                 Assert::IsFalse (rig.history.IsRebuilding(), std::format (L"{}: the result was taken in", name).c_str());
-                Assert::IsTrue  (bottom.has_value() && bottom->kind != CallBreakKind::PowerOn, std::format (L"{}: and its record left", name).c_str());
+                Assert::IsTrue  (bottom.has_value() && bottom->kind == left, std::format (L"{}: and its record left, its bottom marking what it holds", name).c_str());
 
                 rig.base.session.RestartCallRecording();
                 rig.history.Service();
+
+                left = CallBreakKind::TrackingRestarted;
             }
 
             rebuilder.results.push_back (MakeHandFedResult (rig, rebuilder));
@@ -1319,7 +1392,7 @@ namespace DebuggerTests
 
 
         //  A move to where history starts leaves nothing to rebuild: the
-        //  record starts again there, and its bottom says that history starts
+        //  record starts again there, and its bottom marks that history starts
         //  there, not that the debugger opened there.
         TEST_METHOD (AMoveToTheStartOfHistoryMarksWhereHistoryStarts)
         {
@@ -1441,6 +1514,442 @@ namespace DebuggerTests
             AssertSameRecord (expected, GetRecord (rig.session));
 
             history.Attach (nullptr, nullptr);
+        }
+
+
+        //  A step back after a long run of history replays from the newest
+        //  keyframe at or before where it lands, with the copy of the record
+        //  kept there as that keyframe was taken, and no further: one
+        //  keyframe span at most. The record it gives is the one a rebuild
+        //  of the whole history gives, and the one kept from power-on.
+        TEST_METHOD (AStepBackAfterALongHistoryReplaysOneKeyframeSpanAtMost)
+        {
+            static constexpr uint64_t  kLongRun = kFarAhead * 2;
+
+            HistoryRig              rig;
+            HistoryRig              whole;
+            RecordRig               reference;
+            ReverseResult           result;
+            CallStackRebuildJob     job;
+            CallStackRebuildResult  rebuilt;
+            uint64_t                landing  = 0;
+            uint64_t                keyframe = 0;
+            bool                    hasJob   = false;
+            HRESULT                 hr       = S_OK;
+
+
+
+            RunTo (rig.base.machine, kAttachAt);
+            rig.Attach();
+            rig.Drain();
+
+            RunTo (rig.base.machine, kLongRun);
+
+            Assert::IsTrue (rig.history.GetCopies().GetCount() > 0, L"copies of the record are kept as keyframes are taken");
+            Assert::IsTrue (AreCopiesAtKeyframes (rig),               L"each at a keyframe history holds");
+
+            rig.history.OnMoving();
+
+            hr = rig.controller.StepBack (result);
+            AssertSucceeded (hr, L"StepBack");
+
+            rig.history.OnMoved (false);
+
+            landing  = rig.base.machine.GetPosition();
+            keyframe = GetKeyframeAtOrBefore (rig, landing);
+
+            Assert::AreEqual (kLongRun - 1, landing, L"one instruction back");
+            Assert::IsTrue   (keyframe > kAttachAt, L"long after the record began");
+
+            hr = rig.history.MakeJob (false, 0, 0, landing, job, hasJob);
+            AssertSucceeded (hr, L"MakeJob");
+
+            Assert::IsTrue   (hasJob, L"history holds the run");
+            Assert::AreEqual (keyframe, job.parts.front().startPosition, L"the rebuild starts at the newest keyframe at or before the landing");
+            Assert::IsFalse  (job.parts.front().seed.empty(),            L"from the copy of the record kept there");
+
+            job.generation = 1;
+
+            hr = rig.replayer.Rebuild (job, rebuilt);
+            AssertSucceeded (hr, L"Rebuild");
+
+            Assert::AreEqual (landing - keyframe, rebuilt.instructions, L"it replays that one stretch and no more");
+
+            rig.Drain();
+
+            RunTo (whole.base.machine, landing);
+            whole.Attach();
+            whole.Drain();
+
+            RunTo (reference.base.machine, landing);
+
+            AssertSameRecord (GetRecord (whole.base.session),     rebuilt.record);
+            AssertSameRecord (GetRecord (whole.base.session),     GetRecord (rig.base.session));
+            AssertSameRecord (GetRecord (reference.base.session), GetRecord (rig.base.session));
+        }
+
+
+        //  The rebuild made when the debugger opened kept a copy of the
+        //  record at each keyframe it replayed past, so a move back into that
+        //  stretch starts from the newest of them at or before where it
+        //  lands, and gives the record kept from power-on.
+        TEST_METHOD (AMoveBackStartsFromACopyTheFirstRebuildMade)
+        {
+            uint64_t             landing  = FindPcAfter (kFarAhead / 2, kHandler);
+            HistoryRig           rig;
+            RecordRig            reference;
+            ReverseResult        result;
+            CallStackRebuildJob  job;
+            uint64_t             keyframe = 0;
+            bool                 hasJob   = false;
+            HRESULT              hr       = S_OK;
+
+
+
+            RunTo (rig.base.machine, kFarAhead);
+            rig.Attach();
+            rig.Drain();
+
+            Assert::IsTrue (rig.history.GetCopies().GetCount() > 0, L"the rebuild kept copies of the record");
+            Assert::IsTrue (AreCopiesAtKeyframes (rig),               L"each at a keyframe history holds");
+
+            rig.history.OnMoving();
+
+            hr = rig.controller.SeekToPosition (landing, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            rig.history.OnMoved (false);
+
+            keyframe = GetKeyframeAtOrBefore (rig, landing);
+
+            hr = rig.history.MakeJob (false, 0, 0, landing, job, hasJob);
+            AssertSucceeded (hr, L"MakeJob");
+
+            Assert::IsTrue   (hasJob, L"history holds the run");
+            Assert::IsTrue   (keyframe > 0, L"a keyframe after the oldest, or the test proves nothing");
+            Assert::AreEqual (keyframe, job.parts.front().startPosition, L"the rebuild starts at the newest keyframe at or before the landing");
+            Assert::IsFalse  (job.parts.front().seed.empty(),            L"from the copy of the record kept there");
+
+            rig.Drain();
+
+            RunTo (reference.base.machine, landing);
+
+            Assert::IsTrue (HasKind (GetRecord (reference.base.session), CallFrameKind::Irq), L"the landing is inside the interrupt");
+
+            AssertSameRecord (GetRecord (reference.base.session), GetRecord (rig.base.session));
+        }
+
+
+        //  Keyframes every frame, two to a group, in a budget a few seconds of
+        //  machine time fill.
+        static ReverseSettings MakeSmallSettings()
+        {
+            static constexpr uint32_t  kGroupKeyframes = 2;
+            static constexpr size_t    kBudgetBytes    = 512 * 1024;
+
+            ReverseSettings  settings;
+
+
+
+            settings.keyframes.intervalCycles = KeyframeSettings::kFrameCycles;
+            settings.keyframes.wholeEvery     = kGroupKeyframes;
+            settings.keyframes.longestGroup   = kGroupKeyframes;
+            settings.keyframes.budgetBytes    = kBudgetBytes;
+
+            return settings;
+        }
+
+
+        //  A copy of the record goes when history drops its keyframe: the
+        //  oldest, as history keeps to its budget; those after a change made
+        //  in the past; and every one when history stops.
+        TEST_METHOD (CopiesGoWithTheirKeyframes)
+        {
+            static constexpr uint64_t  kRunLimit = kFarAhead * 10;
+
+            HistoryRig     rig      (0, false, MakeSmallSettings());
+            ReverseResult  result;
+            uint64_t       middle   = 0;
+            uint64_t       newest   = 0;
+            bool           isFound  = false;
+            HRESULT        hr       = S_OK;
+
+
+
+            RunTo (rig.base.machine, kAttachAt);
+            rig.Attach();
+            rig.Drain();
+
+            while (rig.controller.GetOldestPosition() == 0 && rig.base.machine.GetPosition() < kRunLimit)
+            {
+                rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles);
+            }
+
+            Assert::IsTrue (rig.controller.GetOldestPosition() > 0,  L"history let its oldest keyframes go");
+            Assert::IsTrue (rig.history.GetCopies().GetCount() > 0,  L"copies of the record are kept");
+            Assert::IsTrue (AreCopiesAtKeyframes (rig),               L"none where history no longer holds a keyframe");
+            Assert::IsTrue (rig.history.GetCopies().GetCount() <= rig.controller.GetKeyframes().GetCount(), L"at most one a keyframe");
+
+            middle = (rig.controller.GetOldestPosition() + rig.base.machine.GetPosition()) / 2;
+
+            rig.history.OnMoving();
+
+            hr = rig.controller.SeekToPosition (middle, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            rig.history.OnMoved (false);
+            rig.Drain();
+
+            hr = rig.controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            isFound = rig.history.GetCopies().TryFindAtOrBefore (UINT64_MAX, newest);
+
+            Assert::IsTrue (isFound && newest <= middle, L"a change in the past drops the copies after it");
+            Assert::IsTrue (AreCopiesAtKeyframes (rig),   L"with their keyframes");
+
+            rig.controller.Stop();
+
+            Assert::AreEqual ((size_t) 0, rig.history.GetCopies().GetCount(), L"history stopped, no copy is left");
+        }
+
+
+        //  A rebuild's copies wait for its record to be taken, and by then
+        //  history may have let go of keyframes they were made at: those are
+        //  not kept, and every copy kept is at a keyframe history holds.
+        TEST_METHOD (CopiesOfKeyframesDroppedDuringTheRebuildAreNotKept)
+        {
+            static constexpr uint64_t  kRunLimit = kFarAhead * 10;
+
+            HistoryRig  rig (0, false, MakeSmallSettings());
+
+
+
+            RunTo (rig.base.machine, kAttachAt);
+            rig.Attach();
+
+            Assert::IsTrue (rig.history.IsRebuilding(), L"the rebuild waits on the worker");
+
+            while (rig.controller.GetOldestPosition() == 0 && rig.base.machine.GetPosition() < kRunLimit)
+            {
+                rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles);
+            }
+
+            Assert::IsTrue (rig.controller.GetOldestPosition() > 0, L"history let keyframes the rebuild replays past go");
+
+            rig.Drain();
+
+            Assert::IsTrue (rig.history.GetCopies().GetCount() > 0, L"the rebuild's copies were kept");
+            Assert::IsTrue (AreCopiesAtKeyframes (rig),               L"but none at a keyframe history let go");
+        }
+
+
+        //  What the copies of the record cost: the bytes each uses, for the
+        //  program's record of three to five calls and a TXS, and those for
+        //  every keyframe the default budget's table holds, which must fit
+        //  the share of the budget the copies may hold.
+        TEST_METHOD (TheCopiesFitTheirShareOfTheDefaultBudget)
+        {
+            static constexpr uint64_t  kLongRun = kFarAhead * 4;
+
+            HistoryRig         rig;
+            std::vector<Byte>  packed;
+            size_t             count     = 0;
+            size_t             perCopy   = 0;
+            size_t             keyframes = 0;
+            size_t             total     = 0;
+            size_t             share     = KeyframeSettings::kDefaultBudgetBytes / CallStackHistory::kCopyBudgetParts;
+
+
+
+            RunTo (rig.base.machine, kAttachAt);
+            rig.Attach();
+            rig.Drain();
+
+            RunTo (rig.base.machine, kLongRun);
+
+            count     = rig.history.GetCopies().GetCount();
+            keyframes = rig.controller.GetKeyframes().GetCapacity();
+
+            Assert::IsTrue (count > 0, L"copies of the record are kept");
+
+            perCopy = rig.history.GetCopies().GetUsedByteCount() / count;
+            total   = perCopy * keyframes;
+
+            CallRecordCopies::Pack (GetRecord (rig.base.session), packed);
+
+            Logger::WriteMessage (std::format ("{} copies of the record, {} bytes each in use, the record as it stands {} bytes packed; "
+                                               "{} bytes for the {} keyframes the default budget's table holds, of a share of {} bytes\n",
+                                               count, perCopy, packed.size(), total, keyframes, share).c_str());
+
+            Assert::IsTrue (total <= share, L"the copies for a whole default history fit their share of the budget");
+        }
+
+
+        //  The machine ran live through a stretch at Maximum speed while the
+        //  record begun again after a move was being rebuilt. What ran in
+        //  the gap is not in history, so the rebuild cannot be continued past
+        //  it and no job is made; the live record, which ran through the gap,
+        //  stays, and its bottom marks only that the calls before it are not
+        //  available, not that history starts there.
+        TEST_METHOD (AGapWhileTheRebuildRunsLeavesTheLiveRecord)
+        {
+            static constexpr uint64_t  kGapLength = 5000;
+
+            HistoryRig                       rig;
+            ReverseResult                    result;
+            std::optional<CallStackBreak>    bottom;
+            std::vector<CallStackPane::Row>  rows;
+            Word                             pc       = 0;
+            uint64_t                         gapEnd   = 0;
+            HRESULT                          hr       = S_OK;
+
+
+
+            RunTo (rig.base.machine, kFarAhead);
+            rig.Attach();
+            rig.Drain();
+
+            rig.history.OnMoving();
+
+            hr = rig.controller.SeekToPosition (kAttachAt, result);
+            AssertSucceeded (hr, L"SeekToPosition back");
+
+            rig.history.OnMoved (false);
+            rig.Drain();
+
+            rig.history.OnMoving();
+
+            hr = rig.controller.SeekToPosition (rig.controller.GetLiveEndPosition(), result);
+            AssertSucceeded (hr, L"SeekToPosition to the end");
+
+            rig.history.OnMoved (false);
+            rig.history.Service();
+
+            pc = rig.base.machine.GetCpu()->GetPC();
+
+            Assert::IsFalse (rig.controller.IsInHistory(), L"live again");
+            Assert::IsTrue  (rig.history.IsRebuilding(),   L"its record being rebuilt");
+
+            hr = rig.controller.SetUserMaximumSpeed (true);
+            AssertSucceeded (hr, L"SetUserMaximumSpeed on");
+
+            RunTo (rig.base.machine, kFarAhead + kGapLength);
+
+            hr = rig.controller.SetUserMaximumSpeed (false);
+            AssertSucceeded (hr, L"SetUserMaximumSpeed off");
+
+            gapEnd = rig.base.machine.GetPosition();
+
+            RunTo (rig.base.machine, gapEnd + kRunOn);
+
+            Assert::IsTrue (IsAfterGap (rig, gapEnd), L"history holds the gap");
+
+            rig.queue.WaitAll();
+            rig.history.Service();
+
+            bottom = rig.base.session.GetCallRecordBottom();
+            rows   = CallStackPane::GetRows (rig.base.session.GetCallStack());
+
+            Assert::IsFalse (rig.history.IsRebuilding(), L"the rebuild is given up");
+            Assert::IsTrue  (bottom.has_value() && bottom->kind == CallBreakKind::TrackingRestarted && bottom->pc == pc,
+                             L"the live record stays, from where it began");
+
+            Assert::IsTrue (std::ranges::any_of (rows, [pc] (const CallStackPane::Row & row)
+            {
+                return row.isNote && row.routine == CallStackPane::GetUnavailableNote (pc);
+            }), L"the pane's note: the calls before it are not available");
+        }
+
+
+        //  Running on from the past across a gap loads the keyframe after
+        //  it under the running machine, and the record, fed across the load,
+        //  starts again and is rebuilt: it begins after the gap, as one kept
+        //  from there does.
+        TEST_METHOD (RunningOnFromThePastAcrossAGapStartsTheRecordAgain)
+        {
+            uint64_t                       stop       = kGapEnd + kRunOn;
+            HistoryRig                     rig;
+            RecordRig                      reference  (kGapEnd);
+            ReverseResult                  result;
+            std::optional<CallStackBreak>  bottom;
+            uint64_t                       generation = 0;
+            HRESULT                        hr         = S_OK;
+
+
+
+            RunTo (rig.base.machine, kGapStart);
+
+            hr = rig.controller.SetUserMaximumSpeed (true);
+            AssertSucceeded (hr, L"SetUserMaximumSpeed on");
+
+            RunTo (rig.base.machine, kGapEnd);
+
+            hr = rig.controller.SetUserMaximumSpeed (false);
+            AssertSucceeded (hr, L"SetUserMaximumSpeed off");
+
+            RunTo (rig.base.machine, kFarAhead);
+            rig.Attach();
+            rig.Drain();
+
+            rig.history.OnMoving();
+
+            hr = rig.controller.SeekToPosition (kGapStart / 2, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            rig.history.OnMoved (false);
+            rig.Drain();
+
+            generation = rig.base.session.GetCallRecordGeneration();
+
+            RunTo (rig.base.machine, stop);
+
+            Assert::IsTrue (rig.controller.IsInHistory(), L"still behind live");
+
+            rig.Drain();
+
+            bottom = rig.base.session.GetCallRecordBottom();
+
+            Assert::AreNotEqual (generation, rig.base.session.GetCallRecordGeneration(), L"the record started again");
+            Assert::IsTrue      (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"and begins after the gap");
+
+            RunTo (reference.base.machine, stop);
+            AssertSameRecord (GetRecord (reference.base.session), GetRecord (rig.base.session), true);
+        }
+
+
+        //  The progress a job published shows only while that job is the
+        //  newest: once it is cancelled, or a newer one is submitted, it shows
+        //  none, whatever the job publishes after.
+        TEST_METHOD (ACancelledJobShowsNoProgress)
+        {
+            HistoryRig           rig;
+            CallStackRebuildJob  job;
+            bool                 hasJob = false;
+            HRESULT              hr     = S_OK;
+
+
+
+            RunTo (rig.base.machine, kAttachAt);
+
+            hr = rig.history.MakeJob (false, 0, 0, kAttachAt, job, hasJob);
+            AssertSucceeded (hr, L"MakeJob");
+            Assert::IsTrue  (hasJob, L"history holds the run");
+
+            job.generation = 1;
+
+            hr = rig.replayer.Submit (std::make_shared<CallStackRebuildJob> (job));
+            AssertSucceeded (hr, L"Submit");
+
+            Assert::AreEqual (0.0f, rig.replayer.GetProgress(), L"a job waiting shows none done");
+
+            rig.queue.WaitAll();
+
+            Assert::AreEqual (1.0f, rig.replayer.GetProgress(), L"finished, it shows all of it done");
+
+            rig.replayer.Cancel();
+
+            Assert::AreEqual (0.0f, rig.replayer.GetProgress(), L"cancelled, it shows none");
         }
     };
 }
