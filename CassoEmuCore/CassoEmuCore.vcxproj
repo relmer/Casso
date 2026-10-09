@@ -190,7 +190,9 @@
     </ClCompile>
     <ClCompile Include="Ui\Dialogs\TapePositionDialog.cpp" />
     <ClCompile Include="Shell\BackgroundWorkQueue.cpp" />
+    <ClCompile Include="Shell\EmulatorShellInspector.cpp" />
     <ClCompile Include="Shell\InspectorRequestQueue.cpp" />
+    <ClCompile Include="Shell\ShellInspectorHost.cpp" />
     <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
     <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
@@ -481,6 +483,7 @@
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\AnalysisScheduler.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorPalette.cpp" />
+    <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterRenderer.cpp" />
@@ -547,6 +550,7 @@
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Shell\BackgroundWorkQueue.h" />
     <ClInclude Include="Shell\InspectorRequestQueue.h" />
+    <ClInclude Include="Shell\ShellInspectorHost.h" />
     <ClInclude Include="Devices\Tape\RecordingCapture.h" />
     <ClInclude Include="Devices\Tape\TapeRecorder.h" />
     <ClInclude Include="Audio\TapeAudioSource.h" />
@@ -910,6 +914,8 @@
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
     <ClInclude Include="Ui\DiskInspector\AnalysisScheduler.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorPalette.h" />
+    <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />
+    <ClInclude Include="Ui\DiskInspector\IDiskInspectorHost.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterCells.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterRenderer.h" />

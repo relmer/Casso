@@ -10,6 +10,7 @@
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "BuildInfo.h"
@@ -1035,6 +1036,12 @@ bool EmulatorShell::TryPresentUiFrame()
     if (m_printerPanel != nullptr)
     {
         hr = m_printerPanel->RenderFrame();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (m_diskInspector != nullptr)
+    {
+        hr = m_diskInspector->RenderFrame();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 

@@ -38,6 +38,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/BackgroundWorkQueue.h"
+#include "Shell/ShellInspectorHost.h"
 #include "Shell/TapeManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
@@ -268,6 +269,7 @@ public:
     // (controller #0 per FR-017) AND on that controller's
     // Disk2AudioSource. On subsequent calls: show + bring to front.
     void OpenDisk2DebugDialog();
+    void OpenDiskInspector (int drive);
     void OpenInputDebugDialog();
     void OpenSettings (bool showControllers = false);
 
@@ -410,6 +412,7 @@ private:
     // have the target's signature; these are the ones that were inline in
     // the dispatch switch before it became CpuCommandDispatcher.
     void     StepInstruction         () override;
+    void     ServiceInspectorRequests() override;
     void     SaveTrace               () override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
     void     RemountDisks            () override;
@@ -2540,6 +2543,11 @@ private:
     std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
     std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
     std::unique_ptr<class PrinterPanel>       m_printerPanel;
+
+    // The disk inspector: one window, lazily created and reused, and the host
+    // that answers its requests on the CPU thread.
+    std::unique_ptr<class DiskInspectorWindow> m_diskInspector;
+    ShellInspectorHost                        m_inspectorHost { m_cpuManager, m_machine };
 
     // Live-preview bookkeeping (UpdatePrinterPreview). Auto-open fires once when a
     // *new* print begins -- activity resuming after an idle gap -- so it opens even

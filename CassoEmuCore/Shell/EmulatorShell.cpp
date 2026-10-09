@@ -11,6 +11,7 @@
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "BuildInfo.h"
@@ -255,6 +256,8 @@ EmulatorShell::~EmulatorShell()
 
         m_disk2DebugPanel.reset();
     }
+
+    m_diskInspector.reset();
 
     if (m_inputDebugPanel != nullptr)
     {

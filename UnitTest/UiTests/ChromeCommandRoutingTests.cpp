@@ -110,6 +110,9 @@ public:
         { L"IDM_DISK_WP2",                  IDM_DISK_WP2                  },
         { L"IDM_DISK_SALVAGE1",             IDM_DISK_SALVAGE1             },
         { L"IDM_DISK_SALVAGE2",             IDM_DISK_SALVAGE2             },
+        { L"IDM_DISK_INSPECT1",             IDM_DISK_INSPECT1             },
+        { L"IDM_DISK_INSPECT2",             IDM_DISK_INSPECT2             },
+        { L"IDM_DISK_INSPECTOR_SERVICE",    IDM_DISK_INSPECTOR_SERVICE    },
         { L"IDM_DISK_RESOLVE_CHANGE",       IDM_DISK_RESOLVE_CHANGE       },
         { L"IDM_TAPE_INSERT",               IDM_TAPE_INSERT               },
         { L"IDM_TAPE_NEW",                  IDM_TAPE_NEW                  },
@@ -241,6 +244,8 @@ public:
     {
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE1) == WindowCommandRoute::Disk);
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE2) == WindowCommandRoute::Disk);
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_INSPECT1) == WindowCommandRoute::Disk);
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_INSPECT2) == WindowCommandRoute::Disk);
     }
 
 

@@ -102,6 +102,9 @@
 // Live: neither needs a reset, and each is saved with the machine.
 #define IDM_STORAGE_DRIVE2          40087
 #define IDM_STORAGE_RECORDER        40088
+#define IDM_DISK_INSPECT1           40089
+#define IDM_DISK_INSPECT2           40090
+#define IDM_DISK_INSPECTOR_SERVICE  40091  // internal: the CPU thread answers the disk inspector's requests
 
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).

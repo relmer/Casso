@@ -147,6 +147,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.ControlTape (TapeCommand::FastForward);
             break;
 
+        case IDM_DISK_INSPECTOR_SERVICE:
+            target.ServiceInspectorRequests();
+            break;
+
         default:
             break;
     }

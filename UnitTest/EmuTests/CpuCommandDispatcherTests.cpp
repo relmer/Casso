@@ -234,6 +234,17 @@ public:
     }
 
 
+    TEST_METHOD (TheInspectorsRequestsAreServiced)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DISK_INSPECTOR_SERVICE, "", target);
+
+        Assert::AreEqual (size_t (1), target.calls.size());
+        Assert::AreEqual (std::string ("ServiceInspectorRequests"), target.calls[0]);
+    }
+
+
     TEST_METHOD (AnIdTheCpuThreadDoesNotHandleAsksForNothing)
     {
         Notebook  target;
@@ -342,6 +353,11 @@ private:
         void     ControlTape (TapeCommand command) override
         {
             calls.push_back (std::format ("ControlTape {}", (int) command));
+        }
+
+        void     ServiceInspectorRequests() override
+        {
+            calls.push_back ("ServiceInspectorRequests");
         }
     };
 

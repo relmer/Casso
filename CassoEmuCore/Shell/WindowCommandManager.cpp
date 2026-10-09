@@ -421,6 +421,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_INSPECT1  || id == IDM_DISK_INSPECT2)           { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
@@ -1557,6 +1558,13 @@ void WindowCommandManager::OnDiskCommand (int id)
         {
             // Stays on the UI thread: the flow opens Dxui modals.
             m_shell.RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            break;
+        }
+
+        case IDM_DISK_INSPECT1:
+        case IDM_DISK_INSPECT2:
+        {
+            m_shell.OpenDiskInspector ((id == IDM_DISK_INSPECT1) ? 0 : 1);
             break;
         }
 

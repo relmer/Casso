@@ -166,6 +166,7 @@ public:
     void          PowerCycle        ();
 
     DiskImage *   GetImage          (int slot, int drive);
+    uint64_t      GetMediaId        (int slot, int drive) const;
     bool          IsMounted         (int slot, int drive) const;
     const string &GetSourcePath     (int slot, int drive) const;
 
@@ -413,6 +414,11 @@ private:
         //  worse answer than the entry knowing where it lives.
         int                    slot    = 0;
         int                    drive   = 0;
+
+        //  Which disk this is, for a viewer that must tell one disk from the
+        //  next: a new number at every bay change and every reload from the
+        //  file, never reused in a session, and 0 while nothing has mounted.
+        uint64_t               mediaId = 0;
     };
 
     // Every public accessor takes a caller-supplied slot/drive pair, so each
@@ -618,6 +624,7 @@ private:
     AskSink                  m_askSink;
     RescueSink               m_rescueSink;
     BayChangeSink            m_bayChangeSink;
+    uint64_t                 m_lastMediaId = 0;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
 

@@ -74,6 +74,7 @@ public:
     virtual void     SetDriveAudioPan         (int drive, float pan)                            = 0;
     virtual void     PlayDriveTestSound       (int drive, int kind)                             = 0;
     virtual void     ControlTape              (TapeCommand command)                             = 0;
+    virtual void     ServiceInspectorRequests ()                                                = 0;
 };
 
 
