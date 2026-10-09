@@ -92,9 +92,15 @@ public:
 
     //  Whether the CPU thread has acted on a pause: the machine stopped on an
     //  instruction boundary, the thread left its frame, and it runs no frame
-    //  until it is resumed. Commands posted to a paused machine still run on
-    //  it. IsPaused gives what was asked for; this gives where the CPU thread
-    //  is. True while no CPU thread runs.
+    //  and no pacing wait until it is resumed. IsPaused gives what was asked
+    //  for; this gives where the CPU thread is. True while no CPU thread runs.
+    //
+    //  A parked thread is not idle. It still drains posted commands, which
+    //  can run instructions and change the machine (a debugger step or run,
+    //  a memory or register edit, a reverse command), and it still calls the
+    //  service function every kServiceIntervalMs when one is set (the
+    //  debugger's snapshot and call history service). The machine and its
+    //  disks stay owned by the CPU thread throughout.
     bool    IsParked           () const noexcept;
 
     //  Waits up to timeout for the CPU thread to park after a pause; true once
