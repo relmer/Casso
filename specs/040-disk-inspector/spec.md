@@ -58,6 +58,18 @@ track at another latch framing, decoding data fields with a disk's own
 translate table, decoding documented custom track formats such as RW18, and
 comparing two quarter tracks of one disk.
 
+## Clarifications
+
+### Session 2026-10-08
+
+- Q: Does Casso's inspector show the disk in the drive or its file? → A: The
+  disk as the drive holds it in memory, unsaved guest writes included; Explorer's
+  inspector shows the file (unchanged from Key Entities, FR-063, FR-069).
+- Q: When a state restore (035's history rewind, or loading a saved state)
+  changes a drive's tracks without a guest write, what does the inspector do?
+  → A: It handles the restore as a reload (FR-068, FR-069, FR-107, FR-108,
+  Edge Cases).
+
 ## Scope
 
 **Image formats.** Every 5.25" disk image format Casso mounts in a Disk II
@@ -1227,6 +1239,11 @@ verdicts, the match shares and the repeated runs against what was planted.
   reload, and shows a note that the save rewrote the file.
 - Casso reloads a disk because its file changed on disk: the whole disk is
   analyzed once more.
+- A state restore (035's history rewind, or loading a saved state) changes
+  the disk's tracks without a guest write: the inspector handles it as a
+  reload. The whole disk is analyzed once more, the written and read marks
+  and their counts start at zero, pending edits are kept or dropped as after a
+  reload (FR-108), and the applied-edit history is cleared (FR-107).
 - At Maximum speed the disk turns many times per displayed frame: the platter
   shows the angle sampled once per frame, which can look still or reversed;
   the head marker's track is always correct.
@@ -2025,8 +2042,8 @@ verdicts, the match shares and the repeated runs against what was planted.
 - **FR-068**: Casso MUST keep, for each track record, a count of guest writes
   to it, and for each quarter track, a count of the head's visits with the
   motor on, for bit and flux tracks alike. A save MUST NOT reset these
-  counts, inserting or reloading a disk MUST start them at zero, and the
-  inspector MUST be able to read them while emulation runs. The tracks to
+  counts, inserting or reloading a disk, or a state restore that changes
+  the disk (FR-069), MUST start them at zero, and the inspector MUST be able to read them while emulation runs. The tracks to
   analyze again (FR-069) and the written and read marks (FR-047) come from
   these counts.
 - **FR-069**: When the drive writes, the inspector MUST analyze again only the
@@ -2036,7 +2053,9 @@ verdicts, the match shares and the repeated runs against what was planted.
   within 500 ms of the write ending. The inspector MUST NOT analyze the whole
   disk except when the window first shows a disk (on opening, on a drive
   switch or after a machine change), on insert, on a reload after the file
-  changed, on a change of decode settings, when a comparison starts (for each
+  changed, on a state restore that changes the disk's tracks (035's history
+  rewind or loading a saved state), which the inspector handles as a reload, on
+  a change of decode settings, when a comparison starts (for each
   disk the window has not already analyzed), and when a compared file changes
   on disk (FR-122), and never once per frame. The selection and the zoom MUST
   be kept. An applied edit, an undo or a redo MUST analyze again only the
@@ -2477,7 +2496,8 @@ verdicts, the match shares and the repeated runs against what was planted.
   restored, or in Explorer once the file has changed outside the window. Both
   MUST be unavailable while any cause in FR-102 holds, with each cause shown.
   A new apply MUST clear the redo history. The history MUST last until the
-  disk is ejected, replaced or reloaded, or the window closes.
+  disk is ejected, replaced or reloaded, a state restore changes it (FR-069),
+  or the window closes.
 - **FR-108**: Pending edits MUST last while the window shows the disk.
   Switching drives, closing the window, quitting Casso or Explorer, a machine
   change that removes or replaces the disk, "Compare disk images" on an image
@@ -2489,7 +2509,8 @@ verdicts, the match shares and the repeated runs against what was planted.
   pending edits MUST be discarded, and the window MUST show that they were.
   When the guest writes to a track record that holds pending edits, when an
   undo or redo changes it, or when the disk is reloaded because its file
-  changed (in Casso by Casso, in Explorer by the window, FR-074), each pending
+  changed (in Casso by Casso, in Explorer by the window, FR-074) or a state
+  restore changes it (FR-069), each pending
   edit on it MUST follow the field with the same sector number and encoding
   nearest its old cell, as FR-038 does for the selection. A pending edit whose
   sector's decoded bytes now differ from its bytes when editing began MUST be
