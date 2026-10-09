@@ -168,6 +168,9 @@ public:
         Assert::AreEqual<size_t> (readsBefore, targetLog.reads,   L"the load read no image file");
         Assert::AreEqual<size_t> (0,           targetLog.flushes, L"the load wrote no image file");
         Assert::IsTrue (Take (target).disk == savedDisk, L"the disk is the one the state holds");
+
+        Assert::IsFalse          (target.GetDiskStore().IsRetainingMedia(),         L"the store keeps no disks once the load is over");
+        Assert::AreEqual<size_t> (0, target.GetDiskStore().GetRetainedMediaCount(), L"so the disk the state replaced is let go");
     }
 
 
@@ -268,6 +271,70 @@ public:
     }
 
 
+    //  A state that fails to load after its disks went into the bays: the
+    //  machine state is cut short inside its own section, so its header reads
+    //  and the load fails in the parts after it. The bays are left as they
+    //  were -- drive 1 keeps its disk rather than the state's, drive 2 keeps
+    //  the disk the state had no place for -- the drives read them, and the
+    //  machine is unchanged.
+    TEST_METHOD (AStateThatFailsToLoadLeavesTheBaysAsTheyWere)
+    {
+        constexpr int           kOtherDrive = 1;
+        TestMachine             source ("Apple2e");
+        TestMachine             target ("Apple2e");
+        FileLog                 sourceLog;
+        FileLog                 targetLog;
+        std::vector<Byte>       bytes;
+        std::vector<Byte>       otherDisk;
+        std::vector<Byte>       before;
+        MachineStateContents    contents;
+        MachineStateError       error;
+        DiskImageStore        & store       = target.GetDiskStore();
+        Disk2Controller       * controller  = target.GetRefs().diskController;
+        uint64_t                diskId      = 0;
+        uint64_t                otherId     = 0;
+        HRESULT                 hr          = S_OK;
+
+
+
+        Prepare (source, sourceLog, true);
+        source.RunCycles (s_kStateWarmupCycles);
+
+        bytes = Build (source);
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        CutShort (contents.machineState);
+
+        Prepare (target, targetLog, true);
+
+        AssertSucceeded (ReadPatternImage (s_kChangedPattern, otherDisk), L"ReadPatternImage");
+
+        hr = store.MountFromBytes (ReverseSessionRig::kDiskSlot, kOtherDrive, "C:\\Disks\\other.nib", DiskFormat::Nib, otherDisk);
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        diskId  = store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+        otherId = store.GetMediaId (ReverseSessionRig::kDiskSlot, kOtherDrive);
+        before  = ReverseSessionRig::Save (target);
+
+        Assert::IsTrue (diskId != 0 && otherId != 0, L"both drives hold a disk before the load");
+
+        hr = MachineStateFile::Apply (target, contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a state cut short inside its section must not load");
+        Assert::AreEqual (std::string ("state not loaded"), error.label);
+
+        Assert::AreEqual<uint64_t> (diskId,  store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"drive 1 holds the disk it held, not the state's");
+        Assert::AreEqual<uint64_t> (otherId, store.GetMediaId (ReverseSessionRig::kDiskSlot, kOtherDrive),                   L"drive 2 still holds the disk the state had no place for");
+        Assert::AreEqual<uint64_t> (diskId,  controller->GetDisk (ReverseSessionRig::kDiskDrive)->GetImageId(),              L"drive 1 reads its own disk");
+        Assert::AreEqual<uint64_t> (otherId, controller->GetDisk (kOtherDrive)->GetImageId(),                                L"drive 2 reads its own disk");
+        Assert::IsTrue (before == ReverseSessionRig::Save (target), L"and the machine is unchanged");
+
+        Assert::IsFalse          (store.IsRetainingMedia(),         L"the store keeps no disks once the load is over");
+        Assert::AreEqual<size_t> (0, store.GetRetainedMediaCount(), L"so the state's disks are let go");
+    }
+
+
 private:
 
     //  The rig's //e and loop, with a nibble image read from s_kImagePath in
@@ -326,6 +393,28 @@ private:
         }
 
         return S_OK;
+    }
+
+
+    //  Cuts the last bytes off a machine state inside its own section: the
+    //  section's size is lowered to match, so the section and its header still
+    //  read and the load fails in the last of the parts.
+    static void CutShort (std::vector<Byte> & state)
+    {
+        constexpr size_t  kSizeOffset = sizeof (uint32_t) + sizeof (Word);
+        constexpr size_t  kCut        = 16;
+        uint32_t          size        = 0;
+        bool              isLong      = state.size() > kSizeOffset + sizeof (size) + kCut;
+
+
+
+        Assert::IsTrue (isLong, L"a machine state long enough to cut");
+
+        memcpy (&size, state.data() + kSizeOffset, sizeof (size));
+        size -= kCut;
+        memcpy (state.data() + kSizeOffset, &size, sizeof (size));
+
+        state.resize (state.size() - kCut);
     }
 
 

@@ -209,6 +209,12 @@ Error:
 //  machine's state is loaded over them. The state's disks are built from
 //  the bytes it carries; no image file is read.
 //
+//  A LOAD THAT FAILS PART WAY LEAVES THE MACHINE AS IT WAS, bays included.
+//  The machine is saved before the bays are touched, and the disks that
+//  leave them are kept rather than dropped until the load has worked. A
+//  failure loads that save back, which puts the same disks in the same bays,
+//  points the drives at them and restores the rest of the machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineStateFile::Apply (
@@ -216,8 +222,13 @@ HRESULT MachineStateFile::Apply (
     const MachineStateContents  & contents,
     MachineStateError           & outError)
 {
-    HRESULT      hr     = S_OK;
-    StateReader  reader (contents.machineState);
+    HRESULT              hr           = S_OK;
+    HRESULT              hrRollBack   = S_OK;
+    DiskImageStore     & store        = machine.GetDiskStore();
+    bool                 wasRetaining = store.IsRetainingMedia();
+    bool                 isStaged     = false;
+    StateReader          reader (contents.machineState);
+    StateWriter          before;
 
 
 
@@ -226,8 +237,14 @@ HRESULT MachineStateFile::Apply (
 
     // The disks leaving the bays keep the writes made to them, as on a
     // machine switch.
-    hr = machine.GetDiskStore().FlushAll();
+    hr = store.FlushAll();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = machine.SaveState (before);
+    CHRF (hr, outError = MakeError ("state not loaded", "The machine's own state could not be read, so it was left as it was."));
+
+    store.SetMediaRetention (true);
+    isStaged = true;
 
     hr = RestoreDisks (machine, contents);
     CHRF (hr, outError = MakeError ("disk not restored", "A disk the state holds could not be put back in its drive."));
@@ -236,6 +253,19 @@ HRESULT MachineStateFile::Apply (
     CHRF (hr, outError = MakeError ("state not loaded", "The machine's state could not be read from the file."));
 
 Error:
+    if (FAILED (hr) && isStaged)
+    {
+        hrRollBack = RollBack (machine, before.GetBytes());
+        IGNORE_RETURN_VALUE (hrRollBack, S_OK);
+    }
+
+    // Turning retention off lets go of the disks kept above, and only of
+    // them: it was off when the load began.
+    if (isStaged && !wasRetaining)
+    {
+        store.SetMediaRetention (false);
+    }
+
     return hr;
 }
 
@@ -568,6 +598,38 @@ HRESULT MachineStateFile::RestoreDisks (
             }
         }
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStateFile::RollBack
+//
+//  Loads back the save Apply took before it changed the bays. The disks that
+//  save recorded were kept when they left the bays, so the load seats them
+//  again, and the disks the failed load mounted are retired in their place.
+//  It is this machine's own state, saved moments ago, so a failure here is a
+//  Casso bug.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineStateFile::RollBack (
+    MachineHost              & machine,
+    const std::vector<Byte>  & before)
+{
+    HRESULT      hr     = S_OK;
+    StateReader  reader (before);
+
+
+
+    hr = machine.LoadState (reader);
+    CHRA (hr);
 
 Error:
     return hr;

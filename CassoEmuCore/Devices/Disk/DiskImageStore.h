@@ -162,6 +162,7 @@ public:
     //  any unsaved writes, so a snapshot taken while it was in the drive can
     //  put it back. Turning retention off releases every kept disk.
     void          SetMediaRetention     (bool isOn);
+    bool          IsRetainingMedia      () const { return m_isRetaining; }
     size_t        GetRetainedMediaCount () const { return m_retained.size(); }
 
     //  Whether SeatMedia could put mediaId in the bay, and putting it there:
