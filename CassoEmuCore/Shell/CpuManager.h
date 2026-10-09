@@ -90,6 +90,21 @@ public:
     void    SetPaused      (bool paused) noexcept;
     void    TogglePaused   () noexcept;
 
+    //  Whether the CPU thread has acted on a pause: the machine stopped on an
+    //  instruction boundary, the thread left its frame, and it runs no frame
+    //  until it is resumed. Commands posted to a paused machine still run on
+    //  it. IsPaused gives what was asked for; this gives where the CPU thread
+    //  is. True while no CPU thread runs.
+    bool    IsParked           () const noexcept;
+
+    //  Waits up to timeout for the CPU thread to park after a pause; true once
+    //  it has, false when the wait ran out first.
+    bool    TryWaitUntilParked (std::chrono::milliseconds timeout);
+
+    //  The flag a pause raises, for the machine to test between instructions
+    //  (MachineHost::SetStopFlag).
+    const std::atomic<bool>  & GetPauseFlag() const noexcept { return m_paused; }
+
     SpeedMode  GetSpeedMode       () const noexcept;
     SpeedMode  GetUserSpeedMode   () const noexcept;
     bool       IsUserMaximumSpeed () const noexcept { return GetUserSpeedMode() == SpeedMode::Maximum; }
@@ -112,18 +127,23 @@ public:
 
 private:
     void ThreadProc ();
+    void WaitWhilePaused();
     void DrainCommandQueue ();
+    bool TryPark ();
+    void ParkForExit ();
 
 
     std::thread                   m_thread;
 
     std::atomic<bool>             m_running    { true };
     std::atomic<bool>             m_paused     { false };
+    std::atomic<bool>             m_isParked   { true };                     // written under m_pauseMutex
     std::atomic<SpeedMode>        m_speedMode  { SpeedMode::Authentic };
     std::atomic<SpeedMode>        m_userSpeed  { SpeedMode::Authentic };     // the last speed the user chose
 
     std::mutex                    m_pauseMutex;
     std::condition_variable       m_pauseCV;
+    std::condition_variable       m_parkedCV;
 
     std::mutex                    m_cmdMutex;
     std::vector<EmulatorCommand>  m_commandQueue;

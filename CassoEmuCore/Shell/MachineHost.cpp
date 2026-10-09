@@ -885,6 +885,14 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
     while (spent < cycleBudget)
     {
+        // A pause raised on another thread ends the slice here, between two
+        // instructions. Relaxed, since the stop only has to be seen: the CPU
+        // thread takes the pause mutex before it parks.
+        if (m_stopFlag != nullptr && m_stopFlag->load (std::memory_order_relaxed))
+        {
+            break;
+        }
+
         cycles  = StepOne();
         spent  += cycles;
 

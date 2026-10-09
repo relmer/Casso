@@ -127,6 +127,7 @@ private:
     static HRESULT   ReadPayload        (const Byte * data, size_t size, MachineStateContents & outContents);
     static HRESULT   CheckDisks         (const MachineStateContents & contents, MachineStateError & outError);
     static HRESULT   RestoreDisks       (MachineHost & machine, const MachineStateContents & contents);
+    static HRESULT   RollBack           (MachineHost & machine, const std::vector<Byte> & before);
     static uint64_t  ReadLittleEndian   (const Byte * data, size_t byteCount);
     static void      AppendLittleEndian (uint64_t value, size_t byteCount, std::vector<Byte> & outBytes);
 };
