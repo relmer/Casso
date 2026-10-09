@@ -376,6 +376,7 @@
     <ClCompile Include="EmuTests\FieldLocatorTests.cpp" />
     <ClCompile Include="EmuTests\InspectorFormatTests.cpp" />
     <ClCompile Include="EmuTests\InspectorRequestQueueTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorTablesTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTextTests.cpp" />
     <ClCompile Include="EmuTests\InspectorViewModelTests.cpp" />
     <ClCompile Include="EmuTests\PlatterCellsTests.cpp" />

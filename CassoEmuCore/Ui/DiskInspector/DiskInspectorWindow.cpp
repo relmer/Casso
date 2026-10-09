@@ -4,6 +4,8 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Ui/DiskInspector/FindingsTab.h"
+#include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/NibblesTab.h"
 #include "Ui/DiskInspector/PlatterCells.h"
@@ -41,6 +43,7 @@ static constexpr float    s_kAnalyzingDip   = 90.0f;
 static constexpr double   s_kMinSplit       = 0.3;
 static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
+static constexpr double   s_kPlatterShare   = 0.55;
 
 enum TrackTab
 {
@@ -48,6 +51,15 @@ enum TrackTab
     kTabNibbles,
     kTabFields,
     kTabFluxTiming,
+};
+
+
+enum DiskTab
+{
+    kTabTracks,
+    kTabFindings,
+    kTabFileMap,
+    kTabImage,
 };
 
 
@@ -196,8 +208,12 @@ HRESULT DiskInspectorWindow::RenderFrame()
     TakeResults();
     UpdateRings();
     UpdateControls();
+    RefreshTables();
 
-    m_tooltip.Tick (static_cast<int64_t> (GetTickCount64()));
+    m_tooltip.Tick     (static_cast<int64_t> (GetTickCount64()));
+    m_tracksTab->Tick   (static_cast<int64_t> (GetTickCount64()));
+    m_findingsTab->Tick (static_cast<int64_t> (GetTickCount64()));
+    m_fieldsTab->Tick   (static_cast<int64_t> (GetTickCount64()));
     Invalidate();
 
 Error:
@@ -229,9 +245,19 @@ void DiskInspectorWindow::OnCreate()
     m_trackTabs   = CreateChild<DxuiTabStrip>();
     m_byteView    = CreateChild<SectorByteView>  (m_context);
     m_nibblesTab  = CreateChild<NibblesTab>      (m_context);
+    m_fieldsTab   = CreateChild<InspectorTableView> (m_context);
+    m_diskTabs    = CreateChild<DxuiTabStrip>();
+    m_tracksTab   = CreateChild<InspectorTableView> (m_context);
+    m_findingsTab = CreateChild<FindingsTab>     (m_context);
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
     m_trackTabs->SetOnChange ([this] (int index) { ShowTrackTab (index); });
+    m_diskTabs->SetOnChange  ([this] (int index) { ShowDiskTab (index); });
+    m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
+    m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
+    m_tracksTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
+    m_findingsTab->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
+    m_fieldsTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_zoomOut->SetOnClick    ([this] () { m_platterView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_zoomIn->SetOnClick     ([this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
     m_fit->SetOnClick        ([this] () { m_model.Fit(); });
@@ -239,6 +265,7 @@ void DiskInspectorWindow::OnCreate()
     m_tooltip.SetPopupHost (GetPopupHost());
 
     ShowTrackTab (kTabSectorData);
+    ShowDiskTab  (kTabTracks);
 }
 
 
@@ -283,7 +310,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int                        top     = boundsDip.top + scaler.ToPx (s_kToolbarDip);
     int                        drives  = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
     int                        column  = splitX - boundsDip.left - 2 * margin;
-    int                        side    = std::max (0, std::min (column, static_cast<int> (boundsDip.bottom - top - 2 * row - 3 * margin)));
+    int                        side    = std::max (0, std::min (column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare)));
     int                        x       = boundsDip.left + margin;
     int                        y       = 0;
     int                        i       = 0;
@@ -325,6 +352,23 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_zoomLabel->Layout ({ x + 4 * button + margin, y, splitX - margin, y + row }, scaler);
     m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
 
+    y += 2 * row;
+    tabs.clear();
+
+    for (LPCWSTR label : { L"Tracks", L"Findings", L"File map", L"Image" })
+    {
+        i = static_cast<int> (tabs.size());
+        tabs.push_back ({ { x + i * tab, y, x + (i + 1) * tab, y + scaler.ToPx (s_kTabsDip) }, label });
+    }
+
+    m_diskTabs->SetTabs     (std::move (tabs));
+    m_diskTabs->SetSelected (m_diskTab);
+    m_diskTabs->Layout      ({ x, y, splitX - margin, y + scaler.ToPx (s_kTabsDip) }, scaler);
+    y += scaler.ToPx (s_kTabsDip) + margin / 2;
+
+    m_tracksTab->Layout   ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
+    m_findingsTab->Layout ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
+
     y = right.top;
     m_headerView->Layout ({ right.left, y, right.right, y + header }, scaler);
     y += header;
@@ -348,6 +392,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     m_byteView->Layout   ({ right.left, y, right.right, right.bottom }, scaler);
     m_nibblesTab->Layout ({ right.left, y, right.right, right.bottom }, scaler);
+    m_fieldsTab->Layout  ({ right.left, y, right.right, right.bottom }, scaler);
 }
 
 
@@ -675,6 +720,7 @@ void DiskInspectorWindow::TakeReplies()
         }
 
         m_model.SetAnalysis (m_context.hasDisk ? &m_analysis : nullptr);
+        m_isTablesDirty = true;
     }
 }
 
@@ -713,6 +759,7 @@ void DiskInspectorWindow::TakeResults()
     {
         DiskAnalyzer::Assemble (m_analysis);
         m_model.SetAnalysis (&m_analysis);
+        m_isTablesDirty = true;
     }
 }
 
@@ -825,6 +872,7 @@ void DiskInspectorWindow::OnSelection()
     }
 
     m_nibblesTab->ScrollTo (nibble);
+    SyncTables();
 }
 
 
@@ -842,6 +890,7 @@ void DiskInspectorWindow::ShowTrackTab (int tab)
     m_trackTab = tab;
     m_byteView->SetVisible   (tab == kTabSectorData);
     m_nibblesTab->SetVisible (tab == kTabNibbles);
+    m_fieldsTab->SetVisible  (tab == kTabFields);
     m_trackTabs->SetSelected (tab);
 }
 
@@ -965,4 +1014,123 @@ std::wstring DiskInspectorWindow::GetFileName() const
 bool DiskInspectorWindow::IsInside (const RECT & rect, POINT pointPx)
 {
     return PtInRect (&rect, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowDiskTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowDiskTab (int tab)
+{
+    m_diskTab = tab;
+    m_tracksTab->SetVisible   (tab == kTabTracks);
+    m_findingsTab->SetVisible (tab == kTabFindings);
+    m_diskTabs->SetSelected   (tab);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RefreshTables
+//
+//  The Tracks and Findings tabs after the analysis changes, and the Fields
+//  tab when its track or that track's analysis changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RefreshTables()
+{
+    const TrackAnalysis *  track = m_model.GetTrack();
+    int                    qt    = m_model.GetQuarterTrack();
+
+
+
+    if (m_isTablesDirty)
+    {
+        m_tracksTab->SetRows    (m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis) : vector<TableRow>());
+        m_tracksTab->SetCaption (m_context.hasDisk && InspectorTables::IsAlignmentNoteShown (m_analysis)
+                                     ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
+                                     : L"");
+        m_findingsTab->Refresh();
+        Layout (m_boundsDip, m_scaler);
+    }
+
+    if (m_isTablesDirty || qt != m_fieldsOf || track != m_fieldsTrack)
+    {
+        m_fieldsTab->SetRows (m_context.hasDisk ? InspectorTables::BuildFields (m_analysis, qt) : vector<TableRow>());
+        m_fieldsOf    = qt;
+        m_fieldsTrack = track;
+        SyncTables();
+    }
+
+    m_isTablesDirty = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SyncTables
+//
+//  Each table selects the row for the window's selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SyncTables()
+{
+    int  qt     = m_model.GetQuarterTrack();
+    int  sector = m_model.GetSectorIndex();
+
+
+
+    m_tracksTab->SelectRowWhere ([qt] (const TableRow & row) { return row.quarterTrack == qt; });
+    m_fieldsTab->SelectRowWhere ([sector] (const TableRow & row) { return sector >= 0 && row.sectorIndex == sector; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SelectFromRow
+//
+//  A row goes to what it refers to: a field's nibbles, a sector, or a
+//  quarter track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SelectFromRow (const TableRow & row)
+{
+    const TrackAnalysis *  track = nullptr;
+
+
+
+    if (row.quarterTrack >= 0)
+    {
+        m_model.SelectQuarterTrack (row.quarterTrack);
+        track = m_model.GetTrack();
+
+        if (row.sectorIndex >= 0)
+        {
+            m_model.SelectSector (row.quarterTrack, row.sectorIndex);
+        }
+        else if (track != nullptr && row.field >= 0 && row.field < static_cast<int> (track->fields.size()))
+        {
+            m_model.SelectNibbles (row.quarterTrack, track->fields[row.field].firstNibble, track->fields[row.field].nibbleCount);
+        }
+
+        OnSelection();
+    }
 }

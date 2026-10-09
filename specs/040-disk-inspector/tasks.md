@@ -170,9 +170,9 @@ without the others in its merge.
 **Independent Test**: Made-up image with one of each planted anomaly; Findings, Tracks and Fields against the planted list.
 
 - [ ] T067 [P] [US2] Extend `UT/InspectorViewModelTests.cpp`: Findings ordering, sorting, filtering and category counts (FR-049); selecting a finding selects its track, sector and field; Tracks rows (FR-047) including shared records and the synchronized-flag note; decode-settings chip and reset
-- [ ] T068 [US2] Create `UI/FindingsTab.h` / `.cpp` (FR-048, FR-049)
-- [ ] T069 [US2] Create `UI/TracksTab.h` / `.cpp` (FR-047 columns without the Casso-only marks)
-- [ ] T070 [US2] Create `UI/FieldsTab.h` / `.cpp` (FR-042, "Address field, checksum failed" wording per FR-023)
+- [X] T068 [US2] Create `UI/FindingsTab.h` / `.cpp` (FR-048, FR-049)
+- [X] T069 [US2] Create `UI/TracksTab.h` / `.cpp` (FR-047 columns without the Casso-only marks)
+- [X] T070 [US2] Create `UI/FieldsTab.h` / `.cpp` (FR-042, "Address field, checksum failed" wording per FR-023)
 - [ ] T071 [US2] Create `UI/DecodeSettingsDialog.h` / `.cpp`: marks with `??`, checks, track range, "Match standard marks too", "Reset to standard"; a change re-analyzes every track it covers; settings chip (FR-019, FR-020)
 - [ ] T071a [US2] "Alignment" overlay marking each track's sector 0 address field and longest sync run on the platter, with the overlay switch saved in preferences (FR-031)
 - [ ] T072 [US2] Show "not checked" sectors with their own color and symbol in the sector row, header, Fields tab and strip labels (FR-020)

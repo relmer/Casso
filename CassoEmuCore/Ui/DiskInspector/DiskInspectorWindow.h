@@ -5,6 +5,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
+#include "Ui/DiskInspector/InspectorTables.h"
 #include "Ui/DiskInspector/InspectorView.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
 #include "Ui/DiskInspector/PlatterRenderer.h"
@@ -15,6 +16,8 @@ class TrackStripView;
 class SectorRowView;
 class SectorByteView;
 class NibblesTab;
+class FindingsTab;
+class InspectorTableView;
 
 
 
@@ -68,6 +71,10 @@ private:
     void  UpdateControls   ();
     void  OnSelection      ();
     void  ShowTrackTab     (int tab);
+    void  ShowDiskTab      (int tab);
+    void  RefreshTables    ();
+    void  SyncTables       ();
+    void  SelectFromRow    (const TableRow & row);
     void  UpdateTooltip    (POINT pointPx);
     void  PaintToolbar     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  StepSector       (int delta, bool isToEnd);
@@ -109,4 +116,12 @@ private:
     SectorRowView *                          m_sectorRow      = nullptr;
     SectorByteView *                         m_byteView       = nullptr;
     NibblesTab *                             m_nibblesTab     = nullptr;
+    DxuiTabStrip *                           m_diskTabs       = nullptr;
+    InspectorTableView *                     m_tracksTab      = nullptr;
+    FindingsTab *                            m_findingsTab    = nullptr;
+    InspectorTableView *                     m_fieldsTab      = nullptr;
+    int                                      m_diskTab        = 0;
+    bool                                     m_isTablesDirty  = true;
+    int                                      m_fieldsOf       = -1;
+    const TrackAnalysis *                    m_fieldsTrack    = nullptr;
 };
