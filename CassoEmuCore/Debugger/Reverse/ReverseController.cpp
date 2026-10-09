@@ -124,9 +124,10 @@ Error:
 //  Detaches from the machine, drops all history and gives back the memory
 //  it held. The disks keep any writes they hold, which the next flush
 //  writes as they stand. A machine run on from the past leaves the disk
-//  store marked as replaying until it is live again, so the mark goes here
-//  with the hold: quitting and a machine switch stop recording wherever the
-//  machine stands, and flush right after.
+//  store marked as replaying, and the printer muted, until it is live again,
+//  so the mark and the mute go here with the hold: quitting, a machine
+//  switch and a state load stop recording wherever the machine stands, and
+//  flush, print or start recording again right after.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,6 +146,8 @@ void ReverseController::Stop()
         m_machine.GetDiskStore().SetFlushHold      (false);
         m_machine.GetDiskStore().SetReplaying      (false);
         m_machine.GetDiskStore().SetMediaRetention (false);
+
+        m_machine.SetOutputMuted (false);
     }
 
     m_keyframes.Release();
