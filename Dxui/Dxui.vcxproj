@@ -252,6 +252,7 @@
     <ClInclude Include="Theme\DxuiDwm.h" />
     <ClInclude Include="Theme\DxuiMenuMetrics.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
+    <ClInclude Include="Theme\DiskInspectorColors.h" />
     <ClInclude Include="Theme\DxuiColor.h" />
     <ClInclude Include="Theme\DxuiTheme.h" />
     <ClInclude Include="Theme\IDxuiTheme.h" />
