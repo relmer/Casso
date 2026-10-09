@@ -32,8 +32,14 @@ public:
     static TrackContext  GetContext (const DiskCopy & copy, int slot);
     static vector<int>   GetQuarterTracksOfSlot (const DiskCopy & copy, int slot);
 
+    //  One record at a time, for a caller that analyzes records off its own
+    //  thread: AnalyzeRecord gives nullptr for a record nothing plays; Accept
+    //  stores a result without rebuilding the disk; Assemble rebuilds it.
+    static std::shared_ptr<const TrackAnalysis>  AnalyzeRecord (const DiskCopy & copy, int slot, const DecodeSettings & settings);
+    static void                                  Accept        (std::shared_ptr<const DiskCopy> copy, int slot, std::shared_ptr<const TrackAnalysis> track, DiskAnalysis & inOut);
+    static void                                  Assemble      (DiskAnalysis & inOut);
+
 private:
-    static void  Assemble             (DiskAnalysis & inOut);
     static void  BuildEntries         (DiskAnalysis & inOut);
     static void  AddTrackFindings     (DiskAnalysis & inOut);
     static void  AddVolumeFindings    (DiskAnalysis & inOut);

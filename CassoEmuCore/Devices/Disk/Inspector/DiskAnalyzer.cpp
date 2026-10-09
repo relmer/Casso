@@ -53,27 +53,62 @@ void DiskAnalyzer::Analyze (std::shared_ptr<const DiskCopy> copy, const DecodeSe
 
 void DiskAnalyzer::Reanalyze (std::shared_ptr<const DiskCopy> copy, std::span<const int> slots, DiskAnalysis & inOut)
 {
+    for (int slot : slots)
+    {
+        Accept (copy, slot, AnalyzeRecord (*copy, slot, inOut.settings), inOut);
+    }
+
+    Assemble (inOut);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskAnalyzer::AnalyzeRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const TrackAnalysis> DiskAnalyzer::AnalyzeRecord (const DiskCopy & copy, int slot, const DecodeSettings & settings)
+{
     std::shared_ptr<TrackAnalysis>  analysis;
 
 
 
+    if (slot >= 0 && slot < static_cast<int> (copy.tracks.size()) && !GetQuarterTracksOfSlot (copy, slot).empty())
+    {
+        analysis = std::make_shared<TrackAnalysis>();
+        TrackAnalyzer::Analyze (*copy.tracks[slot], GetContext (copy, slot), settings, *analysis);
+    }
+
+    return analysis;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskAnalyzer::Accept
+//
+//  The copy a result was made from becomes the disk's copy: copies of one
+//  disk differ only in the records the guest wrote since.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskAnalyzer::Accept (std::shared_ptr<const DiskCopy> copy, int slot, std::shared_ptr<const TrackAnalysis> track, DiskAnalysis & inOut)
+{
     inOut.copy    = copy;
     inOut.mediaId = copy->mediaId;
     inOut.tracks.resize (copy->tracks.size());
 
-    for (int slot : slots)
+    if (slot >= 0 && slot < static_cast<int> (inOut.tracks.size()))
     {
-        if (slot < 0 || slot >= static_cast<int> (copy->tracks.size()) || GetQuarterTracksOfSlot (*copy, slot).empty())
-        {
-            continue;
-        }
-
-        analysis = std::make_shared<TrackAnalysis>();
-        TrackAnalyzer::Analyze (*copy->tracks[slot], GetContext (*copy, slot), inOut.settings, *analysis);
-        inOut.tracks[slot] = analysis;
+        inOut.tracks[slot] = std::move (track);
     }
-
-    Assemble (inOut);
 }
 
 

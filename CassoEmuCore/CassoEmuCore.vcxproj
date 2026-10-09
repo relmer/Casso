@@ -478,6 +478,7 @@
     <ClCompile Include="Ui\Dialogs\DownloadDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
+    <ClCompile Include="Ui\DiskInspector\AnalysisScheduler.cpp" />
     <ClCompile Include="Ui\Printer3DScene.cpp" />
     <ClCompile Include="Ui\Scene\DeskScene.cpp" />
     <ClCompile Include="Ui\Scene\DeskSceneHitTester.cpp" />
@@ -901,6 +902,7 @@
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
+    <ClInclude Include="Ui\DiskInspector\AnalysisScheduler.h" />
     <ClInclude Include="Ui\Printer3DScene.h" />
     <ClInclude Include="Ui\Scene\DeskScene.h" />
     <ClInclude Include="Ui\Scene\DeskSceneHitTester.h" />
