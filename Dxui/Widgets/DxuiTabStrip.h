@@ -99,6 +99,9 @@ public:
     void  SetOnMove   (MoveFn fn)   { m_move   = std::move (fn); }
     void  SetOnNewTab (NewTabFn fn) { m_newTab = std::move (fn); }
 
+    //  Room between the last tab and the + button.
+    void  SetNewTabGapDip (float dip) { m_newTabGapDip = dip; }
+
     //  With a close handler set, every tab gets a close button.
     void  SetOnClose  (CloseFn fn)  { m_close  = std::move (fn); }
 
@@ -158,12 +161,12 @@ private:
     static constexpr int  s_kArrowWidthDip    = 28;   // each scroll arrow
 
     //  File Explorer's tab, measured at 120 dpi (research R13).
-    static constexpr int  s_kIconInsetDip     = 10;   // icon from the tab's left edge
+    static constexpr int  s_kIconInsetDip     = 8;    // icon from the tab's left edge
     static constexpr int  s_kIconDip          = 16;
-    static constexpr int  s_kLabelInsetDip    = 38;   // label from the tab's left edge
+    static constexpr int  s_kLabelInsetDip    = 34;   // label from the tab's left edge
     static constexpr int  s_kCloseCenterDip   = 22;   // close button's center from the tab's right edge
     static constexpr int  s_kCloseBoxDip      = 24;
-    static constexpr int  s_kCloseGlyphDip    = 10;
+    static constexpr int  s_kCloseGlyphDip    = 8;
     static constexpr int  s_kCornerDip        = 6;    // the selected tab's rounded top corners
 
     void  Commit         (int newIndex);
@@ -218,6 +221,7 @@ private:
     int                m_hoverArrow    = 0;   // -1 left, +1 right, 0 neither
     int                m_pressedArrow  = 0;
     NewTabFn           m_newTab;
+    float              m_newTabGapDip  = 0.0f;
     bool               m_hoverNewTab   = false;
     bool               m_pressedNewTab = false;
     CloseFn            m_close;

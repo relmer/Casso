@@ -761,7 +761,7 @@ void DxuiTabStrip::PaintArrow (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 int DxuiTabStrip::GetNewTabWidthPx() const
 {
-    return (HasBounds() && m_newTab) ? m_scaler.ToPx (kNewTabWidthDip) : 0;
+    return (HasBounds() && m_newTab) ? m_scaler.ToPx (kNewTabWidthDip) + (int) std::lround (m_scaler.ToPxf (m_newTabGapDip)) : 0;
 }
 
 
@@ -795,6 +795,10 @@ RECT DxuiTabStrip::GetNewTabRect() const
         {
             left = m_tabs.back().rect.right;
         }
+
+        //  The gap is before the button, not part of it.
+        left  += width - m_scaler.ToPx (kNewTabWidthDip);
+        width  = m_scaler.ToPx (kNewTabWidthDip);
 
         //  Over the tabs' own span rather than the whole strip, which reaches
         //  above them into the caption.

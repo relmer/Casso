@@ -1096,6 +1096,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     float    fontDip      = m_scaler.ToPxf (m_fontDip);
     float    twistyHt     = m_scaler.ToPxf (s_kTwistyHeight);
     float    textGap      = m_scaler.ToPxf (4.0f);
+    float    iconLead     = m_scaler.ToPxf (m_iconLeadDip);
     float    twistyPad    = m_scaler.ToPxf (4.0f);
     float    dividerInset = m_scaler.ToPxf (8.0f);
     float    dividerThick = (std::max) (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
@@ -1122,18 +1123,18 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
 
-        right = (float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + textGap + labelW + textGap;
+        right = (float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead + labelW + textGap;
 
         if (SUCCEEDED (hr) && node->icon)
         {
-            right += m_scaler.ToPxf ((float) s_kIconDip) + m_scaler.ToPxf ((float) s_kIconGapDip);
+            right += m_scaler.ToPxf ((float) s_kIconDip) + m_scaler.ToPxf (m_iconGapDip);
         }
 
         m_rowsExtentPx = (std::max) (m_rowsExtentPx, SUCCEEDED (hr) ? (int) std::ceil (right) : 0);
 
         if (SUCCEEDED (hr))
         {
-            m_labelSpans[(size_t) (&fr - m_flatRows.data())] = POINT { (LONG) std::floor ((float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + textGap),
+            m_labelSpans[(size_t) (&fr - m_flatRows.data())] = POINT { (LONG) std::floor ((float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead),
                                                                        (LONG) std::ceil (right) };
         }
     }
@@ -1173,7 +1174,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         float                 rowHeight   = (float) m_rowHeightPx;
         float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx - m_leftPx);
         float                 checkboxX   = twistyX + (float) m_twistyPx;
-        float                 textX       = checkboxX + (float) GetCheckboxWidthPx() + textGap;
+        float                 textX       = checkboxX + (float) GetCheckboxWidthPx() + iconLead;
         bool                  hasChildren = false;
         uint32_t              boxColor    = 0;
         uint32_t              glyphCol    = 0;
@@ -1306,7 +1307,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                 DxuiListView::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
             }
 
-            textX += iconPx + m_scaler.ToPxf ((float) s_kIconGapDip);
+            textX += iconPx + m_scaler.ToPxf (m_iconGapDip);
         }
 
         if (node != nullptr)
@@ -1510,7 +1511,7 @@ void DxuiTreeView::PaintLabel (int flatRow, IDxuiPainter & painter, IDxuiTextRen
                                   x, 1.0f + (rowH - iconPx) * 0.5f, iconPx, iconPx);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        x += iconPx + m_scaler.ToPxf ((float) s_kIconGapDip);
+        x += iconPx + m_scaler.ToPxf (m_iconGapDip);
     }
 
     hr = text.DrawString (node->label.c_str(), x, 1.0f, (float) (box.right - box.left) - x, rowH, ink,

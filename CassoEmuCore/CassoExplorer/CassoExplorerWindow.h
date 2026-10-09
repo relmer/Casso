@@ -115,35 +115,48 @@ public:
     //  the strip keeps only a small gap above the tabs.
     static constexpr int       kTabHeightDip       = 37;
     static constexpr int       kTabTopDip          = 4;
+    static constexpr float     kTabLeadDip         = 8.67f;  // the first tab from the strip's left edge, measured at 150%
+    static constexpr float     kNewTabGapDip       = 6.67f;  // the last tab to the + button
 
     //  Explorer's navigation glyphs are smaller than Casso's toolbar icons:
     //  15 pixels of ink at 120 DPI.
     static constexpr float     kNavIconDip         = 12.0f;
+
+    //  Its back, forward, up and refresh buttons are 48 dip apart, center to
+    //  center, the first 34.67 dip from the window's left edge: measured at
+    //  150%. A 12 dip glyph, 16 dip either side and the toolbar's 4 dip gap.
+    static constexpr float     kNavButtonPadDip    = 16.0f;
+    static constexpr int       kNavBarPadDp        = 6;
+    static constexpr int       kNavAddressGapDp    = 8;      // from the refresh button to the address box
 
     //  File Explorer's command bar, measured at 125%: buttons 48 dip apart
     //  center to center, label cap height 11 px against the chrome font's 13,
     //  and its 20-unit Fluent icons drawn one unit to the dip -- the scissors
     //  are 20 pixels tall. A 20 dip square, 12 dip either side and the
     //  toolbar's 4 dip gap keep the 48.
-    static constexpr float     kCommandBarIconDip    = 20.0f;
-    static constexpr float     kCommandBarPadDip     = 12.0f;
-    static constexpr float     kCommandBarLabelDip   = 12.0f;
+    static constexpr float  kCommandBarIconDip       = 20.0f;
+    static constexpr float  kCommandBarPadDip        = 12.0f;
+    static constexpr float  kCommandBarLabelDip      = 12.0f;
+    static constexpr float  kCommandBarChevronGapDip = 5.33f;   // a drop-down's label to its chevron, measured at 150%
+    static constexpr float  kCommandBarIconGapDip    = 6.33f;   // a button's icon to its label, measured at 150%
 
     //  Explorer's tree and list text: 9 points, 12 dip.
     static constexpr float     kProseFontDip         = 12.0f;
-    static constexpr int       kCommandBarGroupGapDp = 8;
+    static constexpr int       kCommandBarGroupGapDp = 10;   // measured at 100, 125 and 150%
 
     //  Explorer's two strips, measured at 100, 125, 150 and 200%: the command
     //  bar is 47 dip rounded down, its line included; the address bar's strip
     //  is 48 dip rounded down with its line added. The address box is 32 dip
-    //  tall, and the command bar starts 5 dip in.
+    //  tall, and the command bar starts 4 dip in.
     static constexpr float     kCommandBarDip        = 47.0f;
     static constexpr float     kNavStripFillDip      = 48.0f;
     static constexpr int       kAddressBoxDip        = 32;
-    static constexpr int       kFindBoxMinDip        = 160;
-    static constexpr int       kFindBoxMaxDip        = 420;
+    static constexpr int       kFindBoxMinDip        = 100;
+    static constexpr int       kFindBoxMaxDip        = 720;
+    static constexpr float     kFindBoxShare         = 0.3f;    // of the width right of the tree, measured at 150%
+    static constexpr float     kFindBoxRightInsetDip = 4.67f;   // past the toolbar's own padding
     static constexpr int       kFindBoxGapDip        = 8;
-    static constexpr int       kCommandBarPadXDp     = 5;
+    static constexpr int       kCommandBarPadXDp     = 4;
     static constexpr UINT      kListRowHalfDip       = 14;
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.
@@ -178,6 +191,11 @@ public:
     //  Explorer's, measured at 125% as 10 pixels.
     static constexpr int     kTreeIndentDip   = 8;
 
+    //  A tree row's icon starts 18 dip past the middle of its twisty and its
+    //  label 3.33 dip past the icon: measured at 150%.
+    static constexpr float   kTreeIconLeadDip = 10.0f;
+    static constexpr float   kTreeIconGapDip  = 3.33f;
+
     //  The status bar's fields, left to right: Explorer's item count and
     //  selection, flowing from the left; the space between; then free space,
     //  the preview's detail and its zoom.
@@ -190,6 +208,8 @@ public:
 
     //  Status bar field widths: free space, and the preview's detail and zoom
     //  when the preview is hidden and they cannot follow its edge.
+    static constexpr int    kStatusBandDip       = 26;    // Explorer's status bar, measured at 150%
+    static constexpr float  kStatusLeadDip       = 14.67f; // its item count, from the band's left edge
     static constexpr int    kStatusFreeDip       = 140;
     static constexpr int    kStatusDetailDip     = 280;
     static constexpr int    kStatusZoomDip       = 64;

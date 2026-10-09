@@ -49,6 +49,9 @@ public:
     //  The line along the top and the lines between fields; on by default.
     void  SetDividers (bool dividers) { m_dividers = dividers; }
 
+    //  How far the flowing fields start from the band's left edge.
+    void  SetLeadDip  (float dip)     { m_leadDip  = dip; }
+
     size_t               GetFieldCount () const             { return m_fields.size(); }
     const Field &        GetField      (size_t index) const { return m_fields[index]; }
 
@@ -73,4 +76,5 @@ private:
     std::vector<RECT>   m_fieldRects;
     DxuiDpiScaler       m_scaler;
     bool                m_dividers = true;
+    float               m_leadDip  = (float) kFieldPadDip;
 };

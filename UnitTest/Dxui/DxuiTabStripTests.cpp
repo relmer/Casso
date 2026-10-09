@@ -501,7 +501,7 @@ public:
         }
 
         Assert::IsNotNull (label);
-        Assert::AreEqual  (38.0f, label->x, L"Explorer's label starts past the room for its icon");
+        Assert::AreEqual  (34.0f, label->x, L"Explorer's label starts past the room for its icon");
         Assert::IsTrue    (label->hAlign == DxuiTextHAlign::Left, L"left-aligned");
         Assert::IsTrue    (label->weight == DxuiFontWeight::SemiBold, L"and semibold on the selected tab");
     }

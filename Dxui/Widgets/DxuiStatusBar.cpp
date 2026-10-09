@@ -141,7 +141,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     float    padPx   = m_scaler.ToPxf ((float) kFieldPadDip);
     float    fontPx  = m_scaler.ToPxf (kFontDip);
     float    lineW   = (float) (std::max) (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    float    flowX   = (float) m_boundsDip.left + padPx;
+    float    flowX   = (float) m_boundsDip.left + m_scaler.ToPxf (m_leadDip);
     float    gapPx   = m_scaler.ToPxf (kFlowGapDip);
     float    ruleH   = m_scaler.ToPxf (kFlowRuleDip);
     float    textW   = 0.0f;

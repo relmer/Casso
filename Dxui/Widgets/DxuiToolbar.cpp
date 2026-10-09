@@ -759,7 +759,7 @@ int DxuiToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
 int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 {
     int           padX    = GetButtonPadPx();
-    int           iconGap = m_scaler.ToPx (kIconGapDp);
+    int           iconGap = (int) std::lround (m_scaler.ToPxf (m_iconGapDip));
     float         fontPx  = GetChromeFontPx();
     int           iconW   = (int) (m_scaler.ToPxf (m_iconDip) + 0.5f);
     int           width   = 0;
@@ -783,7 +783,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
     if (slot.entry.kind == Kind::DropDown && (m_chevronOnIcons || !HasGlyph (slot)))
     {
-        width += iconGap + m_scaler.ToPx (kChevronDp);
+        width += (int) std::lround (m_scaler.ToPxf (m_chevronGapDip)) + m_scaler.ToPx (kChevronDp);
     }
 
     return width;
@@ -1772,7 +1772,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     float               fontDip  = GetChromeFontPx();
     float               iconDip  = m_scaler.ToPxf (m_iconDip);
     int                 padX     = GetButtonPadPx();
-    int                 iconGap  = m_scaler.ToPx (kIconGapDp);
+    int                 iconGap  = (int) std::lround (m_scaler.ToPxf (m_iconGapDip));
     uint32_t            ink      = m_stripColorsSet ? m_textOverride : theme.ButtonText();
     uint32_t            accent   = theme.Accent();
     float               textX    = 0.0f;
@@ -1871,7 +1871,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         uint32_t  secondary = (ink & 0x00FFFFFFu) | ((((ink >> 24) & 0xFFu) * kChevronAlphaPercent / 100u) << 24);
 
         hr = text.DrawString (s_kpszMdl2ChevronDown, left, bt, size, bh,
-                              secondary, (float) kChevronDp, m_iconFace,
+                              secondary, m_scaler.ToPxf (kChevronFontDip), m_iconFace,
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1957,7 +1957,7 @@ void DxuiToolbar::PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme
     int           groupGap = m_scaler.ToPx (m_groupGapDp);
     float         top      = (float) m_barRect.top + m_scaler.ToPxf (kSeparatorTopDip);
     float         height   = (float) m_barRect.bottom - m_scaler.ToPxf (kSeparatorBottomDip) - top;
-    float         width    = (std::max) (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
+    float         width    = (std::max) (1.0f, std::round (m_scaler.ToPxf (1.0f)));
 
 
 

@@ -635,6 +635,8 @@ private:
     static constexpr float  s_kExplorerCellPadDip    = 6.67f;    // every other column's text
     static constexpr float  s_kExplorerNameTitleDip  = 16.67f;   // the name column's title
     static constexpr float  s_kExplorerIconGapDip    = 4.0f;     // from the icon to the name
+    static constexpr float  s_kExplorerTitleBandDip  = 27.33f;   // the titles and dividers, from the bar's top
+    static constexpr float  s_kExplorerDividerAlpha  = 0.32f;    // the dividers: the text color at this strength
 
     int   GetHeaderBarPx      () const { return m_scaler.ToPx (m_explorerDetails ? s_kExplorerHeaderDip : s_kHeaderHeightDip); }
     int   GetHeaderGapPx      () const { return m_scaler.ToPx (m_explorerDetails ? s_kExplorerHeaderGapDip : s_kHeaderGapDip); }

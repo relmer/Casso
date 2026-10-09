@@ -538,7 +538,22 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         text.FillRect (x + 1.0f, y + 1.0f, w - 2.0f, h - 2.0f, bgArgb);
     }
 
-    if (!m_chromeless)
+    //  Explorer's address row: the control fill and no edge at rest; focused,
+    //  the darker fill, a hairline edge and the accent along the bottom.
+    if (!m_chromeless && m_explorerChrome && m_theme != nullptr)
+    {
+        float  radius = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
+        float  accent = (float) m_scaler.ToPx (2);
+
+        painter.FillRoundedRect (x, y, w, h, radius, m_focused ? m_theme->ContentBackground() : m_theme->ControlBackground());
+
+        if (m_focused)
+        {
+            painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, (fgArgb & 0x00FFFFFFu) | 0x40000000u);
+            painter.FillRect (x + radius, y + h - accent, w - radius * 2.0f, accent, m_theme->Accent());
+        }
+    }
+    else if (!m_chromeless)
     {
         painter.FillRoundedRect    (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), bgArgb);
         painter.OutlineRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, m_focused ? focusArgb : edgeArgb);

@@ -75,6 +75,9 @@ public:
     // paint normally.
     void  SetChromeless (bool chromeless)             { m_chromeless = chromeless; }
 
+    //  Draws the field as Explorer's address row draws its boxes.
+    void  SetExplorerChrome (bool on)                 { m_explorerChrome = on; }
+
     //  The field lies over another control's text, as a rename in place lies
     //  over a list row, and must hide it.
     void  SetOverText   (bool overText)               { m_overText = overText; }
@@ -205,6 +208,7 @@ private:
     bool                      m_hover             = false;
     bool                      m_dragging          = false;
     bool                      m_chromeless        = false;
+    bool                      m_explorerChrome    = false;
     bool                      m_overText          = false;
     bool                      m_placeholderItalic = false;
     const wchar_t           * m_face              = nullptr;   // null: the theme's body face

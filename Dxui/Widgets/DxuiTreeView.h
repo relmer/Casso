@@ -160,6 +160,10 @@ public:
 
     //  How far each level sits in from its parent.
     void  SetIndentDip (int dip) { m_indentDip = dip; m_indentPx = m_scaler.ToPx (dip); }
+
+    //  How far the icon sits past the twisty, and the label past the icon.
+    void  SetIconLeadDip (float dip) { m_iconLeadDip = dip; }
+    void  SetIconGapDip  (float dip) { m_iconGapDip  = dip; }
     void  SetDpi       (UINT dpi)
     {
         m_scaler.SetDpi (dpi);
@@ -302,6 +306,8 @@ private:
     int                        m_indentPx       = kIndentDip;
     int                        m_checkboxPx     = 16;
     int                        m_twistyPx       = 16;
+    float                      m_iconLeadDip    = 4.0f;
+    float                      m_iconGapDip     = (float) s_kIconGapDip;
     int                        m_highlight      = -1;
     int                        m_hoverRow       = -1;
     int                        m_pressedRow     = -1;

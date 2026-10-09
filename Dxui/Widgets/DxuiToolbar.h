@@ -189,6 +189,8 @@ public:
     //  keeps the defaults; a bar following File Explorer widens the one and
     //  shrinks the other to Explorer's measure.
     void  SetButtonPadDip   (float dip)                  { m_buttonPadDip = dip; }
+    void  SetChevronGapDip  (float dip)                  { m_chevronGapDip = dip; }   // a drop-down's label to its chevron
+    void  SetIconGapDip     (float dip)                  { m_iconGapDip    = dip; }   // a button's icon to its label
     void  SetLabelScale     (float scale)                { m_labelScale   = scale; }
 
     //  The two icon fonts for the glyphs in UnicodeSymbols.h. They use the same
@@ -351,7 +353,8 @@ private:
     static bool  HasGlyph (const Slot & slot) { return slot.entry.vectorIcon != nullptr ||
                                                        (slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0); }
 
-    static constexpr int  kChevronDp = 8;
+    static constexpr int    kChevronDp      = 8;
+    static constexpr float  kChevronFontDip = 6.67f;   // its glyph: 8 pixels of ink at 150%, as File Explorer's
 
     //  How much of the label's ink the chevron takes: File Explorer draws its
     //  chevron #B7B7B7 beside a #FFFFFF label, which is this share.
@@ -413,6 +416,8 @@ private:
     bool                            m_chevronOnIcons  = false;
     bool                            m_groupSeparators = false;
     float                           m_buttonPadDip    = (float) kBtnPadXDp;
+    float                           m_chevronGapDip   = (float) kIconGapDp;
+    float                           m_iconGapDip      = (float) kIconGapDp;
     float                           m_labelScale      = 1.0f;
     RECT                            m_barRect         = {};
     RECT                            m_freeRect        = {};

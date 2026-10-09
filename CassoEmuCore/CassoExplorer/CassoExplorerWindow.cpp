@@ -317,6 +317,7 @@ void CassoExplorerWindow::OnCreate()
 
     //  Explorer's status bar runs on from the list above it, with no lines.
     m_status->SetDividers (false);
+    m_status->SetLeadDip  (kStatusLeadDip);
 
     m_renameBox       = CreateChild<DxuiTextInput>();
 
@@ -354,6 +355,8 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar->SetChevronOnIcons (true);
     m_commandBar->SetGroupSeparators (true);
     m_commandBar->SetButtonPadDip    (kCommandBarPadDip);
+    m_commandBar->SetChevronGapDip   (kCommandBarChevronGapDip);
+    m_commandBar->SetIconGapDip      (kCommandBarIconGapDip);
     m_commandBar->SetLabelFontDip    (kCommandBarLabelDip);
     m_commandBar->SetGroupGapDp      (kCommandBarGroupGapDp);
     m_commandBar->SetBarPadDp        (kCommandBarPadXDp);
@@ -385,7 +388,10 @@ void CassoExplorerWindow::OnCreate()
     m_toolbar->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                             ? DxuiToolbar::kFluentIconFace
                             : DxuiToolbar::kMdl2IconFace);
-    m_toolbar->SetIconDip  (kNavIconDip);
+    m_toolbar->SetIconDip       (kNavIconDip);
+    m_toolbar->SetButtonPadDip  (kNavButtonPadDip);
+    m_toolbar->SetBarPadDp      (kNavBarPadDp);
+    m_toolbar->SetGroupGapDp    (kNavAddressGapDp);
 
     m_previewToolbar = CreateChild<DxuiToolbar>();
     m_previewToolbar->SetFlatStyle (true);
@@ -482,6 +488,8 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_tree->SetShowCheckboxes (false);
     m_tree->SetFontDip (kProseFontDip);
     m_tree->SetIndentDip (kTreeIndentDip);
+    m_tree->SetIconLeadDip (kTreeIconLeadDip);
+    m_tree->SetIconGapDip  (kTreeIconGapDip);
     m_tree->SetHorizontalScrollEnabled (false);
     m_tree->SetNodes (std::move (roots));
     m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_browser.GetTreeChildren (id); });
@@ -715,6 +723,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     //  The tabs are drawn as File Explorer's are, and its tab close glyph is
     //  Segoe Fluent Icons', thinner than MDL2's.
     m_tabs->SetStyle    (DxuiTabStripStyle::Explorer);
+    m_tabs->SetNewTabGapDip (kNewTabGapDip);
     m_tabs->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                          ? DxuiToolbar::kFluentIconFace
                          : DxuiToolbar::kMdl2IconFace);
@@ -752,6 +761,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_findBox->SetTextRenderer (GetTextRenderer());
     m_findBox->SetHwnd         (GetHwnd());
     m_findBox->SetFont         (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
+    m_findBox->SetExplorerChrome (true);
     m_address->SetOnHistory   ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
     m_address->SetHistoryChevron (false);
 
@@ -975,7 +985,7 @@ void CassoExplorerWindow::RecomputeLayout()
     m_tabBand.SetThickness     (m_scaler.ToPx (kTabHeightDip));
     m_menuBand.SetThickness    ((int) std::floor (m_scaler.ToPxf (kCommandBarDip)));
     m_toolbarBand.SetThickness ((int) std::floor (m_scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_scaler));
-    m_statusBand.SetThickness  (m_scaler.ToPx (DxuiStatusBar::GetBandDp()));
+    m_statusBand.SetThickness  (m_scaler.ToPx (kStatusBandDip));
 
     m_dock.Arrange (m_client, m_scaler, bands);
 
@@ -994,11 +1004,18 @@ void CassoExplorerWindow::RecomputeLayout()
 
     m_toolbar->SetHostClientRect (m_client);
     m_toolbar->Layout (m_toolbarBand.GetBounds(), m_scaler);
-    //  The search box takes the row's right end, a quarter of it within
-    //  Explorer's bounds, and the address the rest.
-    addressRect = GetAddressRect (m_toolbar->GetFreeRect(), m_toolbarBand.GetBounds(), m_scaler);
-    findWidth   = std::clamp ((int) (addressRect.right - addressRect.left) / 4, m_scaler.ToPx (kFindBoxMinDip), m_scaler.ToPx (kFindBoxMaxDip));
-    findRect    = RECT { addressRect.right - findWidth, addressRect.top, addressRect.right, addressRect.bottom };
+
+    panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()),
+                      m_prefs.treeWidthDip, preview ? m_prefs.previewWidthDip : 0);
+
+    //  The search box takes the row's right end, 30% of the width right of
+    //  the tree and a little in from the edge, as Explorer's does, and the
+    //  address the rest.
+    addressRect        = GetAddressRect (m_toolbar->GetFreeRect(), m_toolbarBand.GetBounds(), m_scaler);
+    addressRect.right -= (int) std::lround (m_scaler.ToPxf (kFindBoxRightInsetDip));
+    findWidth          = std::clamp ((int) std::lround (kFindBoxShare * (float) (body.right - body.left - m_scaler.ToPx (panes.tree))),
+                                     m_scaler.ToPx (kFindBoxMinDip), m_scaler.ToPx (kFindBoxMaxDip));
+    findRect           = RECT { addressRect.right - findWidth, addressRect.top, addressRect.right, addressRect.bottom };
 
     addressRect.right = findRect.left - m_scaler.ToPx (kFindBoxGapDip);
     m_address->Layout (addressRect, m_scaler);
@@ -1007,9 +1024,6 @@ void CassoExplorerWindow::RecomputeLayout()
     m_tooltip.SetDpi (m_scaler.GetDpi());
     m_tooltip.SetViewportSize (m_client.right - m_client.left, m_client.bottom - m_client.top);
     m_status->Layout (m_statusBand.GetBounds(), m_scaler);
-
-    panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()),
-                      m_prefs.treeWidthDip, preview ? m_prefs.previewWidthDip : 0);
 
     //  A narrow window has already taken each pane below its minimum, so
     //  the sash can go no further than where the fit put it.
@@ -9698,6 +9712,8 @@ void CassoExplorerWindow::FillTabs()
     RECT                            strip  = m_tabs->GetBounds();
     int                             width  = m_scaler.ToPx (kTabWidthDip);
     int                             count  = (int) model.GetTabCount();
+    int                             lead   = (int) std::lround (m_scaler.ToPxf (kTabLeadDip));
+    int                             plus   = m_scaler.ToPx (DxuiTabStrip::kNewTabWidthDip) + (int) std::lround (m_scaler.ToPxf (kNewTabGapDip));
     std::vector<DxuiTabStrip::Tab>  tabs;
     size_t                          index  = 0;
 
@@ -9705,7 +9721,7 @@ void CassoExplorerWindow::FillTabs()
 
     if (count > 0)
     {
-        width = std::clamp (((int) (strip.right - strip.left) - m_scaler.ToPx (DxuiTabStrip::kNewTabWidthDip)) / count, m_scaler.ToPx (kTabMinWidthDip), width);
+        width = std::clamp (((int) (strip.right - strip.left) - lead - plus) / count, m_scaler.ToPx (kTabMinWidthDip), width);
     }
 
     for (index = 0; index < model.GetTabCount(); index++)
@@ -9716,7 +9732,7 @@ void CassoExplorerWindow::FillTabs()
         //  Tabs start below the strip's top, as Explorer's do, and reach its
         //  bottom, where the selected one joins the row below.
         tab.label = m_browser.GetTabLabel (index);
-        tab.rect  = RECT { strip.left + (int) index * width, strip.top + m_scaler.ToPx (kTabTopDip), strip.left + (int) (index + 1) * width, strip.bottom };
+        tab.rect  = RECT { strip.left + lead + (int) index * width, strip.top + m_scaler.ToPx (kTabTopDip), strip.left + lead + (int) (index + 1) * width, strip.bottom };
 
         switch (location.kind)
         {

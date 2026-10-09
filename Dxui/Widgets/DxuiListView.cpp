@@ -3763,6 +3763,8 @@ void DxuiListView::PaintHeader (
     float    cellPadR  = (float) m_scaler.ToPx (s_kCellPadRightDip);
     float    hdrFontPx = (float) m_scaler.ToPxf (m_fontDip);
     float    colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
+    //  Explorer sets its titles and dividers in a band shorter than the bar.
+    float    titleH    = m_explorerDetails ? (std::min) (headerH, m_scaler.ToPxf (s_kExplorerTitleBandDip)) : headerH;
 
 
 
@@ -3815,7 +3817,7 @@ void DxuiListView::PaintHeader (
                               x + colOff + (float) colXPx[c] + shift + titlePad,
                               y,
                               titleW,
-                              headerH,
+                              titleH,
                               pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
                               m_columns[c].align,
                               DxuiTextVAlign::Center,
@@ -3865,7 +3867,14 @@ void DxuiListView::PaintHeader (
             continue;
         }
 
-        painter.FillRect (sepX, y + 2.0f, 1.0f, headerH - 4.0f, pal.border);
+        if (m_explorerDetails)
+        {
+            painter.FillRect (sepX, y, 1.0f, titleH, DxuiColor::ScaleAlpha (pal.fg, s_kExplorerDividerAlpha));
+        }
+        else
+        {
+            painter.FillRect (sepX, y + 2.0f, 1.0f, headerH - 4.0f, pal.border);
+        }
     }
 
 }
