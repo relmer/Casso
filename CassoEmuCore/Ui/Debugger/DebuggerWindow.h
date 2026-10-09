@@ -794,7 +794,7 @@ private:
     static constexpr size_t kCodeAddressColumn     = 1;
     static constexpr size_t kCodeBytesColumn       = 2;
     static constexpr size_t kCodeLabelColumn       = 3;
-    static constexpr int    kCodeInstructionColumn = 4;
+    static constexpr size_t kCodeInstructionColumn = 4;
     static constexpr size_t kCodeOperandColumn     = 5;
     static constexpr size_t kCodeFirstTextColumn   = kCodeAddressColumn;
     static constexpr size_t kCodeColumnCount       = 6;

@@ -352,7 +352,7 @@ bool DxuiDockedWindow::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiDockedWindow::OnKey
 //
-//  Escape cancels a drag in the site before the application sees it.
+//  Escape cancels a drag in the site before m_onKey is called.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

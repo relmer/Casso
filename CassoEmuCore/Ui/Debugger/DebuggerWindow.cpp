@@ -5276,20 +5276,19 @@ bool DebuggerWindow::HasDragLayer() const
 
 bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
 {
-    static constexpr size_t                              s_kInstructionColumn = kCodeInstructionColumn;
-    DxuiListView                                       * list                 = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
-    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines                = GetCodeLines (view);
-    int                                                  current              = -1;
-    int                                                  target               = -1;
-    int                                                  firstRow             = 0;
-    int                                                  endRow               = 0;
-    RECT                                                 bounds               = {};
-    RECT                                                 column               = {};
-    RECT                                                 cell                 = {};
-    float                                                scale                = 1.0f;
-    float                                                top                  = 0.0f;
-    float                                                bottom               = 0.0f;
-    int                                                  rowPx                = 0;
+    DxuiListView                                       * list     = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = GetCodeLines (view);
+    int                                                  current  = -1;
+    int                                                  target   = -1;
+    int                                                  firstRow = 0;
+    int                                                  endRow   = 0;
+    RECT                                                 bounds   = {};
+    RECT                                                 column   = {};
+    RECT                                                 cell     = {};
+    float                                                scale    = 1.0f;
+    float                                                top      = 0.0f;
+    float                                                bottom   = 0.0f;
+    int                                                  rowPx    = 0;
 
 
 
@@ -5313,7 +5312,7 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
     firstRow = list->GetTopRow();
 
     if (current < 0 || !lines[(size_t) current].target.has_value() ||
-        !list->GetCellTextRectPx (firstRow, s_kInstructionColumn, column))
+        !list->GetCellTextRectPx (firstRow, kCodeInstructionColumn, column))
     {
         return false;
     }
@@ -5358,12 +5357,12 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
             return false;
         }
     }
-    else if (list->GetCellTextRectPx (current, s_kInstructionColumn, cell))
+    else if (list->GetCellTextRectPx (current, kCodeInstructionColumn, cell))
     {
         input.sourceY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
     }
 
-    if (target >= 0 && list->GetCellTextRectPx (target, s_kInstructionColumn, cell))
+    if (target >= 0 && list->GetCellTextRectPx (target, kCodeInstructionColumn, cell))
     {
         input.targetY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
     }
@@ -6244,7 +6243,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         //  What was right-clicked leads (FR-084): the instruction's operand,
         //  resolved through its addressing mode, or the line's own address;
         //  one entry for each memory pane open.
-        if (column >= kCodeInstructionColumn && !line.memoryOperand.empty())
+        if (column >= (int) kCodeInstructionColumn && !line.memoryOperand.empty())
         {
             AddShowInMemory (Widen (line.shownOperand), line.memoryOperand, items);
         }
@@ -9882,12 +9881,12 @@ bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstrin
 
     const DebuggerViewSnapshot::CodeLine & line = GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)];
 
-    if (column == kCodeInstructionColumn - 1 && !line.label.empty())
+    if (column == (int) kCodeInstructionColumn - 1 && !line.label.empty())
     {
         name    = line.label;
         address = line.address;
     }
-    else if (column == kCodeInstructionColumn && line.shownOperand != line.memoryOperand)
+    else if (column == (int) kCodeInstructionColumn && line.shownOperand != line.memoryOperand)
     {
         for (char ch : line.shownOperand)
         {

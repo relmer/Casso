@@ -215,8 +215,8 @@ namespace DebuggerDockDragTests
 
 
         //  Over the command bar, Break's button under the pointer: the drag
-        //  targets nothing and shows only its edge guides, and the bar never
-        //  sees the move, so no tip is on its way.
+        //  targets nothing and shows only its edge guides, and the move is
+        //  not routed to the bar, so no tip is on its way.
         TEST_METHOD (OverTheCommandBarADragShowsNoCrossAndNoTip)
         {
             CassoTheme  theme     = CassoTheme::MakeSkeuomorphic();

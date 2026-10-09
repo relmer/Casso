@@ -411,7 +411,7 @@ namespace ColorLegendTests
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::BreakpointDisabled)), GetTipOverCell (window, *list, 1, 0));
             Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Annotation)) != std::wstring::npos, operand.c_str());
             Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Result))     != std::wstring::npos, operand.c_str());
-            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 1).empty(), L"a plain row has a tip");
+            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 1).empty(), L"a plain row has no tip");
         }
     };
 }

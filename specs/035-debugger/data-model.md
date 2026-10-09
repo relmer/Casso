@@ -412,7 +412,7 @@ same value (FR-135). Its marks and format use `DiskMarkPattern` and
 | isBump | `bool` | `BUMP` (FR-148): a bump stops it when the head's position after the bump matches `head` |
 | isEvery | `bool` | `EVERY` on `SELECT` (FR-152) |
 | addressMarks, dataMarks | `std::optional<DiskMarkPattern>` | `ADDR`, `DATA` (FR-147); given, they replace the standard marks for this breakpoint |
-| format | `DiskFieldKind` | `Sixteen` or `Thirteen`; the length of a data field after custom address marks, set by `SECTORS`, `Sixteen` by default; with the standard marks each field's own prologue decides |
+| format | `DiskFieldKind` | `Sixteen` or `Thirteen`; the length of a data field after custom address marks, set by `SECTORS`, `Sixteen` by default; with the standard marks, each field's prologue gives the length |
 
 **Validation**: the parser checks the forms -- quarter tracks 0 to 139, a
 `DOS` sector 0 to 15, a block 0 to 279, a mark nibble a hex byte or `??` --
