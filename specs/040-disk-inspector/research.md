@@ -539,6 +539,29 @@ at the current zoom; that path is measured against SC-004 the same way.
 level-of-detail problem; a shader samples exactly the cells under each pixel
 at every zoom with no tessellation, so frame time does not depend on zoom.
 
+**Spike result (2026-10-09)**: The shader path holds, so the CPU fallback is
+not needed. The hook is `IDxuiPainter::DrawCustom`, used through the
+`DxuiCustomVisual` control. It flushes the shapes painted so far, then runs
+the custom draw, and the shapes and text painted after it cover the result.
+`DxuiHwndSource` hands the page's target to the painter at `Begin`. Popups
+pass none, so there `DrawCustom` does nothing. The painter already sets its
+full pipeline state at every flush, so the hook changes no state that any
+other window relies on, and windows without a custom visual flush exactly as
+before.
+
+`PlatterRenderer` lays every distinct record's cells and their priority-max
+levels end to end in one R8_UINT texture, 4096 texels wide. A per-ring table
+holds each ring's cell count, state and level starts.
+
+`PlatterRendererTests` measured it on the development machine's GPU with GPU
+timestamps:
+- 160 rings of 51,200 cells, none shared, 1400 pixels across.
+- A zoom from fit to 600x about track 0 and back, 240 frames.
+- Median 0.015 ms and worst 0.019 ms per frame, against SC-004's one
+  refresh interval (16.7 ms) and 33 ms.
+
+The window-level measurement, with the strip and the painter's marks, is
+repeated once the window exists (T054).
 ## R20. The strip, Nibbles, Fields, Flux timing and Sector data views
 
 **Decision**: The strip and the Flux timing plot use the painter directly
