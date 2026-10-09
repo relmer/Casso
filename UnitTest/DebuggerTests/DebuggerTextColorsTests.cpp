@@ -132,10 +132,12 @@ public:
     using TooltipCheckFn = std::function<void (const wchar_t * name, const DxuiTheme & theme, uint32_t fill, uint32_t border)>;
 
     //  Runs `check` over the tooltip of every theme the emulator and the
-    //  debugger offer, with the fill and border it is expected to have:
-    //  Casso's three, the debugger's own system dark and light, and the
-    //  starting sets DxuiTheme gives a host. Casso Explorer's system themes
-    //  keep File Explorer's tooltip, so they are not among them.
+    //  debugger offer that takes the window's background, with the fill and
+    //  border it is expected to have: Casso's three, the debugger's own
+    //  system dark, and the starting sets DxuiTheme gives a host. The
+    //  debugger's system light takes Visual Studio's light tooltip instead,
+    //  and Casso Explorer's system themes keep File Explorer's, so none of
+    //  those is among them.
     static void  CheckEveryTooltip (const TooltipCheckFn & check)
     {
         CassoTheme      skeuo         = CassoTheme::MakeSkeuomorphic();
@@ -154,7 +156,6 @@ public:
         check (L"Dark modern",           modern,        0xFF1E2024u, 0xFF0F1012u);
         check (L"Retro terminal",        retro,         0xFF0E2612u, 0xFF071309u);
         check (L"Debugger system dark",  debuggerDark,  0xFF272727u, 0xFF131313u);
-        check (L"Debugger system light", debuggerLight, 0xFFFBFBFBu, 0xFF7D7D7Du);
         check (L"Dxui dark",             baseDark,      0xFF1E2024u, 0xFF0F1012u);
         check (L"Dxui light",            baseLight,     0xFFF6F6F6u, 0xFF7B7B7Bu);
     }
@@ -208,11 +209,47 @@ public:
 
 
 
+    //  The debugger's system light tooltip is Visual Studio's light one, set
+    //  as values: a #F9F9F9 fill, still no brighter than the #FBFBFB window,
+    //  a #DDDDDD border and #212121 text. Casso Explorer's light theme, a
+    //  separate instance of the same class, keeps File Explorer's.
+    TEST_METHOD (SystemLightTakesVisualStudiosLightTooltip)
+    {
+        DxuiLightTheme  debuggerLight;
+        DxuiDarkTheme   debuggerDark;
+        DxuiLightTheme  explorerLight;
+        float           tipLuminance    = 0.0f;
+        float           windowLuminance = 0.0f;
+
+
+
+        DebuggerThemes::ApplyOwnColors (debuggerLight, debuggerDark);
+
+        tipLuminance    = DxuiColor::ComputeRelativeLuminance (debuggerLight.TooltipBackground());
+        windowLuminance = DxuiColor::ComputeRelativeLuminance (debuggerLight.Background());
+
+        Assert::AreEqual (0xFFF9F9F9u, debuggerLight.tooltipBg,           L"the fill is set as a value");
+        Assert::AreEqual (0xFFDDDDDDu, debuggerLight.tooltipBorder,       L"and so is the border");
+        Assert::AreEqual (0xFF212121u, debuggerLight.tooltipText,         L"and the text");
+        Assert::AreEqual (0xFFF9F9F9u, debuggerLight.TooltipBackground(), L"read back unchanged");
+        Assert::AreEqual (0xFFDDDDDDu, debuggerLight.TooltipBorder(),     L"read back unchanged");
+        Assert::AreEqual (0xFF212121u, debuggerLight.TooltipForeground(), L"read back unchanged");
+        Assert::AreEqual (0xFFFBFBFBu, debuggerLight.Background(),        L"the window the tip shows over");
+        Assert::IsTrue   (tipLuminance <= windowLuminance,                L"no brighter than that window");
+
+        Assert::AreEqual (0xFFF9F9F9u, explorerLight.TooltipBackground(), L"Explorer's fill");
+        Assert::AreEqual (0xFFD1D1D1u, explorerLight.TooltipBorder(),     L"Explorer's border");
+        Assert::AreEqual (0xFF1A1A1Au, explorerLight.TooltipForeground(), L"Explorer's text");
+    }
+
+
+
     //  Every theme's tooltip colors are its own values, with text that reads
     //  on the fill. The emulator's and the debugger's themes take the window
     //  background with a border at half its brightness, the debugger's system
-    //  themes with Visual Studio's text; Casso Explorer's system themes keep
-    //  File Explorer's.
+    //  dark with Visual Studio's text; the debugger's system light takes
+    //  Visual Studio's light tooltip whole; Casso Explorer's system themes
+    //  keep File Explorer's.
     TEST_METHOD (EveryThemeGivesItsTooltipItsOwnColors)
     {
         CassoTheme      skeuo         = CassoTheme::MakeSkeuomorphic();
@@ -241,7 +278,7 @@ public:
         check (L"Dark modern",             modern,        0xFF1E2024u, 0xFF0F1012u, 0xFFF0F0F0u);
         check (L"Retro terminal",          retro,         0xFF0E2612u, 0xFF071309u, 0xFFB7FCB9u);
         check (L"Debugger system dark",    debuggerDark,  0xFF272727u, 0xFF131313u, 0xFFFFFFFFu);
-        check (L"Debugger system light",   debuggerLight, 0xFFFBFBFBu, 0xFF7D7D7Du, 0xFF212121u);
+        check (L"Debugger system light",   debuggerLight, 0xFFF9F9F9u, 0xFFDDDDDDu, 0xFF212121u);
         check (L"Explorer's system dark",  explorerDark,  0xFF2C2C2Cu, 0xFF4A4A4Au, 0xFFFFFFFFu);
         check (L"Explorer's system light", explorerLight, 0xFFF9F9F9u, 0xFFD1D1D1u, 0xFF1A1A1Au);
         check (L"Dxui dark",               baseDark,      0xFF1E2024u, 0xFF0F1012u, 0xFFF0F0F0u);
