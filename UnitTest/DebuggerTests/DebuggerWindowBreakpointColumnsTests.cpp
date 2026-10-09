@@ -120,10 +120,11 @@ namespace DebuggerBreakpointColumnsTests
     //
     //  DebuggerWindowBreakpointColumnsTests
     //
-    //  The breakpoints pane shows the columns of FR-117, Name, Condition and
-    //  Hit count by default (FR-118); a column chosen from the pane's menu is
-    //  kept with the open views and comes back on reopen; and a heading sorts
-    //  the rows, each row still acting on its own breakpoint.
+    //  The breakpoints pane shows the columns of FR-117, Name, Condition, Hit
+    //  count and Kind by default (FR-118); a column chosen from the pane's
+    //  menu is kept with the open views and comes back on reopen, as does a
+    //  choice saved before Kind was added; and a heading sorts the rows, each
+    //  row still acting on its own breakpoint.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +160,7 @@ namespace DebuggerBreakpointColumnsTests
     {
     public:
 
-        TEST_METHOD (NameConditionAndHitCountShowByDefault)
+        TEST_METHOD (NameConditionHitCountAndKindShowByDefault)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
             ColumnsHost    host;
@@ -173,6 +174,8 @@ namespace DebuggerBreakpointColumnsTests
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Name));
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::HitCount));
+            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind));
+            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Symbol));
             Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
         }
 
@@ -217,6 +220,30 @@ namespace DebuggerBreakpointColumnsTests
 
             Assert::IsFalse (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
             Assert::IsTrue  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Address));
+        }
+
+
+        TEST_METHOD (AChoiceSavedBeforeKindComesBackWithSymbolAndWithoutFilter)
+        {
+            CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
+            ColumnsHost    host;
+            ColumnsWindow  window (theme, host);
+
+
+
+            //  Name, Labels, Filter and Data, in the columns' order before Kind.
+            host.saved = "follow=1 bpcols=215";
+
+            window.OnCreate();
+            window.SetSnapshotForTest (MakeSnapshot());
+            window.KeepOpenViews();
+
+            Assert::AreEqual (BreakpointColumns::kCount, window.GetBreakpointList()->GetColumnCount());
+            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Symbol),    L"Labels shows as Symbol");
+            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
+            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind),      L"Kind is new");
+            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
+            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::WhenHit),   L"Filter's choice goes nowhere");
         }
 
 
