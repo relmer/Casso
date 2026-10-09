@@ -3499,6 +3499,9 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 //  mounted disk exactly as it was. The machine is running and what it holds is
 //  known-good; there is no version of this worth half-doing.
 //
+//  With retention on, the outgoing disk is kept as an ejected one is, so
+//  stepping back across the reload can put it back in the drive.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes)
@@ -3509,6 +3512,7 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     HRESULT                  hrAssess   = S_OK;
     bool                     usable     = false;
     unique_ptr<DiskImage>    loaded     = make_unique<DiskImage> ();
+    Entry                    outgoing;
 
 
 
@@ -3516,6 +3520,23 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
 
     usable = loaded->IsLoaded();
     CBR (usable);
+
+    //  Kept whole: a write still open on a flux track goes into the outgoing
+    //  disk before its contents move to the copy kept for history.
+    if (m_isRetaining)
+    {
+        entry.image->CommitPendingWrite();
+
+        outgoing.image          = make_unique<DiskImage>();
+        *outgoing.image         = std::move (*entry.image);
+        outgoing.path           = entry.path;
+        outgoing.format         = entry.format;
+        outgoing.mounted        = true;
+        outgoing.salvageOffered = entry.salvageOffered;
+        outgoing.sharedState    = entry.sharedState;
+
+        RetireBay (outgoing);
+    }
 
     //  THE CONTENTS MOVE, THE OBJECT STAYS. The controller holds a raw pointer
     //  to this DiskImage -- SetExternalDisk hands one over at mount -- so
