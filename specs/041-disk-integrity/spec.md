@@ -156,7 +156,8 @@ WOZ whose tracks are unmapped, then read back the result from the saved file.
 **Acceptance Scenarios**:
 
 1. **Given** a 40-track WOZ, **When** the guest steps the head to track 39,
-   **Then** it reads track 39's data, and the end-stop sound plays at track 39.
+   **Then** it reads track 39's data, and the end-stop sound plays one half
+   track past it.
 2. **Given** a WOZ with unmapped tracks, **When** the guest formats the disk,
    **Then** every track is written and the saved file maps them.
 
@@ -224,8 +225,11 @@ and checks the file parses and holds both changes.
 **Mount, eject and reload**
 
 - **FR-009**: A mount into an occupied drive MUST load the new image before
-  touching the old one; if the new image does not load, the old disk MUST stay
-  mounted, attached to the drive, and unretired.
+  retiring the old one; if the new image does not load, the old disk MUST stay
+  mounted, attached to the drive, and unretired. When the new file is the old
+  disk's own file (a re-insert, a reset or power-cycle remount, the carry
+  remount of a machine switch), the old disk MUST be saved first and the file
+  read after the save, so the image loaded is the one just written.
 - **FR-010**: A mount, re-insert, eject, reset, power cycle or machine switch MUST
   NOT discard unsaved writes when the save before it fails; the disk and its
   writes MUST be kept and the user told truthfully.
@@ -252,10 +256,14 @@ and checks the file parses and holds both changes.
 
 **Drive emulation**
 
-- **FR-020**: The Disk II head MUST travel to quarter track 159 (track 39), and
-  the end-stop sound MUST follow the new limit.
-- **FR-021**: A guest write over a quarter track with no stored data MUST create
-  a full-capacity track there, map it, and save it into the image.
+- **FR-020**: The Disk II head MUST travel to quarter track 158, the last
+  half-track position of track 39 (the stepper moves in half tracks, so an odd
+  stop would strand the head between detents), and the end-stop sound MUST
+  follow the new limit.
+- **FR-021**: On a writable WOZ image, a guest write over a whole-track position
+  with no stored data MUST create a full-capacity bit track there, map it, and
+  save it into the image. Sector and nibble images, whose geometry is fixed,
+  are unchanged.
 
 **Documentation**
 
@@ -281,8 +289,15 @@ and checks the file parses and holds both changes.
 
 - **SC-001**: Every confirmed defect in scope has a regression test that fails
   before its fix and passes after.
-- **SC-002**: A stress run of 10,000 mount, eject, swap and reload operations
-  against a concurrent status reader completes with no sanitizer report.
+- **SC-002**: The drive-status stress test passes in the Debug, Release and
+  AddressSanitizer builds. It performs 10,000 mount, eject, swap and reload
+  operations on the disk store's owning thread while another thread reads the
+  published status throughout, and passes only when every status read equals a
+  state the owner published, each published state is read at least once, the
+  published status equals the live bay after every operation, and the
+  AddressSanitizer build ends with no report. Run once against a status read
+  from the live bays instead of the published copy, the same test fails in the
+  AddressSanitizer build; the commit that adds it records that result.
 - **SC-003**: No code outside the emulation thread touches a disk image, checked
   by an ownership assertion on every disk store entry point in Debug builds,
   with the full suite passing.
@@ -290,6 +305,8 @@ and checks the file parses and holds both changes.
   the test count equal to the 035 baseline plus the tests this spec adds
   (baseline 9,525 Debug, 9,519 Release).
 - **SC-005**: Idle CPU cost of the drive status publish is under 1% of a frame.
+- **SC-006**: A reset, re-insert or machine switch taken while the guest has
+  unsaved writes leaves those writes in both the file and the mounted disk.
 
 ## Assumptions
 
