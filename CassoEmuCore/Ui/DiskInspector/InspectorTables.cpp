@@ -196,6 +196,7 @@ vector<TableRow> InspectorTables::BuildFields (const DiskAnalysis & analysis, in
     const QuarterTrackEntry &  e      = analysis.entries[quarterTrack];
     const TrackAnalysis *      track  = (e.slot >= 0 && e.slot < static_cast<int> (analysis.tracks.size())) ? analysis.tracks[e.slot].get() : nullptr;
     vector<TableRow>           rows;
+    DecodeChecks               checks = analysis.settings.GetChecksForTrack (track != nullptr ? track->context.physicalTrack : 0);
     size_t                     f      = 0;
     size_t                     s      = 0;
 
@@ -241,11 +242,11 @@ vector<TableRow> InspectorTables::BuildFields (const DiskAnalysis & analysis, in
             addr != nullptr ? std::to_wstring (addr->track)  : std::wstring (s_kpszNone),
             addr != nullptr ? FormatMarks (addr->prologueFound) + L" / " + FormatMarks (std::span<const Byte> (addr->epilogueFound.data(), addr->hasEpilogueTail ? 3 : 2))
                             : std::wstring (s_kpszNone),
-            addr != nullptr ? FormatChecksum (addr->checksumStored, addr->checksumComputed, addr->isAddressChecksumGood) : std::wstring (s_kpszNone),
+            addr == nullptr ? std::wstring (s_kpszNone) : (checks.isAddressChecksumOn ? FormatChecksum (addr->checksumStored, addr->checksumComputed, addr->isAddressChecksumGood) : std::wstring (L"Not checked")),
             (data != nullptr && addr != nullptr) ? std::to_wstring (data->firstNibble - (addr->firstNibble + addr->nibbleCount)) : std::wstring (s_kpszNone),
             data != nullptr ? FormatMarks (data->prologueFound) + L" / " + FormatMarks (std::span<const Byte> (data->epilogueFound.data(), data->hasEpilogueTail ? 3 : 2))
                             : L"No data field",
-            data != nullptr ? FormatChecksum (data->data.storedChecksum, data->data.computedChecksum, data->data.isChecksumGood) : std::wstring (s_kpszNone),
+            data == nullptr ? std::wstring (s_kpszNone) : (checks.isDataChecksumOn ? FormatChecksum (data->data.storedChecksum, data->data.computedChecksum, data->data.isChecksumGood) : std::wstring (L"Not checked")),
             field.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3",
             (f < track->fieldGaps.size() && track->fieldGaps[f].syncBefore.count > 0)
                 ? std::format (L"{} {} {}", track->fieldGaps[f].syncBefore.count, L"\x00D7", track->fieldGaps[f].syncBefore.widthCells)

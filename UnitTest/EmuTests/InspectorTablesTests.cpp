@@ -29,7 +29,7 @@ public:
 
     //  A DSK with track 5 replaced: volume 17 instead of 254, and sector 3's
     //  data checksum broken.
-    static void AnalyzePlanted (DiskAnalysis & out)
+    static void AnalyzePlanted (DiskAnalysis & out, const DecodeSettings & settings = DecodeSettings::MakeStandard())
     {
         vector<Byte>           sectors (NibblizationLayer::kImageByteSize, 0);
         DiskImage                                        image;
@@ -56,7 +56,7 @@ public:
         odd.PackBits (image.GetTrackBitsForWrite (5));
         image.SetTrackBitCount (5, odd.GetCellCount());
 
-        DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "planted.dsk", 0, false), DecodeSettings::MakeStandard(), out);
+        DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "planted.dsk", 0, false), settings, out);
     }
 
 
@@ -143,5 +143,25 @@ public:
         Assert::IsTrue   (rows[2].cells[9].ends_with (L" good"));
         Assert::AreEqual (3, rows[3].sectorIndex);
         Assert::AreEqual (std::wstring (L"6-and-2"), rows[3].cells[10]);
+    }
+
+
+
+    TEST_METHOD (AChecksumTurnedOffShowsAsNotChecked)
+    {
+        DiskAnalysis      analysis;
+        DecodeSettings    settings;
+        DecodeRange       range;
+        vector<TableRow>  rows;
+
+
+
+        range.checks.isDataChecksumOn = false;
+        settings.AddRange (range);
+        AnalyzePlanted (analysis, settings);
+        rows = InspectorTables::BuildFields (analysis, 20);
+
+        Assert::AreEqual (std::wstring (L"Not checked"), rows[3].cells[9]);
+        Assert::IsTrue   (rows[3].cells[6].ends_with (L" good"), L"the address checksum is still checked");
     }
 };
