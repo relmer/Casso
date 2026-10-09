@@ -203,8 +203,8 @@ void DebuggerWindow::OnCreate()
     m_traceHint         = CreateChild<KeyHintLine>   ();
     m_codeHistoryBand   = CreateChild<HistoryBand>   ();
     m_regHistoryBand    = CreateChild<HistoryBand>   ();
-    m_codeHistoryBand->SetOnGoLive ([this] { RunCommandBarEntry (DebuggerCommands::kGoLive); });
-    m_regHistoryBand->SetOnGoLive  ([this] { RunCommandBarEntry (DebuggerCommands::kGoLive); });
+    m_codeHistoryBand->SetOnGoLive ([this] { GoLiveFromBand(); });
+    m_regHistoryBand->SetOnGoLive  ([this] { GoLiveFromBand(); });
     m_heatMapView       = CreateChild<HeatMapView>   ();
     m_heatRangeError    = CreateChild<DxuiLabel>     ();
     m_heatRangeList     = CreateChild<DxuiListView>  ();

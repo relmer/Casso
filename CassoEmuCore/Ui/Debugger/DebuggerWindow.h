@@ -689,6 +689,10 @@ protected:
     //  its tab does.
     DxuiDockSite *  GetDockSite () const { return m_dockSite; }
 
+    //  Protected so a test can make a seek or a go live asked for while the
+    //  machine ran once it has stopped, as a frame does.
+    void  MakePendingSeek ();
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     //  m_theme is the one in force, m_emulatorTheme the emulator's, which a
@@ -851,7 +855,9 @@ private:
     bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);
 
     //  The history timeline: a toolbar of history thumbnails docked and
-    //  floated as the command bar is, and the click that seeks there.
+    //  floated as the command bar is, and the click that seeks there. A
+    //  history band's Go live link goes live through it while the machine
+    //  runs.
     void     ConfigureTimeline     ();
     bool     RouteTimelineMouse    (const DxuiMouseEvent & ev);
     void     SyncTimeline          ();
@@ -859,6 +865,7 @@ private:
     void     OnTimelineScrub       (uint64_t cycle, bool isFinal);
     void     SyncTimelineScrub     ();
     void     ApplyTimelineScrub    (const HistoryTimelineScrubStep & step);
+    void     GoLiveFromBand        ();
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
