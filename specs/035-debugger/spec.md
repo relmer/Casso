@@ -122,6 +122,16 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: Which columns does the Breakpoints pane have? -> A: Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order, with Name, Condition, Hit count and Kind shown by default (owner decision 2026-10-08, confirming the layout as built), and Trigger after Kind, also shown by default (owner decision 2026-10-08, later the same day). The owner asked for a Kind column, for Visual Studio's Filter, always empty in Casso, to be dropped, and for Labels to become Symbol, since it shows the one symbol at the address. Kind gives what a row's breakpoint watches and Trigger what about it stops the machine, so neither needs long values ("Memory" and "Read or write" rather than "Data read or write"); a breakpoint on a source line is an Execution breakpoint like any other, its File column giving the line. Symbol sits after Kind rather than where Labels was, between Condition and Hit count: the build put it there, and the owner kept it. A column choice saved before the change keeps its columns, with Labels as Symbol, and shows Kind; whether such a choice shows Kind is still the owner's to confirm (T736).
 
+### Session 2026-10-09 (owner review: projects, Applesoft, UI reach)
+
+- Q: Is all debugger state kept between sessions? -> A: Yes, in a debug project, as a Visual Studio solution keeps it, in the first release (moved out of the follow-on list). The right project is recognized and loaded with no user action, from the most specific signal known: a loaded debug or symbol file; else a binary the debugger loaded; else the machine and its boot configuration (the disk in drive 1 at power-on), accepted although it can be broader than the program. It saves itself as the user works, as Visual Studio and Mesen2 do, and is never in an unsaved state; Save project as and Open project handle named copies. Mesen2 keeps an automatic workspace per ROM; FCEUX a file per ROM; MAME only comments; AppleWin, VICE, Stella and GSSquared were found to keep none.
+- Q: How are breakpoints named? -> A: The Name column is editable (F2, a double-click, or Rename). A name set in the window, or in any mode but AppleWin, persists through the debug project. A console naming command serves AppleWin-mode users; AppleWin's own save and load commands keep AppleWin's formats, which hold no names.
+- Q: Which high-level languages are debugged at source level? -> A: Applesoft BASIC in the first release; Integer BASIC with SWEET16, Apple Pascal, Forth, Logo and the Applesoft compilers later, one spec each, in order of popularity (follow-on-spec-input.md item 7). C from cc65 debug files is already stepped at source level; its source view gains syntax coloring.
+- Q: Does every console command need a way in from the window? -> A: Yes, unless it is console-only by nature. The audit is ui-entry-point-audit.md; the owner kept the entries FR-180 to FR-198 list and dropped LOAD and SAVE of the debugger configuration (debug projects replace them), IN and OUT, TSAVE, BUDGET, TF, the Monitor ROM idioms (I, N, IN#, PR#, BASIC cold and warm start, Ctrl-Y), and BENCHMARK, which is removed.
+- Q: What is the "(+3)" after the cycle count? -> A: The cycles since the stop before, which a step's own cost usually is. The disassembly's result annotation also gives the cycles the instruction on that row will take.
+- Q: Are the trace pane's next-instruction rows meant to show while tracing is off? -> A: Yes, as User Story 19 has them; the owner may revisit.
+- Q: Is there a heat map range set to start from? -> A: Yes, one called Default holding the built-in ranges, enabled.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -1071,6 +1081,115 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 
 ---
 
+### User Story 21 - Pick up where I left off (Priority: P1)
+
+A developer sets breakpoints, names them, adds watches, loads symbols, arranges
+the panes and writes a few startup commands while debugging a program. The
+next day they boot the same disk, or load the same binary or debug file, and
+everything is back as they left it, without opening or saving anything.
+
+**Why this priority**: setting up a debugging session again by hand every time
+is the friction that makes people give up on a debugger; Visual Studio and
+Mesen2 both keep this state for the user.
+
+**Independent Test**: Load a binary and its debug file, set three breakpoints
+(one renamed), two watches and a bookmark, rearrange the panes, add a startup
+command, close Casso, start it again and load the same binary: every one of
+them is back and the startup command has run.
+
+**Acceptance Scenarios**:
+
+1. **Given** a debug file is loaded, **When** the user sets breakpoints,
+   watches and bookmarks, **Then** they are saved to that program's project
+   without any save command, and loading the same debug file in a later
+   session restores them.
+2. **Given** no debug file or debugger-loaded binary, **When** the machine
+   boots a disk, **Then** the project for that machine and boot disk is
+   opened, and changes made while it is open are kept in it.
+3. **Given** the user is working in the boot disk's project, **When** they load
+   a debug file, **Then** the program's own project takes over, and Casso
+   offers to bring the breakpoints and watches set so far into it.
+4. **Given** a breakpoint row, **When** the user presses F2, double-clicks its
+   Name, or chooses Rename, **Then** its name can be edited in place; an
+   emptied name returns to the default; the name survives in the project.
+5. **Given** a project with startup commands, **When** it is loaded, **Then**
+   the commands run in order, in their mode, and their output appears in the
+   console.
+6. **Given** File > Save project as..., **When** the user names a file,
+   **Then** a copy of the current project is written there; File > Open
+   project... switches to a chosen one.
+
+---
+
+### User Story 22 - Debug an Applesoft BASIC program at source level (Priority: P2)
+
+A user typing in or loading an Applesoft program sees its listing in the
+debugger with the line being run marked, steps it a statement or a line at a
+time, stops on a line or when a variable changes, and reads its variables and
+its GOSUB and FOR stack, without reading 6502 code or the interpreter's tables.
+
+**Why this priority**: Applesoft is the language most Apple II users write;
+debugging it today means reading the interpreter in disassembly.
+
+**Independent Test**: Type a ten-line program with a GOSUB, a FOR loop, a
+string, an integer and an array; set a breakpoint on line 40 and RUN; the
+listing shows line 40 marked, the variables show their values, the stack shows
+the GOSUB and the FOR; step a statement and the mark moves to the next one.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Applesoft program in memory, **When** the BASIC view opens,
+   **Then** it shows the program's listing as LIST would print it, with the
+   line being run marked while the program runs or stops.
+2. **Given** the program is stopped, **When** the user steps a statement or a
+   line, **Then** it runs until the interpreter begins the next statement or
+   the next line, and stops there.
+3. **Given** a breakpoint on a line number, **When** the program runs, **Then**
+   it stops as that line begins, before its first statement runs.
+4. **Given** a breakpoint on a variable changing, **When** the program assigns
+   it a different value, **Then** it stops after that statement.
+5. **Given** the program is stopped, **Then** the variables view lists its
+   simple variables (real, integer and string) and arrays with their values,
+   and the stack view lists the active GOSUB returns and FOR loops.
+6. **Given** an error or an ONERR handler, **When** an error occurs, **Then**
+   the debugger can stop there, showing the error and the line.
+
+---
+
+### User Story 23 - Reach every feature from the window (Priority: P2)
+
+A user who never types a console command can still do everything the
+debugger does: load a binary, search memory, mark data, manage symbols and
+step filters, patch an instruction, bookmark code, compare memory, time code
+and set every kind of breakpoint, from menus, toolbars, context menus and
+panes, with the same keys Visual Studio uses.
+
+**Why this priority**: a feature with only a console command is invisible to
+most users; the audit found seventy.
+
+**Independent Test**: Walk the entries FR-180 to FR-198 require, without the
+console: each one does what its console command does, and each menu item with
+a key shows that key from the active key scheme.
+
+**Acceptance Scenarios**:
+
+1. **Given** the debugger window, **When** the user chooses File > Load file
+   into memory... or its toolbar button, **Then** a dialog takes the file, its
+   format and an address, and loads it as BLOAD does.
+2. **Given** a disassembly row, **When** the user chooses Edit instruction and
+   types a new instruction, **Then** it is assembled over the old one; a
+   shorter one is padded with NOP, a longer one first says which instructions
+   it overwrites; Escape cancels; Undo restores the bytes.
+3. **Given** a Memory pane selection, **When** the user chooses Compare
+   with... and gives an address, **Then** differing cells are colored, a
+   toggle shows the other range's values in their place, and hovering a cell
+   shows the other range's value.
+4. **Given** the Visual Studio key scheme, **When** the user presses
+   Ctrl+Alt+D, Ctrl+Alt+B or Ctrl+`, **Then** the Disassembly, Breakpoints or
+   console pane opens or takes focus, and the View menu shows those keys.
+
+---
+
 ### Edge Cases
 
 - **A word two modes use differently**: When a word the user types is not a
@@ -1286,6 +1405,26 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   armed**: neither affects the other; closing the window does not disarm the
   breakpoint, and the window's rows are unchanged by it.
 
+- **A project file that cannot be read**: the debugger opens an empty project
+  in its place, keeps the unreadable file under a dated name, and says so in
+  the console; it never deletes it.
+- **One disk booted on two machine types**: each machine and disk pair has its
+  own project (FR-167).
+- **A debug file loaded from a new folder**: the project is the program's,
+  found by the debug file's content, not its path, and its source folders are
+  updated.
+- **Two Casso windows on one project**: the last save wins; neither crashes or
+  damages the file (FR-168).
+- **Applesoft not active**: with Integer BASIC or no BASIC running, the BASIC
+  view says no Applesoft program is in memory and offers nothing to step.
+- **A BASIC program changed while stopped**: the listing and the line mark
+  follow the change at the next stop; a line breakpoint on a deleted line is
+  kept, shown as not found.
+- **RUN, CLEAR or NEW**: the variables view empties as the interpreter clears
+  them; variable-change breakpoints stay set.
+- **Edit instruction over ROM or a soft switch**: refused, saying why.
+- **Compare with an overlapping range**: allowed; each cell compares with the
+  byte at its offset in the other range as it was when compared.
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -2392,6 +2531,167 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   line entries resolve every emitted address to its invocation line and its
   body line, and that cc65's own reader accepts the file.
 
+- **FR-166**: The debugger MUST keep a debug project holding: breakpoints and
+  watchpoints with their names, conditions, enabled states and When hit
+  settings; watches, including zero-page pointer watches; bookmarks; the
+  symbol and debug files loaded and their source folders; data directives;
+  step filters; heat map range sets; disassembly options; the pane layout; and
+  a list of startup commands (FR-171). Added 2026-10-09 (owner).
+- **FR-167**: The project MUST be chosen with no user action, from the most
+  specific signal known: a loaded debug or symbol file; else a binary the
+  debugger loaded (BLOAD or FR-180); else the machine and its boot
+  configuration, the machine type with the disk in drive 1 at power-on. Without
+  a disk the machine alone is the signal.
+- **FR-168**: The project MUST save itself as it changes, within 2 seconds of
+  the last change, so it is never in an unsaved state; a save MUST replace the
+  file whole, so a crash or a power loss leaves the old project or the new one,
+  never a damaged one.
+- **FR-169**: When a more specific signal appears while a project is open (a
+  debug file loaded while working in the boot disk's project), its project
+  MUST take over, and Casso MUST offer to bring the breakpoints, watches and
+  bookmarks set so far into it.
+- **FR-170**: File > Save project as... MUST write a copy of the current
+  project to a chosen file and make it the open one; File > Open project...
+  MUST switch to a chosen project file. A project's paths MUST be relative to
+  its file where they lie beside or below it, so a project moves with its
+  program.
+- **FR-171**: A project's startup commands MUST run in order, each in the mode
+  it was written for, when the project loads, with their output in the
+  console; File > Project settings... MUST edit the list.
+- **FR-172**: A breakpoint's Name MUST be editable in place (F2, a
+  double-click on Name, or Rename in the row's context menu); an emptied name
+  MUST return to the default name. A name set in the window or in any mode but
+  AppleWin MUST persist through the project. A console naming command MUST let
+  AppleWin-mode users name a breakpoint; AppleWin's breakpoint save and load
+  commands and its LOAD and SAVE MUST keep AppleWin's behavior and formats.
+- **FR-173**: When an Applesoft program is in memory, a BASIC view MUST show
+  its listing as LIST would print it, read from memory without side effects,
+  with the line being run marked, and MUST follow edits made by the guest.
+- **FR-174**: Stepping in the BASIC view MUST run to the start of the next
+  statement, or of the next line, as the interpreter begins it; Step out MUST
+  run to the statement after the active GOSUB's return.
+- **FR-175**: A breakpoint MUST be settable on a BASIC line number, stopping as
+  the line begins, and on a BASIC variable changing, stopping after the
+  statement that changed it; the Breakpoints pane MUST show them with Kind
+  "BASIC" and Trigger "Line" or "Variable change".
+- **FR-176**: A BASIC variables view MUST list the program's simple variables
+  (real, integer and string) and its arrays with their values, decoded from
+  the interpreter's tables, and watches MUST accept BASIC variable names.
+- **FR-177**: A BASIC stack view MUST list the active GOSUB returns and FOR
+  loops (variable, limit, step and line); the debugger MUST be able to stop on
+  a BASIC error, showing the error and its line, whether or not ONERR handles
+  it.
+- **FR-178**: The source view MUST color C sources' syntax (keywords, types,
+  literals, comments, preprocessor lines) as it colors assembly, using the
+  theme's source colors.
+- **FR-179**: Every debugger console command MUST have a way in from the
+  debugger window or the emulator window, unless it is console-only by nature
+  (help, echo, print, calculate, scripts, output format) or one of these the
+  owner dropped: LOAD and SAVE of the debugger configuration, IN, OUT, TSAVE,
+  BUDGET, TF, and the Monitor ROM idioms I, N, IN#, PR#, BASIC cold and warm
+  start and Ctrl-Y. BENCHMARK MUST be removed. ui-entry-point-audit.md lists
+  each command and its entry.
+- **FR-180**: File > Load file into memory... and a toolbar button MUST load a
+  host file as BLOAD does, with its format and, for raw bytes, an address and
+  length; File > Save memory to file... MUST save a range as BSAVE does.
+- **FR-181**: Edit > Find in a Memory pane MUST search memory for hex bytes,
+  text or a pattern with wildcards; F3 and Shift+F3 MUST walk the matches.
+- **FR-182**: The code pane's context menu MUST mark a selection as data
+  (bytes, words, addresses, text, floats) or clear its marking, and a data
+  list MUST show every marked range with Go to and Delete.
+- **FR-183**: A Symbols pane MUST list the symbol tables with their counts,
+  enable or disable each, search them, and add, remove, clear and save
+  symbols; the code pane's context menu MUST offer Add symbol here.
+- **FR-184**: The code pane's and the call stack's context menus MUST offer
+  Never step into this routine, and Debug > Step filters... MUST list the
+  filters with Add and Delete.
+- **FR-185**: Edit instruction, in a disassembly row's context menu, MUST
+  assemble a typed instruction over the row's; a shorter one MUST be padded
+  with NOP, a longer one MUST first say which instructions it overwrites;
+  Escape MUST cancel; ROM MUST be refused; Undo MUST restore the bytes.
+- **FR-186**: Replace with NOPs MUST overwrite the selected disassembly rows'
+  bytes with NOP, undoably. A drag MUST select text across columns as now,
+  and a Ctrl+drag MUST select only within the column the drag began in
+  (address, bytes or instruction).
+- **FR-187**: The Breakpoints pane's New drop-down MUST also set a break on
+  reading memory never written, on a video line, on a beam position, and an
+  execution breakpoint with a watch over a range.
+- **FR-188**: Each watch row MUST have a checkbox that enables or disables it;
+  a watch MUST be able to be a zero-page pointer, showing the address its two
+  bytes form and the bytes there; a Memory pane's context menu on zero page
+  MUST offer Add as pointer watch.
+- **FR-189**: Bookmarks MUST be toggled on a code row (context menu and a
+  key), walked with Next and Previous bookmark, and listed in a Bookmarks pane
+  with Go to and Delete.
+- **FR-190**: A Memory pane's context menu on a selection MUST offer Fill
+  selection... (a byte or a pattern) and Copy selection to... (an address).
+- **FR-191**: Compare with... on a Memory pane selection MUST color the cells
+  that differ from a range at a given address, a toggle MUST show that range's
+  values in their place, and hovering a cell MUST show the other range's
+  value; Clear comparison MUST end it.
+- **FR-192**: The status bar MUST show the run speed and open a popup choosing
+  1x, 2x or Maximum.
+- **FR-193**: A Profiler pane MUST start, stop, reset and save profiling and
+  show its results as PROFILE does.
+- **FR-194**: The Registers pane MUST show a Trip cycle count beside the total,
+  reset from its context menu or by RCC, the total never reset.
+- **FR-195**: The Registers pane MUST show the last branch taken, from and to,
+  with Go to.
+- **FR-196**: The Stack pane's context menu MUST offer Push byte..., Pop byte
+  and Pop word.
+- **FR-197**: The code pane's context menu MUST offer Start stopwatch here and
+  Stop stopwatch here, timing in cycles whatever the run speed, and Call
+  subroutine here, running the routine as JSR does.
+- **FR-198**: The video log and the sound log MUST record all the time into
+  bounded buffers, the oldest entries giving way, and the Video and
+  Mockingboard panels MUST show them with Clear and Save; recording MUST cost
+  no measurable emulation speed (SC-008).
+- **FR-199**: Copy text from the emulator window MUST render inverse and
+  flashing characters as the characters they show, not as other characters.
+- **FR-200**: The disassembly view MUST honor the DISASM settings OPCODE,
+  TARGET, POINTER and BRANCH, the command and the view's check boxes setting
+  the same options, and Tools > Options MUST offer them.
+- **FR-201**: Every branch row MUST show which way it branches (up or down), not
+  only the branch at PC.
+- **FR-202**: A row's result annotation MUST also give the cycles its
+  instruction takes, with a branch's taken and not-taken counts and a
+  page-crossing cycle where one can apply. The cycle count's "(+n)" in the
+  Registers pane is the cycles since the stop before.
+- **FR-203**: Each key scheme MUST bind keys to open or focus each pane;
+  the Visual Studio scheme MUST use Visual Studio's (Ctrl+Alt+D disassembly,
+  Ctrl+Alt+B breakpoints, Ctrl+Alt+C call stack, Ctrl+Alt+W then 1-4 watch,
+  Ctrl+Alt+M then 1-4 memory, Ctrl+Alt+G registers, and the rest Visual
+  Studio has), and every scheme MUST bind Ctrl+` to the console.
+- **FR-204**: Every menu item with a key in the active scheme MUST show that
+  key, and a change of scheme MUST update them.
+- **FR-205**: Dragging a docked pane by its title MUST tear off its whole group
+  with all its tabs and move it with the pointer as it goes; any tab MUST be
+  draggable, selected or not; a torn-off pane MUST float at the size it had
+  docked.
+- **FR-206**: Panes MUST be drawn as Visual Studio draws them, as measured from
+  the owner's screenshots: the gap and margin around and between panes, the
+  tab band across the whole pane, rounded corners, the focus outline round the
+  pane and its selected tab, every text in a pane starting at its title's x,
+  glyph gutters inset as Visual Studio's; a selected tab and a hovered one MUST
+  show their pin and close buttons; a floating window MUST keep Windows'
+  standard corners and take the focus outline while it has focus; drop guides
+  MUST show the cross only over the pane under the pointer, with the window
+  edge guides throughout; tooltips in the emulator and debugger MUST take
+  Visual Studio's colors while Casso Explorer's keep File Explorer's.
+- **FR-207**: A heat map range set called Default holding the built-in ranges,
+  enabled, MUST exist from the first use.
+- **FR-208**: The range list MUST be an editable grid, a reusable control: one
+  trailing row hinting "Add new range"; a click on any cell edits it in place;
+  a row with its required fields complete leaves editing and a new trailing row
+  appears; Delete in a row's context menu; rows reordered by dragging a
+  gripper. It replaces the + button.
+- **FR-209**: These defects from the owner's review MUST be fixed: edit boxes
+  draw their corners dim; the range list's columns are sized wrong; Add item to
+  watch needs a double click and works only with the Watches pane focused (it
+  MUST take one click, focused or not); the Skip unchanged writes tooltip
+  shows at once instead of after the usual delay; a new range set's name is
+  drawn over the set drop-down; with every range shown, a short range's title
+  overlaps its row address labels.
 ### Key Entities
 
 - **Debug session**: The debugger's attachment to one running machine; holds
@@ -2460,6 +2760,13 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **Layout**: The tree of split groups, tab groups, floating panes and
   auto-hidden panes, with sizes and monitors, saved between sessions.
 
+- **Debug project**: the saved state of FR-166, its scope signal (FR-167), its
+  file, and its startup commands; saved automatically, one open at a time.
+- **BASIC program view**: the Applesoft program's lines, the line and
+  statement being run, its variables and arrays, and its GOSUB and FOR stack,
+  all read from memory without side effects.
+- **Editable grid row**: a range set entry being edited in place, with its
+  required fields and whether it is the trailing "Add new range" row.
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
@@ -2582,10 +2889,26 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **SC-044**: After one drive's head moves and the other drive is selected,
   the other drive's head is where it was in 100% of cases, and the scenario
   suite's DOS 3.3 and ProDOS boots still pass.
+- **SC-045**: After Casso closes and starts again, 100% of a project's FR-166
+  state is restored when the same debug file, binary or boot disk is loaded,
+  with no user action.
+- **SC-046**: After a crash, no more than the last 2 seconds of debugger state
+  changes are lost, and the project file is never damaged.
+- **SC-047**: For every fixture Applesoft program, the BASIC view's listing
+  matches LIST's output line for line, and a statement step stops at 100% of
+  the program's statements in order.
+- **SC-048**: At every stop in the fixture programs, every variable the BASIC
+  view shows equals what PRINT gives for it.
+- **SC-049**: 100% of the entries FR-180 to FR-198 require work without typing
+  a console command.
+- **SC-050**: 100% of menu items with a key in the active scheme show it.
+- **SC-051**: A user adds three ranges to a set with the editable grid in under
+  a minute without using the + button or a dialog.
 
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
-files with seamless scroll-back, debug projects, and an MCP adapter over the
+files with seamless scroll-back (kept in User Story 21's debug projects),
+source-level debugging of languages other than Applesoft, and an MCP adapter over the
 debug channel.
 
 ## Assumptions

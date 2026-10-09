@@ -144,7 +144,7 @@ contract predicts.
    top-level window; move it to a monitor of a different scale. Expect it to
    render at that monitor's scale (FR-043).
 3. Auto-hide the trace pane. Expect a tab on the edge that slides the pane
-   in on hover and on focus.
+   in when clicked, and not on hover (FR-041).
 4. Close and reopen the debugger. Expect the same layout. Disconnect the
    second monitor and reopen. Expect the floating pane on the primary at its
    saved size (SC-014).
