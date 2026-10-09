@@ -186,8 +186,9 @@ namespace DebuggerWindowThemeTests
 
 
         //  The system themes the window chooses are its own, with Visual
-        //  Studio's tooltip and light pane colors, and its tip takes them
-        //  and Visual Studio's frame.
+        //  Studio's light pane colors and tooltip text, and its tip takes
+        //  them, a fill of the window's background with a border at half its
+        //  brightness, and Visual Studio's frame.
         TEST_METHOD (TheSystemThemesTakeTheDebuggersOwnColors)
         {
             CassoTheme   theme = CassoTheme::MakeSkeuomorphic();
@@ -202,14 +203,14 @@ namespace DebuggerWindowThemeTests
             Assert::AreEqual (0xFFF9F9F9u, window.GetTheme()->ContentBackground(),  L"light lists and titles");
             Assert::AreEqual (0xFFFFFFFFu, window.GetTheme()->TextViewBackground(), L"light text views");
             Assert::AreEqual (0xFFADADADu, window.GetTheme()->Border(),             L"a light pane's outline");
-            Assert::AreEqual (0xFFF9F9F9u, window.GetTooltip().GetBackgroundArgb(), L"the light tip's fill");
-            Assert::AreEqual (0xFFDDDDDDu, window.GetTooltip().GetBorderArgb(),     L"and its border");
+            Assert::AreEqual (0xFFFBFBFBu, window.GetTooltip().GetBackgroundArgb(), L"the light tip's fill, the window's background");
+            Assert::AreEqual (0xFF7D7D7Du, window.GetTooltip().GetBorderArgb(),     L"and its border, at half the brightness");
             Assert::AreEqual (0xFF212121u, window.GetTooltip().GetTextArgb(),       L"and its text");
 
             window.ApplyTheme ("SystemDark");
 
-            Assert::AreEqual (0xFF2C2C2Cu, window.GetTooltip().GetBackgroundArgb(), L"the dark tip's fill");
-            Assert::AreEqual (0xFF1C1C1Cu, window.GetTooltip().GetBorderArgb(),     L"and its border");
+            Assert::AreEqual (0xFF272727u, window.GetTooltip().GetBackgroundArgb(), L"the dark tip's fill, the window's background");
+            Assert::AreEqual (0xFF131313u, window.GetTooltip().GetBorderArgb(),     L"and its border, at half the brightness");
             Assert::AreEqual (0xFFFFFFFFu, window.GetTooltip().GetTextArgb(),       L"and its text");
             Assert::AreEqual (6.0f,        window.GetTooltip().GetCornerRadiusPx(), L"Visual Studio's 6.4-DIP corner at 96 DPI");
             Assert::AreEqual (1.0f,        window.GetTooltip().GetBorderPx(),       L"on a whole-pixel border");

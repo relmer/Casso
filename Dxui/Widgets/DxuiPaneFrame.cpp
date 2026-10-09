@@ -14,31 +14,34 @@
 //  first row of the line between the tab band and the pane. The selected
 //  tab runs from `tabNear`, the edge it shares with the pane, to `tabFar`,
 //  its far edge: up to the pane's top for a document, down to the pane's
-//  bottom for a tool window.
+//  bottom for a tool window. `windowCorners` are the pane's corners that are
+//  its window's, drawn at `windowRo` in place of `ro`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DxuiPaneFrame::Geometry
 {
-    long  left        = 0;
-    long  top         = 0;
-    long  right       = 0;
-    long  bottom      = 0;
-    long  t           = 1;
-    long  ro          = 0;
-    bool  toolWindow  = false;
-    long  titlePx     = 0;
-    long  bandPx      = 0;
-    long  lineTop     = 0;
-    long  tabNear     = 0;
-    long  tabFar      = 0;
-    bool  hasSelected = false;
-    long  selLeft     = 0;
-    long  selRight    = 0;
-    bool  openLeft    = false;
-    bool  openRight   = false;
-    bool  flushLeft   = false;
-    bool  flushRight  = false;
+    long  left          = 0;
+    long  top           = 0;
+    long  right         = 0;
+    long  bottom        = 0;
+    long  t             = 1;
+    long  ro            = 0;
+    UINT  windowCorners = 0;
+    long  windowRo      = 0;
+    bool  toolWindow    = false;
+    long  titlePx       = 0;
+    long  bandPx        = 0;
+    long  lineTop       = 0;
+    long  tabNear       = 0;
+    long  tabFar        = 0;
+    bool  hasSelected   = false;
+    long  selLeft       = 0;
+    long  selRight      = 0;
+    bool  openLeft      = false;
+    bool  openRight     = false;
+    bool  flushLeft     = false;
+    bool  flushRight    = false;
 };
 
 
@@ -140,7 +143,9 @@ long DxuiPaneFrame::GetFlushReachPx (long cornerPx, long linePx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-long DxuiPaneFrame::GetCornerPx (const RECT & pane, long cornerPx)
+long DxuiPaneFrame::GetCornerPx (
+    const RECT  & pane,
+    long          cornerPx)
 {
     constexpr long  kCornersAcross = 4;
     long            corner         = (std::max) (0L, cornerPx);
@@ -228,7 +233,8 @@ void DxuiPaneFrame::Paint (
 //  DxuiPaneFrame::MakeGeometry
 //
 //  The outer radius is GetCornerPx's, so a pane too small to round is
-//  square.
+//  square, and so is every corner it shares with its window then; a pane
+//  too small for the window's radius keeps its own at those corners too.
 //
 //  A selected tab is flush with a side of the pane when no scroll arrow cuts
 //  it off and it starts or ends closer to that side than GetFlushReachPx, so
@@ -248,20 +254,22 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
 
 
 
-    g.left        = spec.pane.left;
-    g.top         = spec.pane.top;
-    g.right       = spec.pane.right;
-    g.bottom      = spec.pane.bottom;
-    g.t           = (std::max) (1L, spec.linePx);
-    g.ro          = GetCornerPx (spec.pane, spec.cornerPx);
-    g.toolWindow  = spec.toolWindow;
-    g.titlePx     = spec.titlePx;
-    g.bandPx      = spec.bandPx;
-    g.hasSelected = spec.hasSelected && spec.bandPx > 0;
-    g.selLeft     = spec.selLeft;
-    g.selRight    = spec.selRight;
-    g.openLeft    = spec.openLeft;
-    g.openRight   = spec.openRight;
+    g.left          = spec.pane.left;
+    g.top           = spec.pane.top;
+    g.right         = spec.pane.right;
+    g.bottom        = spec.pane.bottom;
+    g.t             = (std::max) (1L, spec.linePx);
+    g.ro            = GetCornerPx (spec.pane, spec.cornerPx);
+    g.windowRo      = GetCornerPx (spec.pane, spec.windowCornerPx);
+    g.windowCorners = (g.ro > 0 && g.windowRo > 0) ? spec.windowCorners : 0;
+    g.toolWindow    = spec.toolWindow;
+    g.titlePx       = spec.titlePx;
+    g.bandPx        = spec.bandPx;
+    g.hasSelected   = spec.hasSelected && spec.bandPx > 0;
+    g.selLeft       = spec.selLeft;
+    g.selRight      = spec.selRight;
+    g.openLeft      = spec.openLeft;
+    g.openRight     = spec.openRight;
 
     reach        = GetFlushReachPx (g.ro, g.t);
     g.flushLeft  = g.hasSelected && !g.openLeft  && g.selLeft  - g.left  < reach;
@@ -304,30 +312,33 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
 
 void DxuiPaneFrame::BuildDocument (std::vector<DxuiPaneFramePart> & parts, const Geometry & g)
 {
-    long  pl = g.left;
-    long  pt = g.top;
-    long  pr = g.right;
-    long  pb = g.bottom;
-    long  t  = g.t;
-    long  ro = g.ro;
-    long  yl = g.lineTop;
+    long  pl  = g.left;
+    long  pt  = g.top;
+    long  pr  = g.right;
+    long  pb  = g.bottom;
+    long  t   = g.t;
+    long  yl  = g.lineTop;
+    long  rTL = GetPaneCornerPx (g, kCornerTopLeft);
+    long  rTR = GetPaneCornerPx (g, kCornerTopRight);
+    long  rBL = GetPaneCornerPx (g, kCornerBottomLeft);
+    long  rBR = GetPaneCornerPx (g, kCornerBottomRight);
 
 
 
-    AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pl,      pt, pl + ro, pt + ro });
-    AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pr - ro, pt, pr,      pt + ro });
-    AddRoundedFill (parts, DxuiPaneFrameRole::Band, RECT { pl, pt, pr, yl }, RECT { pl, pt, pr, yl + ro }, ro);
-    AddJoins       (parts, g, DxuiPaneFramePhase::Joins);
+    AddGapBox     (parts, g, kCornerTopLeft);
+    AddGapBox     (parts, g, kCornerTopRight);
+    AddCornerFill (parts, g, DxuiPaneFrameRole::Band, RECT { pl, pt, pr, yl }, true);
+    AddJoins      (parts, g, DxuiPaneFramePhase::Joins);
 
-    AddCap         (parts, g, RECT { pl,      pb - ro, pl + ro, pb });
-    AddCap         (parts, g, RECT { pr - ro, pb - ro, pr,      pb });
-    AddLineRuns    (parts, g);
-    AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl,      g.flushLeft  ? pt + ro : yl, pl + t,  pb - ro });
-    AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pr - t,  g.flushRight ? pt + ro : yl, pr,      pb - ro });
-    AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl + ro, pb - t,                       pr - ro, pb      });
-    AddQuarterRing (parts, g, pl + ro, pb - ro, RECT { pl,      pb - ro, pl + ro, pb });
-    AddQuarterRing (parts, g, pr - ro, pb - ro, RECT { pr - ro, pb - ro, pr,      pb });
-    AddTabOutline  (parts, g);
+    AddCap        (parts, g, kCornerBottomLeft);
+    AddCap        (parts, g, kCornerBottomRight);
+    AddLineRuns   (parts, g);
+    AddRect       (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl,       g.flushLeft  ? pt + rTL : yl, pl + t,   pb - rBL });
+    AddRect       (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pr - t,   g.flushRight ? pt + rTR : yl, pr,       pb - rBR });
+    AddRect       (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl + rBL, pb - t,                       pr - rBR, pb       });
+    AddCornerRing (parts, g, kCornerBottomLeft);
+    AddCornerRing (parts, g, kCornerBottomRight);
+    AddTabOutline (parts, g);
 }
 
 
@@ -354,36 +365,39 @@ void DxuiPaneFrame::BuildToolWindow (std::vector<DxuiPaneFramePart> & parts, con
     long  pr       = g.right;
     long  pb       = g.bottom;
     long  t        = g.t;
-    long  ro       = g.ro;
+    long  rTL      = GetPaneCornerPx (g, kCornerTopLeft);
+    long  rTR      = GetPaneCornerPx (g, kCornerTopRight);
+    long  rBL      = GetPaneCornerPx (g, kCornerBottomLeft);
+    long  rBR      = GetPaneCornerPx (g, kCornerBottomRight);
     long  bandTop  = pb - g.bandPx;
     bool  hasStrip = g.bandPx > 0;
-    long  leftEnd  = (!hasStrip || g.flushLeft)  ? pb - ro : g.lineTop + t;
-    long  rightEnd = (!hasStrip || g.flushRight) ? pb - ro : g.lineTop + t;
+    long  leftEnd  = (!hasStrip || g.flushLeft)  ? pb - rBL : g.lineTop + t;
+    long  rightEnd = (!hasStrip || g.flushRight) ? pb - rBR : g.lineTop + t;
 
 
 
-    AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pl,      pt, pl + ro, pt + ro });
-    AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pr - ro, pt, pr,      pt + ro });
-    AddRoundedFill (parts, DxuiPaneFrameRole::Content, RECT { pl, pt, pr, pt + g.titlePx }, RECT { pl, pt, pr, pt + g.titlePx + ro }, ro);
+    AddGapBox     (parts, g, kCornerTopLeft);
+    AddGapBox     (parts, g, kCornerTopRight);
+    AddCornerFill (parts, g, DxuiPaneFrameRole::Content, RECT { pl, pt, pr, pt + g.titlePx }, true);
 
     if (hasStrip)
     {
-        AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pl,      pb - ro, pl + ro, pb });
-        AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pr - ro, pb - ro, pr,      pb });
-        AddRoundedFill (parts, DxuiPaneFrameRole::Band, RECT { pl, bandTop, pr, pb }, RECT { pl, bandTop - ro, pr, pb }, ro);
-        AddJoins       (parts, g, DxuiPaneFramePhase::Joins);
+        AddGapBox     (parts, g, kCornerBottomLeft);
+        AddGapBox     (parts, g, kCornerBottomRight);
+        AddCornerFill (parts, g, DxuiPaneFrameRole::Band, RECT { pl, bandTop, pr, pb }, false);
+        AddJoins      (parts, g, DxuiPaneFramePhase::Joins);
     }
     else
     {
-        AddCap (parts, g, RECT { pl,      pb - ro, pl + ro, pb });
-        AddCap (parts, g, RECT { pr - ro, pb - ro, pr,      pb });
+        AddCap (parts, g, kCornerBottomLeft);
+        AddCap (parts, g, kCornerBottomRight);
     }
 
-    AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl + ro, pt,      pr - ro, pt + t   });
-    AddQuarterRing (parts, g, pl + ro, pt + ro, RECT { pl,      pt, pl + ro, pt + ro });
-    AddQuarterRing (parts, g, pr - ro, pt + ro, RECT { pr - ro, pt, pr,      pt + ro });
-    AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl,      pt + ro, pl + t,  leftEnd  });
-    AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pr - t,  pt + ro, pr,      rightEnd });
+    AddRect       (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl + rTL, pt,       pr - rTR, pt + t   });
+    AddCornerRing (parts, g, kCornerTopLeft);
+    AddCornerRing (parts, g, kCornerTopRight);
+    AddRect       (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl,       pt + rTL, pl + t,   leftEnd  });
+    AddRect       (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pr - t,   pt + rTR, pr,       rightEnd });
 
     if (hasStrip)
     {
@@ -392,9 +406,9 @@ void DxuiPaneFrame::BuildToolWindow (std::vector<DxuiPaneFramePart> & parts, con
     }
     else
     {
-        AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl + ro, pb - t, pr - ro, pb });
-        AddQuarterRing (parts, g, pl + ro, pb - ro, RECT { pl,      pb - ro, pl + ro, pb });
-        AddQuarterRing (parts, g, pr - ro, pb - ro, RECT { pr - ro, pb - ro, pr,      pb });
+        AddRect       (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { pl + rBL, pb - t, pr - rBR, pb });
+        AddCornerRing (parts, g, kCornerBottomLeft);
+        AddCornerRing (parts, g, kCornerBottomRight);
     }
 }
 
@@ -487,21 +501,24 @@ void DxuiPaneFrame::AddJoins (std::vector<DxuiPaneFramePart> & parts, const Geom
 //
 //  The outline around the selected tab: its far edge, its sides down to the
 //  joins, its rounded far corners, and the joins. A side flush with the pane
-//  is the pane's own side, and a side cut off by a scroll arrow has no side,
-//  corner or join; the far edge runs on to the arrow.
+//  is the pane's own side, and its far corner the pane's own corner, at that
+//  corner's radius; a side cut off by a scroll arrow has no side, corner or
+//  join, and the far edge runs on to the arrow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPaneFrame::AddTabOutline (std::vector<DxuiPaneFramePart> & parts, const Geometry & g)
 {
+    UINT  farL  = g.toolWindow ? kCornerBottomLeft  : kCornerTopLeft;
+    UINT  farR  = g.toolWindow ? kCornerBottomRight : kCornerTopRight;
     long  depth = std::abs (g.tabFar - g.tabNear);
     long  ringY = (g.tabFar < g.tabNear) ? g.tabFar + g.ro : g.tabFar - g.ro;
     long  sl    = g.selLeft;
     long  sr    = g.selRight;
     long  t     = g.t;
     long  ro    = g.ro;
-    long  edgeL = g.openLeft  ? sl : sl + ro;
-    long  edgeR = g.openRight ? sr : sr - ro;
+    long  edgeL = g.openLeft  ? sl : sl + (g.flushLeft  ? GetPaneCornerPx (g, farL) : ro);
+    long  edgeR = g.openRight ? sr : sr - (g.flushRight ? GetPaneCornerPx (g, farR) : ro);
     bool  sideL = !g.flushLeft  && !g.openLeft;
     bool  sideR = !g.flushRight && !g.openRight;
 
@@ -516,22 +533,22 @@ void DxuiPaneFrame::AddTabOutline (std::vector<DxuiPaneFramePart> & parts, const
 
     if (sideL)
     {
-        AddRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, GetTabRows (g, sl, sl + t, ro, depth - 2 * ro));
+        AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, GetTabRows (g, sl, sl + t, ro, depth - 2 * ro));
+        AddQuarterRing (parts, g, sl + ro, ringY, GetTabRows (g, sl, sl + ro, depth - ro, ro));
+    }
+    else if (g.flushLeft)
+    {
+        AddCornerRing (parts, g, farL);
     }
 
     if (sideR)
     {
-        AddRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, GetTabRows (g, sr - t, sr, ro, depth - 2 * ro));
-    }
-
-    if (!g.openLeft)
-    {
-        AddQuarterRing (parts, g, sl + ro, ringY, GetTabRows (g, sl, sl + ro, depth - ro, ro));
-    }
-
-    if (!g.openRight)
-    {
+        AddRect        (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, GetTabRows (g, sr - t, sr, ro, depth - 2 * ro));
         AddQuarterRing (parts, g, sr - ro, ringY, GetTabRows (g, sr - ro, sr, depth - ro, ro));
+    }
+    else if (g.flushRight)
+    {
+        AddCornerRing (parts, g, farR);
     }
 
     AddJoins (parts, g, DxuiPaneFramePhase::Over);
@@ -737,14 +754,186 @@ void DxuiPaneFrame::AddFillet (std::vector<DxuiPaneFramePart> & parts, const Geo
 //
 //  The gap color over a corner's box, outside the pane's own rounded
 //  corner: a ring one radius thick around the pane grown by a radius, whose
-//  inner edge is the pane's outer edge rounded at the outer radius.
+//  inner edge is the pane's outer edge rounded at the outer radius. A corner
+//  the pane shares with its window has none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPaneFrame::AddCap (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, const RECT & box)
+void DxuiPaneFrame::AddCap (
+    std::vector<DxuiPaneFramePart>  & parts,
+    const Geometry                  & g,
+    UINT                              corner)
 {
-    AddRing (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Gap, box,
+    if (IsWindowCorner (g, corner))
+    {
+        return;
+    }
+
+    AddRing (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Gap, GetCornerBox (g, corner),
              RECT { g.left - g.ro, g.top - g.ro, g.right + g.ro, g.bottom + g.ro }, 2 * g.ro, g.ro);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneFrame::AddGapBox
+//
+//  The gap color over a corner's box, under a rounded fill that leaves it
+//  showing outside its curve. A corner the pane shares with its window has
+//  none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPaneFrame::AddGapBox (
+    std::vector<DxuiPaneFramePart>  & parts,
+    const Geometry                  & g,
+    UINT                              corner)
+{
+    if (IsWindowCorner (g, corner))
+    {
+        return;
+    }
+
+    AddRect (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, GetCornerBox (g, corner));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneFrame::AddCornerFill
+//
+//  A fill of `clip` running the pane's full width, rounded at the pane's
+//  two top corners, or its two bottom corners, and square along its other
+//  edge. Each corner is rounded at its own radius: where the two differ,
+//  each half of the fill is drawn rounded at its corner's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPaneFrame::AddCornerFill (
+    std::vector<DxuiPaneFramePart>  & parts,
+    const Geometry                  & g,
+    DxuiPaneFrameRole                 role,
+    const RECT                      & clip,
+    bool                              atTop)
+{
+    long  rLeft  = GetPaneCornerPx (g, atTop ? kCornerTopLeft  : kCornerBottomLeft);
+    long  rRight = GetPaneCornerPx (g, atTop ? kCornerTopRight : kCornerBottomRight);
+    long  middle = (clip.left + clip.right) / 2;
+    auto  reach  = [&] (long radius)
+    {
+        return atTop ? RECT { clip.left, clip.top, clip.right, clip.bottom + radius }
+                     : RECT { clip.left, clip.top - radius, clip.right, clip.bottom };
+    };
+
+
+
+    if (rLeft == rRight)
+    {
+        AddRoundedFill (parts, role, clip, reach (rLeft), rLeft);
+        return;
+    }
+
+    AddRoundedFill (parts, role, RECT { clip.left, clip.top, middle,     clip.bottom }, reach (rLeft),  rLeft);
+    AddRoundedFill (parts, role, RECT { middle,    clip.top, clip.right, clip.bottom }, reach (rRight), rRight);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneFrame::AddCornerRing
+//
+//  The quarter of the outline around one of the pane's own corners, at that
+//  corner's radius: the ring around a circle one radius in from both edges,
+//  seen inside the corner's box.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPaneFrame::AddCornerRing (
+    std::vector<DxuiPaneFramePart>  & parts,
+    const Geometry                  & g,
+    UINT                              corner)
+{
+    long  r   = GetPaneCornerPx (g, corner);
+    RECT  box = GetCornerBox (g, corner);
+    long  cx  = (corner == kCornerTopLeft || corner == kCornerBottomLeft) ? g.left + r : g.right - r;
+    long  cy  = (corner == kCornerTopLeft || corner == kCornerTopRight)   ? g.top + r  : g.bottom - r;
+
+
+
+    AddRing (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, box, RECT { cx - r, cy - r, cx + r, cy + r }, r, g.t);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneFrame::GetCornerBox
+//
+//  The square at one of the pane's corners as wide as that corner's radius.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiPaneFrame::GetCornerBox (
+    const Geometry  & g,
+    UINT              corner)
+{
+    long  r    = GetPaneCornerPx (g, corner);
+    bool  left = corner == kCornerTopLeft || corner == kCornerBottomLeft;
+    bool  top  = corner == kCornerTopLeft || corner == kCornerTopRight;
+    long  x    = left ? g.left : g.right  - r;
+    long  y    = top  ? g.top  : g.bottom - r;
+
+
+
+    return RECT { x, y, x + r, y + r };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneFrame::GetPaneCornerPx
+//
+//  The outer radius at one of the pane's own corners: the window's where
+//  the corner is its window's, and the pane's own elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+long DxuiPaneFrame::GetPaneCornerPx (
+    const Geometry  & g,
+    UINT              corner)
+{
+    return IsWindowCorner (g, corner) ? g.windowRo : g.ro;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneFrame::IsWindowCorner
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPaneFrame::IsWindowCorner (
+    const Geometry  & g,
+    UINT              corner)
+{
+    return (g.windowCorners & corner) != 0;
 }
 
 

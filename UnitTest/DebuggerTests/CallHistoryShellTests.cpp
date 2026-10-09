@@ -268,9 +268,9 @@ namespace CallHistoryShellTests
     //  history: each pass of the CPU thread looks after the rebuild, a
     //  reverse command starts the record again where the machine lands unless
     //  it left the machine where it was, turning history off behind live
-    //  leaves a record whose bottom claims nothing about history, closing the
-    //  debugger drops the rebuild under way, and the debugger's view is built
-    //  again while a stopped machine waits on one.
+    //  leaves a record whose bottom is TrackingRestarted, not HistoryBegan,
+    //  closing the debugger drops the rebuild under way, and the debugger's
+    //  view is built again while a stopped machine waits on one.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -374,7 +374,7 @@ namespace CallHistoryShellTests
         //  rebuild can follow: the record keeps what it holds, and its bottom
         //  marks only that the calls before it are not available, not that
         //  history starts there.
-        TEST_METHOD (TurningHistoryOffBehindLiveLeavesNoClaimAboutHistory)
+        TEST_METHOD (TurningHistoryOffBehindLiveMarksTheBottomTrackingRestarted)
         {
             uint64_t                         landing = ShellRig::kOpenAt + ShellRig::kOpenAt / 2;
             uint64_t                         end     = ShellRig::kOpenAt * 2;

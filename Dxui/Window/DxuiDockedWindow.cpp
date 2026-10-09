@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Window/DxuiDockedWindow.h"
+#include "Core/DxuiPaneMetrics.h"
 
 
 
@@ -10,16 +11,25 @@
 //
 //  DxuiDockedWindow::Create
 //
+//  Windows 11 rounds the window's corners, and the site, which fills the
+//  window, draws the panes on them to the same radius.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiDockedWindow::Create (const CreateParams & params)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr        = S_OK;
+    bool     isRounded = false;
 
 
 
     hr = DxuiWindow::Create (params);
     CHR (hr);
+
+    CBRA (m_site != nullptr);
+
+    isRounded = DxuiDwm::IsWindows11OrGreater();
+    m_site->SetWindowCornerDip (isRounded ? DxuiPaneMetrics::kWindowCornerDip : 0);
 
     SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
 

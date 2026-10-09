@@ -9131,28 +9131,27 @@ void DebuggerWindow::CheckOperandTipPointer (POINT clientPx)
 
 void DebuggerWindow::FollowOperandTipPointer()
 {
-    HWND   hwnd    = (m_operandTipHost != nullptr) ? m_operandTipHost->GetHwnd() : nullptr;
-    POINT  pointer = {};
-    bool   isRead  = false;
-    bool   isShown = false;
+    HRESULT  hr      = S_OK;
+    HWND     hwnd    = (m_operandTipHost != nullptr) ? m_operandTipHost->GetHwnd() : nullptr;
+    POINT    pointer = {};
+    bool     isUp    = m_hasOperandTip && hwnd != nullptr;
+    bool     isRead  = false;
+    bool     isShown = false;
 
 
 
-    if (!m_hasOperandTip || hwnd == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (!isUp, S_OK);
 
     isRead  = GetCursorPos (&pointer) != FALSE && ScreenToClient (hwnd, &pointer) != FALSE;
     isShown = IsWindowVisible (hwnd) != FALSE && IsIconic (hwnd) == FALSE;
 
-    if (!isRead || !isShown)
-    {
-        HideOperandTip();
-        return;
-    }
+    CBRF (isRead,  HideOperandTip());
+    CBRF (isShown, HideOperandTip());
 
     CheckOperandTipPointer (pointer);
+
+Error:
+    return;
 }
 
 

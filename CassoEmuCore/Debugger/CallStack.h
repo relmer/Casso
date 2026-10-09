@@ -156,8 +156,8 @@ public:
     CallRecord  GetRecord () const;
 
     //  Takes a copy's data as this record's, nothing held: for a recorder
-    //  that only answers for the copy and never sees an instruction, or one
-    //  given a record rebuilt up to the instruction it is about to see.
+    //  that is only given a copy and runs no instruction, or one given a
+    //  record rebuilt up to the next instruction.
     void        SetRecord (const CallRecord & record);
 
     //  True when no call made at or after cycle encloses the code now

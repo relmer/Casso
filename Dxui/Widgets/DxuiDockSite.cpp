@@ -205,6 +205,7 @@ void DxuiDockSite::Arrange()
         bool            document = !m_isDocument;
         bool            focused  = false;
         bool            carried  = false;
+        RECT            rect     = {};
 
         while (group->GetTabCount() > 0)
         {
@@ -236,11 +237,14 @@ void DxuiDockSite::Arrange()
         //  is a tool window.
         document = document && m_onDock == nullptr;
 
-        group->SetKind        (document ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow);
-        group->SetFocusedLook (focused);
-        group->SetStripForced (carried);
-        group->SetActive      (active);
-        group->Layout         (GetInsetForGap (groups[i].rect, m_paneArea, gap), m_scaler);
+        rect = GetInsetForGap (groups[i].rect, m_paneArea, gap);
+
+        group->SetKind          (document ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow);
+        group->SetFocusedLook   (focused);
+        group->SetStripForced   (carried);
+        group->SetActive        (active);
+        group->SetWindowCorners (GetWindowCorners (rect), m_cornerDip);
+        group->Layout           (rect, m_scaler);
     }
 
     //  A floating pane's controls are in another window, which shows them.
@@ -463,6 +467,55 @@ void DxuiDockSite::SetFloating (PaneFn dock)
 {
     m_onDock = std::move (dock);
     Arrange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetWindowCornerDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetWindowCornerDip (int radiusDip)
+{
+    m_cornerDip = radiusDip;
+    Arrange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetWindowCorners
+//
+//  The window's corners are the site's own, which a group touches where it
+//  meets both of the site's edges there: in a floating window, with no
+//  margin around its panes, a lone group touches all four.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiDockSite::GetWindowCorners (const RECT & group) const
+{
+    bool  isRounded = m_cornerDip > 0;
+    bool  isLeft    = isRounded && group.left   == m_boundsDip.left;
+    bool  isTop     = isRounded && group.top    == m_boundsDip.top;
+    bool  isRight   = isRounded && group.right  == m_boundsDip.right;
+    bool  isBottom  = isRounded && group.bottom == m_boundsDip.bottom;
+    UINT  corners   = 0;
+
+
+
+    corners |= (isLeft  && isTop)    ? DxuiPaneFrame::kCornerTopLeft     : 0;
+    corners |= (isRight && isTop)    ? DxuiPaneFrame::kCornerTopRight    : 0;
+    corners |= (isLeft  && isBottom) ? DxuiPaneFrame::kCornerBottomLeft  : 0;
+    corners |= (isRight && isBottom) ? DxuiPaneFrame::kCornerBottomRight : 0;
+
+    return corners;
 }
 
 

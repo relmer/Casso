@@ -83,6 +83,7 @@ namespace CallStackRebuildCostTests
     static void Prepare (TestMachine & machine, Workload workload)
     {
         static constexpr Byte  kLoop[] = { 0x20, 0x10, 0x03, 0x4C, 0x00, 0x03 };
+        HRESULT                hr      = S_OK;
         Cpu6502              * cpu     = nullptr;
         Cpu6502Registers       r;
 
@@ -91,15 +92,13 @@ namespace CallStackRebuildCostTests
         if (workload == Workload::Session)
         {
             ReverseSessionRig::Prepare (machine);
-            return;
         }
-
-        machine.PowerCycle();
-
-        if (workload != Workload::Calls)
+        else
         {
-            return;
+            machine.PowerCycle();
         }
+
+        BAIL_OUT_IF (workload != Workload::Calls, S_OK);
 
         cpu = machine.GetCpu()->GetCpu6502();
 
@@ -114,6 +113,9 @@ namespace CallStackRebuildCostTests
         r.pc = 0x0300;
         r.sp = 0xFF;
         cpu->SetRegisters (r);
+
+    Error:
+        return;
     }
 
 

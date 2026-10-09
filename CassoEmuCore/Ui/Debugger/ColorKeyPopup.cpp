@@ -66,15 +66,12 @@ void ColorKeyPopup::Show (
     bool                          hold)
 {
     constexpr float            kBorderScale = 0.5f;   // the border at half the fill's brightness
-
-
-
-    HRESULT                    hr       = S_OK;
-    POINT                      topLeft  = { anchor.left,  anchor.top    };
-    POINT                      botRight = { anchor.right, anchor.bottom };
-    HWND                       owner    = nullptr;
-    RECT                       screen   = {};
-    bool                       hasHost  = host != nullptr;
+    HRESULT                    hr           = S_OK;
+    POINT                      topLeft      = { anchor.left,  anchor.top    };
+    POINT                      botRight     = { anchor.right, anchor.bottom };
+    HWND                       owner        = nullptr;
+    RECT                       screen       = {};
+    bool                       hasHost      = host != nullptr;
 
 
 
@@ -206,42 +203,48 @@ void ColorKeyPopup::Hide()
 //
 //  ColorKeyPopup::GetRect
 //
-//  Where the balloon was placed, or, with no balloon to place it in (a
-//  window with no popup host, as in a test), below the anchor at the size
-//  it measures.
+//  Where the balloon was placed, in its owner's client pixels, or, with no
+//  balloon to place it in (a window with no popup host, as in a test), below
+//  the anchor at the size it measures. Empty while no key is shown, or when
+//  the placed rect cannot be read in the owner's pixels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT ColorKeyPopup::GetRect() const
 {
-    RECT   rect     = {};
-    SIZE   sizeDip  = {};
-    POINT  topLeft  = {};
-    POINT  botRight = {};
-    HWND   owner    = (m_host != nullptr) ? m_host->GetHwnd() : nullptr;
+    HRESULT  hr       = S_OK;
+    RECT     rect     = {};
+    SIZE     sizeDip  = {};
+    POINT    topLeft  = {};
+    POINT    botRight = {};
+    HWND     owner    = (m_host != nullptr) ? m_host->GetHwnd() : nullptr;
+    bool     isPlaced = m_popup != nullptr;
+    bool     isMapped = false;
 
 
 
-    if (m_isShown && m_popup == nullptr)
+    BAIL_OUT_IF (!m_isShown, S_OK);
+
+    if (!isPlaced)
     {
         sizeDip = MeasureDip (m_scaler.GetDpi());
         rect    = { m_anchor.left, m_anchor.bottom, m_anchor.left + m_scaler.ToPx ((int) sizeDip.cx), m_anchor.bottom + m_scaler.ToPx ((int) sizeDip.cy) };
     }
-    else if (m_isShown)
-    {
-        rect     = m_popup->GetPlacedRectScreenPx();
-        topLeft  = { rect.left,  rect.top    };
-        botRight = { rect.right, rect.bottom };
 
-        if (owner != nullptr)
-        {
-            ScreenToClient (owner, &topLeft);
-            ScreenToClient (owner, &botRight);
-        }
+    BAIL_OUT_IF (!isPlaced, S_OK);
 
-        rect = { topLeft.x, topLeft.y, botRight.x, botRight.y };
-    }
+    rect     = m_popup->GetPlacedRectScreenPx();
+    topLeft  = { rect.left,  rect.top    };
+    botRight = { rect.right, rect.bottom };
 
+    BAIL_OUT_IF (owner == nullptr, S_OK);
+
+    isMapped = ScreenToClient (owner, &topLeft) != FALSE && ScreenToClient (owner, &botRight) != FALSE;
+    CBRAF (isMapped, rect = RECT {});
+
+    rect = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+
+Error:
     return rect;
 }
 

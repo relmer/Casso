@@ -142,6 +142,12 @@ public:
     //  being torn off does while it is carried.
     void  SetStripForced (bool forced) { m_stripForced = forced; }
 
+    //  The group's corners that are also its window's, as DxuiPaneFrame's
+    //  kCorner flags, and the radius the window rounds them by. The frame
+    //  follows the window's curve there.
+    void  SetWindowCorners (UINT corners, int radiusDip) { m_windowCorners = corners; m_windowCornerDip = radiusDip; }
+    UINT  GetWindowCorners () const                      { return m_windowCorners; }
+
     //  A document tab's close button closes its pane; a tool window's close
     //  button shows only while its active pane can close.
     void  SetOnCloseTab    (CloseTabFn fn)    { m_onCloseTab    = std::move (fn); }
@@ -253,4 +259,8 @@ private:
     bool                 m_titlePressed  = false;
     bool                 m_titleDragged  = false;
     POINT                m_pressedAt     = {};
+
+    //  The corners the group shares with its window, and the window's radius.
+    UINT                 m_windowCorners   = 0;
+    int                  m_windowCornerDip = 0;
 };

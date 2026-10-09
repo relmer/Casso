@@ -683,7 +683,11 @@ bool DxuiTabGroup::IsChromeAt (POINT pointDip) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTabGroup::TryGetTabButtonAt (POINT pointDip, TitleButton & button, int & index, RECT & rect) const
+bool DxuiTabGroup::TryGetTabButtonAt (
+    POINT          pointDip,
+    TitleButton  & button,
+    int          & index,
+    RECT         & rect) const
 {
     DxuiTabStrip::TabButton  found = DxuiTabStrip::TabButton::None;
 
@@ -804,14 +808,16 @@ void DxuiTabGroup::LayoutStrip()
 //  measured by the renderer of the last paint, or before the first paint at
 //  an average character width. A leading mark goes ahead of the title; an
 //  indicator, a dot in the accent color, takes its place on a tab with none.
-//  A tab's pin and close button act as the title bar's do, for its pane.
+//  A document tab's pin and close button act as the title bar's do, for its
+//  pane. A tool window's tabs have neither, as Visual Studio's have none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabGroup::SyncStrip()
 {
     DxuiTabStrip::Style             style    = (m_kind == Kind::Document) ? DxuiTabStrip::Style::Document : DxuiTabStrip::Style::ToolWindow;
-    bool                            hasClose = m_onCloseTab != nullptr;
+    bool                            hasClose = m_kind == Kind::Document && m_onCloseTab != nullptr;
+    bool                            hasPin   = m_kind == Kind::Document && m_onTitleButton != nullptr;
     RECT                            strip    = GetStripRect();
     long                            x        = strip.left;
     std::vector<DxuiTabStrip::Tab>  tabs;
@@ -853,7 +859,7 @@ void DxuiTabGroup::SyncStrip()
 
     //  Set only between strip events, so none replaces itself as it runs.
     m_strip.SetOnClose  (hasClose ? DxuiTabStrip::CloseFn ([this] (int index) { m_pendingClose = index; }) : nullptr);
-    m_strip.SetOnPin    (m_onTitleButton ? DxuiTabStrip::PinFn ([this] (int index) { m_pendingPin = index; }) : nullptr);
+    m_strip.SetOnPin    (hasPin ? DxuiTabStrip::PinFn ([this] (int index) { m_pendingPin = index; }) : nullptr);
     m_strip.SetOnNewTab ((m_newTab && m_newTabShown && m_newTabShown (*this)) ? DxuiTabStrip::NewTabFn ([this] { m_pendingNewTab = true; }) : nullptr);
 }
 
@@ -1001,7 +1007,8 @@ void DxuiTabGroup::PaintFrame (IDxuiPainter & painter, const IDxuiTheme & theme)
 //  DxuiTabGroup::GetFrameSpec
 //
 //  The frame as the group stands: its bounds, its title bar and tab band,
-//  and where its selected tab shows along the band.
+//  where its selected tab shows along the band, and the corners it shares
+//  with its window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1013,12 +1020,14 @@ DxuiPaneFrameSpec DxuiTabGroup::GetFrameSpec() const
 
 
 
-    spec.pane       = m_boundsDip;
-    spec.toolWindow = m_kind == Kind::ToolWindow;
-    spec.titlePx    = title.bottom - title.top;
-    spec.bandPx     = HasStrip() ? strip.bottom - strip.top : 0;
-    spec.linePx     = DxuiPaneMetrics::GetLinePx (m_scaler);
-    spec.cornerPx   = DxuiPaneMetrics::GetCornerPx (m_scaler);
+    spec.pane           = m_boundsDip;
+    spec.toolWindow     = m_kind == Kind::ToolWindow;
+    spec.titlePx        = title.bottom - title.top;
+    spec.bandPx         = HasStrip() ? strip.bottom - strip.top : 0;
+    spec.linePx         = DxuiPaneMetrics::GetLinePx (m_scaler);
+    spec.cornerPx       = DxuiPaneMetrics::GetCornerPx (m_scaler);
+    spec.windowCorners  = m_windowCorners;
+    spec.windowCornerPx = m_scaler.ToPx (m_windowCornerDip);
 
     if (spec.bandPx > 0)
     {

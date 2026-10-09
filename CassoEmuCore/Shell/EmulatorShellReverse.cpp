@@ -1180,17 +1180,18 @@ void EmulatorShell::SyncHeatHistory (bool isAttached)
 //
 //  ServiceCallHistory
 //
-//  CPU thread, once a pass while the debugger exists. Attached, the
-//  debugger's call record is rebuilt from history whenever it starts
-//  mid-run; detached, before the debugger goes, the two are unlinked and a
-//  rebuild under way is dropped.
+//  CPU thread, once a pass while the debugger exists: the debugger's call
+//  record is rebuilt from history whenever it starts mid-run. With no
+//  history the two are unlinked, and a rebuild under way is dropped. The
+//  debugger going drops one too: its call history unlinks itself as it is
+//  destroyed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ServiceCallHistory (bool isAttached)
+void EmulatorShell::ServiceCallHistory()
 {
     ReverseController  * controller = (m_reverseHost != nullptr) ? &m_reverseHost->GetController() : nullptr;
-    bool                 isLinked   = isAttached && controller != nullptr;
+    bool                 isLinked   = controller != nullptr;
 
 
 
@@ -1199,12 +1200,8 @@ void EmulatorShell::ServiceCallHistory (bool isAttached)
         return;
     }
 
-    m_debugger->GetCallHistory().Attach (isLinked ? controller : nullptr, isLinked ? &m_callReplayer : nullptr);
-
-    if (isAttached)
-    {
-        m_debugger->GetCallHistory().Service();
-    }
+    m_debugger->GetCallHistory().Attach (controller, isLinked ? &m_callReplayer : nullptr);
+    m_debugger->GetCallHistory().Service();
 }
 
 

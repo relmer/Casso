@@ -146,6 +146,12 @@ public:
     void  SetFloating     (PaneFn dock);
     bool  IsFloatingSite  () const { return m_onDock != nullptr; }
 
+    //  The radius the window this site fills rounds its corners by. A group
+    //  whose corner is a corner of the site is drawn to that radius there, so
+    //  its outline follows the window's edge. Zero, the default, for a window
+    //  with square corners.
+    void  SetWindowCornerDip (int radiusDip);
+
     //  The pane a tear-off carries: while it is set, the group holding the
     //  pane shows its tab strip even for one pane, so the floating window
     //  moves with the tab the user grabbed. Empty when no tear-off is under
@@ -345,6 +351,10 @@ private:
     //  Each pane's minimum size, grown by the gap while one is set.
     DxuiPaneLayout::MinSizeFn  GetMinSizeWithGap() const;
 
+    //  A group's corners that are the window's, as DxuiPaneFrame's kCorner
+    //  flags: none while the window's corners are square.
+    UINT  GetWindowCorners (const RECT & group) const;
+
     void          PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     DxuiPaneLayout                                m_layout;
@@ -369,6 +379,7 @@ private:
     std::vector<DxuiPaneLayout::SplitRect>        m_splits;
     int                                           m_gapDip     = 0;
     int                                           m_marginDip  = 0;
+    int                                           m_cornerDip  = 0;   // the window's corner radius
     RECT                                          m_dockedArea = {};
     RECT                                          m_paneArea   = {};
     DxuiDpiScaler                                 m_scaler;

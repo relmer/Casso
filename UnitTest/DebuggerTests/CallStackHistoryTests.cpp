@@ -27,8 +27,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  power cycles and recorded inputs included, and the live record goes on
 //  from it as that one would; history that does not reach power-on, or is
 //  cut by a gap or a change of disks, gives a record whose bottom marks the
-//  calls before it as unknown, and the rebuild replays nothing before that
-//  point; a rebuild under way is shown in the pane, with its progress; a
+//  calls before it as not available, and the rebuild replays nothing before
+//  that point; a rebuild under way is shown in the pane, with its progress; a
 //  rebuild that stopped anywhere but where the machine stands is not taken;
 //  and closing the debugger, a reset or a move through history drops it
 //  cleanly, while a reverse command that leaves the machine where it was
@@ -476,20 +476,17 @@ namespace DebuggerTests
             size_t                    index     = 0;
             size_t                    i         = 0;
             bool                      isFound   = false;
+            bool                      areAt     = true;
 
 
 
-            for (i = 0; i < copies.GetCount(); i++)
+            for (i = 0; i < copies.GetCount() && areAt; i++)
             {
                 isFound = keyframes.TryFindByPosition (copies.GetPosition (i), index);
-
-                if (!isFound || keyframes.GetInfo (index).position != copies.GetPosition (i))
-                {
-                    return false;
-                }
+                areAt   = isFound && keyframes.GetInfo (index).position == copies.GetPosition (i);
             }
 
-            return true;
+            return areAt;
         }
 
 
@@ -690,9 +687,10 @@ namespace DebuggerTests
 
 
         //  History that starts after power-on gives the record a recorder
-        //  started where history starts would keep, with its bottom saying
-        //  that the calls before it are unknown, and the pane saying so.
-        TEST_METHOD (HistoryThatStartsLateSaysEarlierCallsAreUnknown)
+        //  started where history starts would keep, with its bottom marking
+        //  the calls before it as not available, and the pane's note showing
+        //  that.
+        TEST_METHOD (HistoryThatStartsLateMarksEarlierCallsUnavailable)
         {
             uint64_t                         stop      = FindPcAfter (kAttachAt, kHandler);
             HistoryRig                       rig       (kHistoryStart);
@@ -722,7 +720,7 @@ namespace DebuggerTests
             Assert::IsTrue (std::ranges::any_of (rows, [&bottom] (const CallStackPane::Row & row)
             {
                 return row.isNote && row.routine == CallStackPane::GetHistoryStartNote (bottom->pc);
-            }), L"the pane's note: the earlier calls are unknown");
+            }), L"the pane's note: the earlier calls are not available");
         }
 
 
@@ -953,7 +951,7 @@ namespace DebuggerTests
 
         //  A keyframe saved with disks other than the ones in the bays now
         //  cannot be loaded over them, so the record begins at the change of
-        //  disk, and marks the calls before it as unknown.
+        //  disk, and marks the calls before it as not available.
         TEST_METHOD (ADiskChangedInHistoryStartsTheRecordAfterIt)
         {
             uint64_t                       stop      = FindPcAfter (kAttachAt, kHandler);
@@ -1336,7 +1334,7 @@ namespace DebuggerTests
         //  second machine that stopped on any other cycle count or register
         //  replayed some other run, and the live record stays. Begun where
         //  the debugger opened, its bottom still marks that; begun again after
-        //  a move, its bottom no longer claims that history starts there.
+        //  a move, its bottom is TrackingRestarted, not TrackingBegan.
         TEST_METHOD (ARebuildThatStoppedOnAnotherStateIsNotTaken)
         {
             static const std::vector<std::pair<const wchar_t *, std::function<void (CallStackRebuildResult &)>>>  kChanges =
@@ -1427,7 +1425,7 @@ namespace DebuggerTests
             Assert::IsTrue (std::ranges::any_of (rows, [&bottom] (const CallStackPane::Row & row)
             {
                 return row.isNote && row.routine == CallStackPane::GetHistoryStartNote (bottom->pc);
-            }), L"the pane's note: the earlier calls are unknown");
+            }), L"the pane's note: the earlier calls are not available");
 
             AssertSameRecord (GetRecord (reference.base.session), GetRecord (rig.base.session), true);
         }

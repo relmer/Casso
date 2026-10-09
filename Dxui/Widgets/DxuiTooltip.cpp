@@ -84,9 +84,6 @@ void DxuiTooltip::ApplyVisualStudioLook()
     constexpr float     kShadowInsetDip  = 1.0f;
     constexpr float     kShadowOnDark    = 0.14f;
     constexpr float     kShadowOnLight   = 0.075f;
-
-
-
     DxuiShadow::Style   onDark           = { kShadowBlurDip, kShadowOffsetDip, kShadowInsetDip, kShadowOnDark  };
     DxuiShadow::Style   onLight          = { kShadowBlurDip, kShadowOffsetDip, kShadowInsetDip, kShadowOnLight };
 
@@ -796,7 +793,9 @@ float DxuiTooltip::GetMaxTextWidthDip() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::MeasureBoxPx (float & widthPx, float & heightPx)
+void DxuiTooltip::MeasureBoxPx (
+    float  & widthPx,
+    float  & heightPx)
 {
     HRESULT  hr      = S_OK;
     float    fontPx  = m_scaler.ToPxf (m_fontDip);

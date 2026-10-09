@@ -2360,7 +2360,7 @@ private:
     void            ServiceHistoryThumbnails();
     bool            TryPublishHistoryPlayhead();
     void            SyncHeatHistory         (bool isAttached);
-    void            ServiceCallHistory      (bool isAttached);
+    void            ServiceCallHistory();
 
 protected:
 

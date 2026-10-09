@@ -2208,7 +2208,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::MoveToPx (RECT anchorRectScreen, SIZE sizePx)
+HRESULT DxuiPopupHost::MoveToPx (
+    RECT  anchorRectScreen,
+    SIZE  sizePx)
 {
     HRESULT  hr = S_OK;
 

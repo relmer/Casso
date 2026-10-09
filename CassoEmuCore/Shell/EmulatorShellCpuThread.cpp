@@ -924,14 +924,14 @@ void EmulatorShell::AttachDebugger (std::unique_ptr<DebuggerController> controll
 //  CloseDebugger
 //
 //  Detaches before destroying, so the slice loop and the notifications never
-//  reach a controller that is going away.
+//  reach a controller that is going away. The controller's call history
+//  unlinks itself from history as it goes, dropping a rebuild under way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::CloseDebugger()
 {
-    SyncHeatHistory    (false);
-    ServiceCallHistory (false);
+    SyncHeatHistory (false);
 
     SetDebugRunDriver  (nullptr);
     SetDebugSession    (nullptr);
@@ -951,7 +951,7 @@ void EmulatorShell::CloseDebugger()
 //  ServiceDebugger
 //
 //  The CPU manager's service tick: once per pass through its loop, paused or
-//  running, so a client is answered either way. The call record's rebuild
+//  running, so a client gets a reply either way. The call record's rebuild
 //  from history is looked after here too, before the panes are gathered.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -961,7 +961,7 @@ void EmulatorShell::ServiceDebugger()
     if (m_debugger != nullptr)
     {
         m_debugger->Pump();
-        ServiceCallHistory (true);
+        ServiceCallHistory();
         PublishDebuggerView();
     }
 

@@ -107,21 +107,27 @@ struct DxuiPaneFramePart
 //  the band and whether a scroll arrow cuts it off on either side, and the
 //  outline's width and outer corner radius.
 //
+//  A floating pane's corners can be its window's own, which Windows rounds:
+//  `windowCorners` holds those corners, as DxuiPaneFrame's kCorner flags,
+//  and `windowCornerPx` the window's radius there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DxuiPaneFrameSpec
 {
-    RECT  pane        = {};
-    bool  toolWindow  = false;
-    long  titlePx     = 0;
-    long  bandPx      = 0;
-    bool  hasSelected = false;
-    long  selLeft     = 0;
-    long  selRight    = 0;
-    bool  openLeft    = false;
-    bool  openRight   = false;
-    long  linePx      = 1;
-    long  cornerPx    = 0;
+    RECT  pane           = {};
+    bool  toolWindow     = false;
+    long  titlePx        = 0;
+    long  bandPx         = 0;
+    bool  hasSelected    = false;
+    long  selLeft        = 0;
+    long  selRight       = 0;
+    bool  openLeft       = false;
+    bool  openRight      = false;
+    long  linePx         = 1;
+    long  cornerPx       = 0;
+    UINT  windowCorners  = 0;
+    long  windowCornerPx = 0;
 };
 
 
@@ -162,6 +168,10 @@ struct DxuiPaneFrameColors
 //  ring clipped to the box it belongs in, so no piece paints over another
 //  to correct it.
 //
+//  A corner the pane shares with a rounded window takes the window's radius,
+//  so the outline follows the window's edge rather than leaving it, and has
+//  no gap color outside it: the window ends there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiPaneFrame
@@ -181,6 +191,12 @@ public:
     //  too small to round.
     static long  GetCornerPx     (const RECT & pane, long cornerPx);
 
+    //  A pane's corners, for DxuiPaneFrameSpec::windowCorners.
+    static constexpr UINT  kCornerTopLeft     = 0x1;
+    static constexpr UINT  kCornerTopRight    = 0x2;
+    static constexpr UINT  kCornerBottomLeft  = 0x4;
+    static constexpr UINT  kCornerBottomRight = 0x8;
+
 private:
     struct Geometry;
 
@@ -197,6 +213,12 @@ private:
                                        const RECT & rect, long radius, long thickness);
     static void      AddQuarterRing   (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, long cx, long cy, const RECT & box);
     static void      AddFillet        (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, long cx, long cy, const RECT & box);
-    static void      AddCap           (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, const RECT & box);
+    static void      AddCap           (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, UINT corner);
+    static void      AddGapBox        (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, UINT corner);
+    static void      AddCornerFill    (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, DxuiPaneFrameRole role, const RECT & clip, bool atTop);
+    static void      AddCornerRing    (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, UINT corner);
+    static RECT      GetCornerBox     (const Geometry & g, UINT corner);
+    static long      GetPaneCornerPx  (const Geometry & g, UINT corner);
+    static bool      IsWindowCorner   (const Geometry & g, UINT corner);
     static bool      IsEmpty          (const RECT & rect);
 };

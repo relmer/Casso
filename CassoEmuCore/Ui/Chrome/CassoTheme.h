@@ -27,10 +27,9 @@ struct ChromeVisualState
 //  palettes (Skeuomorphic / DarkModern / RetroTerminal). WCAG color math
 //  lives in Dxui/Theme/DxuiColor.h; widgets derive accessible tints there.
 //
-//  Each preset's tooltip takes Visual Studio's dark proportions to its own
-//  panel color: the fill at 1.187 times the panel's luminance, as Visual
-//  Studio raises #282828 to #2C2C2C, and the border at 0.461 times the
-//  fill's, as it draws #1C1C1C around #2C2C2C.
+//  Each preset's tooltip is no brighter than the window it shows over: its
+//  fill is the panel color, and its border that fill at half the
+//  brightness, each channel halved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,8 +98,8 @@ struct CassoTheme : public DxuiTheme
         theme.buttonHover         = 0xFF3D547A;
         theme.buttonPressed       = 0xFF1F2C40;
         theme.buttonBorder        = 0xFF4A5F80;
-        theme.tooltipBg           = 0xFF1D2635;
-        theme.tooltipBorder       = 0xFF111823;
+        theme.tooltipBg           = 0xFF1A2230;
+        theme.tooltipBorder       = 0xFF0D1118;
         theme.tooltipText         = 0xFFE8EEF4;
         theme.errorText           = 0xFFFF6B6B;
         theme.resultText          = 0xFF4EC9E0;
@@ -150,8 +149,8 @@ struct CassoTheme : public DxuiTheme
         theme.buttonHover               = 0xFF45494F;
         theme.buttonPressed             = 0xFF23252A;
         theme.buttonBorder              = 0xFF55595F;
-        theme.tooltipBg                 = 0xFF212328;
-        theme.tooltipBorder             = 0xFF141519;
+        theme.tooltipBg                 = 0xFF1E2024;
+        theme.tooltipBorder             = 0xFF0F1012;
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                 = 0xFFFF6B6B;
         theme.resultText                = 0xFF4EC9E0;
@@ -201,8 +200,8 @@ struct CassoTheme : public DxuiTheme
         theme.buttonHover               = 0xFF286036;
         theme.buttonPressed             = 0xFF0F2814;
         theme.buttonBorder              = 0xFF3A7548;
-        theme.tooltipBg                 = 0xFF102A14;
-        theme.tooltipBorder             = 0xFF081B0B;
+        theme.tooltipBg                 = 0xFF0E2612;
+        theme.tooltipBorder             = 0xFF071309;
         theme.tooltipText               = 0xFFB7FCB9;
         theme.errorText                 = 0xFFFF6B6B;
         theme.resultText                = 0xFFFFC857;

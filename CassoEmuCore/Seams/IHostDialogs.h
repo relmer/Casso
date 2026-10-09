@@ -72,3 +72,24 @@ public:
                                      std::filesystem::path &  outFolder,
                                      bool &                   outPicked)  = 0;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NullHostDialogs
+//
+//  Pickers the user always backs out of, so every caller keeps what it had:
+//  for a host with no windows to show one over, as a test's is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class NullHostDialogs : public IHostDialogs
+{
+public:
+    HRESULT  PickFileToOpen (HWND, const FileDialogSpec &, std::filesystem::path &, bool & outPicked) override { outPicked = false; return S_OK; }
+    HRESULT  PickFileToSave (HWND, const FileDialogSpec &, std::filesystem::path &, bool & outPicked) override { outPicked = false; return S_OK; }
+    HRESULT  PickFolder     (HWND, std::filesystem::path &, bool & outPicked)                         override { outPicked = false; return S_OK; }
+};

@@ -612,47 +612,60 @@ namespace DxuiTabGroupTests
         }
 
 
-        //  A title bar's pin and close glyphs are a tab's, 16 px across at
+        //  A title bar's pin and close glyphs are a document tab's, the pin at
+        //  10.67 DIP and the close at 14, so their ink is 16 px across at
         //  150%, and the menu's chevron is 8 DIP, 12 px across at 150%.
         TEST_METHOD (TheTitleBarsGlyphsAreTheTabsGlyphs)
         {
-            constexpr float       kMenuGlyphDip = 8.0f;
-            DxuiTabGroup          group;
-            MockDxuiControl       a;
-            MockDxuiControl       b;
-            DxuiDpiScaler         scaler;
-            MockDxuiPainter       painter;
-            MockDxuiTextRenderer  text;
-            MockDxuiTheme         theme;
-            float                 pin           = 0.0f;
-            float                 close         = 0.0f;
-            float                 menu          = 0.0f;
+            constexpr UINT   kDpis[]       = { 96, 120, 144 };
+            constexpr float  kPinPx[]      = { 10.67f, 13.34f, 16.0f };
+            constexpr float  kClosePx[]    = { 14.0f, 17.5f, 21.0f };
+            constexpr float  kMenuPx[]     = { 8.0f, 10.0f, 12.0f };
+            constexpr float  kToleranceDip = 0.01f;
 
 
 
-            scaler.SetDpi (144);
-            group.SetKind (DxuiTabGroup::Kind::ToolWindow);
-            group.AddTab  (L"Registers", &a);
-            group.AddTab  (L"Stack",     &b);
-            group.Layout  (RECT { 0, 0, 400, 300 }, scaler);
-            group.Paint   (painter, text, theme);
-
-            for (const RecordedTextCall & call : text.Calls())
+            for (size_t i = 0; i < std::size (kDpis); i++)
             {
-                pin   = (call.text == s_kpszMdl2Pinned)      ? call.fontSizeDip : pin;
-                close = (call.text == s_kpszMdl2Cancel)      ? call.fontSizeDip : close;
-                menu  = (call.text == s_kpszMdl2ChevronDown) ? call.fontSizeDip : menu;
-            }
+                DxuiTabGroup          group;
+                MockDxuiControl       a;
+                MockDxuiControl       b;
+                DxuiDpiScaler         scaler;
+                MockDxuiPainter       painter;
+                MockDxuiTextRenderer  text;
+                MockDxuiTheme         theme;
+                size_t                glyphs = 0;
+                float                 pin    = 0.0f;
+                float                 close  = 0.0f;
+                float                 menu   = 0.0f;
+                std::wstring          at     = std::format (L"{} dpi", kDpis[i]);
 
-            Assert::AreEqual (scaler.ToPxf (DxuiTabStrip::kPinGlyphDip),   pin,   L"the pin");
-            Assert::AreEqual (scaler.ToPxf (DxuiTabStrip::kCloseGlyphDip), close, L"the close button");
-            Assert::AreEqual (scaler.ToPxf (kMenuGlyphDip),                menu,  L"the menu");
+                scaler.SetDpi (kDpis[i]);
+                group.SetKind (DxuiTabGroup::Kind::ToolWindow);
+                group.AddTab  (L"Registers", &a);
+                group.AddTab  (L"Stack",     &b);
+                group.Layout  (RECT { 0, 0, 400, 300 }, scaler);
+                group.Paint   (painter, text, theme);
+
+                for (const RecordedTextCall & call : text.Calls())
+                {
+                    glyphs += (call.text == s_kpszMdl2Pinned || call.text == s_kpszMdl2Cancel || call.text == s_kpszMdl2ChevronDown) ? 1 : 0;
+                    pin     = (call.text == s_kpszMdl2Pinned)      ? call.fontSizeDip : pin;
+                    close   = (call.text == s_kpszMdl2Cancel)      ? call.fontSizeDip : close;
+                    menu    = (call.text == s_kpszMdl2ChevronDown) ? call.fontSizeDip : menu;
+                }
+
+                Assert::AreEqual ((size_t) 3, glyphs, (L"the title bar's three glyphs and no tab's, " + at).c_str());
+                Assert::AreEqual (kPinPx[i],   pin,   kToleranceDip, (L"the pin, " + at).c_str());
+                Assert::AreEqual (kClosePx[i], close, kToleranceDip, (L"the close button, " + at).c_str());
+                Assert::AreEqual (kMenuPx[i],  menu,  kToleranceDip, (L"the menu, " + at).c_str());
+            }
         }
 
 
-        //  Every tab keeps room for its pin and close button, so no tab's
-        //  width changes as it is selected or comes under the pointer, in
-        //  either kind of group.
+        //  Every document tab keeps room for its pin and close button, and a
+        //  tool window's tabs have neither, so no tab's width changes as it
+        //  is selected or comes under the pointer, in either kind of group.
         TEST_METHOD (NeitherHoverNorSelectionChangesATabsWidth)
         {
             for (DxuiTabGroup::Kind kind : { DxuiTabGroup::Kind::Document, DxuiTabGroup::Kind::ToolWindow })
@@ -683,38 +696,75 @@ namespace DxuiTabGroupTests
         }
 
 
-        //  A tab's pin acts as the title bar's pin does, for the tab's own
-        //  pane, without selecting the tab, in either kind of group. It is
-        //  the second 24-px square from the tab's right end.
+        //  A document tab's pin acts as the title bar's pin does, for the
+        //  tab's own pane, without selecting the tab. It is the second 24-px
+        //  square from the tab's right end.
         TEST_METHOD (ATabsPinActsAsTheTitleBarsPin)
         {
-            for (DxuiTabGroup::Kind kind : { DxuiTabGroup::Kind::Document, DxuiTabGroup::Kind::ToolWindow })
-            {
-                Rig                        rig;
-                RECT                       tab    = {};
-                int                        clicks = 0;
-                DxuiTabGroup::TitleButton  which  = DxuiTabGroup::TitleButton::Menu;
-                int                        index  = -1;
-                long                       x      = 0;
-                long                       y      = 0;
+            Rig                        rig;
+            RECT                       tab    = {};
+            int                        clicks = 0;
+            DxuiTabGroup::TitleButton  which  = DxuiTabGroup::TitleButton::Menu;
+            int                        index  = -1;
+            long                       x      = 0;
+            long                       y      = 0;
 
-                rig.group.SetKind          (kind);
-                rig.group.SetOnTitleButton ([&] (DxuiTabGroup::TitleButton button, int at, POINT) { clicks++; which = button; index = at; });
-                rig.group.Layout           (RECT { 0, 0, 400, 300 }, rig.scaler);
 
-                tab = rig.group.GetTabRect (1);
-                x   = tab.right - 1 - 36;
-                y   = (tab.top + tab.bottom) / 2;
 
-                rig.group.OnMouse (Mouse (DxuiMouseEventKind::Move, x, y));
-                rig.group.OnMouse (Mouse (DxuiMouseEventKind::Down, x, y));
-                rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   x, y));
+            rig.group.SetOnTitleButton ([&] (DxuiTabGroup::TitleButton button, int at, POINT) { clicks++; which = button; index = at; });
+            rig.group.Layout           (RECT { 0, 0, 400, 300 }, rig.scaler);
 
-                Assert::AreEqual (1, clicks);
-                Assert::IsTrue   (which == DxuiTabGroup::TitleButton::Pin);
-                Assert::AreEqual (1, index,                  L"for the tab's pane");
-                Assert::AreEqual (0, rig.group.GetActive(), L"which stays unselected");
-            }
+            tab = rig.group.GetTabRect (1);
+            x   = tab.right - 1 - 36;
+            y   = (tab.top + tab.bottom) / 2;
+
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Move, x, y));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Down, x, y));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   x, y));
+
+            Assert::AreEqual (1, clicks);
+            Assert::IsTrue   (which == DxuiTabGroup::TitleButton::Pin);
+            Assert::AreEqual (1, index,                  L"for the tab's pane");
+            Assert::AreEqual (0, rig.group.GetActive(), L"which stays unselected");
+        }
+
+
+        //  A tool window's tabs show no pin or close button, as Visual
+        //  Studio's do not, with both handlers set: nothing is reported over
+        //  where a document tab's would be, and a press there selects the
+        //  tab without pinning or closing anything.
+        TEST_METHOD (AToolWindowsTabsHaveNoPinOrClose)
+        {
+            Rig                        rig;
+            RECT                       tab    = {};
+            RECT                       rect   = {};
+            int                        clicks = 0;
+            int                        closes = 0;
+            int                        index  = -1;
+            DxuiTabGroup::TitleButton  button = DxuiTabGroup::TitleButton::Menu;
+            long                       y      = 0;
+
+
+
+            rig.group.SetKind          (DxuiTabGroup::Kind::ToolWindow);
+            rig.group.SetOnCloseTab    ([&] (int) { closes++; });
+            rig.group.SetOnTitleButton ([&] (DxuiTabGroup::TitleButton, int, POINT) { clicks++; });
+            rig.group.Layout           (RECT { 0, 0, 400, 300 }, rig.scaler);
+
+            tab = rig.group.GetTabRect (1);
+            y   = (tab.top + tab.bottom) / 2;
+
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Move, tab.right - 1 - 36, y));
+
+            Assert::IsFalse (rig.group.TryGetTabButtonAt (POINT { tab.right - 1 - 36, y }, button, index, rect), L"no pin on the hovered tab");
+            Assert::IsFalse (rig.group.TryGetTabButtonAt (POINT { tab.right - 1 - 12, y }, button, index, rect), L"and no close button");
+
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Down, tab.right - 1 - 12, y));
+            rig.group.OnMouse (Mouse (DxuiMouseEventKind::Up,   tab.right - 1 - 12, y));
+
+            Assert::AreEqual (0, clicks,                 L"nothing pinned");
+            Assert::AreEqual (0, closes,                 L"nothing closed");
+            Assert::AreEqual (1, rig.group.GetActive(), L"the press selects the tab");
         }
 
 
@@ -776,10 +826,10 @@ namespace DxuiTabGroupTests
         }
 
 
-        //  The selected tab's label and glyphs are in the full foreground
-        //  while the group has the focused look, and every other label, the
-        //  selected one's too without it, a step toward the muted foreground.
-        //  A tool window's title follows the selected tab's label.
+        //  In a document group, the selected tab's label and glyphs are in
+        //  the full foreground while the group has the focused look, and
+        //  every other label, the selected one's too without it, a step toward
+        //  the muted foreground.
         TEST_METHOD (TheFocusedGroupsSelectedTabIsInTheFullForeground)
         {
             for (bool focused : { false, true })
@@ -791,6 +841,8 @@ namespace DxuiTabGroupTests
                 uint32_t              other    = DxuiTabStrip::GetLabelInk (theme, false);
                 uint32_t              selected = focused ? theme.Foreground() : other;
                 uint32_t              glyph    = focused ? theme.Foreground() : DxuiTabStrip::GetGlyphInk (theme, false);
+                size_t                labels   = 0;
+                size_t                glyphs   = 0;
 
                 Assert::AreNotEqual (theme.Foreground(), other, L"the two inks differ");
 
@@ -803,25 +855,84 @@ namespace DxuiTabGroupTests
                 {
                     if (call.text == L"Registers")
                     {
+                        labels++;
                         Assert::AreEqual (selected, call.argb, L"the selected tab's label");
                     }
                     else if (call.text == L"Stack" || call.text == L"Watch")
                     {
+                        labels++;
                         Assert::AreEqual (other, call.argb, L"another tab's label");
                     }
                     else if (call.text == s_kpszMdl2Cancel)
                     {
+                        glyphs++;
                         Assert::AreEqual (glyph, call.argb, L"the selected tab's close glyph");
                     }
                 }
+
+                Assert::AreEqual ((size_t) 3, labels, L"every tab's label");
+                Assert::AreEqual ((size_t) 1, glyphs, L"and the selected tab's close glyph, the one tab with buttons");
+            }
+        }
+
+
+        //  A tool window's title and its menu, pin and close glyphs take the
+        //  inks of a selected tab: the full foreground while the group has the
+        //  focused look, and otherwise a step toward the muted foreground for
+        //  the title and a shade under that for the glyphs.
+        TEST_METHOD (TheToolWindowsTitleTakesTheSelectedTabsInks)
+        {
+            for (bool focused : { false, true })
+            {
+                Rig                   rig;
+                MockDxuiPainter       painter;
+                MockDxuiTextRenderer  text;
+                MockDxuiTheme         theme;
+                RECT                  title  = {};
+                uint32_t              label  = DxuiTabStrip::GetLabelInk (theme, focused);
+                uint32_t              glyph  = DxuiTabStrip::GetGlyphInk (theme, focused);
+                size_t                titles = 0;
+                size_t                glyphs = 0;
+                std::wstring          look   = focused ? L"focused" : L"unfocused";
+
+                Assert::AreNotEqual (DxuiTabStrip::GetLabelInk (theme, true), DxuiTabStrip::GetLabelInk (theme, false), L"the two label inks differ");
+                Assert::AreNotEqual (DxuiTabStrip::GetGlyphInk (theme, true), DxuiTabStrip::GetGlyphInk (theme, false), L"and the two glyph inks");
+
+                rig.group.SetKind        (DxuiTabGroup::Kind::ToolWindow);
+                rig.group.Layout         (RECT { 0, 0, 400, 300 }, rig.scaler);
+                rig.group.SetFocusedLook (focused);
+                rig.group.Paint          (painter, text, theme);
+
+                title = rig.group.GetTitleRect();
+
+                for (const RecordedTextCall & call : text.Calls())
+                {
+                    bool  inTitle = call.y >= (float) title.top && call.y < (float) title.bottom;
+                    bool  isGlyph = call.text == s_kpszMdl2ChevronDown || call.text == s_kpszMdl2Pinned || call.text == s_kpszMdl2Cancel;
+
+                    if (inTitle && call.text == L"Registers")
+                    {
+                        titles++;
+                        Assert::AreEqual (label, call.argb, (L"the title, " + look).c_str());
+                    }
+                    else if (inTitle && isGlyph)
+                    {
+                        glyphs++;
+                        Assert::AreEqual (glyph, call.argb, (L"a title bar glyph, " + look).c_str());
+                    }
+                }
+
+                Assert::AreEqual ((size_t) 1, titles, (L"the title, " + look).c_str());
+                Assert::AreEqual ((size_t) 3, glyphs, (L"the menu, pin and close glyphs, " + look).c_str());
             }
         }
 
 
         //  With Visual Studio's colors -- a foreground of #FFFFFF, muted to
         //  #C5C5C5, and content of #282828, so a band of #262626 -- the inks
-        //  are Visual Studio's: other labels #D7D7D7, glyphs #D1D1D1, and a
-        //  hovered tab #333333 once laid over the band.
+        //  are Visual Studio's: other labels #D7D7D7, glyphs #D1D1D1, the
+        //  hovered tab's label #D9D9D9 and glyphs #D3D3D3, and a hovered tab
+        //  #333333 once laid over the band.
         TEST_METHOD (TheInksReproduceVisualStudio)
         {
             constexpr float  kChannel = 255.0f;
@@ -846,6 +957,8 @@ namespace DxuiTabGroupTests
             Assert::AreEqual (0xFFD7D7D7u, DxuiTabStrip::GetLabelInk (theme, false));
             Assert::AreEqual (0xFFFFFFFFu, DxuiTabStrip::GetGlyphInk (theme, true));
             Assert::AreEqual (0xFFD1D1D1u, DxuiTabStrip::GetGlyphInk (theme, false));
+            Assert::AreEqual (0xFFD9D9D9u, DxuiTabStrip::GetHoveredLabelInk (theme), L"the hovered tab's label");
+            Assert::AreEqual (0xFFD3D3D3u, DxuiTabStrip::GetHoveredGlyphInk (theme), L"and its glyphs");
             Assert::AreEqual (0x33L,       over, L"#333333 over the band");
         }
 

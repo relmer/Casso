@@ -169,34 +169,34 @@ namespace DxuiDockDropPreviewTests
         //  and the new tab is 125 px wide, from the line to the bottom.
         TEST_METHOD (ATabDropOnAToolWindowShadesItDownToItsLineAndATab)
         {
+            HRESULT                   hr    = S_OK;
             Rig                       rig;
             DxuiTabGroup            * regs  = rig.GetGroupOf (rig.regs);
             const DxuiDockDropZone  * zone  = nullptr;
             RECT                      pane  = {};
             long                      line  = 0;
+            bool                      isTab = false;
 
 
 
-            if (regs == nullptr)
-            {
-                Assert::Fail (L"the registers are in a group");
-                return;
-            }
+            Assert::IsNotNull (regs, L"the registers are in a group");
+            CBR (regs != nullptr);
 
             pane = regs->GetBounds();
             line = regs->GetStripRect().top - DxuiPaneMetrics::GetLinePx (rig.scaler);
 
             rig.site.BeginDrag (L"console");
-            zone = rig.HoverCross (*regs, DxuiDockGuideKind::SmallCross, DxuiDockGuideButton::Center);
+            zone  = rig.HoverCross (*regs, DxuiDockGuideKind::SmallCross, DxuiDockGuideButton::Center);
+            isTab = zone != nullptr && zone->kind == DxuiDockDropZone::Kind::Tab;
 
-            if (zone == nullptr || zone->kind != DxuiDockDropZone::Kind::Tab)
-            {
-                Assert::Fail (L"the cross's center button is under the pointer");
-                return;
-            }
+            Assert::IsTrue (isTab, L"the cross's center button is under the pointer");
+            CBR (zone != nullptr);
 
             CheckRect (RECT { pane.left, pane.top, pane.right,      line        }, zone->preview,    L"the pane, short of its line");
             CheckRect (RECT { pane.left, line,     pane.left + 125, pane.bottom }, zone->previewTab, L"a 125-px tab over the line and the band");
+
+        Error:
+            return;
         }
 
 
@@ -204,20 +204,21 @@ namespace DxuiDockDropPreviewTests
         //  so its shade shows them where a tool window with tabs has them.
         TEST_METHOD (ATabDropOnALoneToolWindowShadesTheTabsItWouldGain)
         {
+            HRESULT                   hr      = S_OK;
             Rig                       rig;
             DxuiTabGroup            * regs    = rig.GetGroupOf (rig.regs);
             DxuiTabGroup            * console = rig.GetGroupOf (rig.console);
             const DxuiDockDropZone  * zone    = nullptr;
             RECT                      pane    = {};
             long                      depth   = 0;
+            bool                      isTab   = false;
 
 
 
-            if (regs == nullptr || console == nullptr)
-            {
-                Assert::Fail (L"the registers and the console are in groups");
-                return;
-            }
+            Assert::IsNotNull (regs,    L"the registers are in a group");
+            Assert::IsNotNull (console, L"and the console");
+            CBR (regs != nullptr);
+            CBR (console != nullptr);
 
             pane  = console->GetBounds();
             depth = regs->GetBounds().bottom - (regs->GetStripRect().top - DxuiPaneMetrics::GetLinePx (rig.scaler));
@@ -225,49 +226,50 @@ namespace DxuiDockDropPreviewTests
             Assert::IsTrue (console->GetStripRect().bottom <= console->GetStripRect().top, L"the console shows no tabs yet");
 
             rig.site.BeginDrag (L"stack");
-            zone = rig.HoverCross (*console, DxuiDockGuideKind::SmallCross, DxuiDockGuideButton::Center);
+            zone  = rig.HoverCross (*console, DxuiDockGuideKind::SmallCross, DxuiDockGuideButton::Center);
+            isTab = zone != nullptr && zone->kind == DxuiDockDropZone::Kind::Tab;
 
-            if (zone == nullptr || zone->kind != DxuiDockDropZone::Kind::Tab)
-            {
-                Assert::Fail (L"the cross's center button is under the pointer");
-                return;
-            }
+            Assert::IsTrue (isTab, L"the cross's center button is under the pointer");
+            CBR (zone != nullptr);
 
             CheckRect (RECT { pane.left, pane.top,            pane.right,      pane.bottom - depth }, zone->preview,    L"the pane, short of the line its tabs would bring");
             CheckRect (RECT { pane.left, pane.bottom - depth, pane.left + 125, pane.bottom          }, zone->previewTab, L"the tab, as deep as a tool window's line and band");
+
+        Error:
+            return;
         }
 
 
         TEST_METHOD (ATabDropOnADocumentShadesBelowItsTabs)
         {
+            HRESULT                   hr    = S_OK;
             Rig                       rig;
-            DxuiTabGroup            * code = rig.GetGroupOf (rig.code);
-            const DxuiDockDropZone  * zone = nullptr;
-            RECT                      pane = {};
-            RECT                      body = {};
+            DxuiTabGroup            * code  = rig.GetGroupOf (rig.code);
+            const DxuiDockDropZone  * zone  = nullptr;
+            RECT                      pane  = {};
+            RECT                      body  = {};
+            bool                      isTab = false;
 
 
 
-            if (code == nullptr)
-            {
-                Assert::Fail (L"the documents are in a group");
-                return;
-            }
+            Assert::IsNotNull (code, L"the documents are in a group");
+            CBR (code != nullptr);
 
             pane = code->GetBounds();
             body = code->GetBodyRect();
 
             rig.site.BeginDrag (L"console");
-            zone = rig.HoverCross (*code, DxuiDockGuideKind::LargeCross, DxuiDockGuideButton::Center);
+            zone  = rig.HoverCross (*code, DxuiDockGuideKind::LargeCross, DxuiDockGuideButton::Center);
+            isTab = zone != nullptr && zone->kind == DxuiDockDropZone::Kind::Tab;
 
-            if (zone == nullptr || zone->kind != DxuiDockDropZone::Kind::Tab)
-            {
-                Assert::Fail (L"the cross's center button is under the pointer");
-                return;
-            }
+            Assert::IsTrue (isTab, L"the cross's center button is under the pointer");
+            CBR (zone != nullptr);
 
             CheckRect (RECT { pane.left, body.top, pane.right,      pane.bottom }, zone->preview,    L"the pane below its tabs and their line");
             CheckRect (RECT { pane.left, pane.top, pane.left + 125, body.top    }, zone->previewTab, L"a 125-px tab over the band and the line");
+
+        Error:
+            return;
         }
 
 
@@ -292,6 +294,8 @@ namespace DxuiDockDropPreviewTests
                 { true,  DxuiDockGuideButton::SplitRight, L"split off to the right of the documents" },
             };
 
+            HRESULT  hr = S_OK;
+
 
 
             for (const Case & test : kCases)
@@ -303,20 +307,14 @@ namespace DxuiDockDropPreviewTests
                 RECT                      preview = {};
                 POINT                     drop    = {};
 
-                if (target == nullptr)
-                {
-                    Assert::Fail (test.what);
-                    return;
-                }
+                Assert::IsNotNull (target, test.what);
+                CBR (target != nullptr);
 
                 rig.site.BeginDrag (L"console");
                 zone = rig.HoverCross (*target, test.onDocuments ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::SmallCross, test.button);
 
-                if (zone == nullptr)
-                {
-                    Assert::Fail (test.what);
-                    return;
-                }
+                Assert::IsNotNull (zone, test.what);
+                CBR (zone != nullptr);
 
                 preview = zone->preview;
                 drop    = POINT { (zone->target.left + zone->target.right) / 2, (zone->target.top + zone->target.bottom) / 2 };
@@ -325,14 +323,14 @@ namespace DxuiDockDropPreviewTests
 
                 landed = rig.GetGroupOf (rig.console);
 
-                if (landed == nullptr)
-                {
-                    Assert::Fail (test.what);
-                    return;
-                }
+                Assert::IsNotNull (landed, test.what);
+                CBR (landed != nullptr);
 
                 CheckRect (landed->GetBounds(), preview, test.what);
             }
+
+        Error:
+            return;
         }
 
 
@@ -341,22 +339,22 @@ namespace DxuiDockDropPreviewTests
         //  Studio's 8 px at 125%.
         TEST_METHOD (AWindowEdgeShadeReachesOverTheMargin)
         {
+            HRESULT                   hr      = S_OK;
             Rig                       rig;
             DxuiTabGroup            * landed  = nullptr;
             const DxuiDockDropZone  * zone    = nullptr;
             RECT                      preview = {};
             POINT                     drop    = {};
+            bool                      isEdge  = false;
 
 
 
             rig.site.BeginDrag (L"console");
-            zone = rig.HoverEdge (DxuiDockSide::Left);
+            zone   = rig.HoverEdge (DxuiDockSide::Left);
+            isEdge = zone != nullptr && zone->kind == DxuiDockDropZone::Kind::Edge;
 
-            if (zone == nullptr || zone->kind != DxuiDockDropZone::Kind::Edge)
-            {
-                Assert::Fail (L"the left edge guide's button is under the pointer");
-                return;
-            }
+            Assert::IsTrue (isEdge, L"the left edge guide's button is under the pointer");
+            CBR (zone != nullptr);
 
             preview = zone->preview;
             drop    = POINT { (zone->target.left + zone->target.right) / 2, (zone->target.top + zone->target.bottom) / 2 };
@@ -364,32 +362,30 @@ namespace DxuiDockDropPreviewTests
             Assert::IsTrue (rig.site.EndDrag (drop));
             landed = rig.GetGroupOf (rig.console);
 
-            if (landed == nullptr)
-            {
-                Assert::Fail (L"the console docked");
-                return;
-            }
+            Assert::IsNotNull (landed, L"the console docked");
+            CBR (landed != nullptr);
 
             Assert::AreEqual (8L, landed->GetBounds().left, L"the pane lands inside the margin");
             CheckRect (RECT { s_kBounds.left, s_kBounds.top, landed->GetBounds().right, s_kBounds.bottom }, preview,
                        L"the shade reaches the docked area's edges on three sides");
+
+        Error:
+            return;
         }
 
 
         //  The shade is the theme's own, faint, and only a fill.
         TEST_METHOD (TheShadeIsTheThemesDockPreviewWithNoOutline)
         {
+            HRESULT         hr     = S_OK;
             Rig             rig;
             DxuiTabGroup  * regs   = rig.GetGroupOf (rig.regs);
             size_t          shades = 0;
 
 
 
-            if (regs == nullptr)
-            {
-                Assert::Fail (L"the registers are in a group");
-                return;
-            }
+            Assert::IsNotNull (regs, L"the registers are in a group");
+            CBR (regs != nullptr);
 
             rig.site.BeginDrag (L"console");
             (void) rig.HoverCross (*regs, DxuiDockGuideKind::SmallCross, DxuiDockGuideButton::DockTop);
@@ -408,6 +404,9 @@ namespace DxuiDockDropPreviewTests
 
             Assert::AreEqual ((size_t) 1, shades, L"a side drop shades one rect");
             Assert::AreEqual (0x1Eu,      rig.theme.DockPreview() >> 24, L"at Visual Studio's alpha");
+
+        Error:
+            return;
         }
 
 
@@ -416,6 +415,7 @@ namespace DxuiDockDropPreviewTests
         //  over its picture where they meet, and the others are untouched.
         TEST_METHOD (TheShadeLiesOverTheHoveredGuideAndUnderTheOthers)
         {
+            HRESULT                        hr     = S_OK;
             Rig                            rig;
             DxuiTabGroup                 * regs   = rig.GetGroupOf (rig.regs);
             const DxuiDockDropZone       * zone   = nullptr;
@@ -428,11 +428,8 @@ namespace DxuiDockDropPreviewTests
 
 
 
-            if (regs == nullptr)
-            {
-                Assert::Fail (L"the registers are in a group");
-                return;
-            }
+            Assert::IsNotNull (regs, L"the registers are in a group");
+            CBR (regs != nullptr);
 
             colors.border       = rig.theme.DockGuideBorder();
             colors.fill         = rig.theme.DockGuideFill();
@@ -445,11 +442,8 @@ namespace DxuiDockDropPreviewTests
             zone  = rig.HoverCross (*regs, DxuiDockGuideKind::SmallCross, DxuiDockGuideButton::Center);
             marks = rig.site.GetDragMarks (rig.theme);
 
-            if (zone == nullptr)
-            {
-                Assert::Fail (L"the cross's center button is under the pointer");
-                return;
-            }
+            Assert::IsNotNull (zone, L"the cross's center button is under the pointer");
+            CBR (zone != nullptr);
 
             for (const DxuiDockDragMark & mark : marks)
             {
@@ -487,6 +481,9 @@ namespace DxuiDockDropPreviewTests
 
                 Assert::IsTrue (plain.bgraPremul == guides[i].image->bgraPremul, L"an edge guide over the shade shows none of it");
             }
+
+        Error:
+            return;
         }
 
 

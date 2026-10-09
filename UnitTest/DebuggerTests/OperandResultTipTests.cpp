@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "CaptureTests/FakeHostDialogs.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -17,50 +16,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace OperandResultTipTests
 {
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  TipHost
-    //
     //  A host that does nothing; the tests read only the window's own state.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class TipHost : public IDebuggerWindowHost
-    {
-    public:
-        void  RunDebuggerCommand       (const std::string &)                      override {}
-        void  RunDebuggerCommandInMode (const std::string &, CommandMode)         override {}
-        void  RunDebuggerAction        (const DebuggerAction &)                   override {}
-        void  PauseDebugger            ()                                         override {}
-        void  SetDebuggerCodeLines     (int, int)                                 override {}
-        void  SetDebuggerCodeAddress   (std::optional<Word>, int)                 override {}
-        void  SetDebuggerCodeTop       (Word, int)                                override {}
-        void  SetDebuggerFollowView    (int)                                      override {}
-        void  CloseDebuggerCodeView    (int)                                      override {}
-        void  SetDebuggerTraceTop      (std::optional<uint64_t>)                  override {}
-        void  GoToDebuggerMemory       (int, const std::string &)                 override {}
-        void  ScrollDebuggerCode       (int, int)                                 override {}
-        void  OnDebuggerWindowClosed   ()                                         override {}
-        void  SetDebuggerKeyScheme     (const std::string &)                      override {}
-        void  SetDebuggerLayout        (const std::string &)                      override {}
-        void  SetDebuggerOpenViews     (const std::string &)                      override {}
-        void  SetDebuggerPlacement     (const RECT &)                             override {}
-        void  SetDebuggerMemoryWindow  (int, std::optional<Word>)                 override {}
-
-        bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
-        bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
-
-        IHostDialogs &  GetHostDialogs()         noexcept override { return m_dialogs; }
-        std::string     GetDebuggerKeyScheme()            override { return {}; }
-        std::string     GetDebuggerLayout()               override { return {}; }
-        std::string     GetDebuggerOpenViews()            override { return {}; }
-
-        SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
-        SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
-
-    private:
-        FakeHostDialogs  m_dialogs;
-    };
+    using TipHost = NullDebuggerWindowHost;
 
 
 

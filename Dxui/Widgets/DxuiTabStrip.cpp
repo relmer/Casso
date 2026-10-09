@@ -19,7 +19,8 @@
 //  compact styles take `fill`, `hover` for a button's wash and `text` for
 //  the arrows and the +, and the rest: `tabHover` under the pointer, on a
 //  tab, an arrow or the +, and each label and glyph ink, the `Focused` ones
-//  for the selected tab of the pane the user works in.
+//  for the selected tab of the pane the user works in and the `Hovered` ones
+//  for the tab under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,8 +35,10 @@ struct DxuiTabStrip::Palette
     uint32_t  tabHover     = 0;
     uint32_t  label        = 0;
     uint32_t  labelFocused = 0;
+    uint32_t  labelHovered = 0;
     uint32_t  glyph        = 0;
     uint32_t  glyphFocused = 0;
+    uint32_t  glyphHovered = 0;
 };
 
 
@@ -749,7 +752,6 @@ void DxuiTabStrip::PaintArrow (IDxuiPainter & painter, IDxuiTextRenderer & text,
 {
     constexpr float  s_kArrowFontDip   = 9.0f;
     constexpr float  s_kArrowIdleScale = 0.35f;
-    constexpr float  s_kPressedScale   = 0.82f;
 
 
 
@@ -760,7 +762,7 @@ void DxuiTabStrip::PaintArrow (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float     height  = (float) (m_boundsDip.bottom - m_boundsDip.top);
     bool      enabled = CanScroll (direction);
     uint32_t  color   = enabled ? textArgb : DxuiColor::Scale (textArgb, s_kArrowIdleScale);
-    uint32_t  wash    = (m_pressedArrow == direction) ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb;
+    uint32_t  wash    = (m_pressedArrow == direction) ? DxuiColor::Darken (hoverArgb, kPressedScale) : hoverArgb;
     RECT      area    = { (long) left, m_boundsDip.top, (long) left + arrow, m_boundsDip.bottom };
 
 
@@ -872,14 +874,13 @@ bool DxuiTabStrip::IsOverNewTab (int x, int y) const
 
 void DxuiTabStrip::PaintNewTab (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const
 {
-    constexpr float  s_kGlyphDip     = 16.0f;
-    constexpr float  s_kPressedScale = 0.82f;
+    constexpr float  s_kGlyphDip = 16.0f;
 
 
 
     HRESULT   hr   = S_OK;
     RECT      rc   = GetNewTabRect();
-    uint32_t  wash = m_pressedNewTab ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb;
+    uint32_t  wash = m_pressedNewTab ? DxuiColor::Darken (hoverArgb, kPressedScale) : hoverArgb;
 
 
 
@@ -1116,25 +1117,26 @@ RECT DxuiTabStrip::GetCloseRect (int index) const
 //
 //  GetTabButtonRect
 //
-//  Visual Studio's squares, ToPx (24) across: the close button ending one
-//  line in from the tab's right end and the pin just left of it, each
-//  spanning the tab between its outline and the line along the band. At
-//  150% the close glyph's ink then ends 12 px in from the tab's end, and
-//  the two glyphs are 36 px apart.
+//  Visual Studio's squares on a document tab, ToPx (24) across: the close
+//  button ending one line in from the tab's right end and the pin just left
+//  of it, each spanning the tab between its outline and the line along the
+//  band. At 150% the close glyph's ink then ends 12 px in from the tab's
+//  end, and the two glyphs are 36 px apart. A tool window's tabs have none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiTabStrip::GetTabButtonRect (int index, TabButton button) const
+RECT DxuiTabStrip::GetTabButtonRect (
+    int        index,
+    TabButton  button) const
 {
     RECT  tab   = {};
     long  line  = DxuiPaneMetrics::GetLinePx (m_scaler);
     long  size  = m_scaler.ToPx (kTabButtonDip);
     long  right = 0;
-    bool  below = m_style == Style::ToolWindow;
 
 
 
-    if (index < 0 || index >= (int) m_tabs.size() || button == TabButton::None)
+    if (m_style != Style::Document || index < 0 || index >= (int) m_tabs.size() || button == TabButton::None)
     {
         return RECT {};
     }
@@ -1142,7 +1144,7 @@ RECT DxuiTabStrip::GetTabButtonRect (int index, TabButton button) const
     tab   = GetTabScreenRect (index);
     right = tab.right - line - ((button == TabButton::Pin) ? size : 0);
 
-    return RECT { right - size, below ? tab.top : tab.top + line, right, below ? tab.bottom - line : tab.bottom };
+    return RECT { right - size, tab.top + line, right, tab.bottom };
 }
 
 
@@ -1155,7 +1157,11 @@ RECT DxuiTabStrip::GetTabButtonRect (int index, TabButton button) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTabStrip::TabButton DxuiTabStrip::GetTabButtonAt (int x, int y, int & index, RECT & button) const
+DxuiTabStrip::TabButton DxuiTabStrip::GetTabButtonAt (
+    int     x,
+    int     y,
+    int   & index,
+    RECT  & button) const
 {
     int        pin   = GetPinAt (x, y);
     int        close = GetCloseAt (x, y);
@@ -1177,14 +1183,16 @@ DxuiTabStrip::TabButton DxuiTabStrip::GetTabButtonAt (int x, int y, int & index,
 //
 //  IsCloseShown
 //
-//  Explorer shows every tab's close button. Visual Studio's compact tabs
-//  show it on the selected tab and the one under the pointer.
+//  Explorer shows every tab's close button. Visual Studio's document tabs
+//  show it on the selected tab and the one under the pointer, and its tool
+//  windows' tabs show none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTabStrip::IsCloseShown (int index) const
 {
-    bool  shown = (m_style == Style::Explorer) || index == m_selected || index == m_hover;
+    bool  isLit = index == m_selected || index == m_hover;
+    bool  shown = (m_style == Style::Explorer) || (m_style == Style::Document && isLit);
 
 
 
@@ -1199,14 +1207,14 @@ bool DxuiTabStrip::IsCloseShown (int index) const
 //
 //  IsPinShown
 //
-//  A compact tab's pin, on the selected tab and the one under the pointer,
+//  A document tab's pin, on the selected tab and the one under the pointer,
 //  as its close button is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTabStrip::IsPinShown (int index) const
 {
-    return m_pin && m_style != Style::Explorer && (index == m_selected || index == m_hover);
+    return m_pin && m_style == Style::Document && (index == m_selected || index == m_hover);
 }
 
 
@@ -1222,7 +1230,9 @@ bool DxuiTabStrip::IsPinShown (int index) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiTabStrip::GetPinAt (int x, int y) const
+int DxuiTabStrip::GetPinAt (
+    int  x,
+    int  y) const
 {
     int   hit    = -1;
     bool  inView = !HasBounds() || (x >= GetViewLeft() && x < GetViewRight());
@@ -1276,7 +1286,9 @@ int DxuiTabStrip::GetCornerPx() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DxuiTabStrip::GetLabelInk (const IDxuiTheme & theme, bool focusedSelected)
+uint32_t DxuiTabStrip::GetLabelInk (
+    const IDxuiTheme  & theme,
+    bool                focusedSelected)
 {
     constexpr float  kMutedMix    = 0.68f;
     constexpr float  kMinContrast = 4.5f;
@@ -1301,13 +1313,52 @@ uint32_t DxuiTabStrip::GetLabelInk (const IDxuiTheme & theme, bool focusedSelect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DxuiTabStrip::GetGlyphInk (const IDxuiTheme & theme, bool focusedSelected)
+uint32_t DxuiTabStrip::GetGlyphInk (
+    const IDxuiTheme  & theme,
+    bool                focusedSelected)
 {
-    constexpr float  kGlyphScale = 0.973f;
-
-
-
     return focusedSelected ? theme.Foreground() : DxuiColor::Scale (GetLabelInk (theme, false), kGlyphScale);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHoveredLabelInk
+//
+//  The label of the tab under the pointer, unless it is the selected tab of
+//  the pane in use: a step from another label's ink toward the full
+//  foreground, Visual Studio's #D9D9D9 beside #D7D7D7.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTabStrip::GetHoveredLabelInk (const IDxuiTheme & theme)
+{
+    constexpr float  kHoverMix = 0.05f;
+
+
+
+    return DxuiColor::Mix (GetLabelInk (theme, false), theme.Foreground(), kHoverMix);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHoveredGlyphInk
+//
+//  The pin and close glyphs on the tab under the pointer: a shade under its
+//  label, as every other tab's are, Visual Studio's #D3D3D3 beside #D9D9D9.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTabStrip::GetHoveredGlyphInk (const IDxuiTheme & theme)
+{
+    return DxuiColor::Scale (GetHoveredLabelInk (theme), kGlyphScale);
 }
 
 
@@ -1408,7 +1459,7 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 {
     constexpr uint32_t  s_kStrip       = 0xFF202020;
     constexpr uint32_t  s_kTabHover    = 0x14FFFFFF;
-    constexpr uint32_t  s_kCompactWash = 0x0FFFFFFF;
+    constexpr uint32_t  kCompactWash   = 0x0FFFFFFF;
     constexpr uint32_t  s_kTabSelected = 0xFF2C2C2C;
     constexpr uint32_t  s_kDivider     = 0xFF323232;
     constexpr uint32_t  s_kTextArgb    = 0xFFFFFFFF;
@@ -1423,11 +1474,13 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     pal.divider      = s_kDivider;
     pal.text         = s_kTextArgb;
     pal.focus        = s_kFocusRing;
-    pal.tabHover     = s_kCompactWash;
+    pal.tabHover     = kCompactWash;
     pal.label        = s_kTextArgb;
     pal.labelFocused = s_kTextArgb;
+    pal.labelHovered = s_kTextArgb;
     pal.glyph        = s_kTextArgb;
     pal.glyphFocused = s_kTextArgb;
+    pal.glyphHovered = s_kTextArgb;
 
     PaintInternal (painter, text, pal);
 }
@@ -1455,7 +1508,6 @@ void DxuiTabStrip::PaintInternal (
     constexpr float  s_kFocusInsetDip  = 1.0f;
     constexpr float  s_kPadXDp         = 8.0f;
     constexpr float  s_kDividerDip     = 16.0f;
-    constexpr float  s_kPressedScale   = 0.82f;   // armed-tab tint, a touch darker than hover
     constexpr float  s_kMutedTextScale = 0.8f;    // Explorer's #CCCCCC on an unselected tab
 
 
@@ -1543,7 +1595,7 @@ void DxuiTabStrip::PaintInternal (
         else if (isHover || isArmed)
         {
             painter.FillRoundedRect (left, top, width, height, corner,
-                                     isArmed ? DxuiColor::Darken (pal.hover, s_kPressedScale) : pal.hover);
+                                     isArmed ? DxuiColor::Darken (pal.hover, kPressedScale) : pal.hover);
         }
         else if (!nextLit && i + 1 < (int) n)
         {
@@ -1644,13 +1696,14 @@ void DxuiTabStrip::PaintInternal (
 //
 //  Visual Studio's tabs. The selected tab is filled with its pane's color,
 //  rounded at its far corners and open into the pane; the pane's frame draws
-//  its outline. The one under the pointer is a faint box the band's depth.
-//  The rest are plain text on the band.
+//  its outline. The one under the pointer is a faint box the band's depth,
+//  its label a step brighter. The rest are plain text on the band.
 //
 //  Each label starts where a pane's title does, at the pane's text inset
 //  from the tab's left edge in whole pixels, so the first tab's label lines
-//  up with a title to the pixel, and runs to the pin's square, which every
-//  tab keeps whether or not its pin shows.
+//  up with a title to the pixel. A document tab's label runs to the pin's
+//  square, which every document tab keeps whether or not its pin shows, and
+//  a tool window tab's to the line at its end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1660,22 +1713,22 @@ void DxuiTabStrip::PaintCompactTab (
     int                  index,
     const Palette      & pal) const
 {
-    static constexpr float    kPressedScale = 0.82f;
-    const Tab               & tab           = m_tabs[(size_t) index];
-    RECT                      r             = GetTabScreenRect (index);
-    RECT                      pin           = GetTabButtonRect (index, TabButton::Pin);
-    float                     top           = (float) r.top;
-    float                     height        = (float) (r.bottom - r.top);
-    float                     fontPx        = m_scaler.ToPxf ((float) s_kCompactFontDip);
-    float                     markPx        = (float) m_scaler.ToPx (s_kCompactMarkDip);
-    float                     labelX        = (float) (r.left + DxuiPaneMetrics::GetTextInsetPx (m_scaler));
-    float                     labelR        = (float) pin.left;
-    bool                      isSel         = index == m_selected;
-    bool                      isHover       = index == m_hover;
-    bool                      isArmed       = index == m_pressed && index == m_hover;
-    uint32_t                  ink           = (isSel && m_focusedLook) ? pal.labelFocused : pal.label;
-    std::wstring              shown;
-    HRESULT                   hr            = S_OK;
+    const Tab     & tab     = m_tabs[(size_t) index];
+    RECT            r       = GetTabScreenRect (index);
+    RECT            pin     = GetTabButtonRect (index, TabButton::Pin);
+    long            labelR  = (m_style == Style::Document) ? pin.left : r.right - DxuiPaneMetrics::GetLinePx (m_scaler);
+    float           top     = (float) r.top;
+    float           height  = (float) (r.bottom - r.top);
+    float           fontPx  = m_scaler.ToPxf ((float) s_kCompactFontDip);
+    float           markPx  = (float) m_scaler.ToPx (s_kCompactMarkDip);
+    float           labelX  = (float) (r.left + DxuiPaneMetrics::GetTextInsetPx (m_scaler));
+    float           room    = 0.0f;
+    bool            isSel   = index == m_selected;
+    bool            isHover = index == m_hover;
+    bool            isArmed = index == m_pressed && index == m_hover;
+    uint32_t        ink     = (isSel && m_focusedLook) ? pal.labelFocused : isHover ? pal.labelHovered : pal.label;
+    std::wstring    shown;
+    HRESULT         hr      = S_OK;
 
 
 
@@ -1711,9 +1764,10 @@ void DxuiTabStrip::PaintCompactTab (
         PaintTabButton (painter, text, index, TabButton::Close, pal);
     }
 
-    shown = DxuiTextElide::ToWidth (text, tab.label, fontPx, DxuiTheme::kBodyFace, (std::max) (labelR - labelX, 0.0f), DxuiElide::Tail);
+    room  = (std::max) ((float) labelR - labelX, 0.0f);
+    shown = DxuiTextElide::ToWidth (text, tab.label, fontPx, DxuiTheme::kBodyFace, room, DxuiElide::Tail);
 
-    hr = text.DrawString (shown.c_str(), labelX, top, (std::max) (labelR - labelX, 0.0f), height,
+    hr = text.DrawString (shown.c_str(), labelX, top, room, height,
                           ink, fontPx, DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1729,7 +1783,7 @@ void DxuiTabStrip::PaintCompactTab (
 //
 //  A tab's pin or close button: its glyph centered in its square, in the
 //  full foreground on the selected tab of the pane in use and a shade under
-//  the label otherwise, washed in a rounded square 3 DIP in from the
+//  the tab's label otherwise, washed in a rounded square 3 DIP in from the
 //  square's edges while the pointer is on it, as a title bar's button is.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1741,18 +1795,18 @@ void DxuiTabStrip::PaintTabButton (
     TabButton            button,
     const Palette      & pal) const
 {
-    static constexpr float  kPressedScale = 0.82f;
-    static constexpr int    kWashInsetDip = 3;
-    RECT                    r             = GetTabButtonRect (index, button);
-    bool                    isPin         = button == TabButton::Pin;
-    bool                    hovered       = isPin ? m_hoverPin   == index : m_hoverClose   == index;
-    bool                    pressed       = isPin ? m_pressedPin == index : m_pressedClose == index;
-    float                   inset         = (float) m_scaler.ToPx (kWashInsetDip);
-    float                   corner        = (float) m_scaler.ToPx (s_kCompactCornerDip);
-    float                   width         = (float) (r.right - r.left);
-    float                   height        = (float) (r.bottom - r.top);
-    uint32_t                ink           = (index == m_selected && m_focusedLook) ? pal.glyphFocused : pal.glyph;
-    HRESULT                 hr            = S_OK;
+    static constexpr int  kWashInsetDip = 3;
+    RECT                  r             = GetTabButtonRect (index, button);
+    bool                  isPin         = button == TabButton::Pin;
+    bool                  hovered       = isPin ? m_hoverPin   == index : m_hoverClose   == index;
+    bool                  pressed       = isPin ? m_pressedPin == index : m_pressedClose == index;
+    bool                  isFocused     = index == m_selected && m_focusedLook;
+    float                 inset         = (float) m_scaler.ToPx (kWashInsetDip);
+    float                 corner        = (float) m_scaler.ToPx (s_kCompactCornerDip);
+    float                 width         = (float) (r.right - r.left);
+    float                 height        = (float) (r.bottom - r.top);
+    uint32_t              ink           = isFocused ? pal.glyphFocused : (index == m_hover) ? pal.glyphHovered : pal.glyph;
+    HRESULT               hr            = S_OK;
 
 
 
@@ -1849,7 +1903,10 @@ void DxuiTabStrip::PaintSelectedBody (IDxuiPainter & painter, const RECT & tab, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTabStrip::PaintHoverBox (IDxuiPainter & painter, const RECT & tab, uint32_t argb) const
+void DxuiTabStrip::PaintHoverBox (
+    IDxuiPainter  & painter,
+    const RECT    & tab,
+    uint32_t        argb) const
 {
     long   ro     = GetCornerPx();
     float  left   = (float) tab.left;
@@ -1936,10 +1993,11 @@ std::wstring DxuiTabStrip::GetTipAt (int x, int y, RECT & tabRect) const
 //  in a tab the host sized with this.
 //
 //  A compact tab is Visual Studio's: the pane's text inset ahead of the
-//  label, the label's width rounded, 6.5 DIP more, then the pin's and the
-//  close button's squares and a line, whether or not either button shows,
-//  so neither hover nor selection changes a tab's width. Every part is in
-//  the whole pixels PaintCompactTab places them by.
+//  label, the label's width rounded, 6.5 DIP more, and a line at its end. A
+//  document tab adds the pin's and the close button's squares ahead of that
+//  line, whether or not either button shows, so neither hover nor selection
+//  changes its width; a tool window's tabs have neither button. Every part
+//  is in the whole pixels PaintCompactTab places them by.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1947,14 +2005,15 @@ int DxuiTabStrip::MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style
 {
     static constexpr float  kExplorerFontDip = 13.0f;
     static constexpr float  kExplorerPadDip  = 8.0f;
-    static constexpr float  kLabelGapDip     = 6.5f;   // from a label's end to its tab's pin
+    static constexpr float  kLabelGapDip     = 6.5f;   // from a label's end to its tab's pin, or its end
     bool                    compact          = style != Style::Explorer;
     float                   fontPx           = scaler.ToPxf (compact ? (float) s_kCompactFontDip : kExplorerFontDip);
     float                   labelW           = scaler.ToPxf ((float) s_kCharEstimateDip) * (float) tab.label.size();
     float                   height           = 0.0f;
     float                   width            = 0.0f;
     long                    inset            = DxuiPaneMetrics::GetTextInsetPx (scaler);
-    long                    buttons          = 2L * scaler.ToPx (kTabButtonDip) + DxuiPaneMetrics::GetLinePx (scaler);
+    long                    line             = DxuiPaneMetrics::GetLinePx (scaler);
+    long                    buttons          = (style == Style::Document) ? 2L * scaler.ToPx (kTabButtonDip) : 0L;
     HRESULT                 hr               = E_FAIL;
 
 
@@ -1967,7 +2026,7 @@ int DxuiTabStrip::MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style
 
     if (compact)
     {
-        width  = (float) (inset + std::lround (labelW) + std::lround (scaler.ToPxf (kLabelGapDip)) + buttons);
+        width  = (float) (inset + std::lround (labelW) + std::lround (scaler.ToPxf (kLabelGapDip)) + buttons + line);
         width += tab.mark.empty() ? 0.0f : (float) scaler.ToPx (s_kCompactMarkDip);
     }
     else
@@ -2037,8 +2096,10 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     pal.tabHover     = GetTabHoverFill (theme);
     pal.label        = GetLabelInk (theme, false);
     pal.labelFocused = GetLabelInk (theme, true);
+    pal.labelHovered = GetHoveredLabelInk (theme);
     pal.glyph        = GetGlyphInk (theme, false);
     pal.glyphFocused = GetGlyphInk (theme, true);
+    pal.glyphHovered = GetHoveredGlyphInk (theme);
 
     PaintInternal (painter, text, pal);
 }

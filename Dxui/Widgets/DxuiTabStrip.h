@@ -38,7 +38,7 @@
 //    the pointer show a pin and a close button; every tab keeps room for
 //    both, so no tab changes width as they come and go.
 //  - TOOL WINDOW, as Visual Studio draws the tabs under a tool window: the
-//    same tabs, in a strip BELOW its pane.
+//    same tabs, with no pin or close button, in a strip BELOW its pane.
 //
 //  In the compact styles the strip draws no outline: the pane's frame
 //  (DxuiPaneFrame) runs around the selected tab and joins it to the pane.
@@ -102,10 +102,11 @@ public:
     void  SetOnMove   (MoveFn fn)   { m_move   = std::move (fn); }
     void  SetOnNewTab (NewTabFn fn) { m_newTab = std::move (fn); }
 
-    //  With a close handler set, every closable tab carries a close button.
+    //  With a close handler set, every closable tab has a close button, in
+    //  every style but the tool window's.
     void  SetOnClose  (CloseFn fn)  { m_close  = std::move (fn); }
 
-    //  With a pin handler set, a compact strip's selected tab and the one
+    //  With a pin handler set, a document strip's selected tab and the one
     //  under the pointer show a pin, which docks the tab's pane or hides it
     //  against its edge.
     void  SetOnPin    (PinFn fn)    { m_pin    = std::move (fn); }
@@ -142,7 +143,7 @@ public:
 
     //  How wide a tab of this style is for its label, mark and icon, with or
     //  without a close button: what a host laying out the tabs gives it. A
-    //  compact tab keeps room for its pin and close button either way. A
+    //  document tab keeps room for its pin and close button either way. A
     //  null renderer estimates the label from its length.
     static int  MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style style, bool hasClose, const DxuiDpiScaler & scaler);
 
@@ -190,10 +191,11 @@ public:
     //  in from the strip's edges.
     static int  GetHoverInsetPx (const DxuiDpiScaler & scaler);
 
-    //  Where tab `index`'s pin or close button is in the compact styles,
+    //  Where tab `index`'s pin or close button is in the document style,
     //  whether or not it shows: a square at the tab's end, between the tab's
     //  outline and the line along the band, the close button one line in
-    //  from the tab's end and the pin beside it.
+    //  from the tab's end and the pin beside it. An empty rect in the other
+    //  styles.
     RECT       GetTabButtonRect (int index, TabButton button) const;
 
     //  The shown pin or close button under a point, with its tab and its
@@ -203,11 +205,14 @@ public:
     //  Visual Studio's inks for a pane's tabs and title: the full foreground
     //  for the selected tab of the pane the user works in, and for every
     //  other label a step toward the muted foreground, kept readable on the
-    //  band; the pin and close glyphs a shade under their label. A hovered
-    //  tab is the foreground laid faintly over the band.
-    static uint32_t  GetLabelInk     (const IDxuiTheme & theme, bool focusedSelected);
-    static uint32_t  GetGlyphInk     (const IDxuiTheme & theme, bool focusedSelected);
-    static uint32_t  GetTabHoverFill (const IDxuiTheme & theme);
+    //  band; the label of the tab under the pointer a little nearer the
+    //  foreground; the pin and close glyphs a shade under their label. A
+    //  hovered tab is the foreground laid faintly over the band.
+    static uint32_t  GetLabelInk        (const IDxuiTheme & theme, bool focusedSelected);
+    static uint32_t  GetGlyphInk        (const IDxuiTheme & theme, bool focusedSelected);
+    static uint32_t  GetHoveredLabelInk (const IDxuiTheme & theme);
+    static uint32_t  GetHoveredGlyphInk (const IDxuiTheme & theme);
+    static uint32_t  GetTabHoverFill    (const IDxuiTheme & theme);
 
     //  A tab's pin and close squares, as big as a pane's title bar buttons,
     //  and their glyphs in Segoe MDL2 Assets, sized so their ink is 16 px
@@ -259,6 +264,12 @@ private:
     static constexpr int  s_kCompactCornerDip = 4;    // a wash's rounded corners
     static constexpr int  s_kCompactInsetDip  = 3;    // an arrow's or the +'s wash from the strip's edges
     static constexpr int  s_kCharEstimateDip  = 7;    // a label's width a character, unmeasured
+
+    //  A pressed tab's, button's, arrow's or +'s wash, a touch darker than
+    //  under the pointer; and a tab's pin and close glyphs against its label,
+    //  Visual Studio's #D1D1D1 beside #D7D7D7.
+    static constexpr float  kPressedScale = 0.82f;
+    static constexpr float  kGlyphScale   = 0.973f;
 
     struct Palette;
 

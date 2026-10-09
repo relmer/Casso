@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "CaptureTests/FakeHostDialogs.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -15,55 +14,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace DebuggerFocusAccentTests
 {
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  AccentHost
-    //
-    //  A host that keeps nothing and returns nothing.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class AccentHost : public IDebuggerWindowHost
-    {
-    public:
-        void  RunDebuggerCommand      (const std::string &)                      override {}
-        void  PauseDebugger           ()                                         override {}
-        void  SetDebuggerCodeLines    (int, int)                                 override {}
-        void  SetDebuggerCodeAddress  (std::optional<Word>, int)                 override {}
-        void  SetDebuggerCodeTop      (Word, int)                                override {}
-        void  SetDebuggerFollowView   (int)                                      override {}
-        void  CloseDebuggerCodeView   (int)                                      override {}
-        void  SetDebuggerMemoryWindow (int, std::optional<Word>)                 override {}
-        void  SetDebuggerTraceTop     (std::optional<uint64_t>)                  override {}
-        void  GoToDebuggerMemory      (int, const std::string &)                 override {}
-        void  ScrollDebuggerCode      (int, int)                                 override {}
-        void  OnDebuggerWindowClosed  ()                                         override {}
-        void  SetDebuggerKeyScheme    (const std::string &)                      override {}
-        void  SetDebuggerLayout       (const std::string &)                      override {}
-        void  SetDebuggerOpenViews    (const std::string &)                      override {}
-        void  SetDebuggerPlacement    (const RECT &)                             override {}
-
-        void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
-
-        bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
-        bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
-
-        IHostDialogs &  GetHostDialogs()         noexcept override { return m_dialogs; }
-        std::string     GetDebuggerKeyScheme()            override { return {}; }
-        std::string     GetDebuggerLayout()               override { return {}; }
-        std::string     GetDebuggerOpenViews()            override { return {}; }
-
-        SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
-        SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
-
-    private:
-        FakeHostDialogs  m_dialogs;
-    };
-
-
-
-
-
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  AccentWindow
@@ -91,15 +41,17 @@ namespace DebuggerFocusAccentTests
 
         DxuiDockSite * FindDockSite()
         {
-            for (size_t i = 0; i < GetChildCount(); i++)
+            DxuiDockSite  * site = nullptr;
+            size_t          i    = 0;
+
+
+
+            for (i = 0; i < GetChildCount() && site == nullptr; i++)
             {
-                if (auto * site = dynamic_cast<DxuiDockSite *> (GetChild (i)))
-                {
-                    return site;
-                }
+                site = dynamic_cast<DxuiDockSite *> (GetChild (i));
             }
 
-            return nullptr;
+            return site;
         }
 
         //  Whether the group holding the focused control shows the focused
@@ -182,10 +134,10 @@ namespace DebuggerFocusAccentTests
 
         TEST_METHOD (TakingTheFocusShowsTheAccentAtOnce)
         {
-            CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
-            AccentHost     host;
-            AccentWindow   window (theme, host);
-            DxuiDpiScaler  scaler;
+            CassoTheme              theme  = CassoTheme::MakeSkeuomorphic();
+            NullDebuggerWindowHost  host;
+            AccentWindow            window (theme, host);
+            DxuiDpiScaler           scaler;
 
 
 

@@ -739,5 +739,161 @@ namespace DxuiPaneFrameTests
                 }
             }
         }
+
+
+        //  A floating tool window at 144 dpi whose four corners are its
+        //  window's, rounded by Windows at 12 px: each corner's ring is 12 px
+        //  outside and 10 inside, the title is rounded at 12, the straight
+        //  runs stop 12 px from each corner, and no gap color lies outside
+        //  them. The body is where it always is.
+        TEST_METHOD (AFloatingPaneFollowsTheWindowsCorners)
+        {
+            DxuiDpiScaler      scaler = MakeScaler (144);
+            DxuiPaneFrameSpec  spec   = MakeToolWindow (RECT { 0, 0, 700, 500 }, 38, 0, 0, 0, scaler);
+            Parts              parts;
+            DxuiPaneFramePart  title;
+            size_t             fills  = 0;
+
+
+
+            spec.windowCorners  = DxuiPaneFrame::kCornerTopLeft | DxuiPaneFrame::kCornerTopRight | DxuiPaneFrame::kCornerBottomLeft | DxuiPaneFrame::kCornerBottomRight;
+            spec.windowCornerPx = scaler.ToPx (DxuiPaneMetrics::kWindowCornerDip);
+            parts               = DxuiPaneFrame::Build (spec);
+
+            Assert::AreEqual (12L, spec.windowCornerPx, L"8 DIP, 12 px at 150%");
+
+            AssertQuarterRing (parts, 12,  12,  12, 2, RECT { 0,   0,   12,  12  });
+            AssertQuarterRing (parts, 688, 12,  12, 2, RECT { 688, 0,   700, 12  });
+            AssertQuarterRing (parts, 12,  488, 12, 2, RECT { 0,   488, 12,  500 });
+            AssertQuarterRing (parts, 688, 488, 12, 2, RECT { 688, 488, 700, 500 });
+
+            Assert::IsTrue (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 12,  0,   688, 2   }), L"top");
+            Assert::IsTrue (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 0,   12,  2,   488 }), L"left");
+            Assert::IsTrue (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 698, 12,  700, 488 }), L"right");
+            Assert::IsTrue (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 12,  498, 688, 500 }), L"bottom");
+
+            for (const DxuiPaneFramePart & part : parts)
+            {
+                Assert::IsTrue (part.role != DxuiPaneFrameRole::Gap, L"no gap color at the window's corners");
+
+                if (part.shape == DxuiPaneFrameShape::RoundedFill && part.role == DxuiPaneFrameRole::Content)
+                {
+                    title = part;
+                    fills++;
+                }
+            }
+
+            Assert::AreEqual ((size_t) 1, fills, L"one title fill");
+            Assert::IsTrue   (IsSameRect (title.clip, RECT { 0, 0, 700, 38 }), L"over the title");
+            Assert::IsTrue   (IsSameRect (GetPartRect (title), RECT { 0, 0, 700, 50 }), L"rounded at the top only");
+            Assert::AreEqual (12.0f, title.radius, L"at the window's radius");
+            Assert::IsTrue   (IsSameRect (DxuiPaneFrame::GetBodyRect (spec), RECT { 2, 38, 698, 498 }), L"body");
+        }
+
+
+        //  With tabs along its bottom and the first one selected, a floating
+        //  tool window's bottom corners are the band's, rounded at the
+        //  window's radius with no gap color outside them, and the selected
+        //  tab's own corner at the window's corner is the window's: its ring
+        //  is 12 px outside, the tab's bottom runs from 12 px in, and the
+        //  pane's left side runs down to the ring.
+        TEST_METHOD (AFloatingPanesFirstTabTakesTheWindowsCorner)
+        {
+            DxuiDpiScaler      scaler = MakeScaler (144);
+            DxuiPaneFrameSpec  spec   = MakeToolWindow (RECT { 0, 0, 700, 500 }, 38, 36, 0, 166, scaler);
+            Parts              parts;
+            DxuiPaneFramePart  band;
+
+
+
+            spec.windowCorners  = DxuiPaneFrame::kCornerTopLeft | DxuiPaneFrame::kCornerTopRight | DxuiPaneFrame::kCornerBottomLeft | DxuiPaneFrame::kCornerBottomRight;
+            spec.windowCornerPx = 12;
+            parts               = DxuiPaneFrame::Build (spec);
+
+            Assert::IsTrue   (TryFindBand (parts, band), L"the band");
+            Assert::IsTrue   (IsSameRect (band.clip, RECT { 0, 464, 700, 500 }), L"band rows 464-499");
+            Assert::IsTrue   (IsSameRect (GetPartRect (band), RECT { 0, 452, 700, 500 }), L"rounded at the bottom only");
+            Assert::AreEqual (12.0f, band.radius, L"at the window's radius");
+
+            AssertQuarterRing (parts, 12, 488, 12, 2, RECT { 0, 488, 12, 500 });
+
+            Assert::IsTrue (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 12, 498, 159, 500 }), L"the tab's bottom from the window's corner");
+            Assert::IsTrue (HasRect (parts, DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, RECT { 0,  12,  2,   488 }), L"the left side down to the ring");
+            Assert::AreEqual ((size_t) 0, CountParts (parts, DxuiPaneFrameShape::Rect, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap), L"no gap boxes");
+        }
+
+
+        //  A pane whose top-left corner alone is its window's rounds that
+        //  corner at the window's radius and the others at its own: the
+        //  title's fill is drawn in two halves, each rounded at its corner's
+        //  radius, and only the top right keeps the gap color outside it.
+        TEST_METHOD (APaneWithOneWindowCornerRoundsEachCornerAtItsOwnRadius)
+        {
+            DxuiDpiScaler      scaler = MakeScaler (144);
+            DxuiPaneFrameSpec  spec   = MakeToolWindow (RECT { 0, 0, 700, 500 }, 38, 0, 0, 0, scaler);
+            Parts              parts;
+            DxuiPaneFramePart  left;
+            DxuiPaneFramePart  right;
+            size_t             fills  = 0;
+
+
+
+            spec.windowCorners  = DxuiPaneFrame::kCornerTopLeft;
+            spec.windowCornerPx = 12;
+            parts               = DxuiPaneFrame::Build (spec);
+
+            for (const DxuiPaneFramePart & part : parts)
+            {
+                if (part.shape != DxuiPaneFrameShape::RoundedFill || part.role != DxuiPaneFrameRole::Content)
+                {
+                    continue;
+                }
+
+                fills++;
+                left  = (part.clip.left == 0) ? part : left;
+                right = (part.clip.left != 0) ? part : right;
+            }
+
+            Assert::AreEqual ((size_t) 2, fills, L"the title in two halves");
+            Assert::IsTrue   (IsSameRect (left.clip,  RECT { 0,   0, 350, 38 }), L"the left half");
+            Assert::AreEqual (12.0f, left.radius,  L"at the window's radius");
+            Assert::IsTrue   (IsSameRect (right.clip, RECT { 350, 0, 700, 38 }), L"the right half");
+            Assert::AreEqual (7.0f,  right.radius, L"at the pane's own");
+
+            AssertQuarterRing (parts, 12,  12, 12, 2, RECT { 0,   0, 12,  12 });
+            AssertQuarterRing (parts, 693, 7,  7,  2, RECT { 693, 0, 700, 7  });
+
+            Assert::IsFalse (HasRect (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { 0,   0, 12,  12 }), L"no gap at the window's corner");
+            Assert::IsTrue  (HasRect (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { 693, 0, 700, 7  }), L"the gap at the pane's own");
+        }
+
+
+        //  The window's corner is 8 DIP at every scale: 8, 10 and 12 px at
+        //  100%, 125% and 150%, its ring 7, 9 and 10 px inside, one line in.
+        TEST_METHOD (TheWindowsCornerScalesWithTheDpi)
+        {
+            constexpr UINT  kDpis[]   = { 96, 120, 144 };
+            constexpr long  kOuters[] = { 8, 10, 12 };
+            constexpr long  kInners[] = { 7, 9, 10 };
+
+
+
+            for (size_t i = 0; i < std::size (kDpis); i++)
+            {
+                DxuiDpiScaler      scaler = MakeScaler (kDpis[i]);
+                DxuiPaneFrameSpec  spec   = MakeToolWindow (RECT { 0, 0, 700, 500 }, 38, 0, 0, 0, scaler);
+                DxuiPaneFramePart  ring;
+                RECT               box    = {};
+                std::wstring       at     = std::format (L"{} dpi", kDpis[i]);
+
+                spec.windowCorners  = DxuiPaneFrame::kCornerTopLeft;
+                spec.windowCornerPx = scaler.ToPx (DxuiPaneMetrics::kWindowCornerDip);
+                box                 = RECT { 0, 0, kOuters[i], kOuters[i] };
+
+                Assert::IsTrue   (TryFindRing (DxuiPaneFrame::Build (spec), DxuiPaneFramePhase::Over, DxuiPaneFrameRole::Outline, box, ring), (L"the corner's ring, " + at).c_str());
+                Assert::AreEqual ((float) kOuters[i], ring.radius,                  (L"outside, " + at).c_str());
+                Assert::AreEqual ((float) kInners[i], ring.radius - ring.thickness, (L"inside, " + at).c_str());
+            }
+        }
     };
 }
