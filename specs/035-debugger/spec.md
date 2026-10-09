@@ -120,7 +120,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 ### Session 2026-10-08 (Breakpoints pane columns)
 
-- Q: Which columns does the Breakpoints pane have? -> A: The owner asked for a Kind column, for Visual Studio's Filter, always empty in Casso, to be dropped, and for Labels to become Symbol, since it shows the one symbol at the address. Kind gives what sort of breakpoint a row is, a disk breakpoint's event among them. As built the columns are Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order, and Kind shows by default with Condition and Hit count. Two of those choices were not in the request and are the owner's to confirm (T736): Symbol sits after Kind rather than where Labels was, between Condition and Hit count, and Kind shows by default, also for a column choice saved before the change. Such a choice otherwise keeps its columns, with Labels as Symbol.
+- Q: Which columns does the Breakpoints pane have? -> A: Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order, with Name, Condition, Hit count and Kind shown by default (owner decision 2026-10-08, confirming the layout as built). The owner asked for a Kind column, for Visual Studio's Filter, always empty in Casso, to be dropped, and for Labels to become Symbol, since it shows the one symbol at the address. Kind gives what sort of breakpoint a row is, a disk breakpoint's event among them. Symbol sits after Kind rather than where Labels was, between Condition and Hit count: the build put it there, and the owner kept it. A column choice saved before the change keeps its columns, with Labels as Symbol, and shows Kind; whether such a choice shows Kind is still the owner's to confirm (T736).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1738,12 +1738,13 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   again the same day on the owner's request: Kind added, Filter (always
   empty, since Casso has no process or thread to filter on) dropped, and
   Labels became Symbol, which the build also moved from after Condition to
-  after Kind (T736).
+  after Kind. The column order is the owner's decision of 2026-10-08,
+  confirming the layout as built.
 - **FR-118**: A Show columns drop-down MUST choose which columns show, apart from
   Name, which always does; the choice MUST be kept across sessions. Condition,
-  Hit count and Kind show by default (T736). A choice saved before Kind was
-  added MUST come back with the same columns, Labels as Symbol, no Filter and
-  Kind shown. Amended 2026-10-08.
+  Hit count and Kind show by default (owner decision 2026-10-08). A choice
+  saved before Kind was added MUST come back with the same columns, Labels as
+  Symbol, no Filter and Kind shown (T736). Amended 2026-10-08.
 - **FR-119**: The breakpoints pane MUST carry a toolbar of icon buttons, each
   with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
   offering a breakpoint at an address, a function breakpoint by symbol name, a
