@@ -486,7 +486,6 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.animationStartTimeMs  = state.animationStartTimeMs;
     m_state.lastSyncEventId       = state.lastSyncEventId;
     m_state.writeProtect          = state.writeProtect;
-    m_state.wozRequirements       = state.wozRequirements;
     m_state.wozConflict           = state.wozConflict;
     m_state.motorOn.store (motorOn, std::memory_order_relaxed);
     m_state.diskActive.store (active, std::memory_order_relaxed);

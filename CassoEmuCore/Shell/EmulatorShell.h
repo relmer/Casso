@@ -1161,14 +1161,15 @@ private:
     static constexpr int  s_kTapeDropTag = 2;
 
     // Re-hangs the mounted-image basename strip under each projected drive.
-    // The desk's baked labels: the two drives' names, then the recorder's
-    // tape name, its counter, and the name of the key under the pointer.
+    // The desk's baked labels: the two drives' names, the recorder's tape
+    // name, its counter, the name of the key under the pointer, the title on
+    // the cassette, and the two drives' info icons.
     static constexpr size_t  s_kSceneLabelCount    = 8;
     static constexpr int     s_kSceneTapeNameCell  = 2;
     static constexpr int     s_kSceneCounterCell   = 3;
     static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;
     static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
-    static constexpr int     s_kSceneInfoIconCell  = 6;   // drive 0's info icon; drive 1's is the next cell
+    static constexpr int     kSceneInfoIconCell    = 6;   // drive 0's info icon; drive 1's is the next cell
 
     static_assert (s_kSceneLabelCount == (size_t) DeskScene::kLabelCount,
                    "every baked label the shell makes needs a slot in the scene");

@@ -16,22 +16,12 @@
 
 static constexpr int    s_kRowHeightDp     = 28;
 static constexpr int    s_kLabelWidthDp    = 140;
-static constexpr int    s_kLabelGapDp      = 12;
 static constexpr int    s_kCheckWidthDp    = 140;
 static constexpr int    s_kDropdownWidthDp = 200;
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kPagePadDp       = 16;
 static constexpr int    s_kPlayGapDp       = 8;
 static constexpr int    s_kResetWidthDp    = 130;
-static constexpr int    s_kInfoTipGapDp    = 4;
-static constexpr int    s_kGlyphWidthDp    = 7;
-
-// How far below the label's line center the info tip's box sits, as a fraction
-// of the label's font size. Centering the two boxes leaves the ring riding
-// high, because the icon font's ink sits higher in its box than the body
-// face's capitals do in theirs; this puts the ring's center on the capitals'
-// center. Measured from rendered captures.
-static constexpr float  s_kInfoTipDropEm   = 0.05f;
 
 
 
@@ -403,6 +393,10 @@ IDxuiTextRenderer * DiskPage::GetMeasuringRenderer() const
 
 int DiskPage::MeasureLabelPx (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
 {
+    constexpr int  kGlyphWidthDp = 7;
+
+
+
     HRESULT              hr       = S_OK;
     IDxuiTextRenderer  * text     = GetMeasuringRenderer();
     float                widthPx  = 0.0f;
@@ -419,7 +413,7 @@ int DiskPage::MeasureLabelPx (const DxuiLabel & label, const DxuiDpiScaler & sca
     // A failed measurement leaves the width at zero, as no renderer does.
     if (widthPx <= 0.0f)
     {
-        widthPx = (float) (label.GetText().size() * scaler.ToPx (s_kGlyphWidthDp));
+        widthPx = (float) (label.GetText().size() * scaler.ToPx (kGlyphWidthDp));
     }
 
     return (int) std::ceil (widthPx);
@@ -442,12 +436,16 @@ int DiskPage::MeasureLabelPx (const DxuiLabel & label, const DxuiDpiScaler & sca
 
 int DiskPage::GetLabelColumnPx (const DxuiDpiScaler & scaler) const
 {
+    constexpr int  kLabelGapDp = 12;
+
+
+
     const DxuiLabel  * topLevel[] = { &m_wpLabel, &m_writeModeLabel, &m_audioLabel, &m_tapeLabel,
                                       &m_tapeVolumeLabel, &m_tapeAutoStopLabel, &m_tapeIdleStopLabel };
     const DxuiLabel  * nested[]   = { &m_mechLabel, &m_motorLabel, &m_headLabel, &m_doorLabel, &m_panOneLabel, &m_panTwoLabel };
     const DxuiLabel  * tipped[]   = { &m_tapeWavFormatLabel };
     int                indent     = scaler.ToPx (DxuiTreeView::kIndentDip);
-    int                tipReach   = scaler.ToPx (s_kInfoTipGapDp) + (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
+    int                tipReach   = scaler.ToPx (kInfoTipGapDp) + (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
     int                widest     = 0;
 
 
@@ -467,7 +465,7 @@ int DiskPage::GetLabelColumnPx (const DxuiDpiScaler & scaler) const
         widest = std::max (widest, MeasureLabelPx (*label, scaler) + tipReach);
     }
 
-    return std::max (scaler.ToPx (s_kLabelWidthDp), widest + scaler.ToPx (s_kLabelGapDp));
+    return std::max (scaler.ToPx (s_kLabelWidthDp), widest + scaler.ToPx (kLabelGapDp));
 }
 
 
@@ -487,11 +485,18 @@ int DiskPage::GetLabelColumnPx (const DxuiDpiScaler & scaler) const
 
 RECT DiskPage::GetInfoTipRect (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
 {
+    // Centering the two boxes leaves the ring riding high, because the icon
+    // font's ink sits higher in its box than the body face's capitals do in
+    // theirs. Measured from rendered captures.
+    constexpr float  kInfoTipDropEm = 0.05f;
+
+
+
     RECT  row     = label.GetRect();
     int   size    = row.bottom - row.top;
     int   glyphPx = (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
-    int   glyphX  = row.left + MeasureLabelPx (label, scaler) + scaler.ToPx (s_kInfoTipGapDp);
-    int   drop    = (int) std::lround (scaler.ToPxf (label.GetFontSizeDip()) * s_kInfoTipDropEm);
+    int   glyphX  = row.left + MeasureLabelPx (label, scaler) + scaler.ToPx (kInfoTipGapDp);
+    int   drop    = (int) std::lround (scaler.ToPxf (label.GetFontSizeDip()) * kInfoTipDropEm);
 
 
 

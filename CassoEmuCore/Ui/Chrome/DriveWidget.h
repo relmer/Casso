@@ -135,9 +135,8 @@ public:
     const WriteProtectInfo & WriteProtect () const { return m_state.writeProtect; }
     bool               IsWriteProtected () const { return m_state.writeProtect.Any(); }
 
-    // What the mounted WOZ image declares about the machine it needs, and
-    // whether that conflicts with the running one, refreshed by SyncFromState.
-    const WozRequirements & GetWozRequirements () const { return m_state.wozRequirements; }
+    // Whether what the mounted WOZ image declares about the machine it needs
+    // conflicts with the running one, refreshed by SyncFromState.
     bool               HasWozConflict   () const { return m_state.wozConflict; }
 
     // Where the info icon was last painted, or empty when it is not showing.

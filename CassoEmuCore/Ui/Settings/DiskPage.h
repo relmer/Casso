@@ -74,6 +74,9 @@ public:
     const DxuiComboBox    & GetMechanismDropdown () const { return m_mechanism; }
 
 private:
+    // The gap between a label's last character and its info tip's glyph.
+    static constexpr int  kInfoTipGapDp = 4;
+
     static RECT  MakeRect (int l, int t, int w, int h);
 
     IDxuiTextRenderer * GetMeasuringRenderer () const;
