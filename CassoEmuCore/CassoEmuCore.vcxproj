@@ -190,6 +190,7 @@
     </ClCompile>
     <ClCompile Include="Ui\Dialogs\TapePositionDialog.cpp" />
     <ClCompile Include="Shell\BackgroundWorkQueue.cpp" />
+    <ClCompile Include="Shell\InspectorRequestQueue.cpp" />
     <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
     <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
@@ -545,6 +546,7 @@
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Shell\BackgroundWorkQueue.h" />
+    <ClInclude Include="Shell\InspectorRequestQueue.h" />
     <ClInclude Include="Devices\Tape\RecordingCapture.h" />
     <ClInclude Include="Devices\Tape\TapeRecorder.h" />
     <ClInclude Include="Audio\TapeAudioSource.h" />
