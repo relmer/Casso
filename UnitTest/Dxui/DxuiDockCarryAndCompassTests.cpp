@@ -15,8 +15,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  A pane torn off by its tab keeps that tab, in a strip, while it is
 //  carried, and the cursor keeps the spot of the tab it pressed. The drop
 //  targets follow Visual Studio's: five buttons over a tool window group, a
-//  larger cross over a document group, and a tab drop that shades the
-//  pane's body without covering its tabs.
+//  larger cross over a document group, and a tab drop that shades the pane
+//  below its tabs and the tab it would take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,12 +200,17 @@ namespace DxuiDockCarryAndCompassTests
         }
 
 
-        TEST_METHOD (ATabDropShadesThePanesBodyNotItsTabs)
+        //  A tab drop on a document group shades the pane below its tabs and
+        //  the line under them, edge to edge, and a tab 100 DIP wide at the
+        //  start of its band, over the band and the line, as Visual Studio
+        //  shades it.
+        TEST_METHOD (ATabDropShadesThePaneBelowItsTabsAndTheTabItWouldTake)
         {
             Rig                       rig;
             DxuiTabGroup            * group = rig.GroupOf (rig.code);
             const DxuiDockDropZone  * hover = nullptr;
             RECT                      body  = {};
+            RECT                      pane  = {};
 
 
 
@@ -216,8 +221,9 @@ namespace DxuiDockCarryAndCompassTests
             }
 
             body = group->GetBodyRect();
+            pane = group->GetBounds();
             rig.site.BeginDrag (L"console");
-            rig.site.OnMouse   (Mouse (DxuiMouseEventKind::Move, Center (group->GetBounds())));
+            rig.site.OnMouse   (Mouse (DxuiMouseEventKind::Move, Center (pane)));
             hover = rig.site.GetHoveredZone();
 
             if (hover == nullptr || hover->kind != DxuiDockDropZone::Kind::Tab)
@@ -226,8 +232,14 @@ namespace DxuiDockCarryAndCompassTests
                 return;
             }
 
-            Assert::AreEqual (body.top,    hover->preview.top, L"the shade starts below the tabs");
-            Assert::AreEqual (body.bottom, hover->preview.bottom);
+            Assert::AreEqual (pane.left,       hover->preview.left,      L"the shade spans the pane's outline");
+            Assert::AreEqual (body.top,        hover->preview.top,       L"and starts below the tabs and their line");
+            Assert::AreEqual (pane.right,      hover->preview.right);
+            Assert::AreEqual (pane.bottom,     hover->preview.bottom);
+            Assert::AreEqual (pane.left,       hover->previewTab.left,   L"the tab starts where the first tab does");
+            Assert::AreEqual (pane.top,        hover->previewTab.top);
+            Assert::AreEqual (pane.left + 100, hover->previewTab.right,  L"100 DIP wide");
+            Assert::AreEqual (body.top,        hover->previewTab.bottom, L"over the band and the line");
             rig.site.CancelDrag();
         }
     };

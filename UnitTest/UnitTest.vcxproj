@@ -250,6 +250,9 @@
     <ClCompile Include="DebuggerTests\SourceServiceTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceStepTests.cpp" />
     <ClCompile Include="DebuggerTests\StepFilterTests.cpp" />
+    <ClCompile Include="DebuggerTests\CallHistoryShellTests.cpp" />
+    <ClCompile Include="DebuggerTests\CallRecordCopiesTests.cpp" />
+    <ClCompile Include="DebuggerTests\CallStackHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\CallStackTests.cpp" />
     <ClCompile Include="DebuggerTests\CallStackHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\BinaryImageReaderTests.cpp" />
@@ -301,8 +304,10 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowPaneFindTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetInputTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetLayerTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerDockDragTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindReviewTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerFocusAccentTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowClosedPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerClosedPanesSettingTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyOptionsTests.cpp" />
@@ -318,6 +323,7 @@
     <ClCompile Include="DebuggerTests\DebuggerWindowTextSizeTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceDocumentsTests.cpp" />
     <ClCompile Include="DebuggerTests\CallRecorderCostTests.cpp" />
+    <ClCompile Include="DebuggerTests\CallStackRebuildCostTests.cpp" />
     <ClCompile Include="DebuggerTests\ShadowCpuCostTests.cpp" />
     <ClCompile Include="DebuggerTests\InstructionSemanticsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolDescriptionsTests.cpp" />
@@ -334,9 +340,11 @@
     <ClCompile Include="DebuggerTests\DebuggerPaneSpacingTests.cpp" />
     <ClCompile Include="DebuggerTests\BranchArrowTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyArrowTests.cpp" />
+    <ClCompile Include="DebuggerTests\OperandResultTipTests.cpp" />
     <ClCompile Include="DebuggerTests\ConsoleHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowThemeTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerSystemThemeColorsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerTextColorsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerRowTintColorsTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />
@@ -652,6 +660,7 @@
     <ClCompile Include="Dxui\DxuiSliderTests.cpp" />
     <ClCompile Include="Dxui\DxuiTreeViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiModalScrimTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTooltipFrameTests.cpp" />
     <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
     <ClCompile Include="Dxui\DxuiAddressBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewTests.cpp" />
@@ -662,8 +671,10 @@
     <ClCompile Include="Dxui\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\DebuggerOpenKeyTests.cpp" />
+    <ClCompile Include="UiTests\DevicePanelTooltipTests.cpp" />
     <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
     <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
+    <ClCompile Include="UiTests\CpuManagerPauseTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetHitTests.cpp" />
@@ -722,14 +733,18 @@
     <ClCompile Include="Dxui\DxuiPaneLayoutDockBackTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiPaneMetricsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockDropPreviewTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockDropZonesTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteDragMarksTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteDragTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockSiteDragCancelTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockDragLayerTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerDpiTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockedWindowFadeTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockedWindowFocusTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionDragTrackerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockSiteAutoHideTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteFloatingTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteGapTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSitePaneMenuTests.cpp" />
@@ -892,7 +907,7 @@
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />
     <ClCompile Include="DebuggerTests\StepWhileRunningTests.cpp" />
     <ClCompile Include="DebuggerTests\StateFileCommandTests.cpp" />
-    <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerHistoryItemTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusBarBeamZoomTests.cpp" /><ClCompile Include="DebuggerTests\ReplayProgressStatusTests.cpp" />
+    <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandGoLiveTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerHistoryItemTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusBarBeamZoomTests.cpp" /><ClCompile Include="DebuggerTests\ReplayProgressStatusTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseOptionsDialogTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />

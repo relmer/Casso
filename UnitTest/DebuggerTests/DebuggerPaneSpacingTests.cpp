@@ -4,10 +4,13 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/KeyHintLine.h"
+#include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/TracePane.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
@@ -98,6 +101,34 @@ namespace DebuggerTests
 
             data.rows.push_back (row);
             return data;
+        }
+
+
+        //  Where a drawn string's first character lands: the box's left for
+        //  left-aligned text, and short of the box's right by the string's
+        //  width for right-aligned, at the mock's measure.
+        static float GetFirstInkX (MockDxuiTextRenderer & text, const RecordedTextCall & call)
+        {
+            HRESULT  hr     = S_OK;
+            float    width  = 0.0f;
+            float    height = 0.0f;
+            float    x      = call.x;
+
+
+
+            hr = text.MeasureString (call.text.c_str(), call.fontSizeDip, DxuiTheme::kMonoFace, width, height);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (call.hAlign == DxuiTextHAlign::Right)
+            {
+                x = call.x + call.width - width;
+            }
+            else if (call.hAlign == DxuiTextHAlign::Center)
+            {
+                x = call.x + (call.width - width) * 0.5f;
+            }
+
+            return x;
         }
 
 
@@ -387,6 +418,149 @@ namespace DebuggerTests
 
                 Assert::IsNotNull (found, at.c_str());
                 Assert::AreEqual  (title, found->x, (L"the history band's text starts where the title does " + at).c_str());
+            }
+        }
+
+
+        //  The trace list's first column -- its heading, an entry number short
+        //  or long, and the "next" of an instruction still to run -- starts
+        //  where the pane's title does, at every scale, in a list set up as
+        //  the debugger's panes are.
+        TEST_METHOD (TheTraceListsFirstColumnStartsOnTheInset)
+        {
+            constexpr LONG   kPaneLeft    = 40;
+            constexpr LONG   kPaneTop     = 30;
+            constexpr LONG   kPaneWidth   = 900;
+            constexpr LONG   kPaneHeight  = 300;
+            constexpr int    kPanePadDip  = 4;      // a debugger pane list's cell padding
+            constexpr float  kPaneFontDip = 12.0f;  // and its text size
+
+
+
+            for (int dpi : kDpis)
+            {
+                DxuiDpiScaler                       scaler;
+                MockDxuiPainter                     painter;
+                MockDxuiTextRenderer                text;
+                MockDxuiTheme                       theme;
+                DxuiListView                        list;
+                TracePane                           pane  (&list, [] (std::optional<uint64_t>) {});
+                DebuggerViewSnapshot::TraceState    trace;
+                RECT                                body  = {};
+                float                               title = 0.0f;
+                const RecordedTextCall            * found = nullptr;
+                std::wstring                        at    = std::format (L"at {} DPI", dpi);
+
+
+
+                scaler.SetDpi (dpi);
+
+                body  = RECT { kPaneLeft + DxuiPaneMetrics::GetLinePx (scaler), kPaneTop,
+                               kPaneLeft + kPaneWidth - DxuiPaneMetrics::GetLinePx (scaler), kPaneTop + kPaneHeight };
+                title = (float) (kPaneLeft + DxuiPaneMetrics::GetTextInsetPx (scaler));
+
+                list.SetShowHeader     (true);
+                list.SetMonospace      (true);
+                list.SetFontSizeDip    (kPaneFontDip);
+                list.SetCellPaddingDip (kPanePadDip, kPanePadDip);
+                list.SetPaneTextInset  (true);
+                pane.Configure();
+
+                trace.total = 2;
+                trace.entries.resize (2);
+                trace.entries[0].index = 9;
+                trace.entries[1].index = 12345678;
+                trace.next.resize (1);
+                pane.Apply (trace);
+
+                //  The first paint fits the columns to the rows it pulls.
+                list.Layout (body, scaler);
+                list.Paint  (painter, text, theme);
+                text.Reset();
+                list.Paint  (painter, text, theme);
+
+                for (const wchar_t * first : { L"Entry", L"9", L"12345678", L"next" })
+                {
+                    found = FindText (text, first);
+
+                    Assert::IsNotNull (found, (std::wstring (first) + L" is drawn " + at).c_str());
+                    Assert::AreEqual  (title, GetFirstInkX (text, *found), 0.01f, (std::wstring (first) + L" starts where the title does " + at).c_str());
+                }
+            }
+        }
+
+
+        //  A pane strip that starts with a label, as the console's does, or
+        //  with a text box, as a memory window's does, puts the label's ink
+        //  and the box's text, rather than its border, exactly where the
+        //  title starts, at every scale: the box moves back toward the pane's
+        //  edge by its own padding.
+        TEST_METHOD (ALabelOrATextBoxFirstOnAStripStartsOnTheInset)
+        {
+            constexpr LONG  kPaneLeft  = 40;
+            constexpr LONG  kPaneTop   = 30;
+            constexpr LONG  kPaneWidth = 400;
+
+
+
+            for (int dpi : kDpis)
+            {
+                DxuiDpiScaler                    scaler;
+                MockDxuiPainter                  painter;
+                MockDxuiTextRenderer             text;
+                MockDxuiTheme                    theme;
+                ToolbarLabelEntry                mode (L"Mode:");
+                DxuiTextInput                    box;
+                MemoryAddressEntry               address (&box);
+                DxuiToolbar                      labelBar;
+                DxuiToolbar                      boxBar;
+                std::vector<DxuiToolbar::Entry>  labelFirst (2);
+                std::vector<DxuiToolbar::Entry>  boxFirst   (2);
+                RECT                             strip      = {};
+                float                            title      = 0.0f;
+                const RecordedTextCall         * found      = nullptr;
+                std::wstring                     at         = std::format (L"at {} DPI", dpi);
+
+
+
+                scaler.SetDpi (dpi);
+
+                strip = RECT { kPaneLeft + DxuiPaneMetrics::GetLinePx (scaler), kPaneTop,
+                               kPaneLeft + kPaneWidth - DxuiPaneMetrics::GetLinePx (scaler), kPaneTop + scaler.ToPx (DxuiToolbar::kCompactBandDp) };
+                title = (float) (kPaneLeft + DxuiPaneMetrics::GetTextInsetPx (scaler));
+
+                labelFirst[0].command  = mode.GetCommand();
+                labelFirst[0].custom   = &mode;
+                labelFirst[1].command  = MakeCommand (2, L"Next", L"b");
+                labelFirst[1].iconOnly = true;
+                boxFirst[0].command    = MakeCommand (1, L"Address", nullptr);
+                boxFirst[0].custom     = &address;
+                boxFirst[1].command    = MakeCommand (2, L"Next", L"b");
+                boxFirst[1].iconOnly   = true;
+
+                for (auto [bar, entries] : { std::pair { &labelBar, &labelFirst }, std::pair { &boxBar, &boxFirst } })
+                {
+                    bar->SetCompact       (true);
+                    bar->SetPaneTextInset (true);
+                    bar->SetEntries       (std::move (*entries));
+                    bar->Layout           (strip, scaler);
+                    bar->Paint            (painter, text, theme);
+                }
+
+                box.SetText (L"0300");
+                box.Paint   (painter, text, theme);
+
+                found = FindText (text, L"Mode:");
+
+                Assert::IsNotNull (found, at.c_str());
+                Assert::AreEqual  (title, found->x, (L"the label starts where the title does " + at).c_str());
+                Assert::AreEqual  ((LONG) title - scaler.ToPx (DxuiTextInput::kPadLeftDip), box.GetBounds().left,
+                                   (L"the box starts its own padding short of it " + at).c_str());
+
+                found = FindText (text, L"0300");
+
+                Assert::IsNotNull (found, at.c_str());
+                Assert::AreEqual  (title, found->x, (L"so the box's text starts where the title does " + at).c_str());
             }
         }
 

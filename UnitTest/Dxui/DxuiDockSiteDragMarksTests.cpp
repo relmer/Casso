@@ -49,11 +49,14 @@ namespace DxuiDockSiteDragMarksTests
             site.Layout        (RECT { 0, 0, 1000, 600 }, scaler);
         }
 
+        //  Every pass a window runs over the site in a frame: the page's two
+        //  and the drag layer.
         size_t CountPaintCalls()
         {
             painter.Reset();
             site.Paint              (painter, text, theme);
             site.PaintAfterSiblings (painter, text, theme);
+            site.PaintDragLayer     (painter, text, theme);
             return painter.Calls().size();
         }
     };
@@ -106,6 +109,9 @@ namespace DxuiDockSiteDragMarksTests
     {
     public:
 
+        //  The center button of a document group's cross shades the pane
+        //  below its tabs and the tab the pane would take, in two marks that
+        //  come before every guide.
         TEST_METHOD (MarksShowTheEdgeGuidesAndOneCrossOnlyDuringADrag)
         {
             Rig                            rig;
@@ -133,8 +139,8 @@ namespace DxuiDockSiteDragMarksTests
 
             Assert::IsNotNull (rig.site.GetHoveredZone(), L"the middle of the group is its cross's center button");
             Assert::AreEqual  ((size_t) 5, guides, L"a guide at each edge and the cross of the group under the pointer");
-            Assert::AreEqual  (guides + 1, marks.size(), L"and the shade of the hovered target, under them");
-            Assert::IsTrue    (marks.front().image == nullptr);
+            Assert::AreEqual  (guides + 2, marks.size(), L"and the shade of the hovered target, the pane and its new tab");
+            Assert::IsTrue    (marks[0].image == nullptr && marks[1].image == nullptr, L"the shade comes first");
 
             rig.site.CancelDrag();
             Assert::IsTrue (rig.site.GetDragMarks (rig.theme).empty(), L"the marks go when the drag ends");
@@ -165,18 +171,20 @@ namespace DxuiDockSiteDragMarksTests
             rig.text.Reset();
             Assert::AreEqual (resting, rig.CountPaintCalls(), L"the overlay paints them instead");
             Assert::IsTrue   (rig.text.IconCalls().empty());
+            Assert::IsFalse  (rig.site.HasDragLayer(), L"and the window flushes no drag layer");
         }
 
 
-        //  The marks lie over every pane control, whichever order the site and
-        //  the panes paint in, so the site draws them in its after pass, after
-        //  the groups' frames, and its own Paint leaves them out. The guides
-        //  go through the text pass, after every fill, so they lie over the
-        //  shade too.
-        TEST_METHOD (MarksArePaintedAfterTheSiblings)
+        //  The marks lie over every pane control and its pictures, which the
+        //  page's text pass draws after every fill of the page. So neither of
+        //  the page's passes over the site draws them: the after pass draws
+        //  the groups' frames alone, and the drag layer, which the window
+        //  flushes after the page, draws the marks. Its guides go through its
+        //  own text pass, after its fills, so they lie over the shade too.
+        TEST_METHOD (MarksArePaintedInTheDragLayer)
         {
             Rig     rig;
-            size_t  resting = rig.CountPaintCalls();
+            size_t  resting = 0;
             size_t  frames  = 0;
             size_t  fills   = 0;
             size_t  images  = 0;
@@ -187,24 +195,42 @@ namespace DxuiDockSiteDragMarksTests
             rig.site.PaintAfterSiblings (rig.painter, rig.text, rig.theme);
             frames = rig.painter.Calls().size();
 
+            rig.painter.Reset();
+            rig.site.Paint (rig.painter, rig.text, rig.theme);
+            resting = rig.painter.Calls().size();
+
+            Assert::IsTrue  (frames > 0,              L"at rest the after pass draws the frames");
+            Assert::IsFalse (rig.site.HasDragLayer(), L"no drag, no drag layer");
+
             HoverTheCodesCross (rig);
             CountMarks (rig, fills, images);
 
             Assert::IsTrue (fills > 0 && images > 0, L"a drag shows marks");
-
-            Assert::IsTrue (frames > 0, L"at rest the after pass draws the frames");
+            Assert::IsTrue (rig.site.HasDragLayer(), L"which the window paints in the drag layer");
 
             rig.painter.Reset();
             rig.text.Reset();
             rig.site.Paint (rig.painter, rig.text, rig.theme);
-            Assert::AreEqual (resting - frames, rig.painter.Calls().size(), L"Paint draws the site as it rests");
+            Assert::AreEqual (resting, rig.painter.Calls().size(), L"Paint draws the site as it rests");
             Assert::IsTrue   (rig.text.IconCalls().empty());
 
             rig.painter.Reset();
             rig.text.Reset();
             rig.site.PaintAfterSiblings (rig.painter, rig.text, rig.theme);
-            Assert::AreEqual (frames + fills, rig.painter.Calls().size(),   L"the after pass draws the frames and the marks");
-            Assert::AreEqual (images,         rig.text.IconCalls().size(), L"and the guides");
+            Assert::AreEqual (frames, rig.painter.Calls().size(), L"the after pass draws the frames alone");
+            Assert::IsTrue   (rig.text.IconCalls().empty(),       L"and no guide");
+
+            rig.painter.Reset();
+            rig.text.Reset();
+            rig.site.PaintDragLayer (rig.painter, rig.text, rig.theme);
+            Assert::AreEqual (fills,  rig.painter.Calls().size(),  L"the drag layer draws the shade");
+            Assert::AreEqual (images, rig.text.IconCalls().size(), L"and the guides");
+
+            rig.site.CancelDrag();
+            rig.painter.Reset();
+            rig.text.Reset();
+            rig.site.PaintDragLayer (rig.painter, rig.text, rig.theme);
+            Assert::IsTrue (rig.painter.Calls().empty() && rig.text.IconCalls().empty(), L"the layer is empty once the drag ends");
         }
 
 

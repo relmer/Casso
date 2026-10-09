@@ -69,6 +69,54 @@ bool DebuggerThemes::IsKnown (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerThemes::ApplyOwnColors
+//
+//  A dark tooltip is no brighter than the window it shows over: its fill is
+//  the window's background, #272727, and its border that fill at half the
+//  brightness, #131313, with white text. A light tooltip takes Visual Studio
+//  2026's own light values, measured at 125%: a #F9F9F9 fill, two levels
+//  under the window's #FBFBFB, a #DDDDDD border and #212121 text. Casso
+//  Explorer's own light theme keeps File Explorer's tooltip.
+//
+//  The light panes are Visual Studio's, measured at 125% on 2026-10-08:
+//  lists and titles #F9F9F9, text views #FFFFFF, outlined in #ADADAD, and
+//  #5649B0 around the focused one. The band behind the tabs and the gap
+//  between panes derive from the content color. The lines inside a list
+//  keep the light theme's #E5E5E5, which the outline no longer gives them.
+//
+//  The dark panes keep the system's content color, as Casso Explorer's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerThemes::ApplyOwnColors (
+    DxuiLightTheme & light,
+    DxuiDarkTheme  & dark)
+{
+    constexpr uint32_t  kLightLine = 0xFFE5E5E5;
+
+
+
+    dark.tooltipBg           = 0xFF272727;
+    dark.tooltipBorder       = 0xFF131313;
+    dark.tooltipText         = 0xFFFFFFFF;
+
+    light.tooltipBg          = 0xFFF9F9F9;
+    light.tooltipBorder      = 0xFFDDDDDD;
+    light.tooltipText        = 0xFF212121;
+    light.contentBg          = 0xFFF9F9F9;
+    light.textViewBg         = 0xFFFFFFFF;
+    light.panelEdge          = 0xFFADADAD;
+    light.focusAccent        = 0xFF5649B0;
+    light.contentEdge        = kLightLine;
+    light.splitterHighlight  = kLightLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerThemes::Choose
 //
 ////////////////////////////////////////////////////////////////////////////////

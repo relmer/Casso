@@ -17,11 +17,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Where the selected tab joins its pane, seen through the strip itself. The
 //  selected tab once drew its flares one line outside the tab, with circles,
 //  and painted the band color back over them -- across a hovered neighbor's
-//  pill. Now it draws its body inside the tab and the line it opens into,
-//  after every other tab, and the pills stand clear of the rows where the
-//  frame's joins curve. A selected tab ending just short of the strip's end
-//  is drawn reaching it, and one cut off under a scroll arrow is square at
-//  the cut, as the frame draws them.
+//  wash. Now it draws its body inside the tab and the line it opens into,
+//  after every other tab; the pane's frame draws the joins after the strip.
+//  A hovered tab is a box the band's full depth, rounded at its far corners
+//  as the selected tab is, and the + keeps a pill clear of the joins' rows.
+//  A selected tab ending just short of the strip's end is drawn reaching it,
+//  and one cut off under a scroll arrow is square at the cut, as the frame
+//  draws them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +44,7 @@ namespace DxuiTabStripJoinTests
 
     //  Tabs between `edges`, tab `selected` selected, in a strip `widthPx`
     //  wide and one band high at `dpi`: along a pane's top for a document,
-    //  along its bottom for a tool window.
+    //  along its bottom, under the line, for a tool window.
     static void LayOutTabs (Strip & s, DxuiTabStrip::Style style, UINT dpi, long widthPx, const std::vector<long> & edges, int selected)
     {
         constexpr long                  kTop = 100;
@@ -52,8 +54,8 @@ namespace DxuiTabStripJoinTests
 
 
         s.scaler.SetDpi (dpi);
-        band     = s.scaler.ToPx (DxuiTabGroup::kStripDip);
         s.t      = DxuiPaneMetrics::GetLinePx (s.scaler);
+        band     = s.scaler.ToPx (DxuiTabGroup::kStripDip) - ((style == DxuiTabStrip::Style::ToolWindow) ? s.t : 0);
         s.bounds = RECT { 0, kTop, widthPx, kTop + band };
 
         for (size_t i = 0; i + 1 < edges.size(); i++)
@@ -142,10 +144,11 @@ namespace DxuiTabStripJoinTests
 
 
 
-    //  The hovered first tab's pill: where it is in the log, and its rect.
+    //  The hovered first tab's box: where it is in the log, and what of it
+    //  shows.
     static bool TryFindPill (const Strip & s, size_t & index, RECT & pill)
     {
-        uint32_t  hover = (s.theme.Foreground() & 0x00FFFFFFu) | 0x14000000u;
+        uint32_t  hover = DxuiTabStrip::GetTabHoverFill (s.theme);
         bool      found = false;
 
 
@@ -167,35 +170,14 @@ namespace DxuiTabStripJoinTests
 
 
 
-    static DxuiPaneFrameSpec MakeFrameSpec (const Strip & s, bool toolWindow)
-    {
-        constexpr long     kPaneDepth = 400;
-        DxuiPaneFrameSpec  spec;
-
-
-
-        spec.toolWindow  = toolWindow;
-        spec.bandPx      = s.bounds.bottom - s.bounds.top;
-        spec.titlePx     = toolWindow ? s.scaler.ToPx (DxuiTabGroup::kTitleDip) : 0;
-        spec.pane        = toolWindow ? RECT { 0, s.bounds.bottom - kPaneDepth, 600, s.bounds.bottom } : RECT { 0, s.bounds.top, 600, s.bounds.top + kPaneDepth };
-        spec.hasSelected = true;
-        spec.selLeft     = 130;
-        spec.selRight    = 290;
-        spec.linePx      = DxuiPaneMetrics::GetLinePx (s.scaler);
-        spec.cornerPx    = DxuiPaneMetrics::GetCornerPx (s.scaler);
-        return spec;
-    }
-
-
-
     TEST_CLASS (DxuiTabStripJoinTests)
     {
     public:
 
-        //  At 150%, in both compact styles: no circles, nothing drawn over the
-        //  hovered neighbor's pill once it is down, and the selected tab's
-        //  fill held to the tab and the line it opens into.
-        TEST_METHOD (TheSelectedTabStaysInItsTabAndOffItsNeighborsPill)
+        //  At 150%, in both compact styles: no circles, nothing the strip
+        //  draws over the hovered neighbor's box once it is down, and the
+        //  selected tab's fill held to the tab and the line it opens into.
+        TEST_METHOD (TheSelectedTabStaysInItsTabAndOffItsNeighborsBox)
         {
             for (DxuiTabStrip::Style style : { DxuiTabStrip::Style::Document, DxuiTabStrip::Style::ToolWindow })
             {
@@ -210,7 +192,7 @@ namespace DxuiTabStripJoinTests
                 PaintStrip (s, style, 144);
                 allowed = below ? RECT { 130, s.bounds.top - s.t, 290, s.bounds.bottom } : RECT { 130, s.bounds.top, 290, s.bounds.bottom + s.t };
 
-                Assert::IsTrue (TryFindPill (s, index, pill), (kind + L": the hovered tab's pill").c_str());
+                Assert::IsTrue (TryFindPill (s, index, pill), (kind + L": the hovered tab's box").c_str());
 
                 for (size_t i = 0; i < s.painter.Calls().size(); i++)
                 {
@@ -221,7 +203,7 @@ namespace DxuiTabStripJoinTests
 
                     if (i > index)
                     {
-                        Assert::IsFalse (Overlaps (reach, pill), (kind + L": nothing lands on the pill after it").c_str());
+                        Assert::IsFalse (Overlaps (reach, pill), (kind + L": nothing lands on the box after it").c_str());
                     }
 
                     if (call.argb == s.theme.ContentBackground())
@@ -236,58 +218,15 @@ namespace DxuiTabStripJoinTests
         }
 
 
-        //  Over a range of scales, a hovered pill never reaches into the
-        //  boxes where the frame's joins curve into the line.
-        TEST_METHOD (TheHoverInsetKeepsPillsOutOfTheJoins)
+        //  A hovered tab is a box as wide as the tab and the band's full
+        //  depth, shown only in the tab, rounded at the pane's outer radius,
+        //  5, 6 and 7 px at 100%, 125% and 150%, at its far corners and
+        //  square along the line: its rounded rect reaches a radius past the
+        //  tab's near edge, out of sight.
+        TEST_METHOD (TheHoverBoxFillsTheBand)
         {
-            constexpr int  kLeastInsetDip = 3;
-
-
-
-            for (UINT dpi = 96; dpi <= 288; dpi += 24)
-            {
-                for (DxuiTabStrip::Style style : { DxuiTabStrip::Style::Document, DxuiTabStrip::Style::ToolWindow })
-                {
-                    Strip                           s;
-                    bool                            below   = style == DxuiTabStrip::Style::ToolWindow;
-                    size_t                          index   = 0;
-                    RECT                            pill    = {};
-                    size_t                          joins   = 0;
-                    std::vector<DxuiPaneFramePart>  parts;
-                    std::wstring                    where   = std::format (L"{} dpi, {}", dpi, below ? L"tool window" : L"document");
-
-                    PaintStrip (s, style, dpi);
-                    parts = DxuiPaneFrame::Build (MakeFrameSpec (s, below));
-
-                    Assert::AreEqual ((std::max) (s.scaler.ToPx (kLeastInsetDip), DxuiPaneMetrics::GetCornerPx (s.scaler) - DxuiPaneMetrics::GetLinePx (s.scaler)),
-                                      DxuiTabStrip::GetHoverInsetPx (s.scaler), (where + L": 3 DIP, or the outer radius less a line").c_str());
-                    Assert::IsTrue (TryFindPill (s, index, pill), (where + L": the hovered tab's pill").c_str());
-
-                    for (const DxuiPaneFramePart & part : parts)
-                    {
-                        if (part.shape != DxuiPaneFrameShape::Ring || part.role != DxuiPaneFrameRole::Content)
-                        {
-                            continue;
-                        }
-
-                        joins++;
-                        Assert::IsFalse (Overlaps (pill, part.clip), (where + L": the pill stays out of a join").c_str());
-                    }
-
-                    Assert::AreEqual ((size_t) 2, joins, (where + L": a join each side of the selected tab").c_str());
-                }
-            }
-        }
-
-
-        //  A hovered tab's pill is as wide as the tab, stands in 4, 5 and 6 px
-        //  from the strip's edges at 100%, 125% and 150%, and is rounded at
-        //  4 DIP.
-        TEST_METHOD (ThePillStandsInByTheHoverInset)
-        {
-            constexpr UINT  kDpis[]   = { 96, 120, 144 };
-            constexpr long  kInsets[] = { 4, 5, 6 };
-            constexpr long  kRadii[]  = { 4, 5, 6 };
+            constexpr UINT  kDpis[]  = { 96, 120, 144 };
+            constexpr long  kRadii[] = { 5, 6, 7 };
 
 
 
@@ -297,21 +236,77 @@ namespace DxuiTabStripJoinTests
                 {
                     Strip              s;
                     size_t             index = 0;
-                    RECT               pill  = {};
+                    RECT               box   = {};
                     RecordedPaintCall  call;
-                    std::wstring       where = std::format (L"{} dpi, {}", kDpis[i], (style == DxuiTabStrip::Style::ToolWindow) ? L"tool window" : L"document");
+                    long               depth = 0;
+                    bool               below = style == DxuiTabStrip::Style::ToolWindow;
+                    std::wstring       where = std::format (L"{} dpi, {}", kDpis[i], below ? L"tool window" : L"document");
 
                     PaintStrip (s, style, kDpis[i]);
+                    depth = s.bounds.bottom - s.bounds.top;
 
-                    Assert::AreEqual ((int) kInsets[i], DxuiTabStrip::GetHoverInsetPx (s.scaler), where.c_str());
-                    Assert::IsTrue   (TryFindPill (s, index, pill), (where + L": the hovered tab's pill").c_str());
+                    Assert::IsTrue   (TryFindPill (s, index, box), (where + L": the hovered tab's box").c_str());
 
                     call = s.painter.Calls()[index];
 
-                    Assert::AreEqual (130.0f,                                                          call.width,  (where + L": the tab's width").c_str());
-                    Assert::AreEqual ((float) (s.bounds.top + kInsets[i]),                             call.y,      (where + L": in from the strip's top").c_str());
-                    Assert::AreEqual ((float) (s.bounds.bottom - s.bounds.top - 2 * kInsets[i]),       call.height, (where + L": and its bottom").c_str());
-                    Assert::AreEqual ((float) kRadii[i],                                               call.radius, (where + L": the radius").c_str());
+                    Assert::IsTrue   (call.isClipped, where.c_str());
+                    Assert::AreEqual (0L,                                                         box.left,                 (where + L": from the tab's left").c_str());
+                    Assert::AreEqual (130L,                                                       box.right,                (where + L": to its right").c_str());
+                    Assert::AreEqual (s.bounds.top,                                               box.top,                  (where + L": the band's full depth").c_str());
+                    Assert::AreEqual (s.bounds.bottom,                                            box.bottom,               (where + L": the band's full depth").c_str());
+                    Assert::AreEqual ((float) kRadii[i],                                          call.radius,              (where + L": the radius").c_str());
+                    Assert::AreEqual ((float) (below ? s.bounds.top - kRadii[i] : s.bounds.top),  call.y,                   (where + L": its near corners past the line").c_str());
+                    Assert::AreEqual ((float) (depth + kRadii[i]),                                call.height,              (where + L": a radius deeper than the band").c_str());
+                    Assert::AreEqual (0x0F000000u,                                                call.argb & 0xFF000000u,  (where + L": the foreground laid faintly over the band").c_str());
+                }
+            }
+        }
+
+
+        //  The + under the pointer is washed in a pill as wide as the +, in
+        //  from the strip's edges by 4, 5 and 5 px at 100%, 125% and 150%,
+        //  which keeps it out of the rows where a join curves, rounded at
+        //  4 DIP.
+        TEST_METHOD (ThePlusPillStandsInByTheHoverInset)
+        {
+            constexpr UINT  kDpis[]   = { 96, 120, 144 };
+            constexpr long  kInsets[] = { 4, 5, 5 };
+            constexpr long  kRadii[]  = { 4, 5, 6 };
+
+
+
+            for (size_t i = 0; i < std::size (kDpis); i++)
+            {
+                for (DxuiTabStrip::Style style : { DxuiTabStrip::Style::Document, DxuiTabStrip::Style::ToolWindow })
+                {
+                    Strip              s;
+                    RECT               plus  = {};
+                    RecordedPaintCall  pill;
+                    bool               found = false;
+                    std::wstring       where = std::format (L"{} dpi, {}", kDpis[i], (style == DxuiTabStrip::Style::ToolWindow) ? L"tool window" : L"document");
+
+                    LayOutTabs (s, style, kDpis[i], 600, { 0, 130, 290 }, 0);
+                    s.strip.SetOnNewTab ([] {});
+                    plus = s.strip.GetNewTabRect();
+                    s.strip.SetMouseHover ((plus.left + plus.right) / 2, (plus.top + plus.bottom) / 2);
+                    s.strip.Paint (s.painter, s.text, s.theme);
+
+                    for (const RecordedPaintCall & call : s.painter.Calls())
+                    {
+                        if (!found && call.kind == RecordedPaintKind::FillRoundedRect && std::lround (call.x) == plus.left)
+                        {
+                            pill  = call;
+                            found = true;
+                        }
+                    }
+
+                    Assert::AreEqual ((int) kInsets[i], DxuiTabStrip::GetHoverInsetPx (s.scaler), where.c_str());
+                    Assert::IsTrue   (found, (where + L": the +'s pill").c_str());
+                    Assert::AreEqual ((float) (plus.right - plus.left),                           pill.width,  (where + L": the +'s width").c_str());
+                    Assert::AreEqual ((float) (s.bounds.top + kInsets[i]),                        pill.y,      (where + L": in from the strip's top").c_str());
+                    Assert::AreEqual ((float) (s.bounds.bottom - s.bounds.top - 2 * kInsets[i]),  pill.height, (where + L": and its bottom").c_str());
+                    Assert::AreEqual ((float) kRadii[i],                                          pill.radius, (where + L": the radius").c_str());
+                    Assert::AreEqual (DxuiTabStrip::GetTabHoverFill (s.theme),                    pill.argb,   (where + L": a hovered tab's color").c_str());
                 }
             }
         }

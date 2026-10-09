@@ -67,6 +67,10 @@ public:
     const std::vector<Row> &  GetRows  () const { return m_rows; }
     DxuiPopupHost          *  GetPopup () const { return m_popup; }
 
+    //  Where the key lies, in the host's client pixels; empty while it is not
+    //  shown.
+    RECT  GetRect () const;
+
 private:
     HRESULT  Raise       (HWND owner, const RECT & screen);
     SIZE     MeasureDip  (UINT dpi) const;
@@ -74,6 +78,7 @@ private:
 
     DxuiHwndSource     * m_host       = nullptr;
     DxuiPopupHost      * m_popup      = nullptr;
+    RECT                 m_anchor     = {};
     std::vector<Row>     m_rows;
     ColorLegend::Pane    m_pane       = ColorLegend::Pane::Disassembly;
     DxuiDpiScaler        m_scaler;

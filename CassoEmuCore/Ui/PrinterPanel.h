@@ -67,6 +67,9 @@ public:
     HRESULT  RenderFrame ();
     void     SetTheme (const CassoTheme * theme);
 
+    //  The toolbar's hover tip, which takes the theme's tooltip colors.
+    const DxuiTooltip &  GetTooltip () const { return m_tooltip; }
+
     // True while the panel needs a continuous animation cadence: the carriage
     // is still sweeping toward the guest's head position, or a pan/zoom is
     // easing. The shell forces a present each frame while true so the motion

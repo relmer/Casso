@@ -854,7 +854,34 @@ HRESULT EmulatorShell::OpenDebugger()
 
     m_pipeApi       = std::move (api);
     m_pipeTransport = std::move (transport);
-    m_debugger      = std::move (controller);
+
+    AttachDebugger (std::move (controller));
+
+Error:
+    if (FAILED (hr))
+    {
+        DEBUGMSG (L"The debug channel could not be opened: 0x%08X\n", hr);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachDebugger
+//
+//  The shell's debug pointers at the controller, and the session's requests
+//  routed to the CPU thread's queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AttachDebugger (std::unique_ptr<DebuggerController> controller)
+{
+    m_debugger = std::move (controller);
 
     SetDebugRunDriver  (&m_debugger->GetRunDriver());
     SetDebugSession    (&m_debugger->GetSession());
@@ -886,14 +913,6 @@ HRESULT EmulatorShell::OpenDebugger()
         PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
         return true;
     });
-
-Error:
-    if (FAILED (hr))
-    {
-        DEBUGMSG (L"The debug channel could not be opened: 0x%08X\n", hr);
-    }
-
-    return hr;
 }
 
 
@@ -905,7 +924,8 @@ Error:
 //  CloseDebugger
 //
 //  Detaches before destroying, so the slice loop and the notifications never
-//  reach a controller that is going away.
+//  reach a controller that is going away. The controller's call history
+//  unlinks itself from history as it goes, dropping a rebuild under way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -931,7 +951,8 @@ void EmulatorShell::CloseDebugger()
 //  ServiceDebugger
 //
 //  The CPU manager's service tick: once per pass through its loop, paused or
-//  running, so a client is answered either way.
+//  running, so a client gets a reply either way. The call record's rebuild
+//  from history is looked after here too, before the panes are gathered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -940,6 +961,7 @@ void EmulatorShell::ServiceDebugger()
     if (m_debugger != nullptr)
     {
         m_debugger->Pump();
+        ServiceCallHistory();
         PublishDebuggerView();
     }
 
@@ -1250,6 +1272,15 @@ void EmulatorShell::ExecuteCpuSlices()
 
     while (executed < targetCycles)
     {
+        // A pause asked for while this pass runs ends it here, on the
+        // instruction boundary RunCycles stopped the last slice at, rather
+        // than at the end of the frame. The pass after the resume runs the
+        // rest of the frame.
+        if (m_cpuManager.IsPaused())
+        {
+            break;
+        }
+
         sliceTarget = targetCycles - executed;
 
         if (sliceTarget > FrameCycleBudget::kSliceCycles)

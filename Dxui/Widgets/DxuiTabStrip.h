@@ -32,14 +32,18 @@
 //    with the color of the row below so that it joins it.
 //  - DOCUMENT, as Visual Studio draws its document tabs: compact, the
 //    selected tab filled with the pane's color, rounded at its far corners
-//    and open into the pane, the others plain text, a close button on the
-//    selected tab and on the one under the pointer only.
+//    and open into the pane, the others plain text on the band, and the one
+//    under the pointer in a faint box the band's full depth, rounded at its
+//    far corners like the selected tab. The selected tab and the one under
+//    the pointer show a pin and a close button; every tab keeps room for
+//    both, so no tab changes width as they come and go.
 //  - TOOL WINDOW, as Visual Studio draws the tabs under a tool window: the
-//    strip BELOW its pane, the selected tab filled the same way, the others
-//    plain text.
+//    same tabs, with no pin or close button, in a strip BELOW its pane.
 //
 //  In the compact styles the strip draws no outline: the pane's frame
 //  (DxuiPaneFrame) runs around the selected tab and joins it to the pane.
+//  Every label starts at the pane's text inset from its tab's left edge, so
+//  the first tab's label lines up with a pane's title.
 //
 //  In every style a tab can carry a leading mark ahead of its label, a glyph
 //  in a face and color of the host's choosing, and a tip the host shows.
@@ -56,6 +60,7 @@ public:
     using MoveFn     = std::function<void (int from, int to)>;
     using NewTabFn   = std::function<void ()>;
     using CloseFn    = std::function<void (int index)>;
+    using PinFn      = std::function<void (int index)>;
     using DragOutFn  = std::function<void (int index, POINT pointDip)>;
 
     enum class Style
@@ -63,6 +68,14 @@ public:
         Explorer,
         Document,
         ToolWindow,
+    };
+
+    //  A compact tab's own buttons.
+    enum class TabButton
+    {
+        None,
+        Pin,
+        Close,
     };
 
     DxuiTabStrip() { m_focusable = true; }
@@ -89,8 +102,14 @@ public:
     void  SetOnMove   (MoveFn fn)   { m_move   = std::move (fn); }
     void  SetOnNewTab (NewTabFn fn) { m_newTab = std::move (fn); }
 
-    //  With a close handler set, every closable tab carries a close button.
+    //  With a close handler set, every closable tab has a close button, in
+    //  every style but the tool window's.
     void  SetOnClose  (CloseFn fn)  { m_close  = std::move (fn); }
+
+    //  With a pin handler set, a document strip's selected tab and the one
+    //  under the pointer show a pin, which docks the tab's pane or hides it
+    //  against its edge.
+    void  SetOnPin    (PinFn fn)    { m_pin    = std::move (fn); }
 
     //  The color of the row the selected tab joins, which it is filled with,
     //  and the icon face its close glyph is drawn in.
@@ -104,6 +123,16 @@ public:
     void  SetStyle        (Style style)          { m_style        = style; }
     Style GetStyle        () const               { return m_style; }
 
+    //  The look of the pane the user works in: its selected tab's label and
+    //  glyphs in the full foreground, every other tab's a step dimmer.
+    void  SetFocusedLook  (bool focused)         { m_focusedLook  = focused; }
+    bool  HasFocusedLook  () const               { return m_focusedLook; }
+
+    //  The outer radius of the pane's corners, which a pane too small to
+    //  round has none of, and the tabs' rounded corners with it; -1, the
+    //  default, is the pane metric's.
+    void  SetCornerPx     (int px)               { m_cornerPx     = px; }
+
     //  With a handler set, a tab dragged past the strip's top or bottom is
     //  handed to the host, and the strip lets go of it. With no move handler
     //  as well, the tabs keep their order and any drag is handed over.
@@ -114,6 +143,7 @@ public:
 
     //  How wide a tab of this style is for its label, mark and icon, with or
     //  without a close button: what a host laying out the tabs gives it. A
+    //  document tab keeps room for its pin and close button either way. A
     //  null renderer estimates the label from its length.
     static int  MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style style, bool hasClose, const DxuiDpiScaler & scaler);
 
@@ -157,10 +187,39 @@ public:
     //  pane's outline around it. False while no selected tab shows.
     bool  GetSelectedSpan  (long & left, long & right, bool & openLeft, bool & openRight) const;
 
-    //  How far a hovered tab's wash stands in from the strip's edges. It
-    //  keeps a hover pill out of the rows where the selected tab joins the
-    //  line along the band.
+    //  How far the wash under the pointer on a scroll arrow or the + stands
+    //  in from the strip's edges.
     static int  GetHoverInsetPx (const DxuiDpiScaler & scaler);
+
+    //  Where tab `index`'s pin or close button is in the document style,
+    //  whether or not it shows: a square at the tab's end, between the tab's
+    //  outline and the line along the band, the close button one line in
+    //  from the tab's end and the pin beside it. An empty rect in the other
+    //  styles.
+    RECT       GetTabButtonRect (int index, TabButton button) const;
+
+    //  The shown pin or close button under a point, with its tab and its
+    //  rect; None off every shown button.
+    TabButton  GetTabButtonAt   (int x, int y, int & index, RECT & button) const;
+
+    //  Visual Studio's inks for a pane's tabs and title: the full foreground
+    //  for the selected tab of the pane the user works in, and for every
+    //  other label a step toward the muted foreground, kept readable on the
+    //  band; the label of the tab under the pointer a little nearer the
+    //  foreground; the pin and close glyphs a shade under their label. A
+    //  hovered tab is the foreground laid faintly over the band.
+    static uint32_t  GetLabelInk        (const IDxuiTheme & theme, bool focusedSelected);
+    static uint32_t  GetGlyphInk        (const IDxuiTheme & theme, bool focusedSelected);
+    static uint32_t  GetHoveredLabelInk (const IDxuiTheme & theme);
+    static uint32_t  GetHoveredGlyphInk (const IDxuiTheme & theme);
+    static uint32_t  GetTabHoverFill    (const IDxuiTheme & theme);
+
+    //  A tab's pin and close squares, as big as a pane's title bar buttons,
+    //  and their glyphs in Segoe MDL2 Assets, sized so their ink is 16 px
+    //  square at 150%, as Visual Studio's is.
+    static constexpr int    kTabButtonDip  = 24;
+    static constexpr float  kCloseGlyphDip = 14.0f;
+    static constexpr float  kPinGlyphDip   = 10.67f;
 
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);
@@ -202,43 +261,48 @@ private:
     //  Visual Studio's document and tool-window tabs.
     static constexpr int  s_kCompactFontDip   = 12;
     static constexpr int  s_kCompactMarkDip   = 12;   // a leading mark's room
-    static constexpr int  s_kCompactCloseDip  = 16;   // the close button's square
-    static constexpr int  s_kCompactCornerDip = 4;
-    static constexpr int  s_kCompactInsetDip  = 3;    // a hovered tab's wash from the strip's edges
-    static constexpr int  s_kToolTabMinDip    = 96;   // a tool window's tab, however short its title
+    static constexpr int  s_kCompactCornerDip = 4;    // a wash's rounded corners
+    static constexpr int  s_kCompactInsetDip  = 3;    // an arrow's or the +'s wash from the strip's edges
     static constexpr int  s_kCharEstimateDip  = 7;    // a label's width a character, unmeasured
 
-    //  The label from each end of the tab, where a pane's title starts.
-    static constexpr int  s_kCompactPadDip    = DxuiPaneMetrics::kTextInsetDip;
+    //  A pressed tab's, button's, arrow's or +'s wash, a touch darker than
+    //  under the pointer; and a tab's pin and close glyphs against its label,
+    //  Visual Studio's #D1D1D1 beside #D7D7D7.
+    static constexpr float  kPressedScale = 0.82f;
+    static constexpr float  kGlyphScale   = 0.973f;
 
-    void  Commit         (int newIndex);
-    bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }
-    int   GetMaxScrollPx () const;
-    int   GetDropIndex   (int x) const;
-    void  ClampScroll    ();
-    void  ScrollIntoView (int index);
-    void  MoveDraggedTab (int to);
-    bool  IsOverflowing  () const;
-    int   GetArrowWidthPx () const;
-    int   GetViewLeft    () const { return (int) m_boundsDip.left  + GetArrowWidthPx(); }
-    int   GetViewRight   () const { return (int) m_boundsDip.right - GetNewTabWidthPx() - GetArrowWidthPx(); }
-    int   GetArrowAt     (int x, int y) const;
-    bool  CanScroll      (int direction) const;
-    void  ScrollByTab    (int direction);
-    void  PaintArrow     (IDxuiPainter & painter, IDxuiTextRenderer & text, int direction, uint32_t hoverArgb, uint32_t textArgb) const;
-    int   GetNewTabWidthPx () const;
-    bool  IsOverNewTab   (int x, int y) const;
-    void  PaintNewTab    (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
-    RECT  GetCloseRect   (int index) const;
-    int   GetCloseAt     (int x, int y) const;
-    void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                         uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,
-                         uint32_t textArgb, uint32_t focusArgb) const;
-    void  PaintCompactTab   (IDxuiPainter & painter, IDxuiTextRenderer & text, int index,
-                             uint32_t hoverArgb, uint32_t fillArgb, uint32_t textArgb) const;
+    struct Palette;
+
+    void  Commit            (int newIndex);
+    bool  HasBounds         () const { return m_boundsDip.right > m_boundsDip.left; }
+    int   GetMaxScrollPx    () const;
+    int   GetDropIndex      (int x) const;
+    void  ClampScroll       ();
+    void  ScrollIntoView    (int index);
+    void  MoveDraggedTab    (int to);
+    bool  IsOverflowing     () const;
+    int   GetArrowWidthPx   () const;
+    int   GetViewLeft       () const { return (int) m_boundsDip.left  + GetArrowWidthPx(); }
+    int   GetViewRight      () const { return (int) m_boundsDip.right - GetNewTabWidthPx() - GetArrowWidthPx(); }
+    int   GetArrowAt        (int x, int y) const;
+    bool  CanScroll         (int direction) const;
+    void  ScrollByTab       (int direction);
+    void  PaintArrow        (IDxuiPainter & painter, IDxuiTextRenderer & text, int direction, uint32_t hoverArgb, uint32_t textArgb) const;
+    int   GetNewTabWidthPx  () const;
+    bool  IsOverNewTab      (int x, int y) const;
+    void  PaintNewTab       (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
+    RECT  GetCloseRect      (int index) const;
+    int   GetCloseAt        (int x, int y) const;
+    int   GetPinAt          (int x, int y) const;
+    int   GetCornerPx       () const;
+    void  PaintInternal     (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal) const;
+    void  PaintCompactTab   (IDxuiPainter & painter, IDxuiTextRenderer & text, int index, const Palette & pal) const;
+    void  PaintTabButton    (IDxuiPainter & painter, IDxuiTextRenderer & text, int index, TabButton button, const Palette & pal) const;
     void  PaintSelectedBody (IDxuiPainter & painter, const RECT & tab, uint32_t fillArgb) const;
+    void  PaintHoverBox     (IDxuiPainter & painter, const RECT & tab, uint32_t argb) const;
     void  PaintHoverPill    (IDxuiPainter & painter, const RECT & rect, uint32_t argb) const;
-    bool  IsCloseShown  (int index) const;
+    bool  IsCloseShown      (int index) const;
+    bool  IsPinShown        (int index) const;
 
 
     std::vector<Tab>  m_tabs;
@@ -260,13 +324,18 @@ private:
     bool              m_hoverNewTab   = false;
     bool              m_pressedNewTab = false;
     CloseFn           m_close;
+    PinFn             m_pin;
     int               m_hoverClose    = -1;
     int               m_pressedClose  = -1;
+    int               m_hoverPin      = -1;
+    int               m_pressedPin    = -1;
     uint32_t          m_selectedFill  = 0;
     uint32_t          m_stripFill     = 0;
     const wchar_t *   m_iconFace      = L"Segoe MDL2 Assets";
     bool              m_enabled       = true;
     bool              m_focused       = false;
+    bool              m_focusedLook   = false;
+    int               m_cornerPx      = -1;
     int               m_gapIndex      = -1;
     int               m_gapPx         = 0;
     DxuiDpiScaler     m_scaler;

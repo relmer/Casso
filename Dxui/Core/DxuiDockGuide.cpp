@@ -203,63 +203,58 @@ DxuiDockGuideButton DxuiDockGuide::GetSplitButton (DxuiDockSide side)
 //
 //  DxuiDockGuide::Render
 //
-//  In Visual Studio's order: the cross's fill and its border ring, the
-//  buttons' fills, then their borders, the pictures of where the pane would
-//  go, the dots of a split, the arrows, and last the border of the button
-//  under the pointer. The fill runs under the ring, so the ring's inner edge
-//  blends into the fill as Visual Studio's does.
+//  The cross's fill and its border ring, then the buttons. The fill runs
+//  under the ring, so the ring's inner edge blends into the fill as Visual
+//  Studio's does.
+//
+//  Every button but the one under the pointer is composed at full strength
+//  on a layer of its own, which is then laid over the cross at kRestAlpha,
+//  so each part of it fades together; the button under the pointer is drawn
+//  last, opaque. An edge guide is composed whole and then faded whole unless
+//  its button is under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiIconImage DxuiDockGuide::Render (DxuiDockGuideKind kind, DxuiDockSide edge, int hoveredButton, const DxuiDockGuideColors & colors, const DxuiDpiScaler & scaler)
 {
-    SIZE                              size    = GetSizePx (kind, scaler);
-    DxuiIconImage                     image   = DxuiCoverageRaster::MakeImage (size.cx, size.cy);
-    std::vector<DxuiPointF>           outline = GetOutline (kind, scaler);
-    std::vector<DxuiPointF>           inner   = DxuiCoverageRaster::InsetPolygon (outline, scaler.ToPxf (kBorderDip));
-    std::vector<DxuiDockGuideButton>  buttons = GetButtons (kind, edge);
+    constexpr float                   kChannelMax = 255.0f;
+    float                             rest        = (float) kRestAlpha / kChannelMax;
+    SIZE                              size        = GetSizePx (kind, scaler);
+    DxuiIconImage                     image       = DxuiCoverageRaster::MakeImage (size.cx, size.cy);
+    DxuiIconImage                     layer;
+    std::vector<DxuiPointF>           outline     = GetOutline (kind, scaler);
+    std::vector<DxuiPointF>           inner       = DxuiCoverageRaster::InsetPolygon (outline, scaler.ToPxf (kBorderDip));
+    std::vector<DxuiDockGuideButton>  buttons     = GetButtons (kind, edge);
+    std::vector<DxuiDockGuideButton>  lit;
+    std::vector<DxuiDockGuideButton>  resting;
 
 
+
+    for (DxuiDockGuideButton button : buttons)
+    {
+        ((int) button == hoveredButton ? lit : resting).push_back (button);
+    }
 
     DxuiCoverageRaster::FillPolygon     (image, outline, colors.fill);
     DxuiCoverageRaster::FillPolygonRing (image, outline, inner, colors.border);
 
-    for (DxuiDockGuideButton button : buttons)
+    if (kind == DxuiDockGuideKind::Edge)
     {
-        DxuiCoverageRaster::FillRoundedRect (image, GetButtonBox (kind, button, scaler), colors.buttonFill);
-    }
+        PaintButtons (image, kind, buttons, colors, scaler);
 
-    for (DxuiDockGuideButton button : buttons)
-    {
-        DxuiCoverageRect  box = GetButtonBox (kind, button, scaler);
-
-        DxuiCoverageRaster::FillRoundedRing (image, box, GetBorderHole (box), colors.buttonBorder);
-    }
-
-    for (DxuiDockGuideButton button : buttons)
-    {
-        PaintGlyph (image, kind, button, colors.glyph, scaler);
-    }
-
-    for (DxuiDockGuideButton button : buttons)
-    {
-        DxuiCoverageRaster::FillRects (image, GetDots (kind, button, scaler), colors.glyph);
-    }
-
-    for (DxuiDockGuideButton button : buttons)
-    {
-        DxuiCoverageRaster::FillPolygon (image, GetArrow (kind, button, scaler), colors.arrow);
-    }
-
-    for (DxuiDockGuideButton button : buttons)
-    {
-        DxuiCoverageRect  box = GetButtonBox (kind, button, scaler);
-
-        if ((int) button == hoveredButton)
+        if (lit.empty())
         {
-            DxuiCoverageRaster::FillRoundedRing (image, box, GetBorderHole (box), colors.hover);
+            DxuiCoverageRaster::FadeImage (image, rest);
         }
+
+        return image;
     }
+
+    layer = DxuiCoverageRaster::MakeImage (size.cx, size.cy);
+
+    PaintButtons                  (layer, kind, resting, colors, scaler);
+    DxuiCoverageRaster::DrawImage (image, layer, rest);
+    PaintButtons                  (image, kind, lit, colors, scaler);
 
     return image;
 }
@@ -643,6 +638,54 @@ void DxuiDockGuide::PaintGlyph (DxuiIconImage & image, DxuiDockGuideKind kind, D
     }
 
     DxuiCoverageRaster::FillRoundedRing (image, outer, hole, argb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockGuide::PaintButtons
+//
+//  In Visual Studio's order: the buttons' fills, then their borders, the
+//  pictures of where the pane would go, the dots of a split, and the arrows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockGuide::PaintButtons (
+    DxuiIconImage                           & image,
+    DxuiDockGuideKind                         kind,
+    const std::vector<DxuiDockGuideButton>  & buttons,
+    const DxuiDockGuideColors               & colors,
+    const DxuiDpiScaler                     & scaler)
+{
+    for (DxuiDockGuideButton button : buttons)
+    {
+        DxuiCoverageRaster::FillRoundedRect (image, GetButtonBox (kind, button, scaler), colors.buttonFill);
+    }
+
+    for (DxuiDockGuideButton button : buttons)
+    {
+        DxuiCoverageRect  box = GetButtonBox (kind, button, scaler);
+
+        DxuiCoverageRaster::FillRoundedRing (image, box, GetBorderHole (box), colors.buttonBorder);
+    }
+
+    for (DxuiDockGuideButton button : buttons)
+    {
+        PaintGlyph (image, kind, button, colors.glyph, scaler);
+    }
+
+    for (DxuiDockGuideButton button : buttons)
+    {
+        DxuiCoverageRaster::FillRects (image, GetDots (kind, button, scaler), colors.glyph);
+    }
+
+    for (DxuiDockGuideButton button : buttons)
+    {
+        DxuiCoverageRaster::FillPolygon (image, GetArrow (kind, button, scaler), colors.arrow);
+    }
 }
 
 

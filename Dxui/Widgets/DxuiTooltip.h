@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Render/DxuiShadow.h"
 #include "Theme/IDxuiTheme.h"
 
 
@@ -82,6 +83,28 @@ public:
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
+    //  The colors SetTheme took.
+    uint32_t  GetBackgroundArgb () const { return m_bgArgb;     }
+    uint32_t  GetBorderArgb     () const { return m_borderArgb; }
+    uint32_t  GetTextArgb       () const { return m_textArgb;   }
+
+    //  The balloon's frame. By default it is a flyout's: the overlay corner
+    //  radius, a one-DIP border inside the padding, and a menu's shadow, as
+    //  File Explorer's tips are. ApplyVisualStudioLook sets Visual Studio's.
+    void  SetCornerRadiusDip    (float dip)   { m_cornerDip = dip; }
+    void  SetWholePixelFrame    (bool on)     { m_isWholePixelFrame = on; }
+    void  SetShadow             (const DxuiShadow::Style & onDark, const DxuiShadow::Style & onLight) { m_shadowOnDark = onDark; m_shadowOnLight = onLight; }
+    void  ApplyVisualStudioLook ();
+
+    //  The frame in pixels at the tip's DPI: the border, the room from the
+    //  balloon's edge to its text, the corner radius, and the shadow under
+    //  the fill the theme gives.
+    float                       GetBorderPx       () const;
+    float                       GetPadXPx         () const;
+    float                       GetPadYPx         () const;
+    float                       GetCornerRadiusPx () const;
+    const DxuiShadow::Style &   GetShadow         () const;
+
     //
     //  Opt-in popup hosting (FR-054 / FR-061). When a host is wired
     //  up the tooltip renders into a WS_POPUP HWND with
@@ -127,6 +150,10 @@ public:
     // timeout rather than sleeping until the next input/frame.
     bool                 WantsTick () const { return m_pending || m_fadingOut
                                                    || (m_visible && m_hideAtMs != 0); }
+
+    //  The anchor a tip waiting out its open dwell is to be placed against.
+    const RECT         & GetPendingAnchor() const { return m_pendingAnchor; }
+
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
@@ -161,6 +188,7 @@ private:
 
     //  The balloon's size for the current text, the anchor in screen
     //  pixels, and the balloon that is up moved to the anchor in place.
+    void  MeasureBoxPx       (float & widthPx, float & heightPx);
     SIZE  MeasureBoxDip      ();
     RECT  GetScreenAnchor    () const;
     void  MovePopup          (bool isNewText);
@@ -197,6 +225,10 @@ private:
     uint32_t           m_bgArgb            = 0xFF2D2D2D;
     uint32_t           m_borderArgb        = 0xFF606060;
     uint32_t           m_textArgb          = 0xFFE8EEF4;
+    float              m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
+    bool               m_isWholePixelFrame = false;
+    DxuiShadow::Style  m_shadowOnDark;
+    DxuiShadow::Style  m_shadowOnLight;
     int                m_viewportWPx       = 0;
     int                m_viewportHPx       = 0;
     bool               m_visible           = false;

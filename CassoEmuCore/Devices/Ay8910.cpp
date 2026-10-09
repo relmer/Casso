@@ -615,8 +615,13 @@ int Ay8910::GetEnvPeriod() const
 //
 //  Ay8910::AppendDiagnostics
 //
-//  The periods as the registers set them, the mixer's enables decoded (a
-//  clear bit enables), each channel's amplitude, and the envelope.
+//  The periods as the registers set them, the mixer, each channel's
+//  amplitude, and the envelope.
+//
+//  The mixer row's value is the register, and its decode is lit for a tone or
+//  noise source that is on. The register turns a source off with a set bit,
+//  so those six bits are inverted for the decode; the I/O port bits are set
+//  for an output and are shown as they are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -624,14 +629,19 @@ void Ay8910::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot &
 {
     using P = IDiagnosticsProvider;
 
-    static constexpr std::array<const char *, 8>  kMixerBits = { "IOB", "IOA", "NC", "NB", "NA", "TC", "TB", "TA" };
-    static constexpr std::array<const char *, 8>  kShapeBits = { "", "", "", "", "CONT", "ATT", "ALT", "HOLD" };
-    static constexpr std::array<const char *, 8>  kAmpBits   = { "", "", "", "ENV", "", "", "", "" };
-    static constexpr const char *                 kNames[]   = { "A", "B", "C" };
-    constexpr int                                 kChannels  = 3;
-    DiagnosticsGroup                              group      { title, {} };
+    static constexpr std::array<const char *, 8>  kMixerBits      = { "IOB", "IOA", "NC", "NB", "NA", "TC", "TB", "TA" };
+    static constexpr std::array<const char *, 8>  kShapeBits      = { "", "", "", "", "CONT", "ATT", "ALT", "HOLD" };
+    static constexpr std::array<const char *, 8>  kAmpBits        = { "", "", "", "ENV", "", "", "", "" };
+    static constexpr const char *                 kNames[]        = { "A", "B", "C" };
+    constexpr int                                 kChannels       = 3;
+    constexpr Byte                                kSourceDisables = 0x3F;   // tone and noise, A to C
+    DiagnosticsGroup                              group           { title, {} };
+    DiagnosticsRow                                mixer           = P::MakeHexRow ("Mixer (lit = enabled)", m_regs[kRegMixer], P::kByteDigits);
+    Byte                                          enables         = (Byte) (m_regs[kRegMixer] ^ kSourceDisables);
 
 
+
+    mixer.bits = P::MakeByteRow (mixer.label, enables, kMixerBits).bits;
 
     for (int channel = 0; channel < kChannels; channel++)
     {
@@ -639,7 +649,7 @@ void Ay8910::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot &
     }
 
     group.rows.push_back (P::MakeHexRow  ("Noise period", (uint32_t) GetNoisePeriod(), P::kByteDigits));
-    group.rows.push_back (P::MakeByteRow ("Mixer",        m_regs[kRegMixer], kMixerBits));
+    group.rows.push_back (std::move (mixer));
 
     for (int channel = 0; channel < kChannels; channel++)
     {
@@ -663,28 +673,27 @@ void Ay8910::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot &
 //  Ay8910::AppendChannelLevels
 //
 //  A channel's amplitude register, or the envelope's level where the register
-//  hands the channel to the envelope; a channel the mixer silences on both
-//  tone and noise reads as zero.
+//  hands the channel to the envelope, whatever the mixer is set to. A channel
+//  with tone and noise both turned off does not go quiet: its output holds
+//  at that level (GetCurrentOutput), which is how samples are played through
+//  the amplitude register.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Ay8910::AppendChannelLevels (const std::string & title, DiagnosticsMeters & meters) const
 {
-    static constexpr const char * kNames[]    = { "A", "B", "C" };
-    constexpr int                 kChannels   = 3;
-    constexpr int                 kNoiseShift = 3;
-    Byte                          mixer       = m_regs[kRegMixer];
+    static constexpr const char * kNames[]  = { "A", "B", "C" };
+    constexpr int                 kChannels = 3;
 
 
 
     for (int channel = 0; channel < kChannels; channel++)
     {
-        Byte   amp     = m_regs[kRegAmpA + channel];
-        int    level   = (amp & kAmpUseEnvelope) ? m_envLevel : (amp & kAmpLevelMask);
-        bool   silent  = ((mixer >> channel) & 1) != 0 && ((mixer >> (channel + kNoiseShift)) & 1) != 0;
+        Byte   amp   = m_regs[kRegAmpA + channel];
+        int    level = (amp & kAmpUseEnvelope) ? m_envLevel : (amp & kAmpLevelMask);
 
         meters.levels.push_back ({ std::format ("{} {}", title, kNames[channel]),
-                                   silent ? 0.0f : (float) level / (float) kMaxEnvLevel });
+                                   (float) level / (float) kMaxEnvLevel });
     }
 }
 

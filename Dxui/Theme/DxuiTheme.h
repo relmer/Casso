@@ -59,6 +59,10 @@ struct DxuiTheme : public IDxuiTheme
     //  back to the dropdown surface.
     uint32_t  controlBg                = 0;
 
+    //  A text or code view's background. A zero value falls back to the
+    //  content color.
+    uint32_t  textViewBg               = 0;
+
     //  List column title text, and lines within a content surface (a header's
     //  underline, the separators between columns). Both are much lower contrast
     //  than the panel edge: Explorer's are a few levels off its list
@@ -77,8 +81,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  buttonPressed            = 0;
     uint32_t  buttonBorder             = 0;
 
-    //  The tooltip's fill and border. Zero, the default, takes the window
-    //  background and half its brightness.
+    //  The tooltip's fill, border and text, each returned as it is set.
     uint32_t  tooltipBg                = 0;
     uint32_t  tooltipBorder            = 0;
     uint32_t  tooltipText              = 0;
@@ -108,8 +111,9 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  mapSlotRom               = 0;
     uint32_t  mapIo                    = 0;
 
-    //  The gap between docked panes, the band behind a pane's tabs, and the
-    //  drop targets a dragged pane shows. Zero takes the derived color.
+    //  The gap between docked panes, the band behind a pane's tabs, the drop
+    //  targets a dragged pane shows, and the shade over where it would go.
+    //  Zero takes the derived color.
     uint32_t  dockGap                  = 0;
     uint32_t  paneBand                 = 0;
     uint32_t  dockGuideBorder          = 0;
@@ -118,6 +122,11 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  dockGuideButtonFill      = 0;
     uint32_t  dockGuideGlyph           = 0;
     uint32_t  dockGuideArrow           = 0;
+    uint32_t  dockPreview              = 0;
+
+    //  What marks the pane the user is working in. A zero value takes the
+    //  accent, or its complement where the panel shares its hue.
+    uint32_t  focusAccent              = 0;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
@@ -131,6 +140,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  ContentSelectionEdge () const override { return contentSelectionEdge; }
     uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
     uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
+    uint32_t  TextViewBackground  () const override { return (textViewBg != 0) ? textViewBg : ContentBackground(); }
     uint32_t  HoverBackground     () const override { return navHover;           }
     uint32_t  PressedBackground   () const override { return buttonPressed;      }
     uint32_t  SelectionBackground () const override { return navHover;           }
@@ -149,6 +159,7 @@ struct DxuiTheme : public IDxuiTheme
 
     uint32_t  Accent              () const override { return link;               }
     uint32_t  FocusRing           () const override { return link;               }
+    uint32_t  FocusAccent         () const override { return (focusAccent != 0) ? focusAccent : IDxuiTheme::FocusAccent(); }
     uint32_t  Border              () const override { return panelEdge;          }
     uint32_t  Divider             () const override { return buttonBorder;       }
 
@@ -160,6 +171,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  DockGuideButtonFill   () const override { return (dockGuideButtonFill != 0) ? dockGuideButtonFill : IDxuiTheme::DockGuideButtonFill(); }
     uint32_t  DockGuideGlyph        () const override { return (dockGuideGlyph != 0) ? dockGuideGlyph : IDxuiTheme::DockGuideGlyph(); }
     uint32_t  DockGuideArrow        () const override { return (dockGuideArrow != 0) ? dockGuideArrow : IDxuiTheme::DockGuideArrow(); }
+    uint32_t  DockPreview           () const override { return (dockPreview != 0) ? dockPreview : IDxuiTheme::DockPreview(); }
 
     uint32_t  ButtonIdle          () const override { return buttonIdle;         }
     uint32_t  ButtonHover         () const override { return buttonHover;        }
@@ -176,9 +188,9 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  SystemCloseHover    () const override { return sysButtonCloseHover; }
     uint32_t  SystemClosePressed  () const override { return sysButtonClosePressed; }
 
-    uint32_t  TooltipBackground   () const override { return (tooltipBg     != 0) ? tooltipBg     : Background(); }
-    uint32_t  TooltipBorder       () const override { return (tooltipBorder != 0) ? tooltipBorder : DxuiColor::Darken (TooltipBackground(), kTooltipBorderScale); }
-    uint32_t  TooltipForeground   () const override { return tooltipText;   }
+    uint32_t  TooltipBackground   () const override { return tooltipBg;          }
+    uint32_t  TooltipBorder       () const override { return tooltipBorder;      }
+    uint32_t  TooltipForeground   () const override { return tooltipText;        }
 
     // Typography. Faces and sizes are centralized here so widgets read
     // theme fonts instead of repeating literals. Icon-glyph faces (Segoe
@@ -200,10 +212,6 @@ struct DxuiTheme : public IDxuiTheme
     //  OverlayCornerRadius is, which makes a control-radius card inset by the
     //  difference sit exactly concentric inside one.
     static constexpr float         kOverlayCornerRadiusDip = 8.0f;
-
-    //  A tooltip's border against its fill: each channel of the fill scaled
-    //  by this, so the border is half the fill's brightness.
-    static constexpr float         kTooltipBorderScale = 0.5f;
 
     DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
     DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
@@ -246,6 +254,8 @@ struct DxuiTheme : public IDxuiTheme
         theme.buttonHover               = 0xFF45494F;
         theme.buttonPressed             = 0xFF23252A;
         theme.buttonBorder              = 0xFF55595F;
+        theme.tooltipBg                 = 0xFF1E2024;
+        theme.tooltipBorder             = 0xFF0F1012;
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                     = 0xFFFF6666;
         theme.resultText                = 0xFF4EC9E0;
@@ -284,6 +294,8 @@ struct DxuiTheme : public IDxuiTheme
         theme.buttonHover               = 0xFFD0D0D0;
         theme.buttonPressed             = 0xFFC0C0C0;
         theme.buttonBorder              = 0xFFB0B0B0;
+        theme.tooltipBg                 = 0xFFF6F6F6;
+        theme.tooltipBorder             = 0xFF7B7B7B;
         theme.tooltipText               = 0xFF1A1A1A;
         theme.errorText                     = 0xFFC02020;
         theme.resultText                = 0xFF00727D;

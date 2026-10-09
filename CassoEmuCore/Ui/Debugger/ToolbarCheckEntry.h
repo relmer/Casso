@@ -40,13 +40,12 @@ public:
     const wchar_t *  GetTooltipAt  (int x, int y, RECT & anchor) const override;
     bool             OnClick       (int x, int y) override;
     bool             OnLButtonDown (int x, int y) override;
-    int              GetLeadPx     (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kLeadDip); }
+    int              GetLeadPx     (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kPadDip); }
 
 private:
     static constexpr int    kBoxDip     = 16;
     static constexpr int    kGapDip     = 6;
-    static constexpr int    kLeadDip    = 4;    // ahead of the box: a compact button's padding
-    static constexpr int    kPadDip     = 8;    // after the label
+    static constexpr int    kPadDip     = 8;    // ahead of the box and after the label
     static constexpr float  kFontDip    = 13.0f;
     static constexpr int    kLabelGuess = 7;
 

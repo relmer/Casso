@@ -229,6 +229,13 @@ public:
     void         SetDebugHook (DebugHook * hook) noexcept { m_debugHook = hook; }
     DebugHook *  GetDebugHook () const noexcept           { return m_debugHook; }
 
+    //  A flag another thread raises to stop the machine, or null. RunCycles
+    //  tests it before each instruction and returns early once it is up, so
+    //  a pause asked for while a slice runs lands on the next instruction
+    //  boundary rather than at the end of the slice. Unset, each instruction
+    //  costs one pointer test.
+    void  SetStopFlag (const std::atomic<bool> * stopFlag) noexcept { m_stopFlag = stopFlag; }
+
     //  Reverse execution's recorder, or null. While set, StepOne tells it of
     //  each instruction about to run; unset, each instruction costs one
     //  pointer test.
@@ -337,6 +344,15 @@ public:
     //  must be empty.
     HRESULT   LoadStateOverMountedMedia (StateReader & reader);
 
+    //  The disk each drive bay holds, slot-major, as a snapshot records it,
+    //  zero for an empty bay.
+    using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
+
+    //  The media a saved state's bays held, from its header alone, so a
+    //  second machine can check whether the disks it mounted are the ones the
+    //  state was saved with before it loads it over them.
+    static HRESULT  ReadSavedMedia (const std::vector<Byte> & state, MediaIds & outIds);
+
     //  Enough of a state to draw its screen, into a machine built from the
     //  same configuration that holds no disks: the disks the state holds, and
     //  any part this machine has no counterpart for, are passed over. The
@@ -385,9 +401,6 @@ private:
     Byte  FinishStep       ();
     Byte  StepOneAsked     (const DebugHookFilter & filter, Word pc);
 
-    //  The disk each drive bay holds, slot-major, as a snapshot records it.
-    using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
-
     //  The slot whose Disk II the refs hold, which the drive bays feed.
     static constexpr int  kDiskControllerSlot = 6;
 
@@ -430,6 +443,8 @@ private:
     bool                 m_isSoundMuted     = false;
     bool                 m_isPrinterMuted   = false;
     bool                 m_wasMotorOnAtMute = false;
+
+    const std::atomic<bool>  * m_stopFlag = nullptr;
 
     mutable uint64_t  m_romIdentity           = 0;
     mutable uint64_t  m_romIdentityGeneration = 0;

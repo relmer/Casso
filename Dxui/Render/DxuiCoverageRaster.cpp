@@ -261,6 +261,121 @@ bool DxuiCoverageRaster::IsInsidePolygon (const std::vector<DxuiPointF> & points
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiCoverageRaster::DrawImage
+//
+//  Source-over of a premultiplied picture the size of the image, every pixel
+//  of it scaled by `opacity` first, as a translucent layer lies over what is
+//  already drawn. Each channel is worked out whole and rounded once. A
+//  picture of another size draws nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCoverageRaster::DrawImage (
+    DxuiIconImage        & image,
+    const DxuiIconImage  & layer,
+    float                  opacity)
+{
+    size_t  pixels = (size_t) image.width * (size_t) image.height;
+    bool    isSame = layer.width == image.width && layer.height == image.height &&
+                     image.bgraPremul.size() >= pixels && layer.bgraPremul.size() >= pixels;
+
+
+
+    if (!isSame)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < pixels; i++)
+    {
+        image.bgraPremul[i] = LayPixel (image.bgraPremul[i], layer.bgraPremul[i], opacity);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCoverageRaster::FadeImage
+//
+//  Every pixel, color and alpha alike since they are premultiplied, scaled
+//  by `opacity`, so the picture draws that much fainter over anything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCoverageRaster::FadeImage (
+    DxuiIconImage  & image,
+    float            opacity)
+{
+    for (uint32_t & pixel : image.bgraPremul)
+    {
+        pixel = ScalePixel (pixel, opacity);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCoverageRaster::TintCovered
+//
+//  For each pixel whose center lies in the rectangle, the color the picture
+//  would show with `argb` laid over it, counted only where the picture
+//  covers: a picture drawn over a tint then looks as if the tint lay above
+//  it. A pixel the picture covers by `g` takes `g` of the tint's color at
+//  the tint's alpha, and keeps the rest of its own; its alpha is unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCoverageRaster::TintCovered (
+    DxuiIconImage           & image,
+    const DxuiCoverageRect  & rect,
+    uint32_t                  argb)
+{
+    constexpr float     kChannelMax = 255.0f;
+    constexpr float     kPixelMid   = 0.5f;
+    constexpr float     kRound      = 0.5f;
+    constexpr uint32_t  kChannel    = 0xFFu;
+    float               alpha       = (float) (argb >> 24) / kChannelMax;
+    float               keep        = 1.0f - alpha;
+    long                left        = std::max (0L,                  (long) std::ceil (rect.left   - kPixelMid));
+    long                top         = std::max (0L,                  (long) std::ceil (rect.top    - kPixelMid));
+    long                right       = std::min ((long) image.width,  (long) std::ceil (rect.right  - kPixelMid));
+    long                bottom      = std::min ((long) image.height, (long) std::ceil (rect.bottom - kPixelMid));
+    size_t              pixels      = (size_t) image.width * (size_t) image.height;
+
+
+
+    if (alpha <= 0.0f || image.bgraPremul.size() < pixels)
+    {
+        return;
+    }
+
+    for (long y = top; y < bottom; y++)
+    {
+        for (long x = left; x < right; x++)
+        {
+            uint32_t  & pixel = image.bgraPremul[(size_t) y * (size_t) image.width + (size_t) x];
+            float       cover = (float) (pixel >> 24) / kChannelMax;
+            uint32_t    r     = (uint32_t) ((float) ((pixel >> 16) & kChannel) * keep + (float) ((argb >> 16) & kChannel) * alpha * cover + kRound);
+            uint32_t    g     = (uint32_t) ((float) ((pixel >>  8) & kChannel) * keep + (float) ((argb >>  8) & kChannel) * alpha * cover + kRound);
+            uint32_t    b     = (uint32_t) ((float) ( pixel        & kChannel) * keep + (float) ( argb        & kChannel) * alpha * cover + kRound);
+
+            pixel = (pixel & (kChannel << 24)) | (std::min (r, kChannel) << 16) | (std::min (g, kChannel) << 8) | std::min (b, kChannel);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiCoverageRaster::Fill
 //
 //  Row by row over the bounds: for each of the 16 samples, where the area
@@ -587,6 +702,73 @@ void DxuiCoverageRaster::Blend (uint32_t & pixel, uint32_t argb, int samplesInsi
     }
 
     pixel = (std::min (a, kChannel) << 24) | (std::min (r, kChannel) << 16) | (std::min (g, kChannel) << 8) | std::min (b, kChannel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCoverageRaster::ScalePixel
+//
+//  A premultiplied pixel with every channel scaled, rounded to the nearest
+//  level and held to 255.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiCoverageRaster::ScalePixel (
+    uint32_t  pixel,
+    float     factor)
+{
+    constexpr float     kRound   = 0.5f;
+    constexpr uint32_t  kChannel = 0xFFu;
+    uint32_t            a        = (uint32_t) ((float) ( pixel >> 24)             * factor + kRound);
+    uint32_t            r        = (uint32_t) ((float) ((pixel >> 16) & kChannel) * factor + kRound);
+    uint32_t            g        = (uint32_t) ((float) ((pixel >>  8) & kChannel) * factor + kRound);
+    uint32_t            b        = (uint32_t) ((float) ( pixel        & kChannel) * factor + kRound);
+
+
+
+    return (std::min (a, kChannel) << 24) | (std::min (r, kChannel) << 16) | (std::min (g, kChannel) << 8) | std::min (b, kChannel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCoverageRaster::LayPixel
+//
+//  Source-over of one premultiplied pixel, scaled by `opacity`, onto
+//  another: the upper one, and what its alpha leaves of the lower, each
+//  channel rounded once and held to 255.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiCoverageRaster::LayPixel (
+    uint32_t  under,
+    uint32_t  over,
+    float     opacity)
+{
+    constexpr float     kChannelMax = 255.0f;
+    constexpr float     kRound      = 0.5f;
+    constexpr uint32_t  kChannel    = 0xFFu;
+    float               keep        = 1.0f - (float) (over >> 24) * opacity / kChannelMax;
+    uint32_t            pixel       = 0;
+
+
+
+    for (int shift = 0; shift <= 24; shift += 8)
+    {
+        float     value   = (float) ((over >> shift) & kChannel) * opacity + (float) ((under >> shift) & kChannel) * keep;
+        uint32_t  channel = std::min (kChannel, (uint32_t) (value + kRound));
+
+        pixel |= channel << shift;
+    }
+
+    return pixel;
 }
 
 

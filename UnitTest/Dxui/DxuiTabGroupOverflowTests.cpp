@@ -15,7 +15,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Tabs that do not fit scroll with the strip's arrows at every group width
 //  down to a pane's minimum (SC-028, US7/AC11): whichever tab is selected
 //  lies whole inside the strip, between its arrows, and a press on an arrow
-//  brings the next tab into reach.
+//  brings the next tab into reach. Every tab keeps room for its pin and
+//  close button, 65 px at 100% besides its label, so the labels here are
+//  short enough for a tab to fit between the arrows at the minimum.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +46,7 @@ namespace DxuiTabGroupOverflowTests
             for (int i = 0; i < s_kTabCount; i++)
             {
                 panes.push_back (std::make_unique<MockDxuiControl>());
-                group.AddTab (std::format (L"Memory window {}", i + 1), panes.back().get());
+                group.AddTab (std::format (L"Mem {}", i + 1), panes.back().get());
             }
         }
 

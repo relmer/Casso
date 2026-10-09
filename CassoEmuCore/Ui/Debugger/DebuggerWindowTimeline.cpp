@@ -186,10 +186,9 @@ bool DebuggerWindow::RouteTimelineMouse (const DxuiMouseEvent & ev)
 
 void DebuggerWindow::SyncTimeline()
 {
-    HistoryThumbnails     * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
-    HWND                    hwnd       = GetHwnd();
-    bool                    shown      = hwnd != nullptr && IsWindowVisible (hwnd) && !IsIconic (hwnd);
-    HistoryThumbnailCell    cell;
+    HistoryThumbnails  * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
+    HWND                 hwnd       = GetHwnd();
+    bool                 shown      = hwnd != nullptr && IsWindowVisible (hwnd) && !IsIconic (hwnd);
 
 
 
@@ -210,15 +209,38 @@ void DebuggerWindow::SyncTimeline()
         LayoutWidgets();
     }
 
-    if (m_pendingSeek.has_value() && m_snapshot != nullptr && m_snapshot->isPaused)
-    {
-        cell = *m_pendingSeek;
-        m_pendingSeek.reset();
+    MakePendingSeek();
+    SyncTimelineScrub();
+}
 
-        OnTimelineSeek (cell);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MakePendingSeek
+//
+//  A seek asked for while the machine ran, or a go live, is made once the
+//  machine has stopped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::MakePendingSeek()
+{
+    HistoryThumbnailCell  cell;
+
+
+
+    if (!m_pendingSeek.has_value() || m_snapshot == nullptr || !m_snapshot->isPaused)
+    {
+        return;
     }
 
-    SyncTimelineScrub();
+    cell = *m_pendingSeek;
+    m_pendingSeek.reset();
+
+    OnTimelineSeek (cell);
 }
 
 
@@ -360,6 +382,42 @@ void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
     if (plan.run)
     {
         RunCommandBarEntry (DebuggerCommands::kRun);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GoLiveFromBand
+//
+//  A history band's Go live link. The machine moves through its history
+//  only while it is stopped, and a machine running on from a point in its
+//  history is still behind live, with the link showing; a LIVE command sent
+//  then fails with "machine running". So while it runs, a click on the link
+//  does what one on the timeline's live end does: it stops the machine, and
+//  once it has, goes live and runs on. Stopped, it goes live and stays
+//  stopped, as Debug > Go live does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::GoLiveFromBand()
+{
+    HistoryThumbnailCell  live;
+
+
+
+    live.isLive = true;
+
+    if (m_snapshot != nullptr && !m_snapshot->isPaused)
+    {
+        OnTimelineSeek (live);
+    }
+    else
+    {
+        RunCommandBarEntry (DebuggerCommands::kGoLive);
     }
 }
 

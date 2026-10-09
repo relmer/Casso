@@ -262,6 +262,9 @@ public:
     void                      ClearTextSelection ();
     std::wstring              GetSelectionText () const;
 
+    //  Whether any of a cell's characters are in the text selection.
+    bool                      IsCellTextSelected (int row, size_t col) const;
+
     // Opt-in keyboard column navigation. When enabled, OnKey walks the
     // header / divider sub-stops and the list body via Tab and acts on
     // them (sort on a header, resize on a divider, row moves in the body)
@@ -459,6 +462,19 @@ public:
     // preview of a file's contents does, rather than the neutral fill a file
     // list uses.
     void  SetTextSelectionColors   (bool enabled)                { m_textSelectionColors = enabled; }
+
+    // Rows on the background of a text or code view rather than a list's, as
+    // a disassembly is an editor's text in Visual Studio.
+    void  SetTextViewSurface       (bool enabled)                { m_textViewSurface = enabled; }
+
+    // The theme's fill the rows lie on, under any hover or selection.
+    uint32_t  GetRowBackground     (const IDxuiTheme & theme) const;
+
+    // Column 0 as an editor's glyph margin: its icon centered this far in
+    // from the list's left edge, as Visual Studio centers a breakpoint, in
+    // place of after the cell's padding. Zero, the default, keeps the usual
+    // place.
+    void  SetGlyphCenterDip        (float dip)                   { m_glyphCenterDip = dip; }
 
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
@@ -804,6 +820,8 @@ private:
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;
     bool     m_textSelectionColors   = false;
+    bool     m_textViewSurface       = false;
+    float    m_glyphCenterDip        = 0.0f;
 
     //  A place in the list's text, ordered as it reads: row, then column,
     //  then character.

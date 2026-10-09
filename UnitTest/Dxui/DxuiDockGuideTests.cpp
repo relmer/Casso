@@ -13,7 +13,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Visual Studio's drop guides, measured at 125%: the small cross over a
 //  tool window group, the large one over a document group, and the box at
 //  each window edge. Their sizes, buttons, chamfers and pictures in pixels
-//  at 100% and 125%, and the colors a rendered guide takes from the theme.
+//  at 100% and 125%, and the colors a rendered guide takes from the theme:
+//  the button under the pointer at full strength, and every other button,
+//  and an edge guide whose button is not under the pointer, at 70%, which
+//  reproduces the colors Visual Studio's captures read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +24,7 @@ namespace DxuiDockGuideTests
 {
     static constexpr UINT  s_kDpi100 = 96;
     static constexpr UINT  s_kDpi125 = 120;
+    static constexpr UINT  s_kDpi150 = 144;
 
 
 
@@ -48,7 +52,6 @@ namespace DxuiDockGuideTests
         colors.buttonFill   = theme.DockGuideButtonFill();
         colors.glyph        = theme.DockGuideGlyph();
         colors.arrow        = theme.DockGuideArrow();
-        colors.hover        = theme.FocusAccent();
         return colors;
     }
 
@@ -57,6 +60,46 @@ namespace DxuiDockGuideTests
     static uint32_t GetPixel (const DxuiIconImage & image, int x, int y)
     {
         return image.bgraPremul[(size_t) y * (size_t) image.width + (size_t) x];
+    }
+
+
+
+    //  A premultiplied pixel laid over an opaque backdrop, as the screen
+    //  shows it.
+    static uint32_t LayOver (uint32_t pixel, uint32_t backdrop)
+    {
+        float     keep  = 1.0f - (float) (pixel >> 24) / 255.0f;
+        uint32_t  color = 0xFF000000u;
+
+
+
+        for (int shift = 0; shift <= 16; shift += 8)
+        {
+            float  channel = (float) ((pixel >> shift) & 0xFFu) + (float) ((backdrop >> shift) & 0xFFu) * keep;
+
+            color |= (uint32_t) std::lround (channel) << shift;
+        }
+
+        return color;
+    }
+
+
+
+    //  Each color channel within two levels of a capture: the capture is
+    //  8-bit, and the picture holds its premultiplied colors in 8 bits.
+    static void CheckNear (uint32_t expected, uint32_t actual, const wchar_t * what)
+    {
+        constexpr int  kTolerance = 2;
+        std::wstring   message    = std::format (L"{}: expected #{:06X}, got #{:06X}", what, expected & 0xFFFFFFu, actual & 0xFFFFFFu);
+
+
+
+        for (int shift = 0; shift <= 16; shift += 8)
+        {
+            int  difference = (int) ((expected >> shift) & 0xFFu) - (int) ((actual >> shift) & 0xFFu);
+
+            Assert::IsTrue (std::abs (difference) <= kTolerance, message.c_str());
+        }
     }
 
 
@@ -157,7 +200,8 @@ namespace DxuiDockGuideTests
 
 
         //  Arms 40 DIP wide, each inside corner cut at 45 degrees: legs of 10
-        //  DIP on the small cross and 9.25 on the large one.
+        //  DIP on the small cross and 9.25 on the large one, Visual Studio's
+        //  12.5 to 13 px and 11.6 px at 125%.
         TEST_METHOD (TheCrossesChamferTheirInsideCorners)
         {
             DxuiDpiScaler            at100 = MakeScaler (s_kDpi100);
@@ -296,75 +340,149 @@ namespace DxuiDockGuideTests
         }
 
 
-        TEST_METHOD (ARenderedCrossTakesTheThemesColors)
+        //  The button under the pointer is opaque, in the theme's colors at
+        //  full strength, with no accent anywhere; the cross's border and
+        //  translucent fill are the theme's too.
+        TEST_METHOD (TheButtonUnderThePointerTakesTheThemesColors)
         {
             DxuiDarkTheme        theme;
             DxuiDpiScaler        scaler = MakeScaler (s_kDpi125);
             DxuiDockGuideColors  colors = MakeColors (theme);
-            DxuiIconImage        image  = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, -1, colors, scaler);
+            DxuiIconImage        center = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, (int) DxuiDockGuideButton::Center,  colors, scaler);
+            DxuiIconImage        top    = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, (int) DxuiDockGuideButton::DockTop, colors, scaler);
+            uint32_t             accent = theme.FocusAccent() | 0xFF000000u;
 
 
 
-            Assert::AreEqual (140, image.width);
-            Assert::AreEqual (140, image.height);
-            Assert::AreEqual (theme.DockGuideButtonFill(),   GetPixel (image, 52, 70),       L"deep inside the center button");
-            Assert::AreEqual (theme.DockGuideGlyph(),        GetPixel (image, 55, 70),       L"the center picture's frame");
-            Assert::AreEqual (theme.DockGuideGlyph(),        GetPixel (image, 70, 57),       L"its title band");
-            Assert::AreEqual (theme.DockGuideButtonFill(),   GetPixel (image, 70, 70),       L"the picture is empty inside");
-            Assert::AreEqual (theme.DockGuideArrow(),        GetPixel (image, 70, 37),       L"the top button's arrow");
-            Assert::AreEqual (0u,                            GetPixel (image,  5,  5),       L"outside the outline");
-            Assert::AreEqual (theme.DockGuideBorder(),       GetPixel (image, 70,  0),       L"the border at the top arm's end");
-            Assert::AreEqual (theme.DockGuideButtonBorder(), GetPixel (image, 70,  5),       L"the top button's border");
-            Assert::AreEqual (0x99u,                         GetPixel (image, 47, 20) >> 24, L"the translucent fill between the border and a button");
+            Assert::AreEqual (140, center.width);
+            Assert::AreEqual (140, center.height);
+            Assert::AreEqual (theme.DockGuideButtonFill(),   GetPixel (center, 52, 70),       L"deep inside the center button");
+            Assert::AreEqual (theme.DockGuideGlyph(),        GetPixel (center, 55, 70),       L"the center picture's frame");
+            Assert::AreEqual (theme.DockGuideGlyph(),        GetPixel (center, 70, 57),       L"its title band");
+            Assert::AreEqual (theme.DockGuideButtonFill(),   GetPixel (center, 70, 70),       L"the picture is empty inside");
+            Assert::AreEqual (0u,                            GetPixel (center,  5,  5),       L"outside the outline");
+            Assert::AreEqual (theme.DockGuideBorder(),       GetPixel (center, 70,  0),       L"the border at the top arm's end");
+            Assert::AreEqual (0x99u,                         GetPixel (center, 47, 20) >> 24, L"the translucent fill between the border and a button");
+            Assert::AreEqual (theme.DockGuideArrow(),        GetPixel (top,    70, 37),       L"the top button's arrow");
+            Assert::AreEqual (theme.DockGuideButtonBorder(), GetPixel (top,    70,  5),       L"the top button's border, not an accent");
+
+            for (uint32_t pixel : top.bgraPremul)
+            {
+                Assert::AreNotEqual (accent, pixel, L"no part of a guide is drawn in the accent");
+            }
         }
 
 
-        //  A button's corners are rounded 3 DIP, 3.75 pixels at 125%: the
-        //  corner pixel itself is clear of the button, and the next one along
-        //  the top edge is partly covered.
-        TEST_METHOD (AButtonsCornersAreRounded)
+        //  Every other button is the same button drawn at 70% over the
+        //  cross. Over Visual Studio's dark #282828 that is the #202020 fill,
+        //  #353535 border and #A0A0A0 picture and arrow its captures read, on
+        //  a cross that reads #232323.
+        TEST_METHOD (EveryOtherButtonShowsAtSeventyPercentInTheDarkTheme)
+        {
+            DxuiDarkTheme  theme;
+            DxuiDpiScaler  scaler   = MakeScaler (s_kDpi125);
+            DxuiIconImage  image    = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, -1, MakeColors (theme), scaler);
+            uint32_t       backdrop = 0xFF282828u;
+
+
+
+            CheckNear (0xFF232323u, LayOver (GetPixel (image, 47, 20), backdrop), L"the cross between its border and a button");
+            CheckNear (0xFF202020u, LayOver (GetPixel (image, 52, 70), backdrop), L"a button's fill");
+            CheckNear (0xFFA0A0A0u, LayOver (GetPixel (image, 55, 70), backdrop), L"its picture");
+            CheckNear (0xFF353535u, LayOver (GetPixel (image, 70,  5), backdrop), L"a button's border");
+            CheckNear (0xFFA0A0A0u, LayOver (GetPixel (image, 70, 37), backdrop), L"its arrow");
+            Assert::AreEqual (theme.DockGuideBorder(), GetPixel (image, 70, 0), L"the cross's own border never fades");
+        }
+
+
+        //  The same over Visual Studio's light #F9F9F9: the #F3F3F4 fill and
+        //  the #4893CE picture and #5D5D5E arrow, on a cross reading #EFEFF2.
+        TEST_METHOD (EveryOtherButtonShowsAtSeventyPercentInTheLightTheme)
+        {
+            DxuiLightTheme  theme;
+            DxuiDpiScaler   scaler   = MakeScaler (s_kDpi125);
+            DxuiIconImage   image    = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, -1, MakeColors (theme), scaler);
+            uint32_t        backdrop = 0xFFF9F9F9u;
+
+
+
+            CheckNear (0xFFEFEFF2u, LayOver (GetPixel (image, 47, 20), backdrop), L"the cross between its border and a button");
+            CheckNear (0xFFF3F3F4u, LayOver (GetPixel (image, 52, 70), backdrop), L"a button's fill");
+            CheckNear (0xFF4893CEu, LayOver (GetPixel (image, 55, 70), backdrop), L"its picture");
+            CheckNear (0xFF5D5D5Eu, LayOver (GetPixel (image, 70, 37), backdrop), L"its arrow");
+        }
+
+
+        //  An edge guide fades whole, its box with its button, until its
+        //  button is under the pointer. Over white, Visual Studio's light box
+        //  then reads #F5F5F7 and its picture #4C98D1.
+        TEST_METHOD (AnEdgeGuideFadesWholeUntilItsButtonIsUnderThePointer)
+        {
+            DxuiLightTheme  theme;
+            DxuiDpiScaler   scaler = MakeScaler (s_kDpi125);
+            DxuiIconImage   rest   = DxuiDockGuide::Render (DxuiDockGuideKind::Edge, DxuiDockSide::Top, -1,                                 MakeColors (theme), scaler);
+            DxuiIconImage   lit    = DxuiDockGuide::Render (DxuiDockGuideKind::Edge, DxuiDockSide::Top, (int) DxuiDockGuideButton::DockTop, MakeColors (theme), scaler);
+            uint32_t        most   = 0;
+
+
+
+            for (uint32_t pixel : rest.bgraPremul)
+            {
+                most = std::max (most, pixel >> 24);
+            }
+
+            Assert::AreEqual ((uint32_t) DxuiDockGuide::kRestAlpha, most, L"no pixel of a resting edge guide is more opaque than 70%");
+            CheckNear (0xFFF5F5F7u, LayOver (GetPixel (rest,  3, 25), 0xFFFFFFFFu), L"the box's fill over white");
+            CheckNear (0xFF4C98D1u, LayOver (GetPixel (rest, 10, 17), 0xFFFFFFFFu), L"the picture over white");
+
+            Assert::AreEqual (50, lit.width);
+            Assert::AreEqual (theme.DockGuideBorder(),     GetPixel (lit, 25,  0), L"the box's border, opaque under the pointer");
+            Assert::AreEqual (theme.DockGuideButtonFill(), GetPixel (lit, 25,  5), L"the button's edge is its fill: no border in the light theme");
+            Assert::AreEqual (theme.DockGuideGlyph(),      GetPixel (lit, 10, 10), L"the dock-top picture's corner");
+        }
+
+
+        //  A button's corners are rounded 2.5 DIP, 3.125 px at 125%: the
+        //  corner pixel is clear of the button, and nine of the sixteen
+        //  samples of the next one along the top edge are inside it. At 3
+        //  DIP only four would be, leaving that pixel at 0xC6.
+        TEST_METHOD (AButtonsCornersAreRoundedTwoAndAHalfDip)
         {
             DxuiDarkTheme  theme;
             DxuiDpiScaler  scaler = MakeScaler (s_kDpi125);
-            DxuiIconImage  image  = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, -1, MakeColors (theme), scaler);
+            DxuiIconImage  image  = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, (int) DxuiDockGuideButton::Center, MakeColors (theme), scaler);
             uint32_t       fill   = GetPixel (image, 47, 50);
 
 
 
-            Assert::AreEqual    (fill, GetPixel (image, 50, 50), L"the center button's top left pixel is cut away");
-            Assert::AreNotEqual (fill, GetPixel (image, 51, 50), L"the next one is partly the button's");
-            Assert::AreNotEqual (theme.DockGuideButtonBorder(), GetPixel (image, 51, 50), L"but only partly");
-            Assert::AreEqual    (theme.DockGuideButtonBorder(), GetPixel (image, 54, 50), L"past the corner the border is solid");
+            Assert::AreEqual (fill,                         GetPixel (image, 50, 50),       L"the center button's top left pixel is cut away");
+            Assert::AreEqual (0xEBu,                        GetPixel (image, 51, 50) >> 24, L"the next one is nine sixteenths the button's");
+            Assert::AreEqual (theme.DockGuideButtonBorder(), GetPixel (image, 54, 50),      L"past the corner the border is solid");
         }
 
 
-        TEST_METHOD (TheHoveredButtonsBorderTakesTheFocusAccent)
+        //  The cross's border ring is exactly 1 DIP, its outer edge on a whole
+        //  pixel and its inner one not: at 125% the pixel inside the outer
+        //  one is a quarter ring over the fill, and at 150% a half.
+        TEST_METHOD (TheBorderRingIsOneDipUnsnapped)
         {
-            DxuiDarkTheme        theme;
-            DxuiDpiScaler        scaler = MakeScaler (s_kDpi125);
-            DxuiDockGuideColors  colors = MakeColors (theme);
-            DxuiIconImage        lit    = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, (int) DxuiDockGuideButton::DockTop, colors, scaler);
+            constexpr UINT      kDpis[]   = { s_kDpi100, s_kDpi125, s_kDpi150 };
+            constexpr uint32_t  kAlphas[] = { 0x99, 0xB3, 0xCC };
+            DxuiDarkTheme       theme;
 
 
 
-            Assert::AreEqual (theme.FocusAccent() | 0xFF000000u, GetPixel (lit, 70,  5), L"the hovered button's border");
-            Assert::AreEqual (theme.DockGuideButtonBorder(),     GetPixel (lit, 70, 50), L"the others keep theirs");
-        }
+            for (size_t i = 0; i < std::size (kDpis); i++)
+            {
+                DxuiDpiScaler  scaler = MakeScaler (kDpis[i]);
+                DxuiIconImage  image  = DxuiDockGuide::Render (DxuiDockGuideKind::SmallCross, DxuiDockSide::Left, -1, MakeColors (theme), scaler);
+                int            middle = image.height / 2;
+                std::wstring   at     = std::format (L"{} dpi", kDpis[i]);
 
-
-        //  Visual Studio's light buttons have no border to see.
-        TEST_METHOD (ALightButtonShowsNoBorder)
-        {
-            DxuiLightTheme  theme;
-            DxuiDpiScaler   scaler = MakeScaler (s_kDpi125);
-            DxuiIconImage   image  = DxuiDockGuide::Render (DxuiDockGuideKind::Edge, DxuiDockSide::Top, -1, MakeColors (theme), scaler);
-
-
-
-            Assert::AreEqual (50, image.width);
-            Assert::AreEqual (theme.DockGuideButtonFill(), GetPixel (image, 25, 5), L"the button's edge is its fill");
-            Assert::AreEqual (theme.DockGuideGlyph(),      GetPixel (image, 10, 10), L"the dock-top picture's corner");
-            Assert::AreEqual (theme.DockGuideBorder(),     GetPixel (image, 25, 0), L"the box's border");
+                Assert::AreEqual (theme.DockGuideBorder(), GetPixel (image, 0, middle),       (L"the left arm's outer column, " + at).c_str());
+                Assert::AreEqual (kAlphas[i],              GetPixel (image, 1, middle) >> 24, (L"the next column, " + at).c_str());
+                Assert::AreEqual (0x99u,                   GetPixel (image, 2, middle) >> 24, (L"then the fill alone, " + at).c_str());
+            }
         }
     };
 }

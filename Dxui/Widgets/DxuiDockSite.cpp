@@ -205,6 +205,7 @@ void DxuiDockSite::Arrange()
         bool            document = !m_isDocument;
         bool            focused  = false;
         bool            carried  = false;
+        RECT            rect     = {};
 
         while (group->GetTabCount() > 0)
         {
@@ -236,11 +237,14 @@ void DxuiDockSite::Arrange()
         //  is a tool window.
         document = document && m_onDock == nullptr;
 
-        group->SetKind        (document ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow);
-        group->SetFocusedLook (focused);
-        group->SetStripForced (carried);
-        group->SetActive      (active);
-        group->Layout         (GetInsetForGap (groups[i].rect, m_paneArea, gap), m_scaler);
+        rect = GetInsetForGap (groups[i].rect, m_paneArea, gap);
+
+        group->SetKind          (document ? DxuiTabGroup::Kind::Document : DxuiTabGroup::Kind::ToolWindow);
+        group->SetFocusedLook   (focused);
+        group->SetStripForced   (carried);
+        group->SetActive        (active);
+        group->SetWindowCorners (GetWindowCorners (rect), m_cornerDip);
+        group->Layout           (rect, m_scaler);
     }
 
     //  A floating pane's controls are in another window, which shows them.
@@ -290,7 +294,8 @@ void DxuiDockSite::Arrange()
 //  DxuiDockSite::WireGroup
 //
 //  A group's handlers find their pane when they run, since the site refills
-//  its groups on every arrangement.
+//  its groups on every arrangement. A drag one of them starts is the
+//  pointer's, which HasPointerDrag reports.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,6 +318,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         if (!TearOff (group, pane, pointDip, true))
         {
             BeginDrag (pane);
+            m_pointerDrag = IsDragging();
         }
     });
 
@@ -333,6 +339,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         }
 
         BeginGroupDrag (panes, GetPaneOf (group->GetContent (index)));
+        m_pointerDrag = IsDragging();
     });
 
     group->SetOnTitleButton ([this, group] (DxuiTabGroup::TitleButton button, int index, POINT pointDip)
@@ -471,6 +478,55 @@ void DxuiDockSite::SetFloating (PaneFn dock)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::SetWindowCornerDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetWindowCornerDip (int radiusDip)
+{
+    m_cornerDip = radiusDip;
+    Arrange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetWindowCorners
+//
+//  The window's corners are the site's own, which a group touches where it
+//  meets both of the site's edges there: in a floating window, with no
+//  margin around its panes, a lone group touches all four.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiDockSite::GetWindowCorners (const RECT & group) const
+{
+    bool  isRounded = m_cornerDip > 0;
+    bool  isLeft    = isRounded && group.left   == m_boundsDip.left;
+    bool  isTop     = isRounded && group.top    == m_boundsDip.top;
+    bool  isRight   = isRounded && group.right  == m_boundsDip.right;
+    bool  isBottom  = isRounded && group.bottom == m_boundsDip.bottom;
+    UINT  corners   = 0;
+
+
+
+    corners |= (isLeft  && isTop)    ? DxuiPaneFrame::kCornerTopLeft     : 0;
+    corners |= (isRight && isTop)    ? DxuiPaneFrame::kCornerTopRight    : 0;
+    corners |= (isLeft  && isBottom) ? DxuiPaneFrame::kCornerBottomLeft  : 0;
+    corners |= (isRight && isBottom) ? DxuiPaneFrame::kCornerBottomRight : 0;
+
+    return corners;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::ClassifyHit
 //
 //  In a floating window, a group's title bar off its buttons is the
@@ -525,7 +581,9 @@ DxuiHitTestKind DxuiDockSite::ClassifyHit (POINT clientDip) const
 //
 //  DxuiDockSite::GetTitleButtonTipAt
 //
-//  The pin says what pressing it does, as OnTitleButton carries it out.
+//  The pin's tip gives what pressing it does in OnTitleButton: docks the
+//  pane or hides it against its edge. A tab's pin and close button are its
+//  pane's title bar buttons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -533,12 +591,24 @@ std::wstring DxuiDockSite::GetTitleButtonTipAt (POINT pointDip, RECT & button) c
 {
     static constexpr DxuiTabGroup::TitleButton  kButtons[] = { DxuiTabGroup::TitleButton::Menu, DxuiTabGroup::TitleButton::Pin,
                                                                DxuiTabGroup::TitleButton::Close };
+    auto                                        pinTip     = [this] (const std::wstring & pane)
+    {
+        return (m_onDock != nullptr || m_layout.IsAutoHidden (pane)) ? L"Dock" : L"Auto hide";
+    };
 
 
 
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        std::wstring  pane;
+        std::wstring               pane;
+        DxuiTabGroup::TitleButton  onTab = DxuiTabGroup::TitleButton::Close;
+        int                        index = -1;
+
+        if (group->IsVisible() && group->TryGetTabButtonAt (pointDip, onTab, index, button))
+        {
+            pane = GetPaneOf (group->GetContent (index));
+            return (onTab == DxuiTabGroup::TitleButton::Pin) ? pinTip (pane) : L"Close";
+        }
 
         if (!group->IsVisible() || !Contains (group->GetTitleRect(), pointDip))
         {
@@ -562,7 +632,7 @@ std::wstring DxuiDockSite::GetTitleButtonTipAt (POINT pointDip, RECT & button) c
                 return L"Window position";
 
             case DxuiTabGroup::TitleButton::Pin:
-                return (m_onDock != nullptr || m_layout.IsAutoHidden (pane)) ? L"Dock" : L"Auto hide";
+                return pinTip (pane);
 
             case DxuiTabGroup::TitleButton::Close:
                 return L"Close";
@@ -582,7 +652,10 @@ std::wstring DxuiDockSite::GetTitleButtonTipAt (POINT pointDip, RECT & button) c
 //
 //  DxuiDockSite::SetFocusedPane
 //
-//  Only the looks change, so nothing is laid out again.
+//  Only the looks change, so nothing is laid out again, unless the focus
+//  leaves a slid-out pane for another: as in Visual Studio, that slides it
+//  back. A pane slid out while another held the focus stays out until the
+//  focus moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -602,6 +675,12 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
         group->SetFocusedLook (found != m_panes.end() && group->IndexOf (found->second.content) >= 0);
+    }
+
+    if (!m_slidPane.empty() && m_slidPane != pane)
+    {
+        SlideIn();
+        return;
     }
 
     m_slidGroup.SetFocusedLook (!m_slidPane.empty() && m_slidPane == pane);
@@ -1201,6 +1280,9 @@ bool DxuiDockSite::TryGetTitleExtraRect (const std::wstring & pane, RECT & rect)
 //
 //  DxuiDockSite::GetTabAt
 //
+//  Over a tab's pin or close button the tab gives no tip of its own; the
+//  button's is GetTitleButtonTipAt's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DxuiDockSite::GetTabAt (POINT pointDip, RECT & tab, std::wstring & tip) const
@@ -1211,11 +1293,15 @@ std::wstring DxuiDockSite::GetTabAt (POINT pointDip, RECT & tab, std::wstring & 
 
         if (index >= 0)
         {
-            std::wstring  pane  = GetPaneOf (group->GetContent (index));
-            auto          found = m_panes.find (pane);
+            std::wstring               pane     = GetPaneOf (group->GetContent (index));
+            auto                       found    = m_panes.find (pane);
+            DxuiTabGroup::TitleButton  button   = DxuiTabGroup::TitleButton::Close;
+            int                        onButton = -1;
+            RECT                       rect     = {};
+            bool                       isButton = group->TryGetTabButtonAt (pointDip, button, onButton, rect);
 
             tab = group->GetTabRect (index);
-            tip = (found != m_panes.end()) ? found->second.tip : std::wstring();
+            tip = (found != m_panes.end() && !isButton) ? found->second.tip : std::wstring();
             return pane;
         }
     }
@@ -1732,7 +1818,9 @@ void DxuiDockSite::BeginDrag (const std::wstring & pane)
 //  DxuiDockSite::BeginGroupDrag
 //
 //  A group dragged whole offers no zone on itself, since every drop there
-//  would put it back where it is.
+//  would put it back where it is. The edge guides lie along the docked
+//  area, the margin around the panes included, and each target's shade is
+//  worked out now, while the layout is as the drag found it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1771,23 +1859,20 @@ void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, cons
 
     m_dragPane     = active;
     m_dragPanes    = panes;
-    m_zones        = DxuiDockDropZones::Build (groups, GetPaneArea(), active, m_scaler,
+    m_zones        = DxuiDockDropZones::Build (groups, GetDockedArea(), active, m_scaler,
                                                [this] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
     m_hoverZone    = -1;
     m_compassGroup = -1;
+    m_pointerDrag  = false;
 
     if (panes.size() > 1)
     {
         std::erase_if (m_zones, [&] (const DxuiDockDropZone & zone) { return dragged (zone.targetPane); });
     }
 
-    //  A tab drop shades the pane's body, never its tabs, so the tabs stay in
-    //  view where the dropped one will join them.
     for (DxuiDockDropZone & zone : m_zones)
     {
-        DxuiTabGroup  * group = (zone.kind == DxuiDockDropZone::Kind::Tab) ? FindGroupOf (zone.targetPane) : nullptr;
-
-        zone.preview = (group != nullptr) ? group->GetBodyRect() : zone.preview;
+        SetDropPreview (zone);
     }
 
     ClearStripTarget();
@@ -1936,18 +2021,21 @@ bool DxuiDockSite::DropOnStrip (int group, int index)
 //  DxuiDockSite::DropOnZone
 //
 //  The zone's operation moves the first pane; the rest follow it into its
-//  new group, in order.
+//  new group, in order. A drop is made on the site's own layout, and on a
+//  copy of it to see where the panes would go.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDockSite::DropOnZone (const DxuiDockDropZone & zone)
+bool DxuiDockSite::DropOnZone (
+    const DxuiDockDropZone  & zone,
+    DxuiPaneLayout          & layout) const
 {
     std::vector<std::wstring>  panes;
     int                        at      = 0;
 
 
 
-    if (m_dragPanes.empty() || !DxuiDockDropZones::Apply (zone, m_layout, m_dragPanes.front(),
+    if (m_dragPanes.empty() || !DxuiDockDropZones::Apply (zone, layout, m_dragPanes.front(),
                                                                   [this] (const std::vector<std::wstring> & panes) { return IsDocumentGroup (panes); }))
     {
         return false;
@@ -1955,13 +2043,131 @@ bool DxuiDockSite::DropOnZone (const DxuiDockDropZone & zone)
 
     for (size_t i = 1; i < m_dragPanes.size(); i++)
     {
-        panes   = m_layout.GetGroup (m_dragPanes.front());
+        panes   = layout.GetGroup (m_dragPanes.front());
         at      = (int) (std::find (panes.begin(), panes.end(), m_dragPanes[i - 1]) - panes.begin()) + 1;
-        (void) m_layout.TabWithAt (m_dragPanes[i], m_dragPanes.front(), at);
+        (void) layout.TabWithAt (m_dragPanes[i], m_dragPanes.front(), at);
     }
 
-    (void) m_layout.Activate (m_dragPane);
+    (void) layout.Activate (m_dragPane);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetDropPreview
+//
+//  What a target shades while the pointer is on it: what the drop would give
+//  the dragged panes, as Visual Studio shows it. A tab drop is the target
+//  group with its new tab (SetTabDropPreview). Any other drop is the group
+//  the panes would form, as the layout would lay it out with the drop made,
+//  less its share of the gaps; a window edge's also reaches over the margin
+//  to the docked area's edges. A drop the layout cannot make keeps the shade
+//  DxuiDockDropZones gave it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetDropPreview (DxuiDockDropZone & zone) const
+{
+    DxuiPaneLayout                          layout = m_layout;
+    std::vector<DxuiPaneLayout::GroupRect>  groups;
+    RECT                                    area   = GetPaneArea();
+    RECT                                    docked = GetDockedArea();
+    long                                    gap    = m_scaler.ToPx (m_gapDip);
+    bool                                    isEdge = zone.kind == DxuiDockDropZone::Kind::Edge;
+
+
+
+    if (zone.kind == DxuiDockDropZone::Kind::Tab)
+    {
+        SetTabDropPreview (zone);
+        return;
+    }
+
+    if (!DropOnZone (zone, layout))
+    {
+        return;
+    }
+
+    groups = layout.Arrange (area, m_shown, GetMinSizeWithGap());
+
+    for (const DxuiPaneLayout::GroupRect & group : groups)
+    {
+        const RECT  & r = group.rect;
+
+        if (std::find (group.panes.begin(), group.panes.end(), m_dragPanes.front()) == group.panes.end())
+        {
+            continue;
+        }
+
+        zone.preview = GetInsetForGap (r, area, gap);
+
+        if (isEdge)
+        {
+            zone.preview.left   = (r.left   <= area.left)   ? docked.left   : zone.preview.left;
+            zone.preview.top    = (r.top    <= area.top)    ? docked.top    : zone.preview.top;
+            zone.preview.right  = (r.right  >= area.right)  ? docked.right  : zone.preview.right;
+            zone.preview.bottom = (r.bottom >= area.bottom) ? docked.bottom : zone.preview.bottom;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::SetTabDropPreview
+//
+//  A tab drop's shade, as Visual Studio draws it: the target pane up to its
+//  tabs, short of the line between them, and a tab kPreviewTabDip wide at
+//  the start of the band, over the band and that line. The rows are where a
+//  group of the target's kind puts its tabs, so a tool window showing no
+//  tabs yet shows the strip the drop gives it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::SetTabDropPreview (DxuiDockDropZone & zone) const
+{
+    const DxuiTabGroup  * target = FindGroupOf (zone.targetPane);
+    DxuiTabGroup          probe;
+    RECT                  pane   = {};
+    RECT                  band   = {};
+    long                  line   = DxuiPaneMetrics::GetLinePx (m_scaler);
+    long                  tabEnd = 0;
+    long                  edge   = 0;
+
+
+
+    if (target == nullptr)
+    {
+        return;
+    }
+
+    pane   = target->GetBounds();
+    tabEnd = std::min (pane.right, pane.left + (long) m_scaler.ToPx (kPreviewTabDip));
+
+    probe.SetKind        (target->GetKind());
+    probe.SetStripForced (true);
+    probe.Layout         (pane, m_scaler);
+    band = probe.GetStripRect();
+
+    if (target->GetKind() == DxuiTabGroup::Kind::Document)
+    {
+        edge            = std::min (pane.bottom, band.bottom + line);
+        zone.preview    = RECT { pane.left, edge,     pane.right, pane.bottom };
+        zone.previewTab = RECT { pane.left, pane.top, tabEnd,     edge        };
+    }
+    else
+    {
+        edge            = std::max (pane.top, band.top - line);
+        zone.preview    = RECT { pane.left, pane.top, pane.right, edge        };
+        zone.previewTab = RECT { pane.left, edge,     tabEnd,     pane.bottom };
+    }
 }
 
 
@@ -1972,14 +2178,70 @@ bool DxuiDockSite::DropOnZone (const DxuiDockDropZone & zone)
 //
 //  DxuiDockSite::CancelDrag
 //
+//  The drop targets go, and so does the gap a hovered strip opened for the
+//  tab; the layout stays as the drag found it. The press that started the
+//  drag is canceled in its group too, so the release that follows, or the
+//  next move, is not taken for a press still under way.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::CancelDrag()
 {
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->CancelPress();
+    }
+
+    m_slidGroup.CancelPress();
+    ClearStripTarget();
     m_dragPane.clear();
+    m_dragPanes.clear();
     m_zones.clear();
     m_hoverZone    = -1;
     m_compassGroup = -1;
+    m_pointerDrag  = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::OnDragKey
+//
+//  Escape cancels a drag the pointer started, as in Visual Studio, with the
+//  button still down; the release that follows changes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::OnDragKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down || ev.vk != VK_ESCAPE || !HasPointerDrag())
+    {
+        return false;
+    }
+
+    CancelDrag();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::OnDragMouseLost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::OnDragMouseLost (bool isButtonDown)
+{
+    if (isButtonDown && HasPointerDrag())
+    {
+        CancelDrag();
+    }
 }
 
 
@@ -2019,6 +2281,63 @@ void DxuiDockSite::UpdateCompass (POINT pointDip)
             break;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TrackDrag
+//
+//  What a drag targets with the pointer at a point: a button of a guide on
+//  show, or else a group's tabs or title bar. Off the docked area -- over a
+//  menu, a toolbar or a status bar, or out of the window -- the drag targets
+//  nothing, so the cross and the shade go at once and only the edge guides
+//  stay, even where a cross reaches past the area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::TrackDrag (POINT pointDip)
+{
+    if (!Contains (GetDockedArea(), pointDip))
+    {
+        ClearDragTarget();
+        return;
+    }
+
+    UpdateCompass (pointDip);
+    m_hoverZone = HitTestShown (pointDip);
+
+    if (GetHoveredZone() != nullptr)
+    {
+        ClearStripTarget();
+    }
+    else
+    {
+        UpdateStripTarget (pointDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::ClearDragTarget
+//
+//  The cross, the hovered button and the strip under the pointer, gone; the
+//  edge guides stay for as long as the drag does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::ClearDragTarget()
+{
+    m_compassGroup = -1;
+    m_hoverZone    = -1;
+    ClearStripTarget();
 }
 
 
@@ -2103,11 +2422,21 @@ bool DxuiDockSite::TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & o
 //  draw the same buffers and a renderer's bitmap cache stays warm. The cache
 //  starts over once it fills, which takes a change of theme or DPI.
 //
+//  Where `shades` lie over the guide, the drop's shade is laid over the
+//  picture, so the guide looks to lie under the shade even though it is
+//  drawn after it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DxuiIconImage> DxuiDockSite::GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered, const IDxuiTheme & theme) const
+std::shared_ptr<const DxuiIconImage> DxuiDockSite::GetGuideImage (
+    DxuiDockGuideKind                       kind,
+    DxuiDockSide                            edge,
+    int                                     hovered,
+    const std::vector<DxuiCoverageRect>   & shades,
+    const IDxuiTheme                      & theme) const
 {
-    GuideImage  wanted;
+    GuideImage     wanted;
+    DxuiIconImage  image;
 
 
 
@@ -2121,7 +2450,8 @@ std::shared_ptr<const DxuiIconImage> DxuiDockSite::GetGuideImage (DxuiDockGuideK
     wanted.key.colors.buttonFill   = theme.DockGuideButtonFill();
     wanted.key.colors.glyph        = theme.DockGuideGlyph();
     wanted.key.colors.arrow        = theme.DockGuideArrow();
-    wanted.key.colors.hover        = theme.FocusAccent();
+    wanted.key.shades              = shades;
+    wanted.key.shadeArgb           = theme.DockPreview();
 
     for (const GuideImage & cached : m_guideImages)
     {
@@ -2136,7 +2466,14 @@ std::shared_ptr<const DxuiIconImage> DxuiDockSite::GetGuideImage (DxuiDockGuideK
         m_guideImages.clear();
     }
 
-    wanted.image = std::make_shared<const DxuiIconImage> (DxuiDockGuide::Render (kind, edge, hovered, wanted.key.colors, m_scaler));
+    image = DxuiDockGuide::Render (kind, edge, hovered, wanted.key.colors, m_scaler);
+
+    for (const DxuiCoverageRect & shade : shades)
+    {
+        DxuiCoverageRaster::TintCovered (image, shade, wanted.key.shadeArgb);
+    }
+
+    wanted.image = std::make_shared<const DxuiIconImage> (std::move (image));
     m_guideImages.push_back (wanted);
 
     return wanted.image;
@@ -2168,9 +2505,8 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
 
 
 
-    UpdateCompass (pointDip);
-    m_hoverZone = HitTestShown (pointDip);
-    hit         = GetHoveredZone();
+    TrackDrag (pointDip);
+    hit = GetHoveredZone();
 
     //  Copied before the list is cleared, since hit points into it.
     if (hit != nullptr)
@@ -2179,7 +2515,6 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     }
     else
     {
-        UpdateStripTarget (pointDip);
         strip = m_stripGroup;
         index = m_stripIndex;
     }
@@ -2188,6 +2523,7 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     m_zones.clear();
     m_hoverZone    = -1;
     m_compassGroup = -1;
+    m_pointerDrag  = false;
 
     if (pane.empty())
     {
@@ -2199,7 +2535,7 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     //  holds one pane.
     if (zone.has_value())
     {
-        changed = DropOnZone (*zone);
+        changed = DropOnZone (*zone, m_layout);
     }
     else if (strip >= 0)
     {
@@ -2481,7 +2817,6 @@ bool DxuiDockSite::Contains (const RECT & rect, POINT point)
 bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
 {
     const DxuiPaneLayout::SplitRect  * split   = nullptr;
-    const DxuiDockDropZone           * zone    = nullptr;
     bool                               handled = false;
     long                               total   = 0;
     long                               offset  = 0;
@@ -2497,18 +2832,11 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     {
         if (ev.kind == DxuiMouseEventKind::Move)
         {
-            UpdateCompass (ev.positionDip);
-            m_hoverZone = HitTestShown (ev.positionDip);
-            zone        = GetHoveredZone();
-
-            if (zone != nullptr)
-            {
-                ClearStripTarget();
-            }
-            else
-            {
-                UpdateStripTarget (ev.positionDip);
-            }
+            TrackDrag (ev.positionDip);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Leave)
+        {
+            ClearDragTarget();
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
@@ -2682,30 +3010,46 @@ LPCWSTR DxuiDockSite::GetCursorForPoint (POINT clientPx) const
 //
 //  DxuiDockSite::GetDragMarks
 //
-//  The hovered target's area shaded in the accent color and a hovered
-//  strip's group tinted with the gap its tab will take, then the guides:
-//  one at the middle of each window edge, and the cross of the group under
-//  the pointer, each with the border of the button under the pointer lit.
+//  The shade over what the hovered target would give the dragged panes, in
+//  the theme's DockPreview, and a hovered strip's group tinted with the gap
+//  its tab will take; then the guides, one at the middle of each window edge
+//  and the cross of the group under the pointer.
+//
+//  As Visual Studio stacks them, the shade lies over the guide holding the
+//  button under the pointer, and under every other guide. That guide comes
+//  first among the guides, with the shade laid over its picture where the
+//  two meet, so it shows under the shade whichever way the marks are drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & theme) const
 {
+    constexpr uint32_t              kColor   = 0x00FFFFFFu;
+    constexpr uint32_t              kGapTint = 0xA0000000u;
     std::vector<DxuiDockDragMark>   marks;
+    std::vector<DxuiDockDragMark>   guides;
+    std::vector<RECT>               shades;
     const DxuiDockDropZone        * hover    = GetHoveredZone();
-    uint32_t                        tint     = (theme.Accent() & 0x00FFFFFFu) | 0x50000000u;
+    uint32_t                        preview  = theme.DockPreview();
     DxuiDockGuideKind               kind     = DxuiDockGuideKind::SmallCross;
     DxuiDockGuideButton             button   = DxuiDockGuideButton::Center;
     POINT                           origin   = {};
     int                             hovered  = -1;
     auto                            addGuide = [&] (DxuiDockGuideKind guide, DxuiDockSide edge, POINT at, int lit)
     {
-        DxuiDockDragMark  mark;
-        SIZE              size = DxuiDockGuide::GetSizePx (guide, m_scaler);
+        DxuiDockDragMark               mark;
+        SIZE                           size = DxuiDockGuide::GetSizePx (guide, m_scaler);
+        std::vector<DxuiCoverageRect>  over;
+
+        for (size_t i = 0; lit >= 0 && i < shades.size(); i++)
+        {
+            over.push_back (DxuiCoverageRect { (float) (shades[i].left - at.x),  (float) (shades[i].top - at.y),
+                                               (float) (shades[i].right - at.x), (float) (shades[i].bottom - at.y) });
+        }
 
         mark.rect  = RECT { at.x, at.y, at.x + size.cx, at.y + size.cy };
-        mark.image = GetGuideImage (guide, edge, lit, theme);
-        marks.push_back (mark);
+        mark.image = GetGuideImage (guide, edge, lit, over, theme);
+        guides.insert ((lit >= 0) ? guides.begin() : guides.end(), mark);
     };
 
 
@@ -2717,13 +3061,20 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
 
     if (hover != nullptr)
     {
-        marks.push_back ({ hover->preview, tint, 0 });
+        for (const RECT & shade : { hover->preview, hover->previewTab })
+        {
+            if (shade.right > shade.left && shade.bottom > shade.top)
+            {
+                shades.push_back (shade);
+                marks.push_back ({ shade, preview, 0 });
+            }
+        }
     }
 
     if (m_stripGroup >= 0 && m_stripGroup < (int) m_groups.size())
     {
-        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetBodyRect(),      tint,                                         0 });
-        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & 0x00FFFFFFu) | 0xA0000000u, 0 });
+        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetBodyRect(),      preview,                                0 });
+        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & kColor) | kGapTint, 0 });
     }
 
     for (const DxuiDockDropZone & zone : m_zones)
@@ -2744,6 +3095,7 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
         addGuide (kind, DxuiDockSide::Left, origin, hovered);
     }
 
+    marks.insert (marks.end(), guides.begin(), guides.end());
     return marks;
 }
 
@@ -2756,8 +3108,8 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
 //  DxuiDockSite::Paint
 //
 //  The gaps and margin, the groups, and the edge strips. With no gap, two
-//  neighbors' outlines meet at their split. A drag's marks are drawn after
-//  the siblings, in PaintAfterSiblings.
+//  neighbors' outlines meet at their split. A drag's marks are drawn in a
+//  layer of their own, in PaintDragLayer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2781,23 +3133,21 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  DxuiDockSite::PaintAfterSiblings
 //
-//  Every group's frame -- its outline and corner caps -- then a drag's marks,
-//  unless an overlay draws them. This pass draws over every pane control
-//  whatever the child order, which a floating window needs: its site is its
-//  first child, so the panes paint after the site's own Paint.
+//  Every group's frame -- its outline and corner caps. This pass draws over
+//  every pane control whatever the child order, which a floating window
+//  needs: its site is its first child, so the panes paint after the site's
+//  own Paint. A drag's marks are not drawn here but in PaintDragLayer: a
+//  pane's pictures, drawn after every fill of the page, would cover them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    UNREFERENCED_PARAMETER (text);
+
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
         group->PaintFrame (painter, theme);
-    }
-
-    if (IsDragging() && !m_marksElsewhere)
-    {
-        PaintDragMarks (painter, text, theme);
     }
 }
 
@@ -2824,25 +3174,33 @@ RECT DxuiDockSite::GetPaneArea() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::PaintDragMarks
+//  DxuiDockSite::PaintDragLayer
 //
 //  Each mark of GetDragMarks, top to bottom: a fill, a dotted outline drawn
-//  as its strips, a solid outline, or a guide's picture. The pictures go
-//  through the text pass, which draws after every fill, so the guides lie
-//  over the panes and over the tints.
+//  as its strips, a solid outline, or a guide's picture. The window flushes
+//  this layer after the page, so even the shade's fills lie over the panes'
+//  text and pictures. The guides' pictures go through the layer's text
+//  pass, which draws after its fills, so they lie over the shade; the guide
+//  the shade covers has the shade drawn into its picture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDockSite::PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+void DxuiDockSite::PaintDragLayer (
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text,
+    const IDxuiTheme   & theme) const
 {
-    HRESULT  hr   = S_OK;
-    auto     fill = [&] (const RECT & r, uint32_t argb)
+    HRESULT  hr      = S_OK;
+    bool     isShown = HasDragLayer();
+    auto     fill    = [&] (const RECT & r, uint32_t argb)
     {
         painter.FillRect ((float) r.left, (float) r.top,
                           (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
     };
 
 
+
+    BAIL_OUT_IF (!isShown, S_OK);
 
     for (const DxuiDockDragMark & mark : GetDragMarks (theme))
     {
@@ -2872,6 +3230,9 @@ void DxuiDockSite::PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & t
                                  (float) mark.outlinePx, mark.argb);
         }
     }
+
+Error:
+    return;
 }
 
 

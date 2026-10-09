@@ -31,14 +31,21 @@ std::atomic<uint32_t>  s_classSerial { 0 };
 //   giant synthetic work area if the multi-monitor lookup fails so
 //   callers always get a usable rect.
 //
+//   An edge, a rect with no height such as an in-place tip's anchor
+//   along the top of what it lies over, that runs from one monitor
+//   onto the next gets the work area the two share, so the popup is
+//   not slid onto one of them and off what it lies over.
+//
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT  DxuiPopupHost::GetWorkAreaForRect (const RECT & rectScreenPx)
 {
     RECT          work     = { 0, 0, 1920, 1080 };
+    RECT          band     = {};
     HMONITOR      monitor  = nullptr;
     MONITORINFO   info     = {};
+    bool          isEdge   = rectScreenPx.bottom == rectScreenPx.top && rectScreenPx.right > rectScreenPx.left;
 
 
 
@@ -56,7 +63,133 @@ RECT  DxuiPopupHost::GetWorkAreaForRect (const RECT & rectScreenPx)
         }
     }
 
+    if (isEdge)
+    {
+        band = GetEdgeWorkArea (rectScreenPx, GetMonitorWorkAreas());
+        work = (band.right > band.left) ? band : work;
+    }
+
     return work;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHost::GetEdgeWorkArea
+//
+//  The work area the edge starts in, joined by the next one's to its right
+//  wherever the edge runs on into it and the two meet, as those of monitors
+//  side by side with no taskbar between them do, and so on along the edge.
+//  The band they make runs from the lowest top to the highest bottom among
+//  them, so all of it is on every monitor it crosses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiPopupHost::GetEdgeWorkArea (
+    const RECT               & edge,
+    const std::vector<RECT>  & workAreas)
+{
+    RECT  band     = {};
+    bool  isJoined = false;
+
+
+
+    for (const RECT & area : workAreas)
+    {
+        bool  isStart = edge.left >= area.left && edge.left < area.right && edge.top >= area.top && edge.top < area.bottom;
+
+        band = isStart ? area : band;
+    }
+
+    isJoined = band.right > band.left;
+
+    while (isJoined && edge.right > band.right)
+    {
+        isJoined = false;
+
+        for (const RECT & area : workAreas)
+        {
+            bool  isNext = !isJoined && area.left == band.right && area.right > area.left &&
+                           edge.top >= area.top && edge.top < area.bottom;
+
+            if (isNext)
+            {
+                band.right  = area.right;
+                band.top    = (std::max) (band.top,    area.top);
+                band.bottom = (std::min) (band.bottom, area.bottom);
+                isJoined    = true;
+            }
+        }
+    }
+
+    return band;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHost::GetMonitorWorkAreas
+//
+//  Every monitor's work area, in screen pixels. A monitor that cannot be
+//  read is left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<RECT> DxuiPopupHost::GetMonitorWorkAreas()
+{
+    std::vector<RECT>  areas;
+    bool               isListed = false;
+
+
+
+    isListed = EnumDisplayMonitors (nullptr, nullptr, CollectWorkArea, (LPARAM) &areas) != FALSE;
+    IGNORE_RETURN_VALUE (isListed, false);
+
+    return areas;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHost::CollectWorkArea
+//
+//  EnumDisplayMonitors' callback for GetMonitorWorkAreas.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL CALLBACK DxuiPopupHost::CollectWorkArea (
+    HMONITOR  monitor,
+    HDC       dc,
+    LPRECT    rect,
+    LPARAM    param)
+{
+    HRESULT              hr     = S_OK;
+    std::vector<RECT>  & areas  = *(std::vector<RECT> *) param;
+    MONITORINFO          info   = {};
+    bool                 isRead = false;
+
+
+
+    UNREFERENCED_PARAMETER (dc);
+    UNREFERENCED_PARAMETER (rect);
+
+    info.cbSize = sizeof (info);
+    isRead      = GetMonitorInfoW (monitor, &info) != FALSE;
+    CBR (isRead);
+
+    areas.push_back (info.rcWork);
+
+Error:
+    return TRUE;
 }
 
 
@@ -335,8 +468,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
         if (dpi == 0) { dpi = s_kDefaultDpi; }
     }
 
-    sizePx.cx = MulDiv (m_params.sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
-    sizePx.cy = MulDiv (m_params.sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
+    sizePx = GetCardSizePx (dpi);
 
     workArea   = GetWorkAreaForRect (m_params.anchorRectScreen);
     placedRect = ComputePlacementForTest (m_params.anchorRectScreen,
@@ -350,7 +482,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // placed rect stays the card, so a consumer measuring itself against it
     // and every placement decision above are unchanged.
     m_dpi                = dpi;
-    m_shadowMarginPx     = m_params.shadow ? MulDiv ((int) DxuiShadow::kMarginDip, (int) dpi, (int) s_kDefaultDpi) : 0;
+    m_shadowMarginPx     = m_params.shadow ? MulDiv ((int) std::ceil (DxuiShadow::GetMarginDip (m_params.shadowStyle)), (int) dpi, (int) s_kDefaultDpi) : 0;
     windowRect.left      = placedRect.left   - m_shadowMarginPx;
     windowRect.top       = placedRect.top    - m_shadowMarginPx;
     windowRect.right     = placedRect.right  + m_shadowMarginPx;
@@ -402,7 +534,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // DWM rounds the window only when the host is NOT drawing the rounded
     // card itself. With a shadow margin the window's corners are transparent
     // surround, and DWM's corner clip would cut the shadow off there.
-    DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0);
+    DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0 && !m_params.squareCorners);
 
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
     // back most-recently-used first, so the window about to be shown is
@@ -1573,12 +1705,37 @@ void DxuiPopupHost::PaintShadowAndCard()
     float  margin = (float) m_shadowMarginPx;
     float  cardW  = (float) m_backBufferSizePx.cx - margin * 2.0f;
     float  cardH  = (float) m_backBufferSizePx.cy - margin * 2.0f;
-    float  radius = DxuiTheme::kOverlayCornerRadiusDip * scale;
+    float  radius = (m_params.cornerRadiusPx >= 0.0f) ? m_params.cornerRadiusPx : DxuiTheme::kOverlayCornerRadiusDip * scale;
 
 
 
-    DxuiShadow::Paint (m_painter, margin, margin, cardW, cardH, radius, scale);
+    DxuiShadow::Paint (m_painter, margin, margin, cardW, cardH, radius, scale, 0, m_params.shadowStyle);
     m_painter.FillRoundedRect (margin, margin, cardW, cardH, radius, m_params.backgroundArgb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCardSizePx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiPopupHost::GetCardSizePx (UINT dpi) const
+{
+    SIZE  sizePx = m_params.sizePx;
+
+
+
+    if (sizePx.cx <= 0 || sizePx.cy <= 0)
+    {
+        sizePx.cx = MulDiv (m_params.sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
+        sizePx.cy = MulDiv (m_params.sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
+    }
+
+    return sizePx;
 }
 
 
@@ -2026,6 +2183,64 @@ void DxuiPopupHost::MarkDirty()
 
 HRESULT DxuiPopupHost::MoveTo (RECT anchorRectScreen, SIZE sizeDip)
 {
+    HRESULT  hr = S_OK;
+
+
+
+    m_params.sizeDip = sizeDip;
+    m_params.sizePx  = {};
+
+    hr = PlaceAndRender (anchorRectScreen);
+    CHR (hr);
+
+Error:
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveToPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::MoveToPx (
+    RECT  anchorRectScreen,
+    SIZE  sizePx)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_params.sizePx = sizePx;
+
+    hr = PlaceAndRender (anchorRectScreen);
+    CHR (hr);
+
+Error:
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlaceAndRender
+//
+//  The new content is rendered before the window moves, so the old picture
+//  stays up until the new one replaces it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::PlaceAndRender (RECT anchorRectScreen)
+{
     HRESULT  hr         = S_OK;
     RECT     placedRect = {};
     RECT     windowRect = {};
@@ -2039,10 +2254,8 @@ HRESULT DxuiPopupHost::MoveTo (RECT anchorRectScreen, SIZE sizeDip)
     CBRA (m_open);
 
     m_params.anchorRectScreen = anchorRectScreen;
-    m_params.sizeDip          = sizeDip;
 
-    sizePx.cx  = MulDiv (sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
-    sizePx.cy  = MulDiv (sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
+    sizePx     = GetCardSizePx (dpi);
     placedRect = ComputePlacementForTest (anchorRectScreen,
                                           GetWorkAreaForRect (anchorRectScreen),
                                           m_params.placement,
@@ -2107,8 +2320,7 @@ HRESULT DxuiPopupHost::Reposition (RECT anchorRectScreen)
 
     m_params.anchorRectScreen = anchorRectScreen;
 
-    sizePx.cx  = MulDiv (m_params.sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
-    sizePx.cy  = MulDiv (m_params.sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
+    sizePx     = GetCardSizePx (dpi);
     placedRect = ComputePlacementForTest (anchorRectScreen,
                                           GetWorkAreaForRect (anchorRectScreen),
                                           m_params.placement,

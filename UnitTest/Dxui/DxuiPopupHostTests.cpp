@@ -4,7 +4,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-// Shared by all five TEST_CLASSes below, so these live at file scope rather
+// Shared by all six TEST_CLASSes below, so these live at file scope rather
 // than on any one of them. `static` supplies the internal linkage the
 // anonymous namespace was there for.
 static constexpr LONG  s_kMonLeft      = 0;
@@ -284,6 +284,143 @@ public:
         Assert::IsTrue (placed.right <= s_kMonRight,
                         L"Popup right edge must stay inside the work area");
         Assert::AreEqual ((LONG) (s_kMonRight - s_kPopupW), placed.left);
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHostEdgeWorkAreaTests
+//
+//  The work area a popup hung from an edge is kept in, as an in-place tip
+//  hangs from the top of the row it lies over: the work area the edge starts
+//  in, joined by the next one's where the edge runs on into it and the two
+//  meet, so a tip over a row across two monitors is not slid onto one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiPopupHostEdgeWorkAreaTests)
+{
+public:
+
+    //  A landscape monitor with its taskbar along the bottom, and a portrait
+    //  one to its right, taller and set higher.
+    static constexpr LONG  kWideRight  = 1920;
+    static constexpr LONG  kWideBottom = 1032;
+    static constexpr LONG  kTallTop    = -200;
+    static constexpr LONG  kTallRight  = 3360;
+    static constexpr LONG  kTallBottom = 2312;
+    static constexpr LONG  kRowTop     = 500;
+    static constexpr LONG  kStartX     = 1500;
+    static constexpr LONG  kEndX       = 2400;
+    static constexpr LONG  kGapPx      = 60;
+    static constexpr LONG  kTipHeight  = 300;
+
+
+    static std::vector<RECT>  MakeAreas()
+    {
+        return { MakeRect (s_kMonLeft, s_kMonTop, kWideRight, kWideBottom),
+                 MakeRect (kWideRight, kTallTop,  kTallRight, kTallBottom) };
+    }
+
+
+    TEST_METHOD (AnEdgeOnOneMonitorHasItsWorkArea)
+    {
+        std::vector<RECT>  areas = MakeAreas();
+        RECT               band  = DxuiPopupHost::GetEdgeWorkArea (MakeRect (kStartX - kGapPx, kRowTop, kStartX, kRowTop), areas);
+
+        Assert::IsTrue (EqualRect (&band, &areas[0]) != FALSE);
+    }
+
+
+    TEST_METHOD (AnEdgeAcrossTwoMonitorsHasTheBandTheyShare)
+    {
+        std::vector<RECT>  areas = MakeAreas();
+        RECT               band  = DxuiPopupHost::GetEdgeWorkArea (MakeRect (kStartX, kRowTop, kEndX, kRowTop), areas);
+
+        Assert::AreEqual (s_kMonLeft,  band.left,   L"from the first monitor's left");
+        Assert::AreEqual (kTallRight,  band.right,  L"to the second's right");
+        Assert::AreEqual (s_kMonTop,   band.top,    L"below the lower top");
+        Assert::AreEqual (kWideBottom, band.bottom, L"above the higher bottom");
+    }
+
+
+    TEST_METHOD (APopupHungAcrossTwoMonitorsIsNotSlid)
+    {
+        std::vector<RECT>  areas  = MakeAreas();
+        RECT               edge   = MakeRect (kStartX, kRowTop, kEndX, kRowTop);
+        SIZE               size   = MakeSize (kEndX - kStartX, kTipHeight);
+        RECT               placed = DxuiPopupHost::ComputePlacementForTest (edge, DxuiPopupHost::GetEdgeWorkArea (edge, areas), DxuiPopupPlacement::Below, size, false);
+
+        Assert::AreEqual (kStartX, placed.left,  L"the popup is slid off what it lies over");
+        Assert::AreEqual (kEndX,   placed.right);
+
+        //  Kept to the first monitor alone, it would be.
+        placed = DxuiPopupHost::ComputePlacementForTest (edge, areas[0], DxuiPopupPlacement::Below, size, false);
+
+        Assert::IsTrue (placed.left < kStartX);
+    }
+
+
+    TEST_METHOD (AGapBetweenWorkAreasEndsTheBand)
+    {
+        std::vector<RECT>  areas = MakeAreas();
+        RECT               band  = {};
+
+        //  A taskbar down the first monitor's right side.
+        areas[0].right = kWideRight - kGapPx;
+        band           = DxuiPopupHost::GetEdgeWorkArea (MakeRect (kStartX, kRowTop, kEndX, kRowTop), areas);
+
+        Assert::IsTrue (EqualRect (&band, &areas[0]) != FALSE);
+    }
+
+
+    TEST_METHOD (AWorkAreaBesideTheEdgeButNotAlongItIsNotJoined)
+    {
+        std::vector<RECT>  areas = MakeAreas();
+        RECT               band  = {};
+
+        areas[1].top = kRowTop + kGapPx;
+        band         = DxuiPopupHost::GetEdgeWorkArea (MakeRect (kStartX, kRowTop, kEndX, kRowTop), areas);
+
+        Assert::IsTrue (EqualRect (&band, &areas[0]) != FALSE);
+    }
+
+
+    TEST_METHOD (AnEdgeEndingWhereTheNextMonitorBeginsDoesNotJoinIt)
+    {
+        std::vector<RECT>  areas = MakeAreas();
+        RECT               band  = DxuiPopupHost::GetEdgeWorkArea (MakeRect (kStartX, kRowTop, kWideRight, kRowTop), areas);
+
+        Assert::IsTrue (EqualRect (&band, &areas[0]) != FALSE);
+    }
+
+
+    TEST_METHOD (AnEdgeAcrossThreeMonitorsSpansThem)
+    {
+        std::vector<RECT>  areas = MakeAreas();
+        RECT               band  = {};
+
+        areas.push_back (MakeRect (kTallRight, s_kMonTop, kTallRight + kWideRight, kWideBottom));
+        band = DxuiPopupHost::GetEdgeWorkArea (MakeRect (kStartX, kRowTop, kTallRight + kGapPx, kRowTop), areas);
+
+        Assert::AreEqual (s_kMonLeft,              band.left);
+        Assert::AreEqual (kTallRight + kWideRight, band.right);
+    }
+
+
+    TEST_METHOD (AnEdgeStartingOnNoWorkAreaHasNone)
+    {
+        std::vector<RECT>  areas = MakeAreas();
+        RECT               band  = {};
+
+        //  On the first monitor's taskbar, below its work area.
+        band = DxuiPopupHost::GetEdgeWorkArea (MakeRect (kStartX, kWideBottom + 1, kEndX, kWideBottom + 1), areas);
+
+        Assert::IsTrue (band.right <= band.left);
     }
 };
 

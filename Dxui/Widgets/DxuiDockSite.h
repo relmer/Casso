@@ -62,9 +62,10 @@ struct DxuiDockDragMark
 //  where a floating window comes from is the application's concern.
 //
 //  AN AUTO-HIDDEN PANE IS A TAB ON AN EDGE. The site keeps a strip along each
-//  edge that holds one, and a hover or a press on its tab slides the pane out
-//  over the others, which keep their places; a press anywhere else in the
-//  site slides it back.
+//  edge that holds one, and a press on its tab slides the pane out over the
+//  others, which keep their places; a hover only lights the tab, as in
+//  Visual Studio. A press anywhere else in the site, or the focus moving to
+//  another pane, slides it back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,7 +119,8 @@ public:
 
     void  SetDocumentFn   (PaneTestFn fn)  { m_isDocument = std::move (fn); }
 
-    //  The pane the user is working in: its group shows the accent border.
+    //  The pane the user is working in: its group shows the accent border. A
+    //  slid-out pane slides back once another pane takes the focus.
     void  SetFocusedPane  (const std::wstring & pane);
 
     //  The room between docked panes and around them, as Visual Studio leaves
@@ -127,9 +129,9 @@ public:
     void         SetPaneGap     (int gapDip, int marginDip);
     static RECT  GetInsetForGap (const RECT & rect, const RECT & paneArea, long gapPx);
 
-    //  Visual Studio's gap, 8 px at 125%, and a margin of 5 px there.
+    //  Visual Studio's gap, 8 px at 125%, and the same room around the panes.
     static constexpr int  kPaneGapDip    = 6;
-    static constexpr int  kPaneMarginDip = 4;
+    static constexpr int  kPaneMarginDip = 6;
 
     //  A tool window's menu button, and a close from a document tab or a
     //  tool window's title bar. A pane closes only while `canClose` says so;
@@ -143,6 +145,12 @@ public:
     //  window; and its pin docks the pane back, through `dock`.
     void  SetFloating     (PaneFn dock);
     bool  IsFloatingSite  () const { return m_onDock != nullptr; }
+
+    //  The radius the window this site fills rounds its corners by. A group
+    //  whose corner is a corner of the site is drawn to that radius there, so
+    //  its outline follows the window's edge. Zero, the default, for a window
+    //  with square corners.
+    void  SetWindowCornerDip (int radiusDip);
 
     //  The pane a tear-off carries: while it is set, the group holding the
     //  pane shows its tab strip even for one pane, so the floating window
@@ -236,6 +244,15 @@ public:
     std::vector<DxuiDockDragMark>  GetDragMarks               (const IDxuiTheme & theme) const;
     void                           SetDragMarksDrawnElsewhere (bool elsewhere) { m_marksElsewhere = elsewhere; }
 
+    //  The marks lie over everything in the panes, their pictures included,
+    //  and a flush draws its pictures after all of its fills, so a shade
+    //  painted with the page would lie under a pane's images. The window
+    //  paints them in a layer flushed after the page instead: HasDragLayer
+    //  is true while there are any to paint there, and PaintDragLayer paints
+    //  them.
+    bool                           HasDragLayer               () const { return IsDragging() && !m_marksElsewhere; }
+    void                           PaintDragLayer             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+
     size_t                      GetGroupCount  () const { return m_groups.size(); }
     DxuiTabGroup *              GetGroup       (size_t index) const { return m_groups[index].get(); }
 
@@ -245,6 +262,17 @@ public:
     void  BeginDrag  (const std::wstring & pane);
     bool  EndDrag    (POINT pointDip);
     void  CancelDrag ();
+
+    //  A drag the site's own pointer started, from a tab or a title bar. The
+    //  window gives it every mouse event until the button comes up, wherever
+    //  the pointer is, so nothing it crosses takes a move or shows a tip.
+    //  Escape cancels it, as does the window losing the mouse while the
+    //  button is still down, and either leaves every pane where it was. The
+    //  window releases the capture itself as the button comes up, before the
+    //  button-up arrives, so that is not a loss.
+    bool  HasPointerDrag  () const { return IsDragging() && m_pointerDrag; }
+    bool  OnDragKey       (const DxuiKeyEvent & ev);
+    void  OnDragMouseLost (bool isButtonDown);
 
     //  A drag of a whole group, from its title bar: the panes move together,
     //  in order, with `active` still the one shown.
@@ -257,8 +285,11 @@ public:
     int   GetStripTargetGroup () const { return m_stripGroup; }
     int   GetStripTargetIndex () const { return m_stripIndex; }
 
-    //  The gap a hovered strip opens for the dropped tab.
-    static constexpr int  kInsertGapDip = 96;
+    //  The gap a hovered strip opens for the dropped tab, and the tab a tab
+    //  drop's shade shows at the start of the target's tabs: Visual Studio's
+    //  125 px at 125%.
+    static constexpr int  kInsertGapDip  = 96;
+    static constexpr int  kPreviewTabDip = 100;
 
     void                Layout             (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -322,21 +353,29 @@ private:
     void          UpdateStripTarget (POINT pointDip);
     void          ClearStripTarget  ();
     bool          DropOnStrip   (int group, int index);
-    bool          DropOnZone    (const DxuiDockDropZone & zone);
+    bool          DropOnZone    (const DxuiDockDropZone & zone, DxuiPaneLayout & layout) const;
+    void          SetDropPreview    (DxuiDockDropZone & zone) const;
+    void          SetTabDropPreview (DxuiDockDropZone & zone) const;
     void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
     bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
     void          UpdateCompass (POINT pointDip);
+    void          TrackDrag     (POINT pointDip);
+    void          ClearDragTarget ();
     int           HitTestShown  (POINT pointDip) const;
     bool          TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & origin) const;
 
-    //  A guide's picture, kept so every frame draws the same buffer.
-    std::shared_ptr<const DxuiIconImage>  GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered, const IDxuiTheme & theme) const;
+    //  A guide's picture, kept so every frame draws the same buffer, with the
+    //  drop's shade laid over it within `shades`, given from its top left.
+    std::shared_ptr<const DxuiIconImage>  GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered,
+                                                         const std::vector<DxuiCoverageRect> & shades, const IDxuiTheme & theme) const;
 
     //  Each pane's minimum size, grown by the gap while one is set.
     DxuiPaneLayout::MinSizeFn  GetMinSizeWithGap() const;
 
-    void          PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    //  A group's corners that are the window's, as DxuiPaneFrame's kCorner
+    //  flags: none while the window's corners are square.
+    UINT  GetWindowCorners (const RECT & group) const;
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;
@@ -360,6 +399,7 @@ private:
     std::vector<DxuiPaneLayout::SplitRect>        m_splits;
     int                                           m_gapDip     = 0;
     int                                           m_marginDip  = 0;
+    int                                           m_cornerDip  = 0;   // the window's corner radius
     RECT                                          m_dockedArea = {};
     RECT                                          m_paneArea   = {};
     DxuiDpiScaler                                 m_scaler;
@@ -376,15 +416,18 @@ private:
     std::vector<DxuiDockDropZone>  m_zones;
     int                            m_hoverZone      = -1;
     int                            m_compassGroup   = -1;
+    bool                           m_pointerDrag    = false;
 
     //  Guide pictures already drawn, for each look of each guide.
     struct GuideKey
     {
-        DxuiDockGuideKind    kind    = DxuiDockGuideKind::SmallCross;
-        DxuiDockSide         edge    = DxuiDockSide::Left;
-        int                  hovered = -1;
-        UINT                 dpi     = 0;
-        DxuiDockGuideColors  colors;
+        DxuiDockGuideKind              kind      = DxuiDockGuideKind::SmallCross;
+        DxuiDockSide                   edge      = DxuiDockSide::Left;
+        int                            hovered   = -1;
+        UINT                           dpi       = 0;
+        DxuiDockGuideColors            colors;
+        std::vector<DxuiCoverageRect>  shades;
+        uint32_t                       shadeArgb = 0;
 
         bool operator== (const GuideKey &) const = default;
     };

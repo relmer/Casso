@@ -177,6 +177,9 @@ public:
         Assert::AreEqual<size_t> (1, store->GetRetainedMediaCount(), L"history before the eject still holds it");
 
         store->PruneRetainedMedia (now);
+        Assert::AreEqual<size_t> (1, store->GetRetainedMediaCount(), L"history that starts where it left may still hold it");
+
+        store->PruneRetainedMedia (now + 1);
         Assert::AreEqual<size_t> (0, store->GetRetainedMediaCount(), L"history that starts after it does not");
         Assert::IsFalse (store->CanSeatMedia (s_kHoldSlot, s_kHoldDrive, mediaId));
     }

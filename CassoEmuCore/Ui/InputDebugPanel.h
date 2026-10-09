@@ -52,6 +52,10 @@ public:
 
     HRESULT RenderFrame ();
     void    SetTheme    (const CassoTheme * theme);
+
+    //  The hover tip, which takes the theme's tooltip colors.
+    const DxuiTooltip &  GetTooltip () const { return m_tooltip; }
+
     void    SetCycleCounter (const uint64_t * cycleCounter) { m_cycleCounter = cycleCounter; }
 
     // Whether $C063 is the //c's MOUSE BUTTON rather than the //e's shift-key

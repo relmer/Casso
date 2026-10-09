@@ -13,7 +13,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  The CPU rasterizer behind the drop guides: a pixel wholly inside a fill
 //  takes its color, a pixel outside keeps what was there, and a pixel an
 //  edge crosses takes a share of the color as large as the share of its
-//  samples inside, laid over the pixel in premultiplied form.
+//  samples inside, laid over the pixel in premultiplied form. Whole pictures
+//  are laid over one another at an opacity, faded, and tinted only where
+//  they cover.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,6 +122,72 @@ namespace DxuiCoverageRasterTests
             Assert::AreEqual (1.0f, (15.0f - (inset[2].x + inset[2].y)) / std::sqrt (2.0f), 0.001f, L"one unit inside the diagonal");
             Assert::IsTrue   (DxuiCoverageRaster::IsInsidePolygon (outline, 9.5f, 0.5f));
             Assert::IsFalse  (DxuiCoverageRaster::IsInsidePolygon (inset,   9.5f, 0.5f));
+        }
+
+
+        //  A layer laid over a picture at 75%: where the layer is opaque, 75%
+        //  of it and 25% of what was there; where it is clear, the picture.
+        TEST_METHOD (ALayerIsLaidOverAtItsOpacity)
+        {
+            DxuiIconImage     image  = DxuiCoverageRaster::MakeImage (2, 1);
+            DxuiIconImage     layer  = DxuiCoverageRaster::MakeImage (2, 1);
+            DxuiIconImage     narrow = DxuiCoverageRaster::MakeImage (1, 1);
+            DxuiCoverageRect  all    = { 0.0f, 0.0f, 2.0f, 1.0f, 0.0f, 0.0f };
+            DxuiCoverageRect  left   = { 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f };
+
+
+
+            DxuiCoverageRaster::FillRoundedRect (image, all,  0xFF0000FFu);
+            DxuiCoverageRaster::FillRoundedRect (layer, left, 0xFFFF0000u);
+            DxuiCoverageRaster::DrawImage       (image, layer, 0.75f);
+
+            Assert::AreEqual (0xFFBF0040u, GetPixel (image, 0, 0), L"75% red over blue");
+            Assert::AreEqual (0xFF0000FFu, GetPixel (image, 1, 0), L"a clear layer pixel leaves the picture");
+
+            DxuiCoverageRaster::DrawImage (image, narrow, 1.0f);
+            Assert::AreEqual (0xFFBF0040u, GetPixel (image, 0, 0), L"a layer of another size draws nothing");
+        }
+
+
+        //  Fading scales every channel of a premultiplied pixel, so the
+        //  picture draws as if its alpha had been scaled.
+        TEST_METHOD (AFadedPictureDrawsAtTheOpacity)
+        {
+            DxuiIconImage     image = DxuiCoverageRaster::MakeImage (1, 1);
+            DxuiCoverageRect  all   = { 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f };
+
+
+
+            DxuiCoverageRaster::FillRoundedRect (image, all, 0xFF80FF40u);
+            DxuiCoverageRaster::FadeImage       (image, (float) DxuiDockGuide::kRestAlpha / 255.0f);
+
+            Assert::AreEqual (0xB35AB32Du, GetPixel (image, 0, 0), L"every channel at 0xB3 / 0xFF");
+        }
+
+
+        //  A tint is laid over what a picture covers and nowhere else: an
+        //  opaque pixel takes the tint as if the tint lay above it, a clear
+        //  one stays clear, and a half-covered one takes half the tint's
+        //  color. Every alpha is left as it was.
+        TEST_METHOD (ATintIsLaidOnlyOverWhatThePictureCovers)
+        {
+            DxuiIconImage     image = DxuiCoverageRaster::MakeImage (4, 1);
+            DxuiCoverageRect  first = { 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f };
+            DxuiCoverageRect  third = { 2.0f, 0.0f, 3.0f, 1.0f, 0.0f, 0.0f };
+            DxuiCoverageRect  shade = { 0.0f, 0.0f, 3.0f, 1.0f, 0.0f, 0.0f };
+
+
+
+            DxuiCoverageRaster::FillRoundedRect (image, first, 0xFFFFFFFFu);
+            DxuiCoverageRaster::FillRoundedRect (image, third, 0x80FFFFFFu);
+            image.bgraPremul[3] = 0xFFFFFFFFu;
+
+            DxuiCoverageRaster::TintCovered (image, shade, 0x800000FFu);
+
+            Assert::AreEqual (0xFF7F7FFFu, GetPixel (image, 0, 0), L"half-alpha blue over white");
+            Assert::AreEqual (0u,          GetPixel (image, 1, 0), L"a clear pixel stays clear");
+            Assert::AreEqual (0x80404080u, GetPixel (image, 2, 0), L"half the tint's color on a half-covered pixel");
+            Assert::AreEqual (0xFFFFFFFFu, GetPixel (image, 3, 0), L"outside the rectangle, untouched");
         }
     };
 }

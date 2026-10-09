@@ -221,5 +221,85 @@ namespace DxuiDockSiteFloatingTests
             Assert::IsNotNull (bar, L"the bottom tab has a bar");
             Assert::AreEqual  ((float) tab.bottom, bar->y + bar->height, L"along the bottom of a tab on the bottom edge");
         }
+
+
+        //  In a floating window whose corners Windows rounds, its lone pane's
+        //  corners are all four of the window's, and its frame follows the
+        //  window's 8-DIP radius there, 12 px at 150%: a 2-px ring 12 px
+        //  outside and 10 inside at each corner, with no gap color outside
+        //  it. A window with square corners leaves the pane its own 7 px and
+        //  the gap color outside its bottom corners.
+        TEST_METHOD (AFloatingPanesCornersAreTheWindowsCorners)
+        {
+            constexpr UINT  kAll = DxuiPaneFrame::kCornerTopLeft | DxuiPaneFrame::kCornerTopRight | DxuiPaneFrame::kCornerBottomLeft | DxuiPaneFrame::kCornerBottomRight;
+
+            for (bool rounded : { true, false })
+            {
+                FloatRig         rig;
+                DxuiDpiScaler    scaler;
+                MockDxuiPainter  painter;
+                MockDxuiTheme    theme;
+                float            radius  = rounded ? 12.0f : 7.0f;
+                UINT             corners = rounded ? kAll : 0u;
+                size_t           caps    = rounded ? 0 : 2;
+                size_t           rings   = 0;
+                size_t           gaps    = 0;
+                std::wstring     what    = rounded ? L"rounded window" : L"square window";
+
+                scaler.SetDpi               (144);
+                rig.site.SetPaneGap         (DxuiDockSite::kPaneGapDip, 0);
+                rig.site.SetWindowCornerDip (rounded ? DxuiPaneMetrics::kWindowCornerDip : 0);
+                rig.site.Layout             (RECT { 0, 0, 600, 400 }, scaler);
+                rig.site.GetGroup (0)->PaintFrame (painter, theme);
+
+                for (const RecordedPaintCall & call : painter.Calls())
+                {
+                    rings += (call.kind == RecordedPaintKind::OutlineRoundedRect && call.argb == theme.Border() &&
+                              call.radius == radius && call.thickness == 2.0f) ? 1 : 0;
+                    gaps  += (call.argb == theme.DockGap()) ? 1 : 0;
+                }
+
+                Assert::AreEqual (corners,    rig.site.GetGroup (0)->GetWindowCorners(), (L"the window's corners, " + what).c_str());
+                Assert::AreEqual ((size_t) 4, rings,                                     (L"a ring at each corner, " + what).c_str());
+                Assert::AreEqual (caps,       gaps,                                      (L"the gap color outside the bottom corners, " + what).c_str());
+            }
+        }
+
+
+        //  Two panes side by side in one floating window share its corners:
+        //  the left one takes the window's left corners and the right one its
+        //  right corners, and the corners where they meet the gap between
+        //  them are their own.
+        TEST_METHOD (SplitFloatingPanesShareTheWindowsCorners)
+        {
+            DxuiDockSite     site;
+            MockDxuiControl  left;
+            MockDxuiControl  right;
+            DxuiDpiScaler    scaler;
+            DxuiPaneLayout   layout = DxuiPaneLayout::MakeSingle (L"left");
+            DxuiTabGroup   * west   = nullptr;
+            DxuiTabGroup   * east   = nullptr;
+
+
+
+            layout.Add        (L"right", L"");
+            layout.DockToSide (L"right", L"left", DxuiDockSide::Right);
+
+            site.AddPane            (L"left",  L"Left",  &left);
+            site.AddPane            (L"right", L"Right", &right);
+            site.SetPaneLayout      (layout);
+            site.SetFloating        ([] (const std::wstring &) {});
+            site.SetPaneGap         (DxuiDockSite::kPaneGapDip, 0);
+            site.SetWindowCornerDip (DxuiPaneMetrics::kWindowCornerDip);
+            site.Layout             (RECT { 0, 0, 800, 400 }, scaler);
+
+            Assert::AreEqual ((size_t) 2, site.GetGroupCount(), L"two groups");
+
+            west = (site.GetGroup (0)->GetBounds().left == 0) ? site.GetGroup (0) : site.GetGroup (1);
+            east = (west == site.GetGroup (0)) ? site.GetGroup (1) : site.GetGroup (0);
+
+            Assert::AreEqual (DxuiPaneFrame::kCornerTopLeft  | DxuiPaneFrame::kCornerBottomLeft,  west->GetWindowCorners(), L"the left pane, the window's left corners");
+            Assert::AreEqual (DxuiPaneFrame::kCornerTopRight | DxuiPaneFrame::kCornerBottomRight, east->GetWindowCorners(), L"the right pane, its right corners");
+        }
     };
 }

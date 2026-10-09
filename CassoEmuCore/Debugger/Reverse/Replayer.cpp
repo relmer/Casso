@@ -450,12 +450,13 @@ Error:
 //  ApplyInput
 //
 //  A record a device holds goes back to that device. A reset or power cycle
-//  is carried out on the machine; a power cycle draws the same memory as it
-//  did live, since every keyframe holds the Prng, and leaves the drives on
-//  the disks in their bays. A drive's write-protect switch is set on its
-//  disk. A mount, an eject or a change to an image's write protection is not
-//  redone from the file: the boundary keyframe taken just after it holds the
-//  disks as they were, and LoadBoundaryIfDue loads it.
+//  is made again on the machine, and the reset callback called; a power
+//  cycle draws the same memory as it did live, since every keyframe holds
+//  the Prng, and leaves the drives on the disks in their bays. A drive's
+//  write-protect switch is set on its disk. A mount, an eject or a change to
+//  an image's write protection is not redone from the file: the boundary
+//  keyframe taken just after it holds the disks as they were, and
+//  LoadBoundaryIfDue loads it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -497,6 +498,11 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
     else
     {
         m_machine.PowerCycle();
+    }
+
+    if ((isReset || isPowerCycle) && m_onReset)
+    {
+        m_onReset (isPowerCycle);
     }
 
 Error:

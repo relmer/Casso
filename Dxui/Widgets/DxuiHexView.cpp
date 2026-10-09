@@ -716,7 +716,7 @@ void DxuiHexView::PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & the
         label.insert (0, (size_t) (std::max) (0, GetLineDigits() - (int) label.size()), L' ');
 
         DrawCell (text, GetRowOffsetRect (row), label.c_str(),
-                  DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
+                  DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
     }
 
     length = GetShownLength (start, end);
@@ -1069,7 +1069,7 @@ RECT DxuiHexView::GetValueSelectionRect (uint64_t first, const RECT & cell) cons
 
 uint32_t DxuiHexView::GetSelectionFill (const IDxuiTheme & theme)
 {
-    return DxuiColor::ComputeFillForContrast (theme.SelectionBackground(), theme.ContentBackground(), kSelectionFillContrast);
+    return DxuiColor::ComputeFillForContrast (theme.SelectionBackground(), theme.TextViewBackground(), kSelectionFillContrast);
 }
 
 
@@ -1103,7 +1103,7 @@ uint32_t DxuiHexView::GetSelectionInk (const IDxuiTheme & theme)
     constexpr uint32_t  kWhite        = 0xFFFFFFFF;
     constexpr uint32_t  kBlack        = 0xFF000000;
     uint32_t            fill          = GetSelectionFill (theme);
-    uint32_t            ink           = DxuiColor::ChooseInkFor (fill, theme.Foreground(), theme.ContentBackground());
+    uint32_t            ink           = DxuiColor::ChooseInkFor (fill, theme.Foreground(), theme.TextViewBackground());
 
 
 
@@ -1129,7 +1129,7 @@ uint32_t DxuiHexView::GetSelectionInk (const IDxuiTheme & theme)
 
 uint32_t DxuiHexView::GetByteColor (const IDxuiTheme & theme, uint8_t mark) const
 {
-    uint32_t  argb = DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
+    uint32_t  argb = DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength);
 
 
 
@@ -2837,7 +2837,7 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     //  The background goes through the painter, whose layer is beneath the
     //  text renderer's, so the scrollbar the painter draws is not covered.
-    painter.FillRect (x, y, width, height, theme.ContentBackground());
+    painter.FillRect (x, y, width, height, theme.TextViewBackground());
 
     EnsureCellSize (text, theme);
 
@@ -3031,7 +3031,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
     }
 
     //  The addresses are a shade darker than the bytes, so the bytes stand out.
-    DrawCell (text, gutter, label.c_str(), DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
+    DrawCell (text, gutter, label.c_str(), DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
 
     //  The value column, a value at a time.
     for (int first = 0; m_showValues && (first < count); first += m_grouping)
@@ -4040,7 +4040,7 @@ void DxuiHexView::PaintRegionRun (
         return;
     }
 
-    stroke = DxuiColor::Mix (theme.ContentBackground(), argb, kOutlineMix);
+    stroke = DxuiColor::Mix (theme.TextViewBackground(), argb, kOutlineMix);
 
     if (firstRow == lastRow)
     {
@@ -4100,7 +4100,7 @@ void DxuiHexView::PaintRegionRun (
     font.sizeDip = m_scaler.ToPxf (font.sizeDip * m_zoom) * kLabelScale;
 
     FillCell (text, RECT { (LONG) ((left + right - width) / 2.0f), (LONG) (edgeY - height / 2.0f),
-                           (LONG) ((left + right + width) / 2.0f), (LONG) (edgeY + height / 2.0f) }, theme.ContentBackground());
+                           (LONG) ((left + right + width) / 2.0f), (LONG) (edgeY + height / 2.0f) }, theme.TextViewBackground());
 
     hr = text.DrawString (label.c_str(), (left + right - width) / 2.0f, edgeY - height / 2.0f, width, height, argb,
                           font.sizeDip, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);

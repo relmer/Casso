@@ -26,7 +26,7 @@ class IDxuiPainter;
 //  tail -- the way a real shadow looks.
 //
 //  A surface drawing a shadow into its own buffer needs kMarginDip of room on
-//  every side to hold it without clipping.
+//  every side to hold it without clipping, or GetMarginDip of a smaller one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +35,22 @@ class DxuiShadow
 public:
     static constexpr float  kBlurDip    = 16.0f;
     static constexpr float  kOffsetYDip = 4.0f;
+    static constexpr float  kOpacity    = 0.32f;
     static constexpr float  kMarginDip  = 22.0f;   // kBlurDip + kOffsetYDip, plus slack
+
+    //  How far a shadow reaches past its card, how far down it drops, how far
+    //  inside the card it starts, and how dark it is where it starts. The
+    //  defaults are a menu's or a flyout's.
+    struct Style
+    {
+        float  blurDip    = kBlurDip;
+        float  offsetYDip = kOffsetYDip;
+        float  insetDip   = 0.0f;
+        float  opacity    = kOpacity;
+    };
+
+    //  The room a surface needs on every side to hold `style`'s shadow.
+    static float  GetMarginDip (const Style & style);
 
     static void  Paint (IDxuiPainter & painter,
                         float          xPx,
@@ -54,4 +69,15 @@ public:
                         float          radiusPx,
                         float          scale,
                         uint32_t       rgb);
+
+    //  A shadow of `style`'s reach and darkness, in `rgb`'s color.
+    static void  Paint (IDxuiPainter & painter,
+                        float          xPx,
+                        float          yPx,
+                        float          widthPx,
+                        float          heightPx,
+                        float          radiusPx,
+                        float          scale,
+                        uint32_t       rgb,
+                        const Style  & style);
 };

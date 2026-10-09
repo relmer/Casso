@@ -19,6 +19,17 @@
 //  address box set into it is white, a step above again. Unlike the dark
 //  theme's, these have not yet been measured against Explorer.
 //
+//  A tooltip is File Explorer's: #F9F9F9 bordered in #D1D1D1, with the body
+//  text color.
+//
+//  The drop targets a dragged pane shows are measured from Visual Studio
+//  2026's light drop targets at 125% on 2026-10-08: the cross's border
+//  #CCCEDB over a translucent #E8E8ED, and the button under the pointer
+//  #F5F5F5 with no border, its picture #006CBE and its arrow #1E1E1E. Every
+//  other button shows those at 70%, the #F3F3F4, #4893CE and #5D5D5E the
+//  captures read. The shade over where the pane would go is #0078D4 at
+//  alpha 0x1E.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiLightTheme::DxuiLightTheme()
@@ -54,18 +65,21 @@ DxuiLightTheme::DxuiLightTheme()
     buttonHover              = 0xFFF6F6F6;
     buttonPressed            = 0xFFF0F0F0;
     buttonBorder             = 0xFFD1D1D1;
+    tooltipBg                = 0xFFF9F9F9;
+    tooltipBorder            = 0xFFD1D1D1;
     tooltipText              = 0xFF1A1A1A;
     errorText                = 0xFFC42B1C;
     resultText               = 0xFF00727D;
     dockGuideBorder          = 0xFFCCCEDB;
-    dockGuideFill            = 0xAAEAEAEE;
+    dockGuideFill            = 0x99E8E8ED;
 
     //  Transparent, not zero, which would take the derived color: Visual
     //  Studio's light theme draws no border around a drop target's button.
-    dockGuideButtonBorder    = 0x00F3F3F4;
-    dockGuideButtonFill      = 0xFFF3F3F4;
-    dockGuideGlyph           = 0xFF4893CE;
-    dockGuideArrow           = 0xFF5D5D5E;
+    dockGuideButtonBorder    = 0x00F5F5F5;
+    dockGuideButtonFill      = 0xFFF5F5F5;
+    dockGuideGlyph           = 0xFF006CBE;
+    dockGuideArrow           = 0xFF1E1E1E;
+    dockPreview              = 0x1E0078D4;
 }
 
 

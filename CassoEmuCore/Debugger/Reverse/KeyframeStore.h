@@ -155,8 +155,9 @@ enum class KeyframeDrop
 //
 //  A keyframe can be given side bytes, kept just after its packed snapshot
 //  in the arena and counted with it against the budget: the heat map keeps
-//  there the accesses counted since the keyframe before. A drop listener is
-//  told before each keyframe goes, while its side bytes can still be read.
+//  there the accesses counted since the keyframe before. Each drop listener
+//  is called before each keyframe goes, while its side bytes can still be
+//  read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +169,7 @@ public:
     //  Reads the host's clock as a UTC FILETIME; tests substitute their own.
     using WallClock = uint64_t (*)();
 
-    //  Told before the oldest or the newest keyframe is dropped, or before
+    //  Called before the oldest or the newest keyframe is dropped, or before
     //  every one is.
     using DropListener = std::function<void (KeyframeDrop drop)>;
 
@@ -184,7 +185,7 @@ public:
     void      Release           ();
     void      SetWorkQueue      (IWorkQueue * queue);
     void      SetWallClock      (WallClock clock) { m_wallClock = clock; }
-    void      SetDropListener   (DropListener listener) { m_onDrop = std::move (listener); }
+    void      SetDropListener   (const void * owner, DropListener listener);
 
     bool      IsDue             (uint64_t cycle) const { return cycle >= m_nextDueCycle; }
 
@@ -308,7 +309,9 @@ private:
     std::array<Job, kBufferCount>  m_jobs;
     size_t                         m_nextJob      = 0;     // the job the next Add takes
     size_t                         m_pendingCount = 0;     // jobs handed over and not yet collected, the newest entries
-    DropListener                   m_onDrop;
+
+    //  Each owner's drop listener, in the order they were set.
+    std::vector<std::pair<const void *, DropListener>>  m_dropListeners;
 
     // Used by the work, so touched by the caller's thread only while none is in flight.
     std::vector<Byte>              m_latestWhole;          // unpacked copy of the newest whole snapshot

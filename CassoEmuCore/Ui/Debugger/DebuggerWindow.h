@@ -32,6 +32,7 @@
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/OpeningFocusDeferral.h"
 #include "Ui/Debugger/FocusAccentOwner.h"
+#include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
@@ -239,6 +240,56 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NullDebuggerWindowHost
+//
+//  A host with nothing behind it: every request does nothing, every query
+//  returns nothing, and its file pickers are always backed out of. For a
+//  window whose own state is all that is read, as a test's is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class NullDebuggerWindowHost : public IDebuggerWindowHost
+{
+public:
+    void  RunDebuggerCommand       (const std::string &)              override {}
+    void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
+    void  PauseDebugger            ()                                 override {}
+    void  SetDebuggerCodeLines     (int, int)                         override {}
+    void  SetDebuggerCodeAddress   (std::optional<Word>, int)         override {}
+    void  SetDebuggerCodeTop       (Word, int)                        override {}
+    void  SetDebuggerFollowView    (int)                              override {}
+    void  CloseDebuggerCodeView    (int)                              override {}
+    void  SetDebuggerMemoryWindow  (int, std::optional<Word>)         override {}
+    void  SetDebuggerTraceTop      (std::optional<uint64_t>)          override {}
+    void  GoToDebuggerMemory       (int, const std::string &)         override {}
+    void  ScrollDebuggerCode       (int, int)                         override {}
+    void  OnDebuggerWindowClosed   ()                                 override {}
+    void  SetDebuggerKeyScheme     (const std::string &)              override {}
+    void  SetDebuggerLayout        (const std::string &)              override {}
+    void  SetDebuggerOpenViews     (const std::string &)              override {}
+    void  SetDebuggerPlacement     (const RECT &)                     override {}
+
+    bool  TakeDebuggerUpdate      (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
+    bool  TryGetDebuggerPlacement (RECT &)                                                                    override { return false; }
+
+    IHostDialogs &  GetHostDialogs       () noexcept override { return m_dialogs; }
+    std::string     GetDebuggerKeyScheme ()          override { return {}; }
+    std::string     GetDebuggerLayout    ()          override { return {}; }
+    std::string     GetDebuggerOpenViews ()          override { return {}; }
+
+    SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
+    SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
+
+private:
+    NullHostDialogs  m_dialogs;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow
 //
 //  The debugger beside the emulator: code, registers, memory, stack, watches
@@ -292,6 +343,8 @@ protected:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasTopLayer     () const override;
+    void     PaintDragLayer  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     HasDragLayer    () const override;
     void     OnWindowFocusChanged (bool focused) override;
     void     PaintBranchArrow (IDxuiPainter & painter, int view);
     bool     GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
@@ -342,6 +395,10 @@ protected:
     //  Protected so a test can choose a theme as the Theme menu does.
     void             ApplyTheme      (const std::string & name);
     const std::string &  GetThemeName () const { return m_themeName; }
+
+    //  The colors the system themes take, given by a test in place of the
+    //  ones Windows holds.
+    void             SetSystemColorsForTest (const DxuiWindowsThemeColors::SystemColors & colors) { m_systemColorsForTest = colors; }
 
     //  A Theme row under the highlight shows its theme at once; the theme in
     //  force when the menu opened comes back if it closes without a choice.
@@ -588,6 +645,60 @@ protected:
     bool                  TryGetMemoryMapTip (POINT clientPx, std::wstring & text) const;
     ColorLegend::Palette  GetColorPalette  () const;
 
+    //  Protected so a test can lay out the tip over a disassembly row's
+    //  operand and result where the pane cuts them off, measured by a
+    //  renderer of its own on a screen of its own, and see the tip the
+    //  pointer's moves, presses and keys, new rows and new layouts leave up:
+    //  the window keeps it whether or not a popup draws it. The cell is the
+    //  view and row the tip covers, and the part of the cell, in the window's
+    //  pixels, the pointer keeps it up over.
+    struct OperandTipCell
+    {
+        int   view = -1;
+        int   row  = -1;
+        RECT  area = {};
+    };
+
+    //  The screen around the window the tip is in, in that window's client
+    //  pixels: each monitor's work area, and the windows lying over this
+    //  one, such as a floating pane, command bar or timeline.
+    struct OperandTipScreen
+    {
+        std::vector<RECT>  workAreas;
+        std::vector<RECT>  overWindows;
+    };
+
+    bool  TryGetOperandTip       (POINT                       clientPx,
+                                  const DxuiDpiScaler       & scaler,
+                                  IDxuiTextRenderer         & text,
+                                  const OperandTipScreen    & screen,
+                                  OperandResultTip::Layout  & out,
+                                  OperandTipCell            & outCell) const;
+    void  PlaceOperandTip        (const DxuiMouseEvent      & ev,
+                                  bool                        isPressed,
+                                  const DxuiDpiScaler       & scaler,
+                                  IDxuiTextRenderer         & text,
+                                  const OperandTipScreen    & screen);
+    void  CheckOperandTip        (int view);
+    void  CheckOperandTipPointer (POINT clientPx);
+    RECT  GetColorTipAnchor      (const RECT & cell) const;
+    bool  HasOperandTip          () const { return m_hasOperandTip; }
+
+    const OperandResultTip::Layout &  GetOperandTipLayout () const { return m_operandTipLayout; }
+    const OperandTipCell &            GetOperandTipCell   () const { return m_operandTipCell; }
+
+    //  The renderer and screen the tip is measured with in a window that has
+    //  no HWND, as a test builds it.
+    void  SetOperandTipDeviceForTest (IDxuiTextRenderer * text, const OperandTipScreen & screen) { m_operandTipTestText = text; m_operandTipTestScreen = screen; }
+
+    //  Protected so a test can slide out an auto-hidden pane, as a press on
+    //  its tab does.
+    DxuiDockSite *  GetDockSite () const { return m_dockSite; }
+
+    //  Protected so a test can make a seek or a go live asked for while the
+    //  machine ran once it has stopped, as a frame does.
+    void  MakePendingSeek ();
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     //  m_theme is the one in force, m_emulatorTheme the emulator's, which a
@@ -670,14 +781,23 @@ private:
     static constexpr int    kTraceHintDip          = 20;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
-    static constexpr int    kMarkerColumnDip       = 20;
     //  The breakpoint icon's size in a list cell, which the source view's
     //  gutter draws it at too.
     static constexpr int    kBreakpointIconDip     = 16;
-    static constexpr int    kGutterColumnDip       = 24;
-    static constexpr int    kCodeInstructionColumn = 5;
-    static constexpr size_t kCodeFirstTextColumn   = 2;
-    static constexpr size_t kCodeColumnCount       = 7;
+    //  The glyph margin a code view keeps for its breakpoints and the PC's
+    //  arrow, as Visual Studio's is: each glyph centered 8.4 DIP in from the
+    //  pane's body, 10.5 pixels at 125%, so its left edge is 2.8 DIP inside
+    //  it, in a column twice that wide; the address follows the column.
+    static constexpr float  kGlyphCenterDip        = 8.4f;
+    static constexpr int    kGutterColumnDip       = 17;
+    static constexpr size_t kCodeGutterColumn      = 0;
+    static constexpr size_t kCodeAddressColumn     = 1;
+    static constexpr size_t kCodeBytesColumn       = 2;
+    static constexpr size_t kCodeLabelColumn       = 3;
+    static constexpr size_t kCodeInstructionColumn = 4;
+    static constexpr size_t kCodeOperandColumn     = 5;
+    static constexpr size_t kCodeFirstTextColumn   = kCodeAddressColumn;
+    static constexpr size_t kCodeColumnCount       = 6;
 
     //  The panes' text size runs from half to three times the usual, in
     //  steps of ten percentage points.
@@ -745,7 +865,9 @@ private:
     bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);
 
     //  The history timeline: a toolbar of history thumbnails docked and
-    //  floated as the command bar is, and the click that seeks there.
+    //  floated as the command bar is, and the click that seeks there. A
+    //  history band's Go live link goes live through it while the machine
+    //  runs.
     void     ConfigureTimeline     ();
     bool     RouteTimelineMouse    (const DxuiMouseEvent & ev);
     void     SyncTimeline          ();
@@ -753,6 +875,7 @@ private:
     void     OnTimelineScrub       (uint64_t cycle, bool isFinal);
     void     SyncTimelineScrub     ();
     void     ApplyTimelineScrub    (const HistoryTimelineScrubStep & step);
+    void     GoLiveFromBand        ();
     void     ConfigureMenuBar     ();
     bool     RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool     RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
@@ -835,6 +958,7 @@ private:
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
     void                         ShowDragMarks     ();
     void                         HideDragMarks     ();
+    void                         ShowFocusAccent   ();
     void                         DockFloatingPane  (const std::wstring & pane);
     void                         SetBreakpointColumns ();
 
@@ -880,6 +1004,37 @@ private:
     void     CommitStackByte  (int row, Byte typed);
     void     CommitRegister   (const std::string & name, Byte typed);
     void     UpdateTooltip    (POINT clientPx);
+    void     UpdateOperandTip (const DxuiMouseEvent & ev, bool isPressed);
+    void     ShowOperandTip   ();
+    void     HideOperandTip   ();
+
+    //  The operand tip's parts: the pointer it follows between moves, the
+    //  view and row under a point, its layout over a row, what may lie over
+    //  it, the fill under the row, the screen it stays on, and the color tip
+    //  put below it.
+    struct OperandTipWindowSearch;
+
+    void                   FollowOperandTipPointer ();
+    int                    FindOperandTipView      (POINT clientPx) const;
+    bool                   TryFindOperandTipRow    (POINT clientPx, int & view, int & row) const;
+    bool                   TryMakeOperandTip       (int                         view,
+                                                    int                         row,
+                                                    const DxuiDpiScaler       & scaler,
+                                                    IDxuiTextRenderer         & text,
+                                                    const OperandTipScreen    & screen,
+                                                    OperandResultTip::Layout  & out,
+                                                    OperandTipCell            & outCell) const;
+    bool                   IsOperandTipCovered     (int                         view,
+                                                    POINT                       clientPx,
+                                                    const RECT                & tipRect,
+                                                    const OperandTipScreen    & screen) const;
+    uint32_t               GetCodeRowFill          (const DxuiListView * list, int row) const;
+    OperandTipScreen       GetOperandTipScreen     (const DxuiHwndSource * host) const;
+    void                   EraseFloatTip           (const std::wstring & key);
+    static bool            IsTextSelectedUnderTip  (const DxuiListView * list, int row, const OperandResultTip::Layout & layout);
+    static bool            Meets                   (const RECT & over, POINT clientPx, const RECT & tipRect);
+    static BOOL CALLBACK   CollectWindowOver       (HWND hwnd, LPARAM param);
+
     std::wstring  GetTitleButtonTipAt (POINT clientPx, RECT & button) const;
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool     TryGetMemoryTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
@@ -895,7 +1050,9 @@ private:
     uint32_t  GetBreakpointArgb    () const;
     std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled);
     std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon ();
-    static std::shared_ptr<DxuiIconImage>  MakeDotIcon (uint32_t argb, bool filled);
+
+    //  The PC's arrow for the glyph margin, over `dot` when the line has one.
+    std::shared_ptr<const DxuiIconImage>  GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot);
     bool      TryGetSourceText     (int fileId, int line, std::wstring & text);
     uint32_t  GetPcMarkerArgb      () const;
     uint32_t  GetPcRowArgb         () const;
@@ -929,6 +1086,10 @@ private:
     CassoTheme                              m_ownTheme;
     DxuiLightTheme                          m_lightTheme;
     DxuiDarkTheme                           m_darkTheme;
+
+    //  Set by a test, so choosing a system theme reads nothing from Windows.
+    std::optional<DxuiWindowsThemeColors::SystemColors>  m_systemColorsForTest;
+
     bool                                    m_swallowSpace       = false;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
@@ -1006,6 +1167,25 @@ private:
     float                                 m_textZoom            = 1.0f;
     DxuiTooltip                           m_tooltip;
 
+    //  A disassembly row's operand and result that the pane cuts off, shown
+    //  whole over their cell: the popup, the window it shows in, whether the
+    //  tip is up, what it shows, the cell it covers, and the renderer, scale
+    //  and screen it was laid out with, which new rows and layouts are
+    //  checked against. A window with no HWND, as a test builds it, measures
+    //  with the renderer and screen the test gives it. The color tip is the
+    //  tooltip last put up below the operand tip; it goes when that tip does.
+    DxuiInPlaceTip                        m_operandTip;
+    DxuiHwndSource                      * m_operandTipHost      = nullptr;
+    bool                                  m_hasOperandTip       = false;
+    OperandResultTip::Layout              m_operandTipLayout;
+    OperandTipCell                        m_operandTipCell;
+    IDxuiTextRenderer                   * m_operandTipText      = nullptr;
+    DxuiDpiScaler                         m_operandTipScaler;
+    OperandTipScreen                      m_operandTipScreen;
+    IDxuiTextRenderer                   * m_operandTipTestText  = nullptr;
+    OperandTipScreen                      m_operandTipTestScreen;
+    DxuiTooltip                         * m_operandColorTip     = nullptr;
+
     //  The status bar along the bottom, and the zoom popup its zoom field
     //  opens above it, drawn on the top layer.
     static constexpr int                  kZoomPopupWidthDip    = 240;
@@ -1023,6 +1203,19 @@ private:
     uint32_t                              m_breakpointIconArgb  = 0;
     std::shared_ptr<const DxuiIconImage>  m_hoverBreakpointIcon;
     uint32_t                              m_hoverBreakpointArgb = 0;
+
+    //  The PC's arrow, alone and over each dot it has been drawn over. Each is
+    //  kept with its dot, so a dot made later cannot take an old one's place
+    //  at the same address; all are made again when the arrow's color
+    //  changes.
+    struct PcIcon
+    {
+        std::shared_ptr<const DxuiIconImage>  dot;
+        std::shared_ptr<const DxuiIconImage>  icon;
+    };
+
+    std::vector<PcIcon>                   m_pcIcons;
+    uint32_t                              m_pcIconArgb          = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

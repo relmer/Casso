@@ -4,6 +4,7 @@
 #include "DxuiTooltip.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
+#include "Core/DxuiPaneMetrics.h"
 #include "Core/DxuiSystemSettings.h"
 
 
@@ -56,6 +57,133 @@ int DxuiTooltip::ComputeVisibleMs (size_t textLength, int systemMs)
     readMs = (std::min) (readMs, (int64_t) kMaxReadMs);
 
     return (int) (std::max) ((int64_t) systemMs, readMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyVisualStudioLook
+//
+//  Visual Studio 2026's tip, measured at 125% on 2026-10-08: corners of
+//  8 pixels, 6.4 DIP; a one-pixel border with the 8- and 4-DIP padding
+//  inside it, which makes a one-line tip 32 pixels tall; and a shadow that
+//  reaches only a few pixels, 1 above, 3 to the sides and 6 below. Under
+//  the bottom edge it is 14% black on a dark theme, fitted at 150%, and
+//  about half that on a light one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::ApplyVisualStudioLook()
+{
+    constexpr float     kCornerDip       = 6.4f;
+    constexpr float     kShadowBlurDip   = 4.0f;
+    constexpr float     kShadowOffsetDip = 2.0f;
+    constexpr float     kShadowInsetDip  = 1.0f;
+    constexpr float     kShadowOnDark    = 0.14f;
+    constexpr float     kShadowOnLight   = 0.075f;
+    DxuiShadow::Style   onDark           = { kShadowBlurDip, kShadowOffsetDip, kShadowInsetDip, kShadowOnDark  };
+    DxuiShadow::Style   onLight          = { kShadowBlurDip, kShadowOffsetDip, kShadowInsetDip, kShadowOnLight };
+
+
+
+    SetCornerRadiusDip (kCornerDip);
+    SetWholePixelFrame (true);
+    SetShadow          (onDark, onLight);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBorderPx
+//
+//  A whole-pixel frame's border is a pane's outline: one DIP rounded to whole
+//  pixels, never less than one. The default is one DIP as it falls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetBorderPx() const
+{
+    return m_isWholePixelFrame ? (float) DxuiPaneMetrics::GetLinePx (m_scaler) : m_scaler.ToPxf (s_kBorderDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPadXPx
+//
+//  From the balloon's left edge to its text. A whole-pixel frame measures
+//  the padding inside its border, in whole pixels, so the text starts on a
+//  pixel; the default draws its border inside the padding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetPadXPx() const
+{
+    return m_isWholePixelFrame ? GetBorderPx() + (float) m_scaler.ToPx ((int) s_kPadXDip) : m_scaler.ToPxf (s_kPadXDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPadYPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetPadYPx() const
+{
+    return m_isWholePixelFrame ? GetBorderPx() + (float) m_scaler.ToPx ((int) s_kPadYDip) : m_scaler.ToPxf (s_kPadYDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCornerRadiusPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetCornerRadiusPx() const
+{
+    float  radius = m_scaler.ToPxf (m_cornerDip);
+
+
+
+    return m_isWholePixelFrame ? (float) std::lround (radius) : radius;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetShadow
+//
+//  The shadow for the fill the theme gives: a light tip's is the lighter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiShadow::Style & DxuiTooltip::GetShadow() const
+{
+    constexpr float  kLightLuminance = 0.5f;
+
+
+
+    return (DxuiColor::ComputeRelativeLuminance (m_bgArgb) > kLightLuminance) ? m_shadowOnLight : m_shadowOnDark;
 }
 
 
@@ -552,6 +680,8 @@ void DxuiTooltip::ShowPopup()
     HWND                       owner    = nullptr;
     HRESULT                    hr       = S_OK;
     bool                       shows    = false;
+    float                      widthPx  = 0.0f;
+    float                      heightPx = 0.0f;
 
 
 
@@ -583,8 +713,19 @@ void DxuiTooltip::ShowPopup()
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
         showParams.shadow           = true;
+        showParams.shadowStyle      = GetShadow();
+        showParams.cornerRadiusPx   = GetCornerRadiusPx();
         showParams.sizeDip          = MeasureBoxDip();
         showParams.backgroundArgb   = m_bgArgb;
+
+        //  A whole-pixel frame is sized to the pixel, which whole DIPs cannot
+        //  always give.
+        if (m_isWholePixelFrame)
+        {
+            MeasureBoxPx (widthPx, heightPx);
+
+            showParams.sizePx = SIZE { (LONG) std::ceil (widthPx), (LONG) std::ceil (heightPx) };
+        }
 
         // A tip fades in rather than appearing. Same switch the menus read,
         // so turning menu animation off turns this off with it. An instant
@@ -632,9 +773,10 @@ float DxuiTooltip::GetMaxTextWidthDip() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MeasureBoxDip
+//  MeasureBoxPx
 //
-//  The balloon's size for the current text.
+//  The balloon's size for the current text, in pixels: the text, rounded up
+//  to whole pixels, and the padding on each side.
 //
 //  MEASURED IN THE PIXELS IT WILL BE DRAWN IN, not in DIPs. RenderPopup draws
 //  at the DPI-scaled font, and a string's width at that size is not its width
@@ -649,30 +791,23 @@ float DxuiTooltip::GetMaxTextWidthDip() const
 //  (test mode) the size falls back to a glyph-count estimate wrapped the same
 //  way.
 //
-//  The popup scales the size back up by the owner DPI, so the trip into DIPs
-//  rounds UP -- rounding down would hand back the pixel the measurement exists
-//  to keep.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE DxuiTooltip::MeasureBoxDip()
+void DxuiTooltip::MeasureBoxPx (
+    float  & widthPx,
+    float  & heightPx)
 {
     HRESULT  hr      = S_OK;
-    UINT     dpi     = m_scaler.GetDpi();
     float    fontPx  = m_scaler.ToPxf (m_fontDip);
     float    maxWPx  = m_scaler.ToPxf (GetMaxTextWidthDip());
-    float    padXPx  = m_scaler.ToPxf (s_kPadXDip);
-    float    padYPx  = m_scaler.ToPxf (s_kPadYDip);
     float    textWPx = 0.0f;
     float    textHPx = 0.0f;
-    SIZE     sizeDip = {};
 
 
 
-    dpi = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
-    hr  = (m_activePopup != nullptr)
-              ? m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(), maxWPx, textWPx, textHPx)
-              : E_FAIL;
+    hr = (m_activePopup != nullptr)
+             ? m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(), maxWPx, textWPx, textHPx)
+             : E_FAIL;
 
     if (FAILED (hr) || textWPx <= 0.0f)
     {
@@ -688,8 +823,39 @@ SIZE DxuiTooltip::MeasureBoxDip()
         textHPx = fontPx * s_kEstLineHeightEm;
     }
 
-    sizeDip.cx = (int) std::ceil ((std::ceil (textWPx) + padXPx * 2.0f) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
-    sizeDip.cy = (int) std::ceil ((std::ceil (textHPx) + padYPx * 2.0f) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+    widthPx  = std::ceil (textWPx) + GetPadXPx() * 2.0f;
+    heightPx = std::ceil (textHPx) + GetPadYPx() * 2.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureBoxDip
+//
+//  The balloon's size in DIPs. The popup scales the size back up by the
+//  owner DPI, so the trip into DIPs rounds UP -- rounding down would hand
+//  back the pixel the measurement exists to keep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiTooltip::MeasureBoxDip()
+{
+    UINT   dpi      = m_scaler.GetDpi();
+    float  widthPx  = 0.0f;
+    float  heightPx = 0.0f;
+    SIZE   sizeDip  = {};
+
+
+
+    dpi = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
+
+    MeasureBoxPx (widthPx, heightPx);
+
+    sizeDip.cx = (int) std::ceil (widthPx  * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+    sizeDip.cy = (int) std::ceil (heightPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
 
     return sizeDip;
 }
@@ -741,7 +907,9 @@ RECT DxuiTooltip::GetScreenAnchor() const
 
 void DxuiTooltip::MovePopup (bool isNewText)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr       = S_OK;
+    float    widthPx  = 0.0f;
+    float    heightPx = 0.0f;
 
 
 
@@ -750,7 +918,13 @@ void DxuiTooltip::MovePopup (bool isNewText)
         return;
     }
 
-    if (isNewText)
+    if (isNewText && m_isWholePixelFrame)
+    {
+        MeasureBoxPx (widthPx, heightPx);
+
+        hr = m_activePopup->MoveToPx (GetScreenAnchor(), SIZE { (LONG) std::ceil (widthPx), (LONG) std::ceil (heightPx) });
+    }
+    else if (isNewText)
     {
         hr = m_activePopup->MoveTo (GetScreenAnchor(), MeasureBoxDip());
     }
@@ -824,9 +998,9 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     HRESULT  hr        = S_OK;
     float    fontPx    = m_scaler.ToPxf (m_fontDip);
-    float    padX      = m_scaler.ToPxf (s_kPadXDip);
-    float    padY      = m_scaler.ToPxf (s_kPadYDip);
-    float    borderPx  = m_scaler.ToPxf (s_kBorderDip);
+    float    padX      = GetPadXPx();
+    float    padY      = GetPadYPx();
+    float    borderPx  = GetBorderPx();
     float    anchorGap = m_scaler.ToPxf (s_kAnchorGapDip);
     float    textW     = 0.0f;
     float    textH     = 0.0f;
@@ -950,9 +1124,9 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     RECT     placed   = {};
     float    width    = 0.0f;
     float    height   = 0.0f;
-    float    padX     = m_scaler.ToPxf (s_kPadXDip);
-    float    padY     = m_scaler.ToPxf (s_kPadYDip);
-    float    borderPx = m_scaler.ToPxf (s_kBorderDip);
+    float    padX     = GetPadXPx();
+    float    padY     = GetPadYPx();
+    float    borderPx = GetBorderPx();
     float    fontPx   = m_scaler.ToPxf (m_fontDip);
 
 
@@ -966,7 +1140,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
-    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), borderPx, m_borderArgb);
+    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, m_borderArgb);
 
     hr = text.DrawString (m_text.c_str(),
                           padX,

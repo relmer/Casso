@@ -85,11 +85,13 @@ void EmulatorShell::StartReverseRecording()
 
     //  A history begun again: the timeline's pictures were of the old one,
     //  and the next are drawn on a machine built as this one is, as are the
-    //  heat map's rebuilds and its look-ups of last accesses.
+    //  heat map's rebuilds and its look-ups of last accesses, and the call
+    //  record's rebuilds.
     m_historyThumbnails.Clear();
     m_historyRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatFinder.SetMachine      (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_callReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 }
 
 
@@ -221,15 +223,28 @@ void EmulatorShell::RunReverseCommand (
     m_replayStartedAt.store (GetTickCount64(), memory_order_relaxed);
     m_isReplayingHistory.store (true, memory_order_release);
 
+    //  Where the machine stands before the command, so the call record
+    //  starts again only if the command moves it or replays anything on it.
+    if (m_debugger != nullptr)
+    {
+        m_debugger->GetCallHistory().OnMoving();
+    }
+
     hr = m_reverseHost->Execute (command, argument, m_reverseStopTest, result);
 
     m_isReplayingHistory.store (false, memory_order_release);
 
     //  Landed or not, the machine may have moved; the heat map follows it,
-    //  rebuilding its heat once a drag of the timeline is let go.
+    //  rebuilding its heat once a drag of the timeline is let go, and so does
+    //  the call record.
     if (m_debugSession != nullptr)
     {
         m_debugSession->GetTarget().NoteHistoryMoved (command == ReverseCommand::ScrubCycle);
+    }
+
+    if (m_debugger != nullptr)
+    {
+        m_debugger->GetCallHistory().OnMoved (command == ReverseCommand::ScrubCycle);
     }
 
     CHR (hr);
@@ -1155,6 +1170,38 @@ void EmulatorShell::SyncHeatHistory (bool isAttached)
         target->AttachHistory       (isLinked ? &controller->GetKeyframes() : nullptr, isLinked ? &m_heatReplayer : nullptr);
         target->SetHeatAccessFinder (isLinked ? &m_heatFinder : nullptr);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceCallHistory
+//
+//  CPU thread, once a pass while the debugger exists: the debugger's call
+//  record is rebuilt from history whenever it starts mid-run. With no
+//  history the two are unlinked, and a rebuild under way is dropped. The
+//  debugger going drops one too: its call history unlinks itself as it is
+//  destroyed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ServiceCallHistory()
+{
+    ReverseController  * controller = (m_reverseHost != nullptr) ? &m_reverseHost->GetController() : nullptr;
+    bool                 isLinked   = controller != nullptr;
+
+
+
+    if (m_debugger == nullptr)
+    {
+        return;
+    }
+
+    m_debugger->GetCallHistory().Attach (controller, isLinked ? &m_callReplayer : nullptr);
+    m_debugger->GetCallHistory().Service();
 }
 
 

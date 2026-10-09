@@ -2934,6 +2934,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetRowBackground
+//
+//  The theme's fill the rows lie on, under any hover or selection: a text
+//  view's for a list set on that surface, a list's otherwise. A host that
+//  draws over a row in the row's colors composites them over this, as the
+//  list paints them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiListView::GetRowBackground (const IDxuiTheme & theme) const
+{
+    return m_textViewSurface ? theme.TextViewBackground() : theme.ContentBackground();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MakePalette
 //
 //  Derives the per-element ARGB colors from the active theme. Called
@@ -2950,7 +2970,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.fg       = m_theme->Foreground();
     pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
     pal.hdrFg    = m_theme->HeadingForeground();
-    pal.bgRow    = m_theme->ContentBackground();
+    pal.bgRow    = GetRowBackground (*m_theme);
     pal.bgHover  = m_theme->ContentHover();
     pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
     pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();
@@ -3293,9 +3313,16 @@ void DxuiListView::PaintDataRows (
             if (cells[c].icon && !cells[c].icon->bgraPremul.empty())
             {
                 float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
+                float  iconX  = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
+
+                //  A glyph margin centers its icon on a set line.
+                if (c == 0 && m_glyphCenterDip > 0.0f)
+                {
+                    iconX = x + colOff + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
+                }
 
                 hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
-                                          x + colOff + (float) colXPx[c] + cellPadL + iconShift,
+                                          iconX,
                                           ry + (rowH - iconPx) * 0.5f,
                                           iconPx, iconPx);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -5179,6 +5206,39 @@ bool DxuiListView::GetCellTextSelection (int row, size_t col, int length, int & 
     end   = std::clamp ((to > hi)   ? hi.ch : length, start, length);
 
     return end > start;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::IsCellTextSelected
+//
+//  False for a row or column the list does not have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsCellTextSelected (
+    int     row,
+    size_t  col) const
+{
+    int   start    = 0;
+    int   end      = 0;
+    int   length   = 0;
+    bool  isInList = m_hasTextSel && row >= 0 && row < GetRowCount() && col < GetRowCells (row).size();
+
+
+
+    if (!isInList)
+    {
+        return false;
+    }
+
+    length = (int) GetRowCells (row)[col].text.size();
+
+    return GetCellTextSelection (row, col, length, start, end);
 }
 
 
