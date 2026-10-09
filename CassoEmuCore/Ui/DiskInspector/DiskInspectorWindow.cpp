@@ -1,32 +1,54 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
-#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/NibblesTab.h"
 #include "Ui/DiskInspector/PlatterCells.h"
+#include "Ui/DiskInspector/PlatterView.h"
+#include "Ui/DiskInspector/SectorByteView.h"
+#include "Ui/DiskInspector/SectorRowView.h"
+#include "Ui/DiskInspector/TrackHeaderView.h"
+#include "Ui/DiskInspector/TrackStripView.h"
 
 
 
 
 
-static constexpr LPCWSTR  s_kpszWindowTitle  = L"Disk inspector";
-static constexpr LPCWSTR  s_kpszClassName    = L"CassoDiskInspector";
-static constexpr LPCWSTR  s_kpszHint         = L"Scroll to zoom, drag to pan, double-click to fit";
-static constexpr LPCWSTR  s_kpszNoDisk       = L"No disk";
-static constexpr LPCWSTR  s_kpszAnalyzing    = L"Analyzing";
+static constexpr LPCWSTR  s_kpszWindowTitle = L"Disk inspector";
+static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
+static constexpr LPCWSTR  s_kpszHint        = L"Scroll to zoom, drag to pan, double-click to fit";
+static constexpr LPCWSTR  s_kpszNoDisk      = L"No disk";
+static constexpr LPCWSTR  s_kpszAnalyzing   = L"Analyzing";
 
-static constexpr int      s_kToolbarDip      = 40;
-static constexpr int      s_kRowDip          = 28;
-static constexpr int      s_kTabsDip         = 30;
-static constexpr int      s_kMarginDip       = 8;
-static constexpr int      s_kSplitterDip     = 6;
-static constexpr int      s_kButtonDip       = 32;
-static constexpr int      s_kTabWidthDip     = 96;
-static constexpr int      s_kDragThreshold   = 4;
-static constexpr double   s_kMinSplit        = 0.3;
-static constexpr double   s_kMaxSplit        = 0.75;
+static constexpr int      s_kToolbarDip     = 40;
+static constexpr int      s_kRowDip         = 28;
+static constexpr int      s_kTabsDip        = 30;
+static constexpr int      s_kStripDip       = 64;
+static constexpr int      s_kSectorRowDip   = 76;
+static constexpr int      s_kMarginDip      = 8;
+static constexpr int      s_kSplitterDip    = 6;
+static constexpr int      s_kButtonDip      = 32;
+static constexpr int      s_kTabWidthDip    = 96;
+static constexpr int      s_kFileNameDip    = 260;
+static constexpr float    s_kChipPadDip     = 8.0f;
+static constexpr float    s_kChipGapDip     = 6.0f;
+static constexpr float    s_kChipHeightDip  = 22.0f;
+static constexpr float    s_kChipTextDip    = 12.0f;
+static constexpr float    s_kAnalyzingDip   = 90.0f;
+static constexpr double   s_kMinSplit       = 0.3;
+static constexpr double   s_kMaxSplit       = 0.7;
+static constexpr double   s_kPanStep        = 0.1;
+
+enum TrackTab
+{
+    kTabSectorData,
+    kTabNibbles,
+    kTabFields,
+    kTabFluxTiming,
+};
 
 
 
@@ -44,6 +66,9 @@ static constexpr double   s_kMaxSplit        = 0.75;
 DiskInspectorWindow::DiskInspectorWindow() :
     m_scheduler (nullptr)
 {
+    m_context.analysis           = &m_analysis;
+    m_context.model              = &m_model;
+    m_context.onSelectionChanged = [this] () { OnSelection(); };
 }
 
 
@@ -100,6 +125,7 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
     CHR (hr);
 
     SetTheme (m_theme);
+    m_tooltip.SetTheme (*m_theme);
     Show (activate);
 
 Error:
@@ -135,7 +161,7 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
     }
 
     RequestCopy();
-    UpdateLabels();
+    UpdateControls();
 
 Error:
     return hr;
@@ -150,7 +176,8 @@ Error:
 //  DiskInspectorWindow::RenderFrame
 //
 //  Once per host frame: replies from the host, then analysis results, then
-//  a repaint when anything changed.
+//  a repaint. The palette is resolved each frame, so a theme change shows
+//  without reopening (FR-077).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,11 +189,15 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     BAIL_OUT_IF (!IsCreated() || !IsWindowVisible (GetHwnd()), S_OK);
 
+    m_context.palette = DiskInspectorPalette::Resolve (*m_theme);
+    m_tooltip.SetTheme (*m_theme);
+
     TakeReplies();
     TakeResults();
     UpdateRings();
-    UpdateLabels();
+    UpdateControls();
 
+    m_tooltip.Tick (static_cast<int64_t> (GetTickCount64()));
     Invalidate();
 
 Error:
@@ -185,23 +216,29 @@ Error:
 
 void DiskInspectorWindow::OnCreate()
 {
-    m_driveTabs     = CreateChild<DxuiTabStrip>();
-    m_diskLabel     = CreateChild<DxuiLabel> (s_kpszNoDisk, DxuiTextRole::Heading, DxuiTextHAlign::Left);
-    m_summaryLabel  = CreateChild<DxuiLabel> (L"",          DxuiTextRole::Body,    DxuiTextHAlign::Left);
-    m_platterVisual = CreateChild<DxuiCustomVisual>();
-    m_zoomOut       = CreateChild<DxuiButton> (L"\x2212");
-    m_zoomIn        = CreateChild<DxuiButton> (L"+");
-    m_fit           = CreateChild<DxuiButton> (L"Fit");
-    m_zoomLabel     = CreateChild<DxuiLabel> (L"",          DxuiTextRole::Body,    DxuiTextHAlign::Left);
-    m_trackLabel    = CreateChild<DxuiLabel> (L"",          DxuiTextRole::Heading, DxuiTextHAlign::Left);
-    m_trackTabs     = CreateChild<DxuiTabStrip>();
+    m_driveTabs   = CreateChild<DxuiTabStrip>();
+    m_platterView = CreateChild<PlatterView> (m_context);
+    m_zoomOut     = CreateChild<DxuiButton> (L"\x2212");
+    m_zoomIn      = CreateChild<DxuiButton> (L"+");
+    m_fit         = CreateChild<DxuiButton> (L"Fit");
+    m_zoomLabel   = CreateChild<DxuiLabel> (L"",         DxuiTextRole::Body,    DxuiTextHAlign::Left);
+    m_hintLabel   = CreateChild<DxuiLabel> (s_kpszHint,  DxuiTextRole::Muted  , DxuiTextHAlign::Left);
+    m_headerView  = CreateChild<TrackHeaderView> (m_context);
+    m_stripView   = CreateChild<TrackStripView>  (m_context);
+    m_sectorRow   = CreateChild<SectorRowView>   (m_context);
+    m_trackTabs   = CreateChild<DxuiTabStrip>();
+    m_byteView    = CreateChild<SectorByteView>  (m_context);
+    m_nibblesTab  = CreateChild<NibblesTab>      (m_context);
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
-    m_zoomOut->SetOnClick    ([this] () { ZoomBy (1.0 / kWheelZoomStep, { (m_platterPx.left + m_platterPx.right) / 2, (m_platterPx.top + m_platterPx.bottom) / 2 }); });
-    m_zoomIn->SetOnClick     ([this] () { ZoomBy (kWheelZoomStep,       { (m_platterPx.left + m_platterPx.right) / 2, (m_platterPx.top + m_platterPx.bottom) / 2 }); });
+    m_trackTabs->SetOnChange ([this] (int index) { ShowTrackTab (index); });
+    m_zoomOut->SetOnClick    ([this] () { m_platterView->ZoomAboutCenter (1.0 / kZoomStep); });
+    m_zoomIn->SetOnClick     ([this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
     m_fit->SetOnClick        ([this] () { m_model.Fit(); });
 
-    m_platterVisual->SetDraw ([this] (const DxuiCustomDrawArgs & args) { DrawPlatter (args); });
+    m_tooltip.SetPopupHost (GetPopupHost());
+
+    ShowTrackTab (kTabSectorData);
 }
 
 
@@ -216,6 +253,7 @@ void DiskInspectorWindow::OnCreate()
 
 void DiskInspectorWindow::OnWindowClose()
 {
+    m_tooltip.HideImmediate();
     Hide();
     m_host->OnInspectorClosed();
 }
@@ -228,75 +266,88 @@ void DiskInspectorWindow::OnWindowClose()
 //
 //  DiskInspectorWindow::Layout
 //
-//  A toolbar across the top; under it the platter column on the left, kept
-//  square, with its zoom row and hint below, and the track column on the
-//  right past the splitter.
+//  A toolbar across the top; under it the platter column on the left, the
+//  platter kept square, with its zoom row and hint below; past the splitter
+//  the track column: header, strip, sector row, tabs and the tab's content.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int                        margin = scaler.ToPx (s_kMarginDip);
-    int                        row    = scaler.ToPx (s_kRowDip);
-    int                        tab    = scaler.ToPx (s_kTabWidthDip);
-    int                        button = scaler.ToPx (s_kButtonDip);
-    int                        width  = boundsDip.right - boundsDip.left;
-    int                        splitX = boundsDip.left + static_cast<int> (width * m_splitFraction);
-    int                        top    = boundsDip.top + scaler.ToPx (s_kToolbarDip);
-    int                        column = 0;
-    int                        side   = 0;
-    int                        x      = 0;
-    int                        drives = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
+    int                        margin  = scaler.ToPx (s_kMarginDip);
+    int                        row     = scaler.ToPx (s_kRowDip);
+    int                        tab     = scaler.ToPx (s_kTabWidthDip);
+    int                        button  = scaler.ToPx (s_kButtonDip);
+    int                        width   = boundsDip.right - boundsDip.left;
+    int                        splitX  = boundsDip.left + static_cast<int> (width * m_splitFraction);
+    int                        top     = boundsDip.top + scaler.ToPx (s_kToolbarDip);
+    int                        drives  = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
+    int                        column  = splitX - boundsDip.left - 2 * margin;
+    int                        side    = std::max (0, std::min (column, static_cast<int> (boundsDip.bottom - top - 2 * row - 3 * margin)));
+    int                        x       = boundsDip.left + margin;
+    int                        y       = 0;
+    int                        i       = 0;
+    int                        header  = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
+    RECT                       right   = {};
+    RECT                       platter = {};
     vector<DxuiTabStrip::Tab>  tabs;
-    int                        i      = 0;
 
 
 
     SetBounds (boundsDip);
     m_scaler = scaler;
+    m_tooltip.SetDpi (scaler.GetDpi());
+    m_tooltip.SetViewportSize (width, boundsDip.bottom - boundsDip.top);
 
     m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top };
     m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), boundsDip.bottom };
-    m_rightPx    = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, boundsDip.bottom - margin };
+    right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, boundsDip.bottom - margin };
 
     for (i = 0; i < drives; i++)
     {
-        RECT  r = { boundsDip.left + margin + i * tab, boundsDip.top + margin / 2, boundsDip.left + margin + (i + 1) * tab, top - margin / 2 };
-
-        tabs.push_back ({ r, std::format (L"Drive {}", i + 1) });
+        tabs.push_back ({ { x + i * tab, boundsDip.top + margin / 2, x + (i + 1) * tab, top - margin / 2 }, std::format (L"Drive {}", i + 1) });
     }
 
     m_driveTabs->SetTabs (std::move (tabs));
-    m_driveTabs->Layout  ({ boundsDip.left + margin, boundsDip.top, boundsDip.left + margin + drives * tab, top }, scaler);
+    m_driveTabs->SetSelected (m_drive);
+    m_driveTabs->Layout  ({ x, boundsDip.top, x + drives * tab, top }, scaler);
 
-    x = boundsDip.left + 2 * margin + drives * tab;
-    m_diskLabel->Layout    ({ x, boundsDip.top, x + width / 3, top }, scaler);
-    m_summaryLabel->Layout ({ x + width / 3, boundsDip.top, boundsDip.right - margin, top }, scaler);
+    m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), static_cast<int> (boundsDip.right)), top };
+    m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, boundsDip.right - margin, top };
 
-    column = splitX - boundsDip.left - 2 * margin;
-    side   = std::max (0, std::min (column, static_cast<int> (boundsDip.bottom - top - 2 * row - 3 * margin)));
+    platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
+    m_platterView->Layout (platter, scaler);
 
-    m_platterPx = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
-    m_platterVisual->Layout (m_platterPx, scaler);
+    y = platter.bottom + margin;
+    m_zoomOut->Layout   ({ x,              y, x + button,     y + row }, scaler);
+    m_zoomIn->Layout    ({ x + button,     y, x + 2 * button, y + row }, scaler);
+    m_fit->Layout       ({ x + 2 * button, y, x + 4 * button, y + row }, scaler);
+    m_zoomLabel->Layout ({ x + 4 * button + margin, y, splitX - margin, y + row }, scaler);
+    m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
 
-    x = boundsDip.left + margin;
-    m_zoomOut->Layout   ({ x,              m_platterPx.bottom + margin, x + button,     m_platterPx.bottom + margin + row }, scaler);
-    m_zoomIn->Layout    ({ x + button,     m_platterPx.bottom + margin, x + 2 * button, m_platterPx.bottom + margin + row }, scaler);
-    m_fit->Layout       ({ x + 2 * button, m_platterPx.bottom + margin, x + 4 * button, m_platterPx.bottom + margin + row }, scaler);
-    m_zoomLabel->Layout ({ x + 4 * button + margin, m_platterPx.bottom + margin, splitX - margin, m_platterPx.bottom + margin + row }, scaler);
-
-    m_trackLabel->Layout ({ m_rightPx.left, m_rightPx.top, m_rightPx.right, m_rightPx.top + row }, scaler);
+    y = right.top;
+    m_headerView->Layout ({ right.left, y, right.right, y + header }, scaler);
+    y += header;
+    m_stripView->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kStripDip) }, scaler);
+    y += scaler.ToPx (s_kStripDip) + margin;
+    m_sectorRow->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kSectorRowDip) }, scaler);
+    y += scaler.ToPx (s_kSectorRowDip);
 
     tabs.clear();
 
     for (LPCWSTR label : { L"Sector data", L"Nibbles", L"Fields", L"Flux timing" })
     {
         i = static_cast<int> (tabs.size());
-        tabs.push_back ({ { m_rightPx.left + i * tab, m_rightPx.top + row, m_rightPx.left + (i + 1) * tab, m_rightPx.top + row + scaler.ToPx (s_kTabsDip) }, label });
+        tabs.push_back ({ { right.left + i * tab, y, right.left + (i + 1) * tab, y + scaler.ToPx (s_kTabsDip) }, label });
     }
 
     m_trackTabs->SetTabs (std::move (tabs));
-    m_trackTabs->Layout  ({ m_rightPx.left, m_rightPx.top + row, m_rightPx.right, m_rightPx.top + row + scaler.ToPx (s_kTabsDip) }, scaler);
+    m_trackTabs->SetSelected (m_trackTab);
+    m_trackTabs->Layout  ({ right.left, y, right.right, y + scaler.ToPx (s_kTabsDip) }, scaler);
+    y += scaler.ToPx (s_kTabsDip) + margin;
+
+    m_byteView->Layout   ({ right.left, y, right.right, right.bottom }, scaler);
+    m_nibblesTab->Layout ({ right.left, y, right.right, right.bottom }, scaler);
 }
 
 
@@ -315,13 +366,11 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                       static_cast<float> (m_boundsDip.right - m_boundsDip.left), static_cast<float> (m_boundsDip.bottom - m_boundsDip.top),
                       theme.Background());
 
-    painter.FillRect (static_cast<float> (m_toolbarPx.left), static_cast<float> (m_toolbarPx.top),
-                      static_cast<float> (m_toolbarPx.right - m_toolbarPx.left), static_cast<float> (m_toolbarPx.bottom - m_toolbarPx.top),
-                      theme.BackgroundElevated());
-
     painter.FillRect (static_cast<float> (m_splitterPx.left), static_cast<float> (m_splitterPx.top),
                       static_cast<float> (m_splitterPx.right - m_splitterPx.left), static_cast<float> (m_splitterPx.bottom - m_splitterPx.top),
                       theme.Divider());
+
+    PaintToolbar (painter, text, theme);
 
     DxuiWindow::Paint (painter, text, theme);
 }
@@ -332,45 +381,88 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskInspectorWindow::PaintToolbar
+//
+//  The file name, clipped to its room, then the summary chips that fit
+//  (FR-018); the name's tooltip gives it whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PaintToolbar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    float         pad     = m_scaler.ToPxf (s_kChipPadDip);
+    float         gap     = m_scaler.ToPxf (s_kChipGapDip);
+    float         chipH   = m_scaler.ToPxf (s_kChipHeightDip);
+    float         textPx  = m_scaler.ToPxf (s_kChipTextDip);
+    float         x       = static_cast<float> (m_chipsPx.left);
+    float         y       = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
+    float         w       = 0;
+    float         h       = 0;
+    bool          isFull  = false;
+    std::wstring  name    = m_context.hasDisk ? GetFileName() : std::wstring (m_pendingRequest != 0 ? s_kpszAnalyzing : s_kpszNoDisk);
+
+
+
+    painter.FillRect (static_cast<float> (m_toolbarPx.left), static_cast<float> (m_toolbarPx.top),
+                      static_cast<float> (m_toolbarPx.right - m_toolbarPx.left), static_cast<float> (m_toolbarPx.bottom - m_toolbarPx.top),
+                      theme.BackgroundElevated());
+
+    text.DrawString (name.c_str(), static_cast<float> (m_fileNamePx.left), static_cast<float> (m_fileNamePx.top),
+                     static_cast<float> (m_fileNamePx.right - m_fileNamePx.left), static_cast<float> (m_fileNamePx.bottom - m_fileNamePx.top),
+                     theme.HeadingForeground(), m_scaler.ToPxf (InspectorView::kTextDip + 1.0f), DxuiTheme::kBodyFace,
+                     DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+
+    if (m_context.hasDisk)
+    {
+        for (const SummaryChip & chip : InspectorText::BuildChips (m_analysis.summary))
+        {
+            text.MeasureString (chip.text.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+            isFull = isFull || x + w + 2 * pad > m_chipsPx.right;
+
+            if (!isFull)
+            {
+                painter.FillRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, theme.ButtonIdle());
+                painter.OutlineRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
+                                            chip.isBad ? m_context.palette.colors.sectorBad : theme.ButtonBorder());
+                text.DrawString (chip.text.c_str(), x, y, w + 2 * pad, chipH, chip.isBad ? m_context.palette.colors.sectorBad : theme.Foreground(), textPx,
+                                 DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+
+                x += w + 2 * pad + gap;
+            }
+        }
+
+        if (m_scheduler.HasPending())
+        {
+            text.DrawString (s_kpszAnalyzing, x, y, m_scaler.ToPxf (s_kAnalyzingDip), chipH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
+                             DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskInspectorWindow::OnMouse
 //
-//  Over the platter: the wheel zooms about the pointer, a drag pans, a
-//  double-click returns to fit, and a press shorter than the drag threshold
-//  is a click. On the splitter: a drag moves it. Everything else goes to the
-//  controls.
+//  The splitter drags here; everything else goes to the views and controls,
+//  and the tooltip follows the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool     isHandled = false;
-    POINT    p         = ev.positionDip;
-    int64_t  now       = static_cast<int64_t> (GetTickCount64());
-    double   size      = std::max (1L, m_platterPx.right - m_platterPx.left);
-    int      width     = m_boundsDip.right - m_boundsDip.left;
+    bool   isHandled = false;
+    POINT  p         = ev.positionDip;
+    int    width     = m_boundsDip.right - m_boundsDip.left;
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && IsInPlatter (p) && m_hasDisk)
-    {
-        ZoomBy (std::pow (kWheelZoomStep, ev.wheelDelta), p);
-        isHandled = true;
-    }
-    else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, p))
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, p))
     {
         m_isSplitting = true;
-        isHandled     = true;
-    }
-    else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && IsInPlatter (p))
-    {
-        if (now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
-        {
-            m_model.Fit();
-        }
-
-        m_lastClickMs = now;
-        m_isDragging  = true;
-        m_dragFrom    = p;
         isHandled     = true;
     }
     else if (ev.kind == DxuiMouseEventKind::Move && m_isSplitting && width > 0)
@@ -379,19 +471,8 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
         Layout (m_boundsDip, m_scaler);
         isHandled = true;
     }
-    else if (ev.kind == DxuiMouseEventKind::Move && m_isDragging)
+    else if (ev.kind == DxuiMouseEventKind::Up && m_isSplitting)
     {
-        if (std::abs (p.x - m_dragFrom.x) + std::abs (p.y - m_dragFrom.y) >= s_kDragThreshold || !m_model.IsAtFit())
-        {
-            m_model.PanBy ({ 2.0 * (p.x - m_dragFrom.x) / size, 2.0 * (p.y - m_dragFrom.y) / size });
-            m_dragFrom = p;
-        }
-
-        isHandled = true;
-    }
-    else if (ev.kind == DxuiMouseEventKind::Up && (m_isDragging || m_isSplitting))
-    {
-        m_isDragging  = false;
         m_isSplitting = false;
         isHandled     = true;
     }
@@ -399,6 +480,16 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (!isHandled)
     {
         isHandled = DxuiWindow::OnMouse (ev);
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        UpdateTooltip (p);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        m_tooltip.RequestHide (static_cast<int64_t> (GetTickCount64()));
+        m_tooltipText.clear();
     }
 
     return isHandled;
@@ -412,30 +503,57 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DiskInspectorWindow::OnKey
 //
-//  Plus and minus zoom about the platter's center and 0 returns to fit
-//  (FR-025); Up and Down step through quarter tracks.
+//  Up and Down step a quarter track, Page Up and Page Down go to the next
+//  whole track, Left and Right step through the sectors in passing order
+//  wrapping at the index, Home and End go to the first and last (FR-029);
+//  plus and minus zoom, 0 returns to fit (FR-025), and Ctrl with an arrow
+//  pans the zoomed platter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 {
-    bool   isHandled = false;
-    POINT  center    = { (m_platterPx.left + m_platterPx.right) / 2, (m_platterPx.top + m_platterPx.bottom) / 2 };
+    static constexpr int  kPerTrack = DiskImage::kQuarterTracksPerWholeTrack;
 
 
 
-    if (ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt)
+    bool  isHandled = false;
+    int   qt        = m_model.GetQuarterTrack();
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down && !ev.alt && m_context.hasDisk)
     {
         isHandled = true;
 
-        switch (ev.vk)
+        if (ev.ctrl)
         {
-            case VK_OEM_PLUS:  case VK_ADD:      ZoomBy (kWheelZoomStep, center);       break;
-            case VK_OEM_MINUS: case VK_SUBTRACT: ZoomBy (1.0 / kWheelZoomStep, center); break;
-            case '0':          case VK_NUMPAD0:  m_model.Fit();                          break;
-            case VK_UP:                          m_model.SelectQuarterTrack (m_model.GetQuarterTrack() - 1); break;
-            case VK_DOWN:                        m_model.SelectQuarterTrack (m_model.GetQuarterTrack() + 1); break;
-            default:                             isHandled = false;                      break;
+            switch (ev.vk)
+            {
+                case VK_LEFT:  m_model.PanBy ({  s_kPanStep, 0.0 }); break;
+                case VK_RIGHT: m_model.PanBy ({ -s_kPanStep, 0.0 }); break;
+                case VK_UP:    m_model.PanBy ({ 0.0,  s_kPanStep }); break;
+                case VK_DOWN:  m_model.PanBy ({ 0.0, -s_kPanStep }); break;
+                default:       isHandled = false;                    break;
+            }
+        }
+        else
+        {
+            switch (ev.vk)
+            {
+                case VK_OEM_PLUS:  case VK_ADD:      m_platterView->ZoomAboutCenter (kZoomStep);       break;
+                case VK_OEM_MINUS: case VK_SUBTRACT: m_platterView->ZoomAboutCenter (1.0 / kZoomStep); break;
+                case '0':          case VK_NUMPAD0:  m_model.Fit();                                    break;
+                case VK_UP:    m_model.SelectQuarterTrack (qt - 1);                           OnSelection(); break;
+                case VK_DOWN:  m_model.SelectQuarterTrack (qt + 1);                           OnSelection(); break;
+                case VK_PRIOR: m_model.SelectQuarterTrack ((qt - 1) / kPerTrack * kPerTrack); OnSelection(); break;
+                case VK_NEXT:  m_model.SelectQuarterTrack ((qt / kPerTrack + 1) * kPerTrack); OnSelection(); break;
+                case VK_LEFT:  StepSector (-1, false); break;
+                case VK_RIGHT: StepSector ( 1, false); break;
+                case VK_HOME:  StepSector (-1, true);  break;
+                case VK_END:   StepSector ( 1, true);  break;
+                default:       isHandled = false;      break;
+            }
         }
     }
 
@@ -467,7 +585,7 @@ LPCWSTR DiskInspectorWindow::GetCursorForPoint (POINT clientPx) const
     {
         cursor = IDC_SIZEWE;
     }
-    else if (m_isDragging || (IsInPlatter (clientPx) && !m_model.IsAtFit()))
+    else if (m_platterView != nullptr && (m_platterView->IsDragging() || (IsInside (m_platterView->GetBounds(), clientPx) && !m_model.IsAtFit())))
     {
         cursor = IDC_SIZEALL;
     }
@@ -506,8 +624,8 @@ void DiskInspectorWindow::RequestCopy()
 //
 //  DiskInspectorWindow::TakeReplies
 //
-//  Only the reply to the latest request counts; a copy of another disk
-//  starts the view over.
+//  Only the reply to the latest request counts. Its disk starts the view
+//  over unless it is the same disk; every record waits for its analysis.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -527,14 +645,15 @@ void DiskInspectorWindow::TakeReplies()
             continue;
         }
 
-        m_pendingRequest = 0;
-        m_hasDisk        = (reply.disk != nullptr);
+        m_pendingRequest  = 0;
+        m_context.hasDisk = (reply.disk != nullptr);
         m_changedSlots.clear();
         m_levels.fill (nullptr);
 
-        if (m_hasDisk)
+        if (m_context.hasDisk)
         {
             m_model.SetDisk (reply.disk->mediaId);
+
             m_analysis           = DiskAnalysis();
             m_analysis.mediaId   = reply.disk->mediaId;
             m_analysis.copy      = reply.disk;
@@ -555,7 +674,7 @@ void DiskInspectorWindow::TakeReplies()
             m_analysis = DiskAnalysis();
         }
 
-        m_model.SetAnalysis (m_hasDisk ? &m_analysis : nullptr);
+        m_model.SetAnalysis (m_context.hasDisk ? &m_analysis : nullptr);
     }
 }
 
@@ -586,6 +705,7 @@ void DiskInspectorWindow::TakeResults()
         {
             DiskAnalyzer::Accept (result.copy, result.slot, std::move (result.analysis), m_analysis);
             m_changedSlots.insert (result.slot);
+            m_levels[result.slot] = nullptr;
         }
     }
 
@@ -612,52 +732,41 @@ void DiskInspectorWindow::TakeResults()
 
 void DiskInspectorWindow::UpdateRings()
 {
-    const DiskCopy *  copy  = m_analysis.copy.get();
-    int               qt    = 0;
-    int               slot  = 0;
-    vector<Byte>      cells;
+    const DiskCopy *   copy     = m_analysis.copy.get();
+    PlatterRenderer &  renderer = m_platterView->GetRenderer();
+    int                qt       = 0;
+    int                slot     = 0;
+    bool               damaged  = false;
+    vector<Byte>       cells;
 
 
 
     for (qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
     {
-        slot = (copy != nullptr) ? copy->playedSlot[qt] : -1;
+        slot    = (copy != nullptr) ? copy->playedSlot[qt] : -1;
+        damaged = copy != nullptr && slot < 0 && copy->mappedSlot[qt] >= 0 && copy->IsSlotDamaged (copy->mappedSlot[qt]);
 
-        if (copy == nullptr || slot < 0)
+        if (slot < 0)
         {
-            if (copy != nullptr && copy->mappedSlot[qt] >= 0 && copy->IsSlotDamaged (copy->mappedSlot[qt]))
+            renderer.SetRing (qt, damaged ? PlatterRingState::Damaged : PlatterRingState::Nothing, nullptr);
+        }
+        else if (m_scheduler.IsPending (slot) || slot >= static_cast<int> (m_analysis.tracks.size()) || m_analysis.tracks[slot] == nullptr)
+        {
+            renderer.SetRing (qt, PlatterRingState::Pending, nullptr);
+        }
+        else if (m_changedSlots.contains (slot) || m_levels[slot] == nullptr)
+        {
+            if (m_levels[slot] == nullptr)
             {
-                m_platter.SetRing (qt, PlatterRingState::Damaged, nullptr);
+                auto  levels = std::make_shared<PlatterRenderer::Levels>();
+
+                PlatterCells::BuildCells  (*m_analysis.tracks[slot], cells);
+                PlatterCells::BuildLevels (cells, *levels);
+                m_levels[slot] = levels;
             }
-            else
-            {
-                m_platter.SetRing (qt, PlatterRingState::Nothing, nullptr);
-            }
 
-            continue;
+            renderer.SetRing (qt, PlatterRingState::Data, m_levels[slot]);
         }
-
-        if (!m_changedSlots.contains (slot) && !m_scheduler.IsPending (slot))
-        {
-            continue;
-        }
-
-        if (m_scheduler.IsPending (slot) || slot >= static_cast<int> (m_analysis.tracks.size()) || m_analysis.tracks[slot] == nullptr)
-        {
-            m_platter.SetRing (qt, PlatterRingState::Pending, nullptr);
-            continue;
-        }
-
-        if (m_levels[slot] == nullptr)
-        {
-            auto  levels = std::make_shared<PlatterRenderer::Levels>();
-
-            PlatterCells::BuildCells  (*m_analysis.tracks[slot], cells);
-            PlatterCells::BuildLevels (cells, *levels);
-            m_levels[slot] = levels;
-        }
-
-        m_platter.SetRing (qt, PlatterRingState::Data, m_levels[slot]);
     }
 
     m_changedSlots.clear();
@@ -669,93 +778,119 @@ void DiskInspectorWindow::UpdateRings()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::UpdateLabels
+//  DiskInspectorWindow::UpdateControls
+//
+//  The zoom controls are hidden with no disk, and "Fit" is unavailable at
+//  fit (FR-025).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::UpdateLabels()
+void DiskInspectorWindow::UpdateControls()
 {
-    HRESULT              hr    = S_OK;
-    const DiskSummary &  s     = m_analysis.summary;
-    std::wstring         name;
-    std::wstring         track;
-
-
-
-    BAIL_OUT_IF (m_diskLabel == nullptr, S_OK);
-
-    if (m_hasDisk && m_analysis.copy != nullptr)
+    if (m_zoomLabel != nullptr)
     {
-        name = TextEncoding::Utf8ToWide (m_analysis.copy->fileName);
-        name = name.substr (name.find_last_of (L"\\/") == std::wstring::npos ? 0 : name.find_last_of (L"\\/") + 1);
+        m_zoomLabel->SetText    (std::format (L"{:.0f}{}", m_model.GetZoom(), s_kpszMultiplyX));
+        m_fit->SetEnabled       (!m_model.IsAtFit());
+        m_zoomOut->SetVisible   (m_context.hasDisk);
+        m_zoomIn->SetVisible    (m_context.hasDisk);
+        m_fit->SetVisible       (m_context.hasDisk);
+        m_zoomLabel->SetVisible (m_context.hasDisk);
+        m_hintLabel->SetVisible (m_context.hasDisk);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OnSelection
+//
+//  After any view changes the selection, the Nibbles tab scrolls to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OnSelection()
+{
+    const TrackAnalysis *   track  = m_model.GetTrack();
+    const AnalyzedSector *  sector = m_model.GetSector();
+    int                     nibble = m_model.GetFirstNibble();
+
+
+
+    if (nibble < 0 && track != nullptr && sector != nullptr)
+    {
+        nibble = track->fields[sector->addressField].firstNibble;
     }
 
-    m_diskLabel->SetText (m_hasDisk ? (name.empty() ? L"Untitled disk" : name) : (m_pendingRequest != 0 ? s_kpszAnalyzing : s_kpszNoDisk));
+    m_nibblesTab->ScrollTo (nibble);
+}
 
-    m_summaryLabel->SetText (m_hasDisk
-        ? std::format (L"{} tracks with data {} {} of {} sectors good{}", s.tracksWithData, s_kchBullet, s.sectorsGood, s.sectorsFound,
-                       m_scheduler.HasPending() ? std::wstring (L" ") + s_kchBullet + L" " + s_kpszAnalyzing : std::wstring())
-        : std::wstring());
 
-    m_zoomLabel->SetText (std::format (L"{:.0f}{}", m_model.GetZoom(), s_kpszMultiplyX));
-    m_fit->SetEnabled    (!m_model.IsAtFit());
-    m_zoomOut->SetVisible (m_hasDisk);
-    m_zoomIn->SetVisible  (m_hasDisk);
-    m_fit->SetVisible     (m_hasDisk);
-    m_zoomLabel->SetVisible (m_hasDisk);
 
-    if (m_hasDisk)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowTrackTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowTrackTab (int tab)
+{
+    m_trackTab = tab;
+    m_byteView->SetVisible   (tab == kTabSectorData);
+    m_nibblesTab->SetVisible (tab == kTabNibbles);
+    m_trackTabs->SetSelected (tab);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::UpdateTooltip
+//
+//  The first view with a tooltip for the point gives it; the file name gives
+//  its full text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
+{
+    std::wstring                          tip;
+    RECT                                  anchor = {};
+    int64_t                               now    = static_cast<int64_t> (GetTickCount64());
+    const std::array<InspectorView *, 4>  views  = { m_platterView, m_stripView, m_sectorRow, m_nibblesTab };
+
+
+
+    for (InspectorView * view : views)
     {
-        track = L"Track " + InspectorFormat::FormatQuarterTrack (m_model.GetQuarterTrack());
-
-        if (m_model.GetSector() != nullptr)
+        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx))
         {
-            track += L", sector " + InspectorFormat::FormatSector (m_model.GetSector()->sector);
+            view->GetTooltip (pointPx, tip, anchor);
         }
     }
 
-    m_trackLabel->SetText (track);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::DrawPlatter
-//
-//  The renderer is made on the device the window draws with, the first time
-//  it draws.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::DrawPlatter (const DxuiCustomDrawArgs & args)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!m_hasDisk, S_OK);
-
-    if (!m_isPlatterReady)
+    if (tip.empty() && m_context.hasDisk && PtInRect (&m_fileNamePx, pointPx))
     {
-        hr = m_platter.Initialize (args.device);
-        CHR (hr);
-
-        m_isPlatterReady = true;
+        tip    = GetFileName();
+        anchor = m_fileNamePx;
     }
 
-    m_platter.SetPalette (DiskInspectorPalette::Resolve (*m_theme));
+    if (tip.empty())
+    {
+        m_tooltip.RequestHide (now);
+    }
+    else if (tip != m_tooltipText)
+    {
+        m_tooltip.RequestShow (anchor, tip, now);
+    }
 
-    hr = m_platter.Render (args, m_model.GetPlatterView (args.rectPx, 0.0));
-    CHR (hr);
-
-Error:
-    return;
+    m_tooltipText = tip;
 }
 
 
@@ -764,13 +899,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::ZoomBy
+//  DiskInspectorWindow::StepSector
+//
+//  The previous or next sector in passing order, wrapping at the index, or
+//  the first or last.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::ZoomBy (double factor, POINT anchorPx)
+void DiskInspectorWindow::StepSector (int delta, bool isToEnd)
 {
-    m_model.ZoomAbout (m_model.GetZoom() * factor, ToViewPoint (anchorPx));
+    const TrackAnalysis *  track = m_model.GetTrack();
+    vector<int>            order = (track != nullptr) ? SectorRowView::GetPassingOrder (*track) : vector<int>();
+    int                    count = static_cast<int> (order.size());
+    int                    at    = 0;
+
+
+
+    if (count > 0)
+    {
+        at = static_cast<int> (std::find (order.begin(), order.end(), m_model.GetSectorIndex()) - order.begin());
+        at = isToEnd ? (delta < 0 ? 0 : count - 1) : (at + delta + count) % count;
+
+        m_model.SelectSector (m_model.GetQuarterTrack(), order[at]);
+        OnSelection();
+    }
 }
 
 
@@ -779,13 +931,25 @@ void DiskInspectorWindow::ZoomBy (double factor, POINT anchorPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::IsInPlatter
+//  DiskInspectorWindow::GetFileName
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskInspectorWindow::IsInPlatter (POINT px) const
+std::wstring DiskInspectorWindow::GetFileName() const
 {
-    return PtInRect (&m_platterPx, px) != FALSE;
+    std::wstring  name;
+    size_t        slash = 0;
+
+
+
+    if (m_analysis.copy != nullptr)
+    {
+        name  = TextEncoding::Utf8ToWide (m_analysis.copy->fileName);
+        slash = name.find_last_of (L"\\/");
+        name  = (slash == std::wstring::npos) ? name : name.substr (slash + 1);
+    }
+
+    return name.empty() ? std::wstring (L"Untitled disk") : name;
 }
 
 
@@ -794,22 +958,11 @@ bool DiskInspectorWindow::IsInPlatter (POINT px) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::ToViewPoint
-//
-//  A pixel as the view model's fit units: the platter's center is (0, 0)
-//  and its edges are at -1 and 1.
+//  DiskInspectorWindow::IsInside
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-InspectorViewModel::Point DiskInspectorWindow::ToViewPoint (POINT px) const
+bool DiskInspectorWindow::IsInside (const RECT & rect, POINT pointPx)
 {
-    double                      half  = std::max (1.0, (m_platterPx.right - m_platterPx.left) / 2.0);
-    InspectorViewModel::Point   point;
-
-
-
-    point.x = (px.x - (m_platterPx.left + m_platterPx.right) / 2.0) / half;
-    point.y = (px.y - (m_platterPx.top + m_platterPx.bottom) / 2.0) / half;
-
-    return point;
+    return PtInRect (&rect, pointPx) != FALSE;
 }

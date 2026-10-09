@@ -152,14 +152,14 @@ without the others in its merge.
 - [X] T057 [P] [US1] Write `UT/PlatterGeometryTests.cpp`: ring per quarter track with track 0 at the rim, angle clockwise from the index, hit test returns quarter track and the sector whose field is under the point (not the first with that number), grooves at whole tracks
 - [X] T058 [P] [US1] Write `UT/InspectorViewModelTests.cpp` for US1: chips text and hiding rules; sector row states, symbols and tooltips ("Sector $5, 6th past the index"); Sector data header fields; empty, damaged and no-data-field texts as FR-040 quotes them
 - [X] T059 [US1] Create `UI/PlatterGeometry.h` / `.cpp` (pure: ring radii, angle mapping, hit testing, zoom and pan transforms)
-- [ ] T060 [US1] Create `UI/PlatterView.h` / `.cpp`: Structure mode via `PlatterRenderer`, index mark, hub, grooves, hover and selected ring outlines, pending pattern, beyond-reach dimming and limit line, damaged hatch (FR-022, FR-023, FR-028)
-- [ ] T060a [US1] Platter tooltips per FR-027: track, kind, sector, the ring's sectors good out of found, flux cell time and deviation ("4.10µs cells (+4.8%)"); once nibble values show, the nibble value, offset and "cell N of M"; "Nothing recorded" with the random-bits note; none during a drag; text from a core formatter tested in `UT/InspectorViewModelTests.cpp`
-- [ ] T061 [US1] Create the toolbar chips with file name ellipsis and full-name tooltip in `UI/DiskInspectorWindow.cpp` (FR-018 display rules)
-- [ ] T062 [US1] Create `UI/TrackHeaderView.h` / `.cpp` (FR-032 lines) and `UI/TrackStripView.h` / `.cpp` with `UI/StripGeometry.h` / `.cpp`: unrolled track, kind colors, sector labels, selected sector outline in two parts across the index, write seam mark (FR-033, FR-036)
-- [ ] T063 [US1] Create `UI/SectorRowView.h` / `.cpp` (FR-039)
-- [ ] T064 [US1] Create `UI/SectorByteView.h` / `.cpp` (read-only in this phase): 16×16 hex and text columns as separate tab stops, zero and high-bit colors, bad data marked (FR-040, R20)
-- [ ] T065 [US1] Create `UI/NibblesTab.h` / `.cpp`: rows in steps of 8 sized to the pane, kind colors, sync widths, extra-zero counts, invalid nibbles and random-bit regions, tooltips, scroll-to-a-third on selection (FR-041)
-- [ ] T066 [US1] Notes in the track header and Image tab for sector images ("built from sector data") and NIB/NB2 ("no timing bits") (FR-003)
+- [X] T060 [US1] (nibble values and cell ticks on the zoomed platter per FR-026 still to do) Create `UI/PlatterView.h` / `.cpp`: Structure mode via `PlatterRenderer`, index mark, hub, grooves, hover and selected ring outlines, pending pattern, beyond-reach dimming and limit line, damaged hatch (FR-022, FR-023, FR-028)
+- [X] T060a [US1] Platter tooltips per FR-027: track, kind, sector, the ring's sectors good out of found, flux cell time and deviation ("4.10µs cells (+4.8%)"); once nibble values show, the nibble value, offset and "cell N of M"; "Nothing recorded" with the random-bits note; none during a drag; text from a core formatter tested in `UT/InspectorViewModelTests.cpp`
+- [X] T061 [US1] Create the toolbar chips with file name ellipsis and full-name tooltip in `UI/DiskInspectorWindow.cpp` (FR-018 display rules)
+- [ ] T062 [US1] (built except the write seam mark) Create `UI/TrackHeaderView.h` / `.cpp` (FR-032 lines) and `UI/TrackStripView.h` / `.cpp` with `UI/StripGeometry.h` / `.cpp`: unrolled track, kind colors, sector labels, selected sector outline in two parts across the index, write seam mark (FR-033, FR-036)
+- [X] T063 [US1] Create `UI/SectorRowView.h` / `.cpp` (FR-039)
+- [X] T064 [US1] Create `UI/SectorByteView.h` / `.cpp` (read-only in this phase): 16×16 hex and text columns as separate tab stops, zero and high-bit colors, bad data marked (FR-040, R20)
+- [X] T065 [US1] Create `UI/NibblesTab.h` / `.cpp`: rows in steps of 8 sized to the pane, kind colors, sync widths, extra-zero counts, invalid nibbles and random-bit regions, tooltips, scroll-to-a-third on selection (FR-041)
+- [X] T066 [US1] Notes in the track header and Image tab for sector images ("built from sector data") and NIB/NB2 ("no timing bits") (FR-003)
 
 ---
 

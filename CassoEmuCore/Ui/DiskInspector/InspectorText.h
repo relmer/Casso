@@ -80,4 +80,5 @@ public:
 
     static std::wstring         FormatNibbleKind    (NibbleKind kind, bool isFailedChecksum);
     static std::wstring         FormatPlatterTooltip (const DiskAnalysis & analysis, int quarterTrack, double turn, bool isShowingNibbles);
+    static std::wstring         FormatNibbleTooltip  (const TrackAnalysis & track, int nibble);
 };

@@ -338,14 +338,14 @@ InspectorViewModel::Point InspectorViewModel::GetDiskPoint (int quarterTrack, do
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorViewModel::GetPlatterView
+//  InspectorViewModel::GetPlacement
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PlatterView InspectorViewModel::GetPlatterView (const RECT & boundsPx, double rotation) const
+PlatterPlacement InspectorViewModel::GetPlacement (const RECT & boundsPx, double rotation) const
 {
-    PlatterView  view;
-    double       fit = std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0;
+    PlatterPlacement  view;
+    double            fit  = std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0;
 
 
 

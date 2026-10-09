@@ -557,3 +557,54 @@ std::wstring InspectorText::FormatPlatterTooltip (const DiskAnalysis & analysis,
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatNibbleTooltip
+//
+//  A nibble's value, its cell and width in cells, its kind and sector, and
+//  on flux its mean cell time (FR-037). Extra zero cells after a nibble
+//  count in its width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatNibbleTooltip (const TrackAnalysis & track, int nibble)
+{
+    const FramedTrack &   framed = track.framed;
+    const FramedNibble &  n      = framed.nibbles[nibble];
+    uint32_t              next   = framed.nibbles[(nibble + 1) % framed.nibbles.size()].startCell;
+    uint32_t              width  = (next + framed.cellCount - n.startCell) % std::max<uint32_t> (framed.cellCount, 1);
+    int                   sector = PlatterGeometry::GetSectorAt (track, n.startCell);
+    double                ticks  = 0;
+    uint32_t              k      = 0;
+    std::wstring          text;
+
+
+
+    width = (width == 0) ? framed.cellCount : width;
+    text  = std::format (L"{:02X} at offset {}\nCell {}, {} wide\n", n.value, InspectorFormat::FormatHexOffset (nibble),
+                         InspectorFormat::FormatCount (n.startCell), FormatCount (static_cast<int> (width), L"cell", L"cells"))
+          + FormatNibbleKind (track.nibbleKinds[nibble], nibble < static_cast<int> (track.isFailedChecksum.size()) && track.isFailedChecksum[nibble] != 0);
+
+    if (sector >= 0)
+    {
+        text += s_kpszSeparator + std::wstring (L"Sector ") + InspectorFormat::FormatSector (track.sectors[sector].sector);
+    }
+
+    if (framed.isFlux && framed.cellTicks.size() >= framed.cellCount && width > 0)
+    {
+        for (k = 0; k < width; k++)
+        {
+            ticks += framed.cellTicks[(n.startCell + k) % framed.cellCount];
+        }
+
+        text += L"\n" + InspectorFormat::FormatMicroseconds (ticks / width) + L" cells ("
+              + InspectorFormat::FormatPercent (ticks / width / TrackAnalyzer::kNominalCellTicks - 1.0) + L")";
+    }
+
+    return text;
+}

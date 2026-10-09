@@ -83,18 +83,18 @@ public:
 
     TEST_METHOD (ThePlatterDrawsBetweenTheFillsBeforeAndAfterIt)
     {
-        WarpRenderHarness                 harness;
-        ComPtr<ID3D11Texture2D>           texture;
-        ComPtr<ID3D11RenderTargetView>    rtv;
-        DxuiPainter                       painter;
-        PlatterRenderer                   renderer;
-        PlatterView                       view;
-        DiskInspectorPalette              palette  = DiskInspectorPalette::MakeFallback (true);
-        vector<uint32_t>                  pixels;
-        RECT                              rect     = { 0, 0, kSize, kSize };
-        HRESULT                           drawn    = E_FAIL;
-        float                             outer    = kSize / 2.0f - 6.0f;
-        float                             ringPx   = (1.0f - PlatterRenderer::kInnerFraction) * outer / PlatterRenderer::kRingCount;
+        WarpRenderHarness               harness;
+        ComPtr<ID3D11Texture2D>         texture;
+        ComPtr<ID3D11RenderTargetView>  rtv;
+        DxuiPainter                     painter;
+        PlatterRenderer                 renderer;
+        PlatterPlacement                view;
+        DiskInspectorPalette            palette  = DiskInspectorPalette::MakeFallback (true);
+        vector<uint32_t>                pixels;
+        RECT                            rect     = { 0, 0, kSize, kSize };
+        HRESULT                         drawn    = E_FAIL;
+        float                           outer    = kSize / 2.0f - 6.0f;
+        float                           ringPx   = (1.0f - PlatterRenderer::kInnerFraction) * outer / PlatterRenderer::kRingCount;
 
 
 
@@ -136,19 +136,19 @@ public:
 
     TEST_METHOD (APendingRingShowsItsPattern)
     {
-        WarpRenderHarness                 harness;
-        ComPtr<ID3D11Texture2D>           texture;
-        ComPtr<ID3D11RenderTargetView>    rtv;
-        DxuiPainter                       painter;
-        PlatterRenderer                   renderer;
-        PlatterView                       view;
-        DiskInspectorPalette              palette  = DiskInspectorPalette::MakeFallback (true);
-        vector<uint32_t>                  pixels;
-        RECT                              rect     = { 0, 0, kSize, kSize };
-        std::set<uint32_t>                seen;
-        float                             outer    = kSize / 2.0f - 6.0f;
-        float                             ringPx   = (1.0f - PlatterRenderer::kInnerFraction) * outer / PlatterRenderer::kRingCount;
-        float                             degrees  = 0;
+        WarpRenderHarness               harness;
+        ComPtr<ID3D11Texture2D>         texture;
+        ComPtr<ID3D11RenderTargetView>  rtv;
+        DxuiPainter                     painter;
+        PlatterRenderer                 renderer;
+        PlatterPlacement                view;
+        DiskInspectorPalette            palette  = DiskInspectorPalette::MakeFallback (true);
+        vector<uint32_t>                pixels;
+        RECT                            rect     = { 0, 0, kSize, kSize };
+        std::set<uint32_t>              seen;
+        float                           outer    = kSize / 2.0f - 6.0f;
+        float                           ringPx   = (1.0f - PlatterRenderer::kInnerFraction) * outer / PlatterRenderer::kRingCount;
+        float                           degrees  = 0;
 
 
 
@@ -197,20 +197,20 @@ public:
         static constexpr double kMaxZoom   = 600.0;
         static constexpr double kRefreshMs = 1000.0 / 60.0;
 
-        ComPtr<ID3D11Device>              device;
-        ComPtr<ID3D11DeviceContext>       context;
-        ComPtr<ID3D11Texture2D>           texture;
-        ComPtr<ID3D11RenderTargetView>    rtv;
-        ComPtr<ID3D11Query>               disjoint;
-        PlatterRenderer                   renderer;
-        PlatterView                       view;
-        D3D11_TEXTURE2D_DESC              desc     = {};
-        D3D11_QUERY_DESC                  query    = {};
-        DxuiCustomDrawArgs                args;
-        vector<double>                    times;
-        int                               step     = 0;
-        int                               ring     = 0;
-        HRESULT                           created  = E_FAIL;
+        ComPtr<ID3D11Device>            device;
+        ComPtr<ID3D11DeviceContext>     context;
+        ComPtr<ID3D11Texture2D>         texture;
+        ComPtr<ID3D11RenderTargetView>  rtv;
+        ComPtr<ID3D11Query>             disjoint;
+        PlatterRenderer                 renderer;
+        PlatterPlacement                view;
+        D3D11_TEXTURE2D_DESC            desc     = {};
+        D3D11_QUERY_DESC                query    = {};
+        DxuiCustomDrawArgs              args;
+        vector<double>                  times;
+        int                             step     = 0;
+        int                             ring     = 0;
+        HRESULT                         created  = E_FAIL;
 
 
 

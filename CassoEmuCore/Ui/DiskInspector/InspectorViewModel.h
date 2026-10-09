@@ -61,7 +61,7 @@ public:
     double  GetZoom         () const { return m_zoom; }
     Point   GetPan          () const { return m_pan; }
     Point   GetDiskPoint    (int quarterTrack, double turn) const;
-    PlatterView  GetPlatterView (const RECT & boundsPx, double rotation) const;
+    PlatterPlacement  GetPlacement (const RECT & boundsPx, double rotation) const;
 
     //  Strip.
     double  GetStripStart   () const { return m_stripStart; }

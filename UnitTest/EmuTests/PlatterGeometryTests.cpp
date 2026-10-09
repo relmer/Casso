@@ -24,9 +24,9 @@ TEST_CLASS (PlatterGeometryTests)
 {
 public:
 
-    static PlatterView MakeView()
+    static PlatterPlacement MakeView()
     {
-        PlatterView  view;
+        PlatterPlacement  view;
 
 
 
@@ -40,7 +40,7 @@ public:
 
 
     //  The pixel at a quarter track's middle and the given turn.
-    static POINT PointAt (const PlatterView & view, int quarterTrack, double turn)
+    static POINT PointAt (const PlatterPlacement & view, int quarterTrack, double turn)
     {
         double  r = PlatterGeometry::GetRingMiddle (quarterTrack) * view.outerRadiusPx;
         double  a = turn * 6.283185307179586;
@@ -79,8 +79,8 @@ public:
 
     TEST_METHOD (AHitGivesTheQuarterTrackAndTurnUnderThePoint)
     {
-        PlatterView  view = MakeView();
-        PlatterHit   hit;
+        PlatterPlacement  view = MakeView();
+        PlatterHit        hit;
 
 
 

@@ -120,7 +120,7 @@ void PlatterRenderer::SetPalette (const DiskInspectorPalette & palette)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterView & view)
+HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterPlacement & view)
 {
     static constexpr float  kGrooveMinPx = 4.0f;
 

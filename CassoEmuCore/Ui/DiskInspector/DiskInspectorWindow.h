@@ -5,8 +5,16 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
+#include "Ui/DiskInspector/InspectorView.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
 #include "Ui/DiskInspector/PlatterRenderer.h"
+
+class PlatterView;
+class TrackHeaderView;
+class TrackStripView;
+class SectorRowView;
+class SectorByteView;
+class NibblesTab;
 
 
 
@@ -16,10 +24,11 @@
 //
 //  DiskInspectorWindow
 //
-//  The disk inspector: a toolbar, a tab per drive, the platter on the left
-//  and the track's tabs on the right, with a splitter between them. It asks
-//  its host for a copy of the disk, analyzes the copy in the background,
-//  and draws each record as its analysis arrives. The host calls RenderFrame
+//  The disk inspector: a toolbar with the drive tabs, the file name and the
+//  summary chips; the platter column on the left; and past the splitter the
+//  track column with its header, strip, sector row and tabs. It asks its
+//  host for a copy of the disk, analyzes the copy in the background, and
+//  shows each record as its analysis arrives. The host calls RenderFrame
 //  once per frame of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +40,7 @@ public:
     static constexpr int     kOpeningHeightDip = 660;
     static constexpr int     kMinWidthDip      = 640;
     static constexpr int     kMinHeightDip     = 460;
-    static constexpr double  kWheelZoomStep    = 1.25;
+    static constexpr double  kZoomStep         = 1.25;
 
     DiskInspectorWindow  ();
     ~DiskInspectorWindow () override;
@@ -52,15 +61,18 @@ protected:
     void  OnWindowClose () override;
 
 private:
-    void  RequestCopy        ();
-    void  TakeReplies        ();
-    void  TakeResults        ();
-    void  UpdateRings        ();
-    void  UpdateLabels       ();
-    void  DrawPlatter        (const DxuiCustomDrawArgs & args);
-    void  ZoomBy             (double factor, POINT anchorPx);
-    bool  IsInPlatter        (POINT px) const;
-    InspectorViewModel::Point  ToViewPoint (POINT px) const;
+    void  RequestCopy      ();
+    void  TakeReplies      ();
+    void  TakeResults      ();
+    void  UpdateRings      ();
+    void  UpdateControls   ();
+    void  OnSelection      ();
+    void  ShowTrackTab     (int tab);
+    void  UpdateTooltip    (POINT pointPx);
+    void  PaintToolbar     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  StepSector       (int delta, bool isToEnd);
+    std::wstring  GetFileName () const;
+    static bool   IsInside    (const RECT & rect, POINT pointPx);
 
     const CassoTheme                                                                           * m_theme          = nullptr;
     IDiskInspectorHost                                                                         * m_host           = nullptr;
@@ -69,22 +81,20 @@ private:
     uint64_t                                                                                     m_pendingRequest = 0;
     DiskAnalysis                                                                                 m_analysis;
     InspectorViewModel                                                                           m_model;
+    InspectorViewContext                                                                         m_context;
     AnalysisScheduler                                                                            m_scheduler;
-    PlatterRenderer                                                                              m_platter;
-    bool                                                                                         m_isPlatterReady = false;
-    bool                                                                                         m_hasDisk        = false;
-    bool                                                                                         m_isDragging     = false;
-    bool                                                                                         m_isSplitting    = false;
-    POINT                                                                                        m_dragFrom       = {};
-    int64_t                                                                                      m_lastClickMs    = 0;
-    double                                                                                       m_splitFraction  = 0.55;
+    DxuiTooltip                                                                                  m_tooltip;
     std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_levels;
     std::set<int>                                                                                m_changedSlots;
+    bool                                                                                         m_isSplitting    = false;
+    double                                                                                       m_splitFraction  = 0.5;
+    int                                                                                          m_trackTab       = 0;
     DxuiDpiScaler                                                                                m_scaler;
     RECT                                                                                         m_toolbarPx      = {};
-    RECT                                                                                         m_platterPx      = {};
+    RECT                                                                                         m_fileNamePx     = {};
+    RECT                                                                                         m_chipsPx        = {};
     RECT                                                                                         m_splitterPx     = {};
-    RECT                                                                                         m_rightPx        = {};
+    std::wstring                                                                                 m_tooltipText;
 
     DxuiTabStrip *                           m_driveTabs      = nullptr;
     DxuiTabStrip *                           m_trackTabs      = nullptr;
@@ -92,8 +102,11 @@ private:
     DxuiButton *                             m_zoomIn         = nullptr;
     DxuiButton *                             m_fit            = nullptr;
     DxuiLabel *                              m_zoomLabel      = nullptr;
-    DxuiLabel *                              m_diskLabel      = nullptr;
-    DxuiLabel *                              m_summaryLabel   = nullptr;
-    DxuiLabel *                              m_trackLabel     = nullptr;
-    DxuiCustomVisual *                       m_platterVisual  = nullptr;
+    DxuiLabel *                              m_hintLabel      = nullptr;
+    PlatterView *                            m_platterView    = nullptr;
+    TrackHeaderView *                        m_headerView     = nullptr;
+    TrackStripView *                         m_stripView      = nullptr;
+    SectorRowView *                          m_sectorRow      = nullptr;
+    SectorByteView *                         m_byteView       = nullptr;
+    NibblesTab *                             m_nibblesTab     = nullptr;
 };

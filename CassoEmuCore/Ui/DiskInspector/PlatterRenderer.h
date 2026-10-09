@@ -11,7 +11,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PlatterRingState / PlatterView
+//  PlatterRingState / PlatterPlacement
 //
 //  What a ring shows apart from its cells, and where the disk sits in the
 //  target: its center and outer radius in target pixels, how far it has
@@ -28,7 +28,7 @@ enum class PlatterRingState : uint32_t
 };
 
 
-struct PlatterView
+struct PlatterPlacement
 {
     float  centerXPx     = 0.0f;
     float  centerYPx     = 0.0f;
@@ -64,7 +64,7 @@ public:
     HRESULT  Initialize (ID3D11Device * pDevice);
     void     SetRing    (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels);
     void     SetPalette (const DiskInspectorPalette & palette);
-    HRESULT  Render     (const DxuiCustomDrawArgs & args, const PlatterView & view);
+    HRESULT  Render     (const DxuiCustomDrawArgs & args, const PlatterPlacement & view);
 
 private:
     struct Constants

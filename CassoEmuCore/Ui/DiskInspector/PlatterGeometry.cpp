@@ -124,7 +124,7 @@ bool PlatterGeometry::IsGrooveOutside (int quarterTrack)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PlatterHit PlatterGeometry::HitTest (const PlatterView & view, POINT pointPx)
+PlatterHit PlatterGeometry::HitTest (const PlatterPlacement & view, POINT pointPx)
 {
     PlatterHit  hit;
     double      dx = pointPx.x + 0.5 - view.centerXPx;

@@ -38,7 +38,7 @@ public:
     static int         GetQuarterTrackAt (double radius);
     static double      GetTurnAt         (double dx, double dy);
     static bool        IsGrooveOutside   (int quarterTrack);
-    static PlatterHit  HitTest           (const PlatterView & view, POINT pointPx);
+    static PlatterHit  HitTest           (const PlatterPlacement & view, POINT pointPx);
 
     //  What lies at a place along a track.
     static uint32_t    GetCellAtTurn     (const TrackAnalysis & track, double turn);
