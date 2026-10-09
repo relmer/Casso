@@ -2277,7 +2277,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // the ordering too and pays a full-screen clear and a full-screen blit
     // every frame for it, which is the window-area cost GH #131 is about.
     // Recording pays neither.
-    hr = m_painter->Begin (widthPx, heightPx);
+    hr = m_painter->Begin (widthPx, heightPx, target);
     CHRA (hr);
     painterBegun = true;
 
@@ -2313,7 +2313,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // flushed last of all -- bleeding through the dialog.)
     if (m_overlayActiveHook && m_overlayActiveHook() && m_overlayPaintHook)
     {
-        hr = m_painter->Begin (widthPx, heightPx);
+        hr = m_painter->Begin (widthPx, heightPx, target);
         CHRA (hr);
         painterBegun = true;
 

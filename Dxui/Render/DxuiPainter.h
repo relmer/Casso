@@ -40,8 +40,11 @@ public:
     HRESULT OnDeviceRestored (ID3D11Device         * pDevice,
                               ID3D11DeviceContext  * pContext);
 
+    //  A target given here is the one DrawCustom shares; without one,
+    //  DrawCustom does nothing.
     HRESULT Begin            (int viewportWidthPx,
-                              int viewportHeightPx);
+                              int viewportHeightPx,
+                              ID3D11RenderTargetView * pCustomTarget = nullptr);
 
     void    FillRect         (float xPx,
                               float yPx,
@@ -95,6 +98,7 @@ public:
                                float thicknessPx, uint32_t argbColor) override;
 
     HRESULT End            (ID3D11RenderTargetView * pRtv);
+    void    DrawCustom     (const RECT & rectPx, const DxuiCustomDraw & draw) override;
 
     // Global alpha multiplier applied to every vertex's alpha channel.
     // Used by the Settings panel's live-preview state machine to fade
@@ -161,6 +165,7 @@ private:
     HRESULT CreateShaders    ();
     HRESULT CreatePipelineState ();
     HRESULT EnsureVertexBuffer  (size_t requiredVerts);
+    HRESULT Flush               (ID3D11RenderTargetView * pRtv);
     void    PushQuad         (float xPx,
                               float yPx,
                               float widthPx,
@@ -215,6 +220,7 @@ private:
     float                             m_originYPx            = 0.0f;
     bool                              m_hasClip              = false;
     RECT                              m_clipPx               = {};   // after the origin, like the vertices
+    ID3D11RenderTargetView          * m_customTarget         = nullptr;   // non-owning, Begin to End
 
     std::vector<Vertex>               m_vertices;
 };

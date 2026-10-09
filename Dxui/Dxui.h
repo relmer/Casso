@@ -145,6 +145,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiTreeView.h"
 #include "Widgets/DxuiScrollbar.h"
 #include "Widgets/DxuiScrollPanel.h"
+#include "Widgets/DxuiCustomVisual.h"
 #include "Widgets/DxuiSurface.h"
 #include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiInfoTip.h"

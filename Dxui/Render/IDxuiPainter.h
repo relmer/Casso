@@ -8,6 +8,34 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiCustomDrawArgs
+//
+//  What a custom draw gets: the painter's device and target, the target's
+//  size, the rectangle to draw in and the part of it that is visible, all in
+//  target pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiCustomDrawArgs
+{
+    ID3D11Device            * device          = nullptr;
+    ID3D11DeviceContext     * context         = nullptr;
+    ID3D11RenderTargetView  * target          = nullptr;
+    int                       targetWidthPx   = 0;
+    int                       targetHeightPx  = 0;
+    RECT                      rectPx          = {};
+    RECT                      clipPx          = {};
+};
+
+
+using DxuiCustomDraw = std::function<void (const DxuiCustomDrawArgs & args)>;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IDxuiPainter
 //
 //  Pure-virtual interface for the geometry painter. Widgets paint
@@ -121,4 +149,13 @@ public:
     virtual void   SetClipRect (const RECT * clipPx)                          { (void) clipPx; }
     virtual bool   GetClipRect (RECT & clipPx) const                          { (void) clipPx; return false; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
+
+    // Runs `draw` to render D3D11 content of its own into `rectPx`, between
+    // the shapes drawn before this call, which it covers, and the shapes and
+    // text drawn after it, which cover it. The painter draws what it holds
+    // first; `draw` sets every pipeline state it uses and must leave the
+    // render target, viewport and scissor for the painter to set again. Not
+    // called where the painter has no render target to share, as in a popup;
+    // defaulted to a no-op so a mock compiles unchanged.
+    virtual void   DrawCustom (const RECT & rectPx, const DxuiCustomDraw & draw) { (void) rectPx; (void) draw; }
 };

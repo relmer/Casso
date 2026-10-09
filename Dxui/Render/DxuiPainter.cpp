@@ -327,7 +327,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
+HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx, ID3D11RenderTargetView * pCustomTarget)
 {
     HRESULT  hr = S_OK;
 
@@ -343,6 +343,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_vertices.clear();
     m_betweenBeginEnd  = true;
     m_hasClip          = false;
+    m_customTarget     = pCustomTarget;
 
 Error:
     return hr;
@@ -1139,8 +1140,8 @@ void DxuiPainter::DrawLine (
 //  renderer do the same -- so all three can interleave freely without any of
 //  them assuming what state it inherits.
 //
-//  m_betweenBeginEnd is cleared BEFORE the early-out, so an empty batch or a
-//  null target still closes the Begin/End pair rather than leaving the painter
+//  m_betweenBeginEnd is cleared BEFORE the flush, so an empty batch or a null
+//  target still closes the Begin/End pair rather than leaving the painter
 //  believing it is mid-batch.
 //
 //  WRITE_DISCARD tells the driver the previous vertex contents are dead, so it
@@ -1155,6 +1156,81 @@ void DxuiPainter::DrawLine (
 
 HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 {
+    DXUI_ASSERT_UI_THREAD();
+
+    m_betweenBeginEnd = false;
+    m_customTarget    = nullptr;
+
+    return Flush (pRtv);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawCustom
+//
+//  The shapes drawn so far go to the target first, so the custom content
+//  covers them; the shapes after it go in the next flush and cover it. A
+//  rectangle the clip hides entirely is not drawn at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::DrawCustom (const RECT & rectPx, const DxuiCustomDraw & draw)
+{
+    HRESULT             hr      = S_OK;
+    DxuiCustomDrawArgs  args;
+    bool                canDraw = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    canDraw = m_betweenBeginEnd && m_customTarget != nullptr && draw;
+    BAIL_OUT_IF (!canDraw, S_OK);
+
+    args.device         = m_device;
+    args.context        = m_context;
+    args.target         = m_customTarget;
+    args.targetWidthPx  = m_viewportWidthPx;
+    args.targetHeightPx = m_viewportHeightPx;
+    args.rectPx         = rectPx;
+
+    OffsetRect (&args.rectPx, (int) m_originXPx, (int) m_originYPx);
+    args.clipPx = args.rectPx;
+
+    if (m_hasClip)
+    {
+        BAIL_OUT_IF (!IntersectRect (&args.clipPx, &args.rectPx, &m_clipPx), S_OK);
+    }
+
+    BAIL_OUT_IF (IsRectEmpty (&args.clipPx), S_OK);
+
+    hr = Flush (m_customTarget);
+    CHRA (hr);
+
+    draw (args);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Flush
+//
+//  Draws the shapes held so far and empties the list, leaving the pass open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPainter::Flush (ID3D11RenderTargetView * pRtv)
+{
     HRESULT                     hr               = S_OK;
     D3D11_MAPPED_SUBRESOURCE    mapped           = {};
     UINT                        stride           = sizeof (Vertex);
@@ -1168,8 +1244,7 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 
     DXUI_ASSERT_UI_THREAD();
 
-    m_betweenBeginEnd = false;
-    hasNothingToDraw  = m_vertices.empty() || (pRtv == nullptr);
+    hasNothingToDraw = m_vertices.empty() || (pRtv == nullptr);
 
     BAIL_OUT_IF (hasNothingToDraw, S_OK);
 

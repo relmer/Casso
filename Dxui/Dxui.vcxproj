@@ -281,6 +281,7 @@
     <ClInclude Include="Widgets\DxuiScrollPanel.h" />
     <ClInclude Include="Widgets\DxuiSearchBox.h" />
     <ClInclude Include="Widgets\DxuiSlider.h" />
+    <ClInclude Include="Widgets\DxuiCustomVisual.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
