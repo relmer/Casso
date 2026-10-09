@@ -84,6 +84,7 @@ void ColorKeyPopup::Show (
     }
 
     m_host       = host;
+    m_anchor     = anchor;
     m_pane       = pane;
     m_isHeld     = hold;
     m_isShown    = true;
@@ -195,6 +196,53 @@ void ColorKeyPopup::Hide()
     {
         m_host->ReleasePopup (popup);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorKeyPopup::GetRect
+//
+//  Where the balloon was placed, or, with no balloon to place it in (a
+//  window with no popup host, as in a test), below the anchor at the size
+//  it measures.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ColorKeyPopup::GetRect() const
+{
+    RECT   rect     = {};
+    SIZE   sizeDip  = {};
+    POINT  topLeft  = {};
+    POINT  botRight = {};
+    HWND   owner    = (m_host != nullptr) ? m_host->GetHwnd() : nullptr;
+
+
+
+    if (m_isShown && m_popup == nullptr)
+    {
+        sizeDip = MeasureDip (m_scaler.GetDpi());
+        rect    = { m_anchor.left, m_anchor.bottom, m_anchor.left + m_scaler.ToPx ((int) sizeDip.cx), m_anchor.bottom + m_scaler.ToPx ((int) sizeDip.cy) };
+    }
+    else if (m_isShown)
+    {
+        rect     = m_popup->GetPlacedRectScreenPx();
+        topLeft  = { rect.left,  rect.top    };
+        botRight = { rect.right, rect.bottom };
+
+        if (owner != nullptr)
+        {
+            ScreenToClient (owner, &topLeft);
+            ScreenToClient (owner, &botRight);
+        }
+
+        rect = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+    }
+
+    return rect;
 }
 
 

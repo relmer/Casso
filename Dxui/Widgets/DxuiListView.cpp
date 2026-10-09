@@ -5194,6 +5194,39 @@ bool DxuiListView::GetCellTextSelection (int row, size_t col, int length, int & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::IsCellTextSelected
+//
+//  False for a row or column the list does not have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsCellTextSelected (
+    int     row,
+    size_t  col) const
+{
+    int   start    = 0;
+    int   end      = 0;
+    int   length   = 0;
+    bool  isInList = m_hasTextSel && row >= 0 && row < GetRowCount() && col < GetRowCells (row).size();
+
+
+
+    if (!isInList)
+    {
+        return false;
+    }
+
+    length = (int) GetRowCells (row)[col].text.size();
+
+    return GetCellTextSelection (row, col, length, start, end);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::IsWordChar
 //
 //  What a double-click takes as one word: letters and digits, and the marks a
