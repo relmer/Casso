@@ -96,7 +96,8 @@ struct ReverseResult
 //
 //  A history observer, when one is set, is told of each keyframe taken live
 //  before it is stored, and may give it side bytes to keep, and of each
-//  keyframe whose state a replay loads.
+//  keyframe whose state a replay loads. Keyframe listeners are called with
+//  each keyframe taken live once it is stored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +116,9 @@ public:
     //  so step back out can seek straight to the innermost.
     using CallerLinksProbe = std::function<void (std::vector<CallerLink> & outLinks)>;
 
+    //  Called, live, just after each keyframe is taken, with its position.
+    using KeyframeListener = std::function<void (uint64_t position)>;
+
     explicit ReverseController (MachineHost & machine);
     ~ReverseController () override;
 
@@ -127,6 +131,7 @@ public:
     void      SetCallerProbe      (CallerProbe probe) { m_callerProbe = std::move (probe); }
     void      SetCallerLinksProbe (CallerLinksProbe probe) { m_callerLinksProbe = std::move (probe); }
     void      SetHistoryObserver  (IHistoryObserver * observer) { m_observer = observer; }
+    void      SetKeyframeListener (const void * owner, KeyframeListener listener);
     void      Stop                ();
     bool      IsRecording         () const { return m_isRecording; }
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
@@ -148,6 +153,7 @@ public:
     bool      IsInHistory         () const;
     uint64_t  GetOldestPosition   () const;
     uint64_t  GetLiveEndPosition  () const;
+    uint64_t  GetRecordedEnd      () const;
     uint64_t  GetLiveEndCycle     () const { return m_liveEndCycle; }
     uint64_t  GetWallTimeAt       (uint64_t cycle) const;
     size_t    GetTableBuildCount  () const { return m_tableBuilds; }
@@ -215,6 +221,10 @@ private:
     CallerProbe                m_callerProbe;            // the debugger's call record, when one is attached
     CallerLinksProbe           m_callerLinksProbe;       // the same record's calls still entered
     std::vector<CallerLink>    m_callerLinks;            // the chain step back out last read live, outermost first
+
+    //  Each owner's keyframe listener, in the order they were set.
+    std::vector<std::pair<const void *, KeyframeListener>>  m_keyframeListeners;
+
     size_t                     m_callerDepth       = 0;      // the links outside the call step back out last landed on
     uint64_t                   m_callerLanding     = UINT64_MAX;  // where it landed; any other position uses no link
     std::vector<Byte>          m_stackPointers;          // a search's stack pointer per position, for one stretch

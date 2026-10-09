@@ -169,6 +169,10 @@ public:
     //  journal held them; for a second machine replaying the same inputs.
     void  LoadRecords   (size_t firstIndex, const std::vector<InputRecord> & records);
 
+    //  The records from firstIndex through the last made at lastPosition,
+    //  for that second machine; false when firstIndex is not held.
+    bool  TryCopyRecords (size_t firstIndex, uint64_t lastPosition, std::vector<InputRecord> & outRecords) const;
+
 private:
     InputRecord  & AppendSlot();
 

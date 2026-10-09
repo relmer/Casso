@@ -148,7 +148,6 @@ private:
     void      FindPartStarts    (size_t start, size_t target, uint64_t position, uint64_t cycle, std::vector<size_t> & outStarts) const;
     HRESULT   AddPart           (size_t index, uint64_t endPosition, uint64_t endCycle, HeatRebuildJob & ioJob);
     HRESULT   CopyInputs        (size_t journalIndex, uint64_t position, std::vector<InputRecord> & outInputs) const;
-    HRESULT   CopyDisks         (std::vector<HeatRebuildDisk> & outDisks);
     HRESULT   FindInStretch     (size_t index, uint64_t endPosition, uint64_t endCycle, const HeatRebuildJob::Query & query, bool & outIsFound, HeatLastAccess & outAccess);
     bool      HasCountIn        (size_t index, size_t entry, bool & outHasSide);
     bool      TryGetCounts      (size_t index, const Byte *& outBytes, size_t & outSize) const;
@@ -190,6 +189,5 @@ private:
     std::unordered_map<size_t, std::pair<HeatAccessState, HeatLastAccess>>  m_lookups;
     uint64_t                                                                m_lookupsAt = UINT64_MAX;
 
-    std::unordered_map<uint64_t, std::shared_ptr<const std::vector<Byte>>>  m_diskImages;   // by medium
-    std::shared_ptr<const std::vector<Byte>>                                m_blankSectorImage;
+    ReplayDiskCopier                                                        m_diskCopier;
 };

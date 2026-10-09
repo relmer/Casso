@@ -63,6 +63,7 @@ struct DebugSessionView
     bool                                      isStepBySource  = false;
     CallStackMechanism                        callMechanism   = CallStackMechanism::Hybrid;
     CallRecord                                callRecord;
+    std::optional<float>                      callRebuild;
     IFileSystem                             * fileSystem      = nullptr;
     std::wstring                              currentDirectory;
 };

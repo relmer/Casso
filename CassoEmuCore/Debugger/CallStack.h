@@ -3,6 +3,8 @@
 #include "Debugger/Reply.h"
 #include "Debugger/Reverse/CallerLink.h"
 
+class Microcode;
+
 
 
 
@@ -67,9 +69,11 @@ struct CallRecord;
 //  above the frames it leaves unverified: TXS, a pull into a frame's return
 //  address, a frame ended by a jump, a return to an address other than the
 //  one pushed, a stack pointer that wraps, a reset, and the point at which
-//  recording began, or power-on, below which nothing ran. A store into a
-//  frame's return address marks that frame where it happens. A break is
-//  dropped once the frames beneath it have
+//  recording began -- or power-on, below which nothing ran, or where history
+//  starts for a record rebuilt from it or begun again after a move through
+//  it, or where recording began again after a move when no rebuild replaced
+//  that record. A store into a frame's return address marks that frame
+//  where it happens. A break is dropped once the frames beneath it have
 //  returned, since the chain it cast doubt on is gone. A return a few bytes
 //  past the address pushed is the inline-parameter idiom and is noted, not
 //  broken.
@@ -102,8 +106,10 @@ public:
 
     //  Recording starts at the instruction at pc, with nothing known about
     //  the calls already on the stack -- unless the machine has not run an
-    //  instruction since power-on, when there are none.
+    //  instruction since power-on, when there are none. The second form
+    //  gives the break at the bottom of the chain itself.
     void    Begin         (Word pc, Byte opcode, bool isPowerOn = false);
+    void    Begin         (Word pc, Byte opcode, CallBreakKind bottom);
     void    End           ();
     bool    IsActive      () const { return m_active; }
 
@@ -123,17 +129,35 @@ public:
     //  interrupt.
     static void  MarkOpcodes (bool * opcodes);
 
+    //  The store running while a bus write is made, given the PC the CPU
+    //  has reached by then; the PC itself where no store fits.
+    static Word  FindStoreInProgress (const Microcode * set, Word pc, const CallStackPeek & peek);
+
     //  Outermost first.
     const std::vector<CallStackFrame>    & GetFrames     () const { return m_frames; }
     const std::vector<Break>             & GetBreaks     () const { return m_breaks; }
     const std::optional<CallStackFrame>  & GetLastReturn () const { return m_lastReturn; }
 
+    //  The break at the bottom of the chain: where recording began or began
+    //  again, power-on, a reset, or where history starts for a record rebuilt
+    //  from it or begun again after a move through it. Empty while the record
+    //  is off.
+    std::optional<CallStackBreak>  GetBottom () const;
+
+    //  The bottom becomes of kind to when it is of kind from.
+    void    RelabelBottom (CallBreakKind from, CallBreakKind to);
+
+    //  A bottom placed while the program was already running, so calls it
+    //  made before may still be on the stack.
+    static bool  IsMidRunBottom (CallBreakKind kind);
+
     //  A copy of the record's data, which a call stack can be built from on
     //  any thread.
     CallRecord  GetRecord () const;
 
-    //  Takes a copy's data as this record's, nothing held, for a recorder
-    //  that only answers for the copy and never sees an instruction.
+    //  Takes a copy's data as this record's, nothing held: for a recorder
+    //  that only answers for the copy and never sees an instruction, or one
+    //  given a record rebuilt up to the instruction it is about to see.
     void        SetRecord (const CallRecord & record);
 
     //  True when no call made at or after cycle encloses the code now
@@ -194,16 +218,18 @@ private:
 //  CallRecord
 //
 //  A call record's data apart from its recorder, copied on the machine's
-//  thread and read on any other.
+//  thread and read on any other. startCycle is the cycle count the record
+//  dates from.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct CallRecord
 {
-    bool                                   isActive = false;
+    bool                                   isActive   = false;
     std::vector<CallStackFrame>            frames;
     std::vector<CallStackRecorder::Break>  breaks;
     std::optional<CallStackFrame>          lastReturn;
+    uint64_t                               startCycle = 0;
 };
 
 

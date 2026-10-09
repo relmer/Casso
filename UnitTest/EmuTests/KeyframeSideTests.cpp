@@ -152,7 +152,7 @@ public:
         settings.budgetBytes    = 512 * 1024;
         store.Configure (settings);
 
-        store.SetDropListener ([&] (KeyframeDrop drop)
+        store.SetDropListener (&drops, [&] (KeyframeDrop drop)
         {
             size_t  index = (drop == KeyframeDrop::Newest) ? store.GetCount() - 1 : 0;
 

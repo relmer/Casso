@@ -337,6 +337,15 @@ public:
     //  must be empty.
     HRESULT   LoadStateOverMountedMedia (StateReader & reader);
 
+    //  The disk each drive bay holds, slot-major, as a snapshot records it,
+    //  zero for an empty bay.
+    using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
+
+    //  The media a saved state's bays held, from its header alone, so a
+    //  second machine can check whether the disks it mounted are the ones the
+    //  state was saved with before it loads it over them.
+    static HRESULT  ReadSavedMedia (const std::vector<Byte> & state, MediaIds & outIds);
+
     //  Enough of a state to draw its screen, into a machine built from the
     //  same configuration that holds no disks: the disks the state holds, and
     //  any part this machine has no counterpart for, are passed over. The
@@ -384,9 +393,6 @@ private:
     Byte  StepOneWithHook  ();
     Byte  FinishStep       ();
     Byte  StepOneAsked     (const DebugHookFilter & filter, Word pc);
-
-    //  The disk each drive bay holds, slot-major, as a snapshot records it.
-    using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
 
     //  The slot whose Disk II the refs hold, which the drive bays feed.
     static constexpr int  kDiskControllerSlot = 6;

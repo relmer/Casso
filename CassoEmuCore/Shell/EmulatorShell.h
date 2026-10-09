@@ -45,6 +45,7 @@
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
+#include "Shell/ScratchCallReplayer.h"
 #include "Shell/ScratchHeatReplayer.h"
 #include "Shell/ScratchMachineRenderer.h"
 #include "Shell/WindowCommandManager.h"
@@ -562,14 +563,6 @@ private:
     void SetDebugCommandHandler (DebugCommandHandler handler)      { m_debugCommandHandler = std::move (handler); }
 
 
-    // Opens and closes the debug channel. CPU thread only. Opening an open
-    // channel does nothing; a channel that cannot open is reported and the
-    // emulator carries on without one.
-    HRESULT OpenDebugger    ();
-    void    CloseDebugger   ();
-    void    ServiceDebugger ();
-    bool    IsDebuggerOpen  () const { return m_debugger != nullptr; }
-
     // Shows the debugger window, creating it the first time, and opens the
     // debug channel. UI thread. activate=false leaves the foreground and the
     // keys where they are, for a window the launch opens.
@@ -624,8 +617,6 @@ private:
     void    SetDebuggerHeatMapShown  (bool shown) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
     void    ScrollDebuggerCode       (int lines, int view) override;
-    bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
-                                      std::vector<std::string>                     & consoleLines) override;
     void    OnDebuggerWindowClosed   () override;
     void    DetachDebugger           () override;
     std::string  GetDebuggerKeyScheme () override;
@@ -2361,9 +2352,47 @@ private:
     // scratch machine of its own, replayed on the CPU thread when asked.
     ScratchHeatReplayer           m_heatFinder;
 
+    // The debugger's call record, rebuilt from history when it starts
+    // mid-run, on a scratch machine of its own. Declared before the
+    // debugger, whose call history holds it.
+    ScratchCallReplayer           m_callReplayer;
+
     void            ServiceHistoryThumbnails();
     bool            TryPublishHistoryPlayhead();
     void            SyncHeatHistory         (bool isAttached);
+    void            ServiceCallHistory      (bool isAttached);
+
+protected:
+
+    //  Reachable by a test subclass, which drives the debugger and its call
+    //  history as the CPU thread does and takes its views as the window
+    //  does: the debug channel's lifecycle, the debugger attached over a
+    //  transport the test holds rather than the pipe OpenDebugger opens, the
+    //  call record's rebuilder, whose jobs a test runs on a queue of its own,
+    //  and what Initialize and the debugger window would set up otherwise --
+    //  the framebuffers a reverse command draws into, and whether the window
+    //  is showing, since its view is built only while it is.
+
+    // Opens and closes the debug channel. CPU thread only. Opening an open
+    // channel does nothing; a channel that cannot open is reported and the
+    // emulator goes on without one.
+    HRESULT OpenDebugger    ();
+    void    CloseDebugger   ();
+    void    ServiceDebugger ();
+    bool    IsDebuggerOpen  () const { return m_debugger != nullptr; }
+
+    // IDebuggerWindowHost: the window's next view and console lines.
+    bool    TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
+                                std::vector<std::string>                     & consoleLines) override;
+
+    // Makes the controller the shell's debugger: the shell's debug pointers
+    // at it, and the session's requests routed to the CPU thread.
+    void                    AttachDebugger      (std::unique_ptr<DebuggerController> controller);
+    ScratchCallReplayer   & GetCallReplayer     ()             { return m_callReplayer; }
+    void                    PrepareFramebuffers ()             { AllocateFramebuffers(); }
+    void                    SetDebugWindowShown (bool isShown) { m_isDebugWindowShown.store (isShown); }
+
+private:
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
@@ -2382,6 +2411,7 @@ private:
     bool                             m_isDebugViewDirty      = true;
     bool                             m_wasPausedAtDebugBuild = false;
     bool                             m_wasHeatRebuilding     = false;   // the last build's heat map awaited its rebuilt heat
+    bool                             m_wasCallRebuilding     = false;   // the last build's call stack awaited its rebuilt record
 
     // While the window is closed and BRKUNINIT keeps the heat map on, how
     // often it is folded, and when it last was.

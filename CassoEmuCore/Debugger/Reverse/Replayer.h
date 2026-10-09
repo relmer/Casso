@@ -114,6 +114,10 @@ public:
     void      SetStateLoadedCallback (std::function<void()> callback)          { m_onStateLoaded = std::move (callback); }
     void      SetOutputGate          (std::function<void (bool)> gate)         { m_outputGate    = std::move (gate); }
 
+    //  Called just after a recorded reset or power cycle is made again, true
+    //  for a power cycle, as the debugger's OnReset is called for one live.
+    void      SetResetCallback       (std::function<void (bool)> callback)     { m_onReset       = std::move (callback); }
+
     HRESULT   RestoreKeyframe   (size_t index);
     HRESULT   RunTo             (const ReplayTarget & target, uint64_t endPosition, IReverseStopTest * stopTest, ReplayReport & report, std::vector<ReplayStep> * steps = nullptr, std::vector<Byte> * stackPointers = nullptr);
     HRESULT   PrepareStepHere   (ReplayReport & report, bool includeObserved);
@@ -148,12 +152,13 @@ private:
     KeyframeStore                & m_keyframes;
     std::function<void()>          m_onStateLoaded;
     std::function<void (bool)>     m_outputGate;
+    std::function<void (bool)>     m_onReset;
     std::vector<Byte>              m_scratch;
     StateWriter                    m_checkWriter;       // saves the machine at each keyframe a replay checks; kept for its capacity
     size_t                         m_journalCursor = 0;
     size_t                         m_nextKeyframe  = 0;
-    uint64_t                       m_replayedCount = 0;                // instructions every replay has run, for tests
-    size_t                         m_restoreCount  = 0;                // keyframes loaded, for tests
+    uint64_t                       m_replayedCount = 0;                // instructions every replay has run, for tests and to find whether a command replayed any
+    size_t                         m_restoreCount  = 0;                // keyframes loaded, likewise
     bool                           m_isReplaying   = false;
     bool                           m_isOverMounted = false;
 };

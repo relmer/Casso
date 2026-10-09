@@ -5,33 +5,7 @@
 #include "Debugger/AccessHeatMap.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
-#include "Devices/Disk/IDiskImage.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HeatRebuildDisk
-//
-//  A disk in one drive bay as a rebuild needs it: which medium it is, its
-//  track slots, and an image of its format for a second machine to mount, so
-//  the snapshot's tracks load over it. A snapshot holds every track but not
-//  how quarter tracks map to them, which a WOZ's own file gives; a sector
-//  image maps them the standard way, so a blank one of its format will do.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct HeatRebuildDisk
-{
-    int                                        slot       = 0;
-    int                                        drive      = 0;
-    uint64_t                                   mediaId    = 0;
-    int                                        trackCount = 0;
-    DiskFormat                                 format     = DiskFormat::Dsk;
-    std::shared_ptr<const std::vector<Byte>>   image;
-};
+#include "Debugger/Reverse/ReplayDiskCopier.h"
 
 
 
@@ -96,7 +70,7 @@ struct HeatRebuildJob
     std::vector<HeatRebuildPart>    parts;
     size_t                          inputsFrom  = 0;
     std::vector<InputRecord>        inputs;
-    std::vector<HeatRebuildDisk>    disks;
+    std::vector<ReplayDisk>         disks;
     uint64_t                        countFrom   = 0;
     double                          fadeSeconds = 0.0;
     Query                           query;

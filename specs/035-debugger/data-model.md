@@ -360,7 +360,7 @@ a preference, and the window swaps its active map when it changes.
 
 | Field | Type | Notes |
 |---|---|---|
-| kind | `Txs`, `PulledReturn`, `EndedByJump`, `ReturnMismatch`, `StackWrap`, `Reset`, `TrackingBegan`, `PowerOn` | FR-069 |
+| kind | `Txs`, `PulledReturn`, `EndedByJump`, `ReturnMismatch`, `StackWrap`, `Reset`, `TrackingBegan`, `PowerOn`, `HistoryBegan`, `TrackingRestarted` | FR-069; `HistoryBegan` is where history starts for a record rebuilt from it that does not reach power-on, or for one begun again after a move through history until it is rebuilt; `TrackingRestarted` is where a record begun again after a move starts when no rebuild replaced it: history was turned off, could not reach there, or the rebuild failed or was not taken |
 | pc | `Word` | the instruction that caused it |
 | opcode | `Byte` | |
 

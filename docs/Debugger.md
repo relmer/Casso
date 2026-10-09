@@ -450,18 +450,50 @@ its call site, the routine it entered, and how it was found:
 uses the recorded frames and extends below them with the walk.
 
 A program that manages its own stack breaks the chain, and the call stack
-says where rather than guessing past it: a `TXS`, a pull into a return
+shows where rather than guessing past it: a `TXS`, a pull into a return
 address, a frame left by a jump, a return to somewhere other than its call
-site, the stack wrapping, a reset, and the point where recording began. A
-routine that returns a few bytes past its call site, over inline parameters
-the way ProDOS's MLI does, is noted and not treated as a break. A store into
-a return address marks its frame when it runs, naming the store.
+site, the stack wrapping, a reset, and the point where recording began or
+where history starts. A routine that returns a few bytes past its call site,
+over inline parameters the way ProDOS's MLI does, is noted and not treated as
+a break. A store into a return address marks its frame when it runs, with the
+store's address.
 
-Recording normally starts when the debugger opens, so calls made before then
-come from the walk. To record everything, start Casso with `--debugger` or
-choose Debug > Restart Under Debugger, which power-cycles the machine with the
-debugger open: the chain then ends at power-on, and nothing is guessed below
-it.
+Recording starts when the debugger opens. While Casso keeps the machine's
+history (Tools > Options), the calls made before then are rebuilt from it
+right away: history is replayed on a second machine, so the running machine,
+its sound and its picture are left alone, and the record the replay gives
+takes over from the one begun when the debugger opened. Until then the call
+stack shows "Rebuilding earlier calls from history" and how far along it is.
+This first rebuild takes roughly half a second to two seconds for each
+minute of machine time it replays, depending on what the program was doing,
+and it replays nothing before the last gap, change of disk or power cycle in
+history, since the record starts again there anyway.
+
+Every move through history rebuilds the record for wherever the machine
+lands, and that is quick: a copy of the record is kept at each of history's
+keyframes, by default ten frames of machine time apart, so the rebuild
+replays at most from the nearest keyframe at or before the landing. A copy
+takes a few dozen bytes for a program a few calls deep, and the copies may
+hold up to an eighth of history's budget (8 MB at the default 64 MB); past
+that the oldest go, and every copy goes with its keyframe. A reverse command
+that leaves the machine where it was, such as a step back out with no
+caller, keeps the record as it is.
+
+When history reaches back to power-on, the chain ends at power-on, or at the
+last reset or power cycle since, just as it does when the debugger was open
+for them, and nothing is guessed below it. History may not reach that far:
+its oldest part is let go to stay within its budget, a stretch run at
+Maximum speed records nothing, and a stretch with another disk in a drive
+cannot be replayed over the disk there now. The chain then ends where the
+history it could replay starts, with the note "Calls before history starts
+at $xxxx are not available.", and the walk guesses below. When no rebuild
+can follow a move, because history was turned off, could not reach where
+the machine landed, or the rebuild failed, the record keeps the calls since
+the landing and the note reads "Calls before $xxxx are not available."
+instead. Without history, calls made before the debugger opened come from
+the walk; to record everything, start Casso with `--debugger` or choose
+Debug > Restart under debugger, which power-cycles the machine with the
+debugger open.
 
 ## The step filter
 
