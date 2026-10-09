@@ -370,6 +370,7 @@
     <ClCompile Include="EmuTests\FieldLocatorTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTrackBuilder.cpp" />
     <ClCompile Include="EmuTests\LatchFramerTests.cpp" />
+    <ClCompile Include="EmuTests\WozFileLayoutTests.cpp" />
     <ClCompile Include="EmuTests\WozFluxLoaderTests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineFluxTests.cpp" />
     <ClCompile Include="EmuTests\WozBitTimingTests.cpp" />

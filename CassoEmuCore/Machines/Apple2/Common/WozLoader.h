@@ -207,4 +207,14 @@ private:
     static void  ParseMetaChunk (const Byte              *  bytes,
                                  size_t                     length,
                                  std::vector<MetaField>  &  out);
+
+    //  The maps and, for a v2 file, the record table and the bytes of records
+    //  no map refers to, as the file holds them. fluxMap is null with no FLUX.
+    static void  ReadFileLayout (const vector<Byte>  &  raw,
+                                 const Byte          *  tmap,
+                                 const Byte          *  fluxMap,
+                                 bool                   isV2,
+                                 const Byte          *  trksData,
+                                 size_t                 trksSize,
+                                 WozFileLayout       &  out);
 };
