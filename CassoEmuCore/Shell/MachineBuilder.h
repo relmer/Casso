@@ -125,6 +125,7 @@ public:
     void     WireCassettePort     ();
 
     Byte *   GetAuxRamBuffer      ();
+    Byte *   GetMainRamBuffer     ();
 
     void     SelectVideoMode      ();
 

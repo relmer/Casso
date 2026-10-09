@@ -865,6 +865,11 @@ private:
     // text scrape to read the aux half of an 80-column screen.
     const Byte *  GetAuxRamBuffer() const;
 
+    // //e/c main RAM as the display sees it, whatever the CPU's banking
+    // (nullptr on ][/][+, where the bus serves it). Used by the clipboard text
+    // scrape to read the main half.
+    const Byte *  GetMainRamBuffer() const;
+
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is
     // the post-CRT-effects pixel buffer the chrome composes on top of;

@@ -4,6 +4,9 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
+#include "Machines/Apple2/Common/AppleLoResMode.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -296,6 +299,104 @@ public:
         f.bus.WriteByte (0x2000, 0x77);
         Assert::AreEqual (static_cast<Byte> (0x77), f.mainRam.GetData()[0x2000]);
         Assert::AreEqual (static_cast<Byte> (0x5A), f.mmu.GetAuxBuffer()[0x2000], L"aux keeps what RAMWRT put there");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  The display scans main for 40-column text, lo-res and hi-res whatever
+    //  the CPU's banking. RAMRD, and 80STORE with PAGE2 (and HIRES for the
+    //  hi-res page), move only the CPU's view; a renderer given main RAM must
+    //  draw the same frame under all of them.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static constexpr int  kFbWidth  = 560;
+    static constexpr int  kFbHeight = 384;
+
+    //  Main and aux hold different bytes across the whole page, so a frame
+    //  scanned from the wrong bank cannot match.
+    static void FillPage (MmuFixture & f, Word first, Word last, Byte mainValue, Byte auxValue)
+    {
+        for (uint32_t a = first; a <= last; a++)
+        {
+            f.mainRam.GetData()[a]  = mainValue;
+            f.mmu.GetAuxBuffer()[a] = auxValue;
+        }
+    }
+
+    static vector<uint32_t> RenderFrame (VideoOutput & mode, AppleTextMode * text)
+    {
+        vector<uint32_t>  fb (kFbWidth * kFbHeight, 0);
+
+        // The text renderer keeps a dirty-row cache; a fresh frame must not
+        // reuse rows from the last one.
+        if (text != nullptr)
+        {
+            text->InvalidateCache();
+        }
+
+        mode.Render (nullptr, fb.data(), kFbWidth, kFbHeight);
+        return fb;
+    }
+
+    static void AssertScansMainWhateverTheBanking (MmuFixture & f, VideoOutput & mode, AppleTextMode * text, Word probe, bool hires)
+    {
+        vector<uint32_t>  baseline = RenderFrame (mode, text);
+        vector<uint32_t>  banked;
+        Byte              auxByte  = f.mmu.GetAuxBuffer()[probe];
+
+        f.sw.Write (0xC003, 0);                // RAMRD on
+        Assert::AreEqual (auxByte, f.bus.ReadByte (probe), L"fixture: RAMRD must bank the CPU's reads to aux");
+
+        banked = RenderFrame (mode, text);
+        Assert::IsTrue (baseline == banked, L"RAMRD moves the CPU's reads, not the display's");
+
+        f.sw.Write (0xC002, 0);                // RAMRD off
+        f.sw.Write (0xC001, 0);                // 80STORE on
+
+        if (hires)
+        {
+            f.bus.ReadByte (0xC057);           // HIRES on
+        }
+
+        f.bus.ReadByte (0xC055);               // PAGE2 on
+        Assert::AreEqual (auxByte, f.bus.ReadByte (probe), L"fixture: 80STORE+PAGE2 must bank the CPU to aux");
+
+        banked = RenderFrame (mode, text);
+        Assert::IsTrue (baseline == banked, L"80STORE+PAGE2 select the CPU's bank, not the displayed one");
+    }
+
+    TEST_METHOD (Text40_ScansMainWhateverTheCpuBanking)
+    {
+        MmuFixture     f;
+        AppleTextMode  text (f.bus);
+
+        FillPage (f, 0x0400, 0x07FF, 0xC1, 0xA0);   // main 'A', aux space
+        text.SetMainMemory (f.mainRam.GetData());
+
+        AssertScansMainWhateverTheBanking (f, text, &text, 0x0400, false);
+    }
+
+    TEST_METHOD (LoRes_ScansMainWhateverTheCpuBanking)
+    {
+        MmuFixture      f;
+        AppleLoResMode  loRes (f.bus);
+
+        FillPage (f, 0x0400, 0x07FF, 0x11, 0xEE);
+        loRes.SetMainMemory (f.mainRam.GetData());
+
+        AssertScansMainWhateverTheBanking (f, loRes, nullptr, 0x0400, false);
+    }
+
+    TEST_METHOD (HiRes_ScansMainWhateverTheCpuBanking)
+    {
+        MmuFixture      f;
+        AppleHiResMode  hiRes (f.bus);
+
+        FillPage (f, 0x2000, 0x3FFF, 0x00, 0x7F);
+        hiRes.SetMainMemory (f.mainRam.GetData());
+
+        AssertScansMainWhateverTheBanking (f, hiRes, nullptr, 0x2000, true);
     }
 
     ////////////////////////////////////////////////////////////////////////////

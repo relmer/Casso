@@ -1149,6 +1149,37 @@ Byte * MachineBuilder::GetAuxRamBuffer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMainRamBuffer
+//
+//  Returns main RAM as the display and the firmware screen holes see it, or
+//  nullptr when no MMU is wired (Apple ][ / ][+). On a //e or //c the bus
+//  pages follow the CPU's banking -- RAMRD, and 80STORE with PAGE2 -- so a
+//  bus read can return aux; this is the buffer the MMU treats as main, which
+//  spans $0000-$BFFF. Without an MMU nothing banks main RAM away, and the bus
+//  serves it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * MachineBuilder::GetMainRamBuffer()
+{
+    Byte *  result = nullptr;
+
+
+
+    if (m_host.GetMmu() != nullptr && m_host.GetRefs().mainRamDev != nullptr)
+    {
+        result = m_host.GetRefs().mainRamDev->GetData();
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RebuildBankingPages
 //
 //  When the //e MMU is present, it owns all $0000-$BFFF page-table
@@ -1212,8 +1243,9 @@ void MachineBuilder::RebuildBankingPages()
 //  held.
 //
 //  Aux memory is wired into the two modes that read it -- 80-column text and
-//  double hi-res -- only when an MMU actually provides it, so a ][+ gets the
-//  same objects with nothing aux-backed rather than a shorter list.
+//  double hi-res -- and main RAM into all five, only when an MMU actually
+//  provides them, so a ][+ gets the same objects reading through the bus
+//  rather than a shorter list.
 //
 //  Text mode starts active because that is what a machine displays at power-on
 //  before any program selects otherwise.
@@ -1223,6 +1255,7 @@ void MachineBuilder::RebuildBankingPages()
 void MachineBuilder::CreateVideoModes()
 {
     Byte *                                   auxBuf          = nullptr;
+    Byte *                                   mainBuf         = nullptr;
     std::unique_ptr<AppleTextMode>           textMode;
     std::unique_ptr<AppleLoResMode>          loResMode;
     std::unique_ptr<AppleHiResMode>          hiResMode;
@@ -1245,26 +1278,30 @@ void MachineBuilder::CreateVideoModes()
 
     m_host.GetRefs().activeVideoMode = m_host.GetRefs().text40;
 
-    auxBuf = GetAuxRamBuffer();
+    auxBuf  = GetAuxRamBuffer();
+    mainBuf = GetMainRamBuffer();
 
     if (auxBuf != nullptr)
     {
         text80->SetAuxMemory          (auxBuf);
         doubleHiResMode->SetAuxMemory (auxBuf);
+    }
 
-        // DHR and 80-column text need BOTH banks at once, so they take main
-        // RAM directly too. The bus cannot serve the main half: its pages
-        // follow live banking and point at aux under 80STORE+PAGE2 ($2000-
-        // $3FFF with HIRES, $0400-$07FF always), which made DHR render the
-        // aux bytes into both halves of every pair, and the mixed-mode text
-        // overlay show aux in both columns whenever a frame was scanned while
-        // a program had PAGE2 on. This is the same buffer the MMU treats as
-        // main.
-        if (m_host.GetRefs().mainRamDev != nullptr)
-        {
-            doubleHiResMode->SetMainMemory (m_host.GetRefs().mainRamDev->GetData());
-            text80->SetMainMemory          (m_host.GetRefs().mainRamDev->GetData());
-        }
+    // Every mode reads main RAM directly where an MMU banks the bus. The bus
+    // pages follow the CPU's banking -- RAMRD, and 80STORE with PAGE2
+    // ($0400-$07FF always, $2000-$3FFF with HIRES) -- while the display scans
+    // main for 40-column text, lo-res and hi-res whatever that banking is, and
+    // DHR and 80-column text need both banks at once. Read through the bus,
+    // the 40-column modes showed aux while a program had RAMRD on, DHR
+    // rendered the aux bytes into both halves of every pair, and the
+    // mixed-mode text overlay showed aux in both columns.
+    if (mainBuf != nullptr)
+    {
+        textMode->SetMainMemory        (mainBuf);
+        loResMode->SetMainMemory       (mainBuf);
+        hiResMode->SetMainMemory       (mainBuf);
+        doubleHiResMode->SetMainMemory (mainBuf);
+        text80->SetMainMemory          (mainBuf);
     }
 
     m_host.GetVideoModes().push_back (std::move (textMode));

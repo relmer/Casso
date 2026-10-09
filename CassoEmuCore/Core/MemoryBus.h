@@ -120,8 +120,8 @@ public:
     void SetBankingChangedCallback (BankingChangedFn fn) { m_bankingChanged = move (fn); }
     void NotifyBankingChanged ()
     {
-        // A banking change can swap which buffer (main vs aux) the renderer
-        // reads for the display region without any write landing, so force
+        // The switches that call this -- PAGE2, HIRES and DHIRES -- can
+        // change what the screen shows without any write landing, so force
         // a repaint alongside the callback.
         m_videoDirty = true;
 
