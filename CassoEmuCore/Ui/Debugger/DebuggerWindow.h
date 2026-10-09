@@ -343,6 +343,8 @@ protected:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasTopLayer     () const override;
+    void     PaintDragLayer  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     HasDragLayer    () const override;
     void     OnWindowFocusChanged (bool focused) override;
     void     PaintBranchArrow (IDxuiPainter & painter, int view);
     bool     GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;

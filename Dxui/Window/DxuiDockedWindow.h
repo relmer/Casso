@@ -29,6 +29,10 @@
 //  pane there. A resize is not reported, and a drag that turns out to be one
 //  is reported canceled, so the owner can take its drop zones down.
 //
+//  A DRAG INSIDE THE SITE is the window's own. Its marks paint in the drag
+//  layer, over the panes' pictures, and Escape or the window losing the
+//  mouse cancels it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiDockedWindow : public DxuiWindow
@@ -109,6 +113,8 @@ protected:
     void  OnWindowFocusChanged (bool focused) override;
     bool  HasModalOverlay   () const override { return m_headerFade; }
     void  PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  HasDragLayer      () const override { return m_site != nullptr && m_site->HasDragLayer(); }
+    void  PaintDragLayer    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
     static constexpr int    kFadeBands    = 16;

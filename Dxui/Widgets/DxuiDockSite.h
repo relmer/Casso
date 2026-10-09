@@ -244,6 +244,15 @@ public:
     std::vector<DxuiDockDragMark>  GetDragMarks               (const IDxuiTheme & theme) const;
     void                           SetDragMarksDrawnElsewhere (bool elsewhere) { m_marksElsewhere = elsewhere; }
 
+    //  The marks lie over everything in the panes, their pictures included,
+    //  and a flush draws its pictures after all of its fills, so a shade
+    //  painted with the page would lie under a pane's images. The window
+    //  paints them in a layer flushed after the page instead: HasDragLayer
+    //  is true while there are any to paint there, and PaintDragLayer paints
+    //  them.
+    bool                           HasDragLayer               () const { return IsDragging() && !m_marksElsewhere; }
+    void                           PaintDragLayer             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+
     size_t                      GetGroupCount  () const { return m_groups.size(); }
     DxuiTabGroup *              GetGroup       (size_t index) const { return m_groups[index].get(); }
 
@@ -253,6 +262,17 @@ public:
     void  BeginDrag  (const std::wstring & pane);
     bool  EndDrag    (POINT pointDip);
     void  CancelDrag ();
+
+    //  A drag the site's own pointer started, from a tab or a title bar. The
+    //  window gives it every mouse event until the button comes up, wherever
+    //  the pointer is, so nothing it crosses takes a move or shows a tip.
+    //  Escape cancels it, as does the window losing the mouse while the
+    //  button is still down, and either leaves every pane where it was. The
+    //  window releases the capture itself as the button comes up, before the
+    //  button-up arrives, so that is not a loss.
+    bool  HasPointerDrag  () const { return IsDragging() && m_pointerDrag; }
+    bool  OnDragKey       (const DxuiKeyEvent & ev);
+    void  OnDragMouseLost (bool isButtonDown);
 
     //  A drag of a whole group, from its title bar: the panes move together,
     //  in order, with `active` still the one shown.
@@ -340,6 +360,8 @@ private:
     bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
     void          UpdateCompass (POINT pointDip);
+    void          TrackDrag     (POINT pointDip);
+    void          ClearDragTarget ();
     int           HitTestShown  (POINT pointDip) const;
     bool          TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & origin) const;
 
@@ -354,8 +376,6 @@ private:
     //  A group's corners that are the window's, as DxuiPaneFrame's kCorner
     //  flags: none while the window's corners are square.
     UINT  GetWindowCorners (const RECT & group) const;
-
-    void          PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;
@@ -396,6 +416,7 @@ private:
     std::vector<DxuiDockDropZone>  m_zones;
     int                            m_hoverZone      = -1;
     int                            m_compassGroup   = -1;
+    bool                           m_pointerDrag    = false;
 
     //  Guide pictures already drawn, for each look of each guide.
     struct GuideKey

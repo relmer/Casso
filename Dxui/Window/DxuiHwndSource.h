@@ -590,6 +590,13 @@ public:
     void  SetTopLayerHooks (std::function<bool()> isActive,
                             std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
 
+    //  What a drag shows over the window -- a dock site's drop preview and
+    //  guides. Its own fill+text flush comes after the top layer's and before
+    //  any modal overlay's, so its fills cover the text and pictures of the
+    //  page and of the top layer, a pane's images included.
+    void  SetDragLayerHooks (std::function<bool()> isActive,
+                             std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //
@@ -746,6 +753,11 @@ private:
     void  PaintContent  (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
     void  PresentFrame  () override;
 
+    //  One layer above the page, in a fill+text flush of its own.
+    using LayerPaintFn = std::function<void (IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)>;
+
+    HRESULT  PaintLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme, const LayerPaintFn & paint);
+
     // What to do with the frame after the client claims a message. Most
     // handlers want nothing; input handlers repaint. `IfNotSuppressed` is the
     // wheel's variant -- a precision touchpad's message flood would otherwise
@@ -856,6 +868,8 @@ private:
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_overlayPaintHook;
     std::function<bool()>                                                       m_topLayerActiveHook;
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_topLayerPaintHook;
+    std::function<bool()>                                                       m_dragLayerActiveHook;
+    std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_dragLayerPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
     IDxuiControl  * m_lastHoveredNcControl     = nullptr;

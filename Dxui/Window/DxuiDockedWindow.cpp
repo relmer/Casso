@@ -144,6 +144,29 @@ void DxuiDockedWindow::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRende
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockedWindow::PaintDragLayer
+//
+//  The marks of a drag in the site, over the panes and their pictures.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::PaintDragLayer (
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text,
+    const IDxuiTheme   & theme)
+{
+    if (m_site != nullptr)
+    {
+        m_site->PaintDragLayer (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockedWindow::PaintHeaderFade
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,11 +254,26 @@ void DxuiDockedWindow::OnWindowFocusChanged (bool focused)
 //
 //  DxuiDockedWindow::OnCreate
 //
+//  A drag in the site is canceled when the window loses the mouse with the
+//  button still down. The window releases the capture itself as the button
+//  comes up, with the button already up, which is no loss.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockedWindow::OnCreate()
 {
+    InputFilter  filter;
+
+
+
     m_site = CreateChild<DxuiDockSite>();
+
+    filter.onMouseLost = [this] (UINT)
+    {
+        m_site->OnDragMouseLost ((GetKeyState (VK_LBUTTON) & 0x8000) != 0);
+    };
+
+    AddInputFilter (m_site, std::move (filter));
 }
 
 
@@ -314,10 +352,17 @@ bool DxuiDockedWindow::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiDockedWindow::OnKey
 //
+//  Escape cancels a drag in the site before the application sees it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDockedWindow::OnKey (const DxuiKeyEvent & ev)
 {
+    if (m_site != nullptr && m_site->OnDragKey (ev))
+    {
+        return true;
+    }
+
     return m_onKey ? m_onKey (ev) : false;
 }
 
