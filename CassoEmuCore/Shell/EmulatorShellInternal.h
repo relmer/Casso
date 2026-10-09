@@ -178,6 +178,12 @@ static constexpr int     s_kSceneLabelScrollGapDp     = 25;
 static constexpr float   s_kSceneLabelScrollDipPerSec = 45.0f;
 static constexpr int64_t s_kSceneLabelScrollHoldMs    = 2000;
 
+// The info icon after a drive's name, when the mounted WOZ image's declared
+// hardware or RAM conflicts with the running machine: its gap from the name,
+// and the width that stands in when measuring fails.
+static constexpr int     s_kSceneInfoIconGapDp   = 4;
+static constexpr int     s_kSceneInfoIconWidthDp = 13;
+
 // Padding around the 3D drive row when the CRT monitor is opted out and the
 // row composes into the classic bottom band -- breathing room off the window
 // edge, the way the 2D widgets' band padding sat around them. (Containment

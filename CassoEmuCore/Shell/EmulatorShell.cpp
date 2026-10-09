@@ -38,6 +38,7 @@
 #include "Config/DiskSettings.h"
 #include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
+#include "Core/TextEncoding.h"
 #include "Core/JsonParser.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
@@ -1309,6 +1310,31 @@ bool EmulatorShell::MachineHasBuiltInDrive() const
 
 
     return (definition != nullptr && definition->hasBuiltInDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ComposeDriveInfoTooltip
+//
+//  Every presentation's info icon shows the same words, all from the drive's
+//  sampled state: the WOZ requirements and the machine they were checked
+//  against. The machine's config is not read here, because this runs on a
+//  pointer move, outside the machine's lifetime lock, and a machine switch on
+//  the CPU thread can be replacing that config at the same moment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::ComposeDriveInfoTooltip (int drive) const
+{
+    const DriveWidgetState  & st = m_driveWidgetState[drive];
+
+
+
+    return WozCompatibility::ComposeTooltip (st.wozRequirements, st.wozMachine, TextEncoding::Utf8ToWide (st.wozMachineName));
 }
 
 

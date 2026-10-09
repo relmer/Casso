@@ -369,6 +369,8 @@
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />
     <ClCompile Include="EmuTests\WozFluxLoaderTests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineFluxTests.cpp" />
+    <ClCompile Include="EmuTests\WozBitTimingTests.cpp" />
+    <ClCompile Include="EmuTests\WozCompatibilityTests.cpp" />
     <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
@@ -517,6 +519,7 @@
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetHitTests.cpp" />
+    <ClCompile Include="UiTests\DriveWidgetInfoIconTests.cpp" />
     <ClCompile Include="UiTests\WindowsThemeColorsTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetStateTests.cpp" />
     <ClCompile Include="UiTests\DragDropHitTestRoutingTests.cpp" />

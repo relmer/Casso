@@ -290,6 +290,7 @@
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageSession.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\WozCompatibility.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozLoader.cpp" />
     <ClCompile Include="Machines\Apple2\Common\BlankDiskBuilder.cpp" />
     <ClCompile Include="Machines\Apple2\Common\StockBootDisks.cpp" />
@@ -631,6 +632,7 @@
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
     <ClInclude Include="Devices\Disk\DiskImageSession.h" />
+    <ClInclude Include="Machines\Apple2\Common\WozCompatibility.h" />
     <ClInclude Include="Machines\Apple2\Common\WozLoader.h" />
     <ClInclude Include="Machines\Apple2\Common\WozMetadata.h" />
     <ClInclude Include="Machines\Apple2\Common\BlankDiskBuilder.h" />

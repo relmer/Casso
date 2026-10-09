@@ -8,11 +8,22 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+
+- An info icon after a mounted WOZ image's name when the models or the minimum
+  RAM the image declares do not match the running machine. Hovering it lists
+  what the image declares and marks whether the running machine meets each
+  requirement. In the flat themes, on the desk and on the fullscreen drive
+  strip.
+
 ### Fixed
 
 - Infocom's 128K games, such as Border Zone, no longer hang on the //e and //c.
   In 80-column text mode, a program writing auxiliary memory at $2000-$3FFF
   wrote main memory instead.
+- The disk head now lands at the same point of the revolution when it steps
+  between tracks of different lengths, which cross-track-synchronized copy
+  protection depends on.
 
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 

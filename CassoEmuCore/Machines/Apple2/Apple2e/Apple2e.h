@@ -42,4 +42,6 @@ public:
     std::vector<std::string>     GetVideoModes      () const override;
 
     bool  HasGamePortDevice () const override { return (false); }
+
+    uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2e); }
 };
