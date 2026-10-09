@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Devices/Disk/SectorWrite.h"
 
 
 
@@ -125,6 +126,7 @@ private:
                                         vector<Byte> & outFileBytes);
 
     static std::string  DescribeUnwritableTrack (int track);
+    static void         CollectSectorWrites     (const vector<Byte> & priorSectors, const vector<Byte> & editedSectors, vector<SectorWrite> & outWrites);
 
     static bool  LooksLikeDos33  (const vector<Byte> & sectors);
     static bool  LooksLikeProDos (const vector<Byte> & sectors);
