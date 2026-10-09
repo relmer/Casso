@@ -137,8 +137,8 @@ Error:
 //  GetFastMapReadPtr
 //
 //  See the header. Passive internal-ROM pages on the //c return a pointer into
-//  m_internal; reactive pages ($C3, $CF) and all //e pages return null so the
-//  Read handler runs.
+//  m_internal; reactive pages ($C3, $CF), slot pages with a registered I/O
+//  device, and all //e pages return null so the Read handler runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,19 +147,24 @@ Byte * CxxxRomRouter::GetFastMapReadPtr (int page)
     static constexpr int    kPageSize = 0x100;
     size_t                  offset    = 0;
     Byte                  * ptr       = nullptr;
+    int                     slot      = page & kSlotNibbleMask;
 
 
 
-    // Three reasons to decline the fast path, all meaning "run the Read
+    // Four reasons to decline the fast path, all meaning "run the Read
     // handler instead":
     //   - slots exist (//e), or no internal image is loaded;
     //   - $C3xx latches INTC8ROM and $CFxx clears it, so those pages keep
     //     their side effects (inert on the //c, but modeled faithfully);
+    //   - a slot I/O device owns the page, and the Read handler delegates to
+    //     it just as Write does;
     //   - the page falls past the end of a short internal image.
-    bool     passive = m_noExternalSlots
-                       && !m_internal.empty()
-                       && page != 0xC3
-                       && page != 0xCF;
+    bool     deviceOwned = slot >= kMinSlot && slot <= kMaxSlot && m_slotIoDevice[slot] != nullptr;
+    bool     passive     = m_noExternalSlots
+                           && !m_internal.empty()
+                           && page != 0xC3
+                           && page != 0xCF
+                           && !deviceOwned;
 
     offset = static_cast<size_t> ((page - 0xC1) * kPageSize);
 
@@ -182,6 +187,10 @@ Byte * CxxxRomRouter::GetFastMapReadPtr (int page)
 //  Registers (or clears, when `device` is nullptr) the active I/O device
 //  owning a slot's $Cn00 page. A slot index outside 1..7 is a caller bug
 //  and asserts.
+//
+//  The page table reads GetFastMapReadPtr only when the internal ROM is
+//  attached, so register a device before that attach, or the //c fast map
+//  keeps serving ROM over the device's page until the next bank flip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

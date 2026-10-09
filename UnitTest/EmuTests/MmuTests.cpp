@@ -596,6 +596,31 @@ public:
             L"A shadowed device must not observe the read");
     }
 
+    TEST_METHOD (NoSlotsFastMap_YieldsToRegisteredSlotIoDevice)
+    {
+        MmuFixture           f;
+        RecordingIoDevice    card   (0xC400);
+        CxxxRomRouter      * router = f.mmu.GetCxxxRouter();
+
+        // A //c with a slot card added by hand: the device is registered
+        // before the internal ROM, as the builder does it.
+        router->SetNoExternalSlots  (true);
+        router->SetSlotIoDevice     (4, &card);
+        f.mmu.AttachInternalCxxxRom (vector<Byte> (0x0F00, 0xEA));
+
+        f.bus.WriteByte (0xC401, 0x33);
+        Assert::AreEqual (static_cast<Word> (0xC401), card.m_lastWriteAddr, L"writes reach the card");
+
+        Assert::AreEqual (static_cast<Byte> (0x5A), f.bus.ReadByte (0xC404),
+            L"reads of a page with a registered device must reach it too");
+        Assert::AreEqual (static_cast<Word> (0xC404), card.m_lastReadAddr);
+
+        Assert::IsNotNull (f.bus.GetReadPage (0xC500),
+            L"pages with no device stay fast-mapped");
+        Assert::AreEqual (static_cast<Byte> (0xEA), f.bus.ReadByte (0xC500),
+            L"to internal ROM");
+    }
+
     TEST_METHOD (SlotC3Rom_ClearMapsInternal80ColFirmware)
     {
         MmuFixture f;

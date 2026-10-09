@@ -253,6 +253,9 @@ Notes:
 - The reactive `$Cxxx` pages (`$C3xx` latches INTC8ROM, `$CFFF` clears it) keep
   the handler even on the //c where the effect is inert, modeled faithfully as
   "reactive page → handler."
+- A //c slot page with a registered I/O device, which only a hand-edited
+  configuration can produce, keeps the handler too, so its reads reach the
+  device as its writes do.
 
 ### 3.4 Re-pointing: keeping the cache correct
 

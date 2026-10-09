@@ -53,10 +53,11 @@ public:
     // serves the whole window as static internal ROM, so only there is a
     // pointer returned -- and even then the reactive pages ($C3xx latches
     // INTC8ROM, $CFFF clears it) return null so their read side effects still
-    // run. On the //e the window is arbitrated per access, so every page is
-    // null (handler). The pointer is into m_internal, which SetInternalRom
-    // move-reassigns on a //c $C028 bank flip, so the MMU must re-query after
-    // any AttachInternalCxxxRom.
+    // run, and a slot page with a registered I/O device returns null so its
+    // reads reach the device as its writes do. On the //e the window is
+    // arbitrated per access, so every page is null (handler). The pointer is
+    // into m_internal, which SetInternalRom move-reassigns on a //c $C028
+    // bank flip, so the MMU must re-query after any AttachInternalCxxxRom.
     Byte * GetFastMapReadPtr (int page);
 
     // Apple //c: there are no external card slots, so the whole $C100-$CFFF
