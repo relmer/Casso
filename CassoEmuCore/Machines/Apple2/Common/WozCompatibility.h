@@ -92,4 +92,8 @@ public:
 
     //  One model's bit and how the tooltip writes it.
     struct HardwareLabel;
+
+private:
+    static std::wstring     GetListSeparator    (const std::wstring & list);
+    static LPCWSTR          GetVerdictMark      (bool isKnown, bool hasConflict);
 };

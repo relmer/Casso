@@ -30,7 +30,10 @@ static constexpr LPCWSTR s_kpszMultiplyX     = L"\x00D7";       // U+00D7 MULTIP
 static constexpr LPCWSTR s_kpszRocket        = L"\U0001F680";   // U+1F680 ROCKET (🚀)
 static constexpr LPCWSTR s_kpszStar          = L"\x2B50";       // U+2B50 WHITE MEDIUM STAR (gold via color-emoji font)
 static constexpr LPCWSTR s_kpszLock          = L"\U0001F512";   // U+1F512 LOCK (brass via color-emoji font)
-static constexpr LPCWSTR s_kpszWarningSign   = L"\x26A0";       // U+26A0 WARNING SIGN, from a symbol font through fallback
+static constexpr wchar_t s_kchThinSpace      = L'\x2009';       // U+2009 THIN SPACE
+static constexpr LPCWSTR s_kpszGreenCheck    = L"\x2705";       // U+2705 WHITE HEAVY CHECK MARK (✅, green via color-emoji font)
+static constexpr LPCWSTR s_kpszRedCross      = L"\x274C";       // U+274C CROSS MARK (❌, red via color-emoji font)
+static constexpr LPCWSTR s_kpszGrayQuestion  = L"\x2754";       // U+2754 WHITE QUESTION MARK ORNAMENT (❔, gray via color-emoji font)
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).

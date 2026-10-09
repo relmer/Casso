@@ -168,23 +168,24 @@ public:
 
     TEST_METHOD (HardwareListReadsTheWayTheMachinesWereSold)
     {
-        Assert::AreEqual (std::wstring (L"Apple ][, ][+"), WozCompatibility::FormatHardwareList (kChoplifterHardware));
+        Assert::AreEqual (std::wstring (L"Apple ][") + s_kchThinSpace + L", ][+", WozCompatibility::FormatHardwareList (kChoplifterHardware),
+                          L"a comma straight after the ][ tucks under its bracket, so a thin space holds it off");
         Assert::AreEqual (std::wstring (L"Apple ][+, //e, //c, //e Enhanced, IIgs"),
                           WozCompatibility::FormatHardwareList (kCarmenHardware));
-        Assert::AreEqual (std::wstring (L"Apple ][, 0x0200"), WozCompatibility::FormatHardwareList (0x0201),
+        Assert::AreEqual (std::wstring (L"Apple ][") + s_kchThinSpace + L", 0x0200", WozCompatibility::FormatHardwareList (0x0201),
                           L"a bit the format has no model for is shown, not dropped");
     }
 
 
-    TEST_METHOD (TooltipQuotesTheImageThenListsOnlyTheConflicts)
+    TEST_METHOD (TooltipMarksEachRequirementTheMachineMeetsOrMisses)
     {
-        std::wstring  warning  = s_kpszWarningSign;
         std::wstring  expected = L"This .woz image specifies:\n"
-                                 L"  Compatible with: Apple ][, ][+\n"
+                                 L"  Compatible with: Apple ][" + std::wstring (1, s_kchThinSpace) + L", ][+\n"
                                  L"  Minimum RAM: 48K\n"
                                  L"\n"
-                                 L"This machine: Apple //e Enhanced, 128K\n"
-                                 L"  " + warning + L" Not in the image's compatible list";
+                                 L"This machine:\n"
+                                 L"  " + std::wstring (s_kpszRedCross) + L" Apple //e Enhanced\n"
+                                 L"  " + std::wstring (s_kpszGreenCheck) + L" RAM 128K";
 
         Assert::AreEqual (expected, WozCompatibility::ComposeTooltip (Declare (kChoplifterHardware, k48K),
                                                                       MakeMachine ("Apple2eEnhanced"),
@@ -192,16 +193,15 @@ public:
     }
 
 
-    TEST_METHOD (TooltipListsBothConflictsWhenBothApply)
+    TEST_METHOD (TooltipMarksBothRequirementsMissed)
     {
-        std::wstring  warning  = s_kpszWarningSign;
         std::wstring  expected = L"This .woz image specifies:\n"
                                  L"  Compatible with: Apple ][+, //e, //c, //e Enhanced, IIgs\n"
                                  L"  Minimum RAM: 64K\n"
                                  L"\n"
-                                 L"This machine: Apple ][, 48K\n"
-                                 L"  " + warning + L" Not in the image's compatible list\n"
-                                 L"  " + warning + L" Less RAM than the image's minimum";
+                                 L"This machine:\n"
+                                 L"  " + std::wstring (s_kpszRedCross) + L" Apple ][\n"
+                                 L"  " + std::wstring (s_kpszRedCross) + L" RAM 48K";
 
         Assert::AreEqual (expected, WozCompatibility::ComposeTooltip (Declare (kCarmenHardware, kCarmenRamK),
                                                                       MakeMachine ("Apple2"),
@@ -209,20 +209,38 @@ public:
     }
 
 
-    TEST_METHOD (TooltipQuotesOnlyTheFieldsTheImageGives)
+    TEST_METHOD (TooltipListsOnlyTheRequirementsTheImageGives)
     {
-        std::wstring  warning  = s_kpszWarningSign;
         std::wstring  expected = L"This .woz image specifies:\n"
                                  L"  Minimum RAM: 64K\n"
                                  L"\n"
-                                 L"This machine: Apple ][ plus, 48K\n"
-                                 L"  " + warning + L" Less RAM than the image's minimum";
+                                 L"This machine:\n"
+                                 L"  " + std::wstring (s_kpszRedCross) + L" RAM 48K";
 
         Assert::AreEqual (expected, WozCompatibility::ComposeTooltip (Declare (0, kCarmenRamK),
                                                                       MakeMachine ("Apple2Plus"),
                                                                       L"Apple ][ plus"));
     }
 
+
+    TEST_METHOD (TooltipQuestionsAMachineTheListCannotJudge)
+    {
+        WozMachineFacts  ownMachine;
+        std::wstring     expected = L"This .woz image specifies:\n"
+                                    L"  Compatible with: Apple ][+, //e, //c, //e Enhanced, IIgs\n"
+                                    L"  Minimum RAM: 64K\n"
+                                    L"\n"
+                                    L"This machine:\n"
+                                    L"  " + std::wstring (s_kpszGrayQuestion) + L" My Own Apple\n"
+                                    L"  " + std::wstring (s_kpszRedCross) + L" RAM 48K";
+
+        ownMachine.ramK = k48K;
+
+        Assert::AreEqual (expected, WozCompatibility::ComposeTooltip (Declare (kCarmenHardware, kCarmenRamK),
+                                                                      ownMachine,
+                                                                      L"My Own Apple"),
+                          L"the format has no bit for this machine, so the list can neither pass nor fail it");
+    }
 
     TEST_METHOD (NoConflictMeansNoTooltip)
     {

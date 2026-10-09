@@ -189,7 +189,7 @@ std::wstring WozCompatibility::FormatHardwareList (uint16_t compatibleHardware)
             continue;
         }
 
-        list    += list.empty() ? L"Apple " : L", ";
+        list    += list.empty() ? std::wstring (L"Apple ") : GetListSeparator (list);
         list    += entry.label;
         unknown  = static_cast<uint16_t> (unknown & ~entry.flag);
     }
@@ -197,7 +197,7 @@ std::wstring WozCompatibility::FormatHardwareList (uint16_t compatibleHardware)
     if (unknown != 0)
     {
         swprintf_s (hex, L"0x%04X", unknown);
-        list += list.empty() ? L"" : L", ";
+        list += list.empty() ? std::wstring() : GetListSeparator (list);
         list += hex;
     }
 
@@ -210,11 +210,39 @@ std::wstring WozCompatibility::FormatHardwareList (uint16_t compatibleHardware)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozCompatibility::GetListSeparator
+//
+//  A comma straight after "][" tucks under the bracket's foot, which then looks
+//  bent up, so a thin space holds the comma off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozCompatibility::GetListSeparator (const std::wstring & list)
+{
+    std::wstring  separator = L", ";
+
+
+
+    if (!list.empty() && list.back() == L'[')
+    {
+        separator.insert (separator.begin(), s_kchThinSpace);
+    }
+
+    return separator;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozCompatibility::ComposeTooltip
 //
-//  The first block quotes only what the image declares and the second lists
-//  only what conflicts. The wording stays neutral: whoever imaged the disk set
-//  these fields, often from the box, and they are often conservative.
+//  The first block quotes only what the image declares. The second gives this
+//  machine's value for each of those requirements, marked as meeting it or
+//  not. The wording stays neutral: whoever imaged the disk set these fields,
+//  often from the box, and they are often conservative.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -246,22 +274,51 @@ std::wstring WozCompatibility::ComposeTooltip (
         text += L"\n  Minimum RAM: " + std::to_wstring (declared.requiredRamK) + L"K";
     }
 
-    text += L"\n\nThis machine: " + machineName;
+    text += L"\n\nThis machine:";
 
-    if (machine.ramK != 0)
+    // The name is always at hand, but a machine the format has no bit for
+    // cannot be judged against the list.
+    if (declared.compatibleHardware != 0)
     {
-        text += L", " + std::to_wstring (machine.ramK) + L"K";
+        text += L"\n  " + std::wstring (GetVerdictMark (machine.hardwareFlag != 0, hardwareConflict)) + L" " + machineName;
     }
 
-    if (hardwareConflict)
+    // A RAM total that is not known has no value to show.
+    if (declared.requiredRamK != 0 && machine.ramK != 0)
     {
-        text += L"\n  " + std::wstring (s_kpszWarningSign) + L" Not in the image's compatible list";
-    }
-
-    if (ramConflict)
-    {
-        text += L"\n  " + std::wstring (s_kpszWarningSign) + L" Less RAM than the image's minimum";
+        text += L"\n  " + std::wstring (GetVerdictMark (true, ramConflict)) + L" RAM " + std::to_wstring (machine.ramK) + L"K";
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozCompatibility::GetVerdictMark
+//
+//  A green check where the machine meets the requirement, a red X where it
+//  does not, and a question mark where the machine's side is not known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR WozCompatibility::GetVerdictMark (bool isKnown, bool hasConflict)
+{
+    LPCWSTR  mark = s_kpszGreenCheck;
+
+
+
+    if (!isKnown)
+    {
+        mark = s_kpszGrayQuestion;
+    }
+    else if (hasConflict)
+    {
+        mark = s_kpszRedCross;
+    }
+
+    return mark;
 }
