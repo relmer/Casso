@@ -1811,8 +1811,17 @@ shared with 040.
   inverse of the DOS map.
 - **ROM symbols.** `RWTS` ($03D9), `RWTSPARM` ($03E3), `DEVADR` ($BF10) and
   the slot 6 switches `PHASE0OFF` to `Q7H` are already loaded, so an `IF` at
-  RWTS over the IOB can be typed today; `BPDISK RWTS` builds that condition
-  for the user and follows the JMP rather than stopping at $03D9.
+  RWTS over the IOB can be typed today; `BPDISK RWTS` tests the same request
+  from its own definition, never as a stored condition, and follows the JMP
+  rather than stopping at $03D9.
+- **The stepper.** `Disk2Controller::HandlePhase` moves the head by twice a
+  phase table's half-track delta, so the head moves in half-track steps and
+  rests on even quarter tracks; the one way the model reaches an odd quarter
+  track is the clamp at the outer stop, `kMaxQuarterTrack` = 139, and the
+  steps back from it. `HandlePhase` makes no test of the motor.
+- **No 13-sector boot.** `Disk2_13Sector.rom` is fetched by `AssetBootstrap`
+  and `scripts/FetchRoms.ps1`, but every machine file under
+  `Resources/Machines/` wires `Disk2.rom` to slot 6.
 
 ### What is missing (verified)
 
@@ -1853,18 +1862,24 @@ shared with 040.
 
 ### The command
 
-**Decision**: `BPDISK`, a Casso command in the breakpoint family
-(`AppleWinCommandTable`, `CassoCommandReference`), as `BPBEAM` is. It is
-reached in every mode the way every Casso command is
+**Decision**: `BPDISK`, a Casso command in `CassoCommandReference`'s
+breakpoints help section, beside `BPBEAM`, and in `AppleWinCommandTable`'s
+Breakpoints family (`F::Breakpoints`). That second placement is a deliberate
+choice that departs from `BPBEAM`, which the table keeps in its Video family
+(`F::Video`) beside `BPV`: a disk breakpoint is a breakpoint-table entry with
+an id, which `BPBEAM` is not, so it belongs with the commands that list,
+clear and save it. It is reached in every mode the way every Casso command is
 (`CommandModeHelp::IsCassoCommandReachable`): bare in AppleWin, Casso and
 GSSquared modes, where no dialect has the word, `/bpdisk` in Monitor mode and
-`!bpdisk` in WinDbg mode. The grammar is in
+`!bpdisk` in WinDbg mode. It takes no slot: the machine builder keeps one
+Disk II controller, and an option whose only accepted value is its default
+buys no capability, the reason `--raw` was retired. The grammar is in
 [contracts/command-modes.md](contracts/command-modes.md).
 
 **Rationale**: one name to learn, to list in five dialects' help and to keep
 in the generated reference. The `BP` prefix puts it where a user scanning help
-for breakpoints looks, and beside `BPBEAM`, Casso's other breakpoint on a
-machine event rather than an address.
+for breakpoints looks, and beside `BPBEAM`, Casso's other stop on a machine
+event rather than an address.
 
 **Alternatives considered**:
 
@@ -1927,12 +1942,13 @@ was read or written, whether it passed during spin-up or write protection
 dropped it, and the address of the instruction that read or wrote it: 4 bytes
 each, 2 KB. A nibble is added when the CPU reads a newly assembled nibble from
 the latch (the point where `ConsumeFreshNibble` feeds the watcher today), and
-when the CPU loads the latch in write mode (the write hook below). Nothing is
-added for a drive with no disk, and a disk change starts a new run of entries
-that no field may cross. The instruction's address comes from `MachineHost`,
-which holds the address of the instruction it is executing, through a pointer
-wired as the cycle source is. `Disk2Controller`'s state version goes to 2; a
-version 1 state loads with no nibbles kept, and a power cycle clears them.
+for each latch load the write hook below reports. Nothing is added for a drive
+with no disk, and a disk change starts a new run of entries that no field may
+cross. The instruction's address comes from `MachineHost`, which holds the
+address of the instruction it is executing, through a pointer wired as the
+cycle source is. `Disk2Controller`'s state version goes up by one (to 2 if
+nothing else has raised it first; 040's per-drive head may), every earlier
+version loads with no nibbles kept, and a power cycle clears them.
 
 The debugger's `DiskFieldTracker`, a pure class over these entries, decodes
 16- and 13-sector address fields with their stored and expected checksums,
@@ -1941,7 +1957,12 @@ matches custom marks through the shared `??` matcher. While a field kind is
 armed it reads the entries added since the last instruction boundary at each
 boundary, so no call is made per nibble; it primes itself from the whole
 record when a breakpoint is armed, after any move through history, after a
-state file loads, and at the start of a reverse-continue replay.
+state file loads, at the start of a reverse-continue replay, and after a
+keyframe the replayer loads while the machine runs forward from history --
+past a gap, or back to the last good keyframe after a replay diverged --
+which the replayer's restore count shows, as `CallStackHistory::CheckLoads`
+(merged into 035 at `a88adb288`, after this design's code check) reads it for
+the call record.
 
 **Rationale**: decoding from a record kept with the machine makes every
 position exact: a replay that starts from a snapshot taken partway through a
@@ -1978,30 +1999,46 @@ emulated second.
 ### The read test
 
 **Decision**: a data field counts as read when the instruction that read its
-first prologue nibble differs from the instruction that read the first
-prologue nibble of the address field before it. `PASSED` turns the test off.
+checksum nibble differs from the instruction that read the first prologue
+nibble of the address field before it. `PASSED` turns the test off.
 
-**Rationale** (reasoned from the routines, not run): DOS 3.3's address
-search reads every nibble that passes the head until it finds D5 AA 96, so
-while it searches for one sector it reads the whole data field of every sector
-that passes, checksum nibble and epilogue included, with the same instruction
-that reads the first nibble of each address prologue. When it finds the sector
-RWTS was called for, it returns, and the read routine searches for D5 AA AD
-with an instruction of its own, reads the body and the checksum nibble, checks
-DE AA and returns without reading EB. ProDOS's Disk II driver is built the same
-way. So "the CPU has read the checksum nibble after a matching address field",
-the request's test, holds for every sector passed over during a search, and a
-breakpoint on track $11 sector 0 would stop while DOS searched for sector $0F.
-By the same reasoning, the Disk ][ window's "Data read" rows, which need EB,
-show the sectors DOS passed over and not the one it read. T712 boots DOS 3.3
-and ProDOS and measures both claims before anything relies on them; if a
-loader reads its address and data fields with one shared instruction, the test
-misses its reads and `PASSED` is the way to stop on them.
+**Rationale** (checked 2026-10-08 by reading the code, not by running it):
+DOS 3.3's address search, RDADR16 at $B944 in the System Master's RWTS,
+reads every nibble that passes the head with `LDA $C08C,X` at $B94F until it
+finds D5 AA 96, so while it searches for one sector it reads the whole data
+field of every sector that passes, checksum nibble and epilogue included,
+with the same instruction that reads the first nibble of each address
+prologue. When it finds the sector RWTS was called for, it returns, and
+READ16 at $B8DC finds D5 AA AD with instructions of its own ($B8E1 for the
+D5), reads the body, reads the checksum nibble at $B925, checks DE AA and
+returns without reading EB. The Disk II boot ROM (the fixture `Disk2.rom`)
+does not separate its prologues: its sector routine at $Cn5C reads the D5 of
+the address prologue with `LDA $C08C,X` at $Cn5E, and after a sector match
+branches back to $Cn5D, so the D5 of the data prologue comes in through the
+same instruction; but it reads the body with `LDY $C08C,X` at $CnAA and
+$CnBC and the checksum nibble at $CnCB. Comparing the checksum nibble's
+instruction with the address prologue's therefore separates a search from a
+read in both, where comparing the two prologues' instructions, the first
+design, missed every read the ROM makes: DOS 3.3's boot stage 1 and ProDOS's
+block-0 loader read through that routine too. ProDOS's Disk II driver is
+reasoned to follow DOS's pattern. So "the CPU has read the checksum nibble
+after a matching address field", the request's test, holds for every sector
+passed over during a search, and a breakpoint on track $11 sector 0 would stop
+while DOS searched for sector $0F. By the same reasoning, the Disk ][
+window's "Data read" rows, which need EB, show the sectors DOS passed over and
+not the one it read. T712 boots DOS 3.3 and ProDOS and measures both claims,
+for the ROM's reads as well as the operating system's, before anything relies
+on them; if a loader reads a data field's checksum nibble with the
+instruction that found its address prologue, the test misses its reads and
+`PASSED` is the way to stop on them.
 
 **Alternatives considered**:
 
 - The checksum nibble alone (the request's proposal): kept as `PASSED`, not
   the default, for the reason above.
+- The instruction that read the data prologue's first nibble against the
+  address prologue's: the first design, wrong for the boot ROM, which reads
+  both with one instruction.
 - The sector the IOB requests: DOS-only, and `BPDISK RWTS` already stops on
   it.
 - The epilogue: DOS's read routine never reads EB for the sector it reads.
@@ -2033,13 +2070,26 @@ limited to a drive must report that drive's head. It is the position behind
 built once a frame, and a breakpoint reads the position at the event, so the
 two share the data and not the cadence.
 
+**No quarter-track stop.** The request included a stop on any quarter track.
+The stepper moves the head in half-track steps (above), so such a stop would
+match only the positions next to the outer stop and a position restored from
+a saved state; `HEAD` offers `QT` ranges, `T` ranges and `HALF`, and a
+`QUARTER` option is left until a stepper model holds the head between two
+adjacent phases. Whether the stepper should move with the drive not enabled
+is checked against Sather's *Understanding the Apple IIe*, chapter 9, in
+T714, and a GitHub issue filed if the model differs; the breakpoint reports
+whatever the model does.
+
 ### One write hook
 
 **Decision**: the place in `Disk2Controller::Write` where a store with Q6 and
-Q7 set loads the latch reports the drive, the nibble, the head's position and
-whether write protection drops it. The recent nibbles, the write events of
-FR-149 and 040's count of guest writes per track record (its FR-068) all come
-from it.
+Q7 set loads the latch, while the motor runs (its spindown included),
+reports the drive, the nibble, the head's position and whether write
+protection drops it. A load with the motor stopped writes nothing to the
+disk and is not reported; on the //c, a store with the motor command off
+loads the IWM's mode register, which is not a latch load. The recent nibbles,
+the write events of FR-149 and 040's count of guest writes per track record
+(its FR-068) all come from it, under the one rule.
 
 **Rationale**: with one place reporting every guest write, the debugger's
 "blocked" and 040's counts cannot disagree; a dropped write does not count.
@@ -2049,24 +2099,40 @@ from it.
 **Decision**: `BPDISK RWTS` stops at the address the JMP at $03D9 holds, and
 `BPDISK DRIVER` at the address ProDOS's device vector holds for the slot and
 drive ($BF10 plus twice the slot for drive 1, $BF20 plus twice the slot for
-drive 2: $BF1C and $BF2C in slot 6). A watch on the vector's bytes re-reads
-the vector whenever they are written, so the breakpoint takes effect when DOS
-or ProDOS fills it and moves when it changes; until then it is listed as
-waiting. The request is matched through a condition the command builds: the
-IOB at Y (low) and A (high) for RWTS (track at +4, sector at +5, command at
-+$0C, drive at +2), and $42-$47 for the driver.
+drive 2: $BF1C and $BF2C in slot 6). An internal watch on the vector's bytes,
+with no id, no row in any list and no hit count, re-reads the vector whenever
+the CPU writes them, so the breakpoint takes effect when DOS or ProDOS fills
+it and moves when it changes; until then it is listed as unresolved. The
+vector's bytes can also change with no CPU write, so the routine is taken
+again after every debugger write to memory (the memory editor, `MEB` and the
+other memory commands, `PATCH`, `BLOAD`), a state file load, every move
+through history, a keyframe loaded while running forward from history, a
+reset and a power cycle, whose RAM pattern is not a bus write; reverse
+continue's stop test takes it at the start of each replay and on each write to
+the vector's bytes during it. The request is matched from the breakpoint's
+`DiskBreakSpec`, before the user's `IF` is evaluated, and is never stored as
+the entry's condition: the IOB at Y (low) and A (high) for RWTS (track at +4,
+sector at +5, command at +$0C, drive at +2), and $42-$47 for the driver. A
+stored condition would show in the Condition column, be written by `BPSAVE`
+and changed by `BPEDIT`, and come back doubled after `BPSAVE` and Import.
 
 **Rationale**: the $03D9 vector stays in page 3 whatever DOS does; what a
-relocated DOS moves is the RWTS code the JMP leads to, and DOS's file manager
-calls that code directly, not through $03D9. A breakpoint at $03D9 misses both
-cases; a breakpoint at the JMP's target catches every call. This corrects the
-request's wording, which had a relocated DOS moving $03D9.
+relocated DOS moves is the RWTS code the JMP leads to. DOS's own calls reach
+that code without $03D9: the System Master's DOS image holds a single `JSR` to
+RWTS's entry, at $B7B7 in the routine at $B7B5 that DOS's reads and writes go
+through, and no call through $03D9; every `JSR` to RDADR16 and READ16 lies in
+RWTS's own pages. A breakpoint at $03D9 misses both cases; a breakpoint at the
+JMP's target catches every call that enters RWTS at its entry. That is a
+reading of the image; T712 records the entries at the JMP's target and every
+call to RDADR16 on a real boot to confirm that no call enters elsewhere. The
+request's wording, that a relocated DOS moves it, is read here as RWTS
+moving: the JMP at $03D9 stays put and its target moves.
 
 **Alternatives considered**: stopping at $03D9 (misses DOS's own calls);
 resolving once when set (wrong before DOS loads and after booting another
 DOS); re-reading the vector before every instruction (a cost on every
 instruction while armed, and the execution breakpoint would lose its page
-filter).
+filter); a condition the command builds and stores on the entry (above).
 
 ### Disk values in conditions
 
@@ -2076,9 +2142,13 @@ filter).
 `DebugSession::TryResolveSymbol` before it looks in the symbol tables, so a
 program symbol cannot hide them, as `ConditionContext` puts `ACCESS` and
 `VALUE` first; their values come from an `IDebugTarget` getter over the
-controller's state, never through the bus.
-The last address field is found in the recent nibbles, and is $FFFF when
-there is none.
+controller's state, never through the bus. `TryResolveSymbol` serves every
+expression, so the values work in `CALC`, `U`, `D` and address arguments as
+well as in `IF`, and a program symbol with one of these names cannot be used
+in any expression; `ConditionContext` would confine them to conditions
+only by passing it the target, for no gain a user would see.
+The last address field is the selected drive's last one with a good checksum
+in the recent nibbles, and is $FFFF when there is none.
 
 **Rationale**: a dotted name cannot collide with a hex number and seldom with a
 program's symbols, and the expression reader already takes dots in names.
@@ -2092,15 +2162,27 @@ error.
 every-instruction filter, as a watchpoint does, since its stop is raised during
 an instruction and `HasPendingStop` is called only under that filter; RWTS and
 driver breakpoints mark the page of their routine, as an address breakpoint
-does. SC-041 holds the cost to a watchpoint's. A filter flag under which the
-host calls `HasPendingStop` without the before-instruction test on every page
-could make it cheaper; T732 measures first.
+does, and their vector's watch puts page $03 or page $BF on the watched-write
+path, which page 3's common use as a program area makes worth measuring.
+SC-041 holds the cost of the first to a watchpoint's, and of the second to an
+address breakpoint and a write watchpoint on the vector. A filter flag under
+which the host calls `HasPendingStop` without the before-instruction test on
+every page could make it cheaper; T732 measures first.
+
+**The idle path.** The recent nibbles are machine state, kept whether or not
+the debugger is open, so FR-064's "same code path as before this feature"
+takes an exception for them: a few stores per nibble the CPU receives or
+writes, nothing while the drive is idle, held within SC-008 against T165's
+baseline.
 
 ### Reverse execution
 
 **Decision**: `IReverseStopTest` gains `GetDiskSink`, and `ReverseStopTest`
 matches disk breakpoints with its own tracker, primed from the recent nibbles
-of the snapshot the replay starts from, counting nothing. `Replayer` saves,
+of the snapshot the replay starts from, counting nothing; it takes each RWTS
+and driver breakpoint's routine from the vector at the start of each replay
+and again on each write to the vector's bytes during it, so a vector empty
+earlier in history leaves the breakpoint unresolved there. `Replayer` saves,
 swaps and restores the controller's debugger slot beside the hook and the
 watch sink, and detaches it for a replay with no stop test (a step back or a
 seek). A mount or eject in history is a boundary snapshot the replay loads
@@ -2111,21 +2193,31 @@ history.
 
 **Rationale**: the same rule R-040 set for conditions and watchpoints (T466):
 reverse continue stops where a forward run stops, and no replay counts a hit.
-This is the first requirement in spec.md about reverse execution; until now
-its rules lived in this research entry and in the tasks.
+FR-159 is the first requirement in spec.md about reverse execution; until now
+its rules lived in this research entry and in the tasks, and FR-159 makes R-040
+"As built 2026-10-03" and "Running forward from history" normative for it.
 
 ### Sharing with 040
 
 The field definitions and `??` matching (040's FR-011, FR-012, FR-019), the
 head position behind 040's head-state record (its FR-062) and the write hook
 behind its write counts (its FR-068) are each built once, by whichever spec
-merges first, in `CassoEmuCore/Devices/Disk/` for the definitions and the
-matcher and in the controller for the other two. 040's Assumptions record the
-first three and that neither spec takes the window's listener. Two points are
-this spec's own and are not in 040's text: that the write events and 040's
-counts come from the same hook, and that the kinds shipped here need nothing
-else of 040's. 040's decode settings stay with its window, so breakpoints have
-marks of their own.
+merges first. The three-nibble `DiskMarkPattern`, which is pure (three
+optional bytes, a parser and a matcher), and the `DiskFieldKind` enum
+(`Sixteen`, `Thirteen`) go in CassoCore, since `BPDISK`'s parser in
+`AppleWinParser` builds them and CassoCore references nothing but Ehm;
+`DiskFieldFormat`'s field tables, translate tables and checksum rules go in
+`CassoEmuCore/Devices/Disk/`, and the head and the write hook in the
+controller. What is shared is the pattern and its match against a run of
+nibbles, not how a feature uses custom marks: here a breakpoint's own marks
+replace the standard ones (FR-147), while 040's FR-019 matches custom marks in
+addition to the standard ones unless "Match standard marks too" is off, so the
+matcher builds in neither rule. 040's Assumptions record the first three parts
+and that neither spec takes the window's listener. Two points are this spec's
+own and are not in 040's text: that the write events and 040's counts come
+from the same hook, and that the kinds shipped here need nothing else of
+040's. 040's decode settings stay with its window, so breakpoints have marks
+of their own.
 
 ### Deferred, with reasons
 
@@ -2145,9 +2237,15 @@ marks of their own.
 
 ### Where this departs from the request
 
-- A breakpoint's slot is the machine's one Disk II controller's (slot 6 on
-  every shipped machine); another slot is an error.
-- `BPDISK RWTS` stops at the routine the $03D9 JMP leads to, not at $03D9.
+- `BPDISK` takes no slot: it acts on the machine's one Disk II controller
+  (slot 6 on every shipped machine), and the report gives that slot.
+- `BPDISK RWTS` stops at the routine the $03D9 JMP leads to, not at $03D9;
+  the request's "a relocated DOS moves it" is read as RWTS moving, since the
+  JMP stays in page 3.
+- `HEAD` has no stop on any quarter track, since Casso's stepper moves the
+  head in half-track steps.
+- The 13-sector cases run on disks and programs built in tests, since no
+  machine wires the 13-sector boot ROM.
 - A sector read does not count a data field the program only passed over
   during a search, unless `PASSED` is given.
 - A head stop gives the instruction that accessed the phase switch; phase

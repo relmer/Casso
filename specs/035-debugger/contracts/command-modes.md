@@ -165,8 +165,9 @@ Casso rules on top:
 
 ## Disk breakpoints (`BPDISK`)
 
-User Story 20, FR-142 to FR-165, research R-041. `BPDISK` is a Casso command
-in the breakpoint family, reached as every Casso command is:
+User Story 20, FR-142 to FR-165, research R-041. `BPDISK` is a Casso command,
+listed in help's breakpoints section beside `BPBEAM` and in the command
+table's Breakpoints family, reached as every Casso command is:
 
 | Mode | Form |
 |---|---|
@@ -176,22 +177,23 @@ in the breakpoint family, reached as every Casso command is:
 | WinDbg | `!bpdisk ...` |
 
 ```text
-BPDISK [S<slot>] [D1|D2] <event> [arguments] [options] [IF <expression>]
+BPDISK [D1|D2] <event> [arguments] [options] [IF <expression>]
 ```
 
 Numbers follow the mode's syntax: hex unless marked, `#` or `0n` for decimal,
-`0x` too in WinDbg mode. `S6` gives the slot, which must be the Disk II
-controller's and is by default; `D1` or `D2` limits the breakpoint to a drive.
-Names are case-insensitive. `*` in place of a number matches any.
+`0x` too in WinDbg mode. `D1` or `D2` limits the breakpoint to a drive. There
+is no slot: the breakpoint acts on the machine's one Disk II controller, and
+the report gives its slot. Names are case-insensitive. `*` in place of a
+number matches any.
 
 | Event | Arguments and options | Stops |
 |---|---|---|
-| `READ track sector` | `PASSED`, `ADDR p p p`, `DATA p p p`, `FORMAT 13\|16` | after the instruction that read the checksum nibble of a data field following an address field with that track and sector; a field passed over during a search does not count without `PASSED` (FR-145) |
-| `ADDRESS [track [sector [volume]]]` | `BADSUM`, `WRONGTRACK`, `ADDR p p p`, `FORMAT 13\|16` | after the instruction that read the checksum nibble of a matching address field (FR-146) |
-| `HEAD [QT first[:last] \| T first[:last] \| HALF \| QUARTER]` | `BUMP` | after the instruction that accessed a phase switch and moved the head onto the position, or, with `BUMP`, against a stop (FR-148) |
+| `READ track sector` | `PASSED`, `ADDR p p p`, `DATA p p p`, `SECTORS 13\|16` | after the instruction that read the checksum nibble of a data field following an address field with that track and sector; a field passed over during a search does not count without `PASSED` (FR-145) |
+| `ADDRESS [track [sector [volume]]]` | `BADSUM`, `WRONGTRACK`, `ADDR p p p`, `SECTORS 13\|16` | after the instruction that read the checksum nibble of a matching address field (FR-146) |
+| `HEAD [QT first[:last] \| T first[:last] \| HALF]` | `BUMP` | after the instruction that accessed a phase switch and moved the head onto the position, or, with `BUMP`, drove it against a stop at a matching position (FR-148) |
 | `WRITE [QT first[:last] \| T first[:last]]` | | after the instruction that turned on write mode with the motor on and the head there (FR-149) |
 | `WRITE track sector` | `DATA p p p`, `ADDR p p p` | after the instruction that wrote the third data prologue nibble following the read of that address field |
-| `WRITE BLOCKED` | | after the instruction whose latch load write protection dropped, once per stretch of write mode |
+| `WRITE BLOCKED` | | after the instruction whose latch load write protection dropped, the first in a stretch of write mode (FR-161's rule: a load in write mode while the motor runs) |
 | `DOS track sector` | `PASSED` | as `READ`, for DOS 3.3 logical sector `sector` (FR-150) |
 | `BLOCK n` | `PASSED` | after the second of ProDOS block n's two sectors is read |
 | `RWTS [track [sector]] [READ\|WRITE\|SEEK\|FORMAT]` | | before the first instruction of the routine the JMP at $03D9 holds, when the IOB matches (FR-151) |
@@ -200,29 +202,41 @@ Names are case-insensitive. `*` in place of a number matches any.
 | `SELECT` | `EVERY` | after the instruction that changed the selected drive to this one, or, with `EVERY`, after each drive-select access |
 | `INSERT`, `EJECT` | | at the next instruction boundary after the disk changed |
 
+`FORMAT` after `RWTS` or `DRIVER` is the request's command, the call that
+formats a track or a volume; the data-field length option is `SECTORS`.
+
 - **Marks**: `ADDR` replaces the address prologues matched (D5 AA 96 and D5 AA
   B5) and `DATA` the data prologue (D5 AA AD), for this breakpoint only. Each
-  `p` is a nibble, two hex digits, or `??` for any. `FORMAT 13` makes a data field after a
-  custom address prologue 410 nibbles and a checksum; the default is 342 and
-  a checksum.
+  `p` is a nibble, two hex digits, or `??` for any. `SECTORS 13` makes a data
+  field after a custom address prologue 410 nibbles and a checksum; the
+  default, `SECTORS 16`, is 342 and a checksum.
 - **Head positions**: `QT` takes quarter tracks, 0 to 8B hex. `T` takes
   tracks and matches only their whole-track positions, so `HEAD T 11` is
-  quarter track $44. `HALF` matches quarter tracks 4n+2, `QUARTER` the odd
-  ones.
-- **When hit**: a disk breakpoint is set enabled and stopping; `BPCHANGE`,
-  `BPD`, `BPE`, the dialect equivalents (`nobp`, `bc`, `bd`, `be`) and the
-  Breakpoints pane change it as they change any breakpoint. `BPEDIT # BPDISK
-  ...` replaces one, keeping its id.
+  quarter track $44. `HALF` matches quarter tracks 4n+2. Casso's stepper moves
+  the head in half-track steps, so there is no option for an odd quarter
+  track; a `QT` range matches whatever positions in it the head reaches.
+- **`BUMP`** with a position stops on a bump only when the head's position
+  after it is one the position matches: `HEAD QT 0 BUMP` stops on the boot
+  ROM's recalibration against track 0, not on a bump at the outer stop.
+  `HEAD BUMP` stops on any bump and any move.
+- **Clearing and changing**: a disk breakpoint is set enabled and stopping;
+  `BPC`, `BPCHANGE`, `BPD` and `BPE`, their dialect equivalents (`nobp`,
+  `bc`, `bd`, `be`) and the Breakpoints pane clear, change, disable and
+  enable it as they do any breakpoint. `BPEDIT # BPDISK ...` replaces one,
+  keeping its id.
 - **`BPSAVE`** writes each as the `BPDISK` line that sets it again, with its
-  marks and condition.
+  marks and the user's condition; an RWTS or driver breakpoint's request is
+  part of its definition, not of its condition, so a saved line read back
+  sets the same breakpoint.
 
-**Condition symbols.** In any `IF`, on any breakpoint or watchpoint, these read
-the controller's state and nothing else, ahead of any program symbol with the
-same name (FR-156): `DISK.DRIVE`, `DISK.QTRACK`, `DISK.QTRACK1`,
-`DISK.QTRACK2`, `DISK.MOTOR`, `DISK.WRITING`, `DISK.PROTECTED`,
-`DISK.INSERTED`, `DISK.ATRACK`, `DISK.ASECTOR`, `DISK.AVOLUME` ($FFFF while no
-address field is recorded). On a machine with no Disk II controller they are
-unknown symbols, an `invalid condition` error when set.
+**Disk values.** In any expression -- an `IF` on any breakpoint or
+watchpoint, `CALC`, an address argument -- these read the controller's state
+and nothing else, ahead of any program symbol with the same name (FR-156):
+`DISK.DRIVE`, `DISK.QTRACK`, `DISK.QTRACK1`, `DISK.QTRACK2`, `DISK.MOTOR`,
+`DISK.WRITING`, `DISK.PROTECTED`, `DISK.INSERTED`, and `DISK.ATRACK`,
+`DISK.ASECTOR`, `DISK.AVOLUME` (the selected drive's last good address field,
+$FFFF while none is recorded). On a machine with no Disk II controller they
+are unknown symbols, an `invalid condition` error when set in an `IF`.
 
 **Replies**, AppleWin's text (Casso and GSSquared output too):
 
@@ -232,21 +246,27 @@ Set disk breakpoint #3 (sector read, track $11 sector $00, drive 1)
 BPL
 #3  E  on disk sector read, track $11 sector $00, drive 1
 BPDISK RWTS 11 0 READ
-Set disk breakpoint #4 (RWTS call, track $11 sector $00, read), waiting for $03D9
+Set disk breakpoint #4 (RWTS call, track $11 sector $00, read), unresolved: $03D9 holds no JMP yet
 ```
 
 A stop:
 
 ```text
 Disk breakpoint #3: sector read, track $11 (17) sector $00 volume $FE, drive 1, 16-sector
-  address checksum $EF, expected $EF; data checksum good; epilogue DE AA EB
-  head on track 17 (quarter track $44), motor on; read by $B8F7, address field found by $B94C
+  address checksum $EF, expected $EF; data checksum $2C, expected $2C; epilogue DE AA EB
+  head on track 17 (quarter track $44), motor on; read by $B925, address field found by $B94F, data field by $B8E1
 ```
+
+The instruction addresses are those of DOS 3.3's RWTS as R-041 records them
+from the System Master: RDADR16's search at $B94F, READ16's data prologue
+search at $B8E1 and its checksum nibble read at $B925. The data checksum
+values are illustrative; tests take theirs from the fixture they build.
 
 In GSSquared's `bp` listing a disk breakpoint shows `disk` as its kind and the
 event where the address goes; in WinDbg's `bl`, `disk` stands where the
 address does, then the hit counts, then the event. Every listing gives the
-same event text.
+same event text, and shows `unresolved` for an RWTS or driver breakpoint
+whose vector holds no target.
 
 **Errors**:
 
@@ -254,11 +274,8 @@ same event text.
 Error: no Disk II controller
        This machine has no Disk II controller.
 
-Error: wrong slot
-       The Disk II controller is in slot 6.
-
 Error: invalid arguments
-       BPDISK [S6] [D1|D2] READ track sector [PASSED] [ADDR p p p] [DATA p p p] [FORMAT 13|16] [IF expr]
+       BPDISK [D1|D2] READ track sector [PASSED] [ADDR p p p] [DATA p p p] [SECTORS 13|16] [IF expr]
 ```
 
 A wrong argument gives the syntax line of the event typed, as FR-127 has every

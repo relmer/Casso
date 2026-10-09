@@ -133,7 +133,7 @@ Notifications have no `id` and are sent to every connected client.
 {"type":"stopped","reason":"breakpoint","pc":768,"breakpointId":0,"cycles":1834211,
  "registers":{"a":0,"x":1,"y":2,"p":48,"s":255,"pc":768}}
 {"type":"stopped","reason":"watchpoint","pc":2051,"watch":{"id":1,"address":1024,"value":65,"previous":160,"access":"write","accessPc":2048,"mode":"after"}}
-{"type":"stopped","reason":"disk","pc":47354,"breakpointId":3,"disk":{"event":"sectorRead","slot":6,"drive":1,"quarterTrack":68,"motorOn":true,"instruction":47351,"field":{"format":16,"track":17,"sector":0,"volume":254,"storedChecksum":239,"expectedChecksum":239,"dataChecksumGood":true,"addressInstruction":47436,"dataInstruction":47324,"passed":false},"epilogue":[222,170,235],"epilogueRandom":false}}
+{"type":"stopped","reason":"disk","pc":47400,"breakpointId":3,"disk":{"event":"sectorRead","slot":6,"drive":1,"quarterTrack":68,"motorOn":true,"instruction":47397,"field":{"format":16,"track":17,"sector":0,"volume":254,"storedChecksum":239,"expectedChecksum":239,"storedDataChecksum":44,"expectedDataChecksum":44,"dataChecksumGood":true,"addressInstruction":47439,"dataInstruction":47329,"passed":false},"epilogue":[222,170,235],"epilogueRandom":false}}
 {"type":"resumed"}
 {"type":"reset","kind":"soft"}
 {"type":"machineChanged","machine":"Apple //c"}
@@ -149,7 +149,7 @@ Notifications have no `id` and are sent to every connected client.
 | `budget` | the run's cycle budget was spent |
 | `pause` | a `pause` request, or the user paused in Casso |
 | `brk`, `invalidOpcode` | `BRK` / `BRKOP` stops |
-| `disk` | a disk breakpoint (`BPDISK`) fired. The stop has `breakpointId`, the lowest id that matched, and a `disk` object (below). `pc` is the next instruction for every event but an RWTS or driver call, where it is the routine's first instruction, not yet run |
+| `disk` | a disk breakpoint (`BPDISK`) fired. The stop has `breakpointId`, the lowest id that matched, and a `disk` object (below). `pc` is the next instruction for every event but an RWTS or driver call, where it is the routine's first instruction, not yet run. When a breakpoint or a watchpoint matches at the same stop, the reason is `breakpoint` or `watchpoint` and the stop includes the `disk` object as well (spec FR-153) |
 
 A stop at an address a loaded debug file maps to a source line carries `source`: `{"file":"main.a65","line":12}`, the file as the debug file records it and the innermost line when macros nest.
 
@@ -161,29 +161,33 @@ A disk breakpoint's definition, the `disk` object of `breakpointSet` and
 | Field | Meaning |
 |---|---|
 | `event` | `sectorRead`, `addressField`, `head`, `writeMode`, `writePrologue`, `writeBlocked`, `dosSector`, `proDosBlock`, `rwtsCall`, `driverCall`, `motor`, `driveSelect`, `inserted`, `ejected` |
-| `slot` | the controller's slot |
 | `drive` | 1 or 2; absent for either |
 | `track`, `sector`, `volume`, `block` | the numbers given; absent matches any |
 | `quarterTracks` | `[first, last]` for a head or write-mode position given as a range |
-| `head` | `any`, `range`, `wholeTracks`, `half` or `quarter` |
+| `head` | `any`, `range`, `wholeTracks` or `half` |
 | `motor` | `any`, `on`, `off` or `stopped` |
 | `command` | the RWTS or driver command given, as its number |
 | `options` | the options given, as strings: `passed`, `badChecksum`, `wrongTrack`, `bump`, `every` |
 | `addressMarks`, `dataMarks` | three entries each, a number or `null` for `??` |
-| `format` | 13 or 16 |
-| `waiting` | `true` while an RWTS or driver breakpoint's vector holds no target |
+| `format` | 13 or 16: the data-field length `SECTORS` gave, for custom address marks |
+| `unresolved` | `true` while an RWTS or driver breakpoint's vector holds no target |
+
+The definition has no slot, since `BPDISK` takes none, and no condition other
+than the breakpoint's own `condition`: an RWTS or driver breakpoint's request
+is part of the definition (spec FR-151).
 
 A disk stop's `disk` object holds the report (spec FR-154). Fields that do not
 apply to the event are absent.
 
 | Field | Meaning |
 |---|---|
-| `event`, `slot`, `drive` | as above |
+| `event`, `drive` | as above |
+| `slot` | the controller's slot |
 | `quarterTrack` | the drive's head; a track is the quarter track over four |
 | `previousQuarterTrack`, `bump`, `phases` | head stops; `phases` has bit n set while phase n is on |
 | `motorOn` | whether the motor runs, its spindown included |
 | `instruction` | the address of the instruction responsible |
-| `field` | sector, address, DOS sector, block and write-prologue stops: `{"format","track","sector","volume","storedChecksum","expectedChecksum","dataChecksumGood","addressInstruction","dataInstruction","passed"}`; `dataChecksumGood` and `dataInstruction` only where a data field was read |
+| `field` | sector, address, DOS sector, block and write-prologue stops: `{"format","track","sector","volume","storedChecksum","expectedChecksum","wrongTrack","storedDataChecksum","expectedDataChecksum","dataChecksumGood","addressInstruction","dataInstruction","passed"}`; `wrongTrack` only on an address-field stop, whether the field's track differs from the head's; `storedDataChecksum`, `expectedDataChecksum`, `dataChecksumGood`, `dataInstruction` and `passed` only where a data field was read |
 | `epilogue`, `epilogueRandom` | sector reads: the three nibbles after the data checksum as they lie on the track, and whether they lie where the drive reads at random |
 | `logicalSector`, `block`, `physicalSectors`, `order` | DOS sector and block stops; `order` is `dos33` or `proDos` |
 | `protected` | write stops: whether the disk is write-protected |
@@ -195,6 +199,13 @@ apply to the event are absent.
 
 New `event` values may be added; a client that does not recognize one shows
 the stop by its reason and `pc`.
+
+The `disk` stop among the notifications above uses the addresses of DOS 3.3's
+RWTS as research R-041 records them from the System Master: the checksum
+nibble read at $B925 (47397, with `pc` at the `BPL` after it), the address
+prologue found at $B94F (47439) and the data prologue at $B8E1 (47329). Its
+data checksum values are illustrative; tests take theirs from the fixture
+they build.
 
 - **`closing`** is the last record before the server closes the pipe, because
   the debugger was closed or Casso is exiting. Breakpoints and pause state are

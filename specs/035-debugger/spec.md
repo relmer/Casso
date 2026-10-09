@@ -115,7 +115,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Do disk breakpoints belong to this feature or to the disk inspector? -> A: To this one. 040 keeps them out of its scope and points here. The parts both need -- the field definitions and `??` mark matching, each drive's head position, and the controller's guest-write hook -- are built once, by whichever of the two merges first, and the other uses them.
 - Q: Which kinds ship? -> A: Sector read, address field, head position, write, DOS 3.3 sector and ProDOS block, RWTS and ProDOS driver call, motor, drive select, and disk inserted or ejected, plus disk values in any `IF`. A nibble sequence with `??` wildcards, a field passing under the head with no CPU read, and a latch read during the motor's spin-up are deferred to 040's preservation stories.
 - Q: When does a sector read stop? -> A: After the instruction that read the data field's checksum nibble, found by counting nibbles from the data prologue, not after the epilogue, which DOS's read routine may never read. A data field the program only passed over while it searched for a different sector's address field does not count, unless the breakpoint is set to stop on every passing field.
-- Q: How is it typed? -> A: One Casso command, `BPDISK`, in the `BP` family beside `BPBEAM`, reached in every mode through that mode's marker, with the same id, condition, hit count and When hit settings as every other breakpoint.
+- Q: How is it typed? -> A: One Casso command, `BPDISK`, listed in help's breakpoints section beside `BPBEAM` (Casso's stop on a beam position), reached in every mode through that mode's marker, with the same id, condition, hit count and When hit settings as every other breakpoint.
 - Q: Does reverse continue stop on them? -> A: Yes, at the same instruction a forward run stops at, as it does for breakpoints and watchpoints (R-040, T466).
 
 ## User Scenarios & Testing *(mandatory)*
@@ -973,10 +973,9 @@ lands on the same instruction with the hit count unchanged.
 1. **Given** `BPDISK READ 11 0` and DOS 3.3 booting, **When** DOS reads track
    $11 sector 0, **Then** the machine stops after the instruction that read
    the data field's checksum nibble, and the report gives track $11, sector 0
-   and the volume, the address field's stored and expected checksums, whether
-   the data checksum is good, the three nibbles after the checksum as they lie
-   on the track, the drive, the head's quarter track and that instruction's
-   address.
+   and the volume, the address field's and the data field's stored and
+   expected checksums, the three nibbles after the checksum as they lie on the
+   track, the drive, the head's quarter track and that instruction's address.
 2. **Given** the same breakpoint, **When** DOS passes over track $11 sector 0
    while it searches for a different sector, **Then** the machine does not
    stop and the hit count does not change; **and when** the breakpoint is set
@@ -986,15 +985,20 @@ lands on the same instruction with the hit count unchanged.
    machine stops after the instruction that read its checksum nibble, with the
    stored and expected checksums; a field whose checksum is good does not stop
    it.
-4. **Given** a disk with 13-sector fields (address prologue D5 AA B5) and
-   `BPDISK READ 0 0`, **When** its boot code reads track 0 sector 0, **Then**
-   the machine stops after the 411th nibble of the data field, and the report
-   gives the 13-sector format.
+4. **Given** a disk with 13-sector fields (address prologue D5 AA B5), a
+   program that reads its address and data fields with routines of their own,
+   and `BPDISK READ 0 0`, **When** the program reads track 0 sector 0,
+   **Then** the machine stops after the instruction that read the data
+   field's checksum nibble, the 411th after its prologue, and the report gives
+   the 13-sector format. No machine Casso ships boots a 13-sector disk: the
+   13-sector boot ROM is fetched but wired to none, so the disk and the
+   program are built in the test.
 5. **Given** `BPDISK HEAD HALF`, **When** a program steps the head onto any
    half track, **Then** the machine stops after the instruction that accessed
    the phase switch, and the report gives the previous and the new quarter
-   track and the phase magnets that are on; **and given** `BUMP`, a step
-   against track 0 stops it too.
+   track and the phase magnets that are on; **and given**
+   `BPDISK HEAD QT 0 BUMP`, a step against track 0 stops it, and a bump at
+   the outer stop does not.
 6. **Given** `BPDISK D2 WRITE BLOCKED` and a write-protected disk in drive 2,
    **When** a program writes to the data latch in write mode with the motor
    on, **Then** the machine stops and the report states that write protection
@@ -1008,10 +1012,11 @@ lands on the same instruction with the hit count unchanged.
    that ProDOS's sector order was assumed.
 9. **Given** `BPDISK RWTS 11 0 READ` on DOS 3.3, **When** DOS's file manager
    reads track $11 sector 0, **Then** the machine stops before the first
-   instruction of RWTS, although DOS calls it without going through $03D9,
-   and the report gives the request from the IOB. **Given** the same
-   breakpoint set before DOS has loaded, **Then** it is listed as waiting for
-   its vector at $03D9, and stops once DOS has filled the vector.
+   instruction of the routine the JMP at $03D9 leads to, although DOS's own
+   calls reach that routine through its caller at $B7B5 rather than through
+   $03D9, and the report gives the request from the IOB. **Given** the same
+   breakpoint set before DOS has loaded, **Then** it is listed as unresolved,
+   with its vector at $03D9, and stops once DOS has filled the vector.
 10. **Given** `BPDISK DRIVER BLOCK 2` set before ProDOS boots, **When**
     ProDOS calls the slot 6 drive 1 driver for block 2, **Then** the machine
     stops before the driver's first instruction, found through ProDOS's device
@@ -1039,6 +1044,11 @@ lands on the same instruction with the hit count unchanged.
 16. **Given** drive 1's head on track 17 and drive 2's on track 0, **When**
     the program selects drive 2, **Then** `DISK.QTRACK` reads drive 2's
     position, and `BPDISK D1 HEAD` does not stop when drive 2's head steps.
+17. **Given** `BPDISK READ 0 0` and a power cycle with a DOS 3.3 disk in
+    drive 1, **When** the Disk II boot ROM reads track 0 sector 0, **Then**
+    the machine stops after the ROM's instruction that read the data field's
+    checksum nibble, although the ROM reads the first nibble of the address
+    prologue and of the data prologue with one instruction.
 
 **Deferred** until the disk inspector's preservation stories (040 User Stories
 11 to 14), with the reasons recorded in research R-041: a stop on a nibble
@@ -1194,8 +1204,14 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   drive-select and insert kinds stop as they do with a disk.
 - **Motor off**: no nibble passes the head, so the field kinds cannot stop;
   a program reading the latch with the motor off reads the same byte again,
-  which is not a new nibble. The head moves with the motor off, and head
-  breakpoints stop; their report gives the motor's state.
+  which is not a new nibble. A head breakpoint stops whenever Casso's model
+  moves the head, and its report gives the motor's state; whether a real
+  drive's stepper moves while the drive is not enabled is unchecked
+  (Assumptions), and this spec requires neither behavior.
+- **A head between two phases**: Casso's stepper moves the head in half-track
+  steps, so the head reaches whole- and half-track positions only, apart from
+  the outer stop at quarter track 139 and the steps back from it; there is no
+  stop on any quarter track (FR-148).
 - **Motor spin-up**: for the moment after the motor starts in which the
   controller returns $80 to every read, the CPU receives no nibble, so a field
   any of whose nibbles passed then is not reported as read.
@@ -1213,11 +1229,13 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   the report states that the region is random.
 - **A relocated DOS**: the JMP at $03D9 stays in page 3 and points at RWTS
   wherever DOS put it, so an RWTS breakpoint follows the JMP rather than
-  stopping at $03D9, and DOS's file manager, which calls RWTS directly, stops
-  it too. A DOS whose $03D9 holds no JMP leaves the breakpoint waiting.
+  stopping at $03D9, and DOS's own calls, which reach that routine through
+  its caller at $B7B5 rather than through $03D9, stop it too. A DOS whose
+  $03D9 holds no JMP leaves the breakpoint unresolved.
 - **Vector not filled yet**: an RWTS or driver breakpoint set before the
-  operating system loads is listed as waiting; it takes effect the
-  moment the vector's bytes hold a target, and follows them if they change.
+  operating system loads is listed as unresolved; it takes effect the moment
+  the vector's bytes hold a target, and is resolved again whenever they may
+  have changed (FR-151).
 - **Both ProDOS drives share one driver**: the slot 6 drive 1 and drive 2
   vectors usually hold the same routine, so a driver breakpoint limited to a
   drive also tests the unit number ProDOS passes the driver.
@@ -1237,15 +1255,19 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **Paused when a disk is inserted or ejected**: the hit is counted and a line
   reports it, and the machine stays paused; no stop is held for the next run.
 - **Machine with no Disk II controller**: `BPDISK` is an error, and the disk
-  values in an `IF` are unknown symbols.
-- **A slot other than the controller's**: `BPDISK S5 ...` is an error that
-  gives the slot of the machine's Disk II controller, the only one the
-  debugger reaches.
+  values are unknown symbols.
 - **Several disk breakpoints hit by one instruction**: one stop, reporting the
   lowest id; every matching breakpoint counts the hit, as other breakpoints
   do.
-- **Machine reset or switch**: a reset keeps disk breakpoints and their
-  vectors; a machine switch clears them with every other breakpoint.
+- **A disk breakpoint and another kind at one stop**: `BPM C0EC` and
+  `BPDISK READ` on the same `LDA $C08C,X` both stop after it, and a `BP` at
+  the routine an RWTS breakpoint resolved to stops before the same
+  instruction as it does. Every matching entry counts the hit, and the stop
+  reports one reason in the order FR-153 gives, with the disk report included.
+- **Machine reset or switch**: a reset or a power cycle keeps disk
+  breakpoints and resolves RWTS and driver breakpoints again from their
+  vectors, whose bytes a power cycle changes without a bus write; a machine
+  switch clears them with every other breakpoint.
 - **The Disk ][ debug window opened or closed while a disk breakpoint is
   armed**: neither affects the other; closing the window does not disarm the
   breakpoint, and the window's rows are unchanged by it.
@@ -1681,13 +1703,17 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   requires.
 - **FR-117**: The breakpoints pane MUST list every breakpoint and watchpoint, one
   row each, with a checkbox that enables or disables it and, beside it, the
-  mark of FR-092. Its columns MUST be: Name (what the breakpoint is: an address
-  or range with the symbol there where one is known, a source file and line, an
-  opcode, a register condition, an I/O range, BRK or an interrupt), Condition,
-  Hit count (the hits so far, "count only" for one that does not stop), Kind,
-  Address, Label (the symbol at the address), File (file and line, for one set
-  from source) and When hit (break, break once, count). Clicking a column's
-  heading MUST sort by it.
+  mark of FR-092. Its columns MUST be, in this order: Name (what the breakpoint
+  is: an address or range with the symbol there where one is known, a source
+  file and line, an opcode, a register condition, an I/O range, BRK, an
+  interrupt, or a disk event, FR-163), Condition, Labels (the symbol at the
+  address), Hit count (the hits so far, "count only" for one that does not
+  stop), Filter (kept from Visual Studio's layout and always empty, since
+  Casso has no process or thread to filter on), When hit (break, break once,
+  count), Function (the symbol an execution breakpoint stops at), File (the
+  source file and line, where one is known), Address (the address or range)
+  and Data (what a data breakpoint watches). Clicking a column's heading MUST
+  sort by it. Amended 2026-10-08 to the columns as built.
 - **FR-118**: A Show columns drop-down MUST choose which columns show, apart from
   Name, which always does; the choice MUST be kept across sessions. Condition
   and Hit count show by default.
@@ -1695,8 +1721,9 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
   offering a breakpoint at an address, a function breakpoint by symbol name, a
   data breakpoint on a read, a write or either over an address range, a
-  register condition, an opcode and an I/O range, each asking only for what
-  that kind needs; Delete, for the selected rows; Delete all; Enable all;
+  register condition, an opcode, an I/O range and a disk event (FR-163), each
+  asking only for what that kind needs; Delete, for the selected rows; Delete
+  all; Enable all;
   Disable all; Undo; Redo; Go to source code and Go to disassembly, for the
   selected row; Show columns; Export; and Import. A button that cannot act --
   nothing selected, nothing to undo, no source line for the selection -- MUST
@@ -1990,25 +2017,25 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 **Disk breakpoints**
 
 - **FR-142**: The debugger MUST offer disk breakpoints through one Casso
-  command, `BPDISK`, in the breakpoint family beside `BPBEAM`, reachable in
-  every mode under FR-014: `BPDISK` in AppleWin and Casso modes, `bpdisk` in
-  GSSquared mode, `/bpdisk` in Monitor mode and `!bpdisk` in WinDbg mode, with
-  numbers in the mode's own syntax. A disk breakpoint MUST be an entry of the
-  breakpoint table: it takes an id from the numbering breakpoints and
-  watchpoints share, an optional `IF` condition (FR-061), a hit count, and the
-  enabled, break, break once and count-only settings every breakpoint has.
-  Each mode's existing commands MUST list, clear, enable, disable, change
-  (`BPCHANGE`), edit (`BPEDIT`) and save (`BPSAVE`) it, listing it in that
-  mode's layout with its event where an address would be. Help MUST list
-  `BPDISK` with its syntax in the breakpoints section (FR-122, FR-123), and
-  setting one MUST print the line FR-129 requires.
+  command, `BPDISK`, reachable in every mode under FR-014: `BPDISK` in
+  AppleWin and Casso modes, `bpdisk` in GSSquared mode, `/bpdisk` in Monitor
+  mode and `!bpdisk` in WinDbg mode, with numbers in the mode's own syntax. A
+  disk breakpoint MUST be an entry of the breakpoint table: it takes an id
+  from the numbering breakpoints and watchpoints share, an optional `IF`
+  condition (FR-061), a hit count, and the enabled, break, break once and
+  count-only settings every breakpoint has. Each mode's existing commands MUST
+  list, clear, enable, disable, change (`BPCHANGE`), edit (`BPEDIT`) and save
+  (`BPSAVE`) it, listing it in that mode's layout with its event where an
+  address would be. A reset and a power cycle MUST keep it, as they keep every
+  breakpoint. Help MUST list `BPDISK` with its syntax in the breakpoints
+  section (FR-122, FR-123), beside `BPBEAM`, Casso's stop on a beam position,
+  and setting one MUST print the line FR-129 requires.
 - **FR-143**: A disk breakpoint MAY be limited to one drive (`D1`, `D2`);
-  without one it stops for either drive. It MAY give a slot (`S6`), which MUST
-  be the slot of the machine's Disk II controller and is that slot by default;
-  any other slot MUST be an error that gives the controller's slot. Casso
-  builds one Disk II controller per machine, and the debugger reaches only
-  that one. On a machine with no Disk II controller, `BPDISK` MUST be an
-  error.
+  without one it stops for either drive. It acts on the machine's Disk II
+  controller: Casso builds one per machine, and `BPDISK` takes no slot, which
+  a machine with a second controller would need first. The report gives the
+  controller's slot. On a machine with no Disk II controller, `BPDISK` MUST be
+  an error.
 - **FR-144**: A disk breakpoint MUST recognize fields in the nibbles the CPU
   received from the drive: a 16-sector address field after D5 AA 96 and a
   13-sector address field after D5 AA B5, each a 4-and-4 volume, track, sector
@@ -2017,22 +2044,26 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   16-sector (342 6-and-2 nibbles) and the 411th when it is 13-sector (410
   5-and-3 nibbles). It MUST keep each address field's stored checksum and
   compute the expected one, and MUST report a field whose checksum fails
-  rather than drop it; it MUST compute whether a data field's checksum is good
-  from the field's own nibbles. A nibble the CPU received is one the drive
-  assembled and the CPU then read from the latch: reading the same latch value
-  again, a read during the motor's spin-up (when the controller returns $80),
-  and anything from a drive with no disk are not. No field MAY be made of
-  nibbles from two disks.
+  rather than drop it; it MUST keep a data field's stored checksum and
+  compute the expected one from the field's own nibbles. A nibble the CPU
+  received is one the drive assembled and the CPU then read from the latch:
+  reading the same latch value again, a read during the motor's spin-up (when
+  the controller returns $80), and anything from a drive with no disk are
+  not. No field MAY be made of nibbles from two disks.
 - **FR-145**: `BPDISK READ track sector` MUST stop after the instruction that
   read the checksum nibble of a data field following an address field with
-  that track and sector number, whatever that field's checksum, without
-  waiting for the data epilogue. It MUST NOT stop for a data field the program
-  only passed over while it searched for a different address field: a data
-  field counts as read only when the instruction that read its first prologue
-  nibble is not the instruction that read the first prologue nibble of the
-  address field before it, the test that separates DOS 3.3's and ProDOS's read
-  routines from their search for the next address field (research R-041).
-  `PASSED` MUST make it stop on every such data field the CPU read in full.
+  that track and sector number, whatever that field's checksum, and whether
+  or not the data epilogue is read after it. It MUST NOT stop for a data field
+  the program only passed over while it searched for a different address
+  field: a data field counts as read only when the instruction that read its
+  checksum nibble is not the instruction that read the first prologue nibble
+  of the address field before it. A routine's search for an address field
+  reads every nibble that passes with the instruction that looks for D5,
+  while the body of a field it reads is read by instructions of their own;
+  that holds for DOS 3.3's RWTS and for the Disk II boot ROM's sector routine,
+  which reads the first nibble of both prologues with one instruction, and is
+  reasoned for ProDOS's driver (research R-041). `PASSED` MUST make it stop on
+  every such data field the CPU read in full.
 - **FR-146**: `BPDISK ADDRESS [track [sector [volume]]]` MUST stop after the
   instruction that read the checksum nibble of an address field whose numbers
   match those given, `*` or a missing number matching any. `BADSUM` MUST limit
@@ -2044,27 +2075,34 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **FR-147**: A breakpoint on a field MAY have marks of its own: `ADDR p1 p2
   p3` in place of the standard address prologues and `DATA p1 p2 p3` in place
   of the data prologue, each nibble two hex digits or `??` for any nibble, and
-  `FORMAT 13` or `FORMAT 16` for the length of a data field after a custom
-  address prologue, 16-sector by default. These marks MUST apply to that
-  breakpoint only; other breakpoints and the Disk ][ debug window MUST NOT be
-  affected. The disk inspector's decode settings (040's FR-019) MUST NOT apply
-  to breakpoints.
+  `SECTORS 13` or `SECTORS 16` for the length of a data field after a custom
+  address prologue, 16-sector by default. A breakpoint's own marks MUST
+  replace the standard ones for that breakpoint, and MUST apply to it only;
+  other breakpoints and the Disk ][ debug window MUST NOT be affected. The
+  disk inspector's decode settings (040's FR-019) MUST NOT apply to
+  breakpoints.
 - **FR-148**: `BPDISK HEAD [position] [BUMP]` MUST stop after the instruction
   that accessed a phase switch and so moved a drive's head onto a matching
   position: `QT first[:last]` a range of quarter tracks, `T first[:last]` the
   whole-track positions of a range of tracks, `HALF` any half-track position,
-  `QUARTER` any quarter-track position, and no position any move. With `BUMP`
-  it MUST also stop when the access energized a phase that drove the head
-  against its stop at track 0 or at the last quarter track. A phase switch
-  acts on a read as well as a write, so the access is either.
+  and no position any move. With `BUMP` it MUST also stop when the access
+  energized a phase that drove the head against its stop at track 0 or at the
+  last quarter track, provided the head's position after the bump matches the
+  position given, so `HEAD QT 0 BUMP` stops on a bump at track 0 and not on
+  one at the outer stop; with no position, on any bump. A phase switch acts on
+  a read as well as a write, so the access is either. Casso's stepper moves
+  the head in half-track steps, so away from the outer stop at quarter track
+  139 the head rests only on whole- and half-track positions; a stop on any
+  quarter-track position, which the request included, is left until a
+  stepper model holds the head between two adjacent phases (research R-041).
 - **FR-149**: `BPDISK WRITE` MUST stop: given a head position, written as for
   `HEAD`, or none, after the instruction that turned on write mode with the
   motor on and the head there; given `track sector`, after the instruction
   that wrote the third nibble of a data prologue following the CPU's read of
   an address field with that track and sector number; and given `BLOCKED`,
-  after the first instruction in a stretch of write mode, with the motor on,
-  that loaded the data latch while the disk was write-protected, which drops
-  the write. A dropped write MUST leave the disk unchanged, as it does today.
+  after the instruction whose latch load, the first in a stretch of write
+  mode, FR-161 reports as dropped by write protection. A dropped write MUST
+  leave the disk unchanged, as it does today.
 - **FR-150**: `BPDISK DOS track sector` MUST stop as `READ` does, for the
   physical sector that holds DOS 3.3 logical sector `sector` on `track`.
   `BPDISK BLOCK n` MUST stop after the second of ProDOS block n's two physical
@@ -2085,8 +2123,19 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   bytes as the machine holds them, so the breakpoint stops for DOS's own calls
   to RWTS, which do not go through $03D9, and for a DOS or ProDOS loaded at
   another address. Until the vector holds a target the breakpoint MUST be
-  listed as waiting, and a change to the vector's bytes MUST move it. Reading
-  the vector and the request MUST NOT disturb the machine.
+  listed as unresolved. The routine MUST be taken again after every CPU write
+  to the vector's bytes, every debugger write to memory (the memory editor,
+  `MEB` and the other memory commands, `PATCH`, `BLOAD`), a state file load,
+  every move through history, a keyframe the replayer loads while the machine
+  runs forward from history, a reset and a power cycle; and reverse continue's
+  stop test MUST take it at the start of each replay and after each write to
+  the vector's bytes during it. The watch on the vector's bytes MUST be
+  internal: it has no id, no row in any list and no hit count. The request
+  MUST be matched from the breakpoint's definition, before its `IF` condition
+  is evaluated, and MUST NOT be stored as that condition, so `BPL`, `BPSAVE`
+  and the Condition column show the user's condition alone, and `BPEDIT` and
+  Import never add the request to it a second time. Reading the vector and
+  the request MUST NOT disturb the machine.
 - **FR-152**: `BPDISK MOTOR [ON|OFF|STOPPED]` MUST stop after the instruction
   that started the motor (`ON`), after a motor-off access while the motor
   runs, which starts its one-second spindown (`OFF`), or after the
@@ -2105,18 +2154,28 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   condition MUST be evaluated only when the event matches, and a false one
   MUST neither stop the machine nor count a hit (FR-061). When one instruction
   matches several disk breakpoints, every one MUST count the hit, and the stop
-  MUST report the lowest id.
+  MUST report the lowest id. When a disk breakpoint and an entry of another
+  kind match at the same stop -- a watchpoint and a disk event raised by one
+  instruction, which both stop after it, or an address breakpoint and an RWTS
+  or driver breakpoint at one routine, which both stop before it -- every
+  matching entry MUST count the hit, and the stop MUST report one reason:
+  `breakpoint` ahead of `disk` at a stop before an instruction, `watchpoint`
+  ahead of `disk` at a stop after one, with the lowest matching id of the kind
+  reported, and the disk report MUST be included whenever a disk entry
+  matched. A breakpoint before the instruction that follows a disk stop is
+  tested when the run resumes, as it is after a watchpoint stop today.
 - **FR-154**: Every disk stop MUST report the breakpoint's id, its event, the
   slot and drive, the drive's head as a quarter track and as a track (17.5 for
   a half track), whether the motor runs, and the address of the instruction
   responsible: the one that read, wrote or accessed what the event is about,
   or the one during which a spindown ended or a disk changed. In addition:
   - a sector read: the address field's track, sector and volume, its format,
-    its stored and expected checksums, whether the data checksum is good, the
-    three nibbles after the data checksum as they lie on the track, read
-    without moving the drive or the latch, whether those lie in a region the
-    drive reads at random, and the instruction that read the address field's
-    first prologue nibble;
+    its stored and expected checksums, the data field's stored and expected
+    checksums and whether they agree, the three nibbles after the data
+    checksum as they lie on the track, read without moving the drive or the
+    latch, whether those lie in a region the drive reads at random, and the
+    instructions that read the first prologue nibble of the address field and
+    of the data field;
   - an address field: its numbers, format and checksums, and whether its
     track number matches the head's track;
   - a head stop: the previous quarter track, the phase magnets that are on,
@@ -2140,20 +2199,24 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   report's fields (contracts/debug-channel-protocol.md). A disk breakpoint
   MUST appear in `breakpointSet` and `breakpointList` with kind `disk` and a
   `disk` object holding its event and arguments.
-- **FR-156**: Every `IF` condition, on any breakpoint or watchpoint, MUST be
-  able to read the Disk II controller's state through these symbols:
+- **FR-156**: Every expression -- an `IF` condition on any breakpoint or
+  watchpoint, `CALC`, and an address argument alike, since all of them resolve
+  symbols through the session -- MUST be able to read the Disk II
+  controller's state through these symbols:
   `DISK.DRIVE` (the selected drive, 1 or 2), `DISK.QTRACK` (the selected
   drive's head, in quarter tracks), `DISK.QTRACK1` and `DISK.QTRACK2` (each
   drive's head), `DISK.MOTOR` (1 while the motor runs, its spindown second
   included), `DISK.WRITING` (1 in write mode), `DISK.PROTECTED` (1 when the
   selected drive's disk is write-protected), `DISK.INSERTED` (1 when the
   selected drive holds a disk), and `DISK.ATRACK`, `DISK.ASECTOR` and
-  `DISK.AVOLUME` (the last address field with a good checksum among the
-  nibbles the controller keeps under FR-158, or $FFFF when there is none).
-  They MUST be read from the controller's state, never through the bus, so
-  reading them changes nothing (FR-061). They MUST take precedence over
-  program symbols of the same names, as `ACCESS` and `VALUE` do. On a machine
-  with no Disk II controller they MUST be unknown symbols.
+  `DISK.AVOLUME` (the selected drive's last address field with a good
+  checksum among the nibbles the controller keeps under FR-158, or $FFFF when
+  there is none). They MUST be read from the controller's state, never through
+  the bus, so reading them changes nothing (FR-061). They MUST take precedence
+  over program symbols of the same names in every expression, as `ACCESS` and
+  `VALUE` do in a condition, so a program symbol with one of these names
+  cannot be used in an expression. On a machine with no Disk II controller
+  they MUST be unknown symbols.
 - **FR-157**: The Disk ][ debug window MUST keep its event listener and MUST
   receive the events it receives today, whether or not disk breakpoints are
   armed. The debugger MUST have a listener of its own, which opening, closing
@@ -2161,15 +2224,16 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   detach. With neither listener attached, each place the controller reports
   an event MUST cost what it costs today: one test that nothing is attached.
 - **FR-158**: The controller MUST keep, as part of the machine's saved state,
-  the most recent nibbles the CPU received from or wrote to the drives -- at
-  least the longest field and the address field before it -- each with its
-  drive, whether it was read or written, whether it passed during spin-up or
-  write protection dropped it, and the address of the instruction that read
-  or wrote it. Disk breakpoints MUST be matched from these, so a breakpoint
-  set partway through a field, a replay that starts from a snapshot taken
-  partway through one, and a run after a step back or a seek all match fields
-  exactly as an uninterrupted forward run does. A machine state saved before
-  this change MUST still load, with no nibbles kept.
+  the most recent nibbles the CPU received from the drives and the latch
+  loads FR-161 reports -- at least the longest field and the address field
+  before it -- each with its drive, whether it was read or written, whether it
+  passed during spin-up or write protection dropped it, and the address of the
+  instruction that read or wrote it. Disk breakpoints MUST be matched from
+  these, so a breakpoint set partway through a field, a replay that starts
+  from a snapshot taken partway through one, and a run after a step back, a
+  seek or a keyframe loaded while running forward from history all match
+  fields exactly as an uninterrupted forward run does. A machine state saved
+  before this change MUST still load, with no nibbles kept.
 - **FR-159**: Reverse continue MUST stop on disk breakpoints of every kind at
   the latest hit before where the machine stood -- the instruction a forward
   run from an earlier point stops at -- a disk inserted or ejected in the
@@ -2180,7 +2244,15 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   listener while it replays. Running forward from a point in history MUST
   stop on disk breakpoints and count their hits as a live run does. This
   extends to disk breakpoints the decision that conditions and watchpoints
-  work in reverse (research R-040, task T466).
+  work in reverse (research R-040, task T466). Step back, seek, reverse
+  continue, running forward from history and the recorded history itself are
+  as research R-040 defines them in "As built 2026-10-03" and "Running forward
+  from history", which are normative for this requirement and FR-158: history
+  is keyframes and an input journal; a step back and a seek load the keyframe
+  at or before their target and replay forward to it; reverse continue
+  replays stretches newest first through a stop test and lands on the latest
+  hit; and running or stepping while behind live replays the recorded future
+  in place with the debugger attached.
 - **FR-160**: Each drive MUST keep its own head position (GH #135): a phase
   change MUST move only the selected drive's head, and selecting a drive MUST
   NOT move its head to the other drive's position. This changes the emulation,
@@ -2189,19 +2261,27 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   behind 040's head-state record (its FR-062), built once (FR-162); a
   breakpoint reads it at the event, not at that record's once-a-frame update.
 - **FR-161**: The controller MUST report, from one place in its write path,
-  each load of the data latch in write mode, with the drive, the nibble, the
-  head's position and whether write protection dropped it. The write events
-  of FR-149, the written nibbles of FR-158 and 040's count of guest writes per
-  track record (its FR-068) MUST all come from that place, built once
-  (FR-162). A write that write protection dropped MUST NOT count as a write to
-  the track.
+  each load of the data latch in write mode while the motor runs, its
+  spindown included (the `DISK.MOTOR` of FR-156), with the drive, the nibble,
+  the head's position and whether write protection dropped it; a load with
+  the motor stopped, which writes nothing to the disk, and the //c's load of
+  its mode register are not reported. The write events of FR-149, the written
+  nibbles of FR-158 and 040's count of guest writes per track record (its
+  FR-068) MUST all come from that place and that rule, built once (FR-162). A
+  write that write protection dropped MUST NOT count as a write to the track.
 - **FR-162**: The field definitions and the matching of marks with `??`
   (040's FR-011, FR-012 and FR-019), each drive's head position behind 040's
   head-state record (its FR-062), and the guest-write hook behind 040's write
   counts (its FR-068) MUST each be one implementation. Whichever of 035 and
   040 merges first MUST build it, and the other MUST use it rather than build a
-  second. The disk breakpoint kinds this feature ships MUST NOT depend on
-  anything else of 040's, and neither feature MAY take the Disk ][ debug
+  second. The three-nibble mark pattern with `??`, its match against a run of
+  nibbles and the 13- or 16-sector format kind MUST be in CassoCore, where
+  `BPDISK`'s parser is; the field tables, translate tables and checksum rules
+  MUST be in CassoEmuCore's `Devices/Disk/`. What is shared is the pattern and
+  its match: whether custom marks replace the standard ones (this feature,
+  FR-147) or are matched in addition to them (040's FR-019) is each feature's
+  own decision. The disk breakpoint kinds this feature ships MUST NOT depend
+  on anything else of 040's, and neither feature MAY take the Disk ][ debug
   window's listener.
 - **FR-163**: The Breakpoints pane's New drop-down (FR-119) MUST offer "Disk
   event...", which opens the breakpoint dialog on a Disk type: an event list
@@ -2209,23 +2289,26 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   block, RWTS call, ProDOS driver call, Motor, Drive select, Disk inserted,
   Disk ejected), a drive list (Either drive, Drive 1, Drive 2), the fields and
   options the chosen event takes, and the condition, giving back the `BPDISK`
-  definition `BPEDIT` reads. The pane's columns as built -- Name, Condition,
-  Labels, Hit count, Filter, When hit, Function, File, Address and Data --
-  MUST show a disk breakpoint with its event and arguments in Name ("Disk
-  sector read, track $11 sector $00, drive 1"), the routine an RWTS or driver
-  breakpoint resolved to, or "waiting", in Address, that routine's symbol in
-  Function and Labels, the slot and drive in Data, and the other columns as
-  for any breakpoint. Go to disassembly MUST go to that routine, and MUST be
+  definition `BPEDIT` reads. The pane's columns (FR-117) MUST show a disk
+  breakpoint with its event and arguments in Name ("Disk sector read, track
+  $11 sector $00, drive 1"), the routine an RWTS or driver breakpoint resolved
+  to, or "unresolved", in Address, that routine's symbol in Function and
+  Labels, the controller's slot and the drive in Data, and the other columns
+  as for any breakpoint. Go to disassembly MUST go to that routine, and MUST be
   disabled for the other disk kinds; the code pane's gutter MUST mark a
   resolved routine. Undo, Redo, Export and Import MUST treat disk breakpoints
   as they treat every other kind: a deleted one comes back with its event,
   arguments, marks, condition, enabled state and When hit setting, and Import
   reads `BPDISK` lines in any mode's form.
 - **FR-164**: With no disk breakpoint armed, the Disk ][ debug window closed
-  and the trace off, emulation MUST run as FR-064 requires, and keeping the
-  recent nibbles of FR-158 MUST fit within SC-008. With disk breakpoints
-  armed, emulation MUST cost no more than with one armed memory watchpoint
-  (SC-041).
+  and the trace off, emulation MUST run as FR-064 requires, its one exception
+  included: keeping the recent nibbles of FR-158 MUST fit within SC-008. With
+  disk breakpoints armed, emulation MUST cost no more than SC-041 allows: a
+  field, head, write, motor, select, insert or eject breakpoint no more than
+  one armed memory watchpoint, and an RWTS or driver breakpoint, whose
+  vector's watch puts page $03 or page $BF on the watched-write path, no more
+  than one armed address breakpoint and one write watchpoint on the vector's
+  bytes.
 - **FR-165**: `docs/Debugger.md` MUST describe disk breakpoints: each kind,
   the stop report, the disk values, the read test and `PASSED`, why RWTS and
   driver breakpoints follow their vectors rather than stop at $03D9, reverse
@@ -2238,7 +2321,12 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **FR-064**: With no debugger window open and no trace, watch or hook
   active, emulation MUST run the same code path and at the same speed as
   before this feature, within measurement noise. The call-stack record is a
-  hook in this sense: it runs only while the debugger is attached.
+  hook in this sense: it runs only while the debugger is attached. One
+  exception, added 2026-10-08 with User Story 20: the Disk II controller's
+  record of recent nibbles (FR-158) is machine state, not a hook, so it is
+  kept whether or not the debugger is open; it costs a few stores per nibble
+  the CPU receives or writes and nothing while the drive is idle, and is held
+  within SC-008 (FR-164).
 
 **Release material**
 
@@ -2277,9 +2365,9 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **Disk breakpoint**: A breakpoint on a disk event: its event (sector read,
   address field, head position, write, DOS 3.3 sector, ProDOS block, RWTS
   call, ProDOS driver call, motor, drive select, disk inserted, disk ejected),
-  the slot and drive it is limited to, the event's arguments and options, any
-  marks of its own, and, for an RWTS or driver call, the vector it follows and
-  the routine that vector holds now.
+  the drive it is limited to, the event's arguments and options, any marks of
+  its own, and, for an RWTS or driver call, the vector it follows and the
+  routine that vector holds now, or none while it is unresolved.
 - **Disk report**: What a disk stop reports: the event, drive, head position,
   motor state and responsible instruction, and the fields, checksums, request
   or disk the event concerns (FR-154).
@@ -2292,6 +2380,9 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   protection, disk present, and the last address field.
 - **Head position**: Each drive's own quarter track, which the head-state
   record of the disk inspector (040) reports as well.
+- **Recorded history**: The keyframes and input journal research R-040
+  records while the machine runs, which a step back, a seek, reverse continue
+  and running forward from history replay (FR-159).
 - **Watchpoint**: A stop condition on a read or write of an address or range,
   stopping either after the access (the default, which reports the value and
   the value a write replaced) or before the instruction that would make it;
@@ -2423,14 +2514,14 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   into each of their combinations, `map` shows, for 100% of address ranges,
   the same read and write targets the machine then uses.
 - **SC-037**: Booting DOS 3.3 and ProDOS, a sector read breakpoint on each
-  sector the operating system reads stops once for each time it reads that
-  sector, and never for a sector it only passed over while searching, in
-  100% of the reads in the boot fixtures.
+  sector the Disk II boot ROM or the operating system reads stops once for
+  each time it reads that sector, and never for a sector only passed over
+  while searching, in 100% of the reads in the boot fixtures.
 - **SC-038**: Every disk breakpoint kind stops at its event on fixture disks
-  -- 16-sector, 13-sector, an address field with a failed checksum, a
-  write-protected disk, a step onto a half track, nonstandard marks -- in
-  100% of cases, and every field of its report matches the value the fixture
-  was built with.
+  built in the tests -- 16-sector, 13-sector, an address field with a failed
+  checksum, a write-protected disk, a step onto a half track, nonstandard
+  marks -- in 100% of cases, and every field of its report matches the value
+  the fixture was built with.
 - **SC-039**: Every disk breakpoint kind can be set, listed and cleared from
   each of the five modes, and set, edited, disabled, deleted, undone,
   exported and imported from the Breakpoints pane alone, in 100% of kinds.
@@ -2440,8 +2531,9 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   from, and no step back, seek or reverse continue changes a hit count.
 - **SC-041**: With a disk breakpoint armed and the drive idle, emulation
   throughput is no lower than with one memory watchpoint armed, measured the
-  same way; with none armed and the Disk ][ debug window closed, SC-008 still
-  holds.
+  same way, and with an RWTS or a driver breakpoint armed no lower than with
+  one address breakpoint and one write watchpoint on its vector's bytes; with
+  none armed and the Disk ][ debug window closed, SC-008 still holds.
 - **SC-042**: For the same run, the Disk ][ debug window shows identical rows
   with disk breakpoints armed and with none.
 - **SC-043**: After any step back or seek, every disk value an `IF` can read
@@ -2612,9 +2704,10 @@ debug channel.
 
 - **One Disk II controller per machine**: the machine builder keeps the first
   Disk II controller it finds, and slot 6 is assumed in several places, so a
-  disk breakpoint's slot is that controller's (slot 6 on every shipped
-  machine, the //c's built-in drive included). Reaching a second controller
-  would need the builder to keep more than one, which no shipped machine has.
+  disk breakpoint acts on that controller (slot 6 on every shipped machine,
+  the //c's built-in drive included) and `BPDISK` takes no slot. Reaching a
+  second controller would need the builder to keep more than one, which no
+  shipped machine has; a slot option comes with that machine.
 - **Where RWTS and the ProDOS driver find their requests**: DOS 3.3 calls
   RWTS with the IOB's address in Y (low) and A (high); the IOB holds the slot
   times 16 at +1, the drive at +2, the volume at +3, the track at +4, the
@@ -2632,12 +2725,37 @@ debug channel.
   ProDOS only, and opens no 13-sector sector image (GH #164), so `DOS` and
   `BLOCK` are for 16-sector disks; `READ` and `ADDRESS` work on 13-sector
   fields by their physical numbers.
-- **The read test** of FR-145 is reasoned from DOS 3.3's and ProDOS's read
-  routines, whose search for an address field reads every nibble that passes,
-  data fields included. The first task of the story measures it on real DOS
-  3.3 and ProDOS boots before anything relies on it; if a loader reads its
-  address and data fields with one shared instruction, `PASSED` is the way to
-  stop on its reads.
+- **No 13-sector boot**: `AssetBootstrap` and `scripts/FetchRoms.ps1` fetch
+  `Disk2_13Sector.rom`, but every machine wires `Disk2.rom`, whose sector
+  routine matches only D5 AA 96, so a 13-sector disk does not boot in Casso.
+  The 13-sector cases run on disks and programs built in tests.
+- **The read test** of FR-145 was checked by reading code, not by running it.
+  DOS 3.3's RWTS as the System Master holds it searches for an address field
+  in RDADR16 ($B944), whose `LDA $C08C,X` at $B94F reads every nibble that
+  passes, data fields included, and reads a data field in READ16 ($B8DC),
+  whose checksum nibble comes in at $B925. The Disk II boot ROM's sector
+  routine at $Cn5C reads the first nibble of the address prologue and of the
+  data prologue with one `LDA $C08C,X` at $Cn5E, since it branches back to
+  $Cn5D after a sector match, and reads the body and the checksum nibble
+  ($CnCB) with `LDY` instructions of their own. ProDOS's driver is reasoned to
+  follow DOS's pattern. The first task of the story measures all three on
+  real boots before anything relies on the test; if a loader reads a data
+  field's checksum nibble with the instruction that found its address
+  prologue, `PASSED` is the way to stop on its reads.
+- **Where DOS 3.3 enters RWTS**: the System Master's DOS image holds a single
+  `JSR` to RWTS's entry ($BD00 once relocated), at $B7B7 in the routine at
+  $B7B5 that DOS's own reads and writes go through, and no call through
+  $03D9; every `JSR` to RDADR16 and READ16 lies in RWTS's own pages, $BD to
+  $BF. That is a reading of the image, not a run: the first task records every
+  entry at the JMP's target and every call to RDADR16 on a real boot, and
+  scenario 9 and the "A relocated DOS" edge case change with the owner if a
+  call reaches RWTS's routines by another entry.
+- **The stepper with the motor off**: Casso's `Disk2Controller::HandlePhase`
+  moves the head whatever the motor's state. Whether a real drive's stepper
+  moves while its drive is not enabled has not been checked against Sather's
+  *Understanding the Apple IIe*, chapter 9; this spec requires neither
+  behavior, and T714 checks the book and files a GitHub issue if the model
+  differs from it.
 - **The Disk ][ debug window's rows** belong to spec 006 and are not changed
   here. Its "Data read" event fires after the full DE AA EB epilogue, which a
   DOS read may never reach, so its rows may show sectors passed over rather

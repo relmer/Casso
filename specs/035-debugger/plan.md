@@ -98,7 +98,11 @@ instruction for the hook, one for the trace gate, an empty watch mask
 (FR-064, SC-008). With the window open and the trace off, throughput within 3%
 of closed (SC-009): panes read a snapshot the CPU thread builds once per frame,
 never the live machine. The trace's cost is paid only while on (R-025).
-Profiling counts in the hook only while on (R-026).
+Profiling counts in the hook only while on (R-026). One exception to "the
+same code", from story 20: the Disk II controller's record of recent nibbles
+(FR-158) is machine state, kept whether or not the debugger is open, at a few
+stores per nibble the CPU receives or writes and nothing while the drive is
+idle (FR-064, FR-164); T732 measures it against T165's baseline for SC-008.
 
 **Constraints**:
 
@@ -182,6 +186,16 @@ No cost is added to the idle path (FR-064); the trace and the profile cost
 only while on; the window reads snapshots (R-025, R-026, R-034). SC-008 and
 SC-009 are measured with the pinned A/B procedure the branch already used
 for the hook. **PASS.**
+
+**Re-checked 2026-10-08 for story 20.** The nibble record (FR-158) adds a
+cost to the path FR-064 covers, and FR-064 now states it as its one
+exception: machine state rather than a hook, so a replay and a step back
+match fields as a forward run does (R-041, "Where fields are decoded"). The
+cost is a few stores per nibble the CPU receives or writes, none while the
+drive is idle, and it must fit within SC-008 against T165's baseline, which
+T732 measures before the story merges; armed breakpoints are held to SC-041.
+**PASS, with the exception recorded in FR-064 and the Complexity Tracking
+table.**
 
 ### V. Simplicity & Maintainability
 
@@ -362,21 +376,28 @@ objects.
   event tests one dispatch pointer, null, either sink, or a `Disk2EventTee`
   when both are set. `OnWriteMode` joins `IDisk2EventSink` with an empty
   default. Each drive keeps its own quarter track. One write hook reports each
-  latch load in write mode with whether write protection dropped it. A
-  512-entry `Disk2NibbleRecord` of the nibbles the CPU received or wrote, with
-  each one's instruction address from `MachineHost`, joins the saved state
-  (version 2; version 1 loads with an empty record).
+  latch load in write mode while the motor runs, with whether write
+  protection dropped it. A 512-entry `Disk2NibbleRecord` of the nibbles the
+  CPU received or wrote, with each one's instruction address from
+  `MachineHost`, joins the saved state (the next state version; every earlier
+  one loads with an empty record).
+- **Shared parts**: `DiskMarkPattern` and `DiskFieldKind` in CassoCore, where
+  `AppleWinParser` builds `DiskBreakSpec`; `DiskFieldFormat` in
+  `CassoEmuCore/Devices/Disk/` (FR-162).
 - **Debugger**: `DiskFieldTracker` decodes 16- and 13-sector fields from the
   record with the shared `DiskFieldFormat` and `DiskMarkPattern`; the
   `DiskBreakpointMonitor` sits in the debugger's slot while a disk breakpoint
   is armed, reads the record at each instruction boundary, matches the
   table's `Disk` entries, and holds the pending stop and its `DiskReport` for
   the session, which reports it with `StopReason::Disk`. RWTS and driver
-  breakpoints are address entries on the routine their vector holds,
-  re-targeted by a watch on the vector's bytes, with a condition over the IOB
-  or the driver's zero page. `DebugSession::TryResolveSymbol` resolves the
+  breakpoints stop on the routine their vector holds, taken again by
+  `DiskCallVector` after a write to the vector's bytes (an internal watch with
+  no id) and after every other change FR-151 lists; the request in the IOB or
+  the driver's zero page is matched from the `DiskBreakSpec`, never stored as
+  the entry's condition. `DebugSession::TryResolveSymbol` resolves the
   `DISK.` values through `DiskValueSymbols`, from
-  `IDebugTarget::TryGetDiskState`, before it looks in the symbol tables.
+  `IDebugTarget::TryGetDiskState`, before it looks in the symbol tables, so
+  they serve every expression.
 - **Reverse**: `IReverseStopTest::GetDiskSink`; `Replayer` swaps the debugger
   slot as it swaps the hook and the watch sink, and reports bays whose disk a
   boundary snapshot changed; trackers prime from the restored record.
@@ -485,10 +506,14 @@ landing as its own merge to the branch and gated by the full suite:
   fixtures make the mapping visible before the reader depends on it.
 - **The old `.dbg` and the new one share an extension.** Detection is by
   contents; the sweep test loads one of each and checks both.
-- **The read test is reasoned, not run** (R-041). If DOS 3.3's or ProDOS's
-  read routine finds its data field with the instruction that finds address
-  fields, FR-145's default misses real reads. T712 measures it on both boots
-  before anything is built on it, and the spec changes first if it fails.
+- **The read test is checked by reading code, not run** (R-041). It
+  compares the instruction that read a data field's checksum nibble with the
+  one that read its address prologue's first nibble, which separates DOS
+  3.3's RDADR16 from READ16 and the boot ROM's search loop from its body
+  loops. If a loader reads a checksum nibble with the instruction that found
+  the address field, FR-145's default misses its reads. T712 measures it on
+  both boots, the ROM's reads included, before anything is built on it, and
+  the spec changes first if it fails.
 - **Each drive's own head changes the emulation** (GH #135). A program that
   relied on the shared position, which no real drive has, would now behave as
   on hardware. The scenario suite's DOS 3.3 and ProDOS boots run on it, since
@@ -651,19 +676,22 @@ Disk breakpoints (story 20, R-041), new and changed:
 CassoCore/Debugger/
 ├── DiskBreakSpec.h                          # NEW: what BPDISK was given (API type)
 ├── DebugCommand.h                           # CHANGE: DebugVerb::SetDiskBreakpoint, the parsed spec
-├── AppleWinCommandTable.cpp                 # CHANGE: BPDISK in the breakpoint family
+├── AppleWinCommandTable.cpp                 # CHANGE: BPDISK in the Breakpoints family
 ├── CassoCommandReference.cpp                # CHANGE: BPDISK's syntax and description
 └── AppleWinParser.cpp                       # CHANGE: the BPDISK grammar
 
+CassoCore/                                   # shared with 040, built by whichever merges first
+├── DiskMarkPattern.h/.cpp                   # NEW: three-nibble marks with ?? matching (pure)
+└── DiskFieldKind.h                          # NEW: Sixteen or Thirteen
+
 CassoEmuCore/Devices/Disk/                   # shared with 040, built by whichever merges first
-├── DiskFieldFormat.h/.cpp                   # NEW: 16- and 13-sector field definitions, tables, checksums
-└── DiskMarkPattern.h/.cpp                   # NEW: three-nibble marks with ?? matching
+└── DiskFieldFormat.h/.cpp                   # NEW: 16- and 13-sector field definitions, tables, checksums
 
 CassoEmuCore/Machines/Apple2/Common/
 ├── IDisk2EventSink.h                        # CHANGE: OnWriteMode with an empty default
 ├── Disk2EventTee.h/.cpp                     # NEW: forwards each event to two sinks
 ├── Disk2NibbleRecord.h/.cpp                 # NEW: the saved record of recent nibbles
-├── Disk2Controller.h/.cpp                   # CHANGE: debugger slot and dispatch; head per drive; write hook; record; state v2
+├── Disk2Controller.h/.cpp                   # CHANGE: debugger slot and dispatch; head per drive; write hook; record; the next state version
 └── Disk2NibbleEngine.h/.cpp                 # CHANGE: its own head position; look-ahead on a copy of its state
 
 CassoEmuCore/Shell/

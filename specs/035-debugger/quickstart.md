@@ -255,32 +255,42 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
    one hit. No stop comes from the sectors DOS passes over on the way
    (SC-037).
 2. `BPC *`, `BPDISK READ 11 0 PASSED`, power cycle, `G`. Expect a stop, and
-   the report's two instruction addresses equal, if DOS passes over that
-   sector before reading it.
-3. `BPC *`, `BPDISK RWTS 11 0 READ` before booting, `BPL`. Expect it listed
-   as waiting for $03D9; `G`. Expect a stop before RWTS's first instruction,
-   with the IOB's request, though the file manager calls RWTS directly.
-4. ProDOS fixture: `BPDISK DRIVER BLOCK 2`, then `BPDISK BLOCK 2`, `G` twice.
+   the instruction that read the checksum nibble equal to the one that found
+   the address field ($B94F), if DOS passes over that sector before reading
+   it.
+3. `BPC *`, `BPDISK READ 0 0`, power cycle, `G`. Expect a stop after the boot
+   ROM's instruction that read the checksum nibble of track 0 sector 0
+   ($C6CB in slot 6), though the ROM finds both prologues with one
+   instruction ($C65E).
+4. `BPC *`, `BPDISK RWTS 11 0 READ` before booting, `BPL`. Expect it listed
+   as unresolved, with its vector at $03D9; `G`. Expect a stop before RWTS's
+   first instruction, with the IOB's request, though DOS's own calls reach
+   RWTS through $B7B5 rather than $03D9.
+5. `BPC *`, `BPDISK RWTS 11 0 READ IF A == 0`, `BPSAVE`, `BPC *`, then run
+   the lines `BPSAVE` wrote. Expect one breakpoint whose condition is
+   `A == 0` alone, since the request is part of its definition (FR-151).
+6. ProDOS fixture: `BPDISK DRIVER BLOCK 2`, then `BPDISK BLOCK 2`, `G` twice.
    Expect the driver stop first, then the block stop with both physical
    sectors and "ProDOS order assumed".
-5. `BPDISK HEAD QT 0 BUMP` and a power cycle. Expect the boot ROM's
+7. `BPDISK HEAD QT 0 BUMP` and a power cycle. Expect the boot ROM's
    recalibration, which drives the head against track 0, to stop it. `BPC *`,
    `BPDISK HEAD HALF`, run on. Expect a stop as the boot seeks through the
    half track on its way to track 1. `BPDISK D2 SELECT` stops only when a
    program selects drive 2.
-6. `BP RWTS IF DISK.QTRACK == 44`. Expect a stop only on RWTS calls made with
-   the head on track 17; `IF *C0EC == 0` is still an error (FR-061).
-7. In GSSquared mode `bpdisk motor on`, in Monitor mode `/bpdisk eject`, in
+8. `BP RWTS IF DISK.QTRACK == 44`. Expect a stop only on RWTS calls made with
+   the head on track 17, and `CALC DISK.QTRACK` at that stop to give 44;
+   `IF *C0EC == 0` is still an error (FR-061).
+9. In GSSquared mode `bpdisk motor on`, in Monitor mode `/bpdisk eject`, in
    WinDbg mode `!bpdisk select`, then each mode's list command. Expect the
    same three breakpoints in each mode's layout.
-8. Window: New > Disk event..., Sector read, track 11, sector 0, Drive 1.
-   Expect a row "Disk sector read, track $11 sector $00, drive 1"; Export,
-   Delete all, Import. Expect it back with its condition and When hit
-   setting; Undo and Redo the Delete all.
-9. History: run past the stop of step 1, then reverse continue. Expect the
-   same instruction and an unchanged hit count (SC-040). Step back five
-   instructions and run on. Expect the same stop again.
-10. Open the Disk ][ debug window, repeat step 1, and compare its rows with a
+10. Window: New > Disk event..., Sector read, track 11, sector 0, Drive 1.
+    Expect a row "Disk sector read, track $11 sector $00, drive 1"; Export,
+    Delete all, Import. Expect it back with its condition and When hit
+    setting; Undo and Redo the Delete all.
+11. History: run past the stop of step 1, then reverse continue. Expect the
+    same instruction and an unchanged hit count (SC-040). Step back five
+    instructions and run on. Expect the same stop again.
+12. Open the Disk ][ debug window, repeat step 1, and compare its rows with a
     run with no disk breakpoint (SC-042).
 
 ## Release
