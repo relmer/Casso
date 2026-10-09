@@ -24,6 +24,20 @@ Entries before versioning was introduced use dates only.
 - The disk head now lands at the same point of the revolution when it steps
   between tracks of different lengths, which cross-track-synchronized copy
   protection depends on.
+- The //e and //c screen no longer shows auxiliary memory in 40-column text,
+  lo-res or hi-res while a program has switched auxiliary memory in for the
+  processor. Copy text copies the text the screen shows.
+- After a switch to another machine, the screen updates as the program draws.
+  It had repainted only about four times a second until Casso restarted.
+- On the //c, reading $C07E or $C07F returns the IOUDIS or DHIRES status bit
+  without switching IOU access, so a program that acknowledges the VBL
+  interrupt with LDA $C07E keeps its mouse and VBL interrupt settings.
+- Reading $C00C-$C00F returns the keyboard, as on a real //e or //c, instead of
+  switching the 80-column display or the character set.
+- On the //e, a write to $C3xx, or a read of it with INTCXROM on, now activates
+  the 80-column firmware's ROM at $C800-$CFFF, as on a real //e.
+- On the //c, the mouse pointer no longer moves toward the wrong spot while a
+  program has switched auxiliary memory in.
 
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 
