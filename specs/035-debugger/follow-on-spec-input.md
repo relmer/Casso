@@ -24,9 +24,9 @@ Run `/speckit-specify` with the text below as a new feature once 035 closes.
    session's file, with a divider row showing that session's date and
    machine, so history reads as one list. A setting caps how many sessions
    are kept. (GS2 writes one fixed binary file, overwritten on every quit.)
-4. **Debug projects.** A project keeps a program's source, debug file,
-   symbols, breakpoints, watches, layout and trace history together, opened
-   and saved as one. The per-session trace files of item 3 live in it.
+4. **Debug projects.** Moved into 035 on 2026-10-09 at the owner's request:
+   a debugger project that keeps all debugger state ships with 035's first
+   release. Item 3's per-session trace files live in those projects.
 5. **MCP adapter.** A small program speaking MCP over stdio that forwards
    typed tools (run a command in a mode, step, set a breakpoint, read memory,
    take a screenshot) to the existing debug channel, for AI clients without
@@ -54,10 +54,21 @@ Run `/speckit-specify` with the text below as a new feature once 035 closes.
    `CassoCore/Disassembler.h` claiming a file has no entry point is wrong
    for those and gets corrected.
 
+7. **Debugging other languages, one by one by popularity.** 035 ships
+   Applesoft BASIC source-level debugging (owner, 2026-10-09). Next, each its
+   own spec, in order of popularity: Integer BASIC with SWEET16 (same
+   framework as Applesoft: listing, current line, statement stepping, line and
+   variable breakpoints, variables, its own stack); Apple Pascal (UCSD p-System:
+   p-code disassembly, p-machine registers, procedure names from the segment
+   dictionary, breakpoints on procedures and offsets, source lines where the
+   compiler kept a listing); Forth (GraFORTH, fig-FORTH: word-level stepping,
+   data and return stacks); Logo; Applesoft compilers (TASC, Einstein: line
+   mapping from the compiler's listing); Aztec C debug info.
+
 ## Notes for planning
 
 - 035 FR-141 adds the agent doc for `CassoCli --attach`; the MCP adapter
   builds on it.
-- Item 4 changes where item 3 stores files; spec them together.
+- Item 3 stores its trace files in 035's debug projects (item 4, now in 035).
 - Out of scope: IIgs modes (SHR, `map` of IIgs banks) until a IIgs machine
   exists.

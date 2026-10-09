@@ -105,7 +105,7 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (7, BreakpointKind::Address, 0x0803));
 
             Assert::AreEqual (std::string ("src/main.s, line 12"), Cell (snapshot, 0, Column::Name));
-            Assert::AreEqual (std::string ("src/main.s:12"),       Cell (snapshot, 0, Column::File));
+            Assert::AreEqual (std::string ("src/main.s, line 12"), Cell (snapshot, 0, Column::File), L"written as Name writes it");
             Assert::AreEqual (std::string ("$0803"),               Cell (snapshot, 0, Column::Address));
             Assert::AreEqual (std::string ("Execution"),           Cell (snapshot, 0, Column::Kind), L"the File column shows the line, so it is no kind of its own");
         }

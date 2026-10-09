@@ -50,7 +50,7 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
     if (isOnSourceLine)
     {
         sourceLine = std::format ("{}, line {}", file, line);
-        cells[(size_t) Column::File] = std::format ("{}:{}", file, line);
+        cells[(size_t) Column::File] = sourceLine;
     }
 
     cells[(size_t) Column::Name]      = GetName (bp, sourceLine);
