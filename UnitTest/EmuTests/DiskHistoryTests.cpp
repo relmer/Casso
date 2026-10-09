@@ -221,6 +221,68 @@ public:
     }
 
 
+    //  A replayed reset must not run the reset's flush, through the store or
+    //  around it. The disk has no file behind it, so a write around the store
+    //  has nowhere to go, yet it still clears the dirty bit without reaching
+    //  the counting sink: the replayed disk staying dirty is what shows
+    //  nothing wrote it.
+    TEST_METHOD (ReplayingAResetWritesNothing)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           resetAt    = 0;
+        uint64_t           liveEnd    = 0;
+        uint64_t           checksum   = 0;
+        size_t             liveCount  = 0;
+        size_t             keyframe   = 0;
+        bool               isSaved    = false;
+        bool               isFound    = false;
+
+
+
+        PrepareRigLoop (machine, log);
+        MountWithoutFile (machine);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the disk");
+
+        resetAt = machine.GetPosition();
+
+        machine.RecordInput (InputKind::Reset, 0, 0, {});
+        machine.SoftReset();
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        liveEnd   = machine.GetPosition();
+        checksum  = ReverseSessionRig::Checksum (machine);
+        liveCount = log.count;
+        isSaved   = !machine.GetDiskStore().GetImage (6, 0)->IsDirty();
+
+        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        AssertSucceeded (hr, L"SeekToPosition back to the start");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition forward past the reset");
+
+        isFound = controller.GetKeyframes().TryFindByPosition (liveEnd, keyframe);
+
+        Assert::IsTrue             (isFound && controller.GetKeyframes().GetInfo (keyframe).position < resetAt, L"the replay to the live end starts before the reset");
+        Assert::AreEqual<size_t>   (1, liveCount, L"the live reset wrote once, through the store");
+        Assert::IsTrue             (isSaved, L"and the live disk has nothing left unsaved");
+        Assert::AreEqual<size_t>   (liveCount, log.count, L"the replayed reset wrote nothing through the store");
+        Assert::IsTrue             (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"nor around it: the replayed writes are still unsaved");
+        Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
+    }
+
+
     //  The disk is machine state: a step back across a guest write gives the
     //  track bits as they were before it.
     TEST_METHOD (SteppingBackAcrossAGuestWriteRestoresTheOldTrackBits)
@@ -525,6 +587,27 @@ private:
 
         hr = machine.GetDiskStore().Mount (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, path);
         AssertSucceeded (hr, L"Mount");
+    }
+
+
+    //  Puts a patterned nibble image with no file behind it in slot 6 drive
+    //  1 and points the drive at it. A write that goes around the store then
+    //  has nowhere to go, but it still clears the dirty bit.
+    static void MountWithoutFile (TestMachine & machine)
+    {
+        DiskImageStore     & store = machine.GetDiskStore();
+        std::vector<Byte>    bytes;
+        HRESULT              hr    = S_OK;
+
+
+
+        hr = ReadPatternImage ({}, bytes);
+        AssertSucceeded (hr, L"ReadPatternImage");
+
+        hr = store.MountFromBytes (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, {}, DiskFormat::Nib, bytes);
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        machine.GetRefs().diskController->SetExternalDisk (ReverseSessionRig::kDiskDrive, store.GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive));
     }
 
 

@@ -922,29 +922,16 @@ void Disk2Controller::Reset()
 //
 //  SoftReset
 //
-//  Phase 4 / FR-034: //e soft reset clears the controller hardware state
-//  but PRESERVES the disk mounts. Dirty images flush back to host storage
-//  so a reset doesn't lose user writes (audit §10).
+//  A //e soft reset clears the controller's hardware state and keeps the
+//  disks in the drives. Writing dirty images back belongs to the disk
+//  store, which MachineHost::SoftReset calls first, so every safeguard on a
+//  write applies, the reverse-execution hold and the replay flag among them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2Controller::SoftReset()
 {
-    HRESULT   hrFlush = S_OK;
-    int       drive   = 0;
-
-
-
     Reset();
-
-    for (drive = 0; drive < kDriveCount; drive++)
-    {
-        if (m_activeDisk[drive]->IsLoaded())
-        {
-            hrFlush = m_activeDisk[drive]->Flush();
-            IGNORE_RETURN_VALUE (hrFlush, S_OK);
-        }
-    }
 }
 
 
