@@ -14,10 +14,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  BreakpointColumnsTests
 //
-//  The breakpoints pane's columns (FR-117): Name, Condition, Hit count,
-//  Kind, Symbol, When hit, Function, File, Address and Data, built from the
-//  snapshot; the order a click on a heading sorts the rows into; and the
-//  choice of columns kept with the open views.
+//  The breakpoints pane's columns: Name, Condition, Hit count, Kind, Symbol,
+//  When hit, Function, File, Address and Data, built from the snapshot; the
+//  order a click on a heading sorts the rows into; and the choice of columns
+//  kept with the open views.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +64,7 @@ namespace BreakpointColumnsTests
         }
 
 
-        TEST_METHOD (AnAddressBreakpointNamesItsSymbolAndAddress)
+        TEST_METHOD (AnAddressBreakpointShowsItsSymbolAndAddress)
         {
             DebuggerViewSnapshot  snapshot;
 
@@ -81,13 +81,13 @@ namespace BreakpointColumnsTests
             Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::Data));
             Assert::AreEqual (std::string ("$FA62"),       Cell (snapshot, 0, Column::Address));
             Assert::AreEqual (std::string ("RESET"),       Cell (snapshot, 0, Column::Symbol));
-            Assert::AreEqual (std::string ("Function"),    Cell (snapshot, 0, Column::Kind));
+            Assert::AreEqual (std::string ("Address"),     Cell (snapshot, 0, Column::Kind), L"a symbol at the address makes no function breakpoint");
             Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::File));
             Assert::AreEqual (std::string ("Break"),       Cell (snapshot, 0, Column::WhenHit));
         }
 
 
-        TEST_METHOD (ASourceBreakpointNamesItsFileAndLine)
+        TEST_METHOD (ASourceBreakpointShowsItsFileAndLine)
         {
             DebuggerViewSnapshot               snapshot;
             DebuggerViewSnapshot::SourceState  source;
@@ -144,7 +144,7 @@ namespace BreakpointColumnsTests
             DebugSourceFile                    file;
             std::vector<std::string>           expected =
             {
-                "Address", "Address", "Source line", "Function", "Data read", "Data write", "Data read or write",
+                "Address", "Address", "Source line", "Address", "Data read", "Data write", "Data read or write",
                 "Data value", "Register condition", "Opcode", "I/O", "BRK", "Interrupt",
             };
 
@@ -170,8 +170,10 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (12, BreakpointKind::Brk,         0));
             snapshot.breakpoints.push_back (MakeLine (13, BreakpointKind::Interrupt,   0));
 
-            //  A range with a symbol at its start is not a function, nor is a
-            //  source line breakpoint whose address has a symbol.
+            //  A symbol at the address makes no execution breakpoint a
+            //  function, whether at one address or at a range's start, and a
+            //  breakpoint on a source line stays one when its address has a
+            //  symbol.
             snapshot.breakpoints[1].label       = "BUFFER";
             snapshot.breakpoints[2].label       = "START";
             snapshot.breakpoints[3].label       = "COUT";
@@ -190,7 +192,7 @@ namespace BreakpointColumnsTests
         {
             std::vector<std::string>  expected =
             {
-                "Address", "Source line", "Function", "Data read", "Data write", "Data read or write",
+                "Address", "Source line", "Data read", "Data write", "Data read or write",
                 "Data value", "Register condition", "Opcode", "I/O", "BRK", "Interrupt",
             };
             std::set<std::string>     texts;

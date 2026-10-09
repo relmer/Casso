@@ -110,21 +110,13 @@ namespace DebuggerBreakpointColumnsTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  DebuggerWindowFloatCloseTests
-    //
-    //  The close button on a floating pane's window closes the pane, which
-    //  keeps its floating place to open in again; a pane nothing can reopen
-    //  docks back instead.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-    //
     //  DebuggerWindowBreakpointColumnsTests
     //
-    //  The breakpoints pane shows the columns of FR-117, Name, Condition, Hit
-    //  count and Kind by default (FR-118); a column chosen from the pane's
-    //  menu is kept with the open views and comes back on reopen, as does a
-    //  choice saved before Kind was added; and a heading sorts the rows, each
-    //  row still acting on its own breakpoint.
+    //  The breakpoints pane shows Name, Condition, Hit count and Kind by
+    //  default; a column chosen from the pane's menu is kept with the open
+    //  views and comes back on reopen, as does a choice saved before Kind was
+    //  added; and a heading sorts the rows, each row still acting on its own
+    //  breakpoint.
     //
     ////////////////////////////////////////////////////////////////////////////////
 

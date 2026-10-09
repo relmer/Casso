@@ -36,15 +36,18 @@ std::wstring BreakpointColumns::GetHeading (Column column)
 
 BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp)
 {
-    const BreakpointInfo  & info       = bp.info;
+    const BreakpointInfo  & info           = bp.info;
     Cells                   cells;
     std::string             file;
-    int                     line       = 0;
+    int                     line           = 0;
+    bool                    isOnSourceLine = false;
     std::string             sourceLine;
 
 
 
-    if (TryGetSourceLine (snapshot, bp.id, file, line))
+    isOnSourceLine = TryGetSourceLine (snapshot, bp.id, file, line);
+
+    if (isOnSourceLine)
     {
         sourceLine = std::format ("{}, line {}", file, line);
         cells[(size_t) Column::File] = std::format ("{}:{}", file, line);
@@ -53,7 +56,7 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
     cells[(size_t) Column::Name]      = GetName (bp, sourceLine);
     cells[(size_t) Column::Condition] = (info.kind == BreakpointKind::Register) ? std::string() : info.condition;
     cells[(size_t) Column::HitCount]  = info.stops ? std::to_string (info.hits) : std::format ("{} (count only)", info.hits);
-    cells[(size_t) Column::Kind]      = GetKindText (GetRowKind (snapshot, bp));
+    cells[(size_t) Column::Kind]      = GetKindText (ClassifyRow (info, isOnSourceLine));
     cells[(size_t) Column::Symbol]    = HasAddress (info) ? bp.label : std::string();
     cells[(size_t) Column::WhenHit]   = GetWhenHit (info);
     cells[(size_t) Column::Function]  = (info.kind == BreakpointKind::Address) ? bp.label : std::string();
@@ -71,10 +74,8 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 //
 //  BreakpointColumns::GetRowKind
 //
-//  A data breakpoint's kind is its access. An execution breakpoint is a
-//  source line breakpoint when it was set from one, as its Name and File
-//  show, and a function breakpoint when it is at a single address with a
-//  symbol there, as its Function column shows.
+//  The row's kind, with whether it is on a line of the loaded source looked
+//  up in the snapshot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,10 +83,39 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (
     const DebuggerViewSnapshot                  & snapshot,
     const DebuggerViewSnapshot::BreakpointLine  & bp)
 {
-    static constexpr RowKind    kDataKinds[] = { RowKind::DataRead, RowKind::DataWrite, RowKind::DataReadOrWrite };
-    const BreakpointInfo      & info         = bp.info;
-    std::string                 file;
-    int                         line         = 0;
+    std::string  file;
+    int          line           = 0;
+    bool         isOnSourceLine = false;
+
+
+
+    isOnSourceLine = TryGetSourceLine (snapshot, bp.id, file, line);
+
+    return ClassifyRow (bp.info, isOnSourceLine);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointColumns::ClassifyRow
+//
+//  A data breakpoint's kind is its access. An execution breakpoint is on a
+//  source line when a line of the loaded source produced the code at its
+//  address, as its Name and File show, and an address breakpoint
+//  otherwise. A symbol at the address does not make it a function
+//  breakpoint: the symbol may label a loop or data as well as a routine,
+//  and the engine keeps the address, not how it was given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointColumns::RowKind BreakpointColumns::ClassifyRow (
+    const BreakpointInfo  & info,
+    bool                    isOnSourceLine)
+{
+    static constexpr RowKind  kDataKinds[] = { RowKind::DataRead, RowKind::DataWrite, RowKind::DataReadOrWrite };
 
 
 
@@ -101,12 +131,7 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (
     case BreakpointKind::Address:     break;
     }
 
-    if (TryGetSourceLine (snapshot, bp.id, file, line))
-    {
-        return RowKind::SourceLine;
-    }
-
-    return (!bp.label.empty() && info.last <= info.address) ? RowKind::Function : RowKind::Address;
+    return isOnSourceLine ? RowKind::SourceLine : RowKind::Address;
 }
 
 
@@ -123,7 +148,7 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (
 
 std::string BreakpointColumns::GetKindText (RowKind kind)
 {
-    static constexpr const char *  kTexts[] = { "Address", "Source line", "Function", "Data read", "Data write", "Data read or write",
+    static constexpr const char *  kTexts[] = { "Address", "Source line", "Data read", "Data write", "Data read or write",
                                                 "Data value", "Register condition", "Opcode", "I/O", "BRK", "Interrupt" };
 
 
@@ -157,8 +182,14 @@ std::vector<size_t> BreakpointColumns::GetOrder (const DebuggerViewSnapshot & sn
     for (size_t i = 0; i < order.size(); i++)
     {
         order[i] = i;
-        keys[i]  = GetCells (snapshot, snapshot.breakpoints[i])[(size_t) column];
-        kinds[i] = GetRowKind (snapshot, snapshot.breakpoints[i]);
+
+        if (column == Column::Kind)
+        {
+            kinds[i] = GetRowKind (snapshot, snapshot.breakpoints[i]);
+            continue;
+        }
+
+        keys[i] = GetCells (snapshot, snapshot.breakpoints[i])[(size_t) column];
 
         std::transform (keys[i].begin(), keys[i].end(), keys[i].begin(), [] (char ch) { return (char) std::tolower ((unsigned char) ch); });
     }
