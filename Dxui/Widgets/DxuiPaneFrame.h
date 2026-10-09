@@ -12,14 +12,17 @@
 //  DxuiPaneFramePhase
 //
 //  When a frame part is drawn. UNDER parts go down with the group's own
-//  paint, ahead of its title and tabs. OVER parts are drawn after every
-//  sibling has painted, so they lie over the pane's controls.
+//  paint, ahead of its title and tabs. JOINS go down after the tabs, so the
+//  selected tab flares into the line over a hovered neighbor's fill, as
+//  Visual Studio draws it. OVER parts are drawn after every sibling has
+//  painted, so they lie over the pane's controls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class DxuiPaneFramePhase
 {
     Under,
+    Joins,
     Over,
 };
 
@@ -173,6 +176,10 @@ public:
 
     //  How near a side of the pane a selected tab must end to be drawn flush.
     static long  GetFlushReachPx (long cornerPx, long linePx);
+
+    //  The outer radius a pane of this size is drawn with: none for a pane
+    //  too small to round.
+    static long  GetCornerPx     (const RECT & pane, long cornerPx);
 
 private:
     struct Geometry;

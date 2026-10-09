@@ -12,7 +12,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The measures a pane's frame and its text share, at each scale from 100%
 //  to 200%. Every one is a whole number of pixels, so the frame's edges and
-//  the text's origin land on the same pixel grid.
+//  the text's origin land on the same pixel grid. Visual Studio shows an
+//  outer corner of 6 px at 125% and 7 px at 150%, and puts a title's
+//  origin 11 px in from the pane's outer edge at 125% and 14 px at 150%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,11 +37,11 @@ public:
         DxuiDpiScaler   scaler;
         const Expected  expected[] =
         {
-            {  96, 1,  5,  8,  7 },
-            { 120, 1,  6, 10,  9 },
-            { 144, 2,  8, 12, 10 },
-            { 168, 2,  9, 14, 12 },
-            { 192, 2, 10, 16, 14 },
+            {  96, 1, 5,  9,  8 },
+            { 120, 1, 6, 11, 10 },
+            { 144, 2, 7, 14, 12 },
+            { 168, 2, 8, 16, 14 },
+            { 192, 2, 9, 18, 16 },
         };
 
 

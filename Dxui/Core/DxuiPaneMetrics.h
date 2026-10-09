@@ -20,10 +20,10 @@
 class DxuiPaneMetrics
 {
 public:
-    //  A pane's inner corner radius; its outline wraps it.
+    //  The radius of a pane's corner along the middle of its outline.
     static constexpr int  kCornerDip    = 4;
 
-    //  From a pane's outer edge to the origin of its text.
+    //  From the inside of a pane's outline to the origin of its text.
     static constexpr int  kTextInsetDip = 8;
 
     static int  GetLinePx             (const DxuiDpiScaler & scaler);

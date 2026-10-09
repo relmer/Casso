@@ -525,7 +525,9 @@ DxuiHitTestKind DxuiDockSite::ClassifyHit (POINT clientDip) const
 //
 //  DxuiDockSite::GetTitleButtonTipAt
 //
-//  The pin says what pressing it does, as OnTitleButton carries it out.
+//  The pin's tip gives what pressing it does in OnTitleButton: docks the
+//  pane or hides it against its edge. A tab's pin and close button are its
+//  pane's title bar buttons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -533,12 +535,24 @@ std::wstring DxuiDockSite::GetTitleButtonTipAt (POINT pointDip, RECT & button) c
 {
     static constexpr DxuiTabGroup::TitleButton  kButtons[] = { DxuiTabGroup::TitleButton::Menu, DxuiTabGroup::TitleButton::Pin,
                                                                DxuiTabGroup::TitleButton::Close };
+    auto                                        pinTip     = [this] (const std::wstring & pane)
+    {
+        return (m_onDock != nullptr || m_layout.IsAutoHidden (pane)) ? L"Dock" : L"Auto hide";
+    };
 
 
 
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        std::wstring  pane;
+        std::wstring               pane;
+        DxuiTabGroup::TitleButton  onTab = DxuiTabGroup::TitleButton::Close;
+        int                        index = -1;
+
+        if (group->IsVisible() && group->TryGetTabButtonAt (pointDip, onTab, index, button))
+        {
+            pane = GetPaneOf (group->GetContent (index));
+            return (onTab == DxuiTabGroup::TitleButton::Pin) ? pinTip (pane) : L"Close";
+        }
 
         if (!group->IsVisible() || !Contains (group->GetTitleRect(), pointDip))
         {
@@ -562,7 +576,7 @@ std::wstring DxuiDockSite::GetTitleButtonTipAt (POINT pointDip, RECT & button) c
                 return L"Window position";
 
             case DxuiTabGroup::TitleButton::Pin:
-                return (m_onDock != nullptr || m_layout.IsAutoHidden (pane)) ? L"Dock" : L"Auto hide";
+                return pinTip (pane);
 
             case DxuiTabGroup::TitleButton::Close:
                 return L"Close";
@@ -1201,6 +1215,9 @@ bool DxuiDockSite::TryGetTitleExtraRect (const std::wstring & pane, RECT & rect)
 //
 //  DxuiDockSite::GetTabAt
 //
+//  Over a tab's pin or close button the tab gives no tip of its own; the
+//  button's is GetTitleButtonTipAt's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DxuiDockSite::GetTabAt (POINT pointDip, RECT & tab, std::wstring & tip) const
@@ -1211,11 +1228,15 @@ std::wstring DxuiDockSite::GetTabAt (POINT pointDip, RECT & tab, std::wstring & 
 
         if (index >= 0)
         {
-            std::wstring  pane  = GetPaneOf (group->GetContent (index));
-            auto          found = m_panes.find (pane);
+            std::wstring               pane     = GetPaneOf (group->GetContent (index));
+            auto                       found    = m_panes.find (pane);
+            DxuiTabGroup::TitleButton  button   = DxuiTabGroup::TitleButton::Close;
+            int                        onButton = -1;
+            RECT                       rect     = {};
+            bool                       isButton = group->TryGetTabButtonAt (pointDip, button, onButton, rect);
 
             tab = group->GetTabRect (index);
-            tip = (found != m_panes.end()) ? found->second.tip : std::wstring();
+            tip = (found != m_panes.end() && !isButton) ? found->second.tip : std::wstring();
             return pane;
         }
     }

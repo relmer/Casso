@@ -462,7 +462,10 @@ RECT DxuiTabGroup::GetTitleRect() const
 //  The tab band: along a document group's top, or along a tool window's
 //  bottom, below its title bar and the line under the pane; empty along the
 //  bottom when the group shows no tabs. The line between the band and the
-//  pane is not part of it.
+//  pane is not part of it. A document's band is kStripDip deep and the line
+//  lies below it; a tool window's band and the line over it are kStripDip
+//  deep together, as Visual Studio draws them: 25, 31 and 38 px at 100%,
+//  125% and 150%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -484,7 +487,7 @@ RECT DxuiTabGroup::GetStripRect() const
         return RECT { m_boundsDip.left, m_boundsDip.bottom, m_boundsDip.right, m_boundsDip.bottom };
     }
 
-    return RECT { m_boundsDip.left, std::max (title + line, m_boundsDip.bottom - height), m_boundsDip.right, m_boundsDip.bottom };
+    return RECT { m_boundsDip.left, std::max (title + line, m_boundsDip.bottom - height + line), m_boundsDip.right, m_boundsDip.bottom };
 }
 
 
@@ -531,8 +534,10 @@ bool DxuiTabGroup::IsCloseShown() const
 //  DxuiTabGroup::GetTitleButtonRect
 //
 //  The title bar's buttons from its right end: close, when shown, then the
-//  pin, then the menu, as Visual Studio orders them. The close button ends
-//  inside the pane's outline.
+//  pin, then the menu, as Visual Studio orders them, each kTitleButtonDip
+//  across. The close button ends one line in from the pane's right edge,
+//  inside the outline, and every button runs from below the title bar's
+//  outline to its bottom: 24, 30 and 36 px square at 100%, 125% and 150%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,9 +545,9 @@ RECT DxuiTabGroup::GetTitleButtonRect (TitleButton button) const
 {
     RECT  title = GetTitleRect();
     long  size  = m_scaler.ToPx (kTitleButtonDip);
+    long  line  = DxuiPaneMetrics::GetLinePx (m_scaler);
     long  slot  = 0;
     long  right = 0;
-    long  top   = title.top + ((title.bottom - title.top) - size) / 2;
 
 
 
@@ -553,9 +558,9 @@ RECT DxuiTabGroup::GetTitleButtonRect (TitleButton button) const
 
     slot  = (button == TitleButton::Close) ? 0 : (button == TitleButton::Pin) ? 1 : 2;
     slot -= (button != TitleButton::Close && !IsCloseShown()) ? 1 : 0;
-    right = title.right - DxuiPaneMetrics::GetLinePx (m_scaler) - slot * size;
+    right = title.right - line - slot * size;
 
-    return RECT { right - size, top, right, top + size };
+    return RECT { right - size, std::min (title.bottom, title.top + line), right, title.bottom };
 }
 
 
@@ -671,6 +676,38 @@ bool DxuiTabGroup::IsChromeAt (POINT pointDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabGroup::TryGetTabButtonAt
+//
+//  A tab's pin is the title bar's pin and its close button the title bar's
+//  close button, for that tab's pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTabGroup::TryGetTabButtonAt (POINT pointDip, TitleButton & button, int & index, RECT & rect) const
+{
+    DxuiTabStrip::TabButton  found = DxuiTabStrip::TabButton::None;
+
+
+
+    index = -1;
+    rect  = {};
+
+    if (HasStrip())
+    {
+        found = m_strip.GetTabButtonAt (pointDip.x, pointDip.y, index, rect);
+    }
+
+    button = (found == DxuiTabStrip::TabButton::Pin) ? TitleButton::Pin : TitleButton::Close;
+
+    return found != DxuiTabStrip::TabButton::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabGroup::GetInsertIndexAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -743,13 +780,15 @@ void DxuiTabGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //  DxuiTabGroup::LayoutStrip
 //
 //  The strip's bounds, then its tabs within them: a tool window's strip comes
-//  and goes with its second tab.
+//  and goes with its second tab. The tabs round their corners as the pane's
+//  frame does, so a pane too small to round has square tabs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabGroup::LayoutStrip()
 {
-    m_strip.Layout (GetStripRect(), m_scaler);
+    m_strip.SetCornerPx ((int) DxuiPaneFrame::GetCornerPx (m_boundsDip, DxuiPaneMetrics::GetCornerPx (m_scaler)));
+    m_strip.Layout      (GetStripRect(), m_scaler);
     SyncStrip();
 }
 
@@ -763,15 +802,16 @@ void DxuiTabGroup::LayoutStrip()
 //
 //  Hands the strip the tabs as they stand. Each is as wide as its title
 //  measured by the renderer of the last paint, or before the first paint at
-//  an average character width. A leading mark goes ahead of the title; an indicator, a dot in
-//  the accent color, takes its place on a tab with none.
+//  an average character width. A leading mark goes ahead of the title; an
+//  indicator, a dot in the accent color, takes its place on a tab with none.
+//  A tab's pin and close button act as the title bar's do, for its pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabGroup::SyncStrip()
 {
     DxuiTabStrip::Style             style    = (m_kind == Kind::Document) ? DxuiTabStrip::Style::Document : DxuiTabStrip::Style::ToolWindow;
-    bool                            hasClose = m_kind == Kind::Document && m_onCloseTab != nullptr;
+    bool                            hasClose = m_onCloseTab != nullptr;
     RECT                            strip    = GetStripRect();
     long                            x        = strip.left;
     std::vector<DxuiTabStrip::Tab>  tabs;
@@ -811,8 +851,9 @@ void DxuiTabGroup::SyncStrip()
     m_strip.SetTabs     (std::move (tabs));
     m_strip.SetSelected (m_active);
 
-    //  Set only between strip events, so neither replaces itself as it runs.
+    //  Set only between strip events, so none replaces itself as it runs.
     m_strip.SetOnClose  (hasClose ? DxuiTabStrip::CloseFn ([this] (int index) { m_pendingClose = index; }) : nullptr);
+    m_strip.SetOnPin    (m_onTitleButton ? DxuiTabStrip::PinFn ([this] (int index) { m_pendingPin = index; }) : nullptr);
     m_strip.SetOnNewTab ((m_newTab && m_newTabShown && m_newTabShown (*this)) ? DxuiTabStrip::NewTabFn ([this] { m_pendingNewTab = true; }) : nullptr);
 }
 
@@ -824,23 +865,29 @@ void DxuiTabGroup::SyncStrip()
 //
 //  DxuiTabGroup::RunPending
 //
-//  A close or a + the strip reported, now that it has returned.
+//  A close, a pin or a + the strip reported, now that it has returned.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabGroup::RunPending()
 {
     int   closing = m_pendingClose;
+    int   pinning = m_pendingPin;
     bool  adding  = m_pendingNewTab;
 
 
 
     m_pendingClose  = -1;
+    m_pendingPin    = -1;
     m_pendingNewTab = false;
 
     if (closing >= 0 && m_onCloseTab)
     {
         m_onCloseTab (closing);
+    }
+    else if (pinning >= 0 && m_onTitleButton)
+    {
+        m_onTitleButton (TitleButton::Pin, pinning, POINT {});
     }
     else if (adding && m_newTab)
     {
@@ -884,15 +931,19 @@ void DxuiTabGroup::LayoutContent()
 //
 //  DxuiTabGroup::Paint
 //
-//  The frame's under parts -- the band, the title bar's fill, the gap
-//  outside their rounded corners and the joins' fillets -- then the title
-//  bar of a tool window, then the tabs. The outline is PaintFrame's.
+//  The frame's under parts -- the band, the title bar's fill and the gap
+//  outside their rounded corners -- then the title bar of a tool window,
+//  then the tabs, then the joins' fillets, which flare the selected tab into
+//  the line over a hovered neighbor's fill, as Visual Studio draws them.
+//  The outline is PaintFrame's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT  strip = GetStripRect();
+    RECT                            strip  = GetStripRect();
+    std::vector<DxuiPaneFramePart>  parts;
+    DxuiPaneFrameColors             colors = GetFrameColors (theme);
 
 
 
@@ -903,7 +954,8 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         SyncStrip();
     }
 
-    DxuiPaneFrame::Paint (painter, DxuiPaneFrame::Build (GetFrameSpec()), DxuiPaneFramePhase::Under, GetFrameColors (theme));
+    parts = DxuiPaneFrame::Build (GetFrameSpec());
+    DxuiPaneFrame::Paint (painter, parts, DxuiPaneFramePhase::Under, colors);
 
     if (m_kind == Kind::ToolWindow)
     {
@@ -915,6 +967,8 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         m_strip.SetSelectedFill (theme.ContentBackground());
         m_strip.Paint (painter, text, theme);
     }
+
+    DxuiPaneFrame::Paint (painter, parts, DxuiPaneFramePhase::Joins, colors);
 }
 
 
@@ -1011,18 +1065,22 @@ DxuiPaneFrameColors DxuiTabGroup::GetFrameColors (const IDxuiTheme & theme) cons
 //
 //  The active pane's title, from the pane's text inset, and the menu, pin and
 //  close buttons at the right end, each washed in a rounded square while
-//  hovered and a shade darker while pressed. The title bar's fill is a part
-//  of the frame, drawn before this.
+//  hovered and a shade darker while pressed. The title and the glyphs take
+//  the inks of a selected tab: the full foreground while the user works in
+//  the group, and a step dimmer otherwise. The pin and close glyphs are a
+//  tab's, and the menu's chevron is 12 by 7 px at 150%, as Visual Studio's
+//  are. The title bar's fill is a part of the frame, drawn before this.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabGroup::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     static constexpr float        kPressedScale = 0.82f;
-    static constexpr float        kGlyphDip     = 10.0f;
+    static constexpr float        kMenuGlyphDip = 8.0f;
     static constexpr int          kWashInsetDip = 3;
     static constexpr TitleButton  kButtons[]    = { TitleButton::Menu, TitleButton::Pin, TitleButton::Close };
-    static const wchar_t * const  kGlyphs[]     = { s_kpszMdl2ChevronDown, s_kpszMdl2Pin, s_kpszMdl2Cancel };
+    static const wchar_t * const  kGlyphs[]     = { s_kpszMdl2ChevronDown, s_kpszMdl2Pinned, s_kpszMdl2Cancel };
+    static constexpr float        kGlyphDips[]  = { kMenuGlyphDip, DxuiTabStrip::kPinGlyphDip, DxuiTabStrip::kCloseGlyphDip };
     DxuiFontHandle                font          = theme.BodyFont();
     RECT                          title         = GetTitleRect();
     float                         pad           = (float) DxuiPaneMetrics::GetTextInsetPx (m_scaler);
@@ -1055,7 +1113,7 @@ void DxuiTabGroup::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text,
         }
 
         hr = text.DrawString (kGlyphs[i], (float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top),
-                              theme.ForegroundMuted(), m_scaler.ToPxf (kGlyphDip), L"Segoe MDL2 Assets",
+                              DxuiTabStrip::GetGlyphInk (theme, m_focusedLook), m_scaler.ToPxf (kGlyphDips[i]), L"Segoe MDL2 Assets",
                               DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -1072,7 +1130,7 @@ void DxuiTabGroup::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     hr = text.DrawString (active->title.c_str(), (float) title.left + pad, (float) title.top,
                           std::max (0.0f, (float) textRight - (float) title.left - pad), height,
-                          theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face,
+                          DxuiTabStrip::GetLabelInk (theme, m_focusedLook), m_scaler.ToPxf (font.sizeDip), font.face,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

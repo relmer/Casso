@@ -405,48 +405,88 @@ public:
         Assert::AreEqual (0, ts.GetSelected());
     }
 
-    //  Visual Studio's document tabs: the close button is on the selected tab
-    //  and the one under the pointer, and a press where it would be on any
-    //  other tab selects that tab. The third tab's button is centered 12 px
-    //  inside its right end, at 228.
-    TEST_METHOD (DocumentStyle_ClosesOnlyTheSelectedOrHoveredTab)
+    //  Visual Studio's document and tool-window tabs: the close button is on
+    //  the selected tab and the one under the pointer, and a press where it
+    //  would be on any other tab selects that tab. The third tab's button is
+    //  the 24-px square ending a pixel inside its right end, [215, 239).
+    TEST_METHOD (CompactStyles_CloseOnlyTheSelectedOrHoveredTab)
+    {
+        for (DxuiTabStrip::Style style : { DxuiTabStrip::Style::Document, DxuiTabStrip::Style::ToolWindow })
+        {
+            DxuiTabStrip  ts;
+            int           closed = -1;
+
+            ts.SetTabs     (MakeThreeTabs());
+            ts.SetStyle    (style);
+            ts.SetOnClose  ([&] (int index) { closed = index; });
+            ts.SetSelected (0);
+            LayOut (ts, 300);
+
+            ts.OnLButtonDown (228, 12);
+            ts.OnLButtonUp   (228, 12);
+            Assert::AreEqual (-1, closed,         L"no button on a tab neither selected nor hovered");
+            Assert::AreEqual (2,  ts.GetSelected(), L"the press selects it");
+
+            ts.SetMouseHover (228, 12);
+            ts.OnLButtonDown (228, 12);
+            ts.OnLButtonUp   (228, 12);
+            Assert::AreEqual (2, closed, L"selected, and under the pointer, it has one");
+        }
+    }
+
+    //  The pin, just left of the close button, is on the same tabs, and a
+    //  press on it pins that tab's pane without selecting the tab.
+    TEST_METHOD (CompactStyles_PinTheSelectedOrHoveredTab)
+    {
+        for (DxuiTabStrip::Style style : { DxuiTabStrip::Style::Document, DxuiTabStrip::Style::ToolWindow })
+        {
+            DxuiTabStrip  ts;
+            int           pinned = -1;
+            int           closed = -1;
+
+            ts.SetTabs     (MakeThreeTabs());
+            ts.SetStyle    (style);
+            ts.SetOnPin    ([&] (int index) { pinned = index; });
+            ts.SetOnClose  ([&] (int index) { closed = index; });
+            ts.SetSelected (0);
+            LayOut (ts, 300);
+
+            ts.OnLButtonDown (43, 12);
+            ts.OnLButtonUp   (43, 12);
+            Assert::AreEqual (0,  pinned, L"the selected tab's pin, [31, 55)");
+            Assert::AreEqual (-1, closed, L"and not its close button");
+
+            pinned = -1;
+            ts.SetMouseHover (120, 12);
+            ts.OnLButtonDown (120, 12);
+            ts.OnLButtonUp   (120, 12);
+            Assert::AreEqual (1, pinned,          L"the hovered tab's pin");
+            Assert::AreEqual (0, ts.GetSelected(), L"which selects nothing");
+        }
+    }
+
+    //  The tab whose shown pin or close button is under a point, and which
+    //  of the two, for the host's tip.
+    TEST_METHOD (CompactStyles_ReportTheButtonUnderAPoint)
     {
         DxuiTabStrip  ts;
-        int           closed = -1;
+        int           index = -1;
+        RECT          rect  = {};
 
         ts.SetTabs     (MakeThreeTabs());
         ts.SetStyle    (DxuiTabStrip::Style::Document);
-        ts.SetOnClose  ([&] (int index) { closed = index; });
-        ts.SetSelected (0);
+        ts.SetOnPin    ([] (int) {});
+        ts.SetOnClose  ([] (int) {});
+        ts.SetSelected (1);
         LayOut (ts, 300);
 
-        ts.OnLButtonDown (228, 12);
-        ts.OnLButtonUp   (228, 12);
-        Assert::AreEqual (-1, closed,         L"no button on a tab neither selected nor hovered");
-        Assert::AreEqual (2,  ts.GetSelected(), L"the press selects it");
-
-        ts.SetMouseHover (228, 12);
-        ts.OnLButtonDown (228, 12);
-        ts.OnLButtonUp   (228, 12);
-        Assert::AreEqual (2, closed, L"selected, and under the pointer, it has one");
-    }
-
-    //  A tool window closes from its title bar, so its tabs have no button.
-    TEST_METHOD (ToolWindowStyle_ShowsNoCloseButton)
-    {
-        DxuiTabStrip  ts;
-        int           closed = -1;
-
-        ts.SetTabs     (MakeThreeTabs());
-        ts.SetStyle    (DxuiTabStrip::Style::ToolWindow);
-        ts.SetOnClose  ([&] (int index) { closed = index; });
-        ts.SetSelected (2);
-        LayOut (ts, 300);
-
-        ts.SetMouseHover (228, 12);
-        ts.OnLButtonDown (228, 12);
-        ts.OnLButtonUp   (228, 12);
-        Assert::AreEqual (-1, closed);
+        Assert::IsTrue   (ts.GetTabButtonAt (120, 12, index, rect) == DxuiTabStrip::TabButton::Pin);
+        Assert::AreEqual (1, index);
+        Assert::AreEqual (111L, rect.left);
+        Assert::IsTrue   (ts.GetTabButtonAt (150, 12, index, rect) == DxuiTabStrip::TabButton::Close);
+        Assert::AreEqual (159L, rect.right);
+        Assert::IsTrue   (ts.GetTabButtonAt (65, 12, index, rect) == DxuiTabStrip::TabButton::None, L"an unselected, unhovered tab shows none");
+        Assert::IsTrue   (ts.GetTabButtonAt (90, 12, index, rect) == DxuiTabStrip::TabButton::None, L"the label is no button");
     }
 
     //  A tab dragged past the strip's top or bottom goes to the host, which
@@ -507,9 +547,11 @@ public:
         Assert::IsTrue   (ts.GetTipAt (20, 12, tab).empty());
     }
 
-    //  A tab measured for its mark and close button is wider than one
-    //  without, so a host sizing its tabs this way never cuts a label short.
-    TEST_METHOD (MeasureTab_MakesRoomForTheMarkAndTheCloseButton)
+    //  A tab measured for its mark is wider than one without, so a host
+    //  sizing its tabs this way never cuts a label short. A compact tab
+    //  keeps room for its pin and close button whether or not it has them,
+    //  in either compact style, so no tab changes width as they come and go.
+    TEST_METHOD (MeasureTab_MakesRoomForTheMarkAndTheButtons)
     {
         DxuiDpiScaler      scaler;
         DxuiTabStrip::Tab  plain;
@@ -520,13 +562,131 @@ public:
         marked       = plain;
         marked.mark  = L"M";
 
-        Assert::IsTrue (DxuiTabStrip::MeasureTabPx (nullptr, marked, DxuiTabStrip::Style::Document, false, scaler) >
-                        DxuiTabStrip::MeasureTabPx (nullptr, plain,  DxuiTabStrip::Style::Document, false, scaler));
-        Assert::IsTrue (DxuiTabStrip::MeasureTabPx (nullptr, plain,  DxuiTabStrip::Style::Document, true,  scaler) >
-                        DxuiTabStrip::MeasureTabPx (nullptr, plain,  DxuiTabStrip::Style::Document, false, scaler));
-        Assert::AreEqual (DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::ToolWindow, true,  scaler),
+        Assert::IsTrue   (DxuiTabStrip::MeasureTabPx (nullptr, marked, DxuiTabStrip::Style::Document, false, scaler) >
+                          DxuiTabStrip::MeasureTabPx (nullptr, plain,  DxuiTabStrip::Style::Document, false, scaler));
+        Assert::AreEqual (DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::Document,   true,  scaler),
+                          DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::Document,   false, scaler),
+                          L"the same width with or without a close handler");
+        Assert::AreEqual (DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::Document,   true,  scaler),
                           DxuiTabStrip::MeasureTabPx (nullptr, plain, DxuiTabStrip::Style::ToolWindow, false, scaler),
-                          L"a tool window's tabs have no close button to make room for");
+                          L"and the same in a tool window");
+    }
+
+    //  Visual Studio's width: the text inset, the label rounded, 6.5 DIP,
+    //  two 24-DIP squares and a line. For an 81-px label, 146, 161 and 179
+    //  px at 100%, 125% and 150%: VS's 78 px of the rest at 125% and 95 at
+    //  150%, with the label 2 px and 3 px further in, where a title starts.
+    TEST_METHOD (MeasureTab_TakesVisualStudiosWidth)
+    {
+        constexpr UINT  kDpis[]   = { 96, 120, 144 };
+        constexpr int   kWidths[] = { 146, 161, 179 };
+        constexpr LONG  kLabelPx  = 81;
+
+
+
+        for (size_t i = 0; i < std::size (kDpis); i++)
+        {
+            DxuiDpiScaler         scaler;
+            DxuiTabStrip::Tab     tab;
+            MockDxuiTextRenderer  text;
+            std::wstring          at = std::format (L"{} dpi", kDpis[i]);
+
+            tab.label = L"Memory 3";
+
+            scaler.SetDpi         (kDpis[i]);
+            text.SetCannedMetrics (tab.label, SIZE { kLabelPx, 16 });
+
+            Assert::AreEqual (kWidths[i], DxuiTabStrip::MeasureTabPx (&text, tab, DxuiTabStrip::Style::Document,   true,  scaler), (L"a document tab, " + at).c_str());
+            Assert::AreEqual (kWidths[i], DxuiTabStrip::MeasureTabPx (&text, tab, DxuiTabStrip::Style::ToolWindow, false, scaler), (L"a tool window's tab, " + at).c_str());
+        }
+    }
+
+    //  A tab's pin and close squares at 100%, 125% and 150%: 24, 30 and 36
+    //  px across, the close square ending a line in from the tab's right
+    //  end and the pin's beside it, between the tab's outline and the line
+    //  along the band; the close ink then ends 12 px in at 150%, 36 px from
+    //  the pin's.
+    TEST_METHOD (TabButtons_TakeVisualStudiosSquares)
+    {
+        constexpr UINT  kDpis[]  = { 96, 120, 144 };
+        constexpr long  kSizes[] = { 24, 30, 36 };
+        constexpr long  kLines[] = { 1, 1, 2 };
+        constexpr long  kRight   = 400;
+        constexpr long  kBand    = 38;
+
+
+
+        for (size_t i = 0; i < std::size (kDpis); i++)
+        {
+            for (DxuiTabStrip::Style style : { DxuiTabStrip::Style::Document, DxuiTabStrip::Style::ToolWindow })
+            {
+                DxuiDpiScaler                   scaler;
+                DxuiTabStrip                    ts;
+                std::vector<DxuiTabStrip::Tab>  tabs;
+                RECT                            pin   = {};
+                RECT                            close = {};
+                bool                            below = style == DxuiTabStrip::Style::ToolWindow;
+                std::wstring                    at    = std::format (L"{} dpi, {}", kDpis[i], below ? L"tool window" : L"document");
+
+                scaler.SetDpi  (kDpis[i]);
+                tabs.push_back (MakeTab (200, 0, kRight, kBand, L"Memory 3"));
+                ts.SetTabs     (tabs);
+                ts.SetStyle    (style);
+                ts.Layout      (RECT { 0, 0, 600, kBand }, scaler);
+
+                pin   = ts.GetTabButtonRect (0, DxuiTabStrip::TabButton::Pin);
+                close = ts.GetTabButtonRect (0, DxuiTabStrip::TabButton::Close);
+
+                Assert::AreEqual (kRight - kLines[i],                 close.right,  (L"the close square ends a line in, " + at).c_str());
+                Assert::AreEqual (kSizes[i],                          close.right - close.left, (L"its width, " + at).c_str());
+                Assert::AreEqual (close.left,                         pin.right,    (L"the pin beside it, " + at).c_str());
+                Assert::AreEqual (kSizes[i],                          pin.right - pin.left, (L"its width, " + at).c_str());
+                Assert::AreEqual (below ? 0L : kLines[i],             close.top,    (L"below the tab's outline, or from the line, " + at).c_str());
+                Assert::AreEqual (below ? kBand - kLines[i] : kBand,  close.bottom, (L"to the line, or above the tab's outline, " + at).c_str());
+            }
+        }
+    }
+
+    //  The selected tab and the hovered tab draw their pin and close glyphs,
+    //  16 px across at 150%; a tab neither selected nor hovered draws none.
+    TEST_METHOD (TabButtons_ShowOnTheSelectedAndHoveredTabs)
+    {
+        DxuiDpiScaler         scaler;
+        DxuiTabStrip          ts;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        size_t                pins   = 0;
+        size_t                closes = 0;
+
+
+
+        scaler.SetDpi    (144);
+        ts.SetTabs       (MakeThreeTabs());
+        ts.SetStyle      (DxuiTabStrip::Style::Document);
+        ts.SetOnPin      ([] (int) {});
+        ts.SetOnClose    ([] (int) {});
+        ts.Layout        (RECT { 0, 0, 300, 24 }, scaler);
+        ts.SetSelected   (0);
+        ts.SetMouseHover (100, 12);
+        ts.Paint         (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.text == s_kpszMdl2Pinned)
+            {
+                pins++;
+                Assert::AreEqual (scaler.ToPxf (DxuiTabStrip::kPinGlyphDip), call.fontSizeDip, L"the pin's size");
+            }
+            else if (call.text == s_kpszMdl2Cancel)
+            {
+                closes++;
+                Assert::AreEqual (scaler.ToPxf (DxuiTabStrip::kCloseGlyphDip), call.fontSizeDip, L"the close button's size");
+            }
+        }
+
+        Assert::AreEqual ((size_t) 2, pins,   L"a pin on the selected tab and the hovered one");
+        Assert::AreEqual ((size_t) 2, closes, L"and a close button");
     }
 
     //  A compact tab sized by MeasureTabPx shows its whole label at any
