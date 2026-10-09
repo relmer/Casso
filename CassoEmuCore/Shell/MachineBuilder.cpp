@@ -557,6 +557,11 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
             m_host.GetMouse()->SetBus (&m_host.GetMemoryBus());
 
+            // The firmware's screen holes are main RAM, whatever the CPU's
+            // banking. Without an MMU nothing banks the holes, the buffer is
+            // null and the bus serves them.
+            m_host.GetMouse()->SetMainRam (GetMainRamBuffer());
+
             if (m_host.GetVideoTiming() != nullptr)
             {
                 m_host.GetMouse()->SetVideoTiming (m_host.GetVideoTiming());
