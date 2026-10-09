@@ -558,15 +558,15 @@ public:
         static constexpr double  kLeadAngle   = 0.01;
         static constexpr double  kWindowRevs  = 0.03;
 
-        const vector<uint8_t>       marker = { 0xD5, 0xAA, 0xAD, 0xE7, 0xF3, 0xFC, 0xEE, 0xDE, 0xAA, 0xEB };
+        const vector<uint8_t>       marker  = { 0xD5, 0xAA, 0xAD, 0xE7, 0xF3, 0xFC, 0xEE, 0xDE, 0xAA, 0xEB };
         vector<WozSyntheticTrack>   tracks (2);
         vector<Byte>                woz;
         vector<uint8_t>             nibbles;
         DiskImage                   disk;
         Disk2NibbleEngine           eng;
-        size_t                      leadBit    = static_cast<size_t> ((kMarkerAngle - kLeadAngle) * kLongBits);
-        uint32_t                    window     = static_cast<uint32_t> (kWindowRevs * kLongBits * Disk2NibbleEngine::kCyclesPerBit);
-        HRESULT                     hr         = S_OK;
+        size_t                      leadBit = static_cast<size_t> ((kMarkerAngle - kLeadAngle) * kLongBits);
+        uint32_t                    window  = static_cast<uint32_t> (kWindowRevs * kLongBits * Disk2NibbleEngine::kCyclesPerBit);
+        HRESULT                     hr      = S_OK;
 
 
 

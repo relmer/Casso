@@ -134,7 +134,7 @@ public:
     //  A one-track WOZ 2.1 image whose INFO gives the timing. The synthetic
     //  builder leaves the header CRC zero, which means "not computed", so the
     //  byte can be patched after the fact.
-    static void BuildImage (Byte timing, Byte diskType, vector<Byte> & woz)
+    static void BuildImage (Byte timing, vector<Byte> & woz)
     {
         vector<WozSyntheticTrack>  tracks (1);
         HRESULT                    hr = S_OK;
@@ -147,7 +147,6 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         woz[kInfoFileStart + WozLoader::kInfoOffsetBitTiming] = timing;
-        woz[kInfoFileStart + WozLoader::kInfoOffsetDiskType]  = diskType;
     }
 
 
@@ -156,7 +155,7 @@ public:
         vector<Byte>  woz;
         HRESULT       hr = S_OK;
 
-        BuildImage (timing, WozLoader::kDiskType525, woz);
+        BuildImage (timing, woz);
 
         hr = WozLoader::Load (woz, disk);
         Assert::IsTrue (SUCCEEDED (hr));
@@ -264,7 +263,7 @@ public:
         vector<Byte>            woz;
         WozLoader::Description  desc;
 
-        BuildImage (29, WozLoader::kDiskType525, woz);
+        BuildImage (29, woz);
         WozLoader::Describe (woz, desc);
 
         Assert::IsTrue   (desc.hasBitTiming);

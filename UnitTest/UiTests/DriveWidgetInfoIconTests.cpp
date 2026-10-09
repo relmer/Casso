@@ -206,4 +206,31 @@ public:
 
         Assert::IsTrue (IsRectEmpty (&icon) != FALSE);
     }
+
+
+    TEST_METHOD (ARepaintAfterTheConflictClearsDropsTheTarget)
+    {
+        DriveWidget           drive;
+        MockDxuiTextRenderer  text;
+        MockDxuiPainter       painter;
+        DriveWidgetState      cleared;
+        CassoTheme            theme = CassoTheme::MakeDarkModern();
+        RECT                  shown = {};
+        RECT                  icon  = {};
+
+        PaintWith (drive, text, L"C:\\Disks\\Choplifter.woz", true);
+        shown = drive.GetInfoIconRect();
+
+        // A switch to a machine the image fits clears the conflict, and the
+        // same widget paints again.
+        cleared.mountedImagePath = L"C:\\Disks\\Choplifter.woz";
+        drive.SyncFromState (cleared);
+        drive.Paint (painter, text, theme);
+        icon = drive.GetInfoIconRect();
+
+        Assert::IsFalse (IsRectEmpty (&shown) != FALSE);
+        Assert::IsTrue  (IsRectEmpty (&icon) != FALSE);
+        Assert::IsTrue  (drive.HitTest ((shown.left + shown.right) / 2, (shown.top + shown.bottom) / 2) == DriveWidgetRegion::Eject,
+                         L"where the icon was, a click ejects again");
+    }
 };
