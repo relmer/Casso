@@ -23,9 +23,10 @@ see [`specs/004-apple-iie-fidelity/iie-audit.md`](specs/004-apple-iie-fidelity/i
 5. [Devices and the per-instruction tick](#5-devices-and-the-per-instruction-tick)
 6. [Video and the render / present pipeline](#6-video-and-the-render--present-pipeline)
 7. [Audio](#7-audio)
-8. [Performance decisions log](#8-performance-decisions-log)
-9. [Roads not taken](#9-roads-not-taken)
-10. [Where to look](#10-where-to-look)
+8. [Disks](#8-disks)
+9. [Performance decisions log](#9-performance-decisions-log)
+10. [Roads not taken](#10-roads-not-taken)
+11. [Where to look](#11-where-to-look)
 
 ---
 
@@ -77,7 +78,7 @@ The dependency arrows only point downward. `CassoCore` depends on nothing, which
 is why the CPU can be driven headless by tests and by the CLI, and it is the
 reason one specific optimization (the inline read fast path, §4) is careful
 **not** to leak emulator types back up into `CassoCore`; see
-[Roads not taken](#9-roads-not-taken). `CassoEmuCore` holds the Win32, D3D and
+[Roads not taken](#10-roads-not-taken). `CassoEmuCore` holds the Win32, D3D and
 WASAPI code as well as the emulation: the library split exists so `UnitTest`
 can link the shell and renderer, not to keep the platform out.
 
@@ -426,8 +427,9 @@ sequenceDiagram
   `EmuCpu::AddCycles`. The mouse is an `ICycleSink` wired through
   `SetCycleSink`.
 - **The Disk II controller and the Mockingboard** are ticked by
-  `MachineHost::StepOne`. The Disk II `Tick` only runs the motor timers; the
-  nibble engine catches up to the CPU when the CPU reads `$C0Ex`
+  `MachineHost::StepOne`. The Disk II `Tick` runs the motor timers, and it fires
+  the motor-off flush and the idle check for external changes (§8); the nibble
+  engine itself catches up to the CPU when the CPU reads `$C0Ex`
   (`CatchUpToCpu`).
 - **Keyboard auto-repeat** runs once per frame on real time
   (`TickAutoRepeat`), not per instruction; only the reset-key hold is counted
@@ -525,7 +527,7 @@ contrast, bloom, color bleed, persistence, scanlines, gamma.
 **Chrome.** The drive band, `//c` switch bar, buttons, and letterbox are painted
 by the Dxui panel tree on the UI thread, immediate-mode, re-tessellated each
 presented frame (`DxuiPainter::PushQuad`). This is the current largest CPU render
-cost, the perf facet of the off-thread-compositing initiative (#100; see §9).
+cost, the perf facet of the off-thread-compositing initiative (#100; see §10).
 
 ---
 
@@ -544,7 +546,96 @@ governed by the frame pacing in the CPU-thread loop, not by audio.)
 
 ---
 
-## 8. Performance decisions log
+## 8. Disks
+```mermaid
+flowchart TB
+    File[("<b>image file</b><br/>.woz .dsk .do .po .nib .nb2")]
+
+    subgraph load ["Mount: whole file read into memory"]
+        direction LR
+        Mount["<b>DiskImageStore::Mount</b><br/>format from the extension,<br/>identity recorded, folder watched"] --> Codec["<b>format codec</b><br/>WozLoader, NibblizationLayer,<br/>NibbleImageCodec"]
+        Codec --> Img["<b>DiskImage</b><br/>bit or flux track per slot,<br/>160-entry quarter-track map,<br/>dirty bits, write protect"]
+    end
+
+    subgraph drive ["CPU thread: the drive"]
+        direction LR
+        Ctl["<b>Disk2Controller</b><br/>$C0E0-$C0EF: phases, motor,<br/>drive select, Q6/Q7"] --> Eng["<b>Disk2NibbleEngine</b><br/>Logic State Sequencer,<br/>2 steps per CPU cycle"]
+    end
+
+    subgraph save ["Flush: on motor spin-down, eject, re-insert, power cycle, exit"]
+        direction LR
+        Flush["<b>FlushEntry</b><br/>identity re-checked:<br/>changed on disk?"] -- no --> Ser["<b>Serialize</b><br/>back to the source format"]
+        Flush -- yes --> Keep["guest's version saved<br/>as a dated copy"]
+        Ser --> Commit["<b>WriteFileAtomically</b><br/>temporary file, then rename"]
+    end
+
+    File --> Mount
+    Img -- "OnBayChange:<br/>SetExternalDisk" --> Ctl
+    Eng -- "reads: latch at $C0EC" --> Cpu["the guest CPU"]
+    Cpu -- "writes: $C0ED" --> Eng
+    Eng -- "WriteBit, flux splice<br/>marks tracks dirty" --> Img
+    Img --> Flush
+    Commit --> File
+
+    Watch["<b>folder watcher</b> thread,<br/>or <b>CassoCli</b> over WM_COPYDATA"] -- "NoteExternalChange:<br/>pending, 1 s quiet period" --> Apply["<b>ApplyPendingReload</b><br/>on the CPU thread when the<br/>drive has been idle"]
+    Apply -- "reload, or ask" --> Mount
+
+    classDef fast fill:#1D9E75,stroke:#0F6E56,color:#FFFFFF
+    classDef slow fill:#7F77DD,stroke:#534AB7,color:#FFFFFF
+    classDef plain fill:#888780,stroke:#5F5E5A,color:#FFFFFF
+    class Mount,Codec,Img,Ctl,Eng,Flush,Ser,Commit,Apply slow
+    class Keep fast
+    class File,Cpu,Watch plain
+    style load fill:none,stroke:#888780
+    style drive fill:none,stroke:#888780
+    style save fill:none,stroke:#888780
+```
+
+**Mount: the whole file, read once.** A mount reads the image file into memory
+and closes it; nothing holds the file open while Casso runs. The format comes
+from the extension. `NibblizationLayer` turns a `.dsk`, `.do` or `.po` into
+GCR-encoded tracks (6-and-2, in DOS 3.3 or ProDOS sector order), `WozLoader`
+loads WOZ 1 and 2 bit tracks and WOZ 2.1 flux tracks, and `NibbleImageCodec`
+loads `.nib` and `.nb2` as raw nibbles. Each produces one `DiskImage`: a bit or
+flux track per slot, and a 160-entry map from quarter-track head position to
+slot. The store records the file's identity (size and last-write time) and
+watches its folder.
+
+**The drive catches up when it is read.** The nibble engine does not advance on
+every instruction. When the CPU touches `$C0Ex`, `Disk2Controller::CatchUpToCpu`
+runs the active drive's `Disk2NibbleEngine` forward to the CPU's bus cycle, two
+sequencer steps per CPU cycle, through the P6 Logic State Sequencer ROM and the
+MC3470 read amplifier's weak bits. The latch at `$C0EC` is what the CPU reads.
+Between accesses the engine does no work, so an idle drive costs nothing.
+
+**Writes stay in memory until the motor stops.** A write goes through the same
+sequencer into `DiskImage::WriteBit` on a bit track, or into a buffered burst
+that is spliced into a flux track, and marks the track dirty. Nothing reaches
+the file yet. The file is written when the motor spins down (1,000,000 cycles,
+about a second, after `$C0E8`), and on eject, re-insert, power cycle, machine
+switch and exit.
+
+**A flush checks the file first.** `FlushEntry` re-reads the file's identity
+before writing. If it changed since the mount, another program wrote it: the
+guest's version goes to a dated copy beside it, the drive moves to that copy,
+and the other program's file is left alone. Otherwise the image serializes back
+to its own format, and `WriteFileAtomically` writes a temporary file beside the
+target and renames it over. A sector image whose guest data no longer decodes
+as 16 clean sectors is not overwritten; the session is saved as a
+`.recovered.woz` instead.
+
+**External changes are picked up when the drive is idle.** The folder watcher
+thread, and `CassoCli` reporting over `WM_COPYDATA` that it rewrote a mounted
+disk, both call `NoteExternalChange`, which only records the change. Once a
+second passes with no further change, the CPU thread acts on it at its next
+idle point (no motor spin-up for 17,030 cycles) through `ApplyPendingReload`:
+it reloads the disk in place, reboots, or asks, depending on what the writer
+asked for and whether the guest has unsaved writes.
+[docs/disk-write-integrity.md](docs/disk-write-integrity.md) has the full
+rules.
+
+---
+## 9. Performance decisions log
 
 Each entry: the problem → the fix → *why this shape*. Newest first. Rationale
 also lives in the commit messages; this is the durable summary.
@@ -568,7 +659,7 @@ against the Release PDBs (symbol cache in `c:\symbols`). `.diagsession` files ar
 
 ---
 
-## 9. Roads not taken
+## 10. Roads not taken
 
 Decisions we deliberately did **not** make, so they aren't re-litigated:
 
@@ -604,7 +695,7 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
 
 ---
 
-## 10. Where to look
+## 11. Where to look
 
 | Concern | Files |
 |---|---|
@@ -615,6 +706,7 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
 | Video modes + timing | `CassoEmuCore/Machines/Apple2/Common/` (the five Apple II modes, character ROM, palette, `VideoTiming.*`); `CassoEmuCore/Video/` keeps only what assumes no machine |
 | Threading, frame pump, commands | `CassoEmuCore/Shell/CpuManager.*`, `CassoEmuCore/EmulatorShell.cpp`, `CassoEmuCore/Shell/MachineManager.cpp` |
 | Render / present / CRT | `CassoEmuCore/D3DRenderer.cpp`, `CassoEmuCore/CrtPostProcess.cpp`, `Dxui/Window/DxuiHwndSource*` |
+| Disks | `CassoEmuCore/Devices/Disk/` (`DiskImageStore`, `DiskImage`, `FluxTrack`, the image watcher); `CassoEmuCore/Machines/Apple2/Common/` (`Disk2Controller`, `Disk2NibbleEngine`, `NibblizationLayer`, `WozLoader`, `NibbleImageCodec`); `CassoEmuCore/Shell/DiskManager.cpp` |
 | Audio | `CassoEmuCore/WasapiAudio.cpp`, `CassoEmuCore/Audio/`, `CassoEmuCore/Machines/Apple2/Common/` (Mockingboard, Disk II audio) |
 | Machine definitions | `CassoEmuCore/Machines/<Family>/<Model>/*Definition.cpp` for invariant hardware; `Resources/Machines/*/*.json` for what an owner configures |
 | Entry points | `CassoEmuCore/Gui/GuiMain.cpp` (`wWinMain`), `CassoEmuCore/Cli/CliEntry.cpp` (`main`). `Casso/` and `CassoCli/` have no code: each is a resource script plus one comment-only translation unit, and its project file specifies the CRT startup symbol so the linker recovers the entry point from the library |
