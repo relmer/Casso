@@ -669,6 +669,46 @@ public:
             L"$CFFF read must auto-clear INTC8ROM");
     }
 
+    TEST_METHOD (IntC8Rom_LatchedByAnyC3xxAccessWithSlotC3RomReset)
+    {
+        MmuFixture    f;
+        vector<Byte>  internal (0x0F00, 0x00);
+
+        internal[0x700] = 0xC8;                 // internal $C800
+        f.mmu.AttachInternalCxxxRom (move (internal));
+
+        // A write: STA $C300 with INTCXROM and SLOTC3ROM reset.
+        f.sw.Write      (0xC006, 0);            // INTCXROM off
+        f.sw.Write      (0xC00A, 0);            // SLOTC3ROM off
+        f.bus.WriteByte (0xC300, 0x00);
+
+        Assert::IsTrue (f.mmu.GetIntC8Rom(),
+            L"A $C3xx write with SLOTC3ROM reset must latch INTC8ROM");
+        Assert::AreEqual (static_cast<Byte> (0xC8), f.bus.ReadByte (0xC800));
+
+        f.bus.WriteByte (0xCFFF, 0x00);
+        Assert::IsFalse (f.mmu.GetIntC8Rom(),
+            L"A $CFFF write must clear INTC8ROM");
+
+        // A read while INTCXROM is on.
+        f.sw.Write     (0xC007, 0);             // INTCXROM on
+        f.bus.ReadByte (0xC300);
+        f.sw.Write     (0xC006, 0);             // INTCXROM off
+
+        Assert::IsTrue (f.mmu.GetIntC8Rom(),
+            L"INTCXROM must not gate the INTC8ROM latch");
+        Assert::AreEqual (static_cast<Byte> (0xC8), f.bus.ReadByte (0xC800));
+
+        // With SLOTC3ROM set, $C3xx is slot 3's and leaves INTC8ROM alone.
+        f.bus.ReadByte  (0xCFFF);
+        f.sw.Write      (0xC00B, 0);            // SLOTC3ROM on
+        f.bus.ReadByte  (0xC300);
+        f.bus.WriteByte (0xC300, 0x00);
+
+        Assert::IsFalse (f.mmu.GetIntC8Rom(),
+            L"A $C3xx access with SLOTC3ROM set must not latch INTC8ROM");
+    }
+
     TEST_METHOD (CxxxExpansionWindow_FloatsWhenIntC8RomClear)
     {
         MmuFixture f;

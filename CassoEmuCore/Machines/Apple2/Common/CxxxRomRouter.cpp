@@ -251,8 +251,8 @@ Error:
 //
 //  Read
 //
-//  Resolves the byte then handles the $CFFF post-read side effect
-//  (clears INTC8ROM, deactivating expansion ROM).
+//  Resolves the byte, then applies the $C3xx and $CFFF INTC8ROM side
+//  effects.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,18 +280,7 @@ Byte CxxxRomRouter::Read (Word address)
         value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
     }
 
-    if (address >= kSlot3PageStart && address <= kSlot3PageEnd)
-    {
-        if (!m_mmu.GetIntCxRom() && !m_mmu.GetSlotC3Rom())
-        {
-            m_mmu.SetIntC8Rom (true);
-        }
-    }
-
-    if (address == kIntC8RomClearAddr)
-    {
-        m_mmu.ResetIntC8Rom();
-    }
+    ApplyAccessSideEffects (address);
 
     return value;
 }
@@ -304,10 +293,11 @@ Byte CxxxRomRouter::Read (Word address)
 //
 //  Write
 //
-//  Writes are ignored (ROM); a slot I/O page is delegated to its device,
-//  and the $CFFF side effect (STA $CFFF to deactivate expansion ROM) is
-//  preserved. The two are mutually exclusive by address, so no page ever
-//  both delegates and clears INTC8ROM.
+//  Writes are ignored (ROM); a slot I/O page is delegated to its device.
+//  The INTC8ROM side effects are an address decode, so a write applies
+//  them just as a read does. No address both delegates and switches
+//  INTC8ROM: slot 3 delegates only with SLOTC3ROM set, and $CFFF is never a
+//  slot I/O page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,7 +311,33 @@ void CxxxRomRouter::Write (Word address, Byte value)
     {
         io->Write (address, value);
     }
-    else if (address == kIntC8RomClearAddr)
+
+    ApplyAccessSideEffects (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyAccessSideEffects
+//
+//  INTC8ROM is set by any access to $C3xx while SLOTC3ROM is reset, and
+//  reset by any access to $CFFF (Sather, Understanding the Apple IIe,
+//  p. 5-28). Both are address decodes: neither the read/write line nor
+//  INTCXROM takes part.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CxxxRomRouter::ApplyAccessSideEffects (Word address)
+{
+    if (address >= kSlot3PageStart && address <= kSlot3PageEnd && !m_mmu.GetSlotC3Rom())
+    {
+        m_mmu.SetIntC8Rom (true);
+    }
+
+    if (address == kIntC8RomClearAddr)
     {
         m_mmu.ResetIntC8Rom();
     }
