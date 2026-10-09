@@ -257,6 +257,49 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    //  80STORE without HIRES leaves $2000-$3FFF to RAMRD / RAMWRT, including
+    //  when they change while 80STORE is already on -- the 80-column
+    //  firmware's text mode, where Infocom's 128K interpreter pages story
+    //  data into aux $2000-$3FFF
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Store80_NoHires_RamRdAndRamWrtSetLaterStillRouteHires20_3F)
+    {
+        MmuFixture f;
+
+        f.sw.Write (0xC001, 0);   // 80STORE on, before RAMRD / RAMWRT change
+        Assert::IsTrue  (f.mmu.Get80Store());
+        Assert::IsFalse (f.sw.IsHiresMode());
+
+        // RAMWRT on: writes to the hires page land in aux and leave main alone.
+        f.sw.Write (0xC005, 0);
+        f.bus.WriteByte (0x2000, 0x5A);
+        f.bus.WriteByte (0x3FFF, 0xA5);
+
+        Assert::AreEqual (static_cast<Byte> (0x5A), f.mmu.GetAuxBuffer()[0x2000]);
+        Assert::AreEqual (static_cast<Byte> (0xA5), f.mmu.GetAuxBuffer()[0x3FFF]);
+        Assert::AreEqual (static_cast<Byte> (0x00), f.mainRam.GetData()[0x2000], L"main $2000 must be untouched");
+        Assert::AreEqual (static_cast<Byte> (0x00), f.mainRam.GetData()[0x3FFF], L"main $3FFF must be untouched");
+
+        // RAMRD on: reads of the hires page come from aux.
+        f.mainRam.GetData()[0x3000]  = 0x11;
+        f.mmu.GetAuxBuffer()[0x3000] = 0x22;
+        f.sw.Write (0xC003, 0);
+        Assert::AreEqual (static_cast<Byte> (0x22), f.bus.ReadByte (0x3000));
+
+        // Both off again: the hires page is main's, for reads and writes.
+        f.sw.Write (0xC002, 0);
+        f.sw.Write (0xC004, 0);
+        Assert::AreEqual (static_cast<Byte> (0x11), f.bus.ReadByte (0x3000));
+
+        f.bus.WriteByte (0x2000, 0x77);
+        Assert::AreEqual (static_cast<Byte> (0x77), f.mainRam.GetData()[0x2000]);
+        Assert::AreEqual (static_cast<Byte> (0x5A), f.mmu.GetAuxBuffer()[0x2000], L"aux keeps what RAMWRT put there");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     //  Audit-fix anchors: each $C002-$C00B write-switch lands at the
     //  correct address (legacy AuxRamCard wired $C003-$C006 wrong).
     //

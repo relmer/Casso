@@ -8,6 +8,12 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+
+- Infocom's 128K games, such as Border Zone, no longer hang on the //e and //c.
+  In 80-column text mode, a program writing auxiliary memory at $2000-$3FFF
+  wrote main memory instead.
+
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 
 ### Added
