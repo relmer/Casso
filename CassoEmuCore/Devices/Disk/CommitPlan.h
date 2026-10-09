@@ -41,6 +41,8 @@ public:
         Probe,
         Reverify,
         WriteTemporary,
+        CopyMetadata,
+        FlushTemporary,
         Replace,
     };
 

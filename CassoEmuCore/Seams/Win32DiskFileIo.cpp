@@ -243,6 +243,165 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32DiskFileIo::FlushToStorage
+//
+//  FlushFileBuffers on a handle opened for writing, so the file's contents
+//  reach the storage before a rename makes them the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::FlushToStorage (const std::string & path)
+{
+    HRESULT       hr     = S_OK;
+    std::wstring  wide   = std::filesystem::path (path).wstring();
+    HANDLE        handle = INVALID_HANDLE_VALUE;
+    BOOL          ok     = FALSE;
+
+
+
+    handle = CreateFileW (wide.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (handle != INVALID_HANDLE_VALUE);
+
+    ok = FlushFileBuffers (handle);
+    CWR (ok);
+
+Error:
+    if (handle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (handle);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::CopyFileMetadata
+//
+//  What a replace would otherwise lose: the hidden, system and
+//  not-content-indexed attributes, the creation time, and the access control
+//  list when the old file's is protected or has entries of its own. An
+//  inherited list is left for the new file to inherit from its folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::CopyFileMetadata (const std::string & fromPath, const std::string & toPath)
+{
+    static constexpr DWORD  kCopiedAttributes = FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED;
+
+
+
+    HRESULT                        hr       = S_OK;
+    std::wstring                   wideFrom = std::filesystem::path (fromPath).wstring();
+    std::wstring                   wideTo   = std::filesystem::path (toPath).wstring();
+    WIN32_FILE_ATTRIBUTE_DATA      from     = {};
+    DWORD                          toAttrs  = 0;
+    HANDLE                         handle   = INVALID_HANDLE_VALUE;
+    PACL                           dacl     = nullptr;
+    PSECURITY_DESCRIPTOR           sd       = nullptr;
+    SECURITY_DESCRIPTOR_CONTROL    control  = 0;
+    DWORD                          revision = 0;
+    DWORD                          error    = ERROR_SUCCESS;
+    bool                           isOwn    = false;
+    ACL_SIZE_INFORMATION           aclInfo  = {};
+    DWORD                          i        = 0;
+    void                         * ace      = nullptr;
+    BOOL                           ok       = FALSE;
+
+
+
+    ok = GetFileAttributesExW (wideFrom.c_str(), GetFileExInfoStandard, &from);
+    CWR (ok);
+
+    toAttrs = GetFileAttributesW (wideTo.c_str());
+    CWR (toAttrs != INVALID_FILE_ATTRIBUTES);
+
+    ok = SetFileAttributesW (wideTo.c_str(), (toAttrs & ~kCopiedAttributes) | (from.dwFileAttributes & kCopiedAttributes));
+    CWR (ok);
+
+    handle = CreateFileW (wideTo.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (handle != INVALID_HANDLE_VALUE);
+
+    ok = SetFileTime (handle, &from.ftCreationTime, nullptr, nullptr);
+    CWR (ok);
+
+    error = GetNamedSecurityInfoW (wideFrom.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &dacl, nullptr, &sd);
+    CBREx (error == ERROR_SUCCESS, HRESULT_FROM_WIN32 (error));
+
+    ok = GetSecurityDescriptorControl (sd, &control, &revision);
+    CWR (ok);
+
+    if (dacl != nullptr && GetAclInformation (dacl, &aclInfo, sizeof (aclInfo), AclSizeInformation))
+    {
+        for (i = 0; i < aclInfo.AceCount && !isOwn; i++)
+        {
+            isOwn = GetAce (dacl, i, &ace) && (static_cast<ACE_HEADER *> (ace)->AceFlags & INHERITED_ACE) == 0;
+        }
+    }
+
+    if ((control & SE_DACL_PROTECTED) != 0 || isOwn)
+    {
+        error = SetNamedSecurityInfoW (wideTo.data(), SE_FILE_OBJECT,
+                                       DACL_SECURITY_INFORMATION | (((control & SE_DACL_PROTECTED) != 0) ? PROTECTED_DACL_SECURITY_INFORMATION
+                                                                                                         : UNPROTECTED_DACL_SECURITY_INFORMATION),
+                                       nullptr, nullptr, dacl, nullptr);
+        CBREx (error == ERROR_SUCCESS, HRESULT_FROM_WIN32 (error));
+    }
+
+Error:
+    if (handle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (handle);
+    }
+
+    if (sd != nullptr)
+    {
+        LocalFree (sd);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::RenameWithoutReplacing
+//
+//  MoveFileExW without REPLACE_EXISTING, which fails with
+//  ERROR_ALREADY_EXISTS when the target is there, and with WRITE_THROUGH so
+//  the rename is on the storage when this returns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath)
+{
+    HRESULT       hr       = S_OK;
+    std::wstring  wideTemp = std::filesystem::path (tempPath).wstring();
+    std::wstring  wideDest = std::filesystem::path (targetPath).wstring();
+    BOOL          ok       = FALSE;
+
+
+
+    ok = MoveFileExW (wideTemp.c_str(), wideDest.c_str(), MOVEFILE_WRITE_THROUGH);
+    CWR (ok);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32DiskFileIo::IsHeldByAnotherProcess
 //
 //  Best effort by nature. It catches another TOOL holding the file -- an editor,
