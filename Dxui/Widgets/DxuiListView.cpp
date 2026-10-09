@@ -21,7 +21,8 @@
 //  SetRows may have run before the host knew the paint rect; it would
 //  have clamped m_topRow against a zero-capacity rect and, with
 //  sticky-tail on, pinned m_topRow past the end. Re-clamp now that the
-//  real capacity is known, preserving sticky-tail intent.
+//  real capacity is known, preserving sticky-tail intent. A view clamped
+//  to the end rests at the very end, its last row whole.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +38,8 @@ void DxuiListView::SetRect (const RECT & rect)
 
     if (wasSticky || m_topRow > maxTop)
     {
-        m_topRow = maxTop;
+        m_topRow      = maxTop;
+        m_flushBottom = CanLiftRows();
     }
 
     if (m_topRow < 0)
@@ -145,7 +147,9 @@ void DxuiListView::SetRowIcon (int row, std::shared_ptr<const DxuiIconImage> ico
 //
 //  Re-clamp the top row and re-evaluate sticky-tail after the row count
 //  changes. Shared by SetRows / AppendRows / SetVirtualRowCount /
-//  SetRowProvider so all four keep identical scroll behavior.
+//  SetRowProvider so all four keep identical scroll behavior. A view clamped
+//  to the end rests at the very end, its last row whole, and a page still
+//  sliding stops there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +161,9 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
 
     if (wasSticky || m_topRow > maxTop)
     {
-        m_topRow = maxTop;
+        m_topRow      = maxTop;
+        m_flushBottom = CanLiftRows();
+        m_pageSlide   = {};
     }
 
     if (m_topRow < 0)
@@ -165,7 +171,9 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
         m_topRow = 0;
     }
 
-    m_stickyTail = m_stickyTailEnabled && (m_topRow >= maxTop);
+    //  A list that now fits has no end to hold, should it grow again.
+    m_flushBottom = m_flushBottom && GetLineCount() > GetVisibleRowCapacity();
+    m_stickyTail  = m_stickyTailEnabled && (m_topRow >= maxTop);
 
     PruneSelection();
 }
@@ -1078,13 +1086,20 @@ void DxuiListView::PruneSelection()
 //  SetSelectedRow it does not touch selection, so a host can keep a focused
 //  row on screen (e.g. after a re-sort) independent of what is selected.
 //
+//  A row already whole in sight leaves the view alone, which keeps a page
+//  down's rows flush with the bottom. After one, a row past the bottom comes
+//  in flush with it too. A row cut off at the top, while the rows are lifted
+//  by a page or at the list's end, comes in whole.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::EnsureVisible (int row)
 {
-    int  cap  = GetVisibleRowCapacity();
-    int  line = 0;
-    int  top  = 0;
+    int  cap   = GetVisibleRowCapacity();
+    int  line  = 0;
+    int  top   = 0;
+    int  first = 0;
+    int  last  = 0;
 
 
 
@@ -1110,9 +1125,18 @@ void DxuiListView::EnsureVisible (int row)
 
     top  = (HasGroupLines() && line > 0 && GetRowOfLine (line - 1) < 0) ? line - 1 : line;
 
-    if (top < m_topRow)
+    if (TryGetWholeLineSpan (first, last) && top >= first && line <= last)
+    {
+        return;
+    }
+
+    if (top < m_topRow || (top == m_topRow && GetRowShiftPx() > 0))
     {
         SetTopRow (top);
+    }
+    else if (m_flushBottom && line > last)
+    {
+        ScrollLineToBottom (line);
     }
     else if (line >= m_topRow + cap)
     {
@@ -1593,21 +1617,52 @@ int DxuiListView::GetMaxTopRow() const
 //
 //  GetRowShiftPx
 //
+//  How far Details draws its rows above their places. A body that ends
+//  partway through a row lifts them only while the view holds its bottom
+//  edge, after a page down or at the very end of the list, so the last row
+//  in sight ends flush with the bottom and the top one is cut off. Anywhere
+//  else, the top row included, the top row shows whole.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListView::GetRowShiftPx() const
 {
-    ScrollLayout  layout = ComputeScrollLayout();
-    int           rows   = GetLineCount();
-
-
-
-    if (IsItemsView() || layout.partialPx <= 0 || rows <= layout.rowCap || m_topRow < GetMaxTopRow())
+    if (!m_flushBottom || !CanLiftRows())
     {
         return 0;
     }
 
-    return GetRowHeightPx() - layout.partialPx;
+    return GetRowHeightPx() - ComputeScrollLayout().partialPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CanLiftRows
+//
+//  Whether Details' body ends partway through a row and the list has more
+//  lines than the whole rows that fit, so lifting the rows can show its last
+//  line whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::CanLiftRows() const
+{
+    ScrollLayout  layout;
+
+
+
+    if (IsItemsView())
+    {
+        return false;
+    }
+
+    layout = ComputeScrollLayout();
+
+    return layout.partialPx > 0 && GetLineCount() > layout.rowCap;
 }
 
 
@@ -1637,6 +1692,12 @@ int DxuiListView::GetShownRowCount() const
 //
 //  SetTopRow
 //
+//  Every scroll but a page's comes through here, so a page's hold on the
+//  bottom of Details or on an item line's edge ends here too, and so does a
+//  page still sliding into view. The row asked for shows whole at the top;
+//  a row past the last that can be the top asks for the very end, where
+//  Details lifts its rows so the last one shows whole.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::SetTopRow (int topRow)
@@ -1645,6 +1706,10 @@ void DxuiListView::SetTopRow (int topRow)
 
 
 
+    m_flushBottom    = false;
+    m_itemAnchorLine = -1;
+    m_pageSlide      = {};
+
     if (topRow < 0)
     {
         topRow = 0;
@@ -1652,7 +1717,8 @@ void DxuiListView::SetTopRow (int topRow)
 
     if (topRow > maxTop)
     {
-        topRow = maxTop;
+        topRow        = maxTop;
+        m_flushBottom = CanLiftRows();
     }
 
     //  An item view's top is the first item of a row; grouped, it is a line.
@@ -1663,6 +1729,38 @@ void DxuiListView::SetTopRow (int topRow)
 
     m_topRow = topRow;
     m_stickyTail = m_stickyTailEnabled && (m_topRow >= maxTop);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveTopRow
+//
+//  Moves the view by whole rows to `topRow`, for a host putting the view
+//  back after the rows under it change. Rows that a page down or the list's
+//  end lifted stay lifted, so nothing on screen moves by part of a row. The
+//  top row the view already has leaves it exactly as it is, a page's hold
+//  on an item line's edge and a page still sliding included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::MoveTopRow (int topRow)
+{
+    bool  lifted = m_flushBottom;
+
+
+
+    if (topRow == m_topRow)
+    {
+        return;
+    }
+
+    SetTopRow (topRow);
+
+    m_flushBottom = m_flushBottom || (lifted && CanLiftRows());
 }
 
 
@@ -1964,16 +2062,19 @@ Error:
 
 void DxuiListView::GetPageFromTrackClick (int yPx)
 {
-    HRESULT           hr     = S_OK;
-    ScrollbarMetrics  m      = GetScrollbarGeometry();
-    int               cap    = GetVisibleRowCapacity();
-    int               before = 0;
+    HRESULT           hr      = S_OK;
+    ScrollbarMetrics  m       = GetScrollbarGeometry();
+    int               cap     = GetVisibleRowCapacity();
+    PageSlide         running = m_pageSlide;
+    int               shownPx = 0;
+    int               restPx  = 0;
 
 
 
     BAIL_OUT_IF (!m.visible || cap <= 0, S_OK);
 
-    before = GetShownItemTopPx();
+    shownPx = GetShownScrollPx();
+    restPx  = GetRestScrollPx();
 
     if ((float) yPx < m.thumbTop)
     {
@@ -1984,7 +2085,7 @@ void DxuiListView::GetPageFromTrackClick (int yPx)
         SetTopRow (m_topRow + cap);
     }
 
-    BeginPageSlide (before);
+    BeginPageSlide (running, shownPx, restPx);
 
 Error:
     return;
@@ -2039,13 +2140,14 @@ void DxuiListView::UpdateThumbDrag (int yPx)
     BAIL_OUT_IF (!m_vertDragging || !m.visible, S_OK);
 
     //  The puck follows the pointer by the pixel; the rows follow in whole
-    //  rows as the puck reaches each one.
+    //  rows as the puck reaches each one. At the bottom of its travel, the
+    //  view goes to the very end, past the last top row.
     travel   = (std::max) ((float) m.trackH - m.thumbH, 0.0f);
     thumbTop = std::clamp ((float) yPx - m_vertDragGrab - (float) m.trackTop, 0.0f, travel);
     ratio    = (travel > 0.0f) ? (thumbTop / travel) : 0.0f;
 
     m_vertScroll.SetDragOffset (thumbTop);
-    SetTopRow ((int) std::lround (ratio * (float) maxTop));
+    SetTopRow ((travel > 0.0f && thumbTop >= travel) ? maxTop + 1 : (int) std::lround (ratio * (float) maxTop));
 
 Error:
     return;
@@ -2679,6 +2781,9 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
 //
 //  HitTestGroupHeader
 //
+//  The group whose header is drawn under a point, a sliding page's offset
+//  included, or -1.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListView::HitTestGroupHeader (int xPx, int yPx) const
@@ -2694,7 +2799,7 @@ int DxuiListView::HitTestGroupHeader (int xPx, int yPx) const
     if (UsesItemLayout())
     {
         const ItemLayout  & layout = GetItemLayout();
-        int                 at     = (xPx >= 0 && yPx >= 0) ? FindItemLine (layout, yPx + GetItemTopPx (layout)) : -1;
+        int                 at     = (xPx >= 0 && yPx >= 0) ? FindItemLine (layout, yPx + GetShownScrollPx()) : -1;
 
         return (at >= 0) ? layout.lines[(size_t) at].group : -1;
     }
@@ -2714,8 +2819,10 @@ int DxuiListView::HitTestGroupHeader (int xPx, int yPx) const
 //
 //  HitTestLine
 //
-//  The line under a point relative to the list's rect, accounting for the
-//  scroll, or -1 outside every shown line.
+//  The line under a point relative to the list's rect, or -1 outside every
+//  shown line. The line is the one drawn there: past the scroll, the rows'
+//  lift, and a sliding page's offset, which can put a line above the top
+//  row under the point.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2729,8 +2836,10 @@ int DxuiListView::HitTestLine (int xPx, int yPx) const
     int      body    = yPx - headerH - hdrGap;
     int      shifted = body + GetRowShiftPx();
     int      visIdx  = (body < 0 || rowH <= 0) ? -1 : (shifted / rowH);
+    int      drawnPx = shifted - GetPageSlidePx();
+    int      drawn   = (rowH <= 0) ? 0 : (drawnPx >= 0) ? drawnPx / rowH : -((rowH - 1 - drawnPx) / rowH);
     int      cap     = GetVisibleRowCapacity();
-    int      abs     = (visIdx < 0) ? -1 : (m_topRow + visIdx);
+    int      abs     = (visIdx < 0) ? -1 : (m_topRow + drawn);
     int      rowW    = (m_boundsDip.right - m_boundsDip.left) - (GetLineCount() > cap ? GetScrollbarWidthPx() : 0);
 
 
@@ -2930,10 +3039,17 @@ int DxuiListView::GetLineOfGroup (int group) const
 //
 //  SetGroups
 //
+//  Groups that change move every line, so a page's hold on a line's edge is
+//  let go; the same groups set again, as a refresh does, keep it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::SetGroups (std::vector<Group> groups)
 {
+    bool  same = false;
+
+
+
     for (Group & group : groups)
     {
         for (const Group & old : m_groups)
@@ -2944,6 +3060,17 @@ void DxuiListView::SetGroups (std::vector<Group> groups)
                 break;
             }
         }
+    }
+
+    same = std::equal (groups.begin(), groups.end(), m_groups.begin(), m_groups.end(), [] (const Group & a, const Group & b)
+    {
+        return a.label == b.label && a.firstRow == b.firstRow && a.collapsed == b.collapsed;
+    });
+
+    if (!same)
+    {
+        m_flushBottom    = false;
+        m_itemAnchorLine = -1;
     }
 
     m_groups     = std::move (groups);
@@ -3027,20 +3154,22 @@ bool DxuiListView::IsGroupCollapsed (int group) const
 //
 //  IsGroupSliding
 //
-//  The slide ends itself here, so the frame after its last one is drawn
-//  with the group where it rests.
+//  Whether a group opened or closed one at a time, or a page, is still
+//  sliding, so the host keeps painting. The slide ends itself here, and this
+//  returns true once more after it settles, so the frame after its last one
+//  is drawn with the group, or the page, where it rests.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListView::IsGroupSliding()
 {
-    if (m_pageSlide.active && GetClockMs() - m_pageSlide.startMs >= s_kPageSlideMs)
-    {
-        m_pageSlide = {};
-    }
-
     if (m_pageSlide.active)
     {
+        if (GetClockMs() - m_pageSlide.startMs >= s_kPageSlideMs)
+        {
+            m_pageSlide = {};
+        }
+
         return true;
     }
 
@@ -3262,7 +3391,9 @@ std::vector<DxuiListView::LineSpot> DxuiListView::PlaceDataLines (
 
 void DxuiListView::EnsureLineVisible (int line)
 {
-    int  cap = GetVisibleRowCapacity();
+    int  cap   = GetVisibleRowCapacity();
+    int  first = 0;
+    int  last  = 0;
 
 
 
@@ -3271,9 +3402,19 @@ void DxuiListView::EnsureLineVisible (int line)
         return;
     }
 
-    if (line < m_topRow)
+    //  As EnsureVisible: a line whole in sight leaves a page down's hold alone.
+    if (TryGetWholeLineSpan (first, last) && line >= first && line <= last)
+    {
+        return;
+    }
+
+    if (line < m_topRow || (line == m_topRow && GetRowShiftPx() > 0))
     {
         SetTopRow (line);
+    }
+    else if (m_flushBottom && line > last)
+    {
+        ScrollLineToBottom (line);
     }
     else if (line >= m_topRow + cap)
     {
@@ -3447,10 +3588,13 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     int              totalRows  = GetLineCount();
     int              firstRow   = m_topRow;
     int              lastRow    = std::min (totalRows, m_topRow + (visibleCap > 0 ? GetShownRowCount() : totalRows));
+    int              rowH       = GetRowHeightPx();
+    int              slidePx    = IsItemsView() ? 0 : GetPageSlidePx();
     float            barW       = layout.vBar ? (float) GetScrollbarWidthPx() : 0.0f;
     float            hBarH      = layout.hBar ? (float) GetScrollbarWidthPx() : 0.0f;
     float            layoutW    = fullW - barW;
     float            contentH   = fullH - hBarH;
+    float            bodyTop    = m_showHeader ? (float) (GetHeaderBarPx() + GetHeaderGapPx()) : 0.0f;
     //  Always: a header or a row wider than the list used to paint over
     //  whatever sat beside it, since nothing else clips a Dxui widget.
     bool             clip       = true;
@@ -3477,12 +3621,27 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     ComputeColumnLayout (layoutW, colXPx, colWPx);
 
+    //  A sliding page draws the rows it is leaving as well as those it rests
+    //  on: above them while it slides down, below them while it slides up.
+    if (slidePx > 0 && rowH > 0)
+    {
+        firstRow = (std::max) (0, m_topRow - (slidePx + rowH - 1) / rowH);
+    }
+    else if (slidePx < 0 && rowH > 0)
+    {
+        lastRow = (std::min) (totalRows, lastRow + (rowH - slidePx - 1) / rowH);
+    }
+
     painter.FillRect (x, y, fullW, fullH, pal.bgRow);
 
+    //  The painter's clip as well as the text's: a row cut off at the top,
+    //  as a page down leaves one, would otherwise draw its highlight above
+    //  the list.
     if (clip)
     {
         hr = text.PushClipRect (x, y, layoutW, contentH);
         IGNORE_RETURN_VALUE (hr, S_OK);
+        painter.PushClipRect (x, y, layoutW, contentH);
     }
 
     //  The rows first and the header over them, so a row drawn partly above
@@ -3493,7 +3652,24 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     }
     else
     {
+        //  Below the header the rows are clipped as well: its fill covers
+        //  theirs, but text is drawn after every fill, so a row a sliding page
+        //  carries up out of the body would write over the column titles.
+        if (bodyTop > 0.0f)
+        {
+            hr = text.PushClipRect (x, y + bodyTop, layoutW, contentH - bodyTop);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            painter.PushClipRect (x, y + bodyTop, layoutW, contentH - bodyTop);
+        }
+
         PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
+
+        if (bodyTop > 0.0f)
+        {
+            hr = text.PopClipRect();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            painter.PopClipRect();
+        }
     }
 
     if (m_showHeader)
@@ -3507,6 +3683,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     {
         hr = text.PopClipRect();
         IGNORE_RETURN_VALUE (hr, S_OK);
+        painter.PopClipRect();
     }
 
     PaintScrollbar  (painter, pal, x, y);
@@ -3986,6 +4163,7 @@ void DxuiListView::PaintDataRows (
     float                  lastRight = 0.0f;
     float                  clipTop   = 0.0f;
     float                  clipH     = 0.0f;
+    float                  top       = 0.0f;
     bool                   clipped   = false;
     std::vector<LineSpot>  spots;
 
@@ -4006,7 +4184,10 @@ void DxuiListView::PaintDataRows (
         boxW = std::clamp (lastRight - (float) m_scaler.ToPx (s_kRowBoxEndInsetDip), 0.0f, layoutW);
     }
 
-    spots = PlaceDataLines (y + headerH + hdrGap - (float) GetRowShiftPx(), firstRow, lastRow, clipTop, clipH);
+    //  Where firstRow is drawn: the rows lifted at the end of the list or
+    //  after a page down, and moved with a sliding page.
+    top   = y + headerH + hdrGap - (float) GetRowShiftPx() + (float) GetPageSlidePx() - (float) (m_topRow - firstRow) * rowH;
+    spots = PlaceDataLines (top, firstRow, lastRow, clipTop, clipH);
 
     for (const LineSpot & spot : spots)
     {
@@ -5527,13 +5708,29 @@ bool DxuiListView::HandleKeyboardColumnKey (WPARAM vk)
 //  DxuiListView::HandleKeyboardBodyRowNav
 //
 //  Moves the selected row from the list-body keyboard sub-stop. Arrows
-//  step one row, Home / End jump to the ends, and PageUp / PageDown move
-//  by the visible row capacity. The target is clamped to a valid row.
+//  step one row and Home / End jump to the ends, the target clamped to a
+//  valid row; PageUp / PageDown go to HandleKeyboardPage. A page that
+//  scrolled slides into view, as Explorer's does; any other key that
+//  scrolls ends a slide under way, and the view jumps.
+//
+//  A page's move, and Home's or End's wherever the view is placed after the
+//  move, is reported last, with the view where the key leaves it and any
+//  slide begun. A host that draws a frame from the report, as one that fills
+//  a preview does, would otherwise show the move with the view still on its
+//  way: a frame at the page's end before the slide back from its start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift, bool ctrl)
 {
+    bool       paging  = (vk == VK_PRIOR || vk == VK_NEXT);
+    int        shownPx = paging ? GetShownScrollPx() : 0;
+    int        restPx  = paging ? GetRestScrollPx()  : 0;
+    PageSlide  running = m_pageSlide;
+    bool       handled = false;
+
+
+
     if (m_multiSelect && vk == VK_SPACE)
     {
         return SelectFocused (ctrl);
@@ -5541,31 +5738,59 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift, bool ctrl)
 
     if (IsItemsView())
     {
-        int   before  = GetShownItemTopPx();
-        bool  handled = HandleKeyboardItemNav (vk, shift, ctrl);
-
-        //  A page slides into view, as Explorer's does.
-        if (handled && (vk == VK_PRIOR || vk == VK_NEXT))
-        {
-            BeginPageSlide (before);
-        }
-
-        return handled;
+        handled = HandleKeyboardItemNav (vk, shift, ctrl);
+    }
+    else if (paging)
+    {
+        handled = HandleKeyboardPage (vk, shift, ctrl);
+    }
+    else if (HasGroupLines())
+    {
+        handled = HandleKeyboardGroupedNav (vk, shift, ctrl);
+    }
+    else
+    {
+        handled = HandleKeyboardRowNav (vk, shift, ctrl);
     }
 
+    if (paging)
+    {
+        BeginPageSlide (running, shownPx, restPx);
+    }
+
+    if (m_keyMovePending)
+    {
+        m_keyMovePending = false;
+
+        if (m_onSelectionChanged)
+        {
+            m_onSelectionChanged (m_keyMoveRow);
+        }
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardRowNav
+//
+//  Details without groups: the arrows, Home and End over the rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardRowNav (WPARAM vk, bool shift, bool ctrl)
+{
     int   rows  = GetRowCount();
-    int   cap   = GetVisibleRowCapacity();
-    int   page  = (cap > 1) ? cap : 1;
     int   cur   = GetSelectedRow();
     int   next  = cur;
     bool  moved = (rows > 0);
 
 
-
-    if (HasGroupLines())
-    {
-        return HandleKeyboardGroupedNav (vk, shift, ctrl);
-    }
 
     switch (vk)
     {
@@ -5573,8 +5798,6 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift, bool ctrl)
         case VK_DOWN:  next = cur + 1;    break;
         case VK_HOME:  next = 0;          break;
         case VK_END:   next = rows - 1;   break;
-        case VK_PRIOR: next = cur - page; break;
-        case VK_NEXT:  next = cur + page; break;
         default:       moved = false;     break;
     }
 
@@ -5629,17 +5852,16 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift, bool ctrl)
 //
 //  DxuiListView::HandleKeyboardGroupedNav
 //
-//  With groups, the keys step over lines, and a header is a stop like a row:
-//  reaching one selects its rows and gives it the focus. On a header, Left
-//  collapses the group and Right opens it.
+//  With groups, the arrows step over lines, and a header is a stop like a
+//  row: reaching one selects its rows and gives it the focus. On a header,
+//  Left collapses the group and Right opens it. Home and End go to the first
+//  and last rows, past the headers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListView::HandleKeyboardGroupedNav (WPARAM vk, bool shift, bool ctrl)
 {
     int   lines = GetLineCount();
-    int   cap   = GetVisibleRowCapacity();
-    int   page  = (cap > 1) ? cap : 1;
     int   cur   = (m_focusGroup >= 0) ? GetLineOfGroup (m_focusGroup) : GetLineOfRow (GetSelectedRow());
     int   next  = cur;
     int   row   = -1;
@@ -5657,14 +5879,15 @@ bool DxuiListView::HandleKeyboardGroupedNav (WPARAM vk, bool shift, bool ctrl)
         return true;
     }
 
+    if (vk == VK_HOME || vk == VK_END)
+    {
+        return HandleKeyboardDetailsJump (vk, shift, ctrl);
+    }
+
     switch (vk)
     {
         case VK_UP:    next = (cur < 0) ? 0 : cur - 1; break;
         case VK_DOWN:  next = (cur < 0) ? 0 : cur + 1; break;
-        case VK_HOME:  next = 0;                       break;
-        case VK_END:   next = lines - 1;               break;
-        case VK_PRIOR: next = cur - page;              break;
-        case VK_NEXT:  next = cur + page;              break;
         default:       return false;
     }
 
@@ -5706,6 +5929,476 @@ bool DxuiListView::HandleKeyboardGroupedNav (WPARAM vk, bool shift, bool ctrl)
     EnsureLineVisible (next);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardDetailsJump
+//
+//  Home and End in grouped Details: the first or the last row, past the
+//  headers, with the view at its very top or its very end. With every group
+//  collapsed there is no row, and the first or last header takes the focus
+//  instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardDetailsJump (WPARAM vk, bool shift, bool ctrl)
+{
+    bool  home   = (vk == VK_HOME);
+    int   lines  = GetLineCount();
+    int   target = GetEdgeRowLine (!home);
+
+
+
+    if (lines <= 0)
+    {
+        return false;
+    }
+
+    if (target < 0)
+    {
+        target = home ? 0 : lines - 1;
+
+        if (m_multiSelect && ctrl && !shift)
+        {
+            m_focusGroup = GetGroupOfLine (target);
+        }
+        else
+        {
+            SelectGroup (GetGroupOfLine (target));
+        }
+
+        EnsureLineVisible (target);
+        return true;
+    }
+
+    ApplyKeyboardMove (GetRowOfLine (target), shift, ctrl);
+
+    if (home)
+    {
+        SetTopRow (0);
+    }
+    else
+    {
+        ScrollLineToBottom (target);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardPage
+//
+//  Page Up and Page Down in Details, as Explorer's, measured at 150%. With
+//  the focus short of the edge the key is toward, or on no row, it goes to
+//  the whole row at that edge and nothing scrolls. On that edge, or past it
+//  out of sight, it goes a page on, headers not counted, and the view puts
+//  that row flush with the edge, so the row it left is the first or last
+//  whole one at the other side. A focused header pages from its line, as a
+//  row under a collapsed header does from its group's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardPage (WPARAM vk, bool shift, bool ctrl)
+{
+    bool  down       = (vk == VK_NEXT);
+    int   rows       = GetRowCount();
+    int   page       = GetPageLines();
+    int   cur        = -1;
+    int   first      = -1;
+    int   last       = -1;
+    int   target     = -1;
+    int   savedTop   = m_topRow;
+    bool  savedFlush = m_flushBottom;
+    bool  scroll     = false;
+
+
+
+    if (!TryGetWholeRowLineSpan (first, last))
+    {
+        return false;
+    }
+
+    if (m_focusGroup >= 0)
+    {
+        cur = GetLineOfGroup (m_focusGroup);
+    }
+    else if (m_selectedRow >= 0 && m_selectedRow < rows)
+    {
+        cur = GetLineOfRow (m_selectedRow);
+        cur = (cur >= 0) ? cur : GetLineOfGroup (GetGroupOfRow (m_selectedRow));
+    }
+
+    target = IsAtPageEdge (cur, down ? last : first, down) ? StepRowLines (cur, down ? page : -page)
+                                                            : (down ? last : first);
+
+    //  A header with no row past it in the key's direction.
+    if (target < 0)
+    {
+        return true;
+    }
+
+    scroll = !IsLineWhollyShown (target);
+
+    ApplyKeyboardMove (GetRowOfLine (target), shift, ctrl);
+
+    //  Selecting a group's first row scrolls its header into sight, which a
+    //  move that stays in sight undoes.
+    if (!scroll)
+    {
+        SetTopRow (savedTop);
+        m_flushBottom = savedFlush;
+    }
+    else if (down)
+    {
+        ScrollLineToBottom (target);
+    }
+    else
+    {
+        ScrollLineToTop (target);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ApplyKeyboardMove
+//
+//  A key's move to a row, as the arrows make it: alone, the row becomes the
+//  selection; Shift selects from the anchor to it; Ctrl moves the focus
+//  alone, leaving the selection for Space. Selecting scrolls the row into
+//  sight, so a caller that places the view itself does it afterward, and the
+//  move is reported once it has: see HandleKeyboardBodyRowNav.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ApplyKeyboardMove (int row, bool shift, bool ctrl)
+{
+    m_focusGroup = -1;
+
+    if (m_multiSelect && ctrl && !shift)
+    {
+        m_selectedRow = row;
+        return;
+    }
+
+    if (m_multiSelect && shift)
+    {
+        SelectRangeFromAnchor (row);
+    }
+    else
+    {
+        SetSelectedRow (row);
+    }
+
+    //  Reported only with multiple selection on, where a keyboard move is a
+    //  selection change like any click; a single-select list has always left
+    //  keyboard moves unreported.
+    if (m_multiSelect && m_onSelectionChanged)
+    {
+        m_keyMoveRow     = row;
+        m_keyMovePending = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetPageLines
+//
+//  How many lines a page moves: the lines of the base height the view holds
+//  whole, less one, and at least one. A row taller than the base, as a
+//  wrapped name makes one, still counts as one line, so after a page the row
+//  left behind can end partly out of sight, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetPageLines() const
+{
+    int  whole = UsesItemLayout() ? GetItemGrid().visible : GetVisibleRowCapacity();
+
+
+
+    return (std::max) (1, whole - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetGroupOfRow
+//
+//  The group a row belongs to, or -1 for a row ahead of the first group.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetGroupOfRow (int row) const
+{
+    int  group = -1;
+
+
+
+    for (size_t g = 0; g < m_groups.size() && m_groups[g].firstRow <= row; g++)
+    {
+        group = (int) g;
+    }
+
+    return group;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetWholeLineSpan
+//
+//  The lines Details shows whole, headers included: from the top one, or the
+//  one under it while the rows are lifted, for as many as the body holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetWholeLineSpan (int & first, int & last) const
+{
+    int  cap   = GetVisibleRowCapacity();
+    int  lines = GetLineCount();
+
+
+
+    first = m_topRow + ((GetRowShiftPx() > 0) ? 1 : 0);
+    last  = (std::min) (first + cap - 1, lines - 1);
+
+    return cap > 0 && first <= last;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetWholeRowLineSpan
+//
+//  The first and last rows Details shows whole, as lines, past any header at
+//  either end. With no row whole in sight, the row nearest the top stands for
+//  both. False only when there is no row to show at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetWholeRowLineSpan (int & first, int & last) const
+{
+    int  lines   = GetLineCount();
+    int  nearest = -1;
+
+
+
+    if (lines <= 0)
+    {
+        return false;
+    }
+
+    if (TryGetWholeLineSpan (first, last))
+    {
+        while (first <= last && GetRowOfLine (first) < 0)
+        {
+            first++;
+        }
+
+        while (last >= first && GetRowOfLine (last) < 0)
+        {
+            last--;
+        }
+
+        if (first <= last)
+        {
+            return true;
+        }
+    }
+
+    nearest = (std::min) (m_topRow, lines - 1);
+    nearest = (GetRowOfLine (nearest) >= 0) ? nearest : StepRowLines (nearest, 1);
+    nearest = (nearest >= 0) ? nearest : StepRowLines ((std::min) (m_topRow, lines - 1), -1);
+    first   = nearest;
+    last    = nearest;
+
+    return nearest >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::IsLineWhollyShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsLineWhollyShown (int line) const
+{
+    int  first = 0;
+    int  last  = 0;
+
+
+
+    return TryGetWholeLineSpan (first, last) && line >= first && line <= last;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::StepRowLines
+//
+//  The row `steps` rows on from a line, as a line, down for a positive count:
+//  only rows are counted, and the count stops at the first or the last. A row
+//  with none past it gives itself; a header with none past it gives -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::StepRowLines (int line, int steps) const
+{
+    int  lines  = GetLineCount();
+    int  dir    = (steps < 0) ? -1 : 1;
+    int  left   = (steps < 0) ? -steps : steps;
+    int  result = (line >= 0 && line < lines && GetRowOfLine (line) >= 0) ? line : -1;
+    int  at     = line;
+
+
+
+    while (left > 0)
+    {
+        at += dir;
+
+        if (at < 0 || at >= lines)
+        {
+            break;
+        }
+
+        if (GetRowOfLine (at) >= 0)
+        {
+            result = at;
+            left--;
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetEdgeRowLine
+//
+//  The first or the last row's line, past the headers; -1 with no row shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetEdgeRowLine (bool last) const
+{
+    int  lines = GetLineCount();
+    int  edge  = last ? lines - 1 : 0;
+
+
+
+    if (lines <= 0)
+    {
+        return -1;
+    }
+
+    return (GetRowOfLine (edge) >= 0) ? edge : StepRowLines (edge, last ? -1 : 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ScrollLineToBottom
+//
+//  Scrolls Details so a line ends flush with the body's bottom: when the body
+//  ends partway through a row, the rows are lifted for it and the top one is
+//  cut off. The last row goes to the very end, so the headers of collapsed
+//  groups under it come into sight with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ScrollLineToBottom (int line)
+{
+    ScrollLayout  layout = ComputeScrollLayout();
+    int           cap    = layout.rowCap;
+
+
+
+    if (cap <= 0)
+    {
+        SetTopRow (line);
+        return;
+    }
+
+    //  Past the last top row is the very end.
+    if (line == GetEdgeRowLine (true))
+    {
+        SetTopRow (GetMaxTopRow() + 1);
+
+        if (IsLineWhollyShown (line))
+        {
+            return;
+        }
+    }
+
+    if (layout.partialPx <= 0 || line < cap)
+    {
+        SetTopRow (line - cap + 1);
+        return;
+    }
+
+    SetTopRow (line - cap);
+    m_flushBottom = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ScrollLineToTop
+//
+//  Scrolls Details so a line is the top one; for the first row, to the very
+//  top, so the header above it shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ScrollLineToTop (int line)
+{
+    SetTopRow ((line == GetEdgeRowLine (false)) ? 0 : line);
 }
 
 

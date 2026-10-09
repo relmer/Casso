@@ -171,8 +171,7 @@ public:
     void                        SetAllGroupsCollapsed  (bool collapsed);
     bool                        IsGroupCollapsed       (int group) const;
 
-    //  Whether a group opened or closed one at a time is still sliding, so the
-    //  host keeps painting; true once more after it settles, for its last frame.
+    //  Whether a group or a page is still sliding, so the host keeps painting.
     bool                        IsGroupSliding         ();
 
     //  The group whose header has the keyboard, or -1 when a row has it. A
@@ -355,6 +354,7 @@ public:
     void  EnableStickyTail      (bool b)                 { m_stickyTailEnabled = b; m_stickyTail = b; }
     bool  IsStickyTailEnabled   () const                 { return m_stickyTailEnabled; }
     void  SetTopRow             (int topRow);
+    void  MoveTopRow            (int topRow);            // by whole rows, keeping the rows' lift and any hold
     void  ScrollByRows          (int delta)              { SetTopRow (m_topRow + delta); }
     // Scroll just enough to bring `row` into the visible window, without
     // changing selection (SetSelectedRow does the same but also selects).
@@ -552,6 +552,9 @@ public:
     using ClockFn = std::function<int64_t()>;
     void  SetClock (ClockFn clock)                               { m_clock = std::move (clock); }
 
+    //  Whether a page slides into view, as Explorer's does. Off by default.
+    void  SetPageSlideEnabled (bool enabled)                     { m_pageSlideEnabled = enabled; }
+
     // By default the selected row only paints while the list itself holds
     // keyboard focus (its focus cue). File-picker-style consumers keep the
     // selection visible regardless, like a real list view.
@@ -735,9 +738,9 @@ private:
         int   partialPx = 0;   // the part of a row the body shows past its last whole one
     };
 
-    //  How far the rows are drawn above their places: at the end of the list,
-    //  far enough that its last row shows whole and the first one is cut off.
+    //  How far the rows are drawn above their places, and whether they can be.
     int   GetRowShiftPx () const;
+    bool  CanLiftRows   () const;
 
     //  Rows the body shows at least part of: the whole ones, and a cut one.
     int   GetShownRowCount () const;
@@ -750,6 +753,21 @@ private:
     void  EnsureLineVisible (int line);
     bool  HitTestGroupChevron (int xPx, int group) const;
     bool  HandleKeyboardGroupedNav (WPARAM vk, bool shift, bool ctrl = false);
+    bool  HandleKeyboardDetailsJump (WPARAM vk, bool shift, bool ctrl);
+
+    //  Page Up and Page Down, as Explorer's.
+    bool         HandleKeyboardPage     (WPARAM vk, bool shift, bool ctrl);
+    void         ApplyKeyboardMove      (int row, bool shift, bool ctrl);
+    static bool  IsAtPageEdge           (int cur, int edge, bool down) { return cur >= 0 && (down ? cur >= edge : cur <= edge); }
+    int          GetPageLines           () const;
+    int          GetGroupOfRow          (int row) const;
+    bool         TryGetWholeLineSpan    (int & first, int & last) const;
+    bool         TryGetWholeRowLineSpan (int & first, int & last) const;
+    bool         IsLineWhollyShown      (int line) const;
+    int          StepRowLines           (int line, int steps) const;
+    int          GetEdgeRowLine         (bool last) const;
+    void         ScrollLineToBottom     (int line);
+    void         ScrollLineToTop        (int line);
 
     //  Space on the focused item, as in Explorer: Ctrl toggles it, alone it
     //  becomes the selection; on a focused header, the group's rows do.
@@ -783,21 +801,23 @@ private:
 
     static constexpr int64_t  s_kGroupSlideMs = 250;
 
-    //  A page of an item view, by key or a click in the scrollbar's track,
-    //  slides into view from where the view was drawn, as Explorer's does:
-    //  the same ease over 185 ms, measured.
+    //  A page sliding into view from where the view was drawn; see BeginPageSlide.
     struct PageSlide
     {
-        bool     active  = false;
-        int      fromPx  = 0;
-        int64_t  startMs = 0;
+        bool     active   = false;
+        int      fromPx   = 0;    // from the list's top, or from fromLine's top
+        int      fromLine = -1;   // an item view's line the start is kept against, or -1
+        int64_t  startMs  = 0;
     };
 
-    static constexpr int64_t  s_kPageSlideMs = 185;
+    static constexpr int64_t  s_kPageSlideMs = 175;
 
-    void                    BeginPageSlide     (int fromPx);
+    void                    BeginPageSlide     (const PageSlide & running, int fromPx, int restBeforePx);
     int                     GetPageSlidePx     () const;
-    int                     GetShownItemTopPx  () const;
+    bool                    UsesPageSlide      () const;
+    int                     GetRestScrollPx    () const;
+    int                     GetShownScrollPx   () const { return GetRestScrollPx() - GetPageSlidePx(); }
+    int                     GetScrollViewPx    () const;
 
     static float            EaseGroupSlide     (float t);
     float                   GetGroupSlideShown () const;
@@ -875,6 +895,9 @@ private:
     };
 
     ItemSlide     PlaceItemSlide          () const;
+    void          CollectItemsToMeasure   (std::vector<std::pair<int, RECT>> & out) const;
+    void          CollectLineItemsInSight (const ItemLayout & layout, const ItemLine & line, const ItemSlide & slide, int pageY,
+                                           std::vector<std::pair<int, RECT>> & out) const;
     bool          HasItemGroups           () const;
     bool          UsesItemLayout          () const;
     bool          IsFirstOfGroup          (int item) const;
@@ -886,6 +909,18 @@ private:
     int           GetMaxItemTopLine       (const ItemLayout & layout) const;
     void          EnsureItemLineVisible   (const ItemLayout & layout, int line);
     bool          HandleKeyboardGroupedItemNav (WPARAM vk, bool shift, bool ctrl);
+
+    //  Page Up, Page Down, Home and End over the lines of items.
+    static bool   IsItemLine              (const ItemLine & line) { return line.group < 0 && line.count > 0; }
+    static int    GetLastItemLine         (const ItemLayout & layout);
+    static int    StepItemLines           (const ItemLayout & layout, int line, int steps);
+    bool          TryGetWholeItemLineSpan (const ItemLayout & layout, int & first, int & last) const;
+    bool          IsItemLineWhollyShown   (const ItemLayout & layout, int line) const;
+    void          AnchorItemLine          (int line, bool bottom);
+    void          ScrollItemLineToBottom  (int line);
+    void          ScrollItemLineToTop     (int line);
+    bool          HandleKeyboardItemPage  (const ItemLayout & layout, WPARAM vk, int line, int slot, bool shift, bool ctrl);
+    bool          HandleKeyboardItemJump  (const ItemLayout & layout, WPARAM vk, bool shift, bool ctrl);
 
     //  The big icon views wrap a name to as many as four lines, as Explorer's
     //  do, and each row of items grows to fit its tallest name. A name is
@@ -982,6 +1017,23 @@ private:
     static int    FindListBlock           (const ListLayout & layout, int x);
     int           HitTestListItem         (const ListLayout & layout, int xPx, int yPx) const;
     bool          HandleKeyboardListGroupNav (WPARAM vk, bool shift, bool ctrl);
+
+    //  A column of List, grouped or not, as its page keys move across them.
+    struct ListColumn
+    {
+        int  left  = 0;   // the item box, in the content's own pixels
+        int  right = 0;
+        int  first = 0;   // the items it holds
+        int  count = 0;
+    };
+
+    std::vector<ListColumn>  GetListColumns            () const;
+    static int               FindColumnOfItem          (const std::vector<ListColumn> & cols, int item);
+    bool                     TryGetWholeListColumnSpan (const std::vector<ListColumn> & cols, int & first, int & last) const;
+    bool                     IsListColumnWhollyShown   (const ListColumn & col) const;
+    int                      GetListPageStartColumn    (const std::vector<ListColumn> & cols, bool down) const;
+    bool                     HandleKeyboardListJump    (WPARAM vk, bool shift, bool ctrl);
+    bool                     HandleKeyboardListPage    (const std::vector<ListColumn> & cols, bool down, bool shift, bool ctrl);
 
     //  What a group layout is built from. The layouts are kept until one of
     //  these changes, so a hit test or a paint reads them rather than
@@ -1087,6 +1139,7 @@ private:
     void    ReleaseKeyboardColumnFocus ();
     bool    HandleKeyboardColumnKey  (WPARAM vk);
     bool    HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false, bool ctrl = false);
+    bool    HandleKeyboardRowNav     (WPARAM vk, bool shift, bool ctrl);
 
     // Sets the selection to the rows from the anchor to `row`, inclusive.
     void    SelectRangeFromAnchor    (int row);
@@ -1148,6 +1201,10 @@ private:
     View                       m_view              = View::Details;
     bool                       m_detailsHeader     = false;   // the header Details had, while another view shows
     int                        m_topRow            = 0;
+    bool                       m_flushBottom       = false;   // Details: the rows lifted so the last whole one ends at the bottom
+    int                        m_itemAnchorLine    = -1;      // an item view's scroll held at this line's edge; -1 for m_topRow's
+    bool                       m_itemAnchorBottom  = false;   // its bottom edge rather than its top
+    bool                       m_pageSlideEnabled  = false;
     bool                       m_stickyTail        = false;
 
     // Whether the host opted into sticky-tail behavior. Off by default: a
@@ -1191,6 +1248,8 @@ private:
     mutable std::vector<int>   m_rowLines;
     GroupSlide                 m_groupSlide;
     PageSlide                  m_pageSlide;
+    int                        m_keyMoveRow        = -1;      // a key's move, reported once the key is handled
+    bool                       m_keyMovePending    = false;
     mutable bool               m_linesDirty        = true;
     mutable int                m_linesRowCount     = -1;    int                        m_focusedHeaderCol  = -1;
     int                        m_focusedDividerCol = -1;

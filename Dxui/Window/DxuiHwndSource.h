@@ -173,6 +173,15 @@ public:
         // are composed by DWM at vsync either way, so 0 doesn't tear.
         UINT                     presentSyncInterval      = 1;
 
+        // When true, the swap chain holds one frame at most, and each paint
+        // waits for the frame before it to leave the queue before it draws.
+        // A frame is then drawn a steady two vsyncs before it is seen, so an
+        // animation that reads the clock as it draws moves evenly on screen.
+        // Left to queue three, frames drawn back to back, as several paints
+        // for one input are, read times milliseconds apart and are shown a
+        // vsync apart, and the animation crawls before it catches up.
+        bool                     paceFrames               = false;
+
         // When true (the default), Create() stands up a D3D11 device
         // + DXGI flip-discard swap chain on the host HWND so the
         // internal panel tree paints through GetSwapChain() /
@@ -726,6 +735,8 @@ private:
     static bool           TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork);
 
     HRESULT  CreateDeviceAndSwapChain  ();
+    HRESULT  CreateFrameWait           ();
+    void     WaitForFrameSlot          ();
     HRESULT  CreateRenderResources     ();
     void     ReleaseRenderResources    ();
     HRESULT  CreateBackBufferRtv       ();
@@ -796,6 +807,7 @@ private:
     static constexpr UINT    s_kDefaultDpi           = 96;
     static constexpr LONG    s_kExtendFrameInsetPx   = 1;
     static constexpr size_t  s_kPopupPoolInitialSize = 3;
+    static constexpr DWORD   s_kFrameWaitMs          = 50;   // three frames at 60 Hz; see WaitForFrameSlot
 
     // Distinct per-instance window class names — every Create()
     // generates a fresh class so multiple host windows in one
@@ -819,6 +831,8 @@ private:
     // / Destroy, and owns the HWND-bound swap chain + back-buffer RTV below.
     ComPtr<IDXGISwapChain1>           m_swapChain;
     ComPtr<ID3D11RenderTargetView>    m_rtv;
+    UINT                              m_swapChainFlags     = 0;         // what ResizeBuffers must pass back
+    HANDLE                            m_frameWait          = nullptr;   // CreateParams::paceFrames' frame latency waitable
 
     // Composited-transparent mode (CreateParams::composited): the HWND
     // carries WS_EX_NOREDIRECTIONBITMAP and the swap chain is bound to

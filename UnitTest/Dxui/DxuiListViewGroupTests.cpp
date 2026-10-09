@@ -391,11 +391,15 @@ public:
 
 
 
-    //  Home in a grouped item view puts the focus on the first item, past
-    //  the header above it, and leaves the selection alone, as Explorer does.
-    TEST_METHOD (ItemsView_HomeFocusesTheFirstItem)
+    //  Home in a grouped item view selects the first item, past the header
+    //  above it, as Explorer's does; Shift selects from the anchor to it, and
+    //  Ctrl moves only the focus.
+    TEST_METHOD (ItemsView_HomeSelectsTheFirstItem)
     {
         DxuiListView  list;
+        DxuiKeyEvent  shiftHome = Key (VK_HOME);
+        DxuiKeyEvent  ctrlHome  = Key (VK_HOME);
+        int           reported  = -1;
 
         ConfigureList (list, 8);
         list.SetKeyboardColumnNav (true);
@@ -403,14 +407,78 @@ public:
         list.SetView   (DxuiListView::View::MediumIcons);
         list.SetGroups ({ { L"A", 0 }, { L"B", 6 } });
         list.SetSelectedRow (6);
+        list.SetOnSelectionChanged ([&reported] (int row) { reported = row; });
 
         list.OnKey (Key (VK_HOME));
 
-        Assert::AreEqual (-1, list.GetFocusedGroup(), L"not A's header");
-        Assert::AreEqual ( 0, list.GetSelectedRow(),  L"the focus is on the first item");
-        Assert::IsTrue   (list.IsRowSelected (6),     L"the selection is untouched");
-        Assert::IsFalse  (list.IsRowSelected (0));
-        Assert::IsFalse  (list.IsRowSelected (1),     L"and A's items are not selected");
+        Assert::AreEqual (-1, list.GetFocusedGroup(),            L"not A's header");
+        Assert::AreEqual ( 0, list.GetSelectedRow(),             L"the focus is on the first item");
+        Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size(), L"and it alone is selected");
+        Assert::IsTrue   (list.IsRowSelected (0));
+        Assert::IsFalse  (list.IsRowSelected (6),                L"the old selection is replaced");
+        Assert::AreEqual ( 0, list.GetAnchorRow());
+        Assert::AreEqual ( 0, reported,                          L"and the move is reported");
+        Assert::AreEqual ( 0, list.GetTopRow());
+
+        shiftHome.shift = true;
+        list.SetSelectedRow (6);
+        list.OnKey (shiftHome);
+        Assert::AreEqual ((size_t) 7, list.GetSelectedRows().size(), L"Shift selects from the anchor, 6, to the first item");
+        Assert::AreEqual ( 0, list.GetSelectedRow());
+
+        ctrlHome.ctrl = true;
+        list.SetSelectedRow (6);
+        list.OnKey (ctrlHome);
+        Assert::AreEqual ( 0, list.GetSelectedRow(),             L"Ctrl moves the focus");
+        Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size());
+        Assert::IsTrue   (list.IsRowSelected (6),                L"and leaves the selection alone");
+    }
+
+
+
+    //  Home from the far end of a grouped item view that scrolls goes to the
+    //  very top, so the first group's header shows over the first item.
+    TEST_METHOD (ItemsView_HomeScrollsToTheVeryTop)
+    {
+        DxuiListView  list;
+
+        ConfigureList (list, 40);
+        list.SetKeyboardColumnNav (true);
+        list.OnFocusChanged (true);
+        list.SetView   (DxuiListView::View::MediumIcons);
+        list.SetGroups ({ { L"A", 0 }, { L"B", 20 } });
+        list.SetSelectedRow (39);
+        Assert::IsTrue   (list.GetTopRow() > 0, L"The last item is scrolled to");
+
+        list.OnKey (Key (VK_HOME));
+
+        Assert::AreEqual (0, list.GetSelectedRow());
+        Assert::AreEqual (0, list.GetTopRow());
+        Assert::AreEqual (0, list.HitTestGroupHeader (10, 10), L"A's header is at the top");
+    }
+
+
+
+    //  End selects the last item, whatever the focus's place along its line,
+    //  with the view at its very end: the last line flush with the bottom.
+    TEST_METHOD (ItemsView_EndSelectsTheLastItem)
+    {
+        DxuiListView  list;
+        RECT          cell = {};
+
+        ConfigureList (list, 40);
+        list.SetKeyboardColumnNav (true);
+        list.OnFocusChanged (true);
+        list.SetView   (DxuiListView::View::MediumIcons);
+        list.SetGroups ({ { L"A", 0 }, { L"B", 20 } });
+        list.SetSelectedRow (1);
+
+        list.OnKey (Key (VK_END));
+
+        Assert::AreEqual (39, list.GetSelectedRow());
+        Assert::IsTrue   (list.IsRowSelected (39));
+        Assert::IsTrue   (list.GetItemRectPx (39, cell));
+        Assert::AreEqual (300, (int) cell.bottom, L"The last line ends at the bottom");
     }
 
     //  List, 240 px columns of 33 px rows under a 30 px header: A's block is

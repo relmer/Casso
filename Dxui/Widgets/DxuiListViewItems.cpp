@@ -84,10 +84,12 @@ void DxuiListView::SetView (View view)
         m_showHeader = m_detailsHeader;
     }
 
-    m_view      = view;
-    m_topRow    = 0;
-    m_leftPx    = 0;
-    m_pageSlide = {};
+    m_view           = view;
+    m_topRow         = 0;
+    m_leftPx         = 0;
+    m_pageSlide      = {};
+    m_flushBottom    = false;
+    m_itemAnchorLine = -1;
 
     EnsureVisible (m_selectedRow);
 }
@@ -792,19 +794,65 @@ int DxuiListView::FindItemLine (const ItemLayout & layout, int y)
 //
 //  DxuiListView::BeginPageSlide
 //
-//  Starts the slide from where the view was drawn to where it now rests;
-//  nothing when it did not move.
+//  Starts the slide from where the view was drawn to where it now rests,
+//  when a page moved where it rests. Any scroll ends a slide under way, a
+//  page's own included, so a page that moved nothing puts back `running`,
+//  the slide that was under way, to run on.
+//
+//  Explorer's slide, measured at 150%, moves at one steady speed over 175 ms
+//  for its whole length, and its first frame on screen is already about a
+//  fifth of the way along. A frame here takes the time it is drawn, and a
+//  window that paces its frames shows each one two vsyncs later, so the slide
+//  starts two frames early: the first frame on screen is that far along, the
+//  rows move in the same frame as the scrollbar's thumb, and the last frame
+//  reaches the screen as the 175 ms run out. A restart keeps going at the new
+//  length's speed rather than easing in again. A page pressed mid-slide
+//  starts from where the view is drawn, but never more than the view's height
+//  away, so a held key cannot leave the view pages behind. In an item view
+//  the start is kept against a line, so it moves with what was drawn there
+//  when names above it are measured.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::BeginPageSlide (int fromPx)
+void DxuiListView::BeginPageSlide (const PageSlide & running, int fromPx, int restBeforePx)
 {
-    if (!UsesItemLayout() || fromPx == GetItemTopPx (GetItemLayout()))
+    constexpr int64_t    kPageSlideLeadMs = 33;   // two frames at 60 Hz
+    const ItemLayout   * layout           = UsesItemLayout() ? &GetItemLayout() : nullptr;
+    int                  restPx           = GetRestScrollPx();
+    int                  viewPx           = GetScrollViewPx();
+    int                  line             = -1;
+
+
+
+    if (!UsesPageSlide())
     {
         return;
     }
 
-    m_pageSlide = { true, fromPx, GetClockMs() };
+    if (restPx == restBeforePx)
+    {
+        m_pageSlide = running;
+        return;
+    }
+
+    fromPx = std::clamp (fromPx, restPx - viewPx, restPx + viewPx);
+
+    if (fromPx == restPx)
+    {
+        m_pageSlide = {};
+        return;
+    }
+
+    //  The first line starting at or below where the view's top was drawn,
+    //  which keeps its place when the line it cuts through grows.
+    for (size_t at = 0; layout != nullptr && at < layout->lines.size() && line < 0; at++)
+    {
+        line = (layout->lines[at].top >= fromPx) ? (int) at : -1;
+    }
+
+    fromPx = (layout != nullptr && line >= 0) ? fromPx - layout->lines[(size_t) line].top : fromPx;
+
+    m_pageSlide = { true, fromPx, line, GetClockMs() - kPageSlideLeadMs };
 }
 
 
@@ -815,26 +863,45 @@ void DxuiListView::BeginPageSlide (int fromPx)
 //
 //  DxuiListView::GetPageSlidePx
 //
-//  How far from where it rests a sliding page is drawn, down positive.
+//  How far from where it rests a sliding page is drawn, down positive: the
+//  whole of the way at the start, none at the end, and in a straight line
+//  between, as Explorer's is. An item view's start is found from where its
+//  line lies now. A slide starts no more than a view away, and names measured
+//  as it comes into sight can add most of another, but whatever else moved
+//  the rest, it is never drawn more than two views away.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListView::GetPageSlidePx() const
 {
-    float  t      = 0.0f;
-    int    restPx = 0;
+    constexpr int       kMaxSlideViews = 2;
+    bool                inLine         = m_pageSlide.active && m_pageSlide.fromLine >= 0 && UsesItemLayout();
+    const ItemLayout  * layout         = inLine ? &GetItemLayout() : nullptr;
+    int                 fromPx         = m_pageSlide.fromPx;
+    int                 boundPx        = 0;
+    float               t              = 0.0f;
 
 
 
-    if (!m_pageSlide.active || !UsesItemLayout())
+    if (!m_pageSlide.active || !UsesPageSlide())
     {
         return 0;
     }
 
-    t      = (float) (GetClockMs() - m_pageSlide.startMs) / (float) s_kPageSlideMs;
-    restPx = GetItemTopPx (GetItemLayout());
+    if (layout != nullptr)
+    {
+        if (m_pageSlide.fromLine >= (int) layout->lines.size())
+        {
+            return 0;
+        }
 
-    return (int) std::lround ((float) (restPx - m_pageSlide.fromPx) * (1.0f - EaseGroupSlide (t)));
+        fromPx += layout->lines[(size_t) m_pageSlide.fromLine].top;
+    }
+
+    boundPx = GetScrollViewPx() * kMaxSlideViews;
+    t       = std::clamp ((float) (GetClockMs() - m_pageSlide.startMs) / (float) s_kPageSlideMs, 0.0f, 1.0f);
+
+    return std::clamp ((int) std::lround ((float) (GetRestScrollPx() - fromPx) * (1.0f - t)), -boundPx, boundPx);
 }
 
 
@@ -843,15 +910,69 @@ int DxuiListView::GetPageSlidePx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiListView::GetShownItemTopPx
+//  DxuiListView::UsesPageSlide
 //
-//  The scroll the view is drawn at, a sliding page's included.
+//  Details and the views that scroll down slide a page into view; List, which
+//  scrolls sideways, does not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetShownItemTopPx() const
+bool DxuiListView::UsesPageSlide() const
 {
-    return UsesItemLayout() ? GetItemTopPx (GetItemLayout()) - GetPageSlidePx() : 0;
+    return m_pageSlideEnabled && (m_view == View::Details || UsesItemLayout());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetRestScrollPx
+//
+//  How far down the view rests scrolled, in pixels: Details' top row and the
+//  lift a page down gives its rows, or an item view's own measure. List does
+//  not scroll down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetRestScrollPx() const
+{
+    if (UsesItemLayout())
+    {
+        return GetItemTopPx (GetItemLayout());
+    }
+
+    return IsItemsView() ? 0 : m_topRow * GetRowHeightPx() + GetRowShiftPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetScrollViewPx
+//
+//  The height the rows scroll through: Details' body under its header and
+//  over any horizontal scrollbar, or an item view's whole height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetScrollViewPx() const
+{
+    ScrollLayout  layout;
+
+
+
+    if (IsItemsView())
+    {
+        return m_boundsDip.bottom - m_boundsDip.top;
+    }
+
+    layout = ComputeScrollLayout();
+
+    return layout.rowCap * GetRowHeightPx() + layout.partialPx;
 }
 
 
@@ -862,12 +983,30 @@ int DxuiListView::GetShownItemTopPx() const
 //
 //  DxuiListView::GetItemTopPx
 //
-//  How far the layout is scrolled: the top of the first line shown.
+//  How far the layout is scrolled: the top of the first line shown. After a
+//  page, the line it landed on holds the view, flush with the top or the
+//  bottom edge, worked out again from the layout as it stands now, so the
+//  line stays flush when a row above it grows as its names are measured.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListView::GetItemTopPx (const ItemLayout & layout) const
 {
+    int  viewH = m_boundsDip.bottom - m_boundsDip.top;
+    int  px    = 0;
+
+
+
+    if (m_itemAnchorLine >= 0 && m_itemAnchorLine < (int) layout.lines.size())
+    {
+        const ItemLine & line = layout.lines[(size_t) m_itemAnchorLine];
+
+        //  A line taller than the view shows from its top either way.
+        px = (m_itemAnchorBottom && line.height <= viewH) ? line.top + line.height - viewH : line.top;
+
+        return std::clamp (px, 0, (std::max) (0, layout.totalH - viewH));
+    }
+
     //  From the first line, so the margin above it stays when the list is at its top.
     return (m_topRow >= 0 && m_topRow < (int) layout.lines.size()) ? layout.lines[(size_t) m_topRow].top - layout.lines[0].top : 0;
 }
@@ -880,7 +1019,8 @@ int DxuiListView::GetItemTopPx (const ItemLayout & layout) const
 //
 //  DxuiListView::GetMaxItemTopLine
 //
-//  The first line that still leaves the view full to the end.
+//  The first line that, at the top, still shows the end whole. The top line
+//  is drawn at the margin, so the view starts that far above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -892,7 +1032,7 @@ int DxuiListView::GetMaxItemTopLine (const ItemLayout & layout) const
 
     for (size_t line = 0; line < layout.lines.size(); line++)
     {
-        if (layout.totalH - layout.lines[line].top <= viewH)
+        if (layout.totalH - (layout.lines[line].top - layout.lines[0].top) <= viewH)
         {
             return (int) line;
         }
@@ -909,6 +1049,11 @@ int DxuiListView::GetMaxItemTopLine (const ItemLayout & layout) const
 //
 //  DxuiListView::EnsureItemLineVisible
 //
+//  A line whole in sight leaves the view alone, which keeps a page's line
+//  flush with its edge. After a page, a line past the bottom comes in flush
+//  with the bottom too; otherwise the line scrolled to is the top one, at the
+//  margin, or the view moves down by lines until it ends under the line.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::EnsureItemLineVisible (const ItemLayout & layout, int line)
@@ -919,7 +1064,7 @@ void DxuiListView::EnsureItemLineVisible (const ItemLayout & layout, int line)
 
 
 
-    if (line < 0 || line >= (int) layout.lines.size())
+    if (line < 0 || line >= (int) layout.lines.size() || IsItemLineWhollyShown (layout, line))
     {
         return;
     }
@@ -932,7 +1077,14 @@ void DxuiListView::EnsureItemLineVisible (const ItemLayout & layout, int line)
 
     bottom = layout.lines[(size_t) line].top + layout.lines[(size_t) line].height;
 
-    while (top < line && bottom - layout.lines[(size_t) top].top > viewH)
+    if (m_itemAnchorLine >= 0 && bottom > GetItemTopPx (layout) + viewH)
+    {
+        AnchorItemLine (line, true);
+        return;
+    }
+
+    //  The view's top is the top line's less the margin above the first.
+    while (top < line && bottom - (layout.lines[(size_t) top].top - layout.lines[0].top) > viewH)
     {
         top++;
     }
@@ -950,7 +1102,8 @@ void DxuiListView::EnsureItemLineVisible (const ItemLayout & layout, int line)
 //
 //  As the grid lies on screen, with each group's header a stop between its
 //  rows and the group above, as in Details. Left and Right step along the
-//  items in order, or close and open a focused header.
+//  items in order, or close and open a focused header. The page keys, Home
+//  and End go to HandleKeyboardItemPage and HandleKeyboardItemJump.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -963,7 +1116,6 @@ bool DxuiListView::HandleKeyboardGroupedItemNav (WPARAM vk, bool shift, bool ctr
     int         slot   = 0;
     int         next   = -1;
     int         item   = -1;
-    int         grid   = (std::max) (1, (int) (m_boundsDip.bottom - m_boundsDip.top) / (std::max) (1, GetItemGrid().cellH));
 
 
 
@@ -994,14 +1146,20 @@ bool DxuiListView::HandleKeyboardGroupedItemNav (WPARAM vk, bool shift, bool ctr
         return true;
     }
 
+    if (vk == VK_PRIOR || vk == VK_NEXT)
+    {
+        return HandleKeyboardItemPage (layout, vk, line, slot, shift, ctrl);
+    }
+
+    if (vk == VK_HOME || vk == VK_END)
+    {
+        return HandleKeyboardItemJump (layout, vk, shift, ctrl);
+    }
+
     switch (vk)
     {
         case VK_UP:    next = (line < 0) ? 0 : line - 1; break;
         case VK_DOWN:  next = (line < 0) ? 0 : line + 1; break;
-        case VK_HOME:  next = GetFirstItemLine (layout); slot = 0; break;
-        case VK_END:   next = lines - 1;                 break;
-        case VK_PRIOR: next = line - grid;               break;
-        case VK_NEXT:  next = line + grid;               break;
 
         case VK_LEFT:
         case VK_RIGHT:
@@ -1036,9 +1194,8 @@ bool DxuiListView::HandleKeyboardGroupedItemNav (WPARAM vk, bool shift, bool ctr
 
     EnsureItemLineVisible (layout, next);
 
-    //  Ctrl moves the focus alone, leaving the selection for Space. Home does
-    //  too, to the first item past the headers, as Explorer's does.
-    if (m_multiSelect && ((ctrl && !shift) || (vk == VK_HOME && !shift)))
+    //  Ctrl moves the focus alone, leaving the selection for Space.
+    if (m_multiSelect && ctrl && !shift)
     {
         m_focusGroup  = (item < 0) ? layout.lines[(size_t) next].group : -1;
         m_selectedRow = (item < 0) ? m_selectedRow : item;
@@ -1068,6 +1225,399 @@ bool DxuiListView::HandleKeyboardGroupedItemNav (WPARAM vk, bool shift, bool ctr
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardItemPage
+//
+//  Page Up and Page Down in a view that scrolls down, as Explorer's, measured
+//  at 150%: as Details pages its rows, over the lines of items, the focus
+//  keeping its place along the line, or the last place a shorter line has. A
+//  focused header pages from its line at the first place, as an item under a
+//  collapsed header does from that header's line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardItemPage (const ItemLayout & layout, WPARAM vk, int line, int slot, bool shift, bool ctrl)
+{
+    bool  down        = (vk == VK_NEXT);
+    int   rows        = GetRowCount();
+    int   page        = GetPageLines();
+    int   cur         = line;
+    int   group       = -1;
+    int   first       = -1;
+    int   last        = -1;
+    int   target      = -1;
+    int   item        = -1;
+    int   savedTop    = m_topRow;
+    int   savedAnchor = m_itemAnchorLine;
+    bool  savedBottom = m_itemAnchorBottom;
+    bool  scroll      = false;
+
+
+
+    if (!TryGetWholeItemLineSpan (layout, first, last))
+    {
+        return false;
+    }
+
+    if (cur < 0 && m_focusGroup < 0 && m_selectedRow >= 0 && m_selectedRow < rows)
+    {
+        group = GetGroupOfRow (m_selectedRow);
+
+        for (size_t at = 0; at < layout.lines.size() && group >= 0 && cur < 0; at++)
+        {
+            cur = (layout.lines[at].group == group) ? (int) at : -1;
+        }
+    }
+
+    target = IsAtPageEdge (cur, down ? last : first, down) ? StepItemLines (layout, cur, down ? page : -page)
+                                                            : (down ? last : first);
+
+    //  A header with no items past it in the key's direction.
+    if (target < 0)
+    {
+        return true;
+    }
+
+    item   = layout.lines[(size_t) target].first + (std::min) (slot, layout.lines[(size_t) target].count - 1);
+    scroll = !IsItemLineWhollyShown (layout, target);
+
+    ApplyKeyboardMove (item, shift, ctrl);
+
+    if (!scroll)
+    {
+        SetTopRow (savedTop);
+        m_itemAnchorLine   = savedAnchor;
+        m_itemAnchorBottom = savedBottom;
+    }
+    else if (down)
+    {
+        ScrollItemLineToBottom (target);
+    }
+    else
+    {
+        ScrollItemLineToTop (target);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardItemJump
+//
+//  Home selects the first item, past any header over it, with the view at
+//  its very top; End selects the last, with the view at its very end. With
+//  every group collapsed there is no item, and the first or last header
+//  takes the focus instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardItemJump (const ItemLayout & layout, WPARAM vk, bool shift, bool ctrl)
+{
+    bool  home   = (vk == VK_HOME);
+    int   lines  = (int) layout.lines.size();
+    int   last   = GetLastItemLine (layout);
+    int   target = home ? GetFirstItemLine (layout) : last;
+    int   group  = -1;
+    int   item   = -1;
+
+
+
+    if (last < 0)
+    {
+        group = layout.lines[(size_t) (home ? 0 : lines - 1)].group;
+
+        if (m_multiSelect && ctrl && !shift)
+        {
+            m_focusGroup = group;
+        }
+        else
+        {
+            SelectGroup (group);
+        }
+
+        SetTopRow (home ? 0 : GetMaxTopRow());
+        return true;
+    }
+
+    item = layout.lines[(size_t) target].first + (home ? 0 : layout.lines[(size_t) target].count - 1);
+
+    ApplyKeyboardMove (item, shift, ctrl);
+
+    if (home)
+    {
+        SetTopRow (0);
+    }
+    else
+    {
+        ScrollItemLineToBottom (target);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetLastItemLine
+//
+//  The last line of items in a layout, past the headers under it; -1 when
+//  there are no items.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetLastItemLine (const ItemLayout & layout)
+{
+    for (int at = (int) layout.lines.size() - 1; at >= 0; at--)
+    {
+        if (IsItemLine (layout.lines[(size_t) at]))
+        {
+            return at;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::StepItemLines
+//
+//  The line of items `steps` such lines on from a line, down for a positive
+//  count: headers are not counted, and the count stops at the first or the
+//  last. A line of items with none past it gives itself; a header with none
+//  past it gives -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::StepItemLines (const ItemLayout & layout, int line, int steps)
+{
+    int  lines  = (int) layout.lines.size();
+    int  dir    = (steps < 0) ? -1 : 1;
+    int  left   = (steps < 0) ? -steps : steps;
+    int  result = (line >= 0 && line < lines && IsItemLine (layout.lines[(size_t) line])) ? line : -1;
+    int  at     = line;
+
+
+
+    while (left > 0)
+    {
+        at += dir;
+
+        if (at < 0 || at >= lines)
+        {
+            break;
+        }
+
+        if (IsItemLine (layout.lines[(size_t) at]))
+        {
+            result = at;
+            left--;
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetWholeItemLineSpan
+//
+//  The first and last lines of items shown whole. With none whole in sight,
+//  as when a line is taller than the view, the line of items nearest the top
+//  stands for both. False only when there are no items to show.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetWholeItemLineSpan (const ItemLayout & layout, int & first, int & last) const
+{
+    int  topPx   = GetItemTopPx (layout);
+    int  viewH   = m_boundsDip.bottom - m_boundsDip.top;
+    int  lines   = (int) layout.lines.size();
+    int  start   = -1;
+    int  nearest = -1;
+
+
+
+    first = -1;
+    last  = -1;
+
+    for (int at = 0; at < lines && layout.lines[(size_t) at].top < topPx + viewH; at++)
+    {
+        const ItemLine & line = layout.lines[(size_t) at];
+
+        if (IsItemLine (line) && line.top >= topPx && line.top + line.height <= topPx + viewH)
+        {
+            first = (first < 0) ? at : first;
+            last  = at;
+        }
+    }
+
+    if (first >= 0 || lines <= 0)
+    {
+        return first >= 0;
+    }
+
+    start   = FindItemLine (layout, topPx);
+    start   = (start >= 0) ? start : ((topPx < layout.lines[0].top) ? 0 : lines - 1);
+    nearest = IsItemLine (layout.lines[(size_t) start]) ? start : StepItemLines (layout, start, 1);
+    nearest = (nearest >= 0) ? nearest : StepItemLines (layout, start, -1);
+    first   = nearest;
+    last    = nearest;
+
+    return nearest >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::IsItemLineWhollyShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsItemLineWhollyShown (const ItemLayout & layout, int line) const
+{
+    int  topPx = GetItemTopPx (layout);
+    int  viewH = m_boundsDip.bottom - m_boundsDip.top;
+
+
+
+    if (line < 0 || line >= (int) layout.lines.size())
+    {
+        return false;
+    }
+
+    return layout.lines[(size_t) line].top >= topPx && layout.lines[(size_t) line].top + layout.lines[(size_t) line].height <= topPx + viewH;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::AnchorItemLine
+//
+//  Holds the view with a line's top at the view's top, or its bottom at the
+//  view's bottom. The top row follows to the line at the margin's height, so
+//  the scrollbar, the wheel and the arrows continue from about here, and a
+//  wheel notch still moves the way it turns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::AnchorItemLine (int line, bool bottom)
+{
+    const ItemLayout & layout = GetItemLayout();
+    int                px     = 0;
+    int                top    = 0;
+
+
+
+    if (line < 0 || line >= (int) layout.lines.size())
+    {
+        return;
+    }
+
+    //  A group mid-slide is laid out with it open, where the line is another.
+    m_groupSlide       = {};
+    m_itemAnchorLine   = line;
+    m_itemAnchorBottom = bottom;
+    px                 = GetItemTopPx (layout);
+
+    if (px <= 0)
+    {
+        SetTopRow (0);
+        return;
+    }
+
+    top = FindItemLine (layout, px + layout.lines[0].top);
+
+    //  The top row is set first, since setting it lets go of the line.
+    SetTopRow ((top >= 0) ? top : (int) layout.lines.size() - 1);
+
+    m_itemAnchorLine   = line;
+    m_itemAnchorBottom = bottom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ScrollItemLineToBottom
+//
+//  Holds a line flush with the view's bottom; the last line of items holds
+//  the very end instead, so the headers of collapsed groups under it show.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ScrollItemLineToBottom (int line)
+{
+    const ItemLayout & layout = GetItemLayout();
+
+
+
+    if (line == GetLastItemLine (layout))
+    {
+        AnchorItemLine ((int) layout.lines.size() - 1, true);
+
+        if (IsItemLineWhollyShown (GetItemLayout(), line))
+        {
+            return;
+        }
+    }
+
+    AnchorItemLine (line, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ScrollItemLineToTop
+//
+//  Holds a line flush with the view's top; the first line of items scrolls
+//  to the very top instead, so its margin and any header over it show.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ScrollItemLineToTop (int line)
+{
+    if (line == GetFirstItemLine (GetItemLayout()))
+    {
+        SetTopRow (0);
+        return;
+    }
+
+    AnchorItemLine (line, false);
 }
 
 
@@ -1357,14 +1907,6 @@ bool DxuiListView::HandleKeyboardListGroupNav (WPARAM vk, bool shift, bool ctrl)
             item = (k >= 0 && k < layout.blocks[(size_t) at].count) ? layout.blocks[(size_t) at].first + k : cur;
             break;
 
-        case VK_HOME:
-            group = 0;
-            break;
-
-        case VK_END:
-            item = rows - 1;
-            break;
-
         default:
             return false;
     }
@@ -1409,6 +1951,314 @@ bool DxuiListView::HandleKeyboardListGroupNav (WPARAM vk, bool shift, bool ctrl)
     if (m_multiSelect && m_onSelectionChanged && !(ctrl && !shift))
     {
         m_onSelectionChanged (item);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetListColumns
+//
+//  List's columns left to right, grouped or not. A collapsed group has none,
+//  since its header holds no items.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::ListColumn> DxuiListView::GetListColumns() const
+{
+    std::vector<ListColumn>    cols;
+    ItemGrid                   grid  = GetItemGrid();
+    int                        rows  = GetRowCount();
+    int                        gapPx = (int) std::lround (m_scaler.ToPxf (s_kNameColumnGapDip));
+    const std::vector<int>   & lefts = GetListColumnLefts();
+
+
+
+    if (HasListGroups())
+    {
+        const ListLayout & layout = GetListLayout();
+
+        for (const ListBlock & block : layout.blocks)
+        {
+            for (int k = 0; k < block.count; k += layout.perCol)
+            {
+                int  left = block.left + layout.indent + (k / layout.perCol) * grid.cellW;
+
+                cols.push_back (ListColumn { left, left + grid.boxW, block.first + k, (std::min) (layout.perCol, block.count - k) });
+            }
+        }
+
+        return cols;
+    }
+
+    //  Each column's box ends short of the next by the gap after its names.
+    for (size_t c = 0; c + 1 < lefts.size(); c++)
+    {
+        int  first = (int) c * grid.perLine;
+
+        cols.push_back (ListColumn { lefts[c], lefts[c + 1] - gapPx, first, (std::min) (grid.perLine, rows - first) });
+    }
+
+    return cols;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::FindColumnOfItem
+//
+//  The column holding an item, or -1 for one under a collapsed header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::FindColumnOfItem (const std::vector<ListColumn> & cols, int item)
+{
+    for (size_t c = 0; c < cols.size(); c++)
+    {
+        if (item >= cols[c].first && item < cols[c].first + cols[c].count)
+        {
+            return (int) c;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetWholeListColumnSpan
+//
+//  The first and last columns List shows whole. With none whole in sight, as
+//  when a name is wider than the view, the column at the view's left stands
+//  for both. False only when there are no columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetWholeListColumnSpan (const std::vector<ListColumn> & cols, int & first, int & last) const
+{
+    first = -1;
+    last  = -1;
+
+    for (size_t c = 0; c < cols.size(); c++)
+    {
+        if (IsListColumnWhollyShown (cols[c]))
+        {
+            first = (first < 0) ? (int) c : first;
+            last  = (int) c;
+        }
+    }
+
+    for (size_t c = 0; c < cols.size() && first < 0; c++)
+    {
+        first = (cols[c].right > m_leftPx) ? (int) c : -1;
+    }
+
+    first = (first >= 0) ? first : (int) cols.size() - 1;
+    last  = (last >= 0) ? last : first;
+
+    return !cols.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::IsListColumnWhollyShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsListColumnWhollyShown (const ListColumn & col) const
+{
+    return col.left >= m_leftPx && col.right <= m_leftPx + (m_boundsDip.right - m_boundsDip.left);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetListPageStartColumn
+//
+//  The column a page starts from when the focus is on a group's header, or on
+//  an item under a collapsed one: the first column at or past the group's
+//  block going right, or the last before it going left; -1 for none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetListPageStartColumn (const std::vector<ListColumn> & cols, bool down) const
+{
+    int  rows  = GetRowCount();
+    int  group = (m_focusGroup >= 0) ? m_focusGroup : ((m_selectedRow >= 0 && m_selectedRow < rows) ? GetGroupOfRow (m_selectedRow) : -1);
+    int  col   = -1;
+    int  x     = 0;
+
+
+
+    if (group < 0 || !HasListGroups() || group >= (int) GetListLayout().blocks.size())
+    {
+        return -1;
+    }
+
+    x = GetListLayout().blocks[(size_t) group].left;
+
+    for (size_t c = 0; c < cols.size(); c++)
+    {
+        if (down ? (col < 0 && cols[c].left >= x) : (cols[c].left < x))
+        {
+            col = (int) c;
+        }
+    }
+
+    return col;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardListJump
+//
+//  List's Home and End, and its page keys, which go on to
+//  HandleKeyboardListPage. Home selects the first item, past any header, with
+//  the view at its left end; End selects the last, with the view at its right
+//  end. With every group collapsed there is no item, and the first or last
+//  header takes the focus instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardListJump (WPARAM vk, bool shift, bool ctrl)
+{
+    std::vector<ListColumn>  cols   = GetListColumns();
+    bool                     home   = (vk == VK_HOME);
+    bool                     paging = (vk == VK_PRIOR || vk == VK_NEXT);
+    int                      group  = home ? 0 : (int) m_groups.size() - 1;
+
+
+
+    if (cols.empty() && (paging || !HasListGroups()))
+    {
+        return false;
+    }
+
+    if (paging)
+    {
+        return HandleKeyboardListPage (cols, vk == VK_NEXT, shift, ctrl);
+    }
+
+    if (cols.empty())
+    {
+        if (m_multiSelect && ctrl && !shift)
+        {
+            m_focusGroup = group;
+        }
+        else
+        {
+            SelectGroup (group);
+        }
+    }
+    else
+    {
+        ApplyKeyboardMove (home ? cols.front().first : cols.back().first + cols.back().count - 1, shift, ctrl);
+    }
+
+    SetLeftPx (home ? 0 : GetMaxLeftPx());
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardListPage
+//
+//  Page Up and Page Down in List, which pages sideways, as Explorer's does,
+//  measured at 150%: from a column short of the view's edge, to the column
+//  whole at that edge, in the same row, without scrolling. From the edge
+//  column, the view scrolls to put that column at the other edge, and the
+//  focus goes to the same row of the column then whole at the edge paged
+//  toward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardListPage (const std::vector<ListColumn> & cols, bool down, bool shift, bool ctrl)
+{
+    int   n         = (int) cols.size();
+    int   rows      = GetRowCount();
+    int   viewW     = m_boundsDip.right - m_boundsDip.left;
+    int   own       = (m_focusGroup < 0) ? FindColumnOfItem (cols, m_selectedRow) : -1;
+    int   slot      = (own >= 0) ? m_selectedRow - cols[(size_t) own].first : 0;
+    int   col       = (own >= 0) ? own : GetListPageStartColumn (cols, down);
+    bool  focused   = m_focusGroup >= 0 || (m_selectedRow >= 0 && m_selectedRow < rows);
+    int   first     = -1;
+    int   last      = -1;
+    int   target    = -1;
+    int   item      = -1;
+    int   leftAfter = 0;
+
+
+
+    //  A header with no column past it in the key's direction.
+    if (focused && col < 0)
+    {
+        return true;
+    }
+
+    TryGetWholeListColumnSpan (cols, first, last);
+
+    if (!IsAtPageEdge (col, down ? last : first, down))
+    {
+        target = down ? last : first;
+    }
+    else if (down ? (col >= n - 1) : (col <= 0))
+    {
+        target = col;
+    }
+    else if (down)
+    {
+        SetLeftPx (cols[(size_t) col].left);
+        TryGetWholeListColumnSpan (cols, first, last);
+        target = (last > col) ? last : col + 1;
+    }
+    else
+    {
+        SetLeftPx (cols[(size_t) col].right - viewW);
+        TryGetWholeListColumnSpan (cols, first, last);
+        target = (first < col) ? first : col - 1;
+        SetLeftPx ((target == 0) ? 0 : m_leftPx);
+    }
+
+    item      = cols[(size_t) target].first + (std::min) (slot, cols[(size_t) target].count - 1);
+    leftAfter = m_leftPx;
+
+    ApplyKeyboardMove (item, shift, ctrl);
+
+    //  Selecting brings an item's column into sight with the gap after it,
+    //  which would nudge a column already whole at the edge.
+    SetLeftPx (leftAfter);
+
+    if (!IsListColumnWhollyShown (cols[(size_t) target]))
+    {
+        EnsureItemVisible (item);
     }
 
     return true;
@@ -1718,7 +2568,8 @@ bool DxuiListView::GetItemRectPx (int item, RECT & outRect) const
 //  DxuiListView::HitTestItem
 //
 //  The item whose cell holds a point relative to the list, or -1 between
-//  items, past the last one, or over a scrollbar.
+//  items, past the last one, or over a scrollbar. The cells are where they
+//  are drawn, a sliding page's offset included.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1740,7 +2591,7 @@ int DxuiListView::HitTestItem (int xPx, int yPx) const
     if (UsesItemLayout())
     {
         const ItemLayout  & items = GetItemLayout();
-        int                 at    = FindItemLine (items, yPx + GetItemTopPx (items));
+        int                 at    = FindItemLine (items, yPx + GetShownScrollPx());
         int                 slot  = (xPx >= GetItemsLeftPx() && (xPx - GetItemsLeftPx()) % grid.cellW < grid.boxW) ? (xPx - GetItemsLeftPx()) / grid.cellW : -1;
 
         return (at >= 0 && slot >= 0 && items.lines[(size_t) at].group < 0 && slot < items.lines[(size_t) at].count) ? items.lines[(size_t) at].first + slot : -1;
@@ -1875,7 +2726,8 @@ void DxuiListView::EnsureItemVisible (int item)
 //
 //  Arrows move through the grid as it lies on screen: along a row with Left
 //  and Right and between rows with Up and Down, or down a column and across
-//  columns in List. Page keys move a screenful.
+//  columns in List. List's page keys, Home and End go to
+//  HandleKeyboardListJump.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1884,6 +2736,11 @@ bool DxuiListView::HandleKeyboardItemNav (WPARAM vk, bool shift, bool ctrl)
     if (UsesItemLayout())
     {
         return HandleKeyboardGroupedItemNav (vk, shift, ctrl);
+    }
+
+    if (vk == VK_PRIOR || vk == VK_NEXT || vk == VK_HOME || vk == VK_END)
+    {
+        return HandleKeyboardListJump (vk, shift, ctrl);
     }
 
     if (HasListGroups())
@@ -1897,7 +2754,6 @@ bool DxuiListView::HandleKeyboardItemNav (WPARAM vk, bool shift, bool ctrl)
     int       cur     = (std::max) (0, GetSelectedRow());
     int       across  = columns ? grid.perLine : 1;
     int       down    = columns ? 1 : grid.perLine;
-    int       page    = (std::max) (1, grid.visible * (columns ? grid.perLine : grid.perLine));
     int       next    = cur;
     bool      moved   = rows > 0;
 
@@ -1909,10 +2765,6 @@ bool DxuiListView::HandleKeyboardItemNav (WPARAM vk, bool shift, bool ctrl)
         case VK_RIGHT: next = cur + across; break;
         case VK_UP:    next = cur - down;   break;
         case VK_DOWN:  next = cur + down;   break;
-        case VK_HOME:  next = 0;            break;
-        case VK_END:   next = rows - 1;     break;
-        case VK_PRIOR: next = cur - page;   break;
-        case VK_NEXT:  next = cur + page;   break;
         default:       moved = false;       break;
     }
 
@@ -1925,7 +2777,7 @@ bool DxuiListView::HandleKeyboardItemNav (WPARAM vk, bool shift, bool ctrl)
     //  rather than wrapping to the far side.
     if (next < 0 || next >= rows)
     {
-        next = (vk == VK_PRIOR || vk == VK_HOME) ? 0 : (vk == VK_NEXT || vk == VK_END) ? rows - 1 : cur;
+        next = cur;
     }
 
     //  Ctrl moves the focus alone, leaving the selection for Space.
@@ -2119,6 +2971,98 @@ DxuiListView::ItemSlide DxuiListView::PlaceItemSlide() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::CollectItemsToMeasure
+//
+//  The items whose names a paint measures, with their cells where they rest:
+//  those on the lines in sight, or every item in a short folder, so whether
+//  its rows overflow, which sets the columns, counts the ones a wrapped name
+//  above has pushed out of sight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::CollectItemsToMeasure (std::vector<std::pair<int, RECT>> & out) const
+{
+    const ItemLayout  & layout = GetItemLayout();
+    int                 topPx  = GetItemTopPx (layout);
+    int                 viewH  = m_boundsDip.bottom - m_boundsDip.top;
+    bool                every  = GetRowCount() <= s_kMeasureAllItemsMax;
+
+
+
+    for (const ItemLine & line : layout.lines)
+    {
+        if (!every && (line.top - topPx + line.height <= 0 || line.top - topPx >= viewH))
+        {
+            continue;
+        }
+
+        for (int item = line.first; item < line.first + line.count; item++)
+        {
+            RECT  cell = {};
+
+            if (GetGroupedItemRectPx (layout, item, cell) && (every || (cell.bottom > 0 && cell.top < viewH)))
+            {
+                out.emplace_back (item, cell);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::CollectLineItemsInSight
+//
+//  A line's items that show, with their cells where they are drawn: moved by
+//  a sliding page, and placed from a sliding group's layout, lifted under its
+//  header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::CollectLineItemsInSight (
+    const ItemLayout                   & layout,
+    const ItemLine                     & line,
+    const ItemSlide                    & slide,
+    int                                  pageY,
+    std::vector<std::pair<int, RECT>>  & out) const
+{
+    int  viewW = m_boundsDip.right  - m_boundsDip.left;
+    int  viewH = m_boundsDip.bottom - m_boundsDip.top;
+
+
+
+    for (int item = line.first; item < line.first + line.count; item++)
+    {
+        RECT  cell = {};
+
+        if (!GetGroupedItemRectPx (layout, item, cell))
+        {
+            continue;
+        }
+
+        if (slide.active)
+        {
+            OffsetRect (&cell, 0, slide.shift - ((slide.layout.rowLine[(size_t) item] > slide.header) ? slide.lift : 0));
+        }
+
+        OffsetRect (&cell, 0, pageY);
+
+        if (cell.bottom > 0 && cell.top < viewH && cell.right > 0 && cell.left < viewW)
+        {
+            out.emplace_back (item, cell);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::PaintItems
 //
 //  Each item in sight: the selection or hover card, the icon at the view's
@@ -2146,8 +3090,7 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
     const ListLayout & listLayout = listGrp ? GetListLayout() : s_kNoListLayout;
     //  A group sliding open or shut paints from a layout that holds it open.
     ItemSlide          slide      = itemGrp ? PlaceItemSlide() : ItemSlide {};
-    //  A page sliding into view draws everything this far from where it rests.
-    int                pageY      = itemGrp ? GetPageSlidePx() : 0;
+    int                pageY      = 0;
     bool               clipped    = false;
     //  The items on screen and their cells, found before any row's cells are
     //  asked for: a host that builds rows on demand builds only these.
@@ -2176,22 +3119,16 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
     //  makes its row taller and moves everything under it, headers included.
     if (itemGrp)
     {
-        for (int item = 0; item < rows; item++)
-        {
-            RECT  cell = {};
+        CollectItemsToMeasure (onScreen);
+        MeasureItemTextLines  (text, onScreen);
 
-            //  A short folder has every name measured, so whether its rows
-            //  overflow, which sets the columns, counts the ones a wrapped
-            //  name above has pushed out of sight.
-            if (GetGroupedItemRectPx (GetItemLayout(), item, cell) &&
-                (rows <= s_kMeasureAllItemsMax || (cell.bottom > 0 && cell.top < m_boundsDip.bottom - m_boundsDip.top)))
-            {
-                onScreen.emplace_back (item, cell);
-            }
-        }
-
-        MeasureItemTextLines (text, onScreen);
+        //  A page sliding into view draws everything this far from where it
+        //  rests, found once the names in sight are measured, since a row they
+        //  make taller moves where the view rests.
+        pageY = GetPageSlidePx();
     }
+
+    onScreen.clear();
 
     if (listGrp)
     {
@@ -2229,14 +3166,23 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
             const ItemLine & line  = layout.lines[at];
             int              lineY = line.top - topPx + pageY - ((slide.active && (int) at > slide.header) ? slide.lift : 0);
 
-            if (line.group >= 0 && lineY + line.height > 0 && lineY < m_boundsDip.bottom - m_boundsDip.top)
+            if (lineY + line.height <= 0 || lineY >= m_boundsDip.bottom - m_boundsDip.top)
+            {
+                continue;
+            }
+
+            if (line.group >= 0)
             {
                 PaintGroupHeader (painter, text, pal, line.group, x, x, y + (float) lineY, viewW);
             }
+
+            //  Only the items of lines in sight are placed: placing every item
+            //  made each frame cost the whole folder.
+            CollectLineItemsInSight (layout, line, slide, pageY, onScreen);
         }
 
         first = 0;
-        last  = rows;
+        last  = 0;
     }
     else
     {
@@ -2244,24 +3190,11 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
         last  = (std::min) (rows, first + (grid.visible + 1) * grid.perLine);
     }
 
-    onScreen.clear();
-
     for (int item = first; item < last; item++)
     {
         RECT  cell   = {};
-        bool  placed = listGrp ? GetListItemRectPx    (listLayout, item, cell)
-                               : itemGrp ? GetGroupedItemRectPx (slide.active ? slide.layout : GetItemLayout(), item, cell)
-                                         : GetItemRectPx        (item, cell);
-
-        if (placed && slide.active)
-        {
-            OffsetRect (&cell, 0, slide.shift - ((slide.layout.rowLine[(size_t) item] > slide.header) ? slide.lift : 0));
-        }
-
-        if (placed && itemGrp)
-        {
-            OffsetRect (&cell, 0, pageY);
-        }
+        bool  placed = listGrp ? GetListItemRectPx (listLayout, item, cell)
+                               : GetItemRectPx     (item, cell);
 
         if (placed && cell.bottom > 0 && cell.top < m_boundsDip.bottom - m_boundsDip.top &&
             cell.right > 0 && cell.left < m_boundsDip.right - m_boundsDip.left)
@@ -2637,7 +3570,8 @@ void DxuiListView::PaintMeter (IDxuiPainter & painter, float x, float y, float w
 //  DxuiListView::GetItemScrollOffsetPx
 //
 //  How far the item view is scrolled, so a point in the list's pixels can be
-//  turned into one in the items' own space.
+//  turned into one in the items' own space: as drawn, so a sliding page's
+//  offset counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2654,7 +3588,7 @@ POINT DxuiListView::GetItemScrollOffsetPx() const
 
     if (UsesItemLayout())
     {
-        return POINT { 0, GetItemTopPx (GetItemLayout()) };
+        return POINT { 0, GetShownScrollPx() };
     }
 
     return POINT { 0, (grid.perLine > 0) ? (m_topRow / grid.perLine) * grid.cellH : 0 };

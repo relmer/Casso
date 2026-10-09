@@ -70,6 +70,11 @@ public:
         // presents do not tear).
         UINT                presentSyncInterval = 1;
 
+        // Queue one frame at most and draw each just after the one before it
+        // leaves the queue, so an animation that reads the clock as it draws
+        // moves evenly on screen. See DxuiHwndSource::CreateParams.
+        bool                paceFrames          = false;
+
         // Create the window without stealing activation (CreateWindowEx
         // activates a new top-level window even while it is hidden, yanking
         // focus off the creator mid-keystroke). For windows that pop up on

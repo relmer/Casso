@@ -581,6 +581,7 @@
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewViewsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewPagingTests.cpp" />
     <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />

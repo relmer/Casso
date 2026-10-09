@@ -1126,6 +1126,12 @@ void DxuiHwndSource::Destroy()
 
     ReleaseRenderResources();
 
+    if (m_frameWait != nullptr)
+    {
+        CloseHandle (m_frameWait);
+        m_frameWait = nullptr;
+    }
+
     m_rtv.Reset();
     m_swapChain.Reset();
     m_compVisual.Reset();
@@ -1905,6 +1911,8 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
     scd.BufferCount      = 2;
     scd.Scaling          = DXGI_SCALING_STRETCH;
     scd.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    scd.Flags            = m_params.paceFrames ? (UINT) DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0u;
+    m_swapChainFlags     = scd.Flags;
 
     if (m_params.composited)
     {
@@ -1993,9 +2001,77 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         CHRA (hr);
     }
 
+    hr = CreateFrameWait();
+    CHRA (hr);
+
 Error:
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateFrameWait
+//
+//  With CreateParams::paceFrames, one frame queued at most, and the handle
+//  WaitForFrameSlot waits on for it to leave the queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::CreateFrameWait()
+{
+    HRESULT                  hr         = S_OK;
+    ComPtr<IDXGISwapChain2>  swapChain2;
+
+
+
+    BAIL_OUT_IF (!m_params.paceFrames || m_swapChain == nullptr, S_OK);
+
+    hr = m_swapChain.As (&swapChain2);
+    CHRA (hr);
+
+    hr = swapChain2->SetMaximumFrameLatency (1);
+    CHRA (hr);
+
+    m_frameWait = swapChain2->GetFrameLatencyWaitableObject();
+    CBRA (m_frameWait != nullptr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WaitForFrameSlot
+//
+//  Holds a paint until the frame before it has left the queue, so it draws
+//  just after a vsync, as every frame then does, and is seen two vsyncs
+//  later. Bounded, so a frame the compositor does not take, as for a window
+//  on no display, costs a paint no more than a few frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::WaitForFrameSlot()
+{
+    DWORD  waited = WAIT_OBJECT_0;
+
+
+
+    if (m_frameWait == nullptr)
+    {
+        return;
+    }
+
+    waited = WaitForSingleObjectEx (m_frameWait, s_kFrameWaitMs, FALSE);
+    IGNORE_RETURN_VALUE (waited, WAIT_OBJECT_0);
 }
 
 
@@ -2424,13 +2500,15 @@ Error:
 //  WM_PAINT body for full-ownership mode. Delegates the frame orchestration to
 //  DxuiRenderTarget::RenderFrame (clear -> before-present hook -> PaintContent
 //  -> after-paint / compose -> PresentFrame), which bails cleanly if the
-//  painter / text renderer / RTV / swap chain are missing.
+//  painter / text renderer / RTV / swap chain are missing. A window that paces
+//  its frames first waits for the last one to leave the queue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::PaintPump()
 {
     DXUI_ASSERT_UI_THREAD();
+    WaitForFrameSlot();
     RenderFrame (m_theme);
 }
 
@@ -3654,7 +3732,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     if (m_swapChain && widthPx > 0 && heightPx > 0)
     {
         ReleaseBackBufferRtv();
-        (void) m_swapChain->ResizeBuffers (0, widthPx, heightPx, DXGI_FORMAT_UNKNOWN, 0);
+        (void) m_swapChain->ResizeBuffers (0, widthPx, heightPx, DXGI_FORMAT_UNKNOWN, m_swapChainFlags);
 
         hr = CreateBackBufferRtv();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -3672,6 +3750,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     // client repaints through its own OnSize.
     if (m_ownsPaintPump)
     {
+        WaitForFrameSlot();
         RenderFrame (m_theme);
     }
 }

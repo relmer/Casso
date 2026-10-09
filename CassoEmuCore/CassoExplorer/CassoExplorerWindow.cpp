@@ -127,6 +127,12 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.appIconBig               = LoadIconW (instance, MAKEINTRESOURCEW (IDI_CASSO_EXPLORER));
     params.appIconSmall             = params.appIconBig;
 
+    //  A key or a click paints more than once, and the animation tick paints
+    //  on top of that; paced, each of those frames reads the clock one vsync
+    //  after the last, so a page slides at one steady speed from its first
+    //  frame rather than crawling until the queue fills.
+    params.paceFrames               = true;
+
     hr = DxuiWindow::Create (params);
     CHR (hr);
 
@@ -546,6 +552,12 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_list->SetKeyboardColumnNav (true);
     m_list->SetActivateOnDoubleClick (true);
     m_list->SetAlwaysShowSelection (true);
+
+    //  A page slides into view, as Explorer's does. The system tick count moves
+    //  in 15.6 ms steps, which left the slide standing still on some frames,
+    //  so the list reads the steady clock the window's own ticks read.
+    m_list->SetPageSlideEnabled (true);
+    m_list->SetClock (&CassoExplorerWindow::GetNowMs);
 
     m_list->SetOnSelectionChanged ([this] (int)
     {
@@ -8531,8 +8543,10 @@ void CassoExplorerWindow::RefreshChangedFolders()
     m_browser.SetSelectedRows (after.selected);
     m_list->SetSelectedRows   (after.selected, after.focused);
 
-    //  Last, since restoring the selection scrolls it into view.
-    m_list->SetTopRow (after.topRow);
+    //  Last, since restoring the selection scrolls it into view. By whole rows,
+    //  so an unmoved top leaves the view as it was, and rows a page down or
+    //  the list's end lifted stay lifted.
+    m_list->MoveTopRow (after.topRow);
 
     FillPreview();
     FillStatus();
@@ -10841,7 +10855,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     barsMoved = ((int) m_hexView->TickScrollbars (GetNowMs())
                | (int) m_textView->TickScrollbars (GetNowMs())
                | (int) m_list->TickScrollbars (GetNowMs())
-               | (int) m_list->IsHeaderSliding ((int64_t) GetTickCount64())
+               | (int) m_list->IsHeaderSliding (GetNowMs())
                | (int) m_list->IsGroupSliding()
                | (int) m_previewList->TickScrollbars (GetNowMs())
                | (int) m_tree->TickScrollbars (GetNowMs())
