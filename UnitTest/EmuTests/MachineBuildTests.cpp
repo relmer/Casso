@@ -131,6 +131,38 @@ public:
     }
 
 
+    TEST_METHOD (EveryBuildMarksTheDisplayPagesForVideoDirty)
+    {
+        //  The render loop skips a frame when the bus says nothing on screen
+        //  changed. A machine switch builds into a fresh bus, so the build is
+        //  what has to mark the pages -- the shell marked them once, at
+        //  startup, and a switched-to machine repainted at the flash rate.
+        for (const char * id : { "Apple2Plus", "Apple2e" })
+        {
+            TestMachine   machine (id, TestMachine::Slots::Empty);
+            MemoryBus   & bus = machine.GetMemoryBus();
+            std::wstring  name (id, id + strlen (id));
+
+            //  The first and last displayed bytes of the text and hi-res
+            //  pages; $xx78-$xx7F and $xxF8-$xxFF are screen holes.
+            for (Word addr : { Word (0x0400), Word (0x0BF7), Word (0x2000), Word (0x5FF7) })
+            {
+                bus.ClearVideoDirty();
+                bus.WriteByte (addr, static_cast<Byte> (bus.ReadByte (addr) ^ 0xFF));
+
+                Assert::IsTrue (bus.IsVideoDirty(),
+                    std::format (L"{}: a write to ${:04X} must mark the screen dirty", name, addr).c_str());
+            }
+
+            bus.ClearVideoDirty();
+            bus.WriteByte (0x0C00, 0x00);
+
+            Assert::IsFalse (bus.IsVideoDirty(),
+                std::format (L"{}: a write past the text pages must not", name).c_str());
+        }
+    }
+
+
     TEST_METHOD (TheIIeScreenShowsMainRamWhateverTheCpuBanking)
     {
         //  The display scans main RAM for 40-column text and hi-res, while

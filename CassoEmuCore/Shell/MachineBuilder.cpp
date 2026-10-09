@@ -112,6 +112,8 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
 
     WirePageTable();
 
+    MarkVideoWatchPages();
+
 Error:
     return hr;
 }
@@ -1123,6 +1125,46 @@ void MachineBuilder::WirePageTable()
 
     // Initial state
     RebuildBankingPages();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkVideoWatchPages
+//
+//  Marks the display pages so a write into them raises the bus video-dirty
+//  flag that drives the render-skip gate: text pages 1 and 2 ($0400-$0BFF)
+//  and hi-res pages 1 and 2 ($2000-$5FFF). Aux writes share these page
+//  indices (the //e MMU re-points them), so watching the index covers main
+//  and aux.
+//
+//  The marks belong to the bus, and a machine switch replaces the bus, so
+//  every build makes them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::MarkVideoWatchPages()
+{
+    static constexpr int  kTextPageFirst  = 0x04;
+    static constexpr int  kTextPageLast   = 0x0B;
+    static constexpr int  kHiResPageFirst = 0x20;
+    static constexpr int  kHiResPageLast  = 0x5F;
+    int                   page            = 0;
+
+
+
+    for (page = kTextPageFirst; page <= kTextPageLast; page++)
+    {
+        m_host.GetMemoryBus().SetVideoWatchPage (page, true);
+    }
+
+    for (page = kHiResPageFirst; page <= kHiResPageLast; page++)
+    {
+        m_host.GetMemoryBus().SetVideoWatchPage (page, true);
+    }
 }
 
 
