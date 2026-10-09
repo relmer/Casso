@@ -43,9 +43,10 @@ public:
     using GoToFn = std::function<void (Word address)>;
 
     //  How the PC's line and breakpoints are drawn: the disassembly pane's
-    //  own marker color, row fill and breakpoint icons, so the two panes
-    //  mark a line alike. No icons draws a bullet in the marker column; no
-    //  syntax colors leaves the text in the view's own color.
+    //  own marker color, row fill, breakpoint icons and PC arrow, so the two
+    //  panes mark a line alike, in the view's glyph margin. No breakpoint
+    //  icons draws a bullet in the marker column, and no PC arrow a triangle
+    //  there; no syntax colors leaves the text in the view's own color.
     struct Style
     {
         uint32_t                               pcMarkerArgb = 0;
@@ -54,6 +55,7 @@ public:
         std::shared_ptr<const DxuiIconImage>   disabledIcon;
         SourceSyntax::Colors                   syntax;
         uint32_t                               resultArgb   = 0;
+        std::shared_ptr<const DxuiIconImage>   pcIcon;
 
         bool operator== (const Style & other) const = default;
     };

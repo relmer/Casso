@@ -404,14 +404,14 @@ namespace ColorLegendTests
             //  A paint fits the columns to their text, which places the cells.
             list->Paint (painter, text, theme);
 
-            operand = GetTipOverCell (window, *list, 0, 6);
+            operand = GetTipOverCell (window, *list, 0, 5);
 
-            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              GetTipOverCell (window, *list, 0, 2));
-            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcMarker)),           GetTipOverCell (window, *list, 0, 1));
+            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              GetTipOverCell (window, *list, 0, 1));
+            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcMarker)),           GetTipOverCell (window, *list, 0, 0), L"the arrow is in the glyph margin");
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::BreakpointDisabled)), GetTipOverCell (window, *list, 1, 0));
             Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Annotation)) != std::wstring::npos, operand.c_str());
             Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Result))     != std::wstring::npos, operand.c_str());
-            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 2).empty(), L"a plain row has a tip");
+            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 1).empty(), L"a plain row has a tip");
         }
     };
 }

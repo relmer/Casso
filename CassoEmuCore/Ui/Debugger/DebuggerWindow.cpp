@@ -5,6 +5,7 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Config/WindowPlacementProfile.h"
@@ -472,8 +473,8 @@ void DebuggerWindow::ConfigureWidgets()
         MakeDense (list);
     }
 
-    //  A disassembly opens with its breakpoint and marker columns, a margin
-    //  of glyphs as Visual Studio's is, so its columns start at the list's
+    //  A disassembly opens with its glyph margin for the breakpoints and the
+    //  PC's arrow, as Visual Studio's does, so its columns start at the list's
     //  left rather than at the pane's text inset.
     for (DxuiListView * code : m_codeLists)
     {
@@ -1455,7 +1456,7 @@ void DebuggerWindow::ApplySource()
         DxuiTabGroup::LeadingMark    mark;
 
         document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
-                                       GetResultArgb() });
+                                       GetResultArgb(), GetPcIcon (nullptr) });
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
         document.pane->Apply       (*m_snapshot);
@@ -5220,7 +5221,7 @@ bool DebuggerWindow::HasTopLayer() const
 
 bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
 {
-    static constexpr size_t                              s_kInstructionColumn = 5;
+    static constexpr size_t                              s_kInstructionColumn = kCodeInstructionColumn;
     DxuiListView                                       * list                 = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines                = GetCodeLines (view);
     int                                                  current              = -1;
@@ -6602,9 +6603,9 @@ void DebuggerWindow::ApplyCodeView (int view)
 
 
 
-    list->SetColumnVisible (2, m_codeOptions.IsOn (DisassemblyOptions::Option::Addresses));
-    list->SetColumnVisible (3, m_codeOptions.IsOn (DisassemblyOptions::Option::CodeBytes));
-    list->SetColumnVisible (4, symbols);
+    list->SetColumnVisible (kCodeAddressColumn, m_codeOptions.IsOn (DisassemblyOptions::Option::Addresses));
+    list->SetColumnVisible (kCodeBytesColumn,   m_codeOptions.IsOn (DisassemblyOptions::Option::CodeBytes));
+    list->SetColumnVisible (kCodeLabelColumn,   symbols);
 
     for (const DebuggerViewSnapshot::CodeLine & line : lines)
     {
@@ -6626,7 +6627,7 @@ void DebuggerWindow::ApplyCodeView (int view)
         std::wstring                             rowTip;
 
         //  A source line: its number when shown, then its text in the syntax
-        //  colors, from the first column shown after the marker.
+        //  colors, from the first column shown after the glyph margin.
         if (each.codeLine < 0)
         {
             std::wstring  prefix = numbers ? std::format (L"{:>5}  ", each.sourceLine) : std::wstring();
@@ -6659,18 +6660,19 @@ void DebuggerWindow::ApplyCodeView (int view)
 
         line = &lines[(size_t) each.codeLine];
 
-        //  The gutter holds a breakpoint's dot and the next column the PC's
-        //  arrow, so a breakpoint on the PC's line shows both. A line that
-        //  can take a breakpoint shows a gray one under the pointer.
+        //  The glyph margin holds a breakpoint's dot and the PC's arrow, the
+        //  arrow drawn over the dot on a line with both, as Visual Studio
+        //  draws them. A line that can take a breakpoint shows a gray one
+        //  under the pointer.
         if (line->hasBreakpoint)
         {
-            cells[0].icon = GetBreakpointIcon (line->isEnabled);
-            cells[0].tip  = ColorLegend::GetText (line->isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
+            cells[kCodeGutterColumn].icon = GetBreakpointIcon (line->isEnabled);
+            cells[kCodeGutterColumn].tip  = ColorLegend::GetText (line->isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
         }
         else if (view == m_gutterHoverView && (int) rows.size() == m_gutterHoverRow && DisassemblyOptions::CanTakeBreakpoint (*line))
         {
-            cells[0].icon = GetHoverBreakpointIcon();
-            cells[0].tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
+            cells[kCodeGutterColumn].icon = GetHoverBreakpointIcon();
+            cells[kCodeGutterColumn].tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
         }
 
         //  While the PC's arrow is dragged, it and the PC's row color show on
@@ -6679,11 +6681,10 @@ void DebuggerWindow::ApplyCodeView (int view)
 
         if ((view == m_pcDragView && m_pcDragOverRow >= 0) ? (int) rows.size() == m_pcDragOverRow : line->isCurrent)
         {
-            cells[1].text = s_kpszTriangleRight;
-            cells[1].argb = GetPcMarkerArgb();
-            cells[1].tip  = ColorLegend::GetText (ColorLegend::Meaning::PcMarker);
-            fill          = GetPcRowArgb();
-            rowTip        = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
+            cells[kCodeGutterColumn].icon = GetPcIcon (cells[kCodeGutterColumn].icon);
+            cells[kCodeGutterColumn].tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), cells[kCodeGutterColumn].tip });
+            fill                          = GetPcRowArgb();
+            rowTip                        = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
         }
         else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line->address)
         {
@@ -6696,37 +6697,37 @@ void DebuggerWindow::ApplyCodeView (int view)
             rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
         }
 
-        cells[2].text = std::format (L"{:04X}", line->address);
-        cells[3].text = Widen (line->bytes);
-        cells[4].text = Widen (line->label);
-        cells[5].text = Widen (DisassemblyOptions::GetInstructionText (*line, symbols));
-        cells[6]      = GetOperandAndResultCell (line->annotation, line->effect, GetResultArgb());
+        cells[kCodeAddressColumn].text     = std::format (L"{:04X}", line->address);
+        cells[kCodeBytesColumn].text       = Widen (line->bytes);
+        cells[kCodeLabelColumn].text       = Widen (line->label);
+        cells[kCodeInstructionColumn].text = Widen (DisassemblyOptions::GetInstructionText (*line, symbols));
+        cells[kCodeOperandColumn]          = GetOperandAndResultCell (line->annotation, line->effect, GetResultArgb());
 
-        cells[6].argb = GetAnnotationArgb();
-        cells[4].argb = syntax.symbol;
-        cells[2].argb = syntax.address;
-        cells[3].argb = syntax.bytes;
-        cells[5].argb = syntax.address;
+        cells[kCodeOperandColumn].argb     = GetAnnotationArgb();
+        cells[kCodeLabelColumn].argb       = syntax.symbol;
+        cells[kCodeAddressColumn].argb     = syntax.address;
+        cells[kCodeBytesColumn].argb       = syntax.bytes;
+        cells[kCodeInstructionColumn].argb = syntax.address;
 
         //  A byte that changed shows in the changed color, whether code or an
         //  edit changed it.
         for (const auto & [first, last] : m_codeChanges.GetChangedRanges (line->address, line->bytes))
         {
-            cells[3].colorRanges.push_back ({ first, last, DebuggerTextColors::GetChangedOn (textColors, fill) });
+            cells[kCodeBytesColumn].colorRanges.push_back ({ first, last, DebuggerTextColors::GetChangedOn (textColors, fill) });
         }
 
-        cells[5].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[5].text, textColors);
+        cells[kCodeInstructionColumn].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[kCodeInstructionColumn].text, textColors);
 
         //  What each color on the row means, for the tip over its cell: the
         //  row's fill on every cell, then a changed byte's color and the
         //  operand's and result's colors where they show.
-        cells[2].tip = rowTip;
-        cells[4].tip = rowTip;
-        cells[5].tip = rowTip;
-        cells[3].tip = ColorLegend::JoinLines ({ cells[3].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
-        cells[6].tip = ColorLegend::JoinLines ({ line->annotation.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Annotation),
-                                                 line->effect.empty()     ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Result),
-                                                 rowTip });
+        cells[kCodeAddressColumn].tip     = rowTip;
+        cells[kCodeLabelColumn].tip       = rowTip;
+        cells[kCodeInstructionColumn].tip = rowTip;
+        cells[kCodeBytesColumn].tip       = ColorLegend::JoinLines ({ cells[kCodeBytesColumn].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
+        cells[kCodeOperandColumn].tip     = ColorLegend::JoinLines ({ line->annotation.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Annotation),
+                                                                      line->effect.empty()     ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Result),
+                                                                      rowTip });
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -10129,10 +10130,10 @@ void DebuggerWindow::ConfigureCodeList (int view)
     });
 
     //  Every column fits its contents and none stretches, so a pane is as wide
-    //  as what it shows and no wider (FR-026a). The marker column alone has a
-    //  set width, since its glyphs are not text a fit could measure.
-    list->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left   },
-                        { L"",            kMarkerColumnDip, false, DxuiTextHAlign::Center },
+    //  as what it shows and no wider (FR-026a). The glyph margin alone has a
+    //  set width, since its glyphs are not text a fit could measure; it holds
+    //  the breakpoints and the PC's arrow, and the address follows it.
+    list->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left },
                         { L"Address",     0, false, DxuiTextHAlign::Left },
                         { L"Bytes",       0, false, DxuiTextHAlign::Left },
                         { L"Label",       0, false, DxuiTextHAlign::Left },
@@ -10293,7 +10294,7 @@ bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
             continue;
         }
 
-        if (lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (0) + (GetCodeViewOf (list) >= 0 ? list->GetColumnEffectiveWidthPx (1) : 0))
+        if (lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (kCodeGutterColumn))
         {
             return false;
         }
@@ -10555,52 +10556,6 @@ uint32_t DebuggerWindow::GetBreakpointArgb() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::MakeDotIcon
-//
-//  A breakpoint's dot in a color, filled or a ring, drawn as an image so it
-//  can be larger than the text beside it. The image is drawn in a
-//  kBreakpointIconDip box, and the dot fills 0.7 of it: 11.2 DIP across, the
-//  14 pixels Visual Studio's breakpoint is at 125%.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::shared_ptr<DxuiIconImage> DebuggerWindow::MakeDotIcon (uint32_t argb, bool filled)
-{
-    static constexpr int    kSize   = 48;
-    static constexpr float  kRadius = 16.8f;
-    static constexpr float  kRing   = 4.0f;
-    auto                    image   = std::make_shared<DxuiIconImage>();
-
-
-
-    image->width  = kSize;
-    image->height = kSize;
-    image->bgraPremul.assign ((size_t) (kSize * kSize), 0u);
-
-    for (int y = 0; y < kSize; y++)
-    {
-        for (int x = 0; x < kSize; x++)
-        {
-            float  d     = std::hypot (x + 0.5f - kSize * 0.5f, y + 0.5f - kSize * 0.5f);
-            float  outer = std::clamp (kRadius - d + 0.5f, 0.0f, 1.0f);
-            float  inner = filled ? 0.0f : std::clamp (kRadius - kRing - d + 0.5f, 0.0f, 1.0f);
-            float  a     = outer - inner;
-            auto   ch    = [a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
-
-            image->bgraPremul[(size_t) (y * kSize + x)] = ((uint32_t) std::lround (a * 255.0f) << 24) |
-                                                          (ch (argb >> 16) << 16) | (ch (argb >> 8) << 8) | ch (argb);
-        }
-    }
-
-    return image;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::GetBreakpointIcon
 //
 //  The breakpoint's dot, filled when enabled and a ring when not. Rebuilt
@@ -10617,8 +10572,8 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetBreakpointIcon (bool ena
     if (argb != m_breakpointIconArgb || m_breakpointIcons[0] == nullptr)
     {
         m_breakpointIconArgb = argb;
-        m_breakpointIcons[0] = MakeDotIcon (argb, false);
-        m_breakpointIcons[1] = MakeDotIcon (argb, true);
+        m_breakpointIcons[0] = GutterGlyph::MakeDot (argb, false);
+        m_breakpointIcons[1] = GutterGlyph::MakeDot (argb, true);
     }
 
     return m_breakpointIcons[enabled ? 1 : 0];
@@ -10646,10 +10601,60 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetHoverBreakpointIcon()
     if (argb != m_hoverBreakpointArgb || m_hoverBreakpointIcon == nullptr)
     {
         m_hoverBreakpointArgb = argb;
-        m_hoverBreakpointIcon = MakeDotIcon (argb, true);
+        m_hoverBreakpointIcon = GutterGlyph::MakeDot (argb, true);
     }
 
     return m_hoverBreakpointIcon;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPcIcon
+//
+//  The PC's arrow in the glyph margin, over the line's dot when it has one,
+//  as Visual Studio draws its arrow over a breakpoint. A dot not seen before
+//  gets its own image, and a few are kept: the enabled and disabled dots,
+//  the gray one under the pointer, and the arrow alone; one more means a
+//  dot from an earlier theme, so the old ones are dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot)
+{
+    constexpr size_t                      kMaxPcIcons = 4;
+    uint32_t                              argb        = GetPcMarkerArgb();
+    std::shared_ptr<const DxuiIconImage>  icon;
+
+
+
+    if (argb != m_pcIconArgb)
+    {
+        m_pcIconArgb = argb;
+        m_pcIcons.clear();
+    }
+
+    for (const PcIcon & each : m_pcIcons)
+    {
+        icon = (each.dot == dot) ? each.icon : icon;
+    }
+
+    if (icon == nullptr)
+    {
+        if (m_pcIcons.size() >= kMaxPcIcons)
+        {
+            m_pcIcons.clear();
+        }
+
+        icon = GutterGlyph::MakeMarked (dot, GutterGlyph::MakeArrow (argb));
+
+        m_pcIcons.push_back ({ dot, icon });
+    }
+
+    return icon;
 }
 
 

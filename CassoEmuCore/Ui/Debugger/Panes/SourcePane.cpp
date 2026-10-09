@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -1021,10 +1022,13 @@ bool SourcePane::IsInstructionLine (const std::wstring & line, SourceSyntax::Ass
 //
 //  SourcePane::BuildRows
 //
-//  A marker, the line number and the text. The marker is the triangle on the
-//  marked line. With the style's icons, as the disassembly pane draws them,
-//  a breakpoint is its icon in the view's gutter and the marked line takes
-//  the PC's row fill and marker color; without them, a bullet in the marker.
+//  A marker, the line number and the text. The marked line takes the PC's
+//  row fill. With the style's icons, as the disassembly pane draws them, a
+//  breakpoint is its icon in the view's glyph margin, and with its PC arrow
+//  the marked line's arrow is there too, drawn over the line's breakpoint
+//  when it has one, so both sit where Visual Studio puts them. Without the
+//  icons a breakpoint is a bullet in the marker, and without the arrow the
+//  marked line is a triangle there in the marker color.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1039,6 +1043,7 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
     std::vector<DxuiTextView::Row>  rows;
     int                             width  = (int) std::to_wstring (lines.size()).size();
     bool                            icons  = style.enabledIcon != nullptr;
+    bool                            arrow  = style.pcIcon != nullptr;
 
 
 
@@ -1054,7 +1059,11 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
             marker = breakpointLines.contains (number) ? std::wstring (1, s_kchBullet) : std::wstring (L" ");
         }
 
-        marker += isMarked ? std::wstring (s_kpszTriangleRight) : std::wstring (L" ");
+        if (!arrow)
+        {
+            marker += isMarked ? std::wstring (s_kpszTriangleRight) : std::wstring (L" ");
+        }
+
         row.cells = { marker, std::format (L"{:>{}}", number, width), lines[i] };
 
         if (icons && breakpointLines.contains (number))
@@ -1065,8 +1074,9 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
         if (isMarked)
         {
             row.background = style.pcRowArgb;
+            row.icon       = arrow ? GutterGlyph::MakeMarked (row.icon, style.pcIcon) : row.icon;
 
-            if (style.pcMarkerArgb != 0)
+            if (!arrow && style.pcMarkerArgb != 0)
             {
                 row.spans.push_back ({ 0, (int) marker.size() - 1, 1, style.pcMarkerArgb });
             }

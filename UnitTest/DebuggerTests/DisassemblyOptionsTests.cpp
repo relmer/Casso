@@ -270,12 +270,12 @@ namespace DisassemblyOptionsTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ApplyCodeSnapshot (MakeSnapshot (false), 0);
 
-            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (2), L"the saved options are read");
-            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (3));
+            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (1), L"the saved options are read");
+            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (2));
 
             window.ToggleCodeOption (Option::Addresses);
 
-            Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (2), L"no address column");
+            Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (1), L"no address column");
             Assert::AreEqual (std::string ("bytes symbols"), host.options, L"the choice is saved");
             Assert::IsNotNull (window.GetCodeBar (0), L"each view has its options bar");
         }
@@ -350,12 +350,13 @@ namespace DisassemblyOptionsTests
 
         TEST_METHOD (TheGutterShowsAGrayBreakpointOnlyOnAnInstructionUnderThePointer)
         {
-            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
-            OptionsHost    host;
-            DxuiDpiScaler  scaler;
-            OptionsWindow  window (theme, host);
-            DxuiListView * list  = nullptr;
-            RECT           box   = {};
+            CassoTheme                             theme  = CassoTheme::MakeSkeuomorphic();
+            OptionsHost                            host;
+            DxuiDpiScaler                          scaler;
+            OptionsWindow                          window (theme, host);
+            DxuiListView                         * list   = nullptr;
+            RECT                                   box    = {};
+            std::shared_ptr<const DxuiIconImage>   arrow;
 
 
 
@@ -365,14 +366,16 @@ namespace DisassemblyOptionsTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ApplyCodeSnapshot (MakeSnapshot (false), 0);
 
-            list = window.GetCodeList (0);
-            box  = list->GetBounds();
+            list  = window.GetCodeList (0);
+            box   = list->GetBounds();
+            arrow = list->GetCellsOfRow (0).front().icon;
 
-            Assert::IsNull (list->GetCellsOfRow (1).front().icon.get(), L"nothing before the pointer comes");
+            Assert::IsNull    (list->GetCellsOfRow (1).front().icon.get(), L"nothing before the pointer comes");
+            Assert::IsNotNull (arrow.get(), L"but the PC's arrow, in the same margin");
 
             window.HoverGutter (POINT { box.left + 2, GetRowMiddle (*list, 1) });
             Assert::IsNotNull (list->GetCellsOfRow (1).front().icon.get(), L"the RTS row shows the gray dot");
-            Assert::IsNull    (list->GetCellsOfRow (0).front().icon.get());
+            Assert::IsTrue    (list->GetCellsOfRow (0).front().icon == arrow, L"the PC's line keeps its arrow alone");
 
             window.HoverGutter (POINT { box.left + 2, GetRowMiddle (*list, 2) });
             Assert::IsNull (list->GetCellsOfRow (2).front().icon.get(), L"a data byte cannot take a breakpoint");

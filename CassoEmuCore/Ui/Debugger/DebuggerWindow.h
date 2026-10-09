@@ -775,19 +775,23 @@ private:
     static constexpr int    kTraceHintDip          = 20;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
-    static constexpr int    kMarkerColumnDip       = 20;
     //  The breakpoint icon's size in a list cell, which the source view's
     //  gutter draws it at too.
     static constexpr int    kBreakpointIconDip     = 16;
-    //  The glyph margin a code view keeps for its breakpoints, as Visual
-    //  Studio's is: the dot centered 8.4 DIP in from the pane's body, 10.5
-    //  pixels at 125%, in a column twice that wide.
+    //  The glyph margin a code view keeps for its breakpoints and the PC's
+    //  arrow, as Visual Studio's is: each glyph centered 8.4 DIP in from the
+    //  pane's body, 10.5 pixels at 125%, so its left edge is 2.8 DIP inside
+    //  it, in a column twice that wide; the address follows the column.
     static constexpr float  kGlyphCenterDip        = 8.4f;
     static constexpr int    kGutterColumnDip       = 17;
-    static constexpr int    kCodeInstructionColumn = 5;
-    static constexpr size_t kCodeOperandColumn     = 6;
-    static constexpr size_t kCodeFirstTextColumn   = 2;
-    static constexpr size_t kCodeColumnCount       = 7;
+    static constexpr size_t kCodeGutterColumn      = 0;
+    static constexpr size_t kCodeAddressColumn     = 1;
+    static constexpr size_t kCodeBytesColumn       = 2;
+    static constexpr size_t kCodeLabelColumn       = 3;
+    static constexpr int    kCodeInstructionColumn = 4;
+    static constexpr size_t kCodeOperandColumn     = 5;
+    static constexpr size_t kCodeFirstTextColumn   = kCodeAddressColumn;
+    static constexpr size_t kCodeColumnCount       = 6;
 
     //  The panes' text size runs from half to three times the usual, in
     //  steps of ten percentage points.
@@ -1040,7 +1044,9 @@ private:
     uint32_t  GetBreakpointArgb    () const;
     std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled);
     std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon ();
-    static std::shared_ptr<DxuiIconImage>  MakeDotIcon (uint32_t argb, bool filled);
+
+    //  The PC's arrow for the glyph margin, over `dot` when the line has one.
+    std::shared_ptr<const DxuiIconImage>  GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot);
     bool      TryGetSourceText     (int fileId, int line, std::wstring & text);
     uint32_t  GetPcMarkerArgb      () const;
     uint32_t  GetPcRowArgb         () const;
@@ -1187,6 +1193,19 @@ private:
     uint32_t                              m_breakpointIconArgb  = 0;
     std::shared_ptr<const DxuiIconImage>  m_hoverBreakpointIcon;
     uint32_t                              m_hoverBreakpointArgb = 0;
+
+    //  The PC's arrow, alone and over each dot it has been drawn over. Each is
+    //  kept with its dot, so a dot made later cannot take an old one's place
+    //  at the same address; all are made again when the arrow's color
+    //  changes.
+    struct PcIcon
+    {
+        std::shared_ptr<const DxuiIconImage>  dot;
+        std::shared_ptr<const DxuiIconImage>  icon;
+    };
+
+    std::vector<PcIcon>                   m_pcIcons;
+    uint32_t                              m_pcIconArgb          = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;

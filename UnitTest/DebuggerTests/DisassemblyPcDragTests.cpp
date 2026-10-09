@@ -7,6 +7,7 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 
@@ -186,8 +187,8 @@ namespace DisassemblyPcDragTests
             Assert::IsTrue (window.ClickGutter (down));
             window.DragPcMarker (GetGutterPoint (*list, 1));
 
-            Assert::IsFalse   (list->GetCellsOfRow (1)[1].text.empty(), L"the arrow shows on the row under the pointer");
-            Assert::IsTrue    (list->GetCellsOfRow (0)[1].text.empty(),  L"and leaves the PC's row");
+            Assert::IsTrue    (list->GetCellsOfRow (1)[0].icon != nullptr, L"the arrow shows on the row under the pointer");
+            Assert::IsTrue    (list->GetCellsOfRow (0)[0].icon == nullptr, L"and leaves the PC's row");
             Assert::AreEqual  (pcRow, list->GetCellsOfRow (1)[1].background, L"the PC's row color moves with it");
             Assert::AreNotEqual (pcRow, list->GetCellsOfRow (0)[1].background, L"and leaves the PC's row");
 
@@ -196,7 +197,7 @@ namespace DisassemblyPcDragTests
             up.positionDip = POINT { -10, -10 };
 
             Assert::IsTrue  (window.DropPcMarker (up));
-            Assert::IsFalse (list->GetCellsOfRow (0)[1].text.empty(), L"dropped off the view, the arrow returns to the PC");
+            Assert::IsTrue  (list->GetCellsOfRow (0)[0].icon != nullptr, L"dropped off the view, the arrow returns to the PC");
         }
 
 
@@ -235,10 +236,61 @@ namespace DisassemblyPcDragTests
 
 
 
+        //  The first and last columns of an image's middle row whose ink is
+        //  at least half covered.
+        static void  GetMiddleRowInk (const DxuiIconImage & image, int & first, int & last)
+        {
+            first = -1;
+            last  = -1;
+
+            for (int x = 0; x < image.width; x++)
+            {
+                if ((image.bgraPremul[(size_t) ((image.height / 2) * image.width + x)] >> 24) >= 0x80u)
+                {
+                    first = (first < 0) ? x : first;
+                    last  = x;
+                }
+            }
+        }
+
+
+        //  A pixel of an image, premultiplied, at a column and row.
+        static uint32_t  GetPixel (const DxuiIconImage & image, int x, int y)
+        {
+            return image.bgraPremul[(size_t) (y * image.width + x)];
+        }
+
+
+        //  The smallest rect holding every pixel of an image with any ink.
+        static RECT  GetInkBounds (const DxuiIconImage & image)
+        {
+            RECT  bounds = { image.width, image.height, 0, 0 };
+
+
+
+            for (int y = 0; y < image.height; y++)
+            {
+                for (int x = 0; x < image.width; x++)
+                {
+                    bool  isInk = (GetPixel (image, x, y) >> 24) != 0;
+
+                    bounds.left   = isInk ? (std::min) (bounds.left,   (LONG) x)     : bounds.left;
+                    bounds.top    = isInk ? (std::min) (bounds.top,    (LONG) y)     : bounds.top;
+                    bounds.right  = isInk ? (std::max) (bounds.right,  (LONG) x + 1) : bounds.right;
+                    bounds.bottom = isInk ? (std::max) (bounds.bottom, (LONG) y + 1) : bounds.bottom;
+                }
+            }
+
+            return bounds;
+        }
+
+
+
         //  A breakpoint sits in the glyph margin as Visual Studio's does: its
         //  dot 0.7 of the 16-DIP icon, 11.2 DIP and so 14 pixels across at
         //  125%, centered 8.4 DIP in from the list's left, 10.5 pixels there,
-        //  in a 17-DIP column.
+        //  so its left edge is 2.8 DIP inside the list, in a 17-DIP column
+        //  the address follows.
         TEST_METHOD (ABreakpointSitsInTheGlyphMarginAsVisualStudiosDoes)
         {
             constexpr int                          kIconPx  = 48;    // the dot image's own size
@@ -254,15 +306,17 @@ namespace DisassemblyPcDragTests
             std::shared_ptr<const DxuiIconImage>   dot;
             RECT                                   bounds   = {};
             RECT                                   address  = {};
-            int                                    across   = 0;
+            int                                    first    = -1;
+            int                                    last     = -1;
 
 
 
             scaler.SetDpi    (96);
             scaler120.SetDpi (120);
 
-            snapshot->codeViews[0][0].hasBreakpoint = true;
-            snapshot->codeViews[0][0].isEnabled     = true;
+            //  The RTS, off the PC's line, so the dot is alone.
+            snapshot->codeViews[0][1].hasBreakpoint = true;
+            snapshot->codeViews[0][1].isEnabled     = true;
             snapshot->code                          = snapshot->codeViews[0];
 
             window.OnCreate();
@@ -270,28 +324,133 @@ namespace DisassemblyPcDragTests
             window.ApplyCodeSnapshot (snapshot, 0);
 
             list   = window.GetCodeList (0);
-            dot    = list->GetCellsOfRow (0)[0].icon;
+            dot    = list->GetCellsOfRow (1)[0].icon;
             bounds = list->GetBounds();
 
             Assert::IsTrue   (dot != nullptr, L"the row has a breakpoint");
             Assert::AreEqual (kIconPx, dot->width);
 
-            for (int x = 0; x < dot->width; x++)
-            {
-                across += ((dot->bgraPremul[(size_t) ((dot->height / 2) * dot->width + x)] >> 24) >= 0x80u) ? 1 : 0;
-            }
+            GetMiddleRowInk (*dot, first, last);
 
-            Assert::AreEqual (34, across, L"the dot is 0.7 of its image across, 33.6 of 48 pixels");
+            Assert::AreEqual (34, last - first + 1, L"the dot is 0.7 of its image across, 33.6 of 48 pixels");
+            Assert::AreEqual (7,  first,            L"from 7.2 pixels of 48, 2.4 DIP into its 16-DIP icon");
 
             list->Layout (bounds, scaler120);
             list->Paint  (painter, text, theme);
 
-            Assert::IsFalse  (text.IconCalls().empty(), L"the dot is drawn");
-            Assert::AreEqual ((float) bounds.left + 10.5f, text.IconCalls()[0].x + text.IconCalls()[0].width * 0.5f, 0.001f, L"centered 10.5 pixels in at 125%");
-            Assert::AreEqual (20.0f, text.IconCalls()[0].width, L"in a 20-pixel icon, so the dot is 14 pixels across");
-            Assert::IsTrue   (list->GetCellTextRectPx (0, 2, address), L"the address has a cell");
-            Assert::AreEqual ((LONG) (scaler120.ToPx (17) + scaler120.ToPx (20) + scaler120.ToPx (4)), address.left,
-                              L"the address after the 17-DIP glyph column, the 20-DIP marker column and its padding");
+            Assert::AreEqual ((size_t) 2, text.IconCalls().size(), L"the dot and the PC's arrow are drawn");
+
+            for (const RecordedTextCall & icon : text.IconCalls())
+            {
+                Assert::AreEqual ((float) bounds.left + 10.5f, icon.x + icon.width * 0.5f, 0.001f, L"each centered 10.5 pixels in at 125%");
+                Assert::AreEqual (20.0f, icon.width, L"in a 20-pixel icon, so the dot is 14 pixels across");
+            }
+
+            Assert::IsTrue   (list->GetCellTextRectPx (0, 1, address), L"the address has a cell, the column after the margin");
+            Assert::AreEqual ((LONG) (scaler120.ToPx (17) + scaler120.ToPx (4)), address.left,
+                              L"the address after the 17-DIP glyph column and its padding");
+        }
+
+
+
+        //  The PC's arrow sits in the glyph margin with the breakpoints, as
+        //  Visual Studio's does: drawn in the same icon at the same place,
+        //  its left edge on the dot's, 2.8 DIP inside the list, and as tall as
+        //  the dot. No column of its own lies between the margin and the
+        //  address.
+        TEST_METHOD (ThePcsArrowSitsInTheGlyphMarginWhereTheDotDoes)
+        {
+            constexpr uint32_t                     kAnyArgb = 0xFFFFFFFF;   // the dot's place, not its color, is compared
+            CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
+            ViewingHost                            host;
+            DxuiDpiScaler                          scaler;
+            ViewingWindow                          window (theme, host);
+            DxuiListView                         * list     = nullptr;
+            std::shared_ptr<const DxuiIconImage>   arrow;
+            std::shared_ptr<DxuiIconImage>         dot      = GutterGlyph::MakeDot (kAnyArgb, true);
+            RECT                                   ink      = {};
+            RECT                                   dotInk   = {};
+
+
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            list  = window.GetCodeList (0);
+            arrow = list->GetCellsOfRow (0)[0].icon;
+
+            Assert::AreEqual ((size_t) 6, list->GetColumnCount(), L"the margin, address, bytes, label, instruction and operand");
+            Assert::AreEqual (std::wstring (L"Address"), list->GetColumnAt (1).title, L"the address follows the margin");
+            Assert::IsTrue   (arrow != nullptr, L"the PC's line shows its arrow in the margin");
+            Assert::IsTrue   (list->GetCellsOfRow (0)[0].text.empty(), L"as an image, not text");
+            Assert::IsTrue   (list->GetCellsOfRow (1)[0].icon == nullptr, L"and no other line does");
+            Assert::AreEqual (dot->width, arrow->width, L"an image the size of the dot's, drawn in the same icon");
+
+            ink    = GetInkBounds (*arrow);
+            dotInk = GetInkBounds (*dot);
+
+            Assert::AreEqual (dotInk.left,   ink.left,   L"its left edge on the dot's");
+            Assert::AreEqual (dotInk.top,    ink.top,    L"as tall as the dot");
+            Assert::AreEqual (dotInk.bottom, ink.bottom, L"as tall as the dot");
+            Assert::IsTrue   (ink.right < dotInk.right,  L"pointing right, its tip inside the dot's right edge");
+        }
+
+
+
+        //  A breakpoint on the PC's line shows the arrow over the dot, as
+        //  Visual Studio does: the arrow's color inside the arrow, and the
+        //  dot's color where the dot shows past its tip.
+        TEST_METHOD (OnThePcsLineTheArrowIsDrawnOverTheBreakpoint)
+        {
+            constexpr int                          kInArrowX = 14;   // inside both, left of the tip
+            constexpr int                          kPastTipX = 39;   // inside the dot, past the arrow's tip
+            CassoTheme                             theme     = CassoTheme::MakeSkeuomorphic();
+            ViewingHost                            host;
+            DxuiDpiScaler                          scaler;
+            ViewingWindow                          window (theme, host);
+            DxuiListView                         * list      = nullptr;
+            auto                                   both      = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot());
+            std::shared_ptr<const DxuiIconImage>   marked;
+            std::shared_ptr<const DxuiIconImage>   dot;
+            std::shared_ptr<const DxuiIconImage>   arrow;
+            int                                    middle    = GutterGlyph::kSizePx / 2;
+
+
+
+            scaler.SetDpi (96);
+
+            //  A breakpoint on the PC's line and on the line after it.
+            for (DebuggerViewSnapshot::CodeLine & line : both->codeViews[0])
+            {
+                line.hasBreakpoint = true;
+                line.isEnabled     = true;
+            }
+
+            both->code = both->codeViews[0];
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            list  = window.GetCodeList (0);
+            arrow = list->GetCellsOfRow (0)[0].icon;
+
+            window.ApplyCodeSnapshot (both, 0);
+
+            marked = list->GetCellsOfRow (0)[0].icon;
+            dot    = list->GetCellsOfRow (1)[0].icon;
+
+            Assert::IsTrue (arrow != nullptr && marked != nullptr && dot != nullptr, L"each line shows its glyphs");
+            Assert::IsTrue (list->GetCellsOfRow (0)[0].tip.find (ColorLegend::GetText (ColorLegend::Meaning::PcMarker))          != std::wstring::npos, L"the tip says what the arrow means");
+            Assert::IsTrue (list->GetCellsOfRow (0)[0].tip.find (ColorLegend::GetText (ColorLegend::Meaning::BreakpointEnabled)) != std::wstring::npos, L"and what the dot means");
+
+            Assert::AreEqual    (GetPixel (*arrow, kInArrowX, middle), GetPixel (*marked, kInArrowX, middle), L"inside the arrow, the arrow's color");
+            Assert::AreNotEqual (GetPixel (*dot,   kInArrowX, middle), GetPixel (*marked, kInArrowX, middle), L"over the dot");
+            Assert::AreEqual    (GetPixel (*dot,   kPastTipX, middle), GetPixel (*marked, kPastTipX, middle), L"past its tip, the dot's color");
+            Assert::AreEqual    (0u, GetPixel (*arrow, kPastTipX, middle), L"where the arrow alone leaves nothing");
         }
     };
 }
