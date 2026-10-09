@@ -84,6 +84,7 @@ namespace OperandResultTipTests
         }
 
         using DebuggerWindow::OperandTipCell;
+        using DebuggerWindow::OperandTipScreen;
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnMouse;
@@ -93,7 +94,7 @@ namespace OperandResultTipTests
         using DebuggerWindow::TryGetOperandTip;
         using DebuggerWindow::PlaceOperandTip;
         using DebuggerWindow::CheckOperandTipPointer;
-        using DebuggerWindow::GetColorTipAnchor;
+        using DebuggerWindow::GetTooltip;
         using DebuggerWindow::HasOperandTip;
         using DebuggerWindow::GetOperandTipLayout;
         using DebuggerWindow::GetOperandTipCell;
@@ -122,7 +123,9 @@ namespace OperandResultTipTests
     //  the cell's is, the operand wrapped first and the result on a line of
     //  its own, in the cell's colors on its fill, covering the whole of the
     //  cell the pane shows and staying on the screen without leaving the
-    //  cell.
+    //  cell, on both monitors where the cell runs across two. Never over
+    //  selected text or a window lying over the pane, and a color tip below
+    //  it goes with it.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -571,7 +574,7 @@ namespace OperandResultTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
             window.ApplyCodeSnapshot (MakeSnapshot(), 0);
-            window.SetOperandTipDeviceForTest (&text, kScreen);
+            window.SetOperandTipDeviceForTest (&text, MakeScreen());
 
             //  A paint fits the columns to their text, which places the cells.
             window.GetCodeList (0)->Paint (painter, text, theme);
@@ -608,6 +611,55 @@ namespace OperandResultTipTests
         }
 
 
+        //  A row's operand, where the list draws its text, in the list's
+        //  pixels.
+        static RECT  GetCellRect (TipWindow & window, int row)
+        {
+            RECT  cell = {};
+
+
+
+            Assert::IsTrue (window.GetCodeList (0)->GetCellTextRectPx (row, 6, cell), L"the row's operand is in view");
+
+            return cell;
+        }
+
+
+        //  A drag along a row's operand from just past where its text starts,
+        //  which selects the characters it passes over.
+        static void  DragAlong (TipWindow & window, int row)
+        {
+            DxuiMouseEvent  ev;
+
+
+
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = GetOperandPoint (window, row);
+            (void) window.OnMouse (ev);
+
+            ev.kind           = DxuiMouseEventKind::Move;
+            ev.positionDip.x += kDragPx;
+            (void) window.OnMouse (ev);
+
+            ev.kind = DxuiMouseEventKind::Up;
+            (void) window.OnMouse (ev);
+        }
+
+
+        //  The screen the window's tips are laid out on: one monitor, and
+        //  nothing lying over the window.
+        static TipWindow::OperandTipScreen  MakeScreen()
+        {
+            TipWindow::OperandTipScreen  screen;
+
+
+
+            screen.workAreas.push_back (kScreen);
+            return screen;
+        }
+
+
         static bool  TryGetTip (TipWindow & window, POINT at, MockDxuiTextRenderer & text, OperandResultTip::Layout & layout)
         {
             DxuiDpiScaler             scaler;
@@ -617,7 +669,7 @@ namespace OperandResultTipTests
 
             scaler.SetDpi (96);
 
-            return window.TryGetOperandTip (at, scaler, text, kScreen, layout, cell);
+            return window.TryGetOperandTip (at, scaler, text, MakeScreen(), layout, cell);
         }
 
 
@@ -643,7 +695,7 @@ namespace OperandResultTipTests
             bounds = list->GetBounds();
 
             Assert::IsTrue (list->GetCellTextRectPx (0, 6, cell), L"the long row's operand is in view");
-            Assert::IsTrue (window.TryGetOperandTip (GetOperandPoint (window, 0), scaler, text, kScreen, layout, tipCell),
+            Assert::IsTrue (window.TryGetOperandTip (GetOperandPoint (window, 0), scaler, text, MakeScreen(), layout, tipCell),
                             L"the pane cuts the long operand off");
 
             Assert::AreEqual (0, tipCell.view);
@@ -654,7 +706,7 @@ namespace OperandResultTipTests
             Assert::AreEqual (bounds.right - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0), layout.rect.right,
                               L"the tip covers the cell to the pane's edge");
 
-            Assert::IsFalse (window.TryGetOperandTip (GetOperandPoint (window, 1), scaler, text, kScreen, layout, tipCell),
+            Assert::IsFalse (window.TryGetOperandTip (GetOperandPoint (window, 1), scaler, text, MakeScreen(), layout, tipCell),
                              L"a short operand fits");
         }
 
@@ -719,10 +771,10 @@ namespace OperandResultTipTests
             move.kind        = DxuiMouseEventKind::Move;
             move.positionDip = GetOperandPoint (window, 0);
 
-            window.PlaceOperandTip (move, false, scaler, text, kScreen);
+            window.PlaceOperandTip (move, false, scaler, text, MakeScreen());
             Assert::IsTrue  (window.HasOperandTip());
 
-            window.PlaceOperandTip (move, true, scaler, text, kScreen);
+            window.PlaceOperandTip (move, true, scaler, text, MakeScreen());
             Assert::IsFalse (window.HasOperandTip(), L"a drag over the cell leaves the tip up");
 
             //  As the window gets it: a move made with the left button down.
@@ -924,22 +976,207 @@ namespace OperandResultTipTests
             TipHost               host;
             TipWindow             window (theme, host);
             MockDxuiTextRenderer  text;
-            DxuiKeyEvent          key   = { DxuiKeyEventKind::Down, VK_SHIFT, false, false, false, false };
-            RECT                  cell  = { 1, 2, 3, 4 };
             RECT                  under = {};
 
 
 
             Build (window, theme, text);
-            Send  (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
 
-            under = window.GetColorTipAnchor (cell);
-            Assert::IsTrue (EqualRect (&under, &window.GetOperandTipLayout().rect) != FALSE, L"a color tip lies over the operand tip");
+            //  The move that puts the operand tip up also starts the operand's
+            //  color tip, which waits out its dwell.
+            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
+            under = window.GetTooltip().GetPendingAnchor();
+
+            Assert::IsTrue (window.HasOperandTip());
+            Assert::IsTrue (window.GetTooltip().WantsTick(), L"the operand's color tip is not on its way");
+            Assert::IsTrue (EqualRect (&under, &window.GetOperandTipLayout().rect) != FALSE, L"the color tip is placed by its cell, under the operand tip");
+
+            //  Over an operand that fits, the color tip is placed by its cell.
+            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
+            under = window.GetTooltip().GetPendingAnchor();
+
+            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsTrue  (window.GetTooltip().WantsTick());
+            Assert::AreEqual (window.GetCodeList (0)->GetBounds().top + GetCellRect (window, 1).top, under.top, L"the color tip lies away from its cell");
+        }
+
+
+        TEST_METHOD (TheColorTipGoesWithTheOperandTip)
+        {
+            CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
+            TipHost                                host;
+            TipWindow                              window (theme, host);
+            MockDxuiTextRenderer                   text;
+            DxuiKeyEvent                           key      = { DxuiKeyEventKind::Down, VK_SHIFT, false, false, false, false };
+            POINT                                  at       = {};
+            std::shared_ptr<DebuggerViewSnapshot>  snapshot = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot());
+
+
+
+            Build (window, theme, text);
+            at = GetOperandPoint (window, 0);
+
+            //  A key.
+            Send (window, DxuiMouseEventKind::Move, at);
+            Assert::IsTrue (window.GetTooltip().WantsTick());
 
             (void) window.OnKey (key);
 
-            under = window.GetColorTipAnchor (cell);
-            Assert::IsTrue (EqualRect (&under, &cell) != FALSE, L"with no operand tip, a color tip shows under its cell");
+            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsFalse (window.GetTooltip().WantsTick(), L"after a key, the color tip still comes up below a tip no longer there");
+
+            //  The pointer leaving the cell with no move reaching the window.
+            Send (window, DxuiMouseEventKind::Move, at);
+            Assert::IsTrue (window.GetTooltip().WantsTick());
+
+            window.CheckOperandTipPointer (POINT { at.x, -1 });
+
+            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsFalse (window.GetTooltip().WantsTick(), L"after the pointer leaves, the color tip still comes up below a tip no longer there");
+
+            //  New rows that move the cell.
+            Send (window, DxuiMouseEventKind::Move, at);
+            Assert::IsTrue (window.GetTooltip().WantsTick());
+
+            snapshot->codeViews[0][1].instruction = "LDA A_LONG_SYMBOL_WIDENING_THE_COLUMN,X";
+            snapshot->code                        = snapshot->codeViews[0];
+
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsFalse (window.GetTooltip().WantsTick(), L"after new rows, the color tip still comes up below a tip no longer there");
+        }
+
+
+        TEST_METHOD (NoTipCoversTextSelectedInTheCell)
+        {
+            CassoTheme            theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost               host;
+            TipWindow             window (theme, host);
+            MockDxuiTextRenderer  text;
+            DxuiListView        * list   = nullptr;
+
+
+
+            Build (window, theme, text);
+            list = window.GetCodeList (0);
+
+            DragAlong (window, 0);
+            Assert::IsTrue (list->IsCellTextSelected (0, 6), L"the drag selects part of the operand");
+
+            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
+            Assert::IsFalse (window.HasOperandTip(), L"the tip lies over the selection");
+
+            //  A row whose tip reaches nowhere near the selection still has one.
+            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 2));
+            Assert::IsTrue (window.HasOperandTip(), L"a selection in one row takes every row's tip away");
+        }
+
+
+        TEST_METHOD (NoTipCoversTextSelectedInARowItReachesOver)
+        {
+            CassoTheme            theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost               host;
+            TipWindow             window (theme, host);
+            MockDxuiTextRenderer  text;
+            DxuiListView        * list   = nullptr;
+
+
+
+            Build (window, theme, text);
+            list = window.GetCodeList (0);
+
+            //  The short row under the first, whose tip wraps over it.
+            DragAlong (window, 1);
+            Assert::IsTrue (list->IsCellTextSelected (1, 6), L"the drag selects part of the operand");
+
+            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
+            Assert::IsFalse (window.HasOperandTip(), L"the tip of the row above lies over the selection");
+        }
+
+
+        TEST_METHOD (NoTipShowsUnderAWindowLyingOverThePane)
+        {
+            CassoTheme                   theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost                      host;
+            TipWindow                    window (theme, host);
+            MockDxuiTextRenderer         text;
+            OperandResultTip::Layout     layout;
+            TipWindow::OperandTipScreen  screen = MakeScreen();
+            POINT                        at     = {};
+
+
+
+            Build (window, theme, text);
+            at = GetOperandPoint (window, 0);
+            Assert::IsTrue (TryGetTip (window, at, text, layout));
+
+            //  A floating command bar over the rows the tip reaches down over,
+            //  clear of the pointer and of the cell.
+            screen.overWindows.push_back (RECT { layout.rect.left + kOverGapPx, layout.rect.bottom - kOverGapPx,
+                                                 layout.rect.left + kOverSizePx, layout.rect.bottom + kOverSizePx });
+            window.SetOperandTipDeviceForTest (&text, screen);
+
+            Send (window, DxuiMouseEventKind::Move, at);
+            Assert::IsFalse (window.HasOperandTip(), L"the tip shows over the floating window");
+
+            //  The same window clear of the tip.
+            OffsetRect (&screen.overWindows[0], 0, kOverSizePx);
+            window.SetOperandTipDeviceForTest (&text, screen);
+
+            Send (window, DxuiMouseEventKind::Move, at);
+            Assert::IsTrue (window.HasOperandTip(), L"a window clear of the tip takes it away");
+        }
+
+
+        TEST_METHOD (ACellAcrossTwoMonitorsHasItsTipOnBoth)
+        {
+            CassoTheme                   theme   = CassoTheme::MakeSkeuomorphic();
+            TipHost                      host;
+            TipWindow                    window (theme, host);
+            MockDxuiTextRenderer         text;
+            TipWindow::OperandTipScreen  screen;
+            DxuiListView               * list    = nullptr;
+            RECT                         bounds  = {};
+            RECT                         cell    = {};
+            LONG                         start   = 0;
+            LONG                         split   = 0;
+            LONG                         visible = 0;
+            POINT                        at      = {};
+
+
+
+            Build (window, theme, text);
+
+            list    = window.GetCodeList (0);
+            bounds  = list->GetBounds();
+            cell    = GetCellRect (window, 0);
+            start   = bounds.left + cell.left;
+            visible = bounds.right - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0);
+
+            //  The monitors meet a little way into the cell's text, and the
+            //  pointer is on the part of the cell on the second.
+            split            = start + kSplitIntoTextPx;
+            at               = POINT { (split + visible) / 2, GetOperandPoint (window, 0).y };
+            screen.workAreas = { RECT { 0, 0, split, kScreenBelow }, RECT { split, 0, kScreenRight, kScreenBelow } };
+            window.SetOperandTipDeviceForTest (&text, screen);
+
+            Send (window, DxuiMouseEventKind::Move, at);
+
+            Assert::IsTrue   (window.HasOperandTip(), L"a pointer on the second monitor has no tip");
+            Assert::AreEqual (start,   window.GetOperandTipLayout().textOrigin.x, L"the text starts where the cell's does, on the first monitor");
+            Assert::AreEqual (visible, window.GetOperandTipLayout().rect.right,   L"the tip stops at the first monitor's edge, and the cut text shows beside it");
+
+            //  A gap between them, as a taskbar down the first one's right side
+            //  leaves: the tip keeps to the first monitor, with the pointer on
+            //  the second.
+            screen.workAreas[0].right = split - kGapPx;
+            window.SetOperandTipDeviceForTest (&text, screen);
+
+            Send (window, DxuiMouseEventKind::Move, at);
+
+            Assert::IsTrue (window.HasOperandTip(), L"a pointer on the second monitor has no tip");
+            Assert::IsTrue (window.GetOperandTipLayout().rect.right <= split - kGapPx, L"the tip runs into the gap");
         }
 
 
@@ -1142,5 +1379,10 @@ namespace OperandResultTipTests
         static constexpr int  kNarrowerPx       = 300;
         static constexpr int  kLongOperandWords = 20;
         static constexpr int  kManyRows         = 80;
+        static constexpr int  kDragPx           = 20;
+        static constexpr int  kOverGapPx        = 10;
+        static constexpr int  kOverSizePx       = 200;
+        static constexpr int  kSplitIntoTextPx  = 60;
+        static constexpr int  kGapPx            = 20;
     };
 }

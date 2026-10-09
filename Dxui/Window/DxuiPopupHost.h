@@ -363,9 +363,21 @@ public:
     static bool  ShouldDismissForTest    (DxuiPopupDismiss        policy,
                                           DxuiPopupDismissReason  reason);
 
+    //
+    //  The work area a popup hung from `edge`, a rect with no height, is
+    //  kept in, given each monitor's work area: the one the edge starts in,
+    //  joined by each next one it runs on into. Empty where it starts in
+    //  none. A popup placed in it is not moved to keep it on the screen.
+    //
+    static RECT               GetEdgeWorkArea     (const RECT               & edge,
+                                                   const std::vector<RECT>  & workAreas);
+    static std::vector<RECT>  GetMonitorWorkAreas ();
+
 private:
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
     static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
+
+    static BOOL CALLBACK  CollectWorkArea (HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param);
 
     static LRESULT CALLBACK  s_WndProcThunk  (HWND, UINT, WPARAM, LPARAM);
     LRESULT                  WndProc         (UINT msg, WPARAM wp, LPARAM lp);

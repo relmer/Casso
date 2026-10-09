@@ -601,17 +601,26 @@ protected:
         RECT  area = {};
     };
 
+    //  The screen around the window the tip is in, in that window's client
+    //  pixels: each monitor's work area, and the windows lying over this
+    //  one, such as a floating pane, command bar or timeline.
+    struct OperandTipScreen
+    {
+        std::vector<RECT>  workAreas;
+        std::vector<RECT>  overWindows;
+    };
+
     bool  TryGetOperandTip       (POINT                       clientPx,
                                   const DxuiDpiScaler       & scaler,
                                   IDxuiTextRenderer         & text,
-                                  const RECT                & workArea,
+                                  const OperandTipScreen    & screen,
                                   OperandResultTip::Layout  & out,
                                   OperandTipCell            & outCell) const;
     void  PlaceOperandTip        (const DxuiMouseEvent      & ev,
                                   bool                        isPressed,
                                   const DxuiDpiScaler       & scaler,
                                   IDxuiTextRenderer         & text,
-                                  const RECT                & workArea);
+                                  const OperandTipScreen    & screen);
     void  CheckOperandTip        (int view);
     void  CheckOperandTipPointer (POINT clientPx);
     RECT  GetColorTipAnchor      (const RECT & cell) const;
@@ -620,9 +629,9 @@ protected:
     const OperandResultTip::Layout &  GetOperandTipLayout () const { return m_operandTipLayout; }
     const OperandTipCell &            GetOperandTipCell   () const { return m_operandTipCell; }
 
-    //  The renderer and work area the tip is measured with in a window that
-    //  has no HWND, as a test builds it.
-    void  SetOperandTipDeviceForTest (IDxuiTextRenderer * text, const RECT & workArea) { m_operandTipTestText = text; m_operandTipTestArea = workArea; }
+    //  The renderer and screen the tip is measured with in a window that has
+    //  no HWND, as a test builds it.
+    void  SetOperandTipDeviceForTest (IDxuiTextRenderer * text, const OperandTipScreen & screen) { m_operandTipTestText = text; m_operandTipTestScreen = screen; }
 
     //  Protected so a test can slide out an auto-hidden pane, as a press on
     //  its tab does.
@@ -927,21 +936,31 @@ private:
     void     HideOperandTip   ();
 
     //  The operand tip's parts: the pointer it follows between moves, the
-    //  view under a point, its layout over a row, what may lie over it, the
-    //  fill under the row, and the screen it stays on.
-    void          FollowOperandTipPointer ();
-    int           FindOperandTipView      (POINT clientPx) const;
-    bool          TryMakeOperandTip       (int                         view,
-                                           int                         row,
-                                           const DxuiDpiScaler       & scaler,
-                                           IDxuiTextRenderer         & text,
-                                           const RECT                & workArea,
-                                           OperandResultTip::Layout  & out,
-                                           OperandTipCell            & outCell) const;
-    bool          IsOperandTipCovered     (int view, POINT clientPx, const RECT & tipRect) const;
-    uint32_t      GetCodeRowFill          (const DxuiListView * list, int row) const;
-    static RECT   GetWorkAreaPx           (const DxuiHwndSource * host, POINT clientPx);
-    static bool   Meets                   (const RECT & over, POINT clientPx, const RECT & tipRect);
+    //  view and row under a point, its layout over a row, what may lie over
+    //  it, the fill under the row, the screen it stays on, and the color tip
+    //  put below it.
+    struct OperandTipWindowSearch;
+
+    void                   FollowOperandTipPointer ();
+    int                    FindOperandTipView      (POINT clientPx) const;
+    bool                   TryFindOperandTipRow    (POINT clientPx, int & view, int & row) const;
+    bool                   TryMakeOperandTip       (int                         view,
+                                                    int                         row,
+                                                    const DxuiDpiScaler       & scaler,
+                                                    IDxuiTextRenderer         & text,
+                                                    const OperandTipScreen    & screen,
+                                                    OperandResultTip::Layout  & out,
+                                                    OperandTipCell            & outCell) const;
+    bool                   IsOperandTipCovered     (int                         view,
+                                                    POINT                       clientPx,
+                                                    const RECT                & tipRect,
+                                                    const OperandTipScreen    & screen) const;
+    uint32_t               GetCodeRowFill          (const DxuiListView * list, int row) const;
+    OperandTipScreen       GetOperandTipScreen     (const DxuiHwndSource * host) const;
+    void                   EraseFloatTip           (const std::wstring & key);
+    static bool            IsTextSelectedUnderTip  (const DxuiListView * list, int row, const OperandResultTip::Layout & layout);
+    static bool            Meets                   (const RECT & over, POINT clientPx, const RECT & tipRect);
+    static BOOL CALLBACK   CollectWindowOver       (HWND hwnd, LPARAM param);
 
     std::wstring  GetTitleButtonTipAt (POINT clientPx, RECT & button) const;
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
@@ -1072,9 +1091,10 @@ private:
     //  A disassembly row's operand and result that the pane cuts off, shown
     //  whole over their cell: the popup, the window it shows in, whether the
     //  tip is up, what it shows, the cell it covers, and the renderer, scale
-    //  and work area it was laid out with, which new rows and layouts are
+    //  and screen it was laid out with, which new rows and layouts are
     //  checked against. A window with no HWND, as a test builds it, measures
-    //  with the renderer and work area the test gives it.
+    //  with the renderer and screen the test gives it. The color tip is the
+    //  tooltip last put up below the operand tip; it goes when that tip does.
     DxuiInPlaceTip                        m_operandTip;
     DxuiHwndSource                      * m_operandTipHost      = nullptr;
     bool                                  m_hasOperandTip       = false;
@@ -1082,9 +1102,10 @@ private:
     OperandTipCell                        m_operandTipCell;
     IDxuiTextRenderer                   * m_operandTipText      = nullptr;
     DxuiDpiScaler                         m_operandTipScaler;
-    RECT                                  m_operandTipWorkArea  = {};
+    OperandTipScreen                      m_operandTipScreen;
     IDxuiTextRenderer                   * m_operandTipTestText  = nullptr;
-    RECT                                  m_operandTipTestArea  = {};
+    OperandTipScreen                      m_operandTipTestScreen;
+    DxuiTooltip                         * m_operandColorTip     = nullptr;
 
     //  The status bar along the bottom, and the zoom popup its zoom field
     //  opens above it, drawn on the top layer.

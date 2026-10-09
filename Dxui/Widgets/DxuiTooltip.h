@@ -127,6 +127,10 @@ public:
     // timeout rather than sleeping until the next input/frame.
     bool                 WantsTick () const { return m_pending || m_fadingOut
                                                    || (m_visible && m_hideAtMs != 0); }
+
+    //  The anchor a tip waiting out its open dwell is to be placed against.
+    const RECT         & GetPendingAnchor() const { return m_pendingAnchor; }
+
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 

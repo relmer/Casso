@@ -25,7 +25,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OperandResultTip::TryMakeLayout (const DxuiListView::Cell & cell, const Placement & placement, IDxuiTextRenderer & text, Layout & out)
+bool OperandResultTip::TryMakeLayout (
+    const DxuiListView::Cell  & cell,
+    const Placement           & placement,
+    IDxuiTextRenderer         & text,
+    Layout                    & out)
 {
     HRESULT  hr         = S_OK;
     Layout   layout;
@@ -89,7 +93,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OperandResultTip::IsSame (const Layout & a, const Layout & b)
+bool OperandResultTip::IsSame (
+    const Layout  & a,
+    const Layout  & b)
 {
     return a.rect.left    == b.rect.left    &&
            a.rect.top     == b.rect.top     &&
@@ -120,7 +126,10 @@ bool OperandResultTip::IsSame (const Layout & a, const Layout & b)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void OperandResultTip::Paint (const Layout & layout, IDxuiPainter & painter, IDxuiTextRenderer & text)
+void OperandResultTip::Paint (
+    const Layout       & layout,
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text)
 {
     float  width  = (float) (layout.rect.right  - layout.rect.left);
     float  height = (float) (layout.rect.bottom - layout.rect.top);
@@ -152,7 +161,9 @@ void OperandResultTip::Paint (const Layout & layout, IDxuiPainter & painter, IDx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int OperandResultTip::GetPopupPx (int px, UINT dpi)
+int OperandResultTip::GetPopupPx (
+    int   px,
+    UINT  dpi)
 {
     UINT  scale = (dpi == 0) ? DxuiDpiScaler::kBaseDpi : dpi;
     int   dip   = (int) std::ceil ((float) px * (float) DxuiDpiScaler::kBaseDpi / (float) scale);
@@ -174,7 +185,11 @@ int OperandResultTip::GetPopupPx (int px, UINT dpi)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float OperandResultTip::MeasurePx (IDxuiTextRenderer & text, const std::wstring & chars, float fontPx, const wchar_t * face)
+float OperandResultTip::MeasurePx (
+    IDxuiTextRenderer   & text,
+    const std::wstring  & chars,
+    float                 fontPx,
+    const wchar_t       * face)
 {
     HRESULT  hr     = S_OK;
     float    width  = 0.0f;
@@ -198,7 +213,9 @@ float OperandResultTip::MeasurePx (IDxuiTextRenderer & text, const std::wstring 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float OperandResultTip::MeasureWidestPx (IDxuiTextRenderer & text, const Layout & layout)
+float OperandResultTip::MeasureWidestPx (
+    IDxuiTextRenderer  & text,
+    const Layout       & layout)
 {
     float  widestPx = 0.0f;
 
@@ -292,7 +309,11 @@ bool OperandResultTip::TryWrapOnScreen (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT OperandResultTip::PlaceRect (const Placement & placement, const Layout & layout, int cellRight, float widestPx)
+RECT OperandResultTip::PlaceRect (
+    const Placement  & placement,
+    const Layout     & layout,
+    int                cellRight,
+    float              widestPx)
 {
     int   textLeft  = (int) layout.textOrigin.x;
     int   textRight = textLeft + (int) std::ceil (widestPx) + placement.padRightPx;
@@ -324,7 +345,10 @@ RECT OperandResultTip::PlaceRect (const Placement & placement, const Layout & la
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int OperandResultTip::FitPopupPx (int px, int limitPx, UINT dpi)
+int OperandResultTip::FitPopupPx (
+    int   px,
+    int   limitPx,
+    UINT  dpi)
 {
     int   fit     = px;
     bool  isFound = false;
@@ -359,7 +383,10 @@ int OperandResultTip::FitPopupPx (int px, int limitPx, UINT dpi)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t OperandResultTip::MakeFill (const DxuiListView::Cell & cell, uint32_t rowFill, uint32_t contentBackground)
+uint32_t OperandResultTip::MakeFill (
+    const DxuiListView::Cell  & cell,
+    uint32_t                    rowFill,
+    uint32_t                    contentBackground)
 {
     return DxuiColor::Composite (cell.background, DxuiColor::Composite (rowFill, contentBackground));
 }
@@ -378,7 +405,10 @@ uint32_t OperandResultTip::MakeFill (const DxuiListView::Cell & cell, uint32_t r
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<uint32_t> OperandResultTip::MakeColors (const DxuiListView::Cell & cell, uint32_t ink, uint32_t fill)
+std::vector<uint32_t> OperandResultTip::MakeColors (
+    const DxuiListView::Cell  & cell,
+    uint32_t                    ink,
+    uint32_t                    fill)
 {
     std::vector<uint32_t>  colors (cell.text.size(), (cell.argb != 0) ? cell.argb : ink);
 
@@ -414,7 +444,10 @@ std::vector<uint32_t> OperandResultTip::MakeColors (const DxuiListView::Cell & c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void OperandResultTip::WrapCell (IDxuiTextRenderer & text, Layout & layout, float maxWidthPx)
+void OperandResultTip::WrapCell (
+    IDxuiTextRenderer  & text,
+    Layout             & layout,
+    float                maxWidthPx)
 {
     size_t  resultAt   = layout.text.find (SourcePane::kpszResultPrefix);
     int     size       = (int) layout.text.size();
@@ -449,7 +482,12 @@ void OperandResultTip::WrapCell (IDxuiTextRenderer & text, Layout & layout, floa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void OperandResultTip::WrapRun (IDxuiTextRenderer & text, Layout & layout, int first, int end, float maxWidthPx)
+void OperandResultTip::WrapRun (
+    IDxuiTextRenderer  & text,
+    Layout             & layout,
+    int                  first,
+    int                  end,
+    float                maxWidthPx)
 {
     int   start   = first;
     int   stop    = 0;
@@ -506,7 +544,12 @@ void OperandResultTip::WrapRun (IDxuiTextRenderer & text, Layout & layout, int f
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int OperandResultTip::FindFitEnd (IDxuiTextRenderer & text, const Layout & layout, int first, int end, float maxWidthPx)
+int OperandResultTip::FindFitEnd (
+    IDxuiTextRenderer  & text,
+    const Layout       & layout,
+    int                  first,
+    int                  end,
+    float                maxWidthPx)
 {
     int    low   = first + 1;
     int    high  = end;
@@ -546,7 +589,13 @@ int OperandResultTip::FindFitEnd (IDxuiTextRenderer & text, const Layout & layou
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void OperandResultTip::PaintLine (const Layout & layout, const Line & line, float x, float y, float widthPx, IDxuiTextRenderer & text)
+void OperandResultTip::PaintLine (
+    const Layout       & layout,
+    const Line         & line,
+    float                x,
+    float                y,
+    float                widthPx,
+    IDxuiTextRenderer  & text)
 {
     HRESULT  hr     = S_OK;
     int      pos    = line.start;

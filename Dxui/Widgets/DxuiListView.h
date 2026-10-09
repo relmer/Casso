@@ -262,6 +262,9 @@ public:
     void                      ClearTextSelection ();
     std::wstring              GetSelectionText () const;
 
+    //  Whether any of a cell's characters are in the text selection.
+    bool                      IsCellTextSelected (int row, size_t col) const;
+
     // Opt-in keyboard column navigation. When enabled, OnKey walks the
     // header / divider sub-stops and the list body via Tab and acts on
     // them (sort on a header, resize on a divider, row moves in the body)
