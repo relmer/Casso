@@ -37,6 +37,11 @@ class MemoryBus;
 //      $C070 R    PTRIG side effect: clears the VBL interrupt latch
 //      $C078 W    IOU access off (default; $C058-5F = annunciator/DHIRES)
 //      $C079 W    IOU access on  ($C058-5F = the mouse switches above)
+//      $C07E W    SETIOUDIS: IOU access off, as $C078
+//      $C07E R7   RdIOUDis: 1 = IOU access off (a read does not switch it)
+//      $C07F W    CLRIOUDIS: IOU access on, as $C079
+//      $C07F R7   RdDHIRES: 1 = double hi-res OFF (a read does not switch it;
+//                 polarity per the //c ROM self-test, see Apple2eSoftSwitchBank)
 //
 //  Interrupt model: host motion accumulates as signed deltas; one unit per
 //  axis latches at a time (direction line + pending flag), the aggregate

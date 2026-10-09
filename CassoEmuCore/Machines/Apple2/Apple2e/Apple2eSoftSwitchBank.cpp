@@ -305,6 +305,10 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 Byte Apple2eSoftSwitchBank::Read (Word address)
 {
+    constexpr Byte  kStatusBit = 0x80;
+
+
+
     Byte  result        = 0;
     bool  bankingChange = false;
 
@@ -345,13 +349,29 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             // IOUDis off by writing to $C07F, then accessed ENVBL at $C05B" --
             // so honoring only $C078/$C079 left that documented sequence
             // silently programming annunciators instead of the mouse.
-            if (address == 0xC078 || address == 0xC07E)
+            //
+            // $C078 / $C079 switch on any access. $C07E / $C07F switch only
+            // when written (see Write); read, they are RdIOUDis and RdDHIRES,
+            // and a status read that moved the latch sent the next $C058-$C05F
+            // access to the wrong target. RdDHIRES reads 1 when double hi-res
+            // is OFF: the //c ROM's self-test switch table expects that, as
+            // does the //c Technical Reference, 2nd edition. Its first
+            // printing said the opposite.
+            if (address == 0xC078)
             {
                 m_mouse->WriteIouAccess (false);
             }
-            else if (address == 0xC079 || address == 0xC07F)
+            else if (address == 0xC079)
             {
                 m_mouse->WriteIouAccess (true);
+            }
+            else if (address == 0xC07E)
+            {
+                result = m_mouse->IsIouAccessEnabled() ? 0 : kStatusBit;
+            }
+            else if (address == 0xC07F)
+            {
+                result = m_doubleHiRes ? 0 : kStatusBit;
             }
         }
 
@@ -532,6 +552,20 @@ void Apple2eSoftSwitchBank::Write (Word address, Byte value)
     if (!handled)
     {
         Read (address);
+    }
+
+    // //c: SETIOUDIS / CLRIOUDIS take effect on a write only. Read leaves them
+    // alone, since reading the same addresses is a status read.
+    if (!handled && m_mouse != nullptr)
+    {
+        if (address == 0xC07E)
+        {
+            m_mouse->WriteIouAccess (false);
+        }
+        else if (address == 0xC07F)
+        {
+            m_mouse->WriteIouAccess (true);
+        }
     }
 }
 

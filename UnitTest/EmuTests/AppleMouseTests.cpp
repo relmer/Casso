@@ -367,10 +367,41 @@ public:
         bank.Read (0xC078);
         Assert::IsFalse (mouse.IsIouAccessEnabled(), L"$C078 disables it");
 
-        bank.Read (0xC07F);
+        bank.Write (0xC07F, 0);
         Assert::IsTrue  (mouse.IsIouAccessEnabled(), L"$C07F (CLRIOUDIS) must enable it too");
-        bank.Read (0xC07E);
+        bank.Write (0xC07E, 0);
         Assert::IsFalse (mouse.IsIouAccessEnabled(), L"$C07E (SETIOUDIS) must disable it");
+    }
+
+
+    // Read, $C07E and $C07F are status reads -- RdIOUDis and RdDHIRES, bit 7
+    // -- and must leave the latch alone. Tech Note #9's VBL acknowledge is a
+    // $C07E read; one that switched IOU access off sent the next DISVBL
+    // ($C05A) to the annunciators instead of the mouse. The polarities are
+    // the ones the //c ROM's self-test checks: RdIOUDis is 1 with IOU access
+    // off, and RdDHIRES is 1 with double hi-res OFF.
+    TEST_METHOD (IouDisStatusReads_ReportWithoutMovingTheLatch)
+    {
+        static constexpr Byte  kStatusBit = 0x80;
+
+        Apple2eSoftSwitchBank  bank (nullptr);
+        AppleMouse             mouse;
+
+        bank.SetMouse (&mouse);
+
+        bank.Write (0xC07F, 0);                                   // CLRIOUDIS: access on
+        Assert::AreEqual<Byte> (0, static_cast<Byte> (bank.Read (0xC07E) & kStatusBit), L"RdIOUDis reads IOU access on as 0");
+        Assert::IsTrue (mouse.IsIouAccessEnabled(), L"a $C07E read must not switch IOU access off");
+
+        bank.Write (0xC07E, 0);                                   // SETIOUDIS: access off
+        Assert::AreEqual<Byte> (kStatusBit, static_cast<Byte> (bank.Read (0xC07E) & kStatusBit), L"RdIOUDis reads IOU access off as 1");
+
+        bank.Write (0xC05E, 0);                                   // DHIRES on, with IOU access off
+        Assert::AreEqual<Byte> (0, static_cast<Byte> (bank.Read (0xC07F) & kStatusBit), L"RdDHIRES reads double hi-res on as 0");
+        Assert::IsFalse (mouse.IsIouAccessEnabled(), L"a $C07F read must not switch IOU access on");
+
+        bank.Write (0xC05F, 0);                                   // DHIRES off
+        Assert::AreEqual<Byte> (kStatusBit, static_cast<Byte> (bank.Read (0xC07F) & kStatusBit), L"RdDHIRES reads double hi-res off as 1");
     }
 };
 
