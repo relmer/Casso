@@ -926,6 +926,12 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
 void MachineHost::SoftReset()
 {
+    // Flush dirty disks through the store before the devices reset, so a
+    // reset doesn't lose the guest's writes and every safeguard on a write
+    // applies. Not while reverse execution holds the disks, nor during a
+    // replay of a recorded reset.
+    m_diskStore->SoftReset();
+
     m_memoryBus->SoftResetAll();
 
     if (m_mmu != nullptr)

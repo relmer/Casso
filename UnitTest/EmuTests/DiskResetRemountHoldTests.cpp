@@ -92,6 +92,51 @@ public:
     }
 
 
+    //  The Reset command resets the machine after the remount, and under the
+    //  hold that writes nothing either, through the store or around it. The
+    //  disk has no file behind it, so a write around the store has nowhere to
+    //  go, yet it still clears the dirty bit without reaching the counting
+    //  sink: the disk staying dirty is what shows nothing wrote it.
+    TEST_METHOD (ResetUnderHoldWritesNothingAndKeepsTheWrites)
+    {
+        TestMachine             machine ("Apple2e");
+        auto                    shell   = std::make_unique<Shell>();
+        size_t                  writes  = 0;
+        DiskImageStore        & store   = machine.GetDiskStore();
+        DiskImage             * image   = nullptr;
+
+
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([&writes] (const std::string &, const std::vector<Byte> &) { writes++; return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (6, s_kRemountDrive, {}, DiskFormat::Nib, MakeImage()), L"MountFromBytes");
+
+        image = store.GetImage (6, s_kRemountDrive);
+        Assert::IsNotNull (image, L"a disk is mounted");
+
+        machine.GetRefs().diskController->SetExternalDisk (s_kRemountDrive, image);
+
+        image->WriteBit (0, s_kRemountBitIndex, image->ReadBit (0, s_kRemountBitIndex) ^ 1);
+        store.SetFlushHold (true);
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect);
+
+            manager.RemountSlot6Disks();
+        }
+
+        machine.SoftReset();
+
+        Assert::AreEqual<size_t> (0, writes, L"the reset wrote nothing through the store");
+        Assert::IsTrue (store.GetImage (6, s_kRemountDrive) == image, L"the same disk is still in the drive");
+        Assert::IsTrue (image->IsDirty(), L"nor around it: the guest's write is still unsaved");
+    }
+
+
 private:
 
     static std::vector<Byte> MakeImage()

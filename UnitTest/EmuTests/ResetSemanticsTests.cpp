@@ -263,7 +263,7 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (SoftResetPreservesDiskMountsAndFlushesDirty)
+    TEST_METHOD (SoftResetPreservesDiskMountsAndLeavesTheFlushToTheStore)
     {
         unique_ptr<Disk2Controller> ctrl = make_unique<Disk2Controller> (6);
 
@@ -276,6 +276,8 @@ public:
             L"FR-034: SoftReset must preserve drive 0 mount");
         Assert::IsTrue (ctrl->GetDisk (1)->IsLoaded(),
             L"FR-034: SoftReset must preserve drive 1 mount");
+        Assert::IsTrue (ctrl->GetDisk (0)->IsDirty(),
+            L"the controller's reset leaves the disk unsaved; the store saves it");
     }
 
 
