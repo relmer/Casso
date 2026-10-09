@@ -162,10 +162,12 @@
   (FR-102, FR-104), the Sector data tab's controls (FR-007), and SC-017's
   commands, formats and failure steps.
 - Choices made in this revision, none of them a [NEEDS CLARIFICATION] marker:
-  a map entry that points at a track record with a zero start block or a zero
-  block count is an image file problem, not damage, so the image stays
-  writable, its quarter tracks show what the drive reads there, and the guest
-  can format the track (FR-051, FR-053, Assumptions); 4-and-4 sectors are not
+  a map entry that points at an all-zero track record is an image file
+  problem, not damage, so the image stays writable, its quarter tracks show
+  what the drive reads there, and the guest can format the track; a record
+  that claims bits or bytes while its start block or block count is zero, or
+  whose start block is below 3, is damage, because the file may hold its data
+  (FR-051, FR-053, Assumptions; owner-confirmed); 4-and-4 sectors are not
   editable (FR-096, FR-112, FR-124); "Save edited copy..." over an existing
   file the user confirms replacing uses the replacing commit (FR-116,
   Assumptions); the file comparison compares A's volume shown in the File map
@@ -183,8 +185,8 @@
   other sizes, empty CP/M directories, the CP/M system entry and Pascal .BAD
   files, and in the later release RW18 track number mismatches, mixed standard
   and RW18 disks, and quarter tracks that share a record. In this revision it
-  gained a map entry that points at a track record with a zero start block or
-  a zero block count.
+  gained map entries that point at all-zero track records and at records that
+  claim data while their start block or block count is zero.
 - Every value left to planning has a starting value in Assumptions: the data
   search window (48 nibbles), the track-length finding (±2%), the
   unformatted threshold (more than half a track), the flux timing tolerance

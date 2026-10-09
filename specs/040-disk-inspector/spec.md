@@ -1252,12 +1252,19 @@ verdicts, the match shares and the repeated runs against what was planted.
   a track with data. Once the guest writes there, the track shows what the
   guest wrote, marked as written, and the Image tab shows it as added since
   the file was read.
-- A WOZ whose TMAP or FLUX entry points at a track record with a zero start
-  block or a zero block count: its quarter tracks show what the drive reads
-  there, "Nothing recorded" for a TMAP entry and an empty flux track, which
-  the drive reads as random bits, for a FLUX entry; Findings and the Image tab
-  report the entry as an image file problem, without the word damaged, and the
-  image stays writable (FR-053).
+- A WOZ whose TMAP or FLUX entry points at a track record whose start block,
+  block count and bit or byte count are all zero, the form the WOZ format
+  gives an unused record: its quarter tracks show what the drive reads there,
+  "Nothing recorded" for a TMAP entry and an empty flux track, which the drive
+  reads as random bits, for a FLUX entry; Findings and the Image tab report
+  the entry as an image file problem, without the word damaged, and the image
+  stays writable (FR-053).
+- A WOZ whose TMAP or FLUX entry points at a track record with a bit or byte
+  count above zero but a zero start block or a zero block count: the record
+  claims data the file may hold at a location it misstates, so its quarter
+  tracks show as damaged with the reason, the image is write-protected, and
+  the Image tab shows the start block and the bit or byte count the record
+  claims (FR-053). Nothing in the file is overwritten.
 - A WOZ whose INFO synchronized flag is off, so its tracks were not aligned
   when imaged: the sector 0 angles are still shown, and the Tracks table
   shows a note that the original alignment was not kept.
@@ -1883,8 +1890,7 @@ verdicts, the match shares and the repeated runs against what was planted.
   requires_ram, requires_machine); an image_date that is not RFC 3339;
   duplicate or out-of-order chunks; data past the last chunk; a track record
   that no map refers to; a TMAP or FLUX entry that points at a track record
-  with a zero start block or a zero block count (FR-053); and a NIB track with
-  no sync.
+  whose fields are all zero (FR-053); and a NIB track with no sync.
 - **FR-052**: Casso MUST keep, from each WOZ file it reads, every INFO field
   and META entry of the file's version, the TMAP and FLUX maps as the file
   holds them, each track record's location and length fields, the records that
@@ -1894,10 +1900,17 @@ verdicts, the match shares and the repeated runs against what was planted.
   including map entries out of range, never as a blank track with no
   explanation. Casso MUST record a TMAP or FLUX entry from 160 to 254 (255
   means no track) as damage, with the reason. A TMAP or FLUX entry that points
-  at a track record with a zero start block or a zero block count is not
-  damage: its quarter tracks MUST show what the drive reads there (FR-005),
-  and the entry MUST be reported as an image file problem (FR-051), without
-  the word damaged. The inspector MUST show each damaged record's reason on
+  at a track record whose start block, block count and bit or byte count are
+  all zero is not damage: its quarter tracks MUST show what the drive reads
+  there (FR-005), and the entry MUST be reported as an image file problem
+  (FR-051), without the word damaged. Casso MUST record as damage, with the
+  reason, a track record that a map entry points at whose bit or byte count is
+  above zero while its start block or its block count is zero, because the
+  file may hold that record's data at a location the record misstates; the
+  image is then write-protected like any damaged image, and the Image tab MUST
+  show the start block and the bit or byte count the record claims. A start
+  block below 3, where the file's header lies, MUST also be recorded as
+  damage. The inspector MUST show each damaged record's reason on
   every quarter track that maps to it, not on one quarter track only.
 - **FR-054**: A WOZ whose disk type is 3.5" MUST show the Image tab, and
   every other view MUST show a note that Casso does not analyze 3.5" disks.
@@ -3481,14 +3494,18 @@ release (Delivery). The first release MUST NOT depend on them.
     there as written and added (FR-005, FR-071). The slot's index can differ
     from the track number. 041 also unmaps and reserves in the same way every
     mapped bit record that is empty and not damaged, while a damaged record
-    stays mapped. `WozLoader::ParseV2Track` already loads a bit record with a
+    stays mapped. `WozLoader::ParseV2Track` today loads every record with a
     zero start block or a zero block count as an empty slot that is not
-    damaged, and 040 does not record a map entry that points at one as damage
-    (FR-053), so 041 reserves such a record as it does an unmapped track: its
-    quarter tracks show "Nothing recorded", the guest can format the track,
-    and Findings reports the entry as an image file problem (FR-051). A FLUX
-    entry that points at such a record already loads as an empty flux track,
-    which the guest can write today.
+    damaged. FR-053 splits that case: a record whose fields are all zero stays
+    an empty slot that is not damaged, so 041 reserves it as it does an
+    unmapped track (its quarter tracks show "Nothing recorded", the guest can
+    format the track, and Findings reports the entry as an image file
+    problem, FR-051); a record whose bit or byte count is above zero while its
+    start block or block count is zero, or whose start block is below 3, is
+    loaded as damaged, so it stays mapped and the image is write-protected.
+    The loader change is shared with 041 and made by whichever branch merges
+    first. A FLUX entry that points at an all-zero record already loads as an
+    empty flux track, which the guest can write today.
   - *Durable saves.* 041's `DurableCommit` writes a temporary file beside the
     target, copies the target's metadata to it, flushes it, and then replaces
     the target atomically, removing the temporary on any failure. Casso's
