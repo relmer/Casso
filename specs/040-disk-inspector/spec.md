@@ -113,17 +113,19 @@ track they write with volume 254 and new sync and length, and sector reads
 take whole track N from record N instead of from the map, so they return the
 wrong track on an image whose records are not in track order. GH #171
 (`disk create --volume` sets only the VTOC) and GH #172 (the `disk` command
-writes a WOZ whose write-protect flag is set) are related. 040 then moves the
-writers onto the shared writer, and makes the `disk` command's and Explorer's
-sector, block and file reads find each whole track through the image's map,
-as the writer does (FR-111).
+writes a WOZ whose write-protect flag is set) are related. The shared writer
+is 040's fix for GH #170: it moves the writers onto the shared writer, and
+makes the `disk` command's and Explorer's sector, block and file reads find
+each whole track through the image's map, as the writer does (FR-111).
 
-**Delivery.** The feature ships in two releases, each in its own merge. The
-first release holds User Stories 1 to 10, everything except the preservation
-stories, and no story in it ships without the others. It includes the shared
-sector writer with the move of the `disk` command's and Explorer's writes onto
-it, the fix to flux timing in sector writes, and the Apple Pascal and CP/M
-readers the file map needs. User Stories 11 to 16, for preservationists, ship
+**Delivery.** The feature ships in two releases. The first release holds User
+Stories 1 to 10, everything except the preservation stories, and no story in
+it ships without the others. It includes the shared sector writer with the
+move of the `disk` command's and Explorer's writes onto it, the fix to flux
+timing in sector writes, and the Apple Pascal and CP/M readers the file map
+needs. The first release reaches master in two merges: the shared sector
+writer (FR-110 to FR-116) first, on its own, as the fix for GH #170, and the
+rest of User Stories 1 to 10 in a second merge. User Stories 11 to 16, for preservationists, ship
 in a later release of this same feature, with its own merge after the first
 release is on master. They are specified now so that the first release's
 analyzer, decode settings and views leave room for them, and the requirements
@@ -139,8 +141,9 @@ depend on it. The Explorer hosts, editing and comparing in Explorer, the move
 of Explorer's writes onto the shared sector writer, and ProDOS subdirectories
 in the map, which need 033's reading of subdirectories, are built last, after
 master is merged into 033 and 040 is rebased onto 033. 040 merges to master
-only after 033 is on master, so the first release's merge holds 040's work
-alone. Spec 041 (disk integrity) moves the drive's head stop, keeps an empty
+only after 033 is on master, so the first release's second merge holds 040's
+work alone. The first merge does not depend on 033; Explorer's writes take the
+shared writer when 033 merges master. Spec 041 (disk integrity) moves the drive's head stop, keeps an empty
 track for the guest to format wherever a WOZ file holds none, makes saves
 durable and publishes each drive's status; 041 is built on 035 and merges
 after it, and whichever of 040 and 041 merges second adapts to the other
@@ -1909,8 +1912,9 @@ verdicts, the match shares and the repeated runs against what was planted.
   file may hold that record's data at a location the record misstates; the
   image is then write-protected like any damaged image, and the Image tab MUST
   show the start block and the bit or byte count the record claims. A start
-  block below 3, where the file's header lies, MUST also be recorded as
-  damage. The inspector MUST show each damaged record's reason on
+  block below 3, where the file's header lies, and a bit or byte count larger
+  than the record's blocks hold, on a bit record as on a flux record, MUST also
+  be recorded as damage. The inspector MUST show each damaged record's reason on
   every quarter track that maps to it, not on one quarter track only.
 - **FR-054**: A WOZ whose disk type is 3.5" MUST show the Image tab, and
   every other view MUST show a note that Casso does not analyze 3.5" disks.
@@ -3346,12 +3350,12 @@ release (Delivery). The first release MUST NOT depend on them.
   sector reads and writes also take record N as track N instead of looking up
   whole track N in the map, so on an image whose records are not in track
   order they read and write the wrong record.
-- GH #170 tracks the immediate fix of all three defects: the rejection of
-  the standard WOZ layout, the rebuild with volume 254 and new sync and
-  length, and reads that take record N as track N. 040 then moves every
-  sector writer onto the shared sector writer (FR-110), and the shared sector
-  writer and the
-  `disk` command's and Explorer's sector, block and file reads find each whole
+- GH #170 tracks all three defects: the rejection of the standard WOZ
+  layout, the rebuild with volume 254 and new sync and length, and reads that
+  take record N as track N. No separate fix was started, so 040's shared sector
+  writer is the fix, merged to master ahead of the rest of 040 (Delivery). It
+  moves every sector writer onto the shared sector writer (FR-110), and the
+  shared sector writer and the `disk` command's and Explorer's sector, block and file reads find each whole
   track through the image's map (FR-111). The rules that protect tracks which
   do not decode completely and images with records of their own between whole
   tracks (FR-114, FR-115) keep today's protection, with the standard layouts
