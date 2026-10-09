@@ -73,18 +73,26 @@ namespace DebuggerWindowThemeTests
     //  ThemeWindow
     //
     //  The debugger window with its controls built and no HWND, over the
-    //  emulator's theme as Create gives it.
+    //  emulator's theme as Create gives it. Its system themes take their
+    //  accent and list colors from the test, not from the machine.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
     class ThemeWindow : public DebuggerWindow
     {
     public:
+        //  The dark list fill the test gives, one step off the #191919 the
+        //  visual style gives, so a window that read the machine's shows
+        //  something else.
+        static constexpr uint32_t  kSystemContentDark = 0xFF1A1A1A;
+
         ThemeWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
             m_theme         = &theme;
             m_emulatorTheme = &theme;
             m_host          = &host;
+
+            SetSystemColorsForTest (MakeSystemColors());
         }
 
         using DebuggerWindow::OnCreate;
@@ -110,6 +118,31 @@ namespace DebuggerWindowThemeTests
             }
 
             return found;
+        }
+
+        //  Windows' default blue accent ramp, the light list fill its visual
+        //  style gives, and the test's own dark one.
+        static DxuiWindowsThemeColors::SystemColors MakeSystemColors()
+        {
+            static constexpr uint32_t             kAccentLight3 = 0xFF99EBFF;
+            static constexpr uint32_t             kAccentLight2 = 0xFF4CC2FF;
+            static constexpr uint32_t             kAccentDark1  = 0xFF0067C0;
+            static constexpr uint32_t             kAccentDark2  = 0xFF003E92;
+            static constexpr uint32_t             kContentLight = 0xFFFFFFFF;
+            DxuiWindowsThemeColors::SystemColors  colors;
+
+
+
+            colors.hasAccent    = true;
+            colors.accentLight3 = kAccentLight3;
+            colors.accentLight2 = kAccentLight2;
+            colors.accentDark1  = kAccentDark1;
+            colors.accentDark2  = kAccentDark2;
+            colors.hasSurfaces  = true;
+            colors.contentLight = kContentLight;
+            colors.contentDark  = kSystemContentDark;
+
+            return colors;
         }
     };
 
@@ -208,6 +241,8 @@ namespace DebuggerWindowThemeTests
             Assert::AreEqual (0xFF212121u, window.GetTooltip().GetTextArgb(),       L"and its text");
 
             window.ApplyTheme ("SystemDark");
+
+            Assert::AreEqual (ThemeWindow::kSystemContentDark, window.GetTheme()->ContentBackground(), L"dark lists in the system's list fill, as the test gave it");
 
             Assert::AreEqual (0xFF272727u, window.GetTooltip().GetBackgroundArgb(), L"the dark tip's fill, the window's background");
             Assert::AreEqual (0xFF131313u, window.GetTooltip().GetBorderArgb(),     L"and its border, at half the brightness");

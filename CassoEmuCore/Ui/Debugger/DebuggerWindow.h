@@ -394,6 +394,10 @@ protected:
     void             ApplyTheme      (const std::string & name);
     const std::string &  GetThemeName () const { return m_themeName; }
 
+    //  The colors the system themes take, given by a test in place of the
+    //  ones Windows holds.
+    void             SetSystemColorsForTest (const DxuiWindowsThemeColors::SystemColors & colors) { m_systemColorsForTest = colors; }
+
     //  A Theme row under the highlight shows its theme at once; the theme in
     //  force when the menu opened comes back if it closes without a choice.
     void                 PreviewTheme    (const std::string & name);
@@ -1067,6 +1071,10 @@ private:
     CassoTheme                              m_ownTheme;
     DxuiLightTheme                          m_lightTheme;
     DxuiDarkTheme                           m_darkTheme;
+
+    //  Set by a test, so choosing a system theme reads nothing from Windows.
+    std::optional<DxuiWindowsThemeColors::SystemColors>  m_systemColorsForTest;
+
     bool                                    m_swallowSpace       = false;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;

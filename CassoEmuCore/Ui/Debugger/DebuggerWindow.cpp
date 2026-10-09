@@ -2637,14 +2637,16 @@ DebuggerKeyScheme DebuggerWindow::GetSavedKeyScheme() const
 //
 //  The window's own theme, or the emulator's for the empty name. The system
 //  themes take the accent from Windows each time one is chosen, as Casso
-//  Explorer's do, and then the debugger's own tooltip and pane colors. The
-//  Theme drop-down is rebuilt for the check it holds.
+//  Explorer's do, and then the debugger's own tooltip and pane colors. A
+//  test gives the system colors in place of Windows', so nothing is read
+//  from the machine. The Theme drop-down is rebuilt for the check it holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyTheme (const std::string & name)
 {
-    const DxuiWindowsThemeColors::SystemColors &  system = DxuiWindowsThemeColors::Instance().GetSystemColors();
+    const DxuiWindowsThemeColors::SystemColors &  system = m_systemColorsForTest.has_value() ? *m_systemColorsForTest
+                                                                                            : DxuiWindowsThemeColors::Instance().GetSystemColors();
 
 
 
