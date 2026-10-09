@@ -108,7 +108,7 @@ Clients format them.
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, `flags` (`{"n":bool,"v":…,"b":…,"d":…,"i":…,"z":…,"c":…}`) |
 | `memory` | `rows`: `[{"address":int,"bytes":[int],"region":"mainRam"|"auxRam"|"lcBank1"|"lcBank2"|"rom"|"slotRom"|"io"}]`; an unreadable I/O byte is `null` |
 | `disassembly` | `lines`: `[{"address":int,"bytes":[int],"mnemonic":str,"operand":str,"operandAddress":int|null,"operandSymbol":str|null,"target":int|null,"label":str|null,"documented":bool}]`. `operand` is always numeric; `operandSymbol` names `operandAddress` when a symbol is loaded, and `label` names `address` (or the data block the line starts). |
-| `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","mode","enabled","hits"}` (absent fields omitted). `mode` is `after` or `before` on a memory watchpoint |
+| `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","mode","enabled","hits","disk","resolved"}` (absent fields omitted). `mode` is `after` or `before` on a memory watchpoint. Kind `disk` (`BPDISK`) has a `disk` object, the breakpoint's definition (below), and, for an RWTS or driver call, `resolved`: the routine it stops at now, absent while its vector holds no target |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `[{"id","address","enabled","value"}]` |
 | `searchHits` | `addresses`: `[int]` |
 | `stack` | `sp`, `entries`: `[{"address":int,"value":int}]` |
@@ -133,6 +133,7 @@ Notifications have no `id` and are sent to every connected client.
 {"type":"stopped","reason":"breakpoint","pc":768,"breakpointId":0,"cycles":1834211,
  "registers":{"a":0,"x":1,"y":2,"p":48,"s":255,"pc":768}}
 {"type":"stopped","reason":"watchpoint","pc":2051,"watch":{"id":1,"address":1024,"value":65,"previous":160,"access":"write","accessPc":2048,"mode":"after"}}
+{"type":"stopped","reason":"disk","pc":47354,"breakpointId":3,"disk":{"event":"sectorRead","slot":6,"drive":1,"quarterTrack":68,"motorOn":true,"instruction":47351,"field":{"format":16,"track":17,"sector":0,"volume":254,"storedChecksum":239,"expectedChecksum":239,"dataChecksumGood":true,"addressInstruction":47436,"dataInstruction":47324,"passed":false},"epilogue":[222,170,235],"epilogueRandom":false}}
 {"type":"resumed"}
 {"type":"reset","kind":"soft"}
 {"type":"machineChanged","machine":"Apple //c"}
@@ -148,8 +149,52 @@ Notifications have no `id` and are sent to every connected client.
 | `budget` | the run's cycle budget was spent |
 | `pause` | a `pause` request, or the user paused in Casso |
 | `brk`, `invalidOpcode` | `BRK` / `BRKOP` stops |
+| `disk` | a disk breakpoint (`BPDISK`) fired. The stop has `breakpointId`, the lowest id that matched, and a `disk` object (below). `pc` is the next instruction for every event but an RWTS or driver call, where it is the routine's first instruction, not yet run |
 
 A stop at an address a loaded debug file maps to a source line carries `source`: `{"file":"main.a65","line":12}`, the file as the debug file records it and the innermost line when macros nest.
+
+### Disk breakpoints
+
+A disk breakpoint's definition, the `disk` object of `breakpointSet` and
+`breakpointList`, holds what `BPDISK` was given:
+
+| Field | Meaning |
+|---|---|
+| `event` | `sectorRead`, `addressField`, `head`, `writeMode`, `writePrologue`, `writeBlocked`, `dosSector`, `proDosBlock`, `rwtsCall`, `driverCall`, `motor`, `driveSelect`, `inserted`, `ejected` |
+| `slot` | the controller's slot |
+| `drive` | 1 or 2; absent for either |
+| `track`, `sector`, `volume`, `block` | the numbers given; absent matches any |
+| `quarterTracks` | `[first, last]` for a head or write-mode position given as a range |
+| `head` | `any`, `range`, `wholeTracks`, `half` or `quarter` |
+| `motor` | `any`, `on`, `off` or `stopped` |
+| `command` | the RWTS or driver command given, as its number |
+| `options` | the options given, as strings: `passed`, `badChecksum`, `wrongTrack`, `bump`, `every` |
+| `addressMarks`, `dataMarks` | three entries each, a number or `null` for `??` |
+| `format` | 13 or 16 |
+| `waiting` | `true` while an RWTS or driver breakpoint's vector holds no target |
+
+A disk stop's `disk` object holds the report (spec FR-154). Fields that do not
+apply to the event are absent.
+
+| Field | Meaning |
+|---|---|
+| `event`, `slot`, `drive` | as above |
+| `quarterTrack` | the drive's head; a track is the quarter track over four |
+| `previousQuarterTrack`, `bump`, `phases` | head stops; `phases` has bit n set while phase n is on |
+| `motorOn` | whether the motor runs, its spindown included |
+| `instruction` | the address of the instruction responsible |
+| `field` | sector, address, DOS sector, block and write-prologue stops: `{"format","track","sector","volume","storedChecksum","expectedChecksum","dataChecksumGood","addressInstruction","dataInstruction","passed"}`; `dataChecksumGood` and `dataInstruction` only where a data field was read |
+| `epilogue`, `epilogueRandom` | sector reads: the three nibbles after the data checksum as they lie on the track, and whether they lie where the drive reads at random |
+| `logicalSector`, `block`, `physicalSectors`, `order` | DOS sector and block stops; `order` is `dos33` or `proDos` |
+| `protected` | write stops: whether the disk is write-protected |
+| `request` | RWTS stops: `{"slot","drive","volume","track","sector","command","buffer"}` from the IOB; driver stops: `{"command","unit","buffer","block"}` |
+| `vector` | RWTS and driver stops: the vector the routine was found through ($03D9's operand, or the device vector) |
+| `motorEvent` | motor stops: `on`, `off` or `stopped` |
+| `previousDrive` | drive-select stops |
+| `image` | insert and eject stops: the image's file name |
+
+New `event` values may be added; a client that does not recognize one shows
+the stop by its reason and `pc`.
 
 - **`closing`** is the last record before the server closes the pipe, because
   the debugger was closed or Casso is exiting. Breakpoints and pause state are

@@ -242,6 +242,47 @@ contract predicts.
 5. `MODE MONITOR`, `/skip`. Expect the list; `MODE WINDBG`, `!skip`. Expect
    the same list.
 
+## Story 20: disk breakpoints
+
+The DOS 3.3 System Master and the ProDOS fixture are the scenario suite's
+disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
+
+1. Batch, `--machine apple2e` with the System Master in drive 1:
+   `BPDISK READ 11 0`, `G`. Expect one stop with reason `disk`, after the
+   instruction that read the checksum nibble of track $11 sector 0, with
+   track, sector, volume, both checksums, the epilogue `DE AA EB`, the head
+   on track 17 (quarter track $44) and the instruction's address; `BPL` shows
+   one hit. No stop comes from the sectors DOS passes over on the way
+   (SC-037).
+2. `BPC *`, `BPDISK READ 11 0 PASSED`, power cycle, `G`. Expect a stop, and
+   the report's two instruction addresses equal, if DOS passes over that
+   sector before reading it.
+3. `BPC *`, `BPDISK RWTS 11 0 READ` before booting, `BPL`. Expect it listed
+   as waiting for $03D9; `G`. Expect a stop before RWTS's first instruction,
+   with the IOB's request, though the file manager calls RWTS directly.
+4. ProDOS fixture: `BPDISK DRIVER BLOCK 2`, then `BPDISK BLOCK 2`, `G` twice.
+   Expect the driver stop first, then the block stop with both physical
+   sectors and "ProDOS order assumed".
+5. `BPDISK HEAD QT 0 BUMP` and a power cycle. Expect the boot ROM's
+   recalibration, which drives the head against track 0, to stop it. `BPC *`,
+   `BPDISK HEAD HALF`, run on. Expect a stop as the boot seeks through the
+   half track on its way to track 1. `BPDISK D2 SELECT` stops only when a
+   program selects drive 2.
+6. `BP RWTS IF DISK.QTRACK == 44`. Expect a stop only on RWTS calls made with
+   the head on track 17; `IF *C0EC == 0` is still an error (FR-061).
+7. In GSSquared mode `bpdisk motor on`, in Monitor mode `/bpdisk eject`, in
+   WinDbg mode `!bpdisk select`, then each mode's list command. Expect the
+   same three breakpoints in each mode's layout.
+8. Window: New > Disk event..., Sector read, track 11, sector 0, Drive 1.
+   Expect a row "Disk sector read, track $11 sector $00, drive 1"; Export,
+   Delete all, Import. Expect it back with its condition and When hit
+   setting; Undo and Redo the Delete all.
+9. History: run past the stop of step 1, then reverse continue. Expect the
+   same instruction and an unchanged hit count (SC-040). Step back five
+   instructions and run on. Expect the same stop again.
+10. Open the Disk ][ debug window, repeat step 1, and compare its rows with a
+    run with no disk breakpoint (SC-042).
+
 ## Release
 
 1. Boot the Mockingboard speech demo, open the debugger with the Mockingboard
