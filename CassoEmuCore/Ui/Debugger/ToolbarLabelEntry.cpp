@@ -27,7 +27,8 @@ ToolbarLabelEntry::ToolbarLabelEntry (std::wstring label) :
 //
 //  ToolbarLabelEntry::GetWidthPx
 //
-//  The label with room to either side, the same in both forms.
+//  The label with room to either side, each side the whole pixels Paint
+//  starts the label at, the same in both forms.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,7 @@ int ToolbarLabelEntry::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, I
         labelW = scaler.ToPxf (labelW);
     }
 
-    return scaler.ToPx (2 * kPadDip) + (int) std::ceil (labelW);
+    return 2 * scaler.ToPx (kPadDip) + (int) std::ceil (labelW);
 }
 
 
@@ -81,7 +82,9 @@ void ToolbarLabelEntry::Layout (const RECT & rc, bool labeled, const DxuiDpiScal
 //  ToolbarLabelEntry::Paint
 //
 //  The label in the body face and the theme's text color, centered on the
-//  strip's height; it takes no hover or press chrome.
+//  strip's height; it takes no hover or press chrome. It starts the whole
+//  pixels in that GetLeadPx gives, so first on a pane's strip it lands on
+//  the pane's text inset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +97,7 @@ void ToolbarLabelEntry::Paint (
     bool                 labeled)
 {
     HRESULT  hr   = S_OK;
-    float    pad  = m_scaler.ToPxf ((float) kPadDip);
+    float    pad  = (float) GetLeadPx (m_scaler);
     float    left = (float) m_rc.left + pad;
 
 

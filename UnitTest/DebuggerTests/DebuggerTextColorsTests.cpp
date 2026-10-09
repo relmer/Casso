@@ -48,6 +48,9 @@ public:
 
 
 
+        //  The system themes as the debugger gives them.
+        DebuggerThemes::ApplyOwnColors (light, dark);
+
         for (const DebuggerThemes::Choice & choice : DebuggerThemes::GetChoices())
         {
             const DxuiTheme &        theme  = DebuggerThemes::Choose (choice.name, emulator, light, dark, own);
@@ -126,77 +129,71 @@ public:
 
 
 
-    using TooltipCheckFn = std::function<void (const wchar_t * name, const DxuiTheme & theme, uint32_t fill, uint32_t border)>;
-
-    //  Runs `check` over every theme's tooltip with the fill and border it is
-    //  expected to have: the five themes the debugger and the emulator offer,
-    //  and the starting sets DxuiTheme gives a host.
-    static void  CheckEveryTooltip (const TooltipCheckFn & check)
+    //  Every theme's tooltip, as Visual Studio draws its own. The debugger's
+    //  system themes take Visual Studio's values; Casso's three take its dark
+    //  proportions to their own panel colors, the fill at 1.187 times the
+    //  panel's luminance and the border at 0.461 times the fill's; Casso
+    //  Explorer's system themes keep File Explorer's; and the starting sets
+    //  DxuiTheme gives a host take the same proportions, flush with the panel
+    //  in light. Each fill, border and text is the theme's own value.
+    TEST_METHOD (EveryThemeGivesItsTooltipItsOwnColors)
     {
-        CassoTheme      skeuo     = CassoTheme::MakeSkeuomorphic();
-        CassoTheme      modern    = CassoTheme::MakeDarkModern();
-        CassoTheme      retro     = CassoTheme::MakeRetroTerminal();
-        DxuiDarkTheme   dark;
-        DxuiLightTheme  light;
-        DxuiTheme       baseDark  = DxuiTheme::Dark();
-        DxuiTheme       baseLight = DxuiTheme::Light();
+        CassoTheme      skeuo         = CassoTheme::MakeSkeuomorphic();
+        CassoTheme      modern        = CassoTheme::MakeDarkModern();
+        CassoTheme      retro         = CassoTheme::MakeRetroTerminal();
+        DxuiDarkTheme   explorerDark;
+        DxuiLightTheme  explorerLight;
+        DxuiDarkTheme   debuggerDark;
+        DxuiLightTheme  debuggerLight;
+        DxuiTheme       baseDark      = DxuiTheme::Dark();
+        DxuiTheme       baseLight     = DxuiTheme::Light();
+        auto            check         = [] (const wchar_t * name, const DxuiTheme & theme, uint32_t fill, uint32_t border, uint32_t text)
+        {
+            Assert::AreEqual (fill,   theme.TooltipBackground(), (std::wstring (name) + L": the fill").c_str());
+            Assert::AreEqual (border, theme.TooltipBorder(),     (std::wstring (name) + L": the border").c_str());
+            Assert::AreEqual (text,   theme.TooltipForeground(), (std::wstring (name) + L": the text").c_str());
+            Assert::IsTrue   (DxuiColor::ComputeContrastRatio (text, fill) >= DebuggerTextColors::s_kMinTextContrast,
+                              (std::wstring (name) + L": the text reads on the fill").c_str());
+        };
 
 
 
-        check (L"Skeuomorphic",   skeuo,     0xFF1A2230u, 0xFF0D1118u);
-        check (L"Dark modern",    modern,    0xFF1E2024u, 0xFF0F1012u);
-        check (L"Retro terminal", retro,     0xFF0E2612u, 0xFF071309u);
-        check (L"System dark",    dark,      0xFF272727u, 0xFF131313u);
-        check (L"System light",   light,     0xFFFBFBFBu, 0xFF7D7D7Du);
-        check (L"Dxui dark",      baseDark,  0xFF1E2024u, 0xFF0F1012u);
-        check (L"Dxui light",     baseLight, 0xFFF6F6F6u, 0xFF7B7B7Bu);
+        DebuggerThemes::ApplyOwnColors (debuggerLight, debuggerDark);
+
+        check (L"Skeuomorphic",            skeuo,         0xFF1D2635u, 0xFF111823u, 0xFFE8EEF4u);
+        check (L"Dark modern",             modern,        0xFF212328u, 0xFF141519u, 0xFFF0F0F0u);
+        check (L"Retro terminal",          retro,         0xFF102A14u, 0xFF081B0Bu, 0xFFB7FCB9u);
+        check (L"Debugger system dark",    debuggerDark,  0xFF2C2C2Cu, 0xFF1C1C1Cu, 0xFFFFFFFFu);
+        check (L"Debugger system light",   debuggerLight, 0xFFF9F9F9u, 0xFFDDDDDDu, 0xFF212121u);
+        check (L"Explorer's system dark",  explorerDark,  0xFF2C2C2Cu, 0xFF4A4A4Au, 0xFFFFFFFFu);
+        check (L"Explorer's system light", explorerLight, 0xFFF9F9F9u, 0xFFD1D1D1u, 0xFF1A1A1Au);
+        check (L"Dxui dark",               baseDark,      0xFF212328u, 0xFF141519u, 0xFFF0F0F0u);
+        check (L"Dxui light",              baseLight,     0xFFF6F6F6u, 0xFFDADADAu, 0xFF1A1A1Au);
     }
 
 
 
-    //  A tooltip takes the window background, so it never shows brighter
-    //  than the window it pops up over.
-    TEST_METHOD (TooltipIsNoBrighterThanTheWindowInEveryTheme)
+    //  The tooltip's colors are the values a theme sets, returned as they
+    //  are: none is derived from the window's color, even where a theme
+    //  leaves one unset.
+    TEST_METHOD (TheTooltipColorsAreTheThemesValuesUnchanged)
     {
-        CheckEveryTooltip ([] (const wchar_t * name, const DxuiTheme & theme, uint32_t fill, uint32_t border)
-        {
-            float  tipLuminance    = DxuiColor::ComputeRelativeLuminance (theme.TooltipBackground());
-            float  windowLuminance = DxuiColor::ComputeRelativeLuminance (theme.Background());
+        DxuiTheme  theme = {};
 
 
 
-            (void) border;
+        theme.panelBg = 0xFF404040;
 
-            Assert::AreEqual (fill,               theme.TooltipBackground(), name);
-            Assert::AreEqual (theme.Background(), theme.TooltipBackground(), name);
-            Assert::IsTrue   (tipLuminance <= windowLuminance,               name);
-        });
-    }
+        Assert::AreEqual (0u, theme.TooltipBackground(), L"an unset fill is not the window's color");
+        Assert::AreEqual (0u, theme.TooltipBorder(),     L"an unset border is not derived from the fill");
 
+        theme.tooltipBg     = 0xFF123456;
+        theme.tooltipBorder = 0xFFFEDCBA;
+        theme.tooltipText   = 0xFF0A0B0C;
 
-
-    //  A tooltip's border is its fill at half the brightness, channel by
-    //  channel, which sets it off from the window under it.
-    TEST_METHOD (TooltipBorderIsHalfTheTooltipsBrightness)
-    {
-        CheckEveryTooltip ([] (const wchar_t * name, const DxuiTheme & theme, uint32_t fill, uint32_t border)
-        {
-            constexpr int  kChannelShifts[] = { 16, 8, 0 };
-
-            uint32_t  tip  = theme.TooltipBackground();
-            uint32_t  edge = theme.TooltipBorder();
-
-
-
-            (void) fill;
-
-            Assert::AreEqual (border, edge, name);
-
-            for (int shift : kChannelShifts)
-            {
-                Assert::AreEqual (((tip >> shift) & 0xFFu) / 2, (edge >> shift) & 0xFFu, name);
-            }
-        });
+        Assert::AreEqual (0xFF123456u, theme.TooltipBackground());
+        Assert::AreEqual (0xFFFEDCBAu, theme.TooltipBorder(), L"a border lighter than its fill is returned as it is");
+        Assert::AreEqual (0xFF0A0B0Cu, theme.TooltipForeground());
     }
 
 

@@ -229,43 +229,52 @@ public:
 
 
     //  A first entry whose own lead is wider than the inset less the bar
-    //  padding starts at the bar padding, never nearer the strip's edge, so
-    //  its ink lands past the inset by the difference.
-    TEST_METHOD (AFirstEntryWithAWideLeadStartsAtTheBarPadding)
+    //  padding, such as a check box's 8 DIP or a text box's, moves back
+    //  toward the strip's edge, past the bar padding and past the edge
+    //  itself if need be, so its ink still lands exactly on the inset.
+    TEST_METHOD (AFirstEntryWithAWideLeadStillLandsOnTheInset)
     {
-        constexpr int   kDpis[]  = { 96, 106, 120, 144, 168 };
-        constexpr int   kWideDip = 10;
-        constexpr long  kLeftPx  = 50;
-        constexpr long  kWidthPx = 400;
+        constexpr int   kDpis[]     = { 96, 106, 120, 144, 168 };
+        constexpr int   kWideDips[] = { 8, 10 };
+        constexpr long  kLeftPx     = 50;
+        constexpr long  kWidthPx    = 400;
 
 
 
         for (int dpi : kDpis)
         {
-            LeadEntry                        custom (kWideDip);
-            std::vector<DxuiToolbar::Entry>  entries (1);
-            DxuiToolbar                      bar;
-            DxuiDpiScaler                    scaler;
-            RECT                             first  = {};
-            long                             barPad = 0;
-            long                             room   = 0;
-            std::wstring                     at     = std::format (L"{} DPI", dpi);
+            for (int wideDip : kWideDips)
+            {
+                LeadEntry                        custom (wideDip);
+                std::vector<DxuiToolbar::Entry>  entries (1);
+                DxuiToolbar                      bar;
+                DxuiDpiScaler                    scaler;
+                MockDxuiPainter                  painter;
+                MockDxuiTextRenderer             text;
+                MockDxuiTheme                    theme;
+                RECT                             first  = {};
+                long                             barPad = 0;
+                long                             inset  = 0;
+                std::wstring                     at     = std::format (L"a {}-DIP lead at {} DPI", wideDip, dpi);
 
-            scaler.SetDpi (dpi);
-            entries[0].command = MakeCommand (1, L"Custom", nullptr);
-            entries[0].custom  = &custom;
+                scaler.SetDpi (dpi);
+                entries[0].command = MakeCommand (1, L"Custom", nullptr);
+                entries[0].custom  = &custom;
 
-            bar.SetCompact       (true);
-            bar.SetPaneTextInset (true);
-            bar.SetEntries       (std::move (entries));
-            bar.Layout           (RECT { kLeftPx, 0, kLeftPx + kWidthPx, scaler.ToPx (DxuiToolbar::kCompactBandDp) }, scaler);
+                bar.SetCompact       (true);
+                bar.SetPaneTextInset (true);
+                bar.SetEntries       (std::move (entries));
+                bar.Layout           (RECT { kLeftPx, 0, kLeftPx + kWidthPx, scaler.ToPx (DxuiToolbar::kCompactBandDp) }, scaler);
+                bar.Paint            (painter, text, theme);
 
-            barPad = scaler.ToPx (bar.GetSpacingDp (DxuiToolbar::Spacing::BarPadX));
-            room   = DxuiPaneMetrics::GetContentTextInsetPx (scaler) - barPad;
+                barPad = scaler.ToPx (bar.GetSpacingDp (DxuiToolbar::Spacing::BarPadX));
+                inset  = DxuiPaneMetrics::GetContentTextInsetPx (scaler);
 
-            Assert::IsTrue   (custom.GetLeadPx (scaler) > room,  (L"the lead is wider than the inset less the bar padding, " + at).c_str());
-            Assert::IsTrue   (bar.TryGetEntryRect (1, first),    at.c_str());
-            Assert::AreEqual (kLeftPx + barPad, first.left,      (L"the entry starts at the bar padding, " + at).c_str());
+                Assert::IsTrue   (custom.GetLeadPx (scaler) > inset - barPad,               (L"the lead is wider than the inset less the bar padding, " + at).c_str());
+                Assert::IsTrue   (bar.TryGetEntryRect (1, first),                           at.c_str());
+                Assert::AreEqual (kLeftPx + inset - custom.GetLeadPx (scaler), first.left,  (L"the entry starts its lead short of the inset, " + at).c_str());
+                Assert::AreEqual ((float) (kLeftPx + inset), FindTextX (text, L"custom"),    (L"and its ink is exactly on it, " + at).c_str());
+            }
         }
     }
 };

@@ -674,7 +674,11 @@ private:
     //  The breakpoint icon's size in a list cell, which the source view's
     //  gutter draws it at too.
     static constexpr int    kBreakpointIconDip     = 16;
-    static constexpr int    kGutterColumnDip       = 24;
+    //  The glyph margin a code view keeps for its breakpoints, as Visual
+    //  Studio's is: the dot centered 8.4 DIP in from the pane's body, 10.5
+    //  pixels at 125%, in a column twice that wide.
+    static constexpr float  kGlyphCenterDip        = 8.4f;
+    static constexpr int    kGutterColumnDip       = 17;
     static constexpr int    kCodeInstructionColumn = 5;
     static constexpr size_t kCodeFirstTextColumn   = 2;
     static constexpr size_t kCodeColumnCount       = 7;

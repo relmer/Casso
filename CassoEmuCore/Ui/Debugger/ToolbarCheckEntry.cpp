@@ -27,9 +27,9 @@ ToolbarCheckEntry::ToolbarCheckEntry (std::shared_ptr<const DxuiCommand> command
 //
 //  ToolbarCheckEntry::GetWidthPx
 //
-//  The box, the gap and the label, with room ahead of the box and after the
-//  label; the same in both forms, since a check box has no icon to collapse
-//  to.
+//  The box, the gap and the label, with the same room ahead of the box and
+//  after the label, so options in a row sit evenly apart; the same in both
+//  forms, since a check box has no icon to collapse to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +53,7 @@ int ToolbarCheckEntry::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, I
         labelW = scaler.ToPxf (labelW);
     }
 
-    return scaler.ToPx (kLeadDip + kBoxDip + kGapDip + kPadDip) + (int) std::ceil (labelW);
+    return scaler.ToPx (kBoxDip + kGapDip + 2 * kPadDip) + (int) std::ceil (labelW);
 }
 
 
@@ -64,23 +64,21 @@ int ToolbarCheckEntry::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, I
 //
 //  ToolbarCheckEntry::Layout
 //
-//  The box starts a compact button's padding in, as a button's icon does,
-//  so on a pane's toolbar a check box first on the strip lands on the pane's
-//  text inset like any other first entry.
+//  The box starts the padding in. A pane's toolbar moves its first entry so
+//  that the box, the entry's first ink, lands on the pane's text inset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToolbarCheckEntry::Layout (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler)
 {
-    int  lead = scaler.ToPx (kLeadDip);
-    int  pad  = scaler.ToPx (kPadDip);
+    int  pad = scaler.ToPx (kPadDip);
 
 
 
     (void) labeled;
 
     m_rc = rc;
-    m_box.Layout (RECT { rc.left + lead, rc.top, (std::max) (rc.left + lead, rc.right - pad), rc.bottom }, scaler);
+    m_box.Layout (RECT { rc.left + pad, rc.top, (std::max) (rc.left + pad, rc.right - pad), rc.bottom }, scaler);
 }
 
 

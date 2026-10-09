@@ -65,6 +65,10 @@ void ColorKeyPopup::Show (
     const IDxuiTheme            & theme,
     bool                          hold)
 {
+    constexpr float            kBorderScale = 0.5f;   // the border at half the fill's brightness
+
+
+
     HRESULT                    hr       = S_OK;
     POINT                      topLeft  = { anchor.left,  anchor.top    };
     POINT                      botRight = { anchor.right, anchor.bottom };
@@ -85,7 +89,7 @@ void ColorKeyPopup::Show (
     m_isShown    = true;
     m_rows       = MakeRows (pane, palette);
     m_background = theme.ContentBackground();
-    m_border     = DxuiColor::Darken (m_background, DxuiTheme::kTooltipBorderScale);
+    m_border     = DxuiColor::Darken (m_background, kBorderScale);
     m_foreground = theme.Foreground();
 
     //  A window with no popup host, as in a test, keeps the key's state

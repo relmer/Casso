@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
 #include "Render/DxuiPainter.h"
+#include "Render/DxuiShadow.h"
 #include "Render/DxuiTextRenderer.h"
 
 
@@ -124,6 +125,13 @@ public:
         // to the card rather than the window, so a consumer never sees it.
         bool                            shadow             = true;
 
+        // The shadow's reach and darkness, and the card's corner radius in
+        // the popup's pixels. The defaults are a menu's: a negative radius
+        // takes the overlay radius at the popup's DPI. A tooltip draws a
+        // smaller shadow and tighter corners.
+        DxuiShadow::Style               shadowStyle;
+        float                           cornerRadiusPx     = -1.0f;
+
         // When true (the default) a popup whose dismiss policy is
         // OnClick* grabs the mouse via SetCapture so off-popup clicks
         // route to its WndProc. Consumers that need the OWNER window to
@@ -133,6 +141,11 @@ public:
         // directly over it, and the owner drives dismiss/switch.
         bool                            grabsCapture       = true;
         SIZE                            sizeDip            = { 160, 120 };
+
+        // The card's size in the popup's pixels, used as given in place of
+        // sizeDip when its width and height are both set: a size whole DIPs
+        // cannot give, such as 32 pixels at 120 DPI.
+        SIZE                            sizePx             = {};
 
         // The open animation, in ms; 0 shows the popup outright. Set HERE
         // rather than started after Show, because a reveal begun afterwards
@@ -245,6 +258,9 @@ public:
     //  it, without hiding the window. For a popup that follows the pointer.
     //
     HRESULT  MoveTo    (RECT anchorRectScreen, SIZE sizeDip);
+
+    //  The same, at a size in the popup's pixels, as ShowParams::sizePx.
+    HRESULT  MoveToPx  (RECT anchorRectScreen, SIZE sizePx);
 
     //
     //  Place an open popup against a new anchor at the size it has, moving
@@ -420,6 +436,14 @@ private:
 
     //  The drawn shadow and the rounded card it sits under.
     void  PaintShadowAndCard   ();
+
+    //  The card's size in pixels at `dpi`: ShowParams::sizePx when set,
+    //  else sizeDip scaled.
+    SIZE  GetCardSizePx        (UINT dpi) const;
+
+    //  Places an open popup at the size its params give against a new
+    //  anchor, renders it, and moves its window there.
+    HRESULT  PlaceAndRender    (RECT anchorRectScreen);
 
     ShowParams  m_params;
     bool        m_open               = false;

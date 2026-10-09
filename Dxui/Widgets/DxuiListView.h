@@ -460,6 +460,16 @@ public:
     // list uses.
     void  SetTextSelectionColors   (bool enabled)                { m_textSelectionColors = enabled; }
 
+    // Rows on the background of a text or code view rather than a list's, as
+    // a disassembly is an editor's text in Visual Studio.
+    void  SetTextViewSurface       (bool enabled)                { m_textViewSurface = enabled; }
+
+    // Column 0 as an editor's glyph margin: its icon centered this far in
+    // from the list's left edge, as Visual Studio centers a breakpoint, in
+    // place of after the cell's padding. Zero, the default, keeps the usual
+    // place.
+    void  SetGlyphCenterDip        (float dip)                   { m_glyphCenterDip = dip; }
+
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
     // Lets a host that owns a persisted column model (e.g. the debug
@@ -804,6 +814,8 @@ private:
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;
     bool     m_textSelectionColors   = false;
+    bool     m_textViewSurface       = false;
+    float    m_glyphCenterDip        = 0.0f;
 
     //  A place in the list's text, ordered as it reads: row, then column,
     //  then character.

@@ -360,4 +360,108 @@ public:
 
         Assert::IsFalse (list.HasPaneTextInset());
     }
+
+
+    //  Paints a code list's one row: a breakpoint's icon in a 17-DIP glyph
+    //  column, then an address, with or without a glyph margin.
+    static void  PaintCodeRow (MockDxuiTextRenderer & text, int dpi, float glyphCenterDip)
+    {
+        DxuiDpiScaler                    scaler;
+        DxuiListView                     list;
+        MockDxuiPainter                  painter;
+        MockDxuiTheme                    theme;
+        auto                             image = std::make_shared<DxuiIconImage>();
+        std::vector<DxuiListView::Cell>  cells (2);
+
+
+
+        scaler.SetDpi (dpi);
+
+        image->width  = 4;
+        image->height = 4;
+        image->bgraPremul.assign (16, 0xFF0000FFu);
+
+        cells[0].icon = image;
+        cells[1].text = L"0300";
+
+        list.SetColumns        ({ DxuiListView::Column { L"", 17 }, DxuiListView::Column { L"Address", 0 } });
+        list.SetShowHeader     (false);
+        list.SetCellPaddingDip (kPanePadDip, kPanePadDip);
+        list.SetGlyphCenterDip (glyphCenterDip);
+        list.SetRows           ({ cells });
+        list.Layout            (RECT { kPaneLeftPx, kPaneTopPx, kPaneLeftPx + 400, kPaneTopPx + 300 }, scaler);
+        list.Paint             (painter, text, theme);
+    }
+
+
+    //  A glyph margin centers column 0's icon on a set line from the list's
+    //  left, as Visual Studio centers a breakpoint 8.4 DIP in: 8.4, 10.5 and
+    //  12.6 pixels at 100, 125 and 150%. Without one the icon follows the
+    //  cell's padding, as before.
+    TEST_METHOD (AGlyphMarginCentersColumnZerosIconOnItsLine)
+    {
+        constexpr float  kCenterDip   = 8.4f;
+        constexpr int    kIconDip     = 16;    // the list's icon size
+        constexpr int    kGlyphDpis[] = { 96, 120, 144 };
+
+
+
+        for (int dpi : kGlyphDpis)
+        {
+            DxuiDpiScaler         scaler;
+            MockDxuiTextRenderer  margin;
+            MockDxuiTextRenderer  plain;
+            float                 center = 0.0f;
+            std::wstring          at     = std::format (L"at {} DPI", dpi);
+
+
+
+            scaler.SetDpi (dpi);
+
+            PaintCodeRow (margin, dpi, kCenterDip);
+            PaintCodeRow (plain,  dpi, 0.0f);
+
+            Assert::AreEqual ((size_t) 1, margin.IconCalls().size(), at.c_str());
+            Assert::AreEqual ((size_t) 1, plain.IconCalls().size(),  at.c_str());
+
+            center = margin.IconCalls()[0].x + margin.IconCalls()[0].width * 0.5f;
+
+            Assert::AreEqual ((float) kPaneLeftPx + scaler.ToPxf (kCenterDip), center, 0.001f, (L"centered on the line " + at).c_str());
+            Assert::AreEqual (scaler.ToPxf ((float) kIconDip), margin.IconCalls()[0].width, (L"at the list's icon size " + at).c_str());
+            Assert::AreEqual ((float) (kPaneLeftPx + scaler.ToPx (kPanePadDip)), plain.IconCalls()[0].x, (L"after the padding without a margin " + at).c_str());
+        }
+    }
+
+
+    //  A list of code takes a text view's background for its rows, where any
+    //  other list takes the content color.
+    TEST_METHOD (ATextViewSurfaceFillsTheRowsInTheTextViewColor)
+    {
+        DxuiTheme             theme = DxuiTheme::Light();
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       codePainter;
+        MockDxuiPainter       listPainter;
+        MockDxuiTextRenderer  text;
+        DxuiListView          code;
+        DxuiListView          list;
+
+
+
+        theme.contentBg  = 0xFFF9F9F9;
+        theme.textViewBg = 0xFFFFFFFF;
+
+        for (DxuiListView * each : { &code, &list })
+        {
+            each->SetColumns ({ DxuiListView::Column { L"Address", 0 } });
+            each->SetRows    ({ { DxuiListView::Cell { L"0300", false } } });
+            each->Layout     (RECT { 0, 0, 200, 100 }, scaler);
+        }
+
+        code.SetTextViewSurface (true);
+        code.Paint (codePainter, text, theme);
+        list.Paint (listPainter, text, theme);
+
+        Assert::IsNotNull (FindFill (codePainter, RecordedPaintKind::FillRect, 0xFFFFFFFFu), L"the code list's rows are the text view's");
+        Assert::IsNotNull (FindFill (listPainter, RecordedPaintKind::FillRect, 0xFFF9F9F9u), L"any other list's are the content color");
+    }
 };

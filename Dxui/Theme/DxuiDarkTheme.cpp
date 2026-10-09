@@ -27,6 +27,8 @@
 //  In the list, a row under the pointer is #4D4D4D and a selected row #505050,
 //  outlined in #C3C3C3 while the list has focus. Measured on 2026-09-15.
 //
+//  A tooltip is File Explorer's: #2C2C2C bordered in #4A4A4A, with white text.
+//
 //  The drop targets a dragged pane shows are measured from Visual Studio
 //  2026's dark drop targets at 125% on 2026-10-08: the cross's border
 //  #333333 over a translucent #202020, each button #212121 inside a #363636
@@ -70,6 +72,8 @@ DxuiDarkTheme::DxuiDarkTheme()
     buttonHover              = 0xFF323232;
     buttonPressed            = 0xFF272727;
     buttonBorder             = 0xFF4A4A4A;
+    tooltipBg                = 0xFF2C2C2C;
+    tooltipBorder            = 0xFF4A4A4A;
     tooltipText              = 0xFFFFFFFF;
     errorText                = 0xFFFF99A4;
     resultText               = 0xFF4EC9E0;

@@ -619,6 +619,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_captionTooltip.SetPopupHost (m_host.get());
     m_captionTooltip.SetTheme     (m_chromeTheme);
 
+    // The emulator's tips take Visual Studio's frame, as the debugger's do:
+    // tighter corners, a border on whole pixels and a small shadow.
+    m_toolbarTooltip.ApplyVisualStudioLook();
+    m_switchBarTooltip.ApplyVisualStudioLook();
+    m_driveTooltip.ApplyVisualStudioLook();
+    m_captionTooltip.ApplyVisualStudioLook();
+
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
     // thick frame) doesn't materialize until the window is shown,
