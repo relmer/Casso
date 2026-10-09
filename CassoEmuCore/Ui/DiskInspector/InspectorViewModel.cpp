@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/InspectorViewModel.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
+#include "Ui/DiskInspector/PlatterGeometry.h"
 
 
 
@@ -387,11 +388,7 @@ void InspectorViewModel::SetStrip (double start, double span)
 
 double InspectorViewModel::GetRingRadius (int quarterTrack)
 {
-    double  ringWidth = (1.0 - PlatterRenderer::kInnerFraction) / PlatterRenderer::kRingCount;
-
-
-
-    return 1.0 - (quarterTrack + 0.5) * ringWidth;
+    return PlatterGeometry::GetRingMiddle (quarterTrack);
 }
 
 
