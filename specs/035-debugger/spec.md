@@ -120,7 +120,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 ### Session 2026-10-08 (Breakpoints pane columns)
 
-- Q: Which columns does the Breakpoints pane have? -> A: Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order (owner decision). Kind is new: it gives what sort of breakpoint a row is, a disk breakpoint's event among them, and shows by default with Condition and Hit count. Visual Studio's Filter, always empty in Casso, is dropped. Labels became Symbol, since it shows the one symbol at the address. A column choice saved before the change keeps its columns, with Labels as Symbol.
+- Q: Which columns does the Breakpoints pane have? -> A: The owner asked for a Kind column, for Visual Studio's Filter, always empty in Casso, to be dropped, and for Labels to become Symbol, since it shows the one symbol at the address. Kind gives what sort of breakpoint a row is, a disk breakpoint's event among them. As built the columns are Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order, and Kind shows by default with Condition and Hit count. Two of those choices were not in the request and are the owner's to confirm (T736): Symbol sits after Kind rather than where Labels was, between Condition and Hit count, and Kind shows by default, also for a column choice saved before the change. Such a choice otherwise keeps its columns, with Labels as Symbol.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -849,11 +849,13 @@ confirm it disables without being removed.
 14. **Given** breakpoints, **When** the user exports them to a file, clears
     them and imports the file, **Then** the same breakpoints return, with the
     same enabled states, conditions and When hit settings.
-15. **Given** a write watchpoint, a breakpoint at `COUT` and one at $0300 with
-    no symbol, **When** the pane opens, **Then** their Kind cells are "Data
-    write", "Function" and "Address"; **and when** the user clicks the Kind
+15. **Given** a write watchpoint, a breakpoint on a line of the loaded source
+    and one at `COUT`, **When** the pane opens, **Then** their Kind cells are
+    "Data write", "Source line" and "Address" (a symbol at the address does
+    not make a function breakpoint); **and when** the user clicks the Kind
     heading, **Then** the rows group by kind in FR-117's order, each kind's
-    rows in the order they were set. Added 2026-10-08.
+    rows in the order they were set. Added 2026-10-08, and amended the same
+    day.
 
 ---
 
@@ -1723,21 +1725,25 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   count), Function (the symbol an execution breakpoint stops at), File (the
   source file and line, where one is known), Address (the address or range)
   and Data (what a data breakpoint watches). Kind MUST be one of these, in
-  sentence case: "Address" for an execution breakpoint, "Source line" for
-  one set from a source line, "Function" for one at a single address with a
-  symbol there; "Data read", "Data write" or "Data read or write" for a data
-  breakpoint; "Data value" for a value breakpoint (FR-062); "Register
-  condition"; "Opcode"; "I/O"; "BRK"; "Interrupt"; or a disk kind (FR-163).
-  Clicking a column's heading MUST sort by it; Kind sorts by kind, in the
-  order listed here, and within a kind in the order the breakpoints were
-  set. Amended 2026-10-08 to the columns as built, and again the same day on
-  the owner's decision: Kind added, Filter (always empty, since Casso has no
-  process or thread to filter on) dropped, and Labels became Symbol.
+  sentence case: "Address" for an execution breakpoint, or "Source line" for
+  one whose address a line of the loaded source produced; "Data read", "Data
+  write" or "Data read or write" for a data breakpoint; "Data value" for a
+  value breakpoint (FR-062); "Register condition"; "Opcode"; "I/O"; "BRK";
+  "Interrupt"; or a disk kind (FR-163). A symbol at an execution
+  breakpoint's address MUST NOT make its Kind "Function": the engine keeps
+  the address, not how it was given, and the symbol may label a loop or data
+  as well as a routine. Clicking a column's heading MUST sort by it; Kind
+  sorts by kind, in the order listed here, and within a kind in the order
+  the breakpoints were set. Amended 2026-10-08 to the columns as built, and
+  again the same day on the owner's request: Kind added, Filter (always
+  empty, since Casso has no process or thread to filter on) dropped, and
+  Labels became Symbol, which the build also moved from after Condition to
+  after Kind (T736).
 - **FR-118**: A Show columns drop-down MUST choose which columns show, apart from
   Name, which always does; the choice MUST be kept across sessions. Condition,
-  Hit count and Kind show by default. A choice saved before Kind was added
-  MUST come back with the same columns, Labels as Symbol, no Filter and Kind
-  shown. Amended 2026-10-08.
+  Hit count and Kind show by default (T736). A choice saved before Kind was
+  added MUST come back with the same columns, Labels as Symbol, no Filter and
+  Kind shown. Amended 2026-10-08.
 - **FR-119**: The breakpoints pane MUST carry a toolbar of icon buttons, each
   with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
   offering a breakpoint at an address, a function breakpoint by symbol name, a
