@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DurableCommit.h"
 
 
 
@@ -437,6 +438,49 @@ void DiskImageSession::RefuseCommit (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageSession::DescribeCommitFailure
+//
+//  By the step the commit reached. Before the write, the only failure is
+//  finding no free name for the temporary; a failed flush is a failed write
+//  of the temporary as far as the user can act on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeCommitFailure (HRESULT hr, CommitPlan::Step step)
+{
+    std::string  sentence;
+
+
+
+    switch (step)
+    {
+        case CommitPlan::Step::WriteTemporary:
+        case CommitPlan::Step::FlushTemporary:
+            sentence = DescribeTemporaryWriteFailure (hr);
+            break;
+
+        case CommitPlan::Step::CopyMetadata:
+            sentence = "could not have its attributes and permissions given to the new copy. Nothing was written";
+            break;
+
+        case CommitPlan::Step::Replace:
+            sentence = DescribeReplaceFailure (hr);
+            break;
+
+        default:
+            sentence = "already has that many temporary files beside it. Remove them and try again";
+            break;
+    }
+
+    return sentence;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageSession::DescribeReplaceFailure
 //
 //  WRITE PROTECTION ARRIVES HERE AND NOWHERE ELSE when it comes from the host
@@ -538,16 +582,11 @@ HRESULT DiskImageSession::CommitImage (
     const vector<Byte>  & newImageBytes,
     DiskCommandResult   & result)
 {
-    HRESULT               hr            = S_OK;
-    HRESULT               removeHr      = S_OK;
-    bool                  held          = false;
-    bool                  stale         = false;
-    bool                  foundFreeName = false;
-    bool                  cleanUp       = false;
-    unsigned              attempt       = 0;
+    HRESULT               hr       = S_OK;
+    bool                  held     = false;
+    bool                  stale    = false;
     CommitPlan::Progress  progress;
     FileStamp             observed;
-    std::string           tempPath;
 
 
 
@@ -589,47 +628,13 @@ HRESULT DiskImageSession::CommitImage (
                               "again and retry", result));
     }
 
-    // Step over anything already sitting at the name we would take. This is
-    // the abandoned-temporary case; the invocation tag inside the name is what
-    // handles two live invocations, since both of those would otherwise find
-    // attempt zero free at the same instant.
-    for (attempt = 0; attempt < CommitPlan::kMaxAttempts; attempt++)
-    {
-        tempPath      = CommitPlan::GetTemporaryPath (opened.imagePath, m_invocationTag, attempt);
-        foundFreeName = !m_fileIo.Exists (tempPath);
-
-        if (foundFreeName)
-        {
-            break;
-        }
-    }
-
-    CBRFEx (foundFreeName, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS),
-            RefuseCommit (opened.imagePath,
-                          "already has that many temporary files beside it. Remove them "
-                          "and try again", result));
-
-    progress.furthestAttempted = CommitPlan::Step::WriteTemporary;
-
-    hr = m_fileIo.WriteAllBytes (tempPath, newImageBytes);
-    CHRF (hr, RefuseCommit (opened.imagePath, DescribeTemporaryWriteFailure (hr), result));
-
-    progress.furthestAttempted = CommitPlan::Step::Replace;
-
-    hr = m_fileIo.ReplaceAtomically (tempPath, opened.imagePath);
-    CHRF (hr, RefuseCommit (opened.imagePath, DescribeReplaceFailure (hr), result));
-
-    progress.replaceSucceeded = true;
+    // The write, the metadata, the flush and the replace are DurableCommit's,
+    // which removes its temporary on any failure. Which step it reached picks
+    // the sentence, since each one fails for different reasons.
+    hr = DurableCommit::Commit (m_fileIo, opened.imagePath, newImageBytes, m_invocationTag, CommitMode::Replace, progress);
+    CHRF (hr, RefuseCommit (opened.imagePath, DescribeCommitFailure (hr, progress.furthestAttempted), result));
 
 Error:
-    cleanUp = CommitPlan::ShouldRemoveTemporary (progress);
-
-    if (cleanUp)
-    {
-        removeHr = m_fileIo.Remove (tempPath);
-        IGNORE_RETURN_VALUE (removeHr, S_OK);
-    }
-
     return hr;
 }
 
