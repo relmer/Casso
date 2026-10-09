@@ -4893,6 +4893,7 @@ void DebuggerWindow::ConfigureDockSite()
     auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (kPaneRowDip)); };
     std::wstring    savedText;
     DxuiPaneLayout  restored;
+    InputFilter     dragFilter;
 
 
 
@@ -5072,6 +5073,16 @@ void DebuggerWindow::ConfigureDockSite()
         m_syncFloats = true;
         SaveLayout();
     });
+
+    //  A pane drag is canceled when the window loses the mouse with the
+    //  button still down. The window releases the capture itself as the
+    //  button comes up, with the button already up, which is no loss.
+    dragFilter.onMouseLost = [this] (UINT)
+    {
+        m_dockSite->OnDragMouseLost ((GetKeyState (VK_LBUTTON) & 0x8000) != 0);
+    };
+
+    AddInputFilter (m_dockSite, std::move (dragFilter));
 }
 
 
@@ -5203,6 +5214,48 @@ bool DebuggerWindow::HasTopLayer() const
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintDragLayer
+//
+//  A pane drag's drop preview and guides, over every pane and its pictures,
+//  the heat map's included, and over the top layer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintDragLayer (
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text,
+    const IDxuiTheme   & theme)
+{
+    if (m_dockSite != nullptr)
+    {
+        m_dockSite->PaintDragLayer (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HasDragLayer
+//
+//  While a pane is dragged in this window and its marks are not drawn in the
+//  overlay above the floating windows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::HasDragLayer() const
+{
+    return m_dockSite != nullptr && m_dockSite->HasDragLayer();
 }
 
 
@@ -11144,6 +11197,17 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         m_lastPressPx = POINT { x, y };
     }
 
+    //  A pane's drag takes every event until the button comes up, wherever
+    //  the pointer is, so the menu bar, toolbars and status bar it crosses
+    //  neither take its moves nor show their tips. Off the panes, its cross
+    //  and its preview go at once.
+    if (m_routingPane.empty() && m_dockSite->HasPointerDrag())
+    {
+        GetRoutedTooltip().HideImmediate();
+        (void) m_dockSite->OnMouse (ev);
+        return true;
+    }
+
     //  A disassembly row's operand and result that the pane cuts off show
     //  whole over their cell while the pointer is on it. This runs ahead of
     //  everything that lies over the panes, so IsOperandTipCovered tests for
@@ -11322,9 +11386,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     }
 
     //  Then the site: its strips, its sashes and a drag in progress lie over
-    //  the panes.
+    //  the panes. A tip up as a drag starts goes, as none shows during one.
     if (m_routingPane.empty() && m_dockSite->OnMouse (ev))
     {
+        if (m_dockSite->IsDragging())
+        {
+            GetRoutedTooltip().HideImmediate();
+        }
+
         return true;
     }
 
@@ -13347,6 +13416,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down)
     {
         HideOperandTip();
+    }
+
+    //  Escape cancels a pane's drag, as in Visual Studio, and every pane
+    //  stays where it was.
+    if (m_routingPane.empty() && m_dockSite->OnDragKey (ev))
+    {
+        return true;
     }
 
     //  Typing into a memory window is an edit, which the address tip would

@@ -294,7 +294,8 @@ void DxuiDockSite::Arrange()
 //  DxuiDockSite::WireGroup
 //
 //  A group's handlers find their pane when they run, since the site refills
-//  its groups on every arrangement.
+//  its groups on every arrangement. A drag one of them starts is the
+//  pointer's, which HasPointerDrag reports.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -317,6 +318,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         if (!TearOff (group, pane, pointDip, true))
         {
             BeginDrag (pane);
+            m_pointerDrag = IsDragging();
         }
     });
 
@@ -337,6 +339,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         }
 
         BeginGroupDrag (panes, GetPaneOf (group->GetContent (index)));
+        m_pointerDrag = IsDragging();
     });
 
     group->SetOnTitleButton ([this, group] (DxuiTabGroup::TitleButton button, int index, POINT pointDip)
@@ -1860,6 +1863,7 @@ void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, cons
                                                [this] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
     m_hoverZone    = -1;
     m_compassGroup = -1;
+    m_pointerDrag  = false;
 
     if (panes.size() > 1)
     {
@@ -2174,14 +2178,70 @@ void DxuiDockSite::SetTabDropPreview (DxuiDockDropZone & zone) const
 //
 //  DxuiDockSite::CancelDrag
 //
+//  The drop targets go, and so does the gap a hovered strip opened for the
+//  tab; the layout stays as the drag found it. The press that started the
+//  drag is canceled in its group too, so the release that follows, or the
+//  next move, is not taken for a press still under way.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::CancelDrag()
 {
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        group->CancelPress();
+    }
+
+    m_slidGroup.CancelPress();
+    ClearStripTarget();
     m_dragPane.clear();
+    m_dragPanes.clear();
     m_zones.clear();
     m_hoverZone    = -1;
     m_compassGroup = -1;
+    m_pointerDrag  = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::OnDragKey
+//
+//  Escape cancels a drag the pointer started, as in Visual Studio, with the
+//  button still down; the release that follows changes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::OnDragKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down || ev.vk != VK_ESCAPE || !HasPointerDrag())
+    {
+        return false;
+    }
+
+    CancelDrag();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::OnDragMouseLost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::OnDragMouseLost (bool isButtonDown)
+{
+    if (isButtonDown && HasPointerDrag())
+    {
+        CancelDrag();
+    }
 }
 
 
@@ -2221,6 +2281,63 @@ void DxuiDockSite::UpdateCompass (POINT pointDip)
             break;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TrackDrag
+//
+//  What a drag targets with the pointer at a point: a button of a guide on
+//  show, or else a group's tabs or title bar. Off the docked area -- over a
+//  menu, a toolbar or a status bar, or out of the window -- the drag targets
+//  nothing, so the cross and the shade go at once and only the edge guides
+//  stay, even where a cross reaches past the area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::TrackDrag (POINT pointDip)
+{
+    if (!Contains (GetDockedArea(), pointDip))
+    {
+        ClearDragTarget();
+        return;
+    }
+
+    UpdateCompass (pointDip);
+    m_hoverZone = HitTestShown (pointDip);
+
+    if (GetHoveredZone() != nullptr)
+    {
+        ClearStripTarget();
+    }
+    else
+    {
+        UpdateStripTarget (pointDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::ClearDragTarget
+//
+//  The cross, the hovered button and the strip under the pointer, gone; the
+//  edge guides stay for as long as the drag does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::ClearDragTarget()
+{
+    m_compassGroup = -1;
+    m_hoverZone    = -1;
+    ClearStripTarget();
 }
 
 
@@ -2388,9 +2505,8 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
 
 
 
-    UpdateCompass (pointDip);
-    m_hoverZone = HitTestShown (pointDip);
-    hit         = GetHoveredZone();
+    TrackDrag (pointDip);
+    hit = GetHoveredZone();
 
     //  Copied before the list is cleared, since hit points into it.
     if (hit != nullptr)
@@ -2399,7 +2515,6 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     }
     else
     {
-        UpdateStripTarget (pointDip);
         strip = m_stripGroup;
         index = m_stripIndex;
     }
@@ -2408,6 +2523,7 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
     m_zones.clear();
     m_hoverZone    = -1;
     m_compassGroup = -1;
+    m_pointerDrag  = false;
 
     if (pane.empty())
     {
@@ -2701,7 +2817,6 @@ bool DxuiDockSite::Contains (const RECT & rect, POINT point)
 bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
 {
     const DxuiPaneLayout::SplitRect  * split   = nullptr;
-    const DxuiDockDropZone           * zone    = nullptr;
     bool                               handled = false;
     long                               total   = 0;
     long                               offset  = 0;
@@ -2717,18 +2832,11 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     {
         if (ev.kind == DxuiMouseEventKind::Move)
         {
-            UpdateCompass (ev.positionDip);
-            m_hoverZone = HitTestShown (ev.positionDip);
-            zone        = GetHoveredZone();
-
-            if (zone != nullptr)
-            {
-                ClearStripTarget();
-            }
-            else
-            {
-                UpdateStripTarget (ev.positionDip);
-            }
+            TrackDrag (ev.positionDip);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Leave)
+        {
+            ClearDragTarget();
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
@@ -3000,8 +3108,8 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
 //  DxuiDockSite::Paint
 //
 //  The gaps and margin, the groups, and the edge strips. With no gap, two
-//  neighbors' outlines meet at their split. A drag's marks are drawn after
-//  the siblings, in PaintAfterSiblings.
+//  neighbors' outlines meet at their split. A drag's marks are drawn in a
+//  layer of their own, in PaintDragLayer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3025,23 +3133,21 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  DxuiDockSite::PaintAfterSiblings
 //
-//  Every group's frame -- its outline and corner caps -- then a drag's marks,
-//  unless an overlay draws them. This pass draws over every pane control
-//  whatever the child order, which a floating window needs: its site is its
-//  first child, so the panes paint after the site's own Paint.
+//  Every group's frame -- its outline and corner caps. This pass draws over
+//  every pane control whatever the child order, which a floating window
+//  needs: its site is its first child, so the panes paint after the site's
+//  own Paint. A drag's marks are not drawn here but in PaintDragLayer: a
+//  pane's pictures, drawn after every fill of the page, would cover them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    UNREFERENCED_PARAMETER (text);
+
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
         group->PaintFrame (painter, theme);
-    }
-
-    if (IsDragging() && !m_marksElsewhere)
-    {
-        PaintDragMarks (painter, text, theme);
     }
 }
 
@@ -3068,26 +3174,33 @@ RECT DxuiDockSite::GetPaneArea() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::PaintDragMarks
+//  DxuiDockSite::PaintDragLayer
 //
 //  Each mark of GetDragMarks, top to bottom: a fill, a dotted outline drawn
-//  as its strips, a solid outline, or a guide's picture. The pictures go
-//  through the text pass, which draws after every fill, so the guides lie
-//  over the panes and over the shade; the guide the shade covers has the
-//  shade drawn into its picture.
+//  as its strips, a solid outline, or a guide's picture. The window flushes
+//  this layer after the page, so even the shade's fills lie over the panes'
+//  text and pictures. The guides' pictures go through the layer's text
+//  pass, which draws after its fills, so they lie over the shade; the guide
+//  the shade covers has the shade drawn into its picture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDockSite::PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+void DxuiDockSite::PaintDragLayer (
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text,
+    const IDxuiTheme   & theme) const
 {
-    HRESULT  hr   = S_OK;
-    auto     fill = [&] (const RECT & r, uint32_t argb)
+    HRESULT  hr      = S_OK;
+    bool     isShown = HasDragLayer();
+    auto     fill    = [&] (const RECT & r, uint32_t argb)
     {
         painter.FillRect ((float) r.left, (float) r.top,
                           (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
     };
 
 
+
+    BAIL_OUT_IF (!isShown, S_OK);
 
     for (const DxuiDockDragMark & mark : GetDragMarks (theme))
     {
@@ -3117,6 +3230,9 @@ void DxuiDockSite::PaintDragMarks (IDxuiPainter & painter, IDxuiTextRenderer & t
                                  (float) mark.outlinePx, mark.argb);
         }
     }
+
+Error:
+    return;
 }
 
 

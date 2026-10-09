@@ -1361,6 +1361,26 @@ void DxuiHwndSource::SetTopLayerHooks (std::function<bool()> isActive,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDragLayerHooks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetDragLayerHooks (
+    std::function<bool()>                                                         isActive,
+    std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)>  paint)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_dragLayerActiveHook = std::move (isActive);
+    m_dragLayerPaintHook  = std::move (paint);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetComposedOpacity
 //
 //  Fades the whole composited visual via IDCompositionVisual3::SetOpacity so
@@ -2352,22 +2372,16 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // fills must cover the page's text.
     if (m_topLayerActiveHook && m_topLayerActiveHook() && m_topLayerPaintHook)
     {
-        hr = m_painter->Begin (widthPx, heightPx);
+        hr = PaintLayer (target, widthPx, heightPx, theme, m_topLayerPaintHook);
         CHRA (hr);
-        painterBegun = true;
+    }
 
-        hr = m_textRenderer->BeginDrawDeferred();
-        CHRA (hr);
-        textBegun = true;
-
-        m_topLayerPaintHook (*m_painter, *m_textRenderer, theme);
-
-        hr = m_painter->End (target);
-        painterBegun = false;
-        CHRA (hr);
-
-        hr = m_textRenderer->EndDrawDeferred();
-        textBegun = false;
+    // What a drag shows -- a dock site's drop preview and guides -- lies over
+    // everything beneath it, a pane's pictures included, which the page's
+    // text pass draws after every one of its fills.
+    if (m_dragLayerActiveHook && m_dragLayerActiveHook() && m_dragLayerPaintHook)
+    {
+        hr = PaintLayer (target, widthPx, heightPx, theme, m_dragLayerPaintHook);
         CHRA (hr);
     }
 
@@ -2378,22 +2392,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // flushed last of all -- bleeding through the dialog.)
     if (m_overlayActiveHook && m_overlayActiveHook() && m_overlayPaintHook)
     {
-        hr = m_painter->Begin (widthPx, heightPx);
-        CHRA (hr);
-        painterBegun = true;
-
-        hr = m_textRenderer->BeginDrawDeferred();
-        CHRA (hr);
-        textBegun = true;
-
-        m_overlayPaintHook (*m_painter, *m_textRenderer, theme);
-
-        hr = m_painter->End (target);
-        painterBegun = false;
-        CHRA (hr);
-
-        hr = m_textRenderer->EndDrawDeferred();
-        textBegun = false;
+        hr = PaintLayer (target, widthPx, heightPx, theme, m_overlayPaintHook);
         CHRA (hr);
     }
 
@@ -2414,6 +2413,67 @@ Error:
     }
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintLayer
+//
+//  One layer over what is already on `target`, flushed on its own: the
+//  painter's fills first, then the recorded text and pictures. Its fills
+//  therefore cover the text and pictures of every flush before it, which no
+//  fill in those flushes could. Like PaintContent, it never leaves the
+//  painter or the text renderer mid-frame after a failure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::PaintLayer (
+    ID3D11RenderTargetView  * target,
+    int                       widthPx,
+    int                       heightPx,
+    const IDxuiTheme        & theme,
+    const LayerPaintFn      & paint)
+{
+    HRESULT  hr           = S_OK;
+    bool     painterBegun = false;
+    bool     textBegun    = false;
+
+
+
+    hr = m_painter->Begin (widthPx, heightPx);
+    CHRA (hr);
+    painterBegun = true;
+
+    hr = m_textRenderer->BeginDrawDeferred();
+    CHRA (hr);
+    textBegun = true;
+
+    paint (*m_painter, *m_textRenderer, theme);
+
+    hr = m_painter->End (target);
+    painterBegun = false;
+    CHRA (hr);
+
+    hr = m_textRenderer->EndDrawDeferred();
+    textBegun = false;
+    CHRA (hr);
+
+Error:
+    if (textBegun)
+    {
+        (void) m_textRenderer->EndDrawDeferred();
+    }
+
+    if (painterBegun)
+    {
+        (void) m_painter->End (target);
+    }
+
+    return hr;
 }
 
 

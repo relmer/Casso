@@ -90,6 +90,14 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
             PaintTopLayer (painter, text, theme);
         });
 
+    // What a drag shows gets a flush above both, so it covers their pictures.
+    m_source->SetDragLayerHooks (
+        [this] () { return HasDragLayer(); },
+        [this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+        {
+            PaintDragLayer (painter, text, theme);
+        });
+
     // Populate children BEFORE installing the root so the first layout
     // pass (driven by SetContentRootRef) sees the fully-built tree.
     OnCreate();

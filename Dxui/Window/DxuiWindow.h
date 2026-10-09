@@ -410,6 +410,17 @@ protected:
     virtual bool  OnOverlayKey      (WPARAM vk)                 { UNREFERENCED_PARAMETER (vk); return false; }
 
     //
+    //  What a drag shows over the window, as a dock site's drop preview and
+    //  guides. While HasDragLayer() returns true the window paints
+    //  PaintDragLayer in a flush of its own, after the page's and the top
+    //  layer's, so its fills cover their text and pictures. Defaults leave a
+    //  window without one.
+    //
+    virtual bool  HasDragLayer      () const { return false; }
+    virtual void  PaintDragLayer    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+                  { UNREFERENCED_PARAMETER (painter); UNREFERENCED_PARAMETER (text); UNREFERENCED_PARAMETER (theme); }
+
+    //
     //  Tune the dialog repaint / tick cadence (ms). The default suits caret
     //  blink; a poller (e.g. download progress) sets a faster interval.
     //  Set while a dialog is showing, it takes effect at once.
