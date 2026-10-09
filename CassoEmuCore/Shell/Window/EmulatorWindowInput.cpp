@@ -452,8 +452,9 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         RECT  iconRect = drive.GetInfoIconRect();
         bool  inside   = x >= outer.left && x < outer.right &&
                          y >= outer.top  && y < outer.bottom;
+        bool  onIcon   = drive.HasWozConflict() && PtInRect (&iconRect, pointer);
 
-        if (drive.UpdateMarqueeHover (inside, nowMs))
+        if (drive.UpdateMarqueeHover (inside, onIcon, nowMs))
         {
             // The band's button treatment appeared or went away. A static
             // emulator picture presents no frames on its own, so without this
@@ -466,7 +467,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             wpDrive = &drive;
         }
 
-        if (drive.HasWozConflict() && PtInRect (&iconRect, pointer))
+        if (onIcon)
         {
             infoDrive = &drive;
         }
@@ -680,7 +681,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     // the basename scroll.
     for (DriveWidget & drive : m_driveChrome)
     {
-        drive.UpdateMarqueeHover (false, nowMs);
+        drive.UpdateMarqueeHover (false, false, nowMs);
     }
 
     // Off every control, so the recorder's magnified controls ease back down

@@ -92,7 +92,7 @@ public:
     // a button treatment for it, and a state nothing repaints is a state
     // nobody sees. The marquee never needed this: it is already animating, so
     // frames were arriving anyway.
-    bool               UpdateMarqueeHover (bool inside, int64_t nowMs)
+    bool               UpdateMarqueeHover (bool inside, bool onInfoIcon, int64_t nowMs)
     {
         bool  wasHovered = m_bandHovered;
 
@@ -103,8 +103,11 @@ public:
 
         // The compact band's button treatment rides this same signal rather
         // than a second hit test, so the highlight and the marquee can never
-        // disagree about whether the pointer is on the control.
-        m_bandHovered = inside;
+        // disagree about whether the pointer is on the control. The info icon
+        // is the one hole: a click there does nothing, so the band is not lit
+        // while the pointer is on it. The marquee still treats the pointer as
+        // inside.
+        m_bandHovered = inside && !onInfoIcon;
 
         m_marqueeHovered = inside;
 

@@ -145,6 +145,20 @@ public:
     }
 
 
+    static bool FilledWith (const MockDxuiPainter & painter, uint32_t argb)
+    {
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::FillRect && call.argb == argb)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
     TEST_METHOD (ConflictDrawsTheIconAndClaimsItsTarget)
     {
         DriveWidget           drive;
@@ -232,5 +246,26 @@ public:
         Assert::IsTrue  (IsRectEmpty (&icon) != FALSE);
         Assert::IsTrue  (drive.HitTest ((shown.left + shown.right) / 2, (shown.top + shown.bottom) / 2) == DriveWidgetRegion::Eject,
                          L"where the icon was, a click ejects again");
+    }
+
+
+    TEST_METHOD (ThePointerOnTheIconLightsNoBand)
+    {
+        DriveWidget           drive;
+        MockDxuiTextRenderer  text;
+        MockDxuiPainter       onBand;
+        MockDxuiPainter       onIcon;
+        CassoTheme            theme = CassoTheme::MakeDarkModern();
+
+        PaintWith (drive, text, L"C:\\Disks\\Choplifter.woz", true);
+
+        Assert::IsTrue (drive.UpdateMarqueeHover (true, false, 100), L"on the band, the highlight comes on");
+        drive.Paint (onBand, text, theme);
+
+        Assert::IsTrue (drive.UpdateMarqueeHover (true, true, 110), L"moving onto the icon takes it off");
+        drive.Paint (onIcon, text, theme);
+
+        Assert::IsTrue  (FilledWith (onBand, theme.buttonHover));
+        Assert::IsFalse (FilledWith (onIcon, theme.buttonHover), L"a click on the icon does nothing, so nothing promises one");
     }
 };
