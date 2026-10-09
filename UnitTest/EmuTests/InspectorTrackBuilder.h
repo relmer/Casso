@@ -44,7 +44,8 @@ public:
     std::shared_ptr<const TrackCopy>  MakeFluxCopy    (int slot = 0) const;
     void                              PackBits        (vector<Byte> & outPacked) const;
 
-    static void  FillPattern (int sector, std::array<Byte, DiskFieldFormat::kSectorBytes> & bytes);
+    static void     FillPattern     (int sector, std::array<Byte, DiskFieldFormat::kSectorBytes> & bytes);
+    static HRESULT  MakeStandardWoz (Byte volume, bool isFlux, bool isReversed, vector<Byte> & outBytes);
 
 private:
     vector<Byte>  m_cells;

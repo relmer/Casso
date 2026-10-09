@@ -2,6 +2,7 @@
 
 #include "InspectorTrackBuilder.h"
 #include "FluxTestImages.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 
 
@@ -326,4 +327,65 @@ void InspectorTrackBuilder::FillPattern (int sector, std::array<Byte, DiskFieldF
     {
         bytes[i] = static_cast<Byte> (sector * 37 + i * 11 + (i >> 4));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTrackBuilder::MakeStandardWoz
+//
+//  A 35-track 16-sector WOZ in the standard layout (N-0.25, N and N+0.25 on
+//  track N's record), with the given volume in every address field. Reversed
+//  puts track t in record 34 - t, so a record's number is never its track's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InspectorTrackBuilder::MakeStandardWoz (Byte volume, bool isFlux, bool isReversed, vector<Byte> & outBytes)
+{
+    static constexpr int  kTracks = 35;
+
+
+
+    HRESULT                    hr     = S_OK;
+    vector<WozSyntheticTrack>  tracks (kTracks);
+    int                        t      = 0;
+    int                        record = 0;
+
+
+
+    for (t = 0; t < kTracks; t++)
+    {
+        InspectorTrackBuilder  builder;
+
+        record = isReversed ? (kTracks - 1) - t : t;
+
+        builder.AppendStandardTrack (DiskFieldKind::Sixteen, volume, static_cast<Byte> (t), FillPattern);
+
+        if (isFlux)
+        {
+            tracks[record].data   = builder.MakeFluxCopy()->fluxBytes;
+            tracks[record].isFlux = true;
+        }
+        else
+        {
+            builder.PackBits (tracks[record].data);
+            tracks[record].bitCount = builder.GetCellCount();
+        }
+
+        tracks[record].quarterTracks = { 4 * t, 4 * t + 1 };
+
+        if (t > 0)
+        {
+            tracks[record].quarterTracks.push_back (4 * t - 1);
+        }
+    }
+
+    hr = WozLoader::BuildSyntheticV21 (tracks, outBytes);
+    CHR (hr);
+
+Error:
+    return hr;
 }
