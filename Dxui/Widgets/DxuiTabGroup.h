@@ -17,11 +17,13 @@
 //  them: a tab group of a docking layout, presented as Visual Studio presents
 //  its groups.
 //
-//  - A DOCUMENT group has its tabs along its top, a close button on the
-//    selected tab and on the tab under the pointer.
+//  - A DOCUMENT group has its tabs along its top.
 //  - A TOOL WINDOW group has a title bar along its top -- the active pane's
 //    title, a menu button, a pin and a close button -- and, holding more
 //    than one pane, its tabs along its bottom.
+//
+//  In either kind the selected tab and the tab under the pointer show a pin
+//  and a close button. The pin does what the title bar's pin does.
 //
 //  Each group has one outline, around the pane and its selected tab, in the
 //  focus accent while the user works in the group and in the border color
@@ -105,8 +107,9 @@ public:
     void  SetKind        (Kind kind);
     Kind  GetKind        () const { return m_kind; }
 
-    //  The accent outline of the group the user is working in.
-    void  SetFocusedLook (bool focused) { m_focusedLook = focused; }
+    //  The accent outline of the group the user is working in, and its
+    //  title and selected tab in the full foreground.
+    void  SetFocusedLook (bool focused) { m_focusedLook = focused; m_strip.SetFocusedLook (focused); }
     bool  HasFocusedLook () const       { return m_focusedLook; }
 
     size_t          GetTabCount   () const { return m_tabs.size(); }
@@ -163,6 +166,11 @@ public:
     //  tabs -- rather than on the pane it shows.
     bool  IsChromeAt   (POINT pointDip) const;
 
+    //  The shown pin or close button of a tab under a point: which of the
+    //  two, as the title bar button it stands for, the tab's index and the
+    //  button's rect. False off every tab's buttons.
+    bool  TryGetTabButtonAt (POINT pointDip, TitleButton & button, int & index, RECT & rect) const;
+
     //  Where a tab dropped at a point lands among this group's tabs, and the
     //  gap opened there while it hovers (see DxuiTabStrip::SetInsertGap).
     //  A group showing no tabs takes a drop after its one tab.
@@ -182,12 +190,14 @@ public:
     //  whatever the child order.
     void  PaintFrame (IDxuiPainter & painter, const IDxuiTheme & theme) const;
 
-    //  The tab band, without the line between it and the pane: Visual
-    //  Studio's 31 px at 125%.
+    //  Visual Studio's 31 px at 125%: a document's tab band, without the
+    //  line under it; a tool window's band of tabs and the line over it,
+    //  together; and a tool window's title bar, its outline included.
     static constexpr int  kStripDip       = 25;
     static constexpr int  kTitleDip       = 25;
 
-    //  A title bar button's square: Visual Studio's 30-px pitch at 125%.
+    //  A title bar button's square, below the title bar's outline: Visual
+    //  Studio's 30-px pitch at 125%.
     static constexpr int  kTitleButtonDip = 24;
     static constexpr int  kTabPadDip      = 10;
     static constexpr int  kCharDip        = 7;
@@ -236,6 +246,7 @@ private:
     NewTabShownFn        m_newTabShown;
     NewTabFn             m_newTab;
     int                  m_pendingClose  = -1;
+    int                  m_pendingPin    = -1;
     bool                 m_pendingNewTab = false;
     int                  m_hoverButton   = -1;
     int                  m_pressButton   = -1;

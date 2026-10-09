@@ -131,6 +131,36 @@ long DxuiPaneFrame::GetFlushReachPx (long cornerPx, long linePx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPaneFrame::GetCornerPx
+//
+//  A pane too small for four outer radii across, either way, is drawn with
+//  square corners: every corner piece then has an empty box, and the
+//  straight runs reach the corners themselves. The pane's tabs are drawn
+//  square with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+long DxuiPaneFrame::GetCornerPx (const RECT & pane, long cornerPx)
+{
+    constexpr long  kCornersAcross = 4;
+    long            corner         = (std::max) (0L, cornerPx);
+
+
+
+    if (pane.right - pane.left < kCornersAcross * corner || pane.bottom - pane.top < kCornersAcross * corner)
+    {
+        corner = 0;
+    }
+
+    return corner;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPaneFrame::Paint
 //
 //  Replays the parts of one phase in order, each inside its clip when it
@@ -197,9 +227,8 @@ void DxuiPaneFrame::Paint (
 //
 //  DxuiPaneFrame::MakeGeometry
 //
-//  A pane too small for four outer radii across, either way, is drawn with
-//  square corners: every corner piece then has an empty box, and the
-//  straight runs reach the corners themselves.
+//  The outer radius is GetCornerPx's, so a pane too small to round is
+//  square.
 //
 //  A selected tab is flush with a side of the pane when no scroll arrow cuts
 //  it off and it starts or ends closer to that side than GetFlushReachPx, so
@@ -207,13 +236,15 @@ void DxuiPaneFrame::Paint (
 //  by less than that is drawn reaching it: a join there would curve out past
 //  the pane, into the gap.
 //
+//  `bandPx` is the band's own rows. The line between it and the pane lies
+//  below a document's band and above a tool window's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & spec)
 {
-    constexpr long  kCornersAcross = 4;
-    Geometry        g;
-    long            reach          = 0;
+    Geometry  g;
+    long      reach = 0;
 
 
 
@@ -222,7 +253,7 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
     g.right       = spec.pane.right;
     g.bottom      = spec.pane.bottom;
     g.t           = (std::max) (1L, spec.linePx);
-    g.ro          = (std::max) (0L, spec.cornerPx);
+    g.ro          = GetCornerPx (spec.pane, spec.cornerPx);
     g.toolWindow  = spec.toolWindow;
     g.titlePx     = spec.titlePx;
     g.bandPx      = spec.bandPx;
@@ -231,11 +262,6 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
     g.selRight    = spec.selRight;
     g.openLeft    = spec.openLeft;
     g.openRight   = spec.openRight;
-
-    if (g.right - g.left < kCornersAcross * g.ro || g.bottom - g.top < kCornersAcross * g.ro)
-    {
-        g.ro = 0;
-    }
 
     reach        = GetFlushReachPx (g.ro, g.t);
     g.flushLeft  = g.hasSelected && !g.openLeft  && g.selLeft  - g.left  < reach;
@@ -268,10 +294,11 @@ DxuiPaneFrame::Geometry DxuiPaneFrame::MakeGeometry (const DxuiPaneFrameSpec & s
 //  DxuiPaneFrame::BuildDocument
 //
 //  Tabs on top. Under the group's own paint: the gap outside the band's
-//  rounded top corners, the band, and the joins' fillets. Over everything:
-//  the gap outside the pane's rounded bottom corners, then the outline --
-//  the line along the band, square where it meets the pane's sides, the
-//  sides and bottom with their rounded corners, and around the selected tab.
+//  rounded top corners and the band. After the tabs: the joins' fillets.
+//  Over everything: the gap outside the pane's rounded bottom corners, then
+//  the outline -- the line along the band, square where it meets the pane's
+//  sides, the sides and bottom with their rounded corners, and around the
+//  selected tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,7 +317,7 @@ void DxuiPaneFrame::BuildDocument (std::vector<DxuiPaneFramePart> & parts, const
     AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pl,      pt, pl + ro, pt + ro });
     AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pr - ro, pt, pr,      pt + ro });
     AddRoundedFill (parts, DxuiPaneFrameRole::Band, RECT { pl, pt, pr, yl }, RECT { pl, pt, pr, yl + ro }, ro);
-    AddJoins       (parts, g, DxuiPaneFramePhase::Under);
+    AddJoins       (parts, g, DxuiPaneFramePhase::Joins);
 
     AddCap         (parts, g, RECT { pl,      pb - ro, pl + ro, pb });
     AddCap         (parts, g, RECT { pr - ro, pb - ro, pr,      pb });
@@ -344,7 +371,7 @@ void DxuiPaneFrame::BuildToolWindow (std::vector<DxuiPaneFramePart> & parts, con
         AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pl,      pb - ro, pl + ro, pb });
         AddRect        (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Gap, RECT { pr - ro, pb - ro, pr,      pb });
         AddRoundedFill (parts, DxuiPaneFrameRole::Band, RECT { pl, bandTop, pr, pb }, RECT { pl, bandTop - ro, pr, pb }, ro);
-        AddJoins       (parts, g, DxuiPaneFramePhase::Under);
+        AddJoins       (parts, g, DxuiPaneFramePhase::Joins);
     }
     else
     {
@@ -409,12 +436,13 @@ void DxuiPaneFrame::AddLineRuns (std::vector<DxuiPaneFramePart> & parts, const G
 //  DxuiPaneFrame::AddJoins
 //
 //  Where the selected tab's side meets the line, on each side that is
-//  neither flush with the pane nor cut off: in the Under phase, a fillet of
+//  neither flush with the pane nor cut off: in the Joins phase, a fillet of
 //  the content color outside a circle of the outer radius, which flares the
-//  tab into the line; in the Over phase, the quarter of the outline around
-//  that circle. The circle's center is one radius out from the tab's side
-//  and one radius from the line, so its ring is tangent to the tab side's
-//  own column and to the line's own row.
+//  tab into the line, over the fill of a hovered neighbor; in the Over
+//  phase, the quarter of the outline around that circle. The circle's
+//  center is one radius out from the tab's side and one radius from the
+//  line, so its ring is tangent to the tab side's own column and to the
+//  line's own row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -430,7 +458,7 @@ void DxuiPaneFrame::AddJoins (std::vector<DxuiPaneFramePart> & parts, const Geom
 
 
 
-    if (joinL && phase == DxuiPaneFramePhase::Under)
+    if (joinL && phase == DxuiPaneFramePhase::Joins)
     {
         AddFillet (parts, g, leftX, centerY, boxL);
     }
@@ -439,7 +467,7 @@ void DxuiPaneFrame::AddJoins (std::vector<DxuiPaneFramePart> & parts, const Geom
         AddQuarterRing (parts, g, leftX, centerY, boxL);
     }
 
-    if (joinR && phase == DxuiPaneFramePhase::Under)
+    if (joinR && phase == DxuiPaneFramePhase::Joins)
     {
         AddFillet (parts, g, rightX, centerY, boxR);
     }
@@ -695,7 +723,7 @@ void DxuiPaneFrame::AddQuarterRing (std::vector<DxuiPaneFramePart> & parts, cons
 
 void DxuiPaneFrame::AddFillet (std::vector<DxuiPaneFramePart> & parts, const Geometry & g, long cx, long cy, const RECT & box)
 {
-    AddRing (parts, DxuiPaneFramePhase::Under, DxuiPaneFrameRole::Content, box,
+    AddRing (parts, DxuiPaneFramePhase::Joins, DxuiPaneFrameRole::Content, box,
              RECT { cx - 2 * g.ro, cy - 2 * g.ro, cx + 2 * g.ro, cy + 2 * g.ro }, 2 * g.ro, g.ro);
 }
 
