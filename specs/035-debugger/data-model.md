@@ -372,3 +372,211 @@ session on request (`CALLS`, `k`) and once per snapshot for the pane.
 
 `{ entries: vector<{name, first, last}> }`, matched against a `JSR`'s target
 at a step into (FR-070). Session state; `SKIP` sets, lists and clears it.
+
+## Disk breakpoints (User Story 20)
+
+Research R-041 holds the design; this section holds the types. A disk
+breakpoint is a `Breakpoint` of a new kind, so its id, condition, hit count,
+flags, undo and export are the table's.
+
+### Breakpoint and BreakpointInfo (additions)
+
+| Field | Type | Notes |
+|---|---|---|
+| disk | `std::optional<DiskBreakSpec>` | kind `Disk` only |
+| resolved | `std::optional<Word>` | `BreakpointInfo` only: the routine an RWTS or driver breakpoint stops at now; absent while it is unresolved, its vector holding no target |
+
+`BreakpointKind` gains `Disk`. `StopReason` gains `Disk`. An RWTS or driver
+breakpoint's request is matched from its `DiskBreakSpec`, never stored in its
+`condition`, which holds the user's `IF` alone (FR-151).
+
+### DiskBreakSpec (API type, `CassoCore/Debugger/DiskBreakSpec.h`)
+
+What `BPDISK` was given, parsed in CassoCore so every mode's parser builds the
+same value (FR-135). Its marks and format use `DiskMarkPattern` and
+`DiskFieldKind`, which are in CassoCore for that reason (below).
+
+| Field | Type | Notes |
+|---|---|---|
+| event | `DiskEvent` | `SectorRead`, `AddressField`, `Head`, `WriteMode`, `WritePrologue`, `WriteBlocked`, `DosSector`, `ProDosBlock`, `RwtsCall`, `DriverCall`, `Motor`, `DriveSelect`, `Inserted`, `Ejected` |
+| drive | `DiskDriveFilter` | `Either`, `Drive1`, `Drive2`; there is no slot, since the machine has one Disk II controller (FR-143) |
+| track, sector, volume | `std::optional<Byte>` | absent matches any (`*`); a physical sector for `SectorRead`, `AddressField` and `WritePrologue`, a logical one for `DosSector`, the IOB's for `RwtsCall` |
+| block | `std::optional<Word>` | `ProDosBlock` (required) and `DriverCall` |
+| head | `DiskHeadFilter` | `Any`, `Range`, `Half`; with `qtFirst`, `qtLast` for a range, a `T` range stored as its whole-track quarter tracks and `isWholeTracks` set |
+| qtFirst, qtLast | `int` | quarter tracks, 0 to 139 |
+| isWholeTracks | `bool` | a `T` range: only positions that are a multiple of four match |
+| motor | `DiskMotorFilter` | `Any`, `On`, `Off`, `Stopped` |
+| command | `std::optional<Byte>` | `RwtsCall`: 0 seek, 1 read, 2 write, 4 format; `DriverCall`: 0 status, 1 read, 2 write, 3 format |
+| isPassed | `bool` | `PASSED`: every data field read in full counts (FR-145) |
+| isBadChecksum, isWrongTrack | `bool` | `BADSUM`, `WRONGTRACK` (FR-146) |
+| isBump | `bool` | `BUMP` (FR-148): a bump stops it when the head's position after the bump matches `head` |
+| isEvery | `bool` | `EVERY` on `SELECT` (FR-152) |
+| addressMarks, dataMarks | `std::optional<DiskMarkPattern>` | `ADDR`, `DATA` (FR-147); given, they replace the standard marks for this breakpoint |
+| format | `DiskFieldKind` | `Sixteen` or `Thirteen`; the length of a data field after custom address marks, set by `SECTORS`, `Sixteen` by default; with the standard marks each field's own prologue decides |
+
+**Validation**: the parser checks the forms -- quarter tracks 0 to 139, a
+`DOS` sector 0 to 15, a block 0 to 279, a mark nibble a hex byte or `??` --
+and the session checks that the machine has a Disk II controller.
+
+### DiskMarkPattern and DiskFieldKind (CassoCore, shared with 040)
+
+`DiskMarkPattern` (`CassoCore/DiskMarkPattern.h/.cpp`) is three nibbles, each
+a value or any (`??`), with a parser from text such as `D5 AA ??` and a match
+against a run of nibbles. `DiskFieldKind` (`CassoCore/DiskFieldKind.h`) is
+`Sixteen` or `Thirteen`. Both are pure and in CassoCore because
+`AppleWinParser` builds `DiskBreakSpec` there and CassoCore references nothing
+but Ehm. The pattern and its match are what 040 shares; whether custom marks
+replace the standard ones (here) or are matched in addition to them (040's
+FR-019) is each feature's own rule, built outside the matcher (FR-162).
+
+### DiskFieldFormat (CassoEmuCore, shared with 040)
+
+`DiskFieldFormat` (`CassoEmuCore/Devices/Disk/DiskFieldFormat.h/.cpp`) holds
+what a field is, for each `DiskFieldKind`: for `Sixteen`, address prologue D5
+AA 96, 4-and-4 volume, track, sector and checksum, data prologue D5 AA AD, 342
+6-and-2 nibbles and a checksum nibble; for `Thirteen`, address prologue D5 AA
+B5 and 410 5-and-3 nibbles; the epilogue DE AA EB; the translate tables and
+the checksum rules. Built by whichever of 035 and 040 merges first (FR-162),
+it serves 040's analyzer and these breakpoints alike.
+
+### Disk2NibbleRecord (in `Disk2Controller`, saved with the machine)
+
+| Field | Type | Notes |
+|---|---|---|
+| entries | `std::array<Entry, 512>` | the most recent nibbles the CPU received from the drives and the latch loads the write hook reports (FR-161), oldest overwritten |
+| count | `uint64_t` | nibbles recorded since the last power cycle; a reader keeps the count it last read up to |
+| Entry.nibble | `Byte` | |
+| Entry.flags | `Byte` | drive (bit 0), written (bit 1), passed during spin-up (bit 2), dropped by write protection (bit 3), first after a disk change (bit 4) |
+| Entry.instruction | `Word` | the address of the instruction that read or wrote it |
+
+Part of `Disk2Controller`'s state from the next state version, one above
+whatever master holds when it is built: 2 unless something, 040's per-drive
+head among the candidates, has raised it first. Every earlier version loads
+with `count` 0. A power cycle clears it. A drive with no disk adds nothing.
+
+### Disk2Controller listeners and head (additions)
+
+| Field | Type | Notes |
+|---|---|---|
+| windowSink | `IDisk2EventSink *` | `SetEventSink`, the Disk ][ debug window's, as today |
+| debuggerSink | `IDisk2EventSink *` | `SetDebuggerEventSink` |
+| dispatch | `IDisk2EventSink *` | what every place that reports an event tests: null, the one set, or `tee` |
+| tee | `Disk2EventTee` | forwards each event to both; a class of its own, `Disk2EventTee.h/.cpp` |
+| quarterTrack | `int [2]` | each drive's head (FR-160); saved from the next state version, or 040's if it built the head first |
+| instructionSource | `const Word *` | wiring, the address of the instruction `MachineHost` is executing |
+
+`IDisk2EventSink` gains `OnWriteMode (int drive, bool isOn)`, with an empty
+default body. The write hook (FR-161) reports `{drive, nibble, quarterTrack,
+isBlocked}` from the one place a latch load happens, for each load in write
+mode while the motor runs, its spindown included; not for a load with the
+motor stopped, nor for the //c's mode-register load.
+
+### DiskState (from `IDebugTarget::TryGetDiskState`)
+
+`{slot, selectedDrive, quarterTrack[2], isMotorOn, isWriteMode,
+isProtected[2], hasDisk[2], imageName[2]}`, read from the controller's getters,
+never through the bus; false on a machine with no Disk II controller. The
+recent nibbles come from `IDebugTarget::ReadDiskNibbles (since, entries)`, and
+the epilogue look-ahead from `IDebugTarget::PeekDiskNibbles (drive, count,
+nibbles, isRandom)`.
+
+### Disk values (`DiskValueSymbols`, used by `DebugSession::TryResolveSymbol` before the symbol tables)
+
+| Name | Value |
+|---|---|
+| `DISK.DRIVE` | `selectedDrive`, 1 or 2 |
+| `DISK.QTRACK` | `quarterTrack` of the selected drive |
+| `DISK.QTRACK1`, `DISK.QTRACK2` | each drive's `quarterTrack` |
+| `DISK.MOTOR` | 1 while `isMotorOn` |
+| `DISK.WRITING` | 1 while `isWriteMode` |
+| `DISK.PROTECTED` | the selected drive's `isProtected` |
+| `DISK.INSERTED` | the selected drive's `hasDisk` |
+| `DISK.ATRACK`, `DISK.ASECTOR`, `DISK.AVOLUME` | the selected drive's last address field with a good checksum in the recent nibbles, or $FFFF |
+
+Resolved ahead of program symbols, as `ACCESS` and `VALUE` are in a
+condition. `TryResolveSymbol` serves every expression, so they resolve in
+`IF`, `CALC`, `U`, `D` and address arguments alike (FR-156).
+
+### DiskCallVector (`CassoEmuCore/Debugger/`)
+
+Follows the vector of each RWTS and driver breakpoint: the JMP at $03D9, or
+the device vector at $BF10 plus twice the slot (drive 1) or $BF20 plus twice
+the slot (drive 2). It holds an internal write watch on the vector's bytes,
+with no id, no row in any list and no hit count, and takes the routine again
+after a CPU write to those bytes, every debugger write to memory, a state
+file load, every move through history, a keyframe loaded while running
+forward from history, a reset and a power cycle (FR-151). While the vector
+holds no target the entry is unresolved and `BreakpointInfo::resolved` is
+absent.
+
+### DiskFieldTracker (`CassoEmuCore/Debugger/`)
+
+A pure class fed recent-nibble entries. For each mark set an armed
+breakpoint uses (the standard marks, and each set of custom ones), it follows
+address fields to their checksum nibble and data fields to theirs, and gives
+back `DiskFieldEvent`s:
+
+| Field | Type | Notes |
+|---|---|---|
+| kind | `AddressField`, `DataChecksum`, `WritePrologue` | |
+| format | `DiskFieldKind` | |
+| track, sector, volume | `Byte` | from the address field, for all three kinds |
+| storedChecksum, expectedChecksum | `Byte` | the address field's |
+| storedDataChecksum, expectedDataChecksum | `Byte` | `DataChecksum`: the value the checksum nibble decodes to, and the running checksum of the body before it |
+| isDataChecksumGood | `bool` | `DataChecksum`: the two agree |
+| isWrongTrack | `bool` | `AddressField`: the field's track is not the drive's head's track (FR-146); set by `DiskBreakpointMonitor` from the head at the event, since the tracker has no head |
+| addressInstruction, dataInstruction, lastInstruction | `Word` | the instructions that read the address prologue's first nibble, the data prologue's first nibble, and the event's last nibble (for `DataChecksum`, the checksum nibble) |
+| isPassed | `bool` | `DataChecksum`: `addressInstruction == lastInstruction` (the read test, FR-145) |
+| drive | `int` | |
+
+`Prime` resets it and feeds it the whole record; `Feed` feeds it the entries
+added since. It is primed when a breakpoint is armed, after any move through
+history, after a state file loads, at the start of a reverse-continue replay,
+and after a keyframe the replayer loads while the machine runs forward from
+history, which the replayer's restore count shows. No field crosses an entry
+flagged as the first after a disk change, and a field any of whose nibbles
+passed during spin-up is not reported.
+
+### DiskBreakpointMonitor (`CassoEmuCore/Debugger/`)
+
+The debugger's `IDisk2EventSink`, in the controller's debugger slot while a
+disk breakpoint is armed. It owns a `DiskFieldTracker`, reads new record
+entries at each instruction boundary, matches events against the table's
+disk entries, and holds the pending stop and its `DiskReport` until the
+session takes them, as `WatchpointTable` holds a watch hit. The session's
+`HasPendingStop` includes it. When a watchpoint hit is pending at the same
+boundary, the stop's reason is `watchpoint` and its `DiskReport` is included;
+an RWTS or driver entry and an address breakpoint at one routine give
+`breakpoint` with the report (FR-153).
+
+### DiskReport (StopEvent addition)
+
+| Field | Type | Notes |
+|---|---|---|
+| breakpointId | `int` | the lowest disk id that matched (FR-153) |
+| event | `DiskEvent` | |
+| slot, drive | `int` | the controller's slot, and the drive |
+| quarterTrack, previousQuarterTrack | `int` | previous for a head stop |
+| isMotorOn, isProtected, isBump | `bool` | |
+| motorEvent | `std::optional<DiskMotorEvent>` | motor stops: `On`, `Off` or `Stopped` |
+| phases | `Byte` | the magnets on, bit n for phase n |
+| instruction | `Word` | the instruction responsible (FR-154) |
+| field | `std::optional<DiskFieldEvent>` | sector, address, DOS sector, block and write-prologue stops |
+| epilogue | `std::array<Byte, 3>`, `isEpilogueRandom` | sector reads, from the look-ahead |
+| logicalSector, block, physicalSectors | `std::optional<...>` | DOS sector and block stops, with `order` (`Dos33` or `ProDos`) |
+| request | `std::optional<DiskCallRequest>` | RWTS: slot, drive, volume, track, sector, command, buffer; driver: command, unit, buffer, block |
+| vector | `Word` | the vector an RWTS or driver stop went through |
+| previousDrive | `int` | drive-select stops |
+| imageName | `std::string` | insert and eject stops |
+
+`StopEvent` gains `std::optional<DiskReport> disk`.
+
+### IReverseStopTest (addition)
+
+`GetDiskSink ()`, null by default: where the controller's events go during a
+replay, in place of the debugger's slot. `ReverseStopTest` returns its own,
+primes its own tracker from the record of the snapshot the replay starts from,
+takes each RWTS and driver breakpoint's routine from its vector at the start
+of each replay and after each write to the vector's bytes during it, and
+counts nothing. The replayer also reports each bay whose disk a boundary
+snapshot changed.

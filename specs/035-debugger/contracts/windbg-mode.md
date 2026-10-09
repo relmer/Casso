@@ -51,6 +51,7 @@ own marker for commands a debugger adds (R-037).
 | `l+s`, `l-s` | step by source line on, off | `SRC ON`, `SRC OFF` |
 | `lsa [file:line]` | show source around a line, or around PC | `SRC` |
 | `!name ...` | any Casso engine command | the command itself |
+| `!bpdisk ...` | disk breakpoint, a Casso command (command-modes.md, "Disk breakpoints"); `bl`, `bc`, `bd` and `be` act on it by id | `BPDISK` |
 
 ## Excluded, with a defined reply
 
