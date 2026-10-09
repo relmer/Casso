@@ -107,12 +107,16 @@ and, on a flux track, each cell's recorded time. The inspector's editor, the
 all use it, so this part of 040 also changes the `disk` command and Explorer
 outside the inspector window. Keeping each cell's recorded time on a flux
 track changes shipped spec 038 behavior, as a fix delivered with 040 (FR-113).
-GH #TBD tracks the immediate fix of two defects in today's writers: they
-reject WOZ images in the standard layout, and they rebuild every track they
-write with volume 254 and new sync and length. 040 then moves the writers onto
-the shared writer, and makes the `disk` command's and Explorer's sector, block
-and file reads find each whole track through the image's map, as the writer
-does (FR-111).
+GH #170 tracks the immediate fix of three defects in today's sector code:
+the writers reject WOZ images in the standard layout, they rebuild every
+track they write with volume 254 and new sync and length, and sector reads
+take whole track N from record N instead of from the map, so they return the
+wrong track on an image whose records are not in track order. GH #171
+(`disk create --volume` sets only the VTOC) and GH #172 (the `disk` command
+writes a WOZ whose write-protect flag is set) are related. 040 then moves the
+writers onto the shared writer, and makes the `disk` command's and Explorer's
+sector, block and file reads find each whole track through the image's map,
+as the writer does (FR-111).
 
 **Delivery.** The feature ships in two releases, each in its own merge. The
 first release holds User Stories 1 to 10, everything except the preservation
@@ -3329,10 +3333,11 @@ release (Delivery). The first release MUST NOT depend on them.
   sector reads and writes also take record N as track N instead of looking up
   whole track N in the map, so on an image whose records are not in track
   order they read and write the wrong record.
-- GH #TBD tracks the immediate fix of the first two defects: the rejection of
-  the standard WOZ layout and the rebuild with volume 254 and new sync and
-  length. 040 then moves every sector writer onto the shared sector writer
-  (FR-110), and also fixes the third defect: the shared sector writer and the
+- GH #170 tracks the immediate fix of all three defects: the rejection of
+  the standard WOZ layout, the rebuild with volume 254 and new sync and
+  length, and reads that take record N as track N. 040 then moves every
+  sector writer onto the shared sector writer (FR-110), and the shared sector
+  writer and the
   `disk` command's and Explorer's sector, block and file reads find each whole
   track through the image's map (FR-111). The rules that protect tracks which
   do not decode completely and images with records of their own between whole

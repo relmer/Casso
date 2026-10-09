@@ -101,8 +101,9 @@
      as the `disk` command's and Explorer's reads now also do, never changes a
      field's nibble count or length (they are fixed for 256 bytes of 6-and-2
      or 5-and-3 data), and saves durably. The out-of-scope entry that left
-     those writers unchanged is gone; GH #TBD tracks the immediate fix of the
-     standard-layout rejection and the volume-254 rebuild, and Scope and
+     those writers unchanged is gone; GH #170 tracks the immediate fix of the
+     standard-layout rejection, the volume-254 rebuild and the record-N reads,
+     and Scope and
      Assumptions say that 040 moves the writers onto the shared writer and
      fixes the reads.
   3. Direct sector writes keep each flux cell's recorded time, a fix to the
