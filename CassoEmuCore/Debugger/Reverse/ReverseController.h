@@ -85,9 +85,11 @@ struct ReverseResult
 //  SetUserMaximumSpeed carries the choice. A speed raised automatically is
 //  not the user's choice and recording goes on.
 //
-//  While recording, the disk store holds the automatic flushes, so the image
-//  files are written only on an eject, a machine switch, exit or a commit,
-//  each with the disks as they stand at the current position.
+//  While the machine is behind live, the disk store holds the automatic
+//  flushes (the motor stopping, a reset, a power cycle), so the image files
+//  are written only on an eject, a machine switch, exit or a commit, each
+//  with the disks as they stand at the current position. Live, the automatic
+//  flushes write as they do without history.
 //
 //  The step commands work on positions; the scanline and frame steps and the
 //  seek work on cycles and land on the first instruction boundary at or
