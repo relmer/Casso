@@ -112,6 +112,7 @@ struct WozFileLayout
     static constexpr int   kMapEntries = 160;
     static constexpr Byte  kNoTrack    = 0xFF;
 
+    bool                           isV2                 = false;
     bool                           hasMaps              = false;
     bool                           hasFluxMap           = false;
     std::array<Byte, kMapEntries>  tmap                 = {};

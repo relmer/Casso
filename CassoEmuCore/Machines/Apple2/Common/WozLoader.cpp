@@ -926,6 +926,7 @@ void WozLoader::ReadFileLayout (
 
 
     out             = WozFileLayout();
+    out.isV2        = isV2;
     out.hasMaps     = true;
     out.hasFluxMap  = fluxMap != nullptr;
 

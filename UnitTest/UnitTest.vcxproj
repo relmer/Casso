@@ -367,7 +367,11 @@
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
     <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />
+    <ClCompile Include="EmuTests\DecodeSettingsTests.cpp" />
+    <ClCompile Include="EmuTests\DiskAnalyzerTests.cpp" />
+    <ClCompile Include="EmuTests\TrackAnalyzerTests.cpp" />
     <ClCompile Include="EmuTests\FieldLocatorTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorFormatTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTrackBuilder.cpp" />
     <ClCompile Include="EmuTests\LatchFramerTests.cpp" />
     <ClCompile Include="EmuTests\SectorFieldWriterTests.cpp" />
