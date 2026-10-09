@@ -372,29 +372,55 @@ Byte Via6522::GetIfr() const
 //  TickTimer1
 //
 //  16-bit down-counter. The counter reaches its first underflow counter+1
-//  cycles after a load. In continuous mode it reloads from the latch and
-//  keeps firing every latch+1 cycles; in one-shot mode it fires once and
-//  then free-runs through 0xFFFF without setting the flag again. A single
-//  batched Tick may cross several periods, so the counter position is
-//  restored with modular arithmetic.
+//  cycles after a load, and reads $FFFF for the cycle after it reaches zero.
+//  In continuous mode the latch reloads at the end of that $FFFF cycle, so
+//  the timer keeps firing every latch+2 cycles. That is the free-run timing
+//  in both the Rockwell R6522 data sheet (Figure 16) and the WDC W65C22 data
+//  sheet (Figure 2-4): N+1.5 cycles from the T1C-H write to the first
+//  interrupt, then N+2 cycles between interrupts. The first time-out here,
+//  counter+1 cycles after the load, is that N+1.5 rounded down to a whole
+//  cycle. In one-shot mode it fires once and then free-runs through $FFFF
+//  without setting the flag again. A single batched Tick may cross several
+//  periods, so the counter position is restored with modular arithmetic.
+//
+//  The $FFFF cycle of continuous mode is held as a count of -1, which reads
+//  as $FFFF. Counting resumes from it as from latch+1, so the next cycle
+//  reads the latch; a one-shot (the ACR changed since the time-out) counts
+//  on down from $FFFF instead. A tick of no cycles leaves the counter where
+//  it is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::TickTimer1 (uint32_t cycles)
 {
-    bool      freeRun     = (m_acr & kAcrT1Continuous) != 0;
-    int64_t   counter     = m_t1Counter;
-    int64_t   toUnderflow = counter + 1;
-    int64_t   remaining   = 0;
-    int64_t   latch       = (static_cast<int64_t> (m_t1LatchHi) << 8) | m_t1LatchLo;
-    int64_t   period      = latch + 1;
-    int64_t   into        = 0;
+    constexpr int32_t  kReloading  = -1;
+    constexpr int64_t  kTopCount   = 0xFFFF;
+    bool               freeRun     = (m_acr & kAcrT1Continuous) != 0;
+    int64_t            elapsed     = cycles;
+    int64_t            latch       = (static_cast<int64_t> (m_t1LatchHi) << 8) | m_t1LatchLo;
+    int64_t            reloadCount = latch + 1;
+    int64_t            period      = reloadCount + 1;
+    int64_t            counter     = m_t1Counter;
+    int64_t            toUnderflow = 0;
+    int64_t            remaining   = 0;
+    int64_t            into        = 0;
 
 
 
-    if (static_cast<int64_t> (cycles) < toUnderflow)
+    if (counter == kReloading)
     {
-        m_t1Counter = static_cast<int32_t> (counter - cycles);
+        counter = freeRun ? reloadCount : kTopCount;
+    }
+
+    toUnderflow = counter + 1;
+
+    if (elapsed == 0)
+    {
+        // Nothing to count, which also keeps a reload cycle reading $FFFF.
+    }
+    else if (elapsed < toUnderflow)
+    {
+        m_t1Counter = static_cast<int32_t> (counter - elapsed);
     }
     else
     {
@@ -408,16 +434,16 @@ void Via6522::TickTimer1 (uint32_t cycles)
             }
         }
 
-        remaining = static_cast<int64_t> (cycles) - toUnderflow;
+        remaining = elapsed - toUnderflow;
 
         if (freeRun)
         {
             into        = remaining % period;
-            m_t1Counter = static_cast<int32_t> (latch - into);
+            m_t1Counter = (into == 0) ? kReloading : static_cast<int32_t> (reloadCount - into);
         }
         else
         {
-            m_t1Counter = static_cast<int32_t> (0xFFFF - (remaining & 0xFFFF));
+            m_t1Counter = static_cast<int32_t> (kTopCount - (remaining & kTopCount));
         }
     }
 }
@@ -602,16 +628,22 @@ void Via6522::UpdateIrq()
 //  The ports as the pins read, the timers' counts and latches, and IFR and
 //  IER with a decode of each interrupt source.
 //
+//  IER shows the enables alone. Its bit 7 is the set/clear control of a
+//  write, not an enable, and a read of the register returns it as 1, so
+//  showing the register as read would light it whatever is enabled.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const
 {
     using P = IDiagnosticsProvider;
 
-    static constexpr std::array<const char *, 8>  kIrqBits = { "IRQ", "T1", "T2", "CB1", "CB2", "SR", "CA1", "CA2" };
+    static constexpr std::array<const char *, 8>  kIrqBits  = { "IRQ", "T1", "T2", "CB1", "CB2", "SR", "CA1", "CA2" };
+    static constexpr std::array<const char *, 8>  kIerBits  = { "",    "T1", "T2", "CB1", "CB2", "SR", "CA1", "CA2" };
     constexpr int                                 kByteBits = 8;
     DiagnosticsGroup                              group     { title, {} };
     Word                                          t1Latch   = (Word) ((m_t1LatchHi << kByteBits) | m_t1LatchLo);
+    Byte                                          enables   = (Byte) (m_ier & ~kIerSetClear);
 
 
 
@@ -627,7 +659,7 @@ void Via6522::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot 
     group.rows.push_back (P::MakeHexRow  ("ACR",       m_acr,      P::kByteDigits));
     group.rows.push_back (P::MakeHexRow  ("PCR",       m_pcr,      P::kByteDigits));
     group.rows.push_back (P::MakeByteRow ("IFR",       GetIfr(),   kIrqBits));
-    group.rows.push_back (P::MakeByteRow ("IER",       GetIer(),   kIrqBits));
+    group.rows.push_back (P::MakeByteRow ("IER",       enables,    kIerBits));
 
     snapshot.groups.push_back (std::move (group));
 }

@@ -163,15 +163,135 @@ namespace Via6522TestNs
             via.Tick (101);
             Assert::IsTrue ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
                             L"First continuous underflow");
+            Assert::AreEqual<uint16_t> (0xFFFF, via.GetTimer1(),
+                                        L"The counter reads $FFFF for the cycle after zero");
+
+            via.Tick (1);
             Assert::AreEqual<uint16_t> (100, via.GetTimer1(),
-                                        L"Continuous mode reloads from the latch");
+                                        L"Continuous mode then reloads from the latch");
 
             via.ReadRegister (Via6522::kRegT1CL);   // clears the flag
             Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer1) != 0);
 
             via.Tick (101);
             Assert::IsTrue ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
-                            L"Continuous mode re-fires every latch+1 cycles");
+                            L"Continuous mode re-fires every latch+2 cycles");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  Timer1ContinuousPeriodIsLatchPlusTwo
+        //
+        //  The free-run timing in the Rockwell R6522 data sheet (Figure 16)
+        //  and the WDC W65C22 data sheet (Figure 2-4): the first interrupt
+        //  comes N+1.5 cycles after the T1C-H write, and each one after it
+        //  N+2 cycles after the one before. Stepped a cycle at a time, the
+        //  first time-out lands on cycle N+1 and every gap after it is N+2.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Timer1ContinuousPeriodIsLatchPlusTwo)
+        {
+            constexpr uint16_t  kLatch    = 50;
+            constexpr size_t    kTimeOuts = 5;
+            constexpr int       kLimit    = 1000;
+            Via6522             via;
+            std::vector<int>    firedAt;
+            int                 cycle     = 0;
+            size_t              i         = 0;
+
+
+
+            EnableTimer1Irq (via);
+            via.WriteRegister (Via6522::kRegAcr, Via6522::kAcrT1Continuous);
+            LoadTimer1 (via, kLatch);
+
+            for (cycle = 1; cycle <= kLimit && firedAt.size() < kTimeOuts; cycle++)
+            {
+                via.Tick (1);
+
+                if ((via.GetIfr() & Via6522::kIrqTimer1) != 0)
+                {
+                    firedAt.push_back (cycle);
+                    via.ReadRegister (Via6522::kRegT1CL);   // clears the flag
+                }
+            }
+
+            Assert::AreEqual (kTimeOuts, firedAt.size(), L"Timer 1 must keep firing");
+            Assert::AreEqual (kLatch + 1, firedAt[0], L"The first time-out comes N+1 cycles after the load");
+
+            for (i = 1; i < firedAt.size(); i++)
+            {
+                Assert::AreEqual (kLatch + 2, firedAt[i] - firedAt[i - 1], L"Each later time-out comes N+2 cycles after the last");
+            }
+        }
+
+
+        TEST_METHOD (Timer1ContinuousBatchedTickMatchesSingleCycles)
+        {
+            constexpr uint16_t  kLatch = 37;
+            constexpr int       kSpan  = 4 * (kLatch + 2);
+            Via6522             stepped;
+            Via6522             batched;
+            int                 total  = 0;
+
+
+
+            stepped.WriteRegister (Via6522::kRegAcr, Via6522::kAcrT1Continuous);
+            LoadTimer1 (stepped, kLatch);
+
+            for (total = 1; total <= kSpan; total++)
+            {
+                stepped.Tick (1);
+
+                batched.Reset();
+                batched.WriteRegister (Via6522::kRegAcr, Via6522::kAcrT1Continuous);
+                LoadTimer1 (batched, kLatch);
+                batched.Tick (static_cast<uint32_t> (total));
+
+                Assert::AreEqual (stepped.GetTimer1(), batched.GetTimer1(),
+                                  std::format (L"Counter after {} cycles in one tick", total).c_str());
+            }
+        }
+
+
+        TEST_METHOD (Timer1ReloadCycleReadsFfffUntilACycleGoesBy)
+        {
+            Via6522    via;
+
+
+
+            via.WriteRegister (Via6522::kRegAcr, Via6522::kAcrT1Continuous);
+            LoadTimer1 (via, 0x1234);
+            via.Tick (0x1235);
+
+            via.Tick (0);
+            Assert::AreEqual<uint16_t> (0xFFFF, via.GetTimer1(),
+                                        L"A tick of no cycles leaves the $FFFF cycle");
+            Assert::AreEqual<Byte> (0xFF, via.ReadRegister (Via6522::kRegT1CL));
+            Assert::AreEqual<Byte> (0xFF, via.ReadRegister (Via6522::kRegT1CH));
+
+            via.Tick (1);
+            Assert::AreEqual<uint16_t> (0x1234, via.GetTimer1(),
+                                        L"The next cycle loads the latch");
+        }
+
+
+        TEST_METHOD (Timer1LeavingContinuousInTheReloadCycleCountsOnFromFfff)
+        {
+            Via6522    via;
+
+
+
+            via.WriteRegister (Via6522::kRegAcr, Via6522::kAcrT1Continuous);
+            LoadTimer1 (via, 100);
+            via.Tick (101);
+
+            via.WriteRegister (Via6522::kRegAcr, 0);
+            via.Tick (1);
+            Assert::AreEqual<uint16_t> (0xFFFE, via.GetTimer1(),
+                                        L"One-shot mode counts on down instead of reloading");
         }
 
 
