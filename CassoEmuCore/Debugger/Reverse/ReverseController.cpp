@@ -279,24 +279,19 @@ Error:
 //
 //  A disk went in or out, or its file's write protection changed. The journal
 //  holds the command, but a replay cannot redo it from the file, which may
-//  have changed since; the boundary keyframe taken here holds the disks as
-//  they now stand instead.
+//  have changed since; a boundary keyframe holds the disks as they then stand
+//  instead. It is taken as a debugger edit's is: in the past at once, and
+//  live before the next instruction or reverse command. Taken at once live,
+//  it could hold a machine no replay reaches: the reset command reads the
+//  disks back before the reset itself, so the keyframe held the machine from
+//  before the reset with the reset's record behind it, and a replay loading
+//  it ran on as though the reset had never happened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReverseController::OnMediaChanged (MachineHost & machine)
 {
-    HRESULT  hr = S_OK;
-
-
-
-    if (!m_isRecording || m_replayer.IsReplaying() || &machine != &m_machine)
-    {
-        return;
-    }
-
-    hr = OnMachineChanged();
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    OnMachineEdited (machine);
 }
 
 

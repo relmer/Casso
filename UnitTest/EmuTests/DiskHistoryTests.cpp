@@ -525,6 +525,66 @@ public:
     }
 
 
+    //  A reset with a disk in the drive reads the disk back from its file
+    //  before the reset itself. Seeking back across it and forward again must
+    //  run the reset, and land on the machine the live run left.
+    TEST_METHOD (SeekingForwardAcrossAResetWithADiskInGivesTheLiveMachine)
+    {
+        TestMachine        machine      ("Apple2e");
+        ReverseController  controller   (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        HRESULT            hr           = S_OK;
+        uint64_t           before       = 0;
+        uint64_t           liveEnd      = 0;
+        uint64_t           liveCycles   = 0;
+        uint64_t           liveChecksum = 0;
+        Cpu6502Registers   live         = {};
+        Cpu6502Registers   replayed     = {};
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        before = machine.GetPosition();
+
+        machine.StepOne();
+
+        Reset (machine);
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        liveEnd      = machine.GetPosition();
+        liveCycles   = machine.GetCpu()->GetTotalCycles();
+        liveChecksum = ReverseSessionRig::Checksum (machine);
+        live         = machine.GetCpu()->GetCpu6502()->GetRegisters();
+
+        hr = controller.SeekToPosition (before, result);
+        AssertSucceeded (hr, L"SeekToPosition back before the reset");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition forward across the reset");
+
+        replayed = machine.GetCpu()->GetCpu6502()->GetRegisters();
+
+        Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveCycles, machine.GetCpu()->GetTotalCycles(), L"at the live run's cycle");
+        Assert::AreEqual<Word>     (live.pc, replayed.pc, L"the live run's PC");
+        Assert::AreEqual<Byte>     (live.a,  replayed.a,  L"the live run's A");
+        Assert::AreEqual<Byte>     (live.x,  replayed.x,  L"the live run's X");
+        Assert::AreEqual<Byte>     (live.y,  replayed.y,  L"the live run's Y");
+        Assert::AreEqual<Byte>     (live.sp, replayed.sp, L"the live run's stack pointer");
+        Assert::AreEqual<Byte>     (live.p,  replayed.p,  L"the live run's flags");
+        Assert::AreEqual<uint64_t> (liveChecksum, ReverseSessionRig::Checksum (machine), L"the whole machine as the live run left it");
+    }
+
+
 private:
 
     static ReverseSettings MakeSettings()
@@ -635,6 +695,23 @@ private:
     {
         machine.RecordInput (InputKind::DiskEject, 0, 0, {});
         machine.GetDiskStore().Eject (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+    }
+
+
+    //  Resets the machine as the CPU thread does: journaled first, then the
+    //  slot 6 disk read back from its file, then the reset itself.
+    static void Reset (TestMachine & machine)
+    {
+        HRESULT  hr = S_OK;
+
+
+
+        machine.RecordInput (InputKind::Reset, 0, 0, {});
+
+        hr = machine.GetDiskStore().Mount (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, "history.nib");
+        AssertSucceeded (hr, L"Mount, reading the disk back");
+
+        machine.SoftReset();
     }
 
 

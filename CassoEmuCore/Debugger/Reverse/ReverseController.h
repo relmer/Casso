@@ -229,7 +229,7 @@ private:
     bool                       m_isRecording       = false;
     bool                       m_isLive            = true;
     bool                       m_isPaused          = false;
-    bool                       m_isEditPending     = false;  // a debugger edit while live, kept as a boundary before the next instruction
+    bool                       m_isEditPending     = false;  // a debugger edit or disk change while live, kept as a boundary before the next instruction
     uint64_t                   m_pauseStart        = 0;      // while paused and live: where recording stopped
     uint64_t                   m_liveEndPosition   = 0;
     uint64_t                   m_liveEndCycle      = 0;
