@@ -2171,14 +2171,18 @@ Error:
 //
 //  PruneRetainedMedia
 //
-//  A disk that left its bay at or before the oldest snapshot is in none of
-//  them, so nothing can put it back.
+//  A disk that left its bay before the oldest snapshot is in none of them,
+//  so nothing can put it back. One that left at the oldest snapshot's
+//  position can still be in it: a changed file is taken up from the drive's
+//  tick, partway through an instruction and before the position counts that
+//  instruction, so the disk it replaces leaves at the position of the
+//  snapshot taken at the instruction's start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::PruneRetainedMedia (uint64_t oldestPosition)
 {
-    std::erase_if (m_retained, [oldestPosition] (const Entry & kept) { return kept.retiredAt <= oldestPosition; });
+    std::erase_if (m_retained, [oldestPosition] (const Entry & kept) { return kept.retiredAt < oldestPosition; });
 }
 
 
@@ -3499,6 +3503,13 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 //  mounted disk exactly as it was. The machine is running and what it holds is
 //  known-good; there is no version of this worth half-doing.
 //
+//  With retention on, the outgoing disk is kept as an ejected one is, so
+//  stepping back across the reload can put it back in the drive. It is kept
+//  without the change this reload deals with and without the name of any copy
+//  of the guest's writes made on the way. Put back with them, the change would
+//  be acted on a second time, and the disk's next conflict saved over that
+//  copy.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes)
@@ -3509,6 +3520,7 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     HRESULT                  hrAssess   = S_OK;
     bool                     usable     = false;
     unique_ptr<DiskImage>    loaded     = make_unique<DiskImage> ();
+    Entry                    outgoing;
 
 
 
@@ -3516,6 +3528,28 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
 
     usable = loaded->IsLoaded();
     CBR (usable);
+
+    //  Kept whole: a write still open on a flux track goes into the outgoing
+    //  disk before its contents move to the copy kept for history.
+    if (m_isRetaining)
+    {
+        entry.image->CommitPendingWrite();
+
+        outgoing.image          = make_unique<DiskImage>();
+        *outgoing.image         = std::move (*entry.image);
+        outgoing.path           = entry.path;
+        outgoing.format         = entry.format;
+        outgoing.mounted        = true;
+        outgoing.salvageOffered = entry.salvageOffered;
+        outgoing.sharedState    = entry.sharedState;
+
+        //  The identity stays the one recorded when this disk was loaded, so
+        //  a flush of the disk once it is back still finds the file changed.
+        outgoing.sharedState.ClearPending();
+        outgoing.sharedState.ClearPreserved();
+
+        RetireBay (outgoing);
+    }
 
     //  THE CONTENTS MOVE, THE OBJECT STAYS. The controller holds a raw pointer
     //  to this DiskImage -- SetExternalDisk hands one over at mount -- so

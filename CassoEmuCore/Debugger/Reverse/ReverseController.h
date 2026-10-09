@@ -85,9 +85,14 @@ struct ReverseResult
 //  SetUserMaximumSpeed carries the choice. A speed raised automatically is
 //  not the user's choice and recording goes on.
 //
-//  While recording, the disk store holds the automatic flushes, so the image
-//  files are written only on an eject, a machine switch, exit or a commit,
-//  each with the disks as they stand at the current position.
+//  While the machine is behind live, the disk store holds the automatic
+//  flushes (the motor stopping, a power cycle), so the image files are
+//  written only on an eject, a machine switch, exit or a commit, each with
+//  the disks as they stand at the current position. A reset is the
+//  exception: the Disk II controller writes its dirty disks itself on a
+//  reset, outside the store's hold, so a reset run or replayed behind live
+//  writes the files. Live, the automatic flushes write as they do without
+//  history.
 //
 //  The step commands work on positions; the scanline and frame steps and the
 //  seek work on cycles and land on the first instruction boundary at or
@@ -239,7 +244,7 @@ private:
     bool                       m_isRecording       = false;
     bool                       m_isLive            = true;
     bool                       m_isPaused          = false;
-    bool                       m_isEditPending     = false;  // a debugger edit while live, kept as a boundary before the next instruction
+    bool                       m_isEditPending     = false;  // a debugger edit or disk change while live, kept as a boundary before the next instruction
     uint64_t                   m_pauseStart        = 0;      // while paused and live: where recording stopped
     uint64_t                   m_liveEndPosition   = 0;
     uint64_t                   m_liveEndCycle      = 0;

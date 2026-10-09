@@ -147,7 +147,11 @@ void ReverseController::SetKeyframeListener (
 //
 //  Detaches from the machine, drops all history and gives back the memory
 //  it held. The disks keep any writes they hold, which the next flush
-//  writes as they stand.
+//  writes as they stand. A machine run on from the past leaves the disk
+//  store marked as replaying, and the printer muted, until it is live again,
+//  so the mark and the mute go here with the hold: quitting, a machine
+//  switch and a state load stop recording wherever the machine stands, and
+//  flush, print or start recording again right after.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,7 +168,10 @@ void ReverseController::Stop()
         m_machine.GetInputJournal().Clear();
 
         m_machine.GetDiskStore().SetFlushHold      (false);
+        m_machine.GetDiskStore().SetReplaying      (false);
         m_machine.GetDiskStore().SetMediaRetention (false);
+
+        m_machine.SetOutputMuted (false);
     }
 
     m_keyframes.Release();
@@ -299,24 +306,19 @@ Error:
 //
 //  A disk went in or out, or its file's write protection changed. The journal
 //  holds the command, but a replay cannot redo it from the file, which may
-//  have changed since; the boundary keyframe taken here holds the disks as
-//  they now stand instead.
+//  have changed since; a boundary keyframe holds the disks as they then stand
+//  instead. It is taken as a debugger edit's is: in the past at once, and
+//  live before the next instruction or reverse command. Taken at once live,
+//  it could hold a machine no replay reaches: the reset command reads the
+//  disks back before the reset itself, so the keyframe held the machine from
+//  before the reset with the reset's record behind it, and a replay loading
+//  it ran on as though the reset had never happened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReverseController::OnMediaChanged (MachineHost & machine)
 {
-    HRESULT  hr = S_OK;
-
-
-
-    if (!m_isRecording || m_replayer.IsReplaying() || &machine != &m_machine)
-    {
-        return;
-    }
-
-    hr = OnMachineChanged();
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    OnMachineEdited (machine);
 }
 
 

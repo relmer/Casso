@@ -423,6 +423,340 @@ public:
     }
 
 
+    //  A step from the past marks the disk store as replaying until the
+    //  machine is live again. Quitting there stops recording first, and the
+    //  last flush on the way out must still write the disk.
+    TEST_METHOD (QuittingAfterAStepFromThePastWritesTheDisk)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        HRESULT            hr         = S_OK;
+        std::vector<Byte>  held;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        StepFromThePast (machine, controller);
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (held);
+        AssertSucceeded (hr, L"Serialize where the machine stands");
+
+        controller.Stop();
+
+        hr = machine.GetDiskStore().FlushAllForShutdown();
+        AssertSucceeded (hr, L"FlushAllForShutdown");
+
+        Assert::AreEqual<size_t> (1, log.count, L"the last flush wrote the disk");
+        Assert::IsTrue (held == log.last, L"as it stood where recording stopped");
+    }
+
+
+    //  A machine switch after a step from the past stops recording, saves the
+    //  disk, and mounts it again from its file; the automatic flushes on the
+    //  new machine then write as they do without history.
+    TEST_METHOD (SwitchingMachinesAfterAStepFromThePastSavesAndRemountsTheDisk)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        HRESULT            hr         = S_OK;
+        std::vector<Byte>  held;
+        std::vector<Byte>  remounted;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        //  The file holds what was last written to it.
+        machine.GetDiskStore().SetImageReader ([&log] (const std::string & path, std::vector<Byte> & bytes)
+        {
+            HRESULT  hrRead = ReadPatternImage (path, bytes);
+
+
+
+            if (log.count > 0)
+            {
+                bytes = log.last;
+            }
+
+            return hrRead;
+        });
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        StepFromThePast (machine, controller);
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (held);
+        AssertSucceeded (hr, L"Serialize where the machine stands");
+
+        controller.Stop();
+
+        hr = machine.GetDiskStore().FlushAll();
+        AssertSucceeded (hr, L"FlushAll, as the switch saves the disks");
+
+        Assert::AreEqual<size_t> (1, log.count, L"the switch wrote the disk");
+        Assert::IsTrue (held == log.last, L"as it stood where recording stopped");
+
+        hr = machine.GetDiskStore().Mount (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, "history.nib");
+        AssertSucceeded (hr, L"Mount, as the switch mounts the disk again");
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (remounted);
+        AssertSucceeded (hr, L"Serialize the remounted disk");
+
+        Assert::IsTrue (held == remounted, L"the remounted disk holds the guest's writes");
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start, as the new machine starts recording");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the remounted disk");
+
+        hr = machine.GetDiskStore().FlushAllUnlessHeld();
+        AssertSucceeded (hr, L"FlushAllUnlessHeld on the new machine");
+
+        Assert::AreEqual<size_t> (2, log.count, L"the automatic flush wrote the disk");
+    }
+
+
+    //  A reset with a disk in the drive reads the disk back from its file
+    //  before the reset itself. Seeking back across it and forward again must
+    //  run the reset, and land on the machine the live run left.
+    TEST_METHOD (SeekingForwardAcrossAResetWithADiskInGivesTheLiveMachine)
+    {
+        TestMachine        machine      ("Apple2e");
+        ReverseController  controller   (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        HRESULT            hr           = S_OK;
+        uint64_t           before       = 0;
+        uint64_t           liveEnd      = 0;
+        uint64_t           liveCycles   = 0;
+        uint64_t           liveChecksum = 0;
+        Cpu6502Registers   live         = {};
+        Cpu6502Registers   replayed     = {};
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        before = machine.GetPosition();
+
+        machine.StepOne();
+
+        Reset (machine);
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        liveEnd      = machine.GetPosition();
+        liveCycles   = machine.GetCpu()->GetTotalCycles();
+        liveChecksum = ReverseSessionRig::Checksum (machine);
+        live         = machine.GetCpu()->GetCpu6502()->GetRegisters();
+
+        hr = controller.SeekToPosition (before, result);
+        AssertSucceeded (hr, L"SeekToPosition back before the reset");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition forward across the reset");
+
+        replayed = machine.GetCpu()->GetCpu6502()->GetRegisters();
+
+        Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveCycles, machine.GetCpu()->GetTotalCycles(), L"at the live run's cycle");
+        Assert::AreEqual<Word>     (live.pc, replayed.pc, L"the live run's PC");
+        Assert::AreEqual<Byte>     (live.a,  replayed.a,  L"the live run's A");
+        Assert::AreEqual<Byte>     (live.x,  replayed.x,  L"the live run's X");
+        Assert::AreEqual<Byte>     (live.y,  replayed.y,  L"the live run's Y");
+        Assert::AreEqual<Byte>     (live.sp, replayed.sp, L"the live run's stack pointer");
+        Assert::AreEqual<Byte>     (live.p,  replayed.p,  L"the live run's flags");
+        Assert::AreEqual<uint64_t> (liveChecksum, ReverseSessionRig::Checksum (machine), L"the whole machine as the live run left it");
+    }
+
+
+    //  A file changed outside the emulator and taken up while the machine
+    //  runs replaces the disk in the drive. Seeking back across the reload
+    //  puts the disk that went out back in the drive, and seeking forward
+    //  again takes the reloaded one.
+    TEST_METHOD (SeekingBackAcrossAnExternalReloadPutsTheOutgoingDiskBack)
+    {
+        TestMachine         machine      ("Apple2e");
+        ReverseController   controller   (machine);
+        DiskImageStore    & store        = machine.GetDiskStore();
+        FlushLog            log;
+        ReverseResult       result;
+        HRESULT             hr           = S_OK;
+        int64_t             now          = 0;
+        bool                isRewritten  = false;
+        uint64_t            before       = 0;
+        uint64_t            checksum     = 0;
+        uint64_t            outgoing     = 0;
+        uint64_t            liveEnd      = 0;
+        uint64_t            liveChecksum = 0;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        store.SetClock       ([&now] () { return now; });
+        store.SetImageReader ([&isRewritten] (const std::string & path, std::vector<Byte> & bytes)
+        {
+            return isRewritten ? ReadRewrittenImage (path, bytes) : ReadPatternImage (path, bytes);
+        });
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        before   = machine.GetPosition();
+        checksum = ReverseSessionRig::Checksum (machine);
+        outgoing = store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+
+        machine.StepOne();
+
+        //  Saved first, so taking up the file is a reload rather than a
+        //  conflict with the guest's writes.
+        hr = store.FlushAll();
+        AssertSucceeded (hr, L"FlushAll");
+
+        isRewritten = true;
+
+        store.NoteExternalChange ("history.nib", ExternalChangeIntent::ReloadInPlace);
+
+        now += MountedImageState::kQuietPeriodMs;
+
+        store.ApplyPendingReload();
+
+        Assert::AreNotEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the changed file was taken up");
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        liveEnd      = machine.GetPosition();
+        liveChecksum = ReverseSessionRig::Checksum (machine);
+
+        hr = controller.SeekToPosition (before, result);
+        AssertSucceeded (hr, L"SeekToPosition back before the reload");
+
+        Assert::AreEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the disk that went out is back in the drive");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == store.GetImage (6, 0), L"and the drive reads it");
+        Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was before the reload");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition forward across the reload");
+
+        Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveChecksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was at the live end");
+    }
+
+
+    //  The drive's quiet-moment callback takes up a changed file inside an
+    //  instruction, after the keyframe at that instruction's start was taken
+    //  with the outgoing disk in the drive. While that keyframe is the oldest
+    //  one held, seeking back to it must still put the outgoing disk back.
+    TEST_METHOD (SeekingBackToTheKeyframeBeforeAReloadInsideAnInstructionPutsTheOutgoingDiskBack)
+    {
+        static constexpr uint64_t  kLongestInstruction = 7;
+        TestMachine                machine     ("Apple2e");
+        ReverseController          controller  (machine);
+        DiskImageStore           & store       = machine.GetDiskStore();
+        FlushLog                   log;
+        ReverseResult              result;
+        HRESULT                    hr          = S_OK;
+        int64_t                    now         = 0;
+        bool                       isRewritten = false;
+        bool                       hasIdled    = false;
+        uint64_t                   sinceIdle   = 0;
+        uint64_t                   start       = 0;
+        uint64_t                   outgoing    = 0;
+
+
+
+        PrepareMotorProgram (machine, log);
+
+        store.SetClock       ([&now] () { return now; });
+        store.SetImageReader ([&isRewritten] (const std::string & path, std::vector<Byte> & bytes)
+        {
+            return isRewritten ? ReadRewrittenImage (path, bytes) : ReadPatternImage (path, bytes);
+        });
+
+        //  As the machine builder installs it, noting each time it runs.
+        machine.GetRefs().diskController->SetIdleCallback ([&store, &hasIdled] ()
+        {
+            hasIdled = true;
+            store.ApplyPendingReload();
+        });
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        //  On from one run of the callback to the last instructions before
+        //  the next.
+        while (!hasIdled)
+        {
+            machine.StepOne();
+        }
+
+        while (sinceIdle + kLongestInstruction < Disk2Controller::kIdleCallbackCycles)
+        {
+            sinceIdle += machine.StepOne();
+        }
+
+        //  Saved first, so taking up the file is a reload rather than a
+        //  conflict with the guest's writes.
+        hr = store.FlushAll();
+        AssertSucceeded (hr, L"FlushAll");
+
+        isRewritten = true;
+
+        store.NoteExternalChange ("history.nib", ExternalChangeIntent::ReloadInPlace);
+
+        now += MountedImageState::kQuietPeriodMs;
+
+        outgoing = store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+        hasIdled = false;
+
+        //  Recording starts again at each instruction that may be the one
+        //  whose tick runs the callback, so the first keyframe is taken at the
+        //  start of the instruction that takes up the file.
+        while (!hasIdled)
+        {
+            controller.Stop();
+
+            hr = controller.Start (MakeSettings());
+            AssertSucceeded (hr, L"Start");
+
+            start = machine.GetPosition();
+
+            machine.StepOne();
+        }
+
+        Assert::AreNotEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the instruction's tick took up the changed file");
+
+        //  The next instruction start takes the keyframe after the reload.
+        machine.StepOne();
+
+        Assert::AreEqual<uint64_t> (start, controller.GetOldestPosition(), L"the keyframe from before the reload is the oldest");
+
+        hr = controller.SeekToPosition (start, result);
+        AssertSucceeded (hr, L"SeekToPosition back to the keyframe before the reload");
+
+        Assert::AreEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the disk that went out is back in the drive");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == store.GetImage (6, 0), L"and the drive reads it");
+    }
+
+
 private:
 
     static ReverseSettings MakeSettings()
@@ -513,6 +847,21 @@ private:
     }
 
 
+    //  The image file after another program has rewritten it.
+    static HRESULT ReadRewrittenImage (
+        const std::string  & path,
+        std::vector<Byte>  & bytes)
+    {
+        HRESULT  hr = ReadPatternImage (path, bytes);
+
+
+
+        std::reverse (bytes.begin(), bytes.end());
+
+        return hr;
+    }
+
+
     //  Mounts an image in slot 6 drive 1 as the CPU thread does: journaled
     //  first, then mounted.
     static void Mount (TestMachine & machine, const std::string & path)
@@ -533,6 +882,52 @@ private:
     {
         machine.RecordInput (InputKind::DiskEject, 0, 0, {});
         machine.GetDiskStore().Eject (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+    }
+
+
+    //  Resets the machine as the CPU thread does: journaled first, then the
+    //  slot 6 disk read back from its file, then the reset itself.
+    static void Reset (TestMachine & machine)
+    {
+        HRESULT  hr = S_OK;
+
+
+
+        machine.RecordInput (InputKind::Reset, 0, 0, {});
+
+        hr = machine.GetDiskStore().Mount (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, "history.nib");
+        AssertSucceeded (hr, L"Mount, reading the disk back");
+
+        machine.SoftReset();
+    }
+
+
+    //  Runs the guest until it has written to the disk and on past that, then
+    //  seeks back to where the writes were made and runs one instruction there,
+    //  as the debugger's step or the emulator running on from the past does.
+    static void StepFromThePast (
+        TestMachine        & machine,
+        ReverseController  & controller)
+    {
+        HRESULT        hr     = S_OK;
+        uint64_t       middle = 0;
+        ReverseResult  result;
+
+
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        middle = machine.GetPosition();
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        hr = controller.SeekToPosition (middle, result);
+        AssertSucceeded (hr, L"SeekToPosition back into history");
+
+        machine.StepOne();
+
+        Assert::IsTrue (controller.IsInHistory(), L"the step left the machine behind live");
+        Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the disk holds the guest's writes");
     }
 
 

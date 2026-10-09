@@ -99,6 +99,47 @@ public:
     }
 
 
+    //  A step from the past keeps the printer quiet. Stopping recording
+    //  there, as loading a machine state does before it starts recording
+    //  again, leaves nothing muted, and the printer prints again.
+    TEST_METHOD (StoppingRecordingBehindLiveLeavesThePrinterPrinting)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+
+
+
+        Prepare (machine);
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kGateLiveCycles);
+
+        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        AssertSucceeded (hr, L"SeekToPosition back to the start");
+
+        machine.StepOne();
+
+        Assert::IsTrue  (controller.IsInHistory(), L"the step left the machine behind live");
+        Assert::IsTrue  (machine.IsPrinterMuted(), L"with the printer quiet");
+
+        controller.Stop();
+
+        Assert::IsFalse (machine.IsOutputMuted(), L"stopping recording leaves nothing muted");
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start again, as a state load does");
+
+        Drain (machine);
+        machine.RunCycles (s_kGateAfterCycles);
+
+        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"the printer gets bytes again");
+    }
+
+
 private:
 
     static void Prepare (TestMachine & machine)

@@ -2320,6 +2320,94 @@ public:
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         AssertSucceeded (rig.store.Flush (kSlot, kDrive));
     }
+
+
+
+    //  Reverse execution keeps the disk a reload takes out, and a seek back
+    //  across the reload puts it in the drive again. The change that reload
+    //  took up is over, so the next quiet moment leaves that disk where it is
+    //  rather than reloading the file a second time.
+    TEST_METHOD (ADiskPutBackFromBeforeAReloadIsNotReloadedAgain)
+    {
+        Rig       rig;
+        uint64_t  position = 0;
+        uint64_t  outgoing = 0;
+        bool      changed  = false;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.SetPositionSource (&position);
+        rig.store.SetMediaRetention (true);
+
+        outgoing = rig.store.GetMediaId (kSlot, kDrive);
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+        Assert::AreNotEqual<uint64_t> (outgoing, rig.store.GetMediaId (kSlot, kDrive), L"the reload took the file up");
+        Assert::AreEqual ((size_t) 1, rig.reports.size(), L"and was reported");
+
+        AssertSucceeded (rig.store.SeatMedia (kSlot, kDrive, outgoing, changed));
+
+        rig.nowMs += MountedImageState::kQuietPeriodMs;
+        rig.store.ApplyPendingReload();
+
+        Assert::AreEqual<uint64_t> (outgoing, rig.store.GetMediaId (kSlot, kDrive), L"the disk put back is still in the drive");
+        Assert::AreEqual ((size_t) 1, rig.reports.size(), L"and nothing was reloaded or reported again");
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen, L"no change is pending");
+    }
+
+
+
+    //  A reload over the guest's writes saves them to a copy first. A seek
+    //  back across that reload puts the guest's disk in the drive again, and
+    //  its next flush meets the same changed file: that conflict goes to a
+    //  copy of its own, and the copy the reload wrote stays as it was.
+    TEST_METHOD (ADiskPutBackFromBeforeAConflictingReloadKeepsTheCopyThatReloadWrote)
+    {
+        Rig           rig;
+        uint64_t      position = 0;
+        uint64_t      outgoing = 0;
+        bool          changed  = false;
+        std::string   firstCopy;
+        vector<Byte>  firstCopyBytes;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.SetPositionSource (&position);
+        rig.store.SetMediaRetention (true);
+
+        outgoing = rig.store.GetMediaId (kSlot, kDrive);
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(), L"the reload saved the guest's writes to a copy");
+        Assert::AreNotEqual<uint64_t> (outgoing, rig.store.GetMediaId (kSlot, kDrive), L"and took the file up");
+
+        firstCopy      = rig.PreservedPaths()[0];
+        firstCopyBytes = rig.files[firstCopy];
+
+        AssertSucceeded (rig.store.SeatMedia (kSlot, kDrive, outgoing, changed));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[1] = 0x6E;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 2, rig.PreservedPaths().size(), L"the flush saved the disk put back to a copy");
+        Assert::AreNotEqual (firstCopy, rig.PreservedPaths()[1], L"of its own");
+        Assert::IsTrue (firstCopyBytes == rig.files[firstCopy], L"and the reload's copy holds what the reload wrote");
+    }
 };
 
 
