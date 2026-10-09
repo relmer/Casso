@@ -467,6 +467,9 @@ public:
     // a disassembly is an editor's text in Visual Studio.
     void  SetTextViewSurface       (bool enabled)                { m_textViewSurface = enabled; }
 
+    // The theme's fill the rows lie on, under any hover or selection.
+    uint32_t  GetRowBackground     (const IDxuiTheme & theme) const;
+
     // Column 0 as an editor's glyph margin: its icon centered this far in
     // from the list's left edge, as Visual Studio centers a breakpoint, in
     // place of after the cell's padding. Zero, the default, keeps the usual

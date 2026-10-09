@@ -9364,7 +9364,7 @@ bool DebuggerWindow::TryMakeOperandTip (
     placement.padRightPx        = scaler.ToPx (list->GetCellPadRightDip());
     placement.fontPx            = scaler.ToPxf (list->GetFontSizeDip());
     placement.face              = list->IsMonospace() ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace;
-    placement.contentBackground = m_theme->ContentBackground();
+    placement.contentBackground = list->GetRowBackground (*m_theme);
     placement.rowFill           = GetCodeRowFill (list, row);
     placement.ink               = m_theme->Foreground();
     placement.border            = m_theme->TooltipBorder();
@@ -9527,7 +9527,7 @@ uint32_t DebuggerWindow::GetCodeRowFill (
 
 
 
-    return isSelected ? m_theme->ContentSelection() : (isHovered ? m_theme->ContentHover() : m_theme->ContentBackground());
+    return isSelected ? m_theme->ContentSelection() : (isHovered ? m_theme->ContentHover() : list->GetRowBackground (*m_theme));
 }
 
 

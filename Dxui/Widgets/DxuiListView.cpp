@@ -2934,6 +2934,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetRowBackground
+//
+//  The theme's fill the rows lie on, under any hover or selection: a text
+//  view's for a list set on that surface, a list's otherwise. A host that
+//  draws over a row in the row's colors composites them over this, as the
+//  list paints them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiListView::GetRowBackground (const IDxuiTheme & theme) const
+{
+    return m_textViewSurface ? theme.TextViewBackground() : theme.ContentBackground();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MakePalette
 //
 //  Derives the per-element ARGB colors from the active theme. Called
@@ -2950,7 +2970,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.fg       = m_theme->Foreground();
     pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
     pal.hdrFg    = m_theme->HeadingForeground();
-    pal.bgRow    = m_textViewSurface ? m_theme->TextViewBackground() : m_theme->ContentBackground();
+    pal.bgRow    = GetRowBackground (*m_theme);
     pal.bgHover  = m_theme->ContentHover();
     pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
     pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();

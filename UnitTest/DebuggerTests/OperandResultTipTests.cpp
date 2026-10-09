@@ -880,6 +880,45 @@ namespace OperandResultTipTests
         }
 
 
+        //  A disassembly's rows lie on a text view's background, which a theme
+        //  can set apart from a list's, as the debugger's light theme does. The
+        //  tip takes that background on a row at rest, and the hover seen
+        //  through over it on a hovered row, never the list color.
+        TEST_METHOD (ATipTakesTheTextViewFillItsRowLiesOn)
+        {
+            constexpr uint32_t        kTextView = 0xFF2A2A40;
+            constexpr uint32_t        kHover    = 0x40FFFFFF;
+            CassoTheme                theme     = CassoTheme::MakeSkeuomorphic();
+            TipHost                   host;
+            TipWindow                 window (theme, host);
+            MockDxuiTextRenderer      text;
+            DxuiListView            * list      = nullptr;
+            POINT                     at        = {};
+            uint32_t                  cellFill  = 0;
+            OperandResultTip::Layout  layout;
+
+
+
+            theme.textViewBg   = kTextView;
+            theme.contentHover = kHover;
+            Assert::AreNotEqual (theme.ContentBackground(), theme.TextViewBackground());
+
+            Build (window, theme, text);
+            list     = window.GetCodeList (0);
+            at       = GetOperandPoint (window, 2);
+            cellFill = list->GetCellsOfRow (2)[6].background;
+
+            Assert::IsTrue   (TryGetTip (window, at, text, layout), L"the pane cuts the third row's operand off");
+            Assert::AreEqual (DxuiColor::Composite (cellFill, kTextView), layout.fill, L"a row at rest shows the text view's fill");
+
+            list->SetHoveredRow (2);
+
+            Assert::IsTrue   (TryGetTip (window, at, text, layout));
+            Assert::AreEqual (DxuiColor::Composite (cellFill, DxuiColor::Composite (kHover, kTextView)), layout.fill,
+                              L"a hovered row shows the hover over the text view's fill");
+        }
+
+
         TEST_METHOD (NewRowsThatChangeNothingKeepTheTip)
         {
             CassoTheme            theme = CassoTheme::MakeSkeuomorphic();
