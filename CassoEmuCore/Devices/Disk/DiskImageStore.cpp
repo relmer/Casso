@@ -3500,7 +3500,11 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 //  known-good; there is no version of this worth half-doing.
 //
 //  With retention on, the outgoing disk is kept as an ejected one is, so
-//  stepping back across the reload can put it back in the drive.
+//  stepping back across the reload can put it back in the drive. It is kept
+//  without the change this reload deals with and without the name of any copy
+//  of the guest's writes made on the way. Put back with them, the change would
+//  be acted on a second time, and the disk's next conflict saved over that
+//  copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3534,6 +3538,11 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
         outgoing.mounted        = true;
         outgoing.salvageOffered = entry.salvageOffered;
         outgoing.sharedState    = entry.sharedState;
+
+        //  The identity stays the one recorded when this disk was loaded, so
+        //  a flush of the disk once it is back still finds the file changed.
+        outgoing.sharedState.ClearPending();
+        outgoing.sharedState.ClearPreserved();
 
         RetireBay (outgoing);
     }
