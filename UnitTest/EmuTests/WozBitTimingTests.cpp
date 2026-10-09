@@ -13,9 +13,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  WozBitTimingTests
 //
-//  INFO's optimal bit timing: which values are used, that a bit-stream track
-//  plays at the timing its image gives, that a write on such a disk still
-//  reads back, and that a save keeps the source's value.
+//  INFO's optimal bit timing: the value an image gives is reported and kept
+//  on save, and every bit track plays at the controller's own cell whatever
+//  it is. The sequencer's hold on a finished byte is pinned to Sather here,
+//  because that hold is why a faster timing cannot be played.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,17 +25,45 @@ TEST_CLASS (WozBitTimingTests)
 public:
 
     static constexpr size_t  kTrackBits     = 40000;
-
-    // The switch the shell owns, on: these tests are about playing an image
-    // at its own timing.
-    static inline const std::atomic<bool>  kImageTimingOn { true };
     static constexpr size_t  kInfoFileStart = WozLoader::kHeaderSize + 8;
 
-    static const vector<uint8_t> & GetMarker()
-    {
-        static const vector<uint8_t>  marker = { 0xD5, 0xAA, 0xAD, 0xE7, 0xF3, 0xFC, 0xEE, 0xDE, 0xAA, 0xEB };
+    //  Disk bytes picked for how they end and how they start. Each starts with
+    //  a 1; D5 follows it with a 1, AA and AC with a 0.
+    static constexpr uint8_t  kEndsInOne      = 0xD5;   // 1101 0101
+    static constexpr uint8_t  kEndsInOneZero  = 0xAA;   // 1010 1010
+    static constexpr uint8_t  kEndsInTwoZeros = 0xAC;   // 1010 1100
 
-        return marker;
+    //  A byte, and the byte after it. Sather's Table 9.5 sorts a finished
+    //  byte's hold by those two: how the byte ends, and the next one's second
+    //  bit.
+    struct BytePair
+    {
+        uint8_t          value = 0;
+        uint8_t          next  = 0;
+        const wchar_t  * label = nullptr;
+    };
+
+    //  A finished byte, and for how many CPU cycles in a row the latch held it.
+    struct HeldByte
+    {
+        uint8_t  value  = 0;
+        int      cycles = 0;
+    };
+
+
+    static const vector<BytePair> & GetTablePairs()
+    {
+        static const vector<BytePair>  pairs =
+        {
+            { kEndsInOne,      kEndsInOne,     L"ends 1, next byte 11"   },
+            { kEndsInOneZero,  kEndsInOne,     L"ends 10, next byte 11"  },
+            { kEndsInTwoZeros, kEndsInOne,     L"ends 00, next byte 11"  },
+            { kEndsInOne,      kEndsInOneZero, L"ends 1, next byte 10"   },
+            { kEndsInOneZero,  kEndsInOneZero, L"ends 10, next byte 10"  },
+            { kEndsInTwoZeros, kEndsInOneZero, L"ends 00, next byte 10"  },
+        };
+
+        return pairs;
     }
 
 
@@ -54,30 +83,12 @@ public:
     }
 
 
-    //  Ten-bit sync with the marker once, a quarter of the way round.
-    static vector<Byte> MakeMarkedTrack()
+    static vector<Byte> Pack (vector<uint8_t> & bits)
     {
-        vector<uint8_t>  bits;
-        vector<Byte>     packed;
-        size_t           i = 0;
-
-        while (bits.size() + 10 <= kTrackBits / 4)
-        {
-            AppendByte (bits, 0xFF, 10);
-        }
-
-        for (i = 0; i < GetMarker().size(); i++)
-        {
-            AppendByte (bits, GetMarker()[i], 8);
-        }
-
-        while (bits.size() + 10 <= kTrackBits)
-        {
-            AppendByte (bits, 0xFF, 10);
-        }
+        vector<Byte>  packed ((kTrackBits + 7) / 8, 0);
+        size_t        i = 0;
 
         bits.resize (kTrackBits, 1);
-        packed.assign ((kTrackBits + 7) / 8, 0);
 
         for (i = 0; i < kTrackBits; i++)
         {
@@ -85,6 +96,38 @@ public:
         }
 
         return packed;
+    }
+
+
+    //  Ten-bit sync, then a run of bytes that holds every pair in Table 9.5.
+    static vector<Byte> MakeTablePairTrack()
+    {
+        static constexpr int  kSyncBytes = 40;
+
+        const vector<uint8_t>  run = { kEndsInOne,     kEndsInOne,      kEndsInOneZero, kEndsInOne,      kEndsInTwoZeros,
+                                       kEndsInOne,     kEndsInOneZero,  kEndsInOneZero, kEndsInTwoZeros, kEndsInOneZero };
+        vector<uint8_t>        bits;
+        int                    i = 0;
+
+        for (i = 0; i < kSyncBytes; i++)
+        {
+            AppendByte (bits, 0xFF, 10);
+        }
+
+        while (bits.size() + run.size() * 8 <= kTrackBits)
+        {
+            for (uint8_t value : run)
+            {
+                AppendByte (bits, value, 8);
+            }
+        }
+
+        while (bits.size() + 10 <= kTrackBits)
+        {
+            AppendByte (bits, 0xFF, 10);
+        }
+
+        return Pack (bits);
     }
 
 
@@ -96,7 +139,7 @@ public:
         vector<WozSyntheticTrack>  tracks (1);
         HRESULT                    hr = S_OK;
 
-        tracks[0].data          = MakeMarkedTrack();
+        tracks[0].data          = MakeTablePairTrack();
         tracks[0].bitCount      = kTrackBits;
         tracks[0].quarterTracks = { 0 };
 
@@ -120,48 +163,99 @@ public:
     }
 
 
-    static WozMetadata MakeInfo (Byte version, Byte diskType, Byte timing)
+    //  Every byte the sequencer finishes over two revolutions of the pair
+    //  track, sampled once a cycle, as a polling loop samples the latch.
+    static void ReadHeldBytes (Byte timing, vector<HeldByte> & held)
     {
-        WozMetadata  meta;
+        DiskImage          disk;
+        Disk2NibbleEngine  eng;
+        uint8_t            nib   = 0;
+        uint32_t           cycle = 0;
 
-        meta.infoPayload.assign (WozLoader::kInfoChunkSize, 0);
-        meta.infoPayload[WozLoader::kInfoOffsetVersion]   = version;
-        meta.infoPayload[WozLoader::kInfoOffsetDiskType]  = diskType;
-        meta.infoPayload[WozLoader::kInfoOffsetBitTiming] = timing;
+        LoadImage (timing, disk);
 
-        return meta;
+        eng.SetDiskImage    (&disk);
+        eng.SetCurrentTrack (0);
+        eng.SetMotorOn      (true);
+
+        for (cycle = 0; cycle < 2 * kTrackBits * Disk2NibbleEngine::kCyclesPerBit; cycle++)
+        {
+            eng.Tick (1);
+
+            if (eng.ConsumeFreshNibble (nib))
+            {
+                held.push_back ({ nib, 0 });
+            }
+
+            if (!held.empty() && eng.PeekReadLatch() == held.back().value)
+            {
+                held.back().cycles++;
+            }
+        }
     }
 
 
-    TEST_METHOD (UsableTimingsAreTakenAsGiven)
+    //  The shortest and longest any `pair.value` was held with `pair.next`
+    //  after it. The first byte read is skipped: the sequencer may have come
+    //  in part way through it.
+    static void GetHoldRange (const vector<HeldByte> & held, const BytePair & pair, int & shortest, int & longest)
     {
-        static constexpr Byte  kVersion2 = 2;
-        static constexpr Byte  kVersion3 = 3;
+        size_t  i     = 0;
+        int     found = 0;
 
-        Assert::AreEqual (Byte (28), WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType525, 28)));
-        Assert::AreEqual (Byte (30), WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion3, WozLoader::kDiskType525, 30)));
-        Assert::AreEqual (WozLoader::kBitTimingMin, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType525, WozLoader::kBitTimingMin)));
-        Assert::AreEqual (WozLoader::kBitTimingMax, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType525, WozLoader::kBitTimingMax)));
+        shortest = std::numeric_limits<int>::max();
+        longest  = 0;
+
+        for (i = 1; i + 1 < held.size(); i++)
+        {
+            if (held[i].value != pair.value || held[i + 1].value != pair.next)
+            {
+                continue;
+            }
+
+            shortest = std::min (shortest, held[i].cycles);
+            longest  = std::max (longest, held[i].cycles);
+            found++;
+        }
+
+        Assert::IsTrue (found > 0, pair.label);
     }
 
 
-    TEST_METHOD (UnusableTimingsPlayAtTheStandardRate)
+    //  Sather, "Understanding the Apple IIe", Table 9.5: the 16-sector
+    //  sequencer holds a finished byte for 16 or 17 clocks, whichever way it
+    //  ends and whatever the next byte starts with. A 6502 polling the latch
+    //  every seven cycles needs 14 (p. 9-33). At two clocks a cycle, that is
+    //  eight or nine cycles for every pair.
+    //
+    //  A track plays at the controller's own cell whatever timing its image
+    //  gives, so a disk imaged at 28 or 34 is held the same way. Played at 28
+    //  as given, a byte ending in two zeros ahead of one starting 11 would be
+    //  held 12 clocks, six cycles, and the boot ROM's poll would step over it.
+    TEST_METHOD (EveryByteIsHeldForSathersValidPeriodWhateverTheImageTiming)
     {
-        static constexpr Byte  kVersion1 = 1;
-        static constexpr Byte  kVersion2 = 2;
+        static constexpr int   kShortestHold = 8;
+        static constexpr int   kLongestHold  = 9;
+        static constexpr Byte  kFastTiming   = 28;
+        static constexpr Byte  kSlowTiming   = 34;
 
-        WozMetadata  none;
+        vector<HeldByte>  held;
+        int               shortest = 0;
+        int               longest  = 0;
 
-        Assert::AreEqual (WozLoader::kBitTimingStandard, WozLoader::GetPlaybackBitTiming (none),
-                          L"no source INFO: a disk Casso built, or not a WOZ at all");
-        Assert::AreEqual (WozLoader::kBitTimingStandard, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion1, WozLoader::kDiskType525, 28)),
-                          L"INFO version 1 has no timing field");
-        Assert::AreEqual (WozLoader::kBitTimingStandard, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType35, 16)),
-                          L"a 3.5-inch disk's timing does not apply to a Disk II");
-        Assert::AreEqual (WozLoader::kBitTimingStandard, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType525, 0)));
-        Assert::AreEqual (WozLoader::kBitTimingStandard, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType525, WozLoader::kBitTimingMin - 1)));
-        Assert::AreEqual (WozLoader::kBitTimingStandard, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType525, WozLoader::kBitTimingMax + 1)));
-        Assert::AreEqual (WozLoader::kBitTimingStandard, WozLoader::GetPlaybackBitTiming (MakeInfo (kVersion2, WozLoader::kDiskType525, 255)));
+        for (Byte timing : { WozLoader::kBitTimingStandard, kFastTiming, kSlowTiming })
+        {
+            held.clear();
+            ReadHeldBytes (timing, held);
+
+            for (const BytePair & pair : GetTablePairs())
+            {
+                GetHoldRange (held, pair, shortest, longest);
+
+                Assert::IsTrue (shortest >= kShortestHold, pair.label);
+                Assert::IsTrue (longest  <= kLongestHold,  pair.label);
+            }
+        }
     }
 
 
@@ -175,220 +269,6 @@ public:
 
         Assert::IsTrue   (desc.hasBitTiming);
         Assert::AreEqual (Byte (29), desc.bitTiming);
-    }
-
-
-    //  The head covers cycles x 2 clocks x 176 units over 44 x timing units a
-    //  cell, give or take the cell it started part way through.
-    static void AssertHeadRate (Byte timing)
-    {
-        static constexpr uint32_t  kCycles            = 7000;
-        static constexpr double    kLssClocksPerCycle = 2;
-
-        DiskImage          disk;
-        Disk2NibbleEngine  eng;
-        double             expected = 0;
-
-        LoadImage (timing, disk);
-
-        eng.SetBitTimingSwitch (&kImageTimingOn);
-        eng.SetDiskImage    (&disk);
-        eng.SetCurrentTrack (0);
-        eng.SetMotorOn      (true);
-
-        Assert::AreEqual (static_cast<uint64_t> (timing) * Disk2NibbleEngine::kFluxUnitsPerTimingStep, eng.GetCellUnits());
-
-        eng.Tick (kCycles);
-
-        expected = kCycles * kLssClocksPerCycle * Disk2NibbleEngine::kFluxUnitsPerLssClock
-                 / static_cast<double> (eng.GetCellUnits());
-
-        Assert::AreEqual (expected, static_cast<double> (eng.GetBitPosition()), 1.0);
-    }
-
-
-    TEST_METHOD (HeadMovesAtTheImagesTiming)
-    {
-        AssertHeadRate (28);
-        AssertHeadRate (30);
-        AssertHeadRate (32);
-    }
-
-
-    TEST_METHOD (SwitchOffPlaysEveryImageAtTheStandardCell)
-    {
-        DiskImage                 disk;
-        Disk2NibbleEngine         eng;
-        const std::atomic<bool>   off { false };
-
-        LoadImage (28, disk);
-        eng.SetDiskImage (&disk);
-
-        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits(),
-                          L"a drive given no switch plays the standard cell");
-
-        eng.SetBitTimingSwitch (&off);
-        eng.SetDiskImage       (&disk);
-
-        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits(),
-                          L"and so does one whose switch is off");
-    }
-
-
-    TEST_METHOD (TurningTheSwitchOnTakesEffectAtTheNextStep)
-    {
-        DiskImage           disk;
-        Disk2NibbleEngine   eng;
-        std::atomic<bool>   on { false };
-
-        LoadImage (28, disk);
-        eng.SetBitTimingSwitch (&on);
-        eng.SetDiskImage       (&disk);
-        eng.SetCurrentTrack    (0);
-
-        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits());
-
-        on.store (true);
-        eng.SetCurrentTrack (4);
-
-        Assert::AreEqual (uint64_t (28) * Disk2NibbleEngine::kFluxUnitsPerTimingStep, eng.GetCellUnits(),
-                          L"the drive picks the switch up when it next resolves the track under the head");
-    }
-
-
-    TEST_METHOD (OutOfRangeTimingPlaysAtTheStandardCell)
-    {
-        DiskImage          disk;
-        Disk2NibbleEngine  eng;
-
-        LoadImage (0, disk);
-        eng.SetBitTimingSwitch (&kImageTimingOn);
-        eng.SetDiskImage (&disk);
-
-        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits());
-
-        LoadImage (WozLoader::kBitTimingMax + 1, disk);
-        eng.SetDiskImage (&disk);
-
-        Assert::AreEqual (Disk2NibbleEngine::kFluxUnitsPerCell, eng.GetCellUnits());
-    }
-
-
-    //  Through the sequencer, end to end: the marker comes round once a
-    //  revolution, and a revolution at a timing of T takes T/8 cycles a bit.
-    static void AssertRevolutionCycles (Byte timing)
-    {
-        DiskImage          disk;
-        Disk2NibbleEngine  eng;
-        vector<uint8_t>    recent;
-        vector<uint64_t>   seenAt;
-        uint8_t            nib      = 0;
-        uint64_t           cycle    = 0;
-        uint64_t           limit    = 3 * kTrackBits * Disk2NibbleEngine::kCyclesPerBit;
-        double             expected = static_cast<double> (kTrackBits) * timing / 8;
-
-        LoadImage (timing, disk);
-
-        eng.SetBitTimingSwitch (&kImageTimingOn);
-        eng.SetDiskImage    (&disk);
-        eng.SetCurrentTrack (0);
-        eng.SetMotorOn      (true);
-
-        for (cycle = 0; cycle < limit && seenAt.size() < 2; cycle++)
-        {
-            eng.Tick (1);
-
-            if (!eng.ConsumeFreshNibble (nib))
-            {
-                continue;
-            }
-
-            recent.push_back (nib);
-
-            if (recent.size() > GetMarker().size())
-            {
-                recent.erase (recent.begin());
-            }
-
-            if (recent == GetMarker())
-            {
-                seenAt.push_back (cycle);
-            }
-        }
-
-        Assert::AreEqual (size_t (2), seenAt.size(), L"the marker must read back intact, twice");
-        Assert::AreEqual (expected, static_cast<double> (seenAt[1] - seenAt[0]), expected / 1000);
-    }
-
-
-    TEST_METHOD (TrackReadsBackAtTheMatchingRate)
-    {
-        AssertRevolutionCycles (28);
-        AssertRevolutionCycles (30);
-        AssertRevolutionCycles (32);
-    }
-
-
-    //  The controller writes at its own cell whatever the disk's timing, so a
-    //  write on a fast disk has to read back through the same sequencer.
-    TEST_METHOD (WriteOnAFastDiskReadsBack)
-    {
-        static constexpr int       kSyncBytes   = 6;
-        static constexpr uint32_t  kLoadCycles  = Disk2NibbleEngine::kCyclesPerBit;
-        static constexpr uint32_t  kSyncCycles  = Disk2NibbleEngine::kCyclesPerBit * 8;
-        static constexpr uint32_t  kNibbleShift = Disk2NibbleEngine::kCyclesPerBit * 7;
-
-        const vector<uint8_t>  written = { 0xD5, 0xAA, 0x96, 0xFF, 0xFE, 0xAA, 0xAB, 0xDE, 0xAA, 0xEB };
-        DiskImage              disk;
-        Disk2NibbleEngine      eng;
-        vector<uint8_t>        nibbles;
-        uint8_t                nib     = 0;
-        size_t                 i       = 0;
-        uint32_t               cycle   = 0;
-        bool                   found   = false;
-
-        LoadImage (28, disk);
-
-        eng.SetBitTimingSwitch (&kImageTimingOn);
-        eng.SetDiskImage    (&disk);
-        eng.SetCurrentTrack (0);
-        eng.SetMotorOn      (true);
-        eng.SetWriteMode    (true);
-
-        for (i = 0; i < kSyncBytes; i++)
-        {
-            eng.SetShiftLoadMode (true);
-            eng.WriteLatch       (0xFF);
-            eng.Tick             (kLoadCycles);
-            eng.SetShiftLoadMode (false);
-            eng.Tick             (kSyncCycles);
-        }
-
-        for (i = 0; i < written.size(); i++)
-        {
-            eng.SetShiftLoadMode (true);
-            eng.WriteLatch       (written[i]);
-            eng.Tick             (kLoadCycles);
-            eng.SetShiftLoadMode (false);
-            eng.Tick             (kNibbleShift);
-        }
-
-        eng.SetWriteMode (false);
-        Assert::IsTrue (disk.IsTrackDirty (0));
-
-        // Two revolutions: the written stretch ends right where reading starts.
-        for (cycle = 0; cycle < 2 * kTrackBits * Disk2NibbleEngine::kCyclesPerBit; cycle++)
-        {
-            eng.Tick (1);
-
-            if (eng.ConsumeFreshNibble (nib))
-            {
-                nibbles.push_back (nib);
-            }
-        }
-
-        found = search (nibbles.begin(), nibbles.end(), written.begin(), written.end()) != nibbles.end();
-        Assert::IsTrue (found, L"nibbles written at the controller's cell must read back at the disk's timing");
     }
 
 

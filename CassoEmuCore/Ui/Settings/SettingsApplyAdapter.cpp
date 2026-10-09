@@ -80,25 +80,6 @@ void SettingsApplyAdapter::ApplyFloppySound (bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyWozBitTiming
-//
-//  An atomic the drives read on the CPU thread, so no command is posted: the
-//  drive picks the change up the next time it resolves the track under the
-//  head, which a loading disk does on every step.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsApplyAdapter::ApplyWozBitTiming (bool enabled)
-{
-    m_shell.SetUseWozBitTiming (enabled);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ApplyFastTapeLoading
 //
 //  A flag the CPU thread reads each slice, so it needs no command.

@@ -145,7 +145,6 @@ EmulatorShell::EmulatorShell()
     services.driveDoorVolume        = &m_driveDoorVolume;
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
-    services.useWozBitTiming        = &m_useWozBitTiming;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
 
     m_machineBuilder = std::make_unique<MachineBuilder> (m_machine, services);

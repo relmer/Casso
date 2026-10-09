@@ -92,16 +92,6 @@ public:
     void          SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
     IDriveAudioSink * GetAudioSink() const                 { return m_audioSink; }
 
-    // Hands both drives the switch that says whether a WOZ image's own bit
-    // timing is used. See Disk2NibbleEngine::SetBitTimingSwitch.
-    void          SetBitTimingSwitch (const std::atomic<bool> * useImageTiming)
-    {
-        for (Disk2NibbleEngine & engine : m_engine)
-        {
-            engine.SetBitTimingSwitch (useImageTiming);
-        }
-    }
-
     // Spec-006 debug-window event sink wiring. Caller-owned;
     // controller never deletes it. Pass nullptr to detach (the
     // controller fast-paths around the per-fire-site guard when

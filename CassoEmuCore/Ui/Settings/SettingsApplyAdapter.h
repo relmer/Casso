@@ -40,7 +40,6 @@ public:
     void ApplySpeedMode              (SettingsSpeedMode mode)                override;
     void ApplyColorMode              (SettingsColorMode mode)                override;
     void ApplyFloppySound            (bool enabled)                          override;
-    void ApplyWozBitTiming           (bool enabled)                          override;
     void ApplyFastTapeLoading        (bool enabled)                          override;
     void ApplyTapeVolume             (float gain)                            override;
     void ApplyTapeAutoStop           (bool enabled)                          override;

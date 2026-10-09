@@ -527,49 +527,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WozLoader::GetPlaybackBitTiming
-//
-//  INFO version 2 added the optimal bit timing: the cell the disk was written
-//  at, which a duplicator often ran faster than the 4 us standard. Disks
-//  written that way mostly read fine at the standard rate, but load faster at
-//  their own. An image with no such field -- WOZ1, a disk Casso built, any
-//  non-WOZ image -- plays at the standard rate, as does a 3.5" disk or a value
-//  outside the range a 5.25" disk could plausibly have been written at.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte WozLoader::GetPlaybackBitTiming (const WozMetadata & meta)
-{
-    const vector<Byte> &  info     = meta.infoPayload;
-    bool                  hasField = false;
-    Byte                  stored   = 0;
-    Byte                  timing   = kBitTimingStandard;
-
-
-
-    hasField = info.size() >= kInfoChunkSize
-            && info[kInfoOffsetVersion]  >= kInfoVersion2
-            && info[kInfoOffsetDiskType] == kDiskType525;
-
-    if (hasField)
-    {
-        stored = info[kInfoOffsetBitTiming];
-
-        if (stored >= kBitTimingMin && stored <= kBitTimingMax)
-        {
-            timing = stored;
-        }
-    }
-
-    return timing;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WozLoader::Load
 //
 //  Parse a WOZ v1 or v2 image. Validates the signature, walks chunks,

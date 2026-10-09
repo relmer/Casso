@@ -64,12 +64,11 @@ public:
     DxuiComboBox          & GetMechanismDropdown () { return m_mechanism; }
     DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
     DxuiToggle            & GetFastTapeToggle    () { return m_fastTape; }
-    DxuiToggle            & GetWozBitTimingToggle () { return m_wozBitTiming; }
     DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
     DxuiButton            & GetRestoreDefaultsButton () { return m_reset; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
-    const DxuiToggle      & GetWozBitTimingToggle () const { return m_wozBitTiming; }
+    const DxuiToggle      & GetFastTapeToggle    () const { return m_fastTape; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const DxuiComboBox    & WriteModeDropdown    () const { return m_writeMode; }
     const DxuiComboBox    & GetMechanismDropdown () const { return m_mechanism; }
@@ -94,7 +93,6 @@ private:
 
     DxuiLabel                        m_wpLabel;
     DxuiLabel                        m_writeModeLabel;
-    DxuiLabel                        m_wozBitTimingLabel;
     DxuiLabel                        m_audioLabel;
     DxuiLabel                        m_mechLabel;
     DxuiLabel                        m_motorLabel;
@@ -110,8 +108,6 @@ private:
     DxuiComboBox                     m_writeMode;
     DxuiComboBox                     m_mechanism;
     DxuiToggle                       m_driveAudio;
-    DxuiToggle                       m_wozBitTiming;
-    DxuiInfoTip                      m_wozBitTimingInfo;
     DxuiToggle                       m_fastTape;
     DxuiToggle                       m_tapeAutoStop;
     DxuiToggle                       m_tapeIdleStop;

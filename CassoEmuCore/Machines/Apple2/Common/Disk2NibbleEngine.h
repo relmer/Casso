@@ -23,9 +23,17 @@
 //  The sequencer runs at 2 MHz (two LSS clocks per CPU cycle). Eight LSS
 //  clocks make one bit cell, so the head advances one bit every four CPU
 //  cycles -- the standard ~250 kbps Disk II data rate at 1.023 MHz. On a bit
-//  track the read pulse is sampled once per bit cell, at LSS clock 4. A WOZ
-//  image that gives a different optimal bit timing plays its bit tracks at
-//  that rate instead, so its cells no longer line up with the clock count.
+//  track the read pulse is sampled once per bit cell, at LSS clock 4.
+//
+//  Every bit track plays at this cell, whatever optimal bit timing a WOZ
+//  image's INFO gives. A track holds one revolution, so its bit count already
+//  sets how fast a drive turning at 300 RPM passes its bits. Playing a track
+//  faster than the controller's own cell also runs into a limit of the real
+//  sequencer: the wait before a zero is shifted in is a fixed eight clocks,
+//  so at 3.5 us a byte that ends in zeros finishes late but is still cleared
+//  on time. Some bytes then stay in the data register for 12 or 13 clocks,
+//  short of the 14 a seven-cycle polling loop needs, and the Disk II boot ROM
+//  cannot read the disk.
 //
 //  A flux track is played by time instead. Each transition reaches the
 //  sequencer on the clock where its recorded time falls, so cells written
@@ -34,7 +42,8 @@
 //
 //  References:
 //    - "Understanding the Apple IIe" (Sather), Fig 9.11 (DOS 3.3 / 16-
-//      sector P6 Logic State Sequencer) and Table 9.3 (LSS commands).
+//      sector P6 Logic State Sequencer), Table 9.3 (LSS commands) and
+//      Table 9.5 with p. 9-33 (how long a finished byte stays valid).
 //    - WOZ disk image spec, incl. "Freaking Out Like a MC3470":
 //        https://applesauce.codes/woz/
 //    - Reference LSS stepping loop and P6 sequencer ROM adapted from
@@ -128,20 +137,6 @@ public:
     static constexpr uint64_t  kFluxUnitsPerLssClock = 176;
     static constexpr uint64_t  kFluxUnitsPerCell     = 1408;
 
-    // A bit-stream track plays its cells at the image's bit timing, scaled by
-    // the same ratio that turns the standard 32 into kFluxUnitsPerCell, so a
-    // timing of 28 runs seven-eighths as long a cell as the standard.
-    static constexpr uint64_t  kFluxUnitsPerTimingStep = 44;
-
-    // How long a bit-stream cell lasts under the head, in flux units.
-    uint64_t   GetCellUnits() const { return m_cellUnits; }
-
-    // Whether a WOZ image's own bit timing is used, read each time the slot
-    // under the head is resolved: on a disk change, a step, a reset. Null or
-    // false plays every bit-stream track at the standard timing. The flag
-    // belongs to the shell, which changes it from the settings.
-    void       SetBitTimingSwitch (const std::atomic<bool> * useImageTiming) { m_useImageTiming = useImageTiming; }
-
 private:
     // Logic State Sequencer clocking. The P6 sequencer runs at 2 MHz --
     // two LSS clocks per 1.023 MHz CPU cycle. Eight LSS clocks make one
@@ -154,13 +149,7 @@ private:
 
     // The clock within each eight-clock cell where a bit track's pulse is
     // sampled and a written bit is committed.
-    static constexpr int        kLssReadClock     = 4;
-    static constexpr int        kLssClocksPerCell = 8;
-
-    // Where a bit-stream cell's phase stands at clock 0, in sequencer clocks:
-    // far enough along that a standard-length cell completes on the read
-    // clock, which is where the head has always moved.
-    static constexpr uint64_t   kCellPhaseLead = kLssClocksPerCell - 1 - kLssReadClock;
+    static constexpr int        kLssReadClock  = 4;
 
     // Sequencer ROM index bit positions (see "Understanding the Apple IIe"
     // Fig 9.11 column ordering): pulse-absent, latch MSB, Q6, Q7, then the
@@ -215,9 +204,6 @@ private:
     void       ResolveSlot();
     void       RefreshSlot();
     double     GetAngle() const;
-    void       SetCellUnits (uint64_t cellUnits);
-    bool       AdvanceCellPhase();
-    void       MoveHeadOneCell (bool hasTrack);
     void       PlaceHead (double angle);
     void       SeekFlux (double angle);
     uint8_t    StepFluxPulse();
@@ -267,15 +253,6 @@ private:
     int          m_slot             = -1;
     bool         m_isFluxSlot       = false;
     uint64_t     m_layoutGeneration = UINT64_MAX;
-
-    // Bit-stream cell timing, in flux units. The phase runs on every
-    // sequencer clock, and a reading head moves one cell each time it wraps.
-    uint64_t     m_cellUnits        = kFluxUnitsPerCell;
-    uint64_t     m_cellPhase        = kCellPhaseLead * kFluxUnitsPerLssClock;
-
-    // The shell's switch for using a WOZ image's own bit timing; see
-    // SetBitTimingSwitch.
-    const std::atomic<bool>  * m_useImageTiming = nullptr;
 
     // Flux playback, in 1/45-tick units. m_fluxDue is when the next
     // transition reaches the head; m_fluxLastPulse is when the last real one

@@ -152,10 +152,6 @@ public:
     // if the bytes are not a WOZ or carry no usable INFO chunk.
     static HRESULT  SetWriteProtectFlag (vector<Byte> & fileBytes, bool writeProtected);
 
-    //  The cell length, in 125 ns units, that this image's bit-stream tracks
-    //  play at. kBitTimingStandard unless the source INFO gives a usable value.
-    static Byte     GetPlaybackBitTiming (const WozMetadata & meta);
-
     static HRESULT  BuildSyntheticV2 (
         Byte                  diskType,
         bool                  writeProtected,
@@ -197,12 +193,9 @@ public:
     static constexpr Byte    kBootSector13       = 2;
     static constexpr Byte    kBootSectorBoth     = 3;
 
-    //  A 5.25" disk's standard 4 us bit cell, in INFO's 125 ns units, and the
-    //  span either side of it a stored timing is believed within. Outside it
-    //  the value is more likely damage than a disk written that fast or slow.
+    //  A 5.25" disk's standard 4 us bit cell, in INFO's 125 ns units: what an
+    //  image Casso builds gives, and what every bit track plays at.
     static constexpr Byte    kBitTimingStandard  = 32;
-    static constexpr Byte    kBitTimingMin       = 24;
-    static constexpr Byte    kBitTimingMax       = 40;
 
 private:
     //  A fixed-width, space-padded field as a string with the padding removed.

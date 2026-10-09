@@ -77,7 +77,6 @@ struct SettingsUiPrefs
     SettingsWriteMode  writeMode             = SettingsWriteMode::BufferAndFlush;
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
-    bool               useWozBitTiming       = false;       // WOZ images play at their own bit timing
     bool               fastTapeLoading       = true;        // tape loads run at Maximum speed
     float              tapeVolume            = kDefaultTapeVolume;   // the tape heard when loading at real speed
     bool               tapeAutoStop          = true;        // the deck stops at the end of the tape
@@ -210,7 +209,6 @@ public:
     virtual void ApplyColorMode      (SettingsColorMode mode)        = 0;
     virtual void ApplyFloppySound    (bool enabled)                  = 0;
     virtual void ApplyMechanism      (const std::string & mechanism) = 0;
-    virtual void ApplyWozBitTiming   (bool enabled)                  = 0;
     virtual void ApplyFastTapeLoading (bool enabled)                 = 0;
     virtual void ApplyTapeVolume     (float gain)                    = 0;
     virtual void ApplyTapeAutoStop   (bool enabled)                  = 0;
@@ -320,7 +318,6 @@ public:
     void    SetWriteMode       (SettingsWriteMode mode);
     void    SetFloppySound     (bool enabled);
     void    SetMechanism       (const std::string & mechanism);
-    void    SetUseWozBitTiming (bool enabled);
     void    SetFastTapeLoading (bool enabled);
     void    SetTapeVolume      (float gain);
     void    SetTapeAutoStop    (bool enabled);

@@ -686,21 +686,6 @@ void SettingsPanelState::SetFloppySound (bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetUseWozBitTiming
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsPanelState::SetUseWozBitTiming (bool enabled)
-{
-    m_current.prefs.useWozBitTiming = enabled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SetFastTapeLoading
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1187,7 +1172,6 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplyColorMode   (m_current.prefs.colorMode);
     sink.ApplyFloppySound (m_current.prefs.floppySoundEnabled);
     sink.ApplyMechanism   (m_current.prefs.floppyMechanism);
-    sink.ApplyWozBitTiming    (m_current.prefs.useWozBitTiming);
     sink.ApplyFastTapeLoading (m_current.prefs.fastTapeLoading);
     sink.ApplyTapeVolume      (m_current.prefs.tapeVolume);
     sink.ApplyTapeAutoStop    (m_current.prefs.tapeAutoStop);
@@ -1297,7 +1281,6 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs.floppySoundEnabled = TryGetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
-    outPrefs.useWozBitTiming    = TryGetBoolOpt   (*uiObj, "useWozBitTiming",     false);
     outPrefs.fastTapeLoading    = TryGetBoolOpt   (*uiObj, "fastTapeLoading",     true);
     outPrefs.tapeAutoStop       = TryGetBoolOpt   (*uiObj, "tapeAutoStop",        true);
     outPrefs.tapeIdleStop       = TryGetBoolOpt   (*uiObj, "tapeIdleStop",        true);
@@ -2136,7 +2119,6 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
-    uiObj.emplace_back ("useWozBitTiming",    JsonValue (prefs.useWozBitTiming));
     uiObj.emplace_back ("fastTapeLoading",    JsonValue (prefs.fastTapeLoading));
     uiObj.emplace_back ("tapeVolume",         JsonValue ((double) prefs.tapeVolume));
     uiObj.emplace_back ("tapeAutoStop",       JsonValue (prefs.tapeAutoStop));
@@ -2264,7 +2246,6 @@ bool SettingsPanelState::ArePrefsEqual (
         && a.writeMode              == b.writeMode
         && a.floppySoundEnabled     == b.floppySoundEnabled
         && a.floppyMechanism        == b.floppyMechanism
-        && a.useWozBitTiming        == b.useWozBitTiming
         && a.fastTapeLoading        == b.fastTapeLoading
         && a.tapeVolume             == b.tapeVolume
         && a.tapeAutoStop           == b.tapeAutoStop

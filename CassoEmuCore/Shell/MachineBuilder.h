@@ -65,10 +65,6 @@ struct MachineBuildServices
     const size_t  *  traceCapacity      = nullptr;
     const bool    *  imageWatchDisabled = nullptr;
 
-    //  Whether WOZ images play at their own bit timing, a setting the shell
-    //  owns and changes while the machine runs. Handed to the drives as is.
-    const std::atomic<bool>  *  useWozBitTiming = nullptr;
-
     //  Restarting the machine after the image store picks up a file that
     //  changed on disk. The store decides; the emulator acts. Held by value
     //  because the builder hands it to the store, which calls it long after
