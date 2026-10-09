@@ -118,6 +118,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How is it typed? -> A: One Casso command, `BPDISK`, listed in help's breakpoints section beside `BPBEAM` (Casso's stop on a beam position), reached in every mode through that mode's marker, with the same id, condition, hit count and When hit settings as every other breakpoint.
 - Q: Does reverse continue stop on them? -> A: Yes, at the same instruction a forward run stops at, as it does for breakpoints and watchpoints (R-040, T466).
 
+### Session 2026-10-08 (Breakpoints pane columns)
+
+- Q: Which columns does the Breakpoints pane have? -> A: Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order (owner decision). Kind is new: it gives what sort of breakpoint a row is, a disk breakpoint's event among them, and shows by default with Condition and Hit count. Visual Studio's Filter, always empty in Casso, is dropped. Labels became Symbol, since it shows the one symbol at the address. A column choice saved before the change keeps its columns, with Labels as Symbol.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -845,6 +849,11 @@ confirm it disables without being removed.
 14. **Given** breakpoints, **When** the user exports them to a file, clears
     them and imports the file, **Then** the same breakpoints return, with the
     same enabled states, conditions and When hit settings.
+15. **Given** a write watchpoint, a breakpoint at `COUT` and one at $0300 with
+    no symbol, **When** the pane opens, **Then** their Kind cells are "Data
+    write", "Function" and "Address"; **and when** the user clicks the Kind
+    heading, **Then** the rows group by kind in FR-117's order, each kind's
+    rows in the order they were set. Added 2026-10-08.
 
 ---
 
@@ -1034,7 +1043,9 @@ lands on the same instruction with the hit count unchanged.
     **Then** it is the same breakpoint, listed by each mode's list command in
     that mode's layout; **and when** the user chooses New > Disk event... in
     the Breakpoints pane, **Then** a dialog sets the same kinds with the same
-    fields, Export writes it as a `BPDISK` line, and Import reads it back.
+    fields, the row's Kind gives its event ("Disk sector read" for
+    `BPDISK READ 11 0`), Export writes it as a `BPDISK` line, and Import
+    reads it back.
 14. **Given** a disk breakpoint that stopped a run, **When** the user runs on
     past it and then reverse continues, **Then** the machine stops at the same
     instruction, and the replay leaves the hit count unchanged.
@@ -1706,17 +1717,27 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   mark of FR-092. Its columns MUST be, in this order: Name (what the breakpoint
   is: an address or range with the symbol there where one is known, a source
   file and line, an opcode, a register condition, an I/O range, BRK, an
-  interrupt, or a disk event, FR-163), Condition, Labels (the symbol at the
-  address), Hit count (the hits so far, "count only" for one that does not
-  stop), Filter (kept from Visual Studio's layout and always empty, since
-  Casso has no process or thread to filter on), When hit (break, break once,
+  interrupt, or a disk event, FR-163), Condition, Hit count (the hits so far,
+  "count only" for one that does not stop), Kind (what sort of breakpoint the
+  row is), Symbol (the symbol at the address), When hit (break, break once,
   count), Function (the symbol an execution breakpoint stops at), File (the
   source file and line, where one is known), Address (the address or range)
-  and Data (what a data breakpoint watches). Clicking a column's heading MUST
-  sort by it. Amended 2026-10-08 to the columns as built.
+  and Data (what a data breakpoint watches). Kind MUST be one of these, in
+  sentence case: "Address" for an execution breakpoint, "Source line" for
+  one set from a source line, "Function" for one at a single address with a
+  symbol there; "Data read", "Data write" or "Data read or write" for a data
+  breakpoint; "Data value" for a value breakpoint (FR-062); "Register
+  condition"; "Opcode"; "I/O"; "BRK"; "Interrupt"; or a disk kind (FR-163).
+  Clicking a column's heading MUST sort by it; Kind sorts by kind, in the
+  order listed here, and within a kind in the order the breakpoints were
+  set. Amended 2026-10-08 to the columns as built, and again the same day on
+  the owner's decision: Kind added, Filter (always empty, since Casso has no
+  process or thread to filter on) dropped, and Labels became Symbol.
 - **FR-118**: A Show columns drop-down MUST choose which columns show, apart from
-  Name, which always does; the choice MUST be kept across sessions. Condition
-  and Hit count show by default.
+  Name, which always does; the choice MUST be kept across sessions. Condition,
+  Hit count and Kind show by default. A choice saved before Kind was added
+  MUST come back with the same columns, Labels as Symbol, no Filter and Kind
+  shown. Amended 2026-10-08.
 - **FR-119**: The breakpoints pane MUST carry a toolbar of icon buttons, each
   with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
   offering a breakpoint at an address, a function breakpoint by symbol name, a
@@ -2291,15 +2312,20 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   options the chosen event takes, and the condition, giving back the `BPDISK`
   definition `BPEDIT` reads. The pane's columns (FR-117) MUST show a disk
   breakpoint with its event and arguments in Name ("Disk sector read, track
-  $11 sector $00, drive 1"), the routine an RWTS or driver breakpoint resolved
-  to, or "unresolved", in Address, that routine's symbol in Function and
-  Labels, the controller's slot and the drive in Data, and the other columns
-  as for any breakpoint. Go to disassembly MUST go to that routine, and MUST be
-  disabled for the other disk kinds; the code pane's gutter MUST mark a
-  resolved routine. Undo, Redo, Export and Import MUST treat disk breakpoints
-  as they treat every other kind: a deleted one comes back with its event,
-  arguments, marks, condition, enabled state and When hit setting, and Import
-  reads `BPDISK` lines in any mode's form.
+  $11 sector $00, drive 1"); its event in Kind, as one of "Disk sector read",
+  "Disk address field", "Disk head position", "Disk write", "Disk DOS 3.3
+  sector", "Disk ProDOS block", "Disk RWTS call", "Disk ProDOS driver call",
+  "Disk motor", "Disk drive select", "Disk inserted" and "Disk ejected",
+  which sort after "Interrupt" in that order; the routine an RWTS or driver
+  breakpoint resolved to, or "unresolved", in Address; that routine's symbol
+  in Function and Symbol; the controller's slot and the drive in Data; and
+  the other columns as for any breakpoint. Go to disassembly MUST go to that
+  routine, and MUST be disabled for the other disk kinds; the code pane's
+  gutter MUST mark a resolved routine. Undo, Redo, Export and Import MUST
+  treat disk breakpoints as they treat every other kind: a deleted one comes
+  back with its event, arguments, marks, condition, enabled state and When
+  hit setting, and Import reads `BPDISK` lines in any mode's form. Amended
+  2026-10-08 for FR-117's Kind and Symbol columns.
 - **FR-164**: With no disk breakpoint armed, the Disk ][ debug window closed
   and the trace off, emulation MUST run as FR-064 requires, its one exception
   included: keeping the recent nibbles of FR-158 MUST fit within SC-008. With
