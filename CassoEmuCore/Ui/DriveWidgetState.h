@@ -104,6 +104,13 @@ struct DriveWidgetState
     WozRequirements   wozRequirements;
     bool              wozConflict          = false;
 
+    // The machine the requirements were checked against, which the icon's
+    // tooltip quotes. Sampled under the machine's lifetime lock, because the
+    // pointer can rest on the icon while a machine switch on the CPU thread
+    // replaces the config.
+    WozMachineFacts   wozMachine;
+    std::string       wozMachineName;
+
     // Default Open: an empty drive at rest shows the door open
     // (matches real Apple Disk II). Drives that auto-mount at boot
     // transition Open -> Closing via BeginInsert -- the brief 200 ms

@@ -1320,22 +1320,21 @@ bool EmulatorShell::MachineHasBuiltInDrive() const
 //
 //  EmulatorShell::ComposeDriveInfoTooltip
 //
-//  Every presentation's info icon shows the same words, from the drive's
-//  sampled WOZ requirements and the machine running now. The machine is read
-//  here rather than kept with the drive, so a machine switch is reflected the
-//  moment the pointer next rests on the icon.
+//  Every presentation's info icon shows the same words, all from the drive's
+//  sampled state: the WOZ requirements and the machine they were checked
+//  against. The machine's config is not read here, because this runs on a
+//  pointer move, outside the machine's lifetime lock, and a machine switch on
+//  the CPU thread can be replacing that config at the same moment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring EmulatorShell::ComposeDriveInfoTooltip (int drive) const
 {
-    const MachineConfig  & config = m_machine.GetConfig();
+    const DriveWidgetState  & st = m_driveWidgetState[drive];
 
 
 
-    return WozCompatibility::ComposeTooltip (m_driveWidgetState[drive].wozRequirements,
-                                             WozCompatibility::GetMachineFacts (config),
-                                             TextEncoding::Utf8ToWide (config.name));
+    return WozCompatibility::ComposeTooltip (st.wozRequirements, st.wozMachine, TextEncoding::Utf8ToWide (st.wozMachineName));
 }
 
 

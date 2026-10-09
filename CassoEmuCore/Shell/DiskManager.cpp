@@ -893,6 +893,13 @@ void DiskManager::UpdateDriveWidgets()
             st.wozRequirements = (image != nullptr) ? WozCompatibility::ReadRequirements (image->GetWozMetadata())
                                                     : WozRequirements();
             st.wozConflict     = WozCompatibility::HasConflict (st.wozRequirements, machineFacts);
+            st.wozMachine      = machineFacts;
+
+            // Copied only when it changes, which is only on a machine switch.
+            if (st.wozMachineName != m_machine.GetConfig().name)
+            {
+                st.wozMachineName = m_machine.GetConfig().name;
+            }
         }
     }
 
