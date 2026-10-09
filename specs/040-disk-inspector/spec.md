@@ -463,6 +463,15 @@ its known contents.
    and the readout shows the range's length in nibbles and cells.
 9. **Given** the Nibbles tab, **When** the user clicks a nibble, **Then** the
    strip and the platter show that nibble.
+10. **Given** a made-up 16-sector disk with one bad sector on track 17 and a
+    flux track, **When** the user exports track 17's sectors in DOS 3.3
+    logical order, then track 17's nibbles, then the flux track's bits,
+    **Then** the sector file holds 4,096 bytes matching the source with the
+    bad sector's decoded bytes in its place and the export reports that
+    sector as bad; the nibble file holds the track's framed nibbles, one byte
+    each, from the index; the bit file reopens in the inspector as a WOZ
+    holding only that quarter track, with every cell time equal to the
+    original's; and the image itself is unchanged.
 
 ---
 
@@ -1479,7 +1488,8 @@ verdicts, the match shares and the repeated runs against what was planted.
 - **FR-007**: The window MUST hold a toolbar with, in Casso, the drive
   selector and the write-protect state, then the file name and the chips,
   "Structure" and "Timing", the timing range, in Casso "Follow head" and "Go
-  to head", and "Go to", "Find", "Compare with..." and "Decode settings...";
+  to head", and "Go to", "Find", "Compare with...", "Export..." and "Decode
+  settings...";
   while comparing, a comparison bar under the toolbar (FR-121); a platter
   column with the platter, its zoom controls, the legend, the overlays
   ("Alignment", "Files", in Casso "Reads", and while comparing "Differences"),
@@ -1916,12 +1926,25 @@ verdicts, the match shares and the repeated runs against what was planted.
   clipboard as hex text. Selected rows of the Tracks, Fields, Findings and
   Image tabs, and the Flux timing histogram's bins and counts, MUST be copied
   as tab-separated text.
-- **FR-058**: [NEEDS CLARIFICATION: Is export to a file in this spec, and in
-  which forms: a track's nibbles as raw bytes, a track as hex text, a
-  sector's 256 bytes as a binary file, or all three?] If it is, the user MUST
-  be able to export the selected track or sector in the chosen forms, and
-  User Story 4 gains a matching acceptance scenario. Copy (FR-057) is in
-  either way.
+- **FR-058**: "Export..." MUST save to a file the user chooses, in three
+  forms. (1) *Sectors*: the decoded 256 bytes of the selected sector, of
+  every sector of the selected track, or of a range of tracks, in physical
+  order or, on 16-sector tracks, DOS 3.3 logical or ProDOS block order. A bad
+  or not-checked sector is written as decoded; a missing sector is written as
+  256 zero bytes; the export then lists every such sector by track and
+  sector, and the default is to stop and show that list before writing. (2)
+  *Track nibbles*: the framed nibbles of the selected quarter track, one turn
+  from the index, one byte per nibble, with no timing bits; a random-bit
+  region is written as the nibbles the analyzer framed there and listed after
+  the export. (3) *Track bits*: the selected quarter track exactly as Casso
+  holds it, written as a WOZ 2.1 file holding only that quarter track, as a
+  bit track with its bit count or as a flux track with every recorded
+  interval unchanged. Each export MUST be available from the toolbar and from
+  the context menus of the Sector data, Nibbles and Tracks tabs, MUST default
+  to a file name built from the image's name, the track and the form, and
+  MUST NOT change the image. In Casso, an export takes a copy of the drive's
+  track at the moment of export (FR-063), and an edit not yet applied is
+  exported only if the user chooses to include pending edits.
 - **FR-059**: Every command and view MUST be reachable from the keyboard,
   with visible focus. Every button MUST have a tooltip, and the mouse controls
   of the platter and the strip MUST be explained by the hints on screen
@@ -2062,13 +2085,12 @@ verdicts, the match shares and the repeated runs against what was planted.
   ratio against its background, and every pair of Structure kind colors, and
   every pair of map role colors (FR-086), MUST differ by at least ΔE2000 10. A
   theme change MUST redraw every view without reopening it.
-- **FR-078**: In Casso, the inspector window MUST be viewable in a light
-  theme, so that the parts specific to Casso (FR-001) are checked in light
-  and dark (SC-008). Casso's own themes are all dark, and 033 adds Light and
-  Dark to Explorer only. [NEEDS CLARIFICATION: How does the inspector window
-  in Casso get a light theme: by following the Windows light or dark app
-  setting, by a Light and Dark choice of its own, or by Casso gaining a Light
-  theme?]
+- **FR-078**: The inspector window and Explorer's preview MUST use the theme
+  of the program that opened them, and follow a theme change in that program
+  while open: Explorer's Light and Dark themes in Explorer, Casso's own themes
+  in Casso. The parts specific to Casso (FR-001) appear only in Casso's
+  themes. If Casso gains a light theme, the inspector in Casso follows it with
+  no change to this spec.
 - **FR-079**: Good and bad states, and address and data marks, MUST NOT
   differ by color alone; each MUST also differ in symbol or pattern.
 - **FR-080**: Each host MUST save, separately from the other, the window's
@@ -3018,10 +3040,10 @@ release (Delivery). The first release MUST NOT depend on them.
   applying an edit, including the file and sector map, comparison and, in the
   later release, the preservation views, leaves every test image
   byte-for-byte unchanged on disk and never marks a mounted disk as changed.
-- **SC-008**: Before handoff, every view is checked on screen in the Light
-  and Dark themes and in each of Casso's own themes, in every host that
-  offers the theme, with the parts specific to Casso checked in the light
-  theme FR-078 provides. On those captures, all text other than unavailable
+- **SC-008**: Before handoff, every view is checked on screen in every theme
+  of each host that shows it: Explorer's Light and Dark themes in Explorer,
+  and each of Casso's own themes in Casso, which covers the parts specific to
+  Casso. On those captures, all text other than unavailable
   controls meets a 4.5:1 contrast ratio against its background, every pair of
   Structure kind colors and every pair of map role colors differs by at least
   ΔE2000 10 in each theme, and good and bad states remain distinct in a
@@ -3216,8 +3238,12 @@ release (Delivery). The first release MUST NOT depend on them.
 - Follow head selects a track only after the head has stayed on it about
   0.3 s, as in AppleEm's native window, so a protection routine that steps
   quickly does not make the views jump from track to track.
-- Copy to the clipboard is included because it is read-only and cheap.
-  Whether export to a file is included is the open question in FR-058.
+- Copy to the clipboard suits text and small selections; export to a file
+  (FR-058) covers binary data, which does not suit the clipboard. A track's
+  bits are exported as a one-track WOZ 2.1 file rather than a bare bit
+  stream, because a bare stream loses the bit count and a flux track's
+  timing, and a WOZ reopens in the inspector and in other WOZ tools. A hex
+  text export of a track is left out because Copy (FR-057) already gives it.
 - In the first release the decode settings last only while the window shows
   the disk and are not saved, because they belong to one disk. The later
   release adds saving them to a file the user chooses and loading them from it
@@ -3240,11 +3266,11 @@ release (Delivery). The first release MUST NOT depend on them.
   Casso rewrites its settings file whole and Explorer keeps its own.
 - 033 adds Light and Dark to Explorer, beside Casso's three themes; Casso
   keeps only its three dark themes (Skeuomorphic, Dark modern and Retro
-  terminal). FR-078 holds the open question of how the parts specific to
-  Casso are checked in light.
-- GH #135 (both Disk ][ drives share one head position) is open, and this
-  spec does not fix it; the edge cases give what the head marker shows until
-  it is fixed.
+  terminal). The inspector follows its host's themes (FR-078), so in Casso it
+  is dark until Casso gains a light theme.
+- GH #135 (both Disk ][ drives share one head position) is open. This spec
+  does not fix it; 035's User Story 20 specifies the fix in the emulation
+  itself, and the edge cases give what the head marker shows until it lands.
 - The development machine is the owner's; the timing targets in SC-003,
   SC-004, SC-005, SC-009, SC-015 and SC-021, and in the later release SC-027,
   are measured there.
@@ -3405,6 +3431,16 @@ release (Delivery). The first release MUST NOT depend on them.
   offered to the debugger, so 035 gives its breakpoints marks of their own.
   The Disk II controller holds one event listener today, which the Disk ][
   debug window uses, and neither spec takes it from that window.
+- 035 specifies disk breakpoints as its User Story 20, "Stop on a disk event"
+  (FR-142 to FR-165, SC-037 to SC-044). Its FR-161 has the guest-write events
+  its breakpoints use and 040's write counts (FR-068) come from one hook, and
+  its FR-162 keeps every breakpoint kind it ships free of any dependency on
+  040. 035 shares 040's per-drive head position (FR-062) but not its
+  once-a-frame timing, and decodes fields for breakpoints from a saved record
+  of recent nibbles rather than from 040's analyzer. Three of its breakpoint
+  kinds wait for 040's later release: a nibble sequence with ?? wildcards, a
+  field passing under the head with no CPU read, and a latch read during
+  motor spin-up.
 - FR-052 builds on what Casso already keeps from a WOZ file rather than
   reading INFO again. Master keeps the INFO chunk and META whole, and its WOZ
   description already reads the version, disk type, write protect,

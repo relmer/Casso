@@ -13,33 +13,29 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
-- [ ] Requirements are testable and unambiguous
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
-- [ ] All acceptance scenarios are defined
+- [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
 
 ## Feature Readiness
 
-- [ ] All functional requirements have clear acceptance criteria
+- [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
 
-- Two [NEEDS CLARIFICATION] markers remain. FR-058: whether exporting a
-  track or a sector to a file is in this spec, and in which forms. FR-078:
-  how the inspector window in Casso gets a light theme, so that the parts
-  specific to Casso can be checked in light as well as dark; Casso's own
-  themes are all dark, and 033 adds Light and Dark to Explorer only. The four
-  unchecked items fail on these two alone: export has no acceptance scenario
-  until FR-058 is settled, and the light check of the Casso-only parts in
-  SC-008 depends on how FR-078 is settled. Copy to the clipboard (FR-057) is
-  decided and does not depend on either.
+- The owner settled both former [NEEDS CLARIFICATION] markers. FR-058:
+  export to a file in three forms, decoded sectors, a track's framed nibbles,
+  and a track's exact bits as a one-track WOZ 2.1 (User Story 4 scenario 10).
+  FR-078: the inspector follows the theme of the program that opened it, so
+  the parts specific to Casso are checked in Casso's own themes (SC-008).
 - An earlier revision fixed the review issues that made the first
   requirements ambiguous or contradictory: the quarter-track and sharing
   findings that fired on every ordinary disk (FR-048, SC-013), noise against
