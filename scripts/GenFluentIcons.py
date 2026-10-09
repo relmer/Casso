@@ -35,6 +35,8 @@ ICONS = {
     #  Explorer's Rename is the A in brackets with a text cursor: the A and
     #  the cursor in the accent, the brackets in the ink.
     'Rename':  ('rename_a_20_regular',          [([0, 3, 4], True, 0, 0), ([1, 2], False, 0, 0)]),
+    #  Explorer's Share: the box in the ink, the arrow leaving it in the accent.
+    'Share':   ('share_20_regular',             [([0], False, 0, 0), ([1, 2], True, 0, 0)]),
     'Delete':  ('delete_20_regular',            [([0, 1, 2, 3, 4], False, 0, 0)]),
     'Sort':    ('arrow_sort_20_regular',        [([0], False, 0, 0), ([1], True, 0, 0)]),
     'View':    ('line_horizontal_4_20_regular', [([0, 1, 2, 3], False, 0, 0)]),

@@ -120,19 +120,19 @@ public:
         //  the theme at the far end.
         Assert::IsTrue (ids == std::vector<int> { CassoExplorerCommands::kNew,
                                                   CassoExplorerCommands::kCutItems, CassoExplorerCommands::kCopyItems, CassoExplorerCommands::kPasteItems,
-                                                  CassoExplorerCommands::kRenameItem, CassoExplorerCommands::kDeleteItems,
+                                                  CassoExplorerCommands::kRenameItem, CassoExplorerCommands::kShareItems, CassoExplorerCommands::kDeleteItems,
                                                   CassoExplorerCommands::kSort, CassoExplorerCommands::kView, CassoExplorerCommands::kAbout,
                                                   CassoExplorerCommands::kTogglePreview, CassoExplorerCommands::kTheme });
 
-        for (size_t i = 1; i < 6; i++)
+        for (size_t i = 1; i < 7; i++)
         {
-            Assert::IsTrue   (bar[i].iconOnly, L"The clipboard, Rename and Delete are icons alone");
+            Assert::IsTrue   (bar[i].iconOnly, L"The clipboard, Rename, Share and Delete are icons alone");
             Assert::AreEqual (bar[1].group, bar[i].group);
         }
 
         Assert::IsTrue  (bar[0].kind == DxuiToolbar::Kind::DropDown, L"New opens its choices");
-        Assert::IsTrue  (bar[6].kind == DxuiToolbar::Kind::DropDown && bar[7].kind == DxuiToolbar::Kind::DropDown);
-        Assert::IsTrue  (bar[8].seeMoreOnly, L"About lives in See more");
-        Assert::IsTrue  (bar[9].trailing && bar[10].trailing, L"The preview toggle and the theme sit at the far end");
-        Assert::IsFalse (bar[7].trailing);
+        Assert::IsTrue  (bar[7].kind == DxuiToolbar::Kind::DropDown && bar[8].kind == DxuiToolbar::Kind::DropDown);
+        Assert::IsTrue  (bar[9].seeMoreOnly, L"About lives in See more");
+        Assert::IsTrue  (bar[10].trailing && bar[11].trailing, L"The preview toggle and the theme sit at the far end");
+        Assert::IsFalse (bar[8].trailing);
     }};

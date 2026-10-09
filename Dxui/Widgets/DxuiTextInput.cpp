@@ -559,6 +559,18 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         painter.OutlineRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, m_focused ? focusArgb : edgeArgb);
     }
 
+    //  A glyph at the field's right end, as Explorer's search box has its
+    //  magnifier there.
+    if (m_trailGlyph != nullptr && m_trailFace != nullptr)
+    {
+        float  boxW = m_scaler.ToPxf (s_kTrailBoxDip);
+
+        hr = text.DrawString (m_trailGlyph, x + w - m_scaler.ToPxf (s_kTrailCenterDip) - boxW * 0.5f, y, boxW, h,
+                              (fgArgb & 0x00FFFFFFu) | 0xC8000000u, m_scaler.ToPxf (s_kTrailGlyphDip), m_trailFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     caretPrefix.assign (m_text, 0, m_caret);
     hr = text.MeasureString (caretPrefix.c_str(), fontPx, GetFace(), caretX,    textMeasH);
     IGNORE_RETURN_VALUE (hr, S_OK);

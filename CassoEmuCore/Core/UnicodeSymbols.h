@@ -44,6 +44,7 @@ static constexpr LPCWSTR s_kpszMdl2Paste     = L"\xE77F";       // U+E77F Segoe 
 static constexpr LPCWSTR s_kpszMdl2Rename    = L"\xE8AC";       // U+E8AC Segoe MDL2 Rename (A in a text box)
 static constexpr LPCWSTR s_kpszMdl2Delete    = L"\xE74D";       // U+E74D Segoe MDL2 Delete (trash can)
 static constexpr LPCWSTR s_kpszMdl2Share     = L"\xE72D";       // U+E72D Segoe MDL2 Share (box with arrow)
+static constexpr LPCWSTR s_kpszMdl2ThisPc    = L"\xE7F4";       // U+E7F4 Segoe MDL2 TVMonitor (Explorer's This PC in the address bar)
 static constexpr LPCWSTR s_kpszMdl2Sort      = L"\xE8CB";       // U+E8CB Segoe MDL2 Sort (up and down arrows)
 static constexpr LPCWSTR s_kpszMdl2List      = L"\xE8FD";       // U+E8FD Segoe MDL2 BulletedList (Explorer's View)
 static constexpr LPCWSTR s_kpszMdl2Palette   = L"\xE790";       // U+E790 Segoe MDL2 Color (palette)

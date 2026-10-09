@@ -107,6 +107,9 @@ public:
         kEmptyRecycleBin,
         kRestoreItems,
 
+        //  The command bar's Share, after the others so no id moves.
+        kShareItems,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -265,6 +268,7 @@ private:
         { kCopyItems,         Menu::Count, L"Copy",                L"Ctrl+C",   false },
         { kPasteItems,        Menu::Count, L"Paste",               L"Ctrl+V",   false },
         { kRenameItem,        Menu::Count, L"Rename",              L"F2",       false },
+        { kShareItems,        Menu::Count, L"Share",               nullptr,     false },
         { kDeleteItems,       Menu::Count, L"Delete",              L"Del",      false },
         { kSort,              Menu::Count, L"Sort",                nullptr,     false },
         { kView,              Menu::Count, L"View",                nullptr,     false },
@@ -336,6 +340,7 @@ private:
         { kCopyItems,     DxuiToolbar::Kind::Command, 2, s_kpszMdl2Copy,    L"Copy",    L"Copy (Ctrl+C)",          true  },
         { kPasteItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Paste,   L"Paste",   L"Paste (Ctrl+V)",         true  },
         { kRenameItem,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Rename,  L"Rename",  L"Rename (F2)",            true  },
+        { kShareItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Share,   L"Share",   L"Share",                  true  },
         { kDeleteItems,   DxuiToolbar::Kind::Command, 2, s_kpszMdl2Delete,  L"Delete",  L"Delete (Del)",           true  },
         { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
         { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },

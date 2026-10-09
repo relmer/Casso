@@ -164,6 +164,10 @@ public:
     //  How far the icon sits past the twisty, and the label past the icon.
     void  SetIconLeadDip (float dip) { m_iconLeadDip = dip; }
     void  SetIconGapDip  (float dip) { m_iconGapDip  = dip; }
+
+    //  Room between the tree's left edge and its top level.
+    void  SetLeftPadDip  (float dip) { m_leftPadDip  = dip; }
+    int   GetLeftPadPx   () const    { return (int) std::lround (m_scaler.ToPxf (m_leftPadDip)); }
     void  SetDpi       (UINT dpi)
     {
         m_scaler.SetDpi (dpi);
@@ -308,6 +312,7 @@ private:
     int                        m_twistyPx       = 16;
     float                      m_iconLeadDip    = 4.0f;
     float                      m_iconGapDip     = (float) s_kIconGapDip;
+    float                      m_leftPadDip     = 0.0f;
     int                        m_highlight      = -1;
     int                        m_hoverRow       = -1;
     int                        m_pressedRow     = -1;

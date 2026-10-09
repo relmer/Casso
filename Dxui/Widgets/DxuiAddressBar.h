@@ -93,6 +93,7 @@ public:
     //  it that the host hangs the shell's roots from, as Explorer's bar has.
     //  Neither takes room until set.
     void  SetLeadIcon     (std::shared_ptr<const DxuiIconImage> icon) { m_leadIcon = std::move (icon); LayoutSegments(); }
+    void  SetLeadGlyph    (const wchar_t * glyph)                 { m_leadGlyph = glyph; LayoutSegments(); }   // null: the icon
     void  SetOnRoots      (OverflowFn fn)                         { m_onRoots     = std::move (fn); LayoutSegments(); }
 
     //  For a suggestion list under the box: the edit starting and ending, the
@@ -174,6 +175,7 @@ private:
     RECT                                    m_leadRect       = {};
     RECT                                    m_rootsRect      = {};
     std::shared_ptr<const DxuiIconImage>    m_leadIcon;
+    const wchar_t                         * m_leadGlyph      = nullptr;
     OverflowFn                              m_onRoots;
     std::wstring                            m_path;
     DxuiTextInput                           m_input;

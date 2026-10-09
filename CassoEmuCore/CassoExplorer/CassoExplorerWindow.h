@@ -195,6 +195,7 @@ public:
     //  label 3.33 dip past the icon: measured at 150%.
     static constexpr float   kTreeIconLeadDip = 10.0f;
     static constexpr float   kTreeIconGapDip  = 3.33f;
+    static constexpr float   kTreeLeftPadDip  = 8.0f;    // the top level from the pane's left edge
 
     //  The status bar's fields, left to right: Explorer's item count and
     //  selection, flowing from the left; the space between; then free space,
@@ -413,6 +414,7 @@ private:
     int   WalkTreeLabels (int row, const std::wstring & path);
     void  FillTabs();
     void  FillAddress();
+    std::vector<BrowserModel::AddressSegment>  GetAddressSegmentsFor (const Location & location);
     void  SubmitAddress (const std::wstring & text);
     void  ShowAddressMenu (int index, const RECT & anchor);
     void  ShowAddressOverflowMenu (const RECT & anchor);

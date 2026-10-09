@@ -399,6 +399,7 @@ const DxuiVectorIcon * CassoExplorerCommands::GetCommandBarIcon (int id)
         case kCopyItems:     return &CassoExplorerIcons::s_kCopy;
         case kPasteItems:    return &CassoExplorerIcons::s_kPaste;
         case kRenameItem:    return &CassoExplorerIcons::s_kRename;
+        case kShareItems:    return &CassoExplorerIcons::s_kShare;
         case kDeleteItems:   return &CassoExplorerIcons::s_kDelete;
         case kSort:          return &CassoExplorerIcons::s_kSort;
         case kView:          return &CassoExplorerIcons::s_kView;

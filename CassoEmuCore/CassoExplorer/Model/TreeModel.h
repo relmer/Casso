@@ -154,6 +154,7 @@ private:
     //  the shell.
     static TreeNode  MakeShellNode (const IShellItemVerbs::ShellFolderItem & item);
     HRESULT  ListHostFolder (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
+    bool     HasTreeChildren (const std::wstring & path);
     HRESULT  ListImage      (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     HRESULT  ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes);
 

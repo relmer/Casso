@@ -490,6 +490,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_tree->SetIndentDip (kTreeIndentDip);
     m_tree->SetIconLeadDip (kTreeIconLeadDip);
     m_tree->SetIconGapDip  (kTreeIconGapDip);
+    m_tree->SetLeftPadDip  (kTreeLeftPadDip);
     m_tree->SetHorizontalScrollEnabled (false);
     m_tree->SetNodes (std::move (roots));
     m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_browser.GetTreeChildren (id); });
@@ -762,6 +763,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_findBox->SetHwnd         (GetHwnd());
     m_findBox->SetFont         (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
     m_findBox->SetExplorerChrome (true);
+    m_findBox->SetTrailingGlyph  (s_kpszMdl2Search, DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace);
     m_address->SetOnHistory   ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
     m_address->SetHistoryChevron (false);
 
@@ -1426,7 +1428,13 @@ void CassoExplorerWindow::FillList()
     if (m_browser.GetLocation() != m_listLocation)
     {
         m_listLocation = m_browser.GetLocation();
-        m_address->SetLeadIcon (CassoExplorerBrowser::GetLocationIcon (m_listLocation, m_shellIcons));
+        {
+            Location  lead = GetAddressSegmentsFor (m_listLocation).front().location;
+
+            m_address->SetLeadIcon  (CassoExplorerBrowser::GetLocationIcon (lead, m_shellIcons));
+            m_address->SetLeadGlyph ((lead.kind == Location::Kind::Root && lead.path == TreeModel::kThisPcRootId) ? s_kpszMdl2ThisPc : nullptr);
+        }
+
         SetCommandBarDropDowns();
 
         //  Explorer's box says what it will search, and empties on leaving
@@ -3222,6 +3230,7 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kPasteItems:        return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder
                                                          && m_shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return IsListVerbOffered (CassoExplorerActions::Verb::Rename);
+        case CassoExplorerCommands::kShareItems:        return IsListVerbOffered (CassoExplorerActions::Verb::Share);
         case CassoExplorerCommands::kDeleteItems:       return IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_browser.GetLocation().kind == Location::Kind::RecycleBin && !m_browser.GetRows().empty();
@@ -4019,6 +4028,7 @@ void CassoExplorerWindow::Dispatch (int id)
         }
 
         case CassoExplorerCommands::kRenameItem:   RunVerb (CassoExplorerActions::Verb::Rename); break;
+        case CassoExplorerCommands::kShareItems:   RunVerb (CassoExplorerActions::Verb::Share);  break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kEmptyRecycleBin: RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
         case CassoExplorerCommands::kRestoreItems:    RunRecycleBinVerb (CassoExplorerActions::Verb::Restore); break;
@@ -8198,6 +8208,53 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetAddressSegmentsFor
+//
+//  The address bar's segments, as Explorer shows a path on a drive: This PC,
+//  then the drive under its name, then the folders. Never empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<BrowserModel::AddressSegment> CassoExplorerWindow::GetAddressSegmentsFor (const Location & location)
+{
+    std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (location, m_addressRoot);
+    IShellIcons::DriveInfo                     drive;
+    bool                                       onDrive  = false;
+
+
+
+    if (!segments.empty() && segments.front().location.kind == Location::Kind::HostFolder)
+    {
+        const std::wstring &  root = segments.front().location.path;
+
+        onDrive = root.size() == 3 && root[1] == L':' && root[2] == L'\\';
+    }
+
+    if (onDrive)
+    {
+        if (m_shellIcons.GetDriveInfo (segments.front().location.path, drive) && !drive.name.empty())
+        {
+            segments.front().label = drive.name;
+        }
+
+        segments.insert (segments.begin(), BrowserModel::AddressSegment { TreeModel::GetRootLabel (TreeModel::kThisPcRootId),
+                                                                          Location::MakeRoot (TreeModel::kThisPcRootId) });
+    }
+
+    if (segments.empty())
+    {
+        segments.push_back (BrowserModel::AddressSegment { std::wstring(), location });
+    }
+
+    return segments;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::FillAddress
 //
 //  The segments and the path of where the active tab is.
@@ -8211,7 +8268,7 @@ void CassoExplorerWindow::FillAddress()
 
 
 
-    m_addressSegments = BrowserModel::GetAddressSegments (location, m_addressRoot);
+    m_addressSegments = GetAddressSegmentsFor (location);
 
     for (const BrowserModel::AddressSegment & segment : m_addressSegments)
     {

@@ -281,7 +281,7 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
     {
         rowDepth = m_flatRows[(size_t) flatRow].depth;
         rowTop   = m_boundsDip.top + flatRow * m_rowHeightPx;
-        twistyX  = m_boundsDip.left + rowDepth * m_indentPx - m_leftPx;
+        twistyX  = m_boundsDip.left + GetLeftPadPx() + rowDepth * m_indentPx - m_leftPx;
         isHit    = x >= twistyX && x < twistyX + m_twistyPx;
 
         UNREFERENCED_PARAMETER (rowTop);
@@ -313,7 +313,7 @@ bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
     if (m_showCheckboxes && flatRow >= 0 && flatRow < (int) m_flatRows.size())
     {
         rowDepth  = m_flatRows[(size_t) flatRow].depth;
-        checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx - m_leftPx;
+        checkboxX = m_boundsDip.left + GetLeftPadPx() + rowDepth * m_indentPx + m_twistyPx - m_leftPx;
         isHit     = x >= checkboxX && x < checkboxX + m_checkboxPx;
     }
 
@@ -1123,7 +1123,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
 
-        right = (float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead + labelW + textGap;
+        right = (float) (GetLeftPadPx() + fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead + labelW + textGap;
 
         if (SUCCEEDED (hr) && node->icon)
         {
@@ -1134,7 +1134,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         if (SUCCEEDED (hr))
         {
-            m_labelSpans[(size_t) (&fr - m_flatRows.data())] = POINT { (LONG) std::floor ((float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead),
+            m_labelSpans[(size_t) (&fr - m_flatRows.data())] = POINT { (LONG) std::floor ((float) (GetLeftPadPx() + fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead),
                                                                        (LONG) std::ceil (right) };
         }
     }
@@ -1172,7 +1172,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         const DxuiTreeNode  * node        = GetNodeAt (i);
         float                 rowY        = (float) (m_boundsDip.top + (i - m_topRow) * m_rowHeightPx);
         float                 rowHeight   = (float) m_rowHeightPx;
-        float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx - m_leftPx);
+        float                 twistyX     = (float) (m_boundsDip.left + GetLeftPadPx() + fr.depth * m_indentPx - m_leftPx);
         float                 checkboxX   = twistyX + (float) m_twistyPx;
         float                 textX       = checkboxX + (float) GetCheckboxWidthPx() + iconLead;
         bool                  hasChildren = false;

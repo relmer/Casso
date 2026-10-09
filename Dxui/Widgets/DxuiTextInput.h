@@ -78,6 +78,9 @@ public:
     //  Draws the field as Explorer's address row draws its boxes.
     void  SetExplorerChrome (bool on)                 { m_explorerChrome = on; }
 
+    //  A glyph drawn at the field's right end, in an icon face.
+    void  SetTrailingGlyph (const wchar_t * glyph, const wchar_t * face) { m_trailGlyph = glyph; m_trailFace = face; }
+
     //  The field lies over another control's text, as a rename in place lies
     //  over a list row, and must hide it.
     void  SetOverText   (bool overText)               { m_overText = overText; }
@@ -209,6 +212,14 @@ private:
     bool                      m_dragging          = false;
     bool                      m_chromeless        = false;
     bool                      m_explorerChrome    = false;
+    const wchar_t           * m_trailGlyph        = nullptr;
+    const wchar_t           * m_trailFace         = nullptr;
+
+    //  Explorer's search magnifier, measured at 150%: 16 pixels of ink, its
+    //  middle 18.33 dip from the box's right edge.
+    static constexpr float    s_kTrailGlyphDip    = 11.0f;
+    static constexpr float    s_kTrailCenterDip   = 18.33f;
+    static constexpr float    s_kTrailBoxDip      = 20.0f;
     bool                      m_overText          = false;
     bool                      m_placeholderItalic = false;
     const wchar_t           * m_face              = nullptr;   // null: the theme's body face

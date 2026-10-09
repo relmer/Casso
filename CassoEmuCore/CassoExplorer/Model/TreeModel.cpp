@@ -965,6 +965,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::HasTreeChildren
+//
+//  Whether a host folder holds anything the tree shows, a subfolder or a disk
+//  image, so it gets an expander only then, as Explorer's tree does. A folder
+//  that cannot be read has none. A network path is not looked into, so an
+//  unreachable share never holds up the listing; it keeps its expander.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::HasTreeChildren (const std::wstring & path)
+{
+    HRESULT                       hr      = S_OK;
+    std::vector<FileSystemEntry>  entries;
+    bool                          found   = path.starts_with (L"\\\\");
+
+
+
+    BAIL_OUT_IF (found, S_OK);
+
+    hr = m_fs.EnumerateAllEntries (path, entries);
+    CHR (hr);
+
+    for (const FileSystemEntry & entry : entries)
+    {
+        found = found || (m_folderOptions.IsShown (entry) && (entry.isFolder || IsSupportedImage (entry.name)));
+    }
+
+Error:
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::ListHostFolder
 //
 //  Subfolders first, then the disk images, each group in name order. Plain
@@ -1003,7 +1040,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.kind      = TreeNode::Kind::HostFolder;
             node.label     = entry.name;
             node.location  = Location::MakeHostFolder (JoinPath (path, entry.name));
-            node.canExpand = true;
+            node.canExpand = HasTreeChildren (JoinPath (path, entry.name));
 
             folders.push_back (node);
         }

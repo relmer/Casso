@@ -3819,7 +3819,7 @@ void DxuiListView::PaintHeader (
                               titleW,
                               titleH,
                               pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
-                              m_columns[c].align,
+                              m_explorerDetails ? DxuiTextHAlign::Left : m_columns[c].align,
                               DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal,
                               false);

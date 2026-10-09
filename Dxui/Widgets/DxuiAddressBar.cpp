@@ -229,7 +229,7 @@ void DxuiAddressBar::LayoutSegments()
     m_firstShown  = 0;
 
     //  The location's icon and the roots chevron lead, ahead of everything.
-    if (m_leadIcon)
+    if (m_leadIcon || m_leadGlyph != nullptr)
     {
         m_leadRect = RECT { x, m_boundsDip.top, x + m_scaler.ToPx (s_kLeadIconDip), m_boundsDip.bottom };
         x         += m_scaler.ToPx (s_kLeadIconDip);
@@ -392,7 +392,16 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     hr = text.PushClipRect (x, y, w, h);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_leadIcon && !m_leadIcon->bgraPremul.empty())
+    //  A glyph in the icon face takes the icon's place, as Explorer draws
+    //  This PC's outline there.
+    if (m_leadGlyph != nullptr)
+    {
+        hr = text.DrawString (m_leadGlyph, (float) m_leadRect.left, y, (float) (m_leadRect.right - m_leadRect.left), h,
+                              theme.Foreground(), m_scaler.ToPxf ((float) s_kIconDip), m_iconFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else if (m_leadIcon && !m_leadIcon->bgraPremul.empty())
     {
         float  iconPx = (float) m_scaler.ToPx (s_kIconDip);
 
@@ -401,11 +410,11 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    //  Explorer's points down, open or not.
+    //  Explorer's points along the crumbs, as the separators do.
     if (m_onRoots)
     {
         PaintHover   (painter, theme, m_rootsRect, Hit { Part::Roots, -1 });
-        PaintChevron (painter, m_rootsRect, 90.0f, theme.Foreground());
+        PaintChevron (painter, m_rootsRect, 0.0f, theme.Foreground());
     }
 
     if (m_firstShown > 0)
