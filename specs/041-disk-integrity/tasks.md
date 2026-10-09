@@ -246,22 +246,15 @@ Other changes 041's tasks meet after T008:
   and the new `UiTests/CpuManagerPauseTests.cpp`. A conflict in a test file
   is resolved by keeping both sides.
 
-What 035 pushed holds neither the cherry-pick of `e32b2b68c` nor the
-"follow-up comments" commit for the `DiskImageStore::SoftReset` banner and
-`DiskImageStore.h:34` that the 035 session described on 2026-10-08. Whether
-it still plans them is for the owner to settle with that session. Until one
-arrives, T130 makes both comment corrections, and 035 reaches `master` with
-the controller's reset write, which this branch's `e32b2b68c` removes when 041
-merges. A cherry-pick of `e32b2b68c` that does arrive has this branch's
-content, so the merge takes it with no change. A 035 comment commit for defect
-c is different: one that arrives after T008 or T130, through a 035 merge task
-(T135 at the latest) or through T136's `master` merge, conflicts with T008's
-correction of the `ReverseController.h` class comment and with T130's edits to
-the `DiskImageStore::SoftReset` banner and `DiskImageStore.h:34`. The merge
-keeps one wording in each place, the one that says the reset flush is held
-behind live, and checks it against the merged code (a reset reaches
-`DiskImageStore::SoftReset`, `FlushAllUnlessHeld`, through
-`MachineHost::SoftReset`).
+035 brought both with the first 035 merge (`635f9e337`): its cherry-pick of
+`e32b2b68c` (`ea59800ae`, with `-x`), which has this branch's content and
+merged with no change, and the comment commit for defect c (`ccd00a709`),
+which corrects the `DiskImageStore::SoftReset` banner and `DiskImageStore.h:34`.
+So T130 no longer makes those two corrections; it still corrects
+`MachineHost.h:316`. Any later 035 commit that touches the same comments keeps
+the wording that says the reset flush is held behind live, checked against
+the merged code (a reset reaches `DiskImageStore::SoftReset`,
+`FlushAllUnlessHeld`, through `MachineHost::SoftReset`).
 
 ## Baselines (SC-004)
 
@@ -274,6 +267,7 @@ suite once T057 has landed: 65 at the inventory of 2026-10-09, in Debug and in R
 | Recorded at | Commit | Debug | Release |
 |---|---|---|---|
 | Branch cut (T001) | 035 at `811a6f727` | 9,525 | 9,519 |
+| First 035 merge (T008), 2026-10-09 | 035 at `635f9e337` | 9,739 (scenario 31) | 9,734 (scenario 31) |
 
 ## Ownership move list
 
@@ -314,7 +308,7 @@ missing; Phase 10's T138 adds the rows `master` brings.
 - [ ] T005 Get the owner's approval of every text in `specs/041-disk-integrity/contracts/user-messages.md`, before any task that composes or asserts one; record the approved wording and the date in that file
 - [X] T006 Report the 035 findings listed in spec.md's Assumptions to the 035 session, with the owner's approval, each with the evidence given there (`specs/041-disk-integrity/spec.md`); record the date and the 035 session's response in `specs/041-disk-integrity/tasks.md`. Done 2026-10-08, with the owner's approval: six defects in 035's own code went to the `035-debugger` session, lettered a to f (a: quit after a forward step from the past writes nothing; b: pause has no acknowledgement; c: stepping back across a recorded reset writes the user's disk file; d: `IDM_MACHINE_RESET`'s remount captures a boundary keyframe before `SoftReset`; e: `MachineStateFile::Apply` replaces the bays before `LoadStateOverMountedMedia`; f: `MountExternallyModifiedDisk`'s move-assign retains no medium; spec.md's Assumptions gives each letter with its item). The 035 session's response: it would fix a, b, d, e and f in 035, each commit citing "041 audit defect <letter>"; it would cherry-pick `e32b2b68c` with `-x` for c; and it would add a commit citing "041 audit defect c (follow-up comments)" that corrects the `DiskImageStore::SoftReset` banner and `DiskImageStore.h:34`. What it pushed that evening (`origin/035-debugger` at `d3c15b55c`) holds the fixes for a, b, d, e and f, and for c only a comment (`fe0427676`), with no cherry-pick and no follow-up commit; whether those two are still planned is for the owner to settle with the 035 session. Assumptions items 7 to 10 were not among the six; 035 fixed item 10 as well (`c414dd193`). The Merge procedure's "What 035 brings" gives the commits for each letter
 - [ ] T007 Phase 1: the Phase gate (`scripts/RunTests.ps1 -Build`, `scripts/RunTests.ps1 -Build -Scenario`, `scripts/CheckStyle.ps1 -Mode Staged`), then a commit per the rules
-- [ ] T008 Merge `035-debugger` per the Merge procedure and record the result, and any Baselines row, in `specs/041-disk-integrity/tasks.md`; it brings 035's fixes for defects a, b, d, e and f (What 035 brings). Then, in a commit of its own, correct the `ReverseController.h` class comment `fe0427676` wrote (about `:88-95` on 035): with `e32b2b68c` merged, a reset goes through `MachineHost::SoftReset` to `DiskImageStore::SoftReset` (`FlushAllUnlessHeld`), so it is back among the automatic flushes held behind live, and the exception sentence goes. Run 035's `QuittingAfterAStepFromThePastWritesTheDisk` and `SwitchingMachinesAfterAStepFromThePastSavesAndRemountsTheDisk` (`UnitTest/EmuTests/DiskHistoryTests.cpp`) and record whether defect a's fix is on this branch. Record the public store members the merge adds (`IsRetainingMedia`, `ReportSeatedMedia` at `d3c15b55c`) for T012 and T013
+- [X] T008 Merge `035-debugger` per the Merge procedure and record the result, and any Baselines row, in `specs/041-disk-integrity/tasks.md`; it brings 035's fixes for defects a, b, d, e and f (What 035 brings). Then, in a commit of its own, correct the `ReverseController.h` class comment `fe0427676` wrote (about `:88-95` on 035): with `e32b2b68c` merged, a reset goes through `MachineHost::SoftReset` to `DiskImageStore::SoftReset` (`FlushAllUnlessHeld`), so it is back among the automatic flushes held behind live, and the exception sentence goes. Run 035's `QuittingAfterAStepFromThePastWritesTheDisk` and `SwitchingMachinesAfterAStepFromThePastSavesAndRemountsTheDisk` (`UnitTest/EmuTests/DiskHistoryTests.cpp`) and record whether defect a's fix is on this branch. Record the public store members the merge adds (`IsRetainingMedia`, `ReportSeatedMedia` at `d3c15b55c`) for T012 and T013 (done 2026-10-09: merged 035 at `635f9e337`; Debug 9,739 and Release 9,734 unit tests, 31 scenario tests each, all passing; defect a's fix is on this branch, since `QuittingAfterAStepFromThePastWritesTheDisk` and `SwitchingMachinesAfterAStepFromThePastSavesAndRemountsTheDisk` pass; the merge adds the public store members `IsRetainingMedia` and `ReportSeatedMedia`; the `ReverseController.h` class comment is corrected in its own commit)
 
 ---
 
