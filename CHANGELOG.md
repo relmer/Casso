@@ -14,9 +14,6 @@ Entries before versioning was introduced use dates only.
   RAM the image declares do not match the running machine. Hovering it shows
   what the image declares and what does not match. In the flat themes, on the
   desk and on the fullscreen drive strip.
-- Settings > Storage: Use WOZ bit timing, off by default, plays a WOZ image at
-  the bit timing it was recorded at. This helps some titles load but keeps
-  others from loading.
 
 ### Fixed
 
