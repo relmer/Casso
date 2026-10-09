@@ -71,10 +71,12 @@ bool DebuggerThemes::IsKnown (const std::string & name)
 //
 //  DebuggerThemes::ApplyOwnColors
 //
-//  A tooltip is no brighter than the window it shows over: its fill is the
-//  window's background, #272727 in dark and #FBFBFB in light, and its border
-//  that fill at half the brightness, #131313 and #7D7D7D. Its text is
-//  Visual Studio 2026's, white in dark and #212121 in light.
+//  A dark tooltip is no brighter than the window it shows over: its fill is
+//  the window's background, #272727, and its border that fill at half the
+//  brightness, #131313, with white text. A light tooltip takes Visual Studio
+//  2026's own light values, measured at 125%: a #F9F9F9 fill, two levels
+//  under the window's #FBFBFB, a #DDDDDD border and #212121 text. Casso
+//  Explorer's own light theme keeps File Explorer's tooltip.
 //
 //  The light panes are Visual Studio's, measured at 125% on 2026-10-08:
 //  lists and titles #F9F9F9, text views #FFFFFF, outlined in #ADADAD, and
@@ -98,8 +100,8 @@ void DebuggerThemes::ApplyOwnColors (
     dark.tooltipBorder       = 0xFF131313;
     dark.tooltipText         = 0xFFFFFFFF;
 
-    light.tooltipBg          = 0xFFFBFBFB;
-    light.tooltipBorder      = 0xFF7D7D7D;
+    light.tooltipBg          = 0xFFF9F9F9;
+    light.tooltipBorder      = 0xFFDDDDDD;
     light.tooltipText        = 0xFF212121;
     light.contentBg          = 0xFFF9F9F9;
     light.textViewBg         = 0xFFFFFFFF;

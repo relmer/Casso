@@ -36,8 +36,9 @@ public:
     //  Whether `name` is a theme other than the emulator's.
     static bool  IsKnown (const std::string & name);
 
-    //  Visual Studio's tooltip and light pane colors on the debugger's own
-    //  system themes. Run after ApplySystemColors, which sets the content.
+    //  The tooltip colors and Visual Studio's light pane colors on the
+    //  debugger's own system themes. Run after ApplySystemColors, which sets
+    //  the content.
     static void  ApplyOwnColors (DxuiLightTheme & light, DxuiDarkTheme & dark);
 
     //  The theme `name` gives. A Casso theme is built into `own`, which the

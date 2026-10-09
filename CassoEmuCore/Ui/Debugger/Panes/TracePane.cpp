@@ -15,11 +15,17 @@
 //  The list follows the newest entry while it sits at the end, as the
 //  console does.
 //
+//  The entry number is left-aligned, so it and its heading start where the
+//  pane's title does, as every pane's first text does. Right-aligned, only
+//  a number as wide as the column would: the column is fitted by counting
+//  characters rather than measuring them, so it runs wider than its widest
+//  number, and the heading and the "next" rows are narrower still.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void TracePane::Configure()
 {
-    m_list->SetColumns ({ { L"Entry",       0, false, DxuiTextHAlign::Right },
+    m_list->SetColumns ({ { L"Entry",       0, false, DxuiTextHAlign::Left  },
                           { L"Cycles",      0, false, DxuiTextHAlign::Right },
                           { L"PC",          0, false, DxuiTextHAlign::Left  },
                           { L"Bytes",       0, false, DxuiTextHAlign::Left  },

@@ -219,9 +219,10 @@ namespace DebuggerWindowThemeTests
 
 
         //  The system themes the window chooses are its own, with Visual
-        //  Studio's light pane colors and tooltip text, and its tip takes
-        //  them, a fill of the window's background with a border at half its
-        //  brightness, and Visual Studio's frame.
+        //  Studio's light pane colors, and its tip takes their tooltip
+        //  colors: Visual Studio's light tooltip in light, and in dark a fill
+        //  of the window's background with a border at half its brightness,
+        //  each in Visual Studio's frame.
         TEST_METHOD (TheSystemThemesTakeTheDebuggersOwnColors)
         {
             CassoTheme   theme = CassoTheme::MakeSkeuomorphic();
@@ -236,8 +237,8 @@ namespace DebuggerWindowThemeTests
             Assert::AreEqual (0xFFF9F9F9u, window.GetTheme()->ContentBackground(),  L"light lists and titles");
             Assert::AreEqual (0xFFFFFFFFu, window.GetTheme()->TextViewBackground(), L"light text views");
             Assert::AreEqual (0xFFADADADu, window.GetTheme()->Border(),             L"a light pane's outline");
-            Assert::AreEqual (0xFFFBFBFBu, window.GetTooltip().GetBackgroundArgb(), L"the light tip's fill, the window's background");
-            Assert::AreEqual (0xFF7D7D7Du, window.GetTooltip().GetBorderArgb(),     L"and its border, at half the brightness");
+            Assert::AreEqual (0xFFF9F9F9u, window.GetTooltip().GetBackgroundArgb(), L"the light tip's fill, Visual Studio's");
+            Assert::AreEqual (0xFFDDDDDDu, window.GetTooltip().GetBorderArgb(),     L"and its border");
             Assert::AreEqual (0xFF212121u, window.GetTooltip().GetTextArgb(),       L"and its text");
 
             window.ApplyTheme ("SystemDark");
