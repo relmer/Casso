@@ -271,6 +271,10 @@
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\FluxTrack.cpp" />
     <ClCompile Include="Devices\Disk\FluxBitView.cpp" />
+    <ClCompile Include="Devices\Disk\DiskFieldFormat.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FieldLocator.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\LatchFramer.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\TrackCopy.cpp" />
     <ClCompile Include="Devices\Disk\DamagedMountReport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2NibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
@@ -610,6 +614,10 @@
     <ClInclude Include="Devices\Disk\DiskImage.h" />
     <ClInclude Include="Devices\Disk\FluxTrack.h" />
     <ClInclude Include="Devices\Disk\FluxBitView.h" />
+    <ClInclude Include="Devices\Disk\DiskFieldFormat.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FieldLocator.h" />
+    <ClInclude Include="Devices\Disk\Inspector\LatchFramer.h" />
+    <ClInclude Include="Devices\Disk\Inspector\TrackCopy.h" />
     <ClInclude Include="Devices\Disk\DamagedMountReport.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
