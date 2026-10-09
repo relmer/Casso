@@ -2374,8 +2374,10 @@ void DiskImageStore::Eject (int slot, int drive)
 //
 //  SoftReset
 //
-//  FR-034 / Phase 4 contract: keep mounts mounted, flush every dirty
-//  image so a soft reset never loses user writes.
+//  Keeps every disk mounted and flushes every dirty image, so a soft reset
+//  does not lose the guest's writes, unless the reverse-execution hold or a
+//  replay is in force. Then the writes are machine state a step can still
+//  change, and the files are left alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -27,11 +27,13 @@
 //      .po  → NibblizationLayer (ProDOS sector order)
 //      .woz → WozLoader (native bit-stream)
 //
-//  Auto-flush invariants (FR-025):
+//  Auto-flush invariants:
 //      Eject(slot, drive) — flush dirty image, then release.
 //      FlushAll()         — flush every dirty mount; called on machine
 //                           switch and on emulator exit / PowerCycle.
-//      SoftReset()        — keep mounts; flush dirty (Phase 4 contract).
+//      SoftReset()        — keep mounts; flush every dirty image unless
+//                           the reverse-execution hold or a replay is in
+//                           force.
 //      PowerCycle()       — unmount everything (auto-flush each).
 //
 //  Test hooks: SetFlushSink redirects serialized bytes to an in-memory
