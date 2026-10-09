@@ -374,6 +374,7 @@
     <ClCompile Include="EmuTests\TrackAnalyzerTests.cpp" />
     <ClCompile Include="EmuTests\FieldLocatorTests.cpp" />
     <ClCompile Include="EmuTests\InspectorFormatTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorViewModelTests.cpp" />
     <ClCompile Include="EmuTests\PlatterCellsTests.cpp" />
     <ClCompile Include="EmuTests\PlatterRendererTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTrackBuilder.cpp" />
