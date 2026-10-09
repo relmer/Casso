@@ -423,6 +423,108 @@ public:
     }
 
 
+    //  A step from the past marks the disk store as replaying until the
+    //  machine is live again. Quitting there stops recording first, and the
+    //  last flush on the way out must still write the disk.
+    TEST_METHOD (QuittingAfterAStepFromThePastWritesTheDisk)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        HRESULT            hr         = S_OK;
+        std::vector<Byte>  held;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        StepFromThePast (machine, controller);
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (held);
+        AssertSucceeded (hr, L"Serialize where the machine stands");
+
+        controller.Stop();
+
+        hr = machine.GetDiskStore().FlushAllForShutdown();
+        AssertSucceeded (hr, L"FlushAllForShutdown");
+
+        Assert::AreEqual<size_t> (1, log.count, L"the last flush wrote the disk");
+        Assert::IsTrue (held == log.last, L"as it stood where recording stopped");
+    }
+
+
+    //  A machine switch after a step from the past stops recording, saves the
+    //  disk, and mounts it again from its file; the automatic flushes on the
+    //  new machine then write as they do without history.
+    TEST_METHOD (SwitchingMachinesAfterAStepFromThePastSavesAndRemountsTheDisk)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        HRESULT            hr         = S_OK;
+        std::vector<Byte>  held;
+        std::vector<Byte>  remounted;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        //  The file holds what was last written to it.
+        machine.GetDiskStore().SetImageReader ([&log] (const std::string & path, std::vector<Byte> & bytes)
+        {
+            HRESULT  hrRead = ReadPatternImage (path, bytes);
+
+
+
+            if (log.count > 0)
+            {
+                bytes = log.last;
+            }
+
+            return hrRead;
+        });
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        StepFromThePast (machine, controller);
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (held);
+        AssertSucceeded (hr, L"Serialize where the machine stands");
+
+        controller.Stop();
+
+        hr = machine.GetDiskStore().FlushAll();
+        AssertSucceeded (hr, L"FlushAll, as the switch saves the disks");
+
+        Assert::AreEqual<size_t> (1, log.count, L"the switch wrote the disk");
+        Assert::IsTrue (held == log.last, L"as it stood where recording stopped");
+
+        hr = machine.GetDiskStore().Mount (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, "history.nib");
+        AssertSucceeded (hr, L"Mount, as the switch mounts the disk again");
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (remounted);
+        AssertSucceeded (hr, L"Serialize the remounted disk");
+
+        Assert::IsTrue (held == remounted, L"the remounted disk holds the guest's writes");
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start, as the new machine starts recording");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the remounted disk");
+
+        hr = machine.GetDiskStore().FlushAllUnlessHeld();
+        AssertSucceeded (hr, L"FlushAllUnlessHeld on the new machine");
+
+        Assert::AreEqual<size_t> (2, log.count, L"the automatic flush wrote the disk");
+    }
+
+
 private:
 
     static ReverseSettings MakeSettings()
@@ -533,6 +635,35 @@ private:
     {
         machine.RecordInput (InputKind::DiskEject, 0, 0, {});
         machine.GetDiskStore().Eject (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+    }
+
+
+    //  Runs the guest until it has written to the disk and on past that, then
+    //  seeks back to where the writes were made and runs one instruction there,
+    //  as the debugger's step or the emulator running on from the past does.
+    static void StepFromThePast (
+        TestMachine        & machine,
+        ReverseController  & controller)
+    {
+        HRESULT        hr     = S_OK;
+        uint64_t       middle = 0;
+        ReverseResult  result;
+
+
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        middle = machine.GetPosition();
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        hr = controller.SeekToPosition (middle, result);
+        AssertSucceeded (hr, L"SeekToPosition back into history");
+
+        machine.StepOne();
+
+        Assert::IsTrue (controller.IsInHistory(), L"the step left the machine behind live");
+        Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the disk holds the guest's writes");
     }
 
 
