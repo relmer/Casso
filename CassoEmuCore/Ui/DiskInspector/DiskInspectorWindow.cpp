@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Ui/DiskInspector/DecodeSettingsDialog.h"
 #include "Ui/DiskInspector/FindingsTab.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -44,6 +45,7 @@ static constexpr double   s_kMinSplit       = 0.3;
 static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr double   s_kPlatterShare   = 0.55;
+static constexpr int      s_kDecodeButtonDip = 140;
 
 enum TrackTab
 {
@@ -247,6 +249,7 @@ void DiskInspectorWindow::OnCreate()
     m_nibblesTab  = CreateChild<NibblesTab>      (m_context);
     m_fieldsTab   = CreateChild<InspectorTableView> (m_context);
     m_diskTabs    = CreateChild<DxuiTabStrip>();
+    m_decodeButton = CreateChild<DxuiButton> (L"Decode settings...");
     m_tracksTab   = CreateChild<InspectorTableView> (m_context);
     m_findingsTab = CreateChild<FindingsTab>     (m_context);
 
@@ -261,6 +264,7 @@ void DiskInspectorWindow::OnCreate()
     m_zoomOut->SetOnClick    ([this] () { m_platterView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_zoomIn->SetOnClick     ([this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
     m_fit->SetOnClick        ([this] () { m_model.Fit(); });
+    m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -340,7 +344,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_driveTabs->Layout  ({ x, boundsDip.top, x + drives * tab, top }, scaler);
 
     m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), static_cast<int> (boundsDip.right)), top };
-    m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, boundsDip.right - margin, top };
+    m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip) - margin, top };
+    m_decodeButton->Layout ({ boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip), boundsDip.top + margin / 2, boundsDip.right - margin, top - margin / 2 }, scaler);
 
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
     m_platterView->Layout (platter, scaler);
@@ -474,6 +479,15 @@ void DiskInspectorWindow::PaintToolbar (IDxuiPainter & painter, IDxuiTextRendere
 
                 x += w + 2 * pad + gap;
             }
+        }
+
+        if (!m_analysis.settings.IsStandard() && !isFull)
+        {
+            text.MeasureString (L"Custom decode settings", textPx, DxuiTheme::kBodyFace, w, h);
+            painter.FillRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, theme.SelectionBackground());
+            text.DrawString (L"Custom decode settings", x, y, w + 2 * pad, chipH, theme.Foreground(), textPx, DxuiTheme::kBodyFace,
+                             DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            x += w + 2 * pad + gap;
         }
 
         if (m_scheduler.HasPending())
@@ -839,6 +853,7 @@ void DiskInspectorWindow::UpdateControls()
         m_zoomLabel->SetText    (std::format (L"{:.0f}{}", m_model.GetZoom(), s_kpszMultiplyX));
         m_fit->SetEnabled       (!m_model.IsAtFit());
         m_zoomOut->SetVisible   (m_context.hasDisk);
+        m_decodeButton->SetVisible (m_context.hasDisk);
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
@@ -1132,5 +1147,75 @@ void DiskInspectorWindow::SelectFromRow (const TableRow & row)
         }
 
         OnSelection();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenDecodeSettings
+//
+//  The dialog opens on the settings in force for the selected track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenDecodeSettings()
+{
+    HRESULT                   hr     = S_OK;
+    DecodeSettingsDialog      dialog;
+    DxuiWindow::CreateParams  params;
+
+
+
+    dialog.Configure (m_theme, m_analysis.settings, m_model.GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack);
+
+    params.title                    = L"Decode settings";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = GetHwnd();
+    params.initialSizeDip           = DecodeSettingsDialog::kSizeDip;
+    params.minSizeDip               = DecodeSettingsDialog::kSizeDip;
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (m_theme);
+    dialog.ShowModalDialog (IDOK);
+
+    if (dialog.GetOutcome() != DecodeSettingsDialog::Outcome::Cancelled)
+    {
+        ApplySettings (dialog.GetSettings());
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ApplySettings
+//
+//  Every record is analyzed again under the new settings; each record's old
+//  result shows until its new one arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ApplySettings (const DecodeSettings & settings)
+{
+    if (m_context.hasDisk && m_analysis.copy != nullptr)
+    {
+        m_analysis.settings = settings;
+        m_scheduler.Restart (m_analysis.copy, settings);
+        m_isTablesDirty = true;
     }
 }

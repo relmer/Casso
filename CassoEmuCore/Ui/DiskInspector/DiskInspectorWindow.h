@@ -75,6 +75,8 @@ private:
     void  RefreshTables    ();
     void  SyncTables       ();
     void  SelectFromRow    (const TableRow & row);
+    void  OpenDecodeSettings ();
+    void  ApplySettings    (const DecodeSettings & settings);
     void  UpdateTooltip    (POINT pointPx);
     void  PaintToolbar     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  StepSector       (int delta, bool isToEnd);
@@ -117,6 +119,7 @@ private:
     SectorByteView *                         m_byteView       = nullptr;
     NibblesTab *                             m_nibblesTab     = nullptr;
     DxuiTabStrip *                           m_diskTabs       = nullptr;
+    DxuiButton *                             m_decodeButton   = nullptr;
     InspectorTableView *                     m_tracksTab      = nullptr;
     FindingsTab *                            m_findingsTab    = nullptr;
     InspectorTableView *                     m_fieldsTab      = nullptr;

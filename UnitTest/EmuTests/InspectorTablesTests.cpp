@@ -161,7 +161,7 @@ public:
         AnalyzePlanted (analysis, settings);
         rows = InspectorTables::BuildFields (analysis, 20);
 
-        Assert::AreEqual (std::wstring (L"Not checked"), rows[3].cells[9]);
+        Assert::IsTrue   (rows[3].cells[9].starts_with (L"Not checked ($") && rows[3].cells[9].find (L", computed $") != std::wstring::npos, L"both values still show");
         Assert::IsTrue   (rows[3].cells[6].ends_with (L" good"), L"the address checksum is still checked");
     }
 };

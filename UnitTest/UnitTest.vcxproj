@@ -368,6 +368,7 @@
     <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />
     <ClCompile Include="EmuTests\AnalysisSchedulerTests.cpp" />
+    <ClCompile Include="EmuTests\DecodeSettingsFormTests.cpp" />
     <ClCompile Include="EmuTests\DecodeSettingsTests.cpp" />
     <ClCompile Include="EmuTests\DiskAnalyzerTests.cpp" />
     <ClCompile Include="EmuTests\DurableCommitTests.cpp" />

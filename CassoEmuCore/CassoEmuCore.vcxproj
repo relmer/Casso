@@ -483,6 +483,8 @@
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\AnalysisScheduler.cpp" />
+    <ClCompile Include="Ui\DiskInspector\DecodeSettingsDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\DecodeSettingsForm.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorPalette.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindingsTab.cpp" />
@@ -927,6 +929,8 @@
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
     <ClInclude Include="Ui\DiskInspector\AnalysisScheduler.h" />
+    <ClInclude Include="Ui\DiskInspector\DecodeSettingsDialog.h" />
+    <ClInclude Include="Ui\DiskInspector\DecodeSettingsForm.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorPalette.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />
     <ClInclude Include="Ui\DiskInspector\IDiskInspectorHost.h" />

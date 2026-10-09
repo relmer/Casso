@@ -63,6 +63,7 @@ private:
     static std::wstring  FormatContent          (const QuarterTrackEntry & entry);
     static std::wstring  FormatSharesWith       (const QuarterTrackEntry & entry);
     static std::wstring  FormatChecksum         (Byte stored, Byte computed, bool isGood);
+    static std::wstring  FormatUnchecked        (Byte stored, Byte computed);
     static std::wstring  FormatMarks            (std::span<const Byte> found);
     static bool          IsLess                 (const std::wstring & a, const std::wstring & b);
     static bool          IsNumberChar           (wchar_t ch);

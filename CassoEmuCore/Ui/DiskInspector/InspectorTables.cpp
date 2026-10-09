@@ -242,11 +242,11 @@ vector<TableRow> InspectorTables::BuildFields (const DiskAnalysis & analysis, in
             addr != nullptr ? std::to_wstring (addr->track)  : std::wstring (s_kpszNone),
             addr != nullptr ? FormatMarks (addr->prologueFound) + L" / " + FormatMarks (std::span<const Byte> (addr->epilogueFound.data(), addr->hasEpilogueTail ? 3 : 2))
                             : std::wstring (s_kpszNone),
-            addr == nullptr ? std::wstring (s_kpszNone) : (checks.isAddressChecksumOn ? FormatChecksum (addr->checksumStored, addr->checksumComputed, addr->isAddressChecksumGood) : std::wstring (L"Not checked")),
+            addr == nullptr ? std::wstring (s_kpszNone) : (checks.isAddressChecksumOn ? FormatChecksum (addr->checksumStored, addr->checksumComputed, addr->isAddressChecksumGood) : FormatUnchecked (addr->checksumStored, addr->checksumComputed)),
             (data != nullptr && addr != nullptr) ? std::to_wstring (data->firstNibble - (addr->firstNibble + addr->nibbleCount)) : std::wstring (s_kpszNone),
             data != nullptr ? FormatMarks (data->prologueFound) + L" / " + FormatMarks (std::span<const Byte> (data->epilogueFound.data(), data->hasEpilogueTail ? 3 : 2))
                             : L"No data field",
-            data == nullptr ? std::wstring (s_kpszNone) : (checks.isDataChecksumOn ? FormatChecksum (data->data.storedChecksum, data->data.computedChecksum, data->data.isChecksumGood) : std::wstring (L"Not checked")),
+            data == nullptr ? std::wstring (s_kpszNone) : (checks.isDataChecksumOn ? FormatChecksum (data->data.storedChecksum, data->data.computedChecksum, data->data.isChecksumGood) : FormatUnchecked (data->data.storedChecksum, data->data.computedChecksum)),
             field.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3",
             (f < track->fieldGaps.size() && track->fieldGaps[f].syncBefore.count > 0)
                 ? std::format (L"{} {} {}", track->fieldGaps[f].syncBefore.count, L"\x00D7", track->fieldGaps[f].syncBefore.widthCells)
@@ -505,4 +505,22 @@ bool InspectorTables::TryParseNumber (const std::wstring & s, double & outValue)
 bool InspectorTables::IsNumberChar (wchar_t ch)
 {
     return (ch >= L'0' && ch <= L'9') || (ch >= L'A' && ch <= L'F') || (ch >= L'a' && ch <= L'f');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::FormatUnchecked
+//
+//  A checksum the decode settings do not check still shows both values
+//  (FR-020).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorTables::FormatUnchecked (Byte stored, Byte computed)
+{
+    return L"Not checked (" + InspectorFormat::FormatHexByte (stored) + L", computed " + InspectorFormat::FormatHexByte (computed) + L")";
 }
