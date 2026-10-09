@@ -8,6 +8,22 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+
+- An info icon after a mounted WOZ image's name when the models or the minimum
+  RAM the image declares do not match the running machine. Hovering it shows
+  what the image declares and what does not match. In the flat themes, on the
+  desk and on the fullscreen drive strip.
+- Settings > Storage: Use WOZ bit timing, off by default, plays a WOZ image at
+  the bit timing it was recorded at. This helps some titles load but keeps
+  others from loading.
+
+### Fixed
+
+- The disk head now lands at the same point of the revolution when it steps
+  between tracks of different lengths, which cross-track-synchronized copy
+  protection depends on.
+
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 
 ### Added
