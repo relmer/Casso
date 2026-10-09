@@ -127,6 +127,7 @@ public:
 
 private:
     void ThreadProc ();
+    void WaitWhilePaused();
     void DrainCommandQueue ();
     bool TryPark ();
     void ParkForExit ();

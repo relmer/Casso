@@ -561,11 +561,62 @@ bool CpuManager::HasPendingCommands()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WaitWhilePaused
+//
+//  CPU thread, top of each pass: blocks while the machine is paused and no
+//  command is waiting. A paused thread parks first, under the mutex the wait
+//  takes, so a pause that landed outside a frame, in the pacing wait that
+//  fills most of each frame period at 1x and Double, is acknowledged before
+//  the thread blocks. The TryPark after the service pass is too late for it:
+//  the wait would first run its whole service interval, since no command
+//  arrives to end it, and with no service function nothing would end it
+//  before the resume.
+//
+//  A service to run means a paused machine cannot block until woken: a debug
+//  client querying it has no way to post a command, so the wait ends every
+//  kServiceIntervalMs and the service runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::WaitWhilePaused()
+{
+    std::unique_lock<std::mutex>  lock (m_pauseMutex);
+    auto                          isWoken = [&]
+    {
+        return !m_paused.load  (std::memory_order_acquire) ||
+               !m_running.load (std::memory_order_acquire) ||
+               HasPendingCommands();
+    };
+
+
+
+    if (m_paused.load (std::memory_order_acquire))
+    {
+        m_isParked.store (true, std::memory_order_release);
+        m_parkedCV.notify_all();
+    }
+
+    if (m_onService)
+    {
+        m_pauseCV.wait_for (lock, std::chrono::milliseconds (kServiceIntervalMs), isWoken);
+    }
+    else
+    {
+        m_pauseCV.wait (lock, isWoken);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThreadProc
 //
 //  CPU-thread entry point. Owns COM init/uninit on this thread, the
 //  high-resolution waitable timer for 60 Hz frame pacing, the pause
-//  CV wait, the park that acknowledges a pause (TryPark), and the
+//  wait (WaitWhilePaused), the park that acknowledges a pause, and the
 //  per-frame callback fan-out.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -651,27 +702,7 @@ void CpuManager::ThreadProc()
 
     while (m_running.load (std::memory_order_acquire))
     {
-        {
-            std::unique_lock<std::mutex>  lock (m_pauseMutex);
-            auto                          isWoken = [&]
-            {
-                return !m_paused.load  (std::memory_order_acquire) ||
-                       !m_running.load (std::memory_order_acquire) ||
-                       HasPendingCommands();
-            };
-
-            //  A service to run means a paused machine cannot sleep until woken:
-            //  a debug client asking about it has no way to post a command, so
-            //  the loop comes round on a timer to let the service look.
-            if (m_onService)
-            {
-                m_pauseCV.wait_for (lock, std::chrono::milliseconds (kServiceIntervalMs), isWoken);
-            }
-            else
-            {
-                m_pauseCV.wait (lock, isWoken);
-            }
-        }
+        WaitWhilePaused();
 
         // Runs before the pause check below, so a paused machine still
         // services mount / eject / settings commands: the shell gives the

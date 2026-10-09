@@ -225,6 +225,151 @@ namespace CpuManagerPauseTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  PacingRig
+    //
+    //  A CpuManager paced at 1x whose frame does nothing but count, so the CPU
+    //  thread spends nearly all of each frame period in its pacing wait.
+    //  TryWaitUntilBetweenFrames returns kIntoTheWait after a frame ends, with
+    //  the thread well into that wait and well short of the next frame, so a
+    //  pause asked for then lands between frames rather than in one.
+    //
+    //  A service function, once the test sets one, is held whenever it runs on
+    //  a paused machine until the test lets it go, as a slow service pass holds
+    //  the thread. The hold is bounded, so a failing test cannot hang the CPU
+    //  thread.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PacingRig
+    {
+    public:
+        //  Long enough after a frame ends for the thread to have left it, and
+        //  far short of the ~16.7 ms period the pacing wait fills at 1x.
+        static constexpr std::chrono::milliseconds  kIntoTheWait { 3 };
+
+        CpuManager  cpu;
+
+
+
+        PacingRig()
+        {
+            cpu.SetSpeedMode (SpeedMode::Authentic, SpeedChooser::User);
+        }
+
+
+
+        ~PacingRig()
+        {
+            ReleaseService();
+            cpu.Stop();
+        }
+
+
+
+        void HoldServiceWhilePaused()
+        {
+            cpu.SetServiceFunction ([this] { HoldIfPaused(); });
+        }
+
+
+
+        void Start()
+        {
+            HRESULT  hr = cpu.Start (nullptr, nullptr, [this] { CountFrame(); }, nullptr);
+
+
+
+            AssertSucceeded (hr, L"the CPU thread started");
+        }
+
+
+
+        //  Test thread: waits for the next frame to end, then until
+        //  kIntoTheWait after it. Spins rather than sleeps for the second
+        //  part, since a sleep can overshoot its duration by a timer tick.
+        bool TryWaitUntilBetweenFrames()
+        {
+            std::unique_lock<std::mutex>           lock (m_mutex);
+            int                                    count   = m_frames;
+            bool                                   isEnded = m_cv.wait_for (lock, s_kWait, [&] { return m_frames > count; });
+            std::chrono::steady_clock::time_point  until   = m_frameEnd + kIntoTheWait;
+
+
+
+            lock.unlock();
+
+            while (std::chrono::steady_clock::now() < until)
+            {
+                std::this_thread::yield();
+            }
+
+            return isEnded;
+        }
+
+
+
+        int GetFrameCount()
+        {
+            std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+            return m_frames;
+        }
+
+
+
+        //  Test thread: lets a held service pass, and every later one, return.
+        void ReleaseService()
+        {
+            std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+            m_isServiceReleased = true;
+            m_cv.notify_all();
+        }
+
+    private:
+        void CountFrame()
+        {
+            std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+            m_frames++;
+            m_frameEnd = std::chrono::steady_clock::now();
+            m_cv.notify_all();
+        }
+
+
+
+        void HoldIfPaused()
+        {
+            std::unique_lock<std::mutex>  lock (m_mutex);
+
+
+
+            if (cpu.IsPaused())
+            {
+                m_cv.wait_for (lock, s_kWait, [this] { return m_isServiceReleased; });
+            }
+        }
+
+
+        std::mutex                             m_mutex;
+        std::condition_variable                m_cv;
+        int                                    m_frames            = 0;
+        std::chrono::steady_clock::time_point  m_frameEnd          = {};
+        bool                                   m_isServiceReleased = false;
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  CpuManagerPauseTests
     //
     //  A pause asked for while the CPU thread is in the middle of a frame stops
@@ -233,6 +378,8 @@ namespace CpuManagerPauseTests
     //  the thread is, where IsPaused reports what was asked for, and the UI
     //  waits for it with a bounded wait. Paced at 1x the thread spends most of
     //  each frame period waiting; at Maximum it never does, so both are run.
+    //  A pause that lands in that wait, between frames, parks the thread on its
+    //  way into the pause wait, with or without a service function to wake it.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -282,6 +429,67 @@ namespace CpuManagerPauseTests
 
             isParked = rig.cpu.TryWaitUntilParked (s_kWait);
             Assert::IsTrue (isParked, L"let go, the thread parks");
+        }
+
+
+
+        //  A pause that lands between frames, in the pacing wait, where the
+        //  thread spends most of each frame period at 1x and Double. With no
+        //  service function nothing but a resume ends the pause wait that
+        //  follows, so the thread has to park on its way into that wait.
+        TEST_METHOD (APauseBetweenFramesParksTheThreadWithNoServiceFunction)
+        {
+            PacingRig  rig;
+            bool       isBetween = false;
+            bool       isParked  = false;
+            int        frames    = 0;
+
+
+
+            rig.Start();
+
+            isBetween = rig.TryWaitUntilBetweenFrames();
+            Assert::IsTrue (isBetween, L"the CPU thread ran a frame and is in the pacing wait after it");
+
+            rig.cpu.TogglePaused();
+
+            isParked = rig.cpu.TryWaitUntilParked (s_kWait);
+            Assert::IsTrue (isParked,            L"a pause that lands in the pacing wait parks the CPU thread with no command or service pass to wake it");
+            Assert::IsTrue (rig.cpu.IsParked(),  L"and IsParked returns true");
+
+            frames = rig.GetFrameCount();
+            std::this_thread::sleep_for (s_kSettle);
+
+            Assert::AreEqual (frames, rig.GetFrameCount(), L"a parked CPU thread runs no frame");
+        }
+
+
+
+        //  The same pause with a service function set, as the shell sets one.
+        //  The thread parks before the first service pass after the pause, so
+        //  a slow pass, held here until the test lets it go, does not hold
+        //  back the park the menu's pause waits for.
+        TEST_METHOD (APauseBetweenFramesParksTheThreadBeforeTheServicePass)
+        {
+            constexpr std::chrono::milliseconds  kParkWait { 1000 };
+            PacingRig                            rig;
+            bool                                 isBetween = false;
+            bool                                 isParked  = false;
+
+
+
+            rig.HoldServiceWhilePaused();
+            rig.Start();
+
+            isBetween = rig.TryWaitUntilBetweenFrames();
+            Assert::IsTrue (isBetween, L"the CPU thread ran a frame and is in the pacing wait after it");
+
+            rig.cpu.TogglePaused();
+
+            isParked = rig.cpu.TryWaitUntilParked (kParkWait);
+            Assert::IsTrue (isParked, L"the CPU thread parks while the service pass after the pause is still held");
+
+            rig.ReleaseService();
         }
 
 
