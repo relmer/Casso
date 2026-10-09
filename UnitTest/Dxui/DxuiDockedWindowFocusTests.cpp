@@ -16,8 +16,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DxuiDockedWindowFocusTests
 //
 //  A floating pane's window outlines its pane in the focus accent while its
-//  owner gives it the focused look, and in the border color otherwise, and
-//  reports its own keyboard focus coming and going to the owner.
+//  owner gives it the focused look, and in the border color otherwise, 1 DIP
+//  wide at the window's edge, and reports its own keyboard focus coming and
+//  going to the owner.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,6 +150,53 @@ namespace DxuiDockedWindowFocusTests
         TEST_METHOD (ArgbToColorrefSwapsRedAndBlue)
         {
             Assert::AreEqual (0x00332211u, DxuiDwm::ArgbToColorref (0xFF112233u), L"0x00BBGGRR, the alpha dropped");
+        }
+
+
+        //  A floating window's pane fills it, so its outline is the window's
+        //  border: 1 DIP at the window's edge, 2 px at 150% as Visual Studio
+        //  draws it, in the accent while focused and the border color not.
+        TEST_METHOD (TheOutlineIsAOneDipBorderAtTheWindowsEdge)
+        {
+            constexpr UINT  kDpis[]  = { 96, 144 };
+            constexpr long  kLines[] = { 1, 2 };
+
+
+
+            for (size_t i = 0; i < std::size (kDpis); i++)
+            {
+                Rig           rig;
+                long          left = 0;
+                long          top  = 0;
+                std::wstring  at   = std::format (L"{} dpi", kDpis[i]);
+
+                rig.scaler.SetDpi (kDpis[i]);
+                rig.window.GetSite().SetFloating ([] (const std::wstring &) {});
+                rig.window.GetSite().Layout      (RECT { 0, 0, 400, 300 }, rig.scaler);
+
+                for (bool focused : { true, false })
+                {
+                    uint32_t  argb = focused ? rig.theme.FocusAccent() : rig.theme.Border();
+
+                    rig.window.SetFocusedLook (focused, rig.theme);
+                    rig.painter.Reset();
+                    rig.window.GetSite().Paint              (rig.painter, rig.text, rig.theme);
+                    rig.window.GetSite().PaintAfterSiblings (rig.painter, rig.text, rig.theme);
+                    left = 0;
+                    top  = 0;
+
+                    for (const RecordedPaintCall & call : rig.painter.Calls())
+                    {
+                        bool  isRun = call.kind == RecordedPaintKind::FillRect && call.argb == argb;
+
+                        left = (isRun && call.x == 0.0f && call.height > call.width) ? std::lround (call.width)  : left;
+                        top  = (isRun && call.y == 0.0f && call.width > call.height) ? std::lround (call.height) : top;
+                    }
+
+                    Assert::AreEqual (kLines[i], left, (L"the left side, " + at).c_str());
+                    Assert::AreEqual (kLines[i], top,  (L"the top, " + at).c_str());
+                }
+            }
         }
     };
 }

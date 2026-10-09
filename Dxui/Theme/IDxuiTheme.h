@@ -240,36 +240,43 @@ public:
 
     virtual uint32_t  DockGuideFill       () const
     {
-        constexpr float     kLightLuminance = 0.5f;
-        constexpr float     kFillScale      = 0.80f;
-        constexpr uint32_t  kLightAlpha     = 0xAA000000u;
-        constexpr uint32_t  kDarkAlpha      = 0x99000000u;
+        constexpr float     kFillScale = 0.80f;
+        constexpr uint32_t  kAlpha     = 0x99000000u;
 
-        uint32_t  content = ContentBackground();
-        bool      isLight = DxuiColor::ComputeRelativeLuminance (content) > kLightLuminance;
-
-        return (DxuiColor::Darken (content, kFillScale) & 0x00FFFFFFu) | (isLight ? kLightAlpha : kDarkAlpha);
+        return (DxuiColor::Darken (ContentBackground(), kFillScale) & 0x00FFFFFFu) | kAlpha;
     }
 
-    //  A drop target's button: its border and its fill.
+    //  A drop target's button as the one under the pointer shows it, opaque:
+    //  its border and its fill. Every other button is drawn at 70% over the
+    //  cross. Through Mix's and Darken's truncation these give Visual
+    //  Studio's #3D3D3D and #1F1F1F from its #282828 and #454545.
     virtual uint32_t  DockGuideButtonBorder () const
     {
-        constexpr float  kBorderMix = 0.50f;
+        constexpr float  kBorderMix = 0.74f;
 
         return DxuiColor::Mix (ContentBackground(), Border(), kBorderMix);
     }
 
     virtual uint32_t  DockGuideButtonFill () const
     {
-        constexpr float  kFillScale = 0.83f;
+        constexpr float  kFillScale = 0.78f;
 
         return DxuiColor::Darken (ContentBackground(), kFillScale);
     }
 
     //  The picture on a drop target's button, of where the pane would go,
-    //  and the arrow toward it.
-    virtual uint32_t  DockGuideGlyph      () const { return ForegroundMuted(); }
+    //  and the arrow toward it, on the button under the pointer.
+    virtual uint32_t  DockGuideGlyph      () const { return Foreground(); }
     virtual uint32_t  DockGuideArrow      () const { return DockGuideGlyph(); }
+
+    //  The shade over where a dragged pane would go while a drop target is
+    //  under the pointer: the accent, faint, as Visual Studio shades it.
+    virtual uint32_t  DockPreview         () const
+    {
+        constexpr uint32_t  kAlpha = 0x1E000000u;
+
+        return (Accent() & 0x00FFFFFFu) | kAlpha;
+    }
 
     //  The color of the shadow under a surface lifted off its place, such as
     //  a toolbar carried by its handle; the shadow brings its own alpha.

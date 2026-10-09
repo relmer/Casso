@@ -70,47 +70,49 @@ namespace DxuiDragMarkVisibilityTests
 
 
 
-    static uint32_t GetPixel (const DxuiDockDragMark & mark, const RECT & rect, int x, int y)
-    {
-        return mark.image->bgraPremul[(size_t) (y - rect.top) * (size_t) mark.image->width + (size_t) (x - rect.left)];
-    }
-
-
-
-    //  The dock button of the window edge a guide sits against, in the rig's
-    //  site of 1000 by 600.
-    static DxuiDockGuideButton GetEdgeButton (const RECT & rect)
+    //  The window edge a guide sits against, in the rig's site of 1000 by
+    //  600.
+    static DxuiDockSide GetEdge (const RECT & rect)
     {
         POINT  center = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
 
 
 
-        return (center.x < 100) ? DxuiDockGuideButton::DockLeft
-             : (center.x > 900) ? DxuiDockGuideButton::DockRight
-             : (center.y < 100) ? DxuiDockGuideButton::DockTop
-                                : DxuiDockGuideButton::DockBottom;
+        return (center.x < 100) ? DxuiDockSide::Left
+             : (center.x > 900) ? DxuiDockSide::Right
+             : (center.y < 100) ? DxuiDockSide::Top
+                                : DxuiDockSide::Bottom;
     }
 
 
 
-    //  Each guide's button: inside its border and outside its picture, the
-    //  button's fill; on its picture's left edge, the picture's color. The
-    //  border at the middle of the guide's top edge is the guide's border.
+    //  Each guide is the picture DxuiDockGuide draws from the theme's
+    //  DockGuide colors, with no button lit, so every button shows at 70%
+    //  and each edge guide fades whole; the cross's own border, which never
+    //  fades, is the theme's. No part of any guide is in the accent.
     static void CheckEveryGuideUsesTheDockGuideColors (const IDxuiTheme & theme)
     {
         Rig                            rig;
         std::vector<DxuiDockDragMark>  marks  = rig.site.GetDragMarks (theme);
         size_t                         guides = 0;
         uint32_t                       accent = theme.Accent() | 0xFF000000u;
+        DxuiDockGuideColors            colors;
 
 
+
+        colors.border       = theme.DockGuideBorder();
+        colors.fill         = theme.DockGuideFill();
+        colors.buttonBorder = theme.DockGuideButtonBorder();
+        colors.buttonFill   = theme.DockGuideButtonFill();
+        colors.glyph        = theme.DockGuideGlyph();
+        colors.arrow        = theme.DockGuideArrow();
 
         for (const DxuiDockDragMark & mark : marks)
         {
-            SIZE                              size    = {};
-            DxuiDockGuideKind                 kind    = DxuiDockGuideKind::Edge;
-            std::vector<DxuiDockGuideButton>  buttons;
-            POINT                             origin  = { mark.rect.left, mark.rect.top };
+            long               width = mark.rect.right - mark.rect.left;
+            DxuiDockGuideKind  kind  = DxuiDockGuideKind::Edge;
+            DxuiDockSide       edge  = DxuiDockSide::Left;
+            DxuiIconImage      drawn;
 
             if (mark.image == nullptr)
             {
@@ -118,23 +120,17 @@ namespace DxuiDragMarkVisibilityTests
             }
 
             guides++;
-            size    = { mark.rect.right - mark.rect.left, mark.rect.bottom - mark.rect.top };
-            kind    = (size.cx == DxuiDockGuide::GetSizePx (DxuiDockGuideKind::LargeCross, rig.scaler).cx) ? DxuiDockGuideKind::LargeCross
-                    : (size.cx == DxuiDockGuide::GetSizePx (DxuiDockGuideKind::SmallCross, rig.scaler).cx) ? DxuiDockGuideKind::SmallCross
-                                                                                                              : DxuiDockGuideKind::Edge;
-            buttons = (kind == DxuiDockGuideKind::Edge) ? std::vector<DxuiDockGuideButton> { GetEdgeButton (mark.rect) }
-                                                        : DxuiDockGuide::GetButtons (kind, DxuiDockSide::Left);
+            kind  = (width == DxuiDockGuide::GetSizePx (DxuiDockGuideKind::LargeCross, rig.scaler).cx) ? DxuiDockGuideKind::LargeCross
+                  : (width == DxuiDockGuide::GetSizePx (DxuiDockGuideKind::SmallCross, rig.scaler).cx) ? DxuiDockGuideKind::SmallCross
+                                                                                                        : DxuiDockGuideKind::Edge;
+            edge  = (kind == DxuiDockGuideKind::Edge) ? GetEdge (mark.rect) : DxuiDockSide::Left;
+            drawn = DxuiDockGuide::Render (kind, edge, -1, colors, rig.scaler);
 
-            Assert::AreEqual (theme.DockGuideBorder(), GetPixel (mark, mark.rect, (mark.rect.left + mark.rect.right) / 2, mark.rect.top), L"the guide's border");
+            Assert::IsTrue (drawn.bgraPremul == mark.image->bgraPremul, L"the guide is drawn from the theme's DockGuide colors");
 
-            for (DxuiDockGuideButton button : buttons)
+            if (kind != DxuiDockGuideKind::Edge)
             {
-                RECT  rect  = DxuiDockGuide::GetButtonRect (kind, button, origin, rig.scaler);
-                RECT  glyph = DxuiDockGuide::GetGlyphRect  (kind, button, rig.scaler);
-                int   midY  = (int) (origin.y + (glyph.top + glyph.bottom) / 2);
-
-                Assert::AreEqual (theme.DockGuideButtonFill(), GetPixel (mark, mark.rect, rect.left + 2, (rect.top + rect.bottom) / 2), L"a button's fill");
-                Assert::AreEqual (theme.DockGuideGlyph(),      GetPixel (mark, mark.rect, origin.x + glyph.left, midY),                L"its picture");
+                Assert::AreEqual (theme.DockGuideBorder(), mark.image->bgraPremul[(size_t) (width / 2)], L"the cross's border");
             }
 
             for (uint32_t pixel : mark.image->bgraPremul)

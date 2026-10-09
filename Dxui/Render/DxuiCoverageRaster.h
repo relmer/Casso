@@ -25,6 +25,8 @@ struct DxuiCoverageRect
     float  bottom       = 0.0f;
     float  topRadius    = 0.0f;
     float  bottomRadius = 0.0f;
+
+    bool operator== (const DxuiCoverageRect &) const = default;
 };
 
 
@@ -73,6 +75,13 @@ public:
     static std::vector<DxuiPointF>  InsetPolygon    (const std::vector<DxuiPointF> & points, float distance);
     static bool                     IsInsidePolygon (const std::vector<DxuiPointF> & points, float x, float y);
 
+    //  Whole pictures: one laid over another of the same size at an opacity,
+    //  a picture faded to an opacity, and a translucent color laid over what
+    //  a picture covers within a rectangle, as if the color lay above it.
+    static void  DrawImage   (DxuiIconImage & image, const DxuiIconImage & layer, float opacity);
+    static void  FadeImage   (DxuiIconImage & image, float opacity);
+    static void  TintCovered (DxuiIconImage & image, const DxuiCoverageRect & rect, uint32_t argb);
+
 private:
     //  Where a fill covers one row of samples, from left up to right.
     struct Span
@@ -91,4 +100,7 @@ private:
     static RECT  GetBounds       (const std::vector<DxuiPointF> & points);
     static RECT  GetBounds       (const DxuiCoverageRect & rect);
     static void  Blend           (uint32_t & pixel, uint32_t argb, int samplesInside);
+
+    static uint32_t  ScalePixel (uint32_t pixel, float factor);
+    static uint32_t  LayPixel   (uint32_t under, uint32_t over, float opacity);
 };

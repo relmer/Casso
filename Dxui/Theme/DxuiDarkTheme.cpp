@@ -29,8 +29,11 @@
 //
 //  The drop targets a dragged pane shows are measured from Visual Studio
 //  2026's dark drop targets at 125% on 2026-10-08: the cross's border
-//  #333333 over a translucent #202020, each button #212121 inside a #363636
-//  border, and its picture and arrow #A0A0A0.
+//  #333333 over a translucent #202020, and the button under the pointer
+//  #1F1F1F inside a #3D3D3D border, its picture and arrow #D6D6D6. Every
+//  other button shows those at 70%, the #212121, #363636 and #A0A0A0 the
+//  captures read. The shade over where the pane would go is #3298E6 at
+//  alpha 0x1E.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,10 +78,11 @@ DxuiDarkTheme::DxuiDarkTheme()
     resultText               = 0xFF4EC9E0;
     dockGuideBorder          = 0xFF333333;
     dockGuideFill            = 0x99202020;
-    dockGuideButtonBorder    = 0xFF363636;
-    dockGuideButtonFill      = 0xFF212121;
-    dockGuideGlyph           = 0xFFA0A0A0;
-    dockGuideArrow           = 0xFFA0A0A0;
+    dockGuideButtonBorder    = 0xFF3D3D3D;
+    dockGuideButtonFill      = 0xFF1F1F1F;
+    dockGuideGlyph           = 0xFFD6D6D6;
+    dockGuideArrow           = 0xFFD6D6D6;
+    dockPreview              = 0x1E3298E6;
 }
 
 

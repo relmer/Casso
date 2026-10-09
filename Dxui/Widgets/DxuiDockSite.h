@@ -62,9 +62,10 @@ struct DxuiDockDragMark
 //  where a floating window comes from is the application's concern.
 //
 //  AN AUTO-HIDDEN PANE IS A TAB ON AN EDGE. The site keeps a strip along each
-//  edge that holds one, and a hover or a press on its tab slides the pane out
-//  over the others, which keep their places; a press anywhere else in the
-//  site slides it back.
+//  edge that holds one, and a press on its tab slides the pane out over the
+//  others, which keep their places; a hover only lights the tab, as in
+//  Visual Studio. A press anywhere else in the site, or the focus moving to
+//  another pane, slides it back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,7 +119,8 @@ public:
 
     void  SetDocumentFn   (PaneTestFn fn)  { m_isDocument = std::move (fn); }
 
-    //  The pane the user is working in: its group shows the accent border.
+    //  The pane the user is working in: its group shows the accent border. A
+    //  slid-out pane slides back once another pane takes the focus.
     void  SetFocusedPane  (const std::wstring & pane);
 
     //  The room between docked panes and around them, as Visual Studio leaves
@@ -127,9 +129,9 @@ public:
     void         SetPaneGap     (int gapDip, int marginDip);
     static RECT  GetInsetForGap (const RECT & rect, const RECT & paneArea, long gapPx);
 
-    //  Visual Studio's gap, 8 px at 125%, and a margin of 5 px there.
+    //  Visual Studio's gap, 8 px at 125%, and the same room around the panes.
     static constexpr int  kPaneGapDip    = 6;
-    static constexpr int  kPaneMarginDip = 4;
+    static constexpr int  kPaneMarginDip = 6;
 
     //  A tool window's menu button, and a close from a document tab or a
     //  tool window's title bar. A pane closes only while `canClose` says so;
@@ -257,8 +259,11 @@ public:
     int   GetStripTargetGroup () const { return m_stripGroup; }
     int   GetStripTargetIndex () const { return m_stripIndex; }
 
-    //  The gap a hovered strip opens for the dropped tab.
-    static constexpr int  kInsertGapDip = 96;
+    //  The gap a hovered strip opens for the dropped tab, and the tab a tab
+    //  drop's shade shows at the start of the target's tabs: Visual Studio's
+    //  125 px at 125%.
+    static constexpr int  kInsertGapDip  = 96;
+    static constexpr int  kPreviewTabDip = 100;
 
     void                Layout             (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -322,7 +327,9 @@ private:
     void          UpdateStripTarget (POINT pointDip);
     void          ClearStripTarget  ();
     bool          DropOnStrip   (int group, int index);
-    bool          DropOnZone    (const DxuiDockDropZone & zone);
+    bool          DropOnZone    (const DxuiDockDropZone & zone, DxuiPaneLayout & layout) const;
+    void          SetDropPreview    (DxuiDockDropZone & zone) const;
+    void          SetTabDropPreview (DxuiDockDropZone & zone) const;
     void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
     bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
@@ -330,8 +337,10 @@ private:
     int           HitTestShown  (POINT pointDip) const;
     bool          TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & origin) const;
 
-    //  A guide's picture, kept so every frame draws the same buffer.
-    std::shared_ptr<const DxuiIconImage>  GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered, const IDxuiTheme & theme) const;
+    //  A guide's picture, kept so every frame draws the same buffer, with the
+    //  drop's shade laid over it within `shades`, given from its top left.
+    std::shared_ptr<const DxuiIconImage>  GetGuideImage (DxuiDockGuideKind kind, DxuiDockSide edge, int hovered,
+                                                         const std::vector<DxuiCoverageRect> & shades, const IDxuiTheme & theme) const;
 
     //  Each pane's minimum size, grown by the gap while one is set.
     DxuiPaneLayout::MinSizeFn  GetMinSizeWithGap() const;
@@ -380,11 +389,13 @@ private:
     //  Guide pictures already drawn, for each look of each guide.
     struct GuideKey
     {
-        DxuiDockGuideKind    kind    = DxuiDockGuideKind::SmallCross;
-        DxuiDockSide         edge    = DxuiDockSide::Left;
-        int                  hovered = -1;
-        UINT                 dpi     = 0;
-        DxuiDockGuideColors  colors;
+        DxuiDockGuideKind              kind      = DxuiDockGuideKind::SmallCross;
+        DxuiDockSide                   edge      = DxuiDockSide::Left;
+        int                            hovered   = -1;
+        UINT                           dpi       = 0;
+        DxuiDockGuideColors            colors;
+        std::vector<DxuiCoverageRect>  shades;
+        uint32_t                       shadeArgb = 0;
 
         bool operator== (const GuideKey &) const = default;
     };
