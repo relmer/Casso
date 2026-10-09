@@ -27,6 +27,9 @@ public:
     //  makes it unformatted rather than nonstandard.
     static constexpr double  kUnformattedShare = 0.5;
 
+    //  The nominal cell, about 3.91 microseconds, in 125 ns flux ticks.
+    static constexpr double  kNominalCellTicks = static_cast<double> (FluxTrack::kCellNumerator) / static_cast<double> (FluxTrack::kCellDenominator);
+
     static void    Analyze  (const TrackCopy & copy, const TrackContext & context, const DecodeSettings & settings, TrackAnalysis & out);
     static double  GetAngle (const TrackAnalysis & analysis, uint32_t cell);
 

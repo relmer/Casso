@@ -484,6 +484,7 @@
     <ClCompile Include="Ui\DiskInspector\AnalysisScheduler.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorPalette.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
+    <ClCompile Include="Ui\DiskInspector\InspectorText.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterGeometry.cpp" />
@@ -917,6 +918,7 @@
     <ClInclude Include="Ui\DiskInspector\DiskInspectorPalette.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />
     <ClInclude Include="Ui\DiskInspector\IDiskInspectorHost.h" />
+    <ClInclude Include="Ui\DiskInspector\InspectorText.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterCells.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterGeometry.h" />

@@ -443,7 +443,6 @@ void TrackAnalyzer::CountSectors (TrackAnalysis & inOut)
 
 void TrackAnalyzer::Measure (TrackAnalysis & inOut)
 {
-    static constexpr double  kNominalCell      = static_cast<double> (FluxTrack::kCellNumerator) / static_cast<double> (FluxTrack::kCellDenominator);
     static constexpr double  kSecondsPerTick   = 125e-9;
     static constexpr double  kSecondsPerMinute = 60.0;
 
@@ -518,7 +517,7 @@ void TrackAnalyzer::Measure (TrackAnalysis & inOut)
         m.turnTicks     = track.turnTicks;
         m.rpm           = kSecondsPerMinute / (track.turnTicks * kSecondsPerTick);
         m.meanCellTicks = track.turnTicks / static_cast<double> (track.cellCount);
-        m.deviation     = m.meanCellTicks / kNominalCell - 1.0;
+        m.deviation     = m.meanCellTicks / kNominalCellTicks - 1.0;
     }
 }
 
