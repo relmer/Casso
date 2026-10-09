@@ -167,6 +167,7 @@ namespace DebuggerBreakpointColumnsTests
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::HitCount));
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind));
+            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Trigger));
             Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Symbol));
             Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
         }
@@ -234,6 +235,7 @@ namespace DebuggerBreakpointColumnsTests
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Symbol),    L"Labels shows as Symbol");
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
             Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind),      L"Kind is new");
+            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Trigger),   L"so is Trigger");
             Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
             Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::WhenHit),   L"Filter's choice goes nowhere");
         }

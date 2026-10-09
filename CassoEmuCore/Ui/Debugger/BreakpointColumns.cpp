@@ -14,7 +14,7 @@
 
 std::wstring BreakpointColumns::GetHeading (Column column)
 {
-    static constexpr LPCWSTR  kHeadings[] = { L"Name", L"Condition", L"Hit count", L"Kind", L"Symbol", L"When hit", L"Function", L"File", L"Address", L"Data" };
+    static constexpr LPCWSTR  kHeadings[] = { L"Name", L"Condition", L"Hit count", L"Kind", L"Trigger", L"Symbol", L"When hit", L"Function", L"File", L"Address", L"Data" };
 
 
 
@@ -56,7 +56,8 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
     cells[(size_t) Column::Name]      = GetName (bp, sourceLine);
     cells[(size_t) Column::Condition] = (info.kind == BreakpointKind::Register) ? std::string() : info.condition;
     cells[(size_t) Column::HitCount]  = info.stops ? std::to_string (info.hits) : std::format ("{} (count only)", info.hits);
-    cells[(size_t) Column::Kind]      = GetKindText (ClassifyRow (info, isOnSourceLine));
+    cells[(size_t) Column::Kind]      = GetKindText    (GetRowKind (info));
+    cells[(size_t) Column::Trigger]   = GetTriggerText (GetRowKind (info));
     cells[(size_t) Column::Symbol]    = HasAddress (info) ? bp.label : std::string();
     cells[(size_t) Column::WhenHit]   = GetWhenHit (info);
     cells[(size_t) Column::Function]  = (info.kind == BreakpointKind::Address) ? bp.label : std::string();
@@ -74,46 +75,14 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 //
 //  BreakpointColumns::GetRowKind
 //
-//  The row's kind, with whether it is on a line of the loaded source looked
-//  up in the snapshot.
+//  A data breakpoint's kind is its access. Every execution breakpoint is
+//  Execution: a symbol at the address does not make it a function
+//  breakpoint, since the symbol may label a loop or data as well as a
+//  routine, and the engine keeps the address, not how it was given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BreakpointColumns::RowKind BreakpointColumns::GetRowKind (
-    const DebuggerViewSnapshot                  & snapshot,
-    const DebuggerViewSnapshot::BreakpointLine  & bp)
-{
-    std::string  file;
-    int          line           = 0;
-    bool         isOnSourceLine = false;
-
-
-
-    isOnSourceLine = TryGetSourceLine (snapshot, bp.id, file, line);
-
-    return ClassifyRow (bp.info, isOnSourceLine);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointColumns::ClassifyRow
-//
-//  A data breakpoint's kind is its access. An execution breakpoint is on a
-//  source line when a line of the loaded source produced the code at its
-//  address, as its Name and File show, and an address breakpoint
-//  otherwise. A symbol at the address does not make it a function
-//  breakpoint: the symbol may label a loop or data as well as a routine,
-//  and the engine keeps the address, not how it was given.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-BreakpointColumns::RowKind BreakpointColumns::ClassifyRow (
-    const BreakpointInfo  & info,
-    bool                    isOnSourceLine)
+BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo & info)
 {
     static constexpr RowKind  kDataKinds[] = { RowKind::DataRead, RowKind::DataWrite, RowKind::DataReadOrWrite };
 
@@ -122,7 +91,7 @@ BreakpointColumns::RowKind BreakpointColumns::ClassifyRow (
     switch (info.kind)
     {
     case BreakpointKind::Opcode:      return RowKind::Opcode;
-    case BreakpointKind::Register:    return RowKind::RegisterCondition;
+    case BreakpointKind::Register:    return RowKind::Register;
     case BreakpointKind::Memory:      return kDataKinds[(size_t) info.access];
     case BreakpointKind::Io:          return RowKind::Io;
     case BreakpointKind::Brk:         return RowKind::Brk;
@@ -131,7 +100,7 @@ BreakpointColumns::RowKind BreakpointColumns::ClassifyRow (
     case BreakpointKind::Address:     break;
     }
 
-    return isOnSourceLine ? RowKind::SourceLine : RowKind::Address;
+    return RowKind::Execution;
 }
 
 
@@ -142,20 +111,47 @@ BreakpointColumns::RowKind BreakpointColumns::ClassifyRow (
 //
 //  BreakpointColumns::GetKindText
 //
-//  What the Kind column shows, in sentence case.
+//  What the Kind column shows, in sentence case: what the breakpoint
+//  watches.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string BreakpointColumns::GetKindText (RowKind kind)
 {
-    static constexpr const char *  kTexts[] = { "Address", "Source line", "Data read", "Data write", "Data read or write",
-                                                "Data value", "Register condition", "Opcode", "I/O", "BRK", "Interrupt" };
+    static constexpr const char *  kTexts[] = { "Execution", "Memory", "Memory", "Memory", "Memory",
+                                                "Register", "Opcode", "I/O", "BRK", "Interrupt" };
 
 
 
     static_assert (std::size (kTexts) == (size_t) RowKind::Count, "one text for each kind");
 
-    return (kind >= RowKind::Address && kind < RowKind::Count) ? kTexts[(size_t) kind] : "";
+    return (kind >= RowKind::Execution && kind < RowKind::Count) ? kTexts[(size_t) kind] : "";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointColumns::GetTriggerText
+//
+//  What the Trigger column shows, in sentence case: what about the watched
+//  thing stops the machine. An I/O breakpoint stops on any access, and the
+//  interrupt breakpoint on either an IRQ or an NMI.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointColumns::GetTriggerText (RowKind kind)
+{
+    static constexpr const char *  kTexts[] = { "Execute", "Read", "Write", "Read or write", "Value",
+                                                "Condition", "Execute", "Read or write", "Execute", "IRQ or NMI" };
+
+
+
+    static_assert (std::size (kTexts) == (size_t) RowKind::Count, "one text for each kind");
+
+    return (kind >= RowKind::Execution && kind < RowKind::Count) ? kTexts[(size_t) kind] : "";
 }
 
 
@@ -185,7 +181,7 @@ std::vector<size_t> BreakpointColumns::GetOrder (const DebuggerViewSnapshot & sn
 
         if (column == Column::Kind)
         {
-            kinds[i] = GetRowKind (snapshot, snapshot.breakpoints[i]);
+            kinds[i] = GetRowKind (snapshot.breakpoints[i].info);
             continue;
         }
 
@@ -240,6 +236,7 @@ BreakpointColumns::Shown BreakpointColumns::GetDefaultShown()
     shown[(size_t) Column::Condition] = true;
     shown[(size_t) Column::HitCount]  = true;
     shown[(size_t) Column::Kind]      = true;
+    shown[(size_t) Column::Trigger]   = true;
     return shown;
 }
 
@@ -283,8 +280,8 @@ std::string BreakpointColumns::FormatShown (const Shown & shown)
 //
 //  BreakpointColumns::ParseShown
 //
-//  A choice saved before Kind was added is read through the columns' order
-//  then; one saved since wins over it.
+//  A choice saved under an earlier token is read through the columns' order
+//  then. The newest token found wins, wherever it sits in the text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,7 +291,7 @@ BreakpointColumns::Shown BreakpointColumns::ParseShown (const std::string & text
     std::istringstream  in (text);
     std::string         token;
     unsigned            mask       = 0;
-    bool                hasCurrent = false;
+    int                 found      = 0;   // 0 none, 1 "bpcols", 2 "bpcols2", 3 "bpcols3"
 
 
 
@@ -302,12 +299,18 @@ BreakpointColumns::Shown BreakpointColumns::ParseShown (const std::string & text
     {
         if (TryReadMask (token, kpszToken, mask))
         {
-            shown      = MakeShown (mask);
-            hasCurrent = true;
+            shown = MakeShown (mask);
+            found = 3;
         }
-        else if (!hasCurrent && TryReadMask (token, kpszOldToken, mask))
+        else if (found < 3 && TryReadMask (token, kpszKindToken, mask))
+        {
+            shown = MigrateKindShown (mask);
+            found = 2;
+        }
+        else if (found < 2 && TryReadMask (token, kpszOldToken, mask))
         {
             shown = MigrateShown (mask);
+            found = 1;
         }
     }
 
@@ -393,8 +396,8 @@ BreakpointColumns::Shown BreakpointColumns::MakeShown (unsigned mask)
 //  A mask saved under the old token, whose bits followed the columns' order
 //  before Kind: Name, Condition, Labels, Hit count, Filter, When hit,
 //  Function, File, Address and Data. Labels' bit is Symbol's now, and
-//  Filter's is ignored. Kind, which that choice could not hide, shows, as it
-//  does by default.
+//  Filter's is ignored. Kind and Trigger, which that choice could not hide,
+//  show, as they do by default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -416,8 +419,43 @@ BreakpointColumns::Shown BreakpointColumns::MigrateShown (unsigned mask)
         shown[(size_t) kOldOrder[i]] = (mask & (1u << i)) != 0;
     }
 
-    shown[(size_t) Column::Kind] = true;
-    shown[(size_t) Column::Name] = true;
+    shown[(size_t) Column::Kind]    = true;
+    shown[(size_t) Column::Trigger] = true;
+    shown[(size_t) Column::Name]    = true;
+    return shown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointColumns::MigrateKindShown
+//
+//  A mask saved under "bpcols2", whose bits followed the columns' order
+//  before Trigger: Name, Condition, Hit count, Kind, Symbol, When hit,
+//  Function, File, Address and Data. Trigger, which that choice could not
+//  hide, shows with Kind when Kind shows, since it holds half of what Kind
+//  held then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointColumns::Shown BreakpointColumns::MigrateKindShown (unsigned mask)
+{
+    static constexpr Column  kKindOrder[] = { Column::Name, Column::Condition, Column::HitCount, Column::Kind, Column::Symbol,
+                                              Column::WhenHit, Column::Function, Column::File, Column::Address, Column::Data };
+    Shown                    shown        = {};
+
+
+
+    for (size_t i = 0; i < std::size (kKindOrder); i++)
+    {
+        shown[(size_t) kKindOrder[i]] = (mask & (1u << i)) != 0;
+    }
+
+    shown[(size_t) Column::Trigger] = shown[(size_t) Column::Kind];
+    shown[(size_t) Column::Name]    = true;
     return shown;
 }
 
