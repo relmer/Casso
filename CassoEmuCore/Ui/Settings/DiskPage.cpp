@@ -16,12 +16,22 @@
 
 static constexpr int    s_kRowHeightDp     = 28;
 static constexpr int    s_kLabelWidthDp    = 140;
+static constexpr int    s_kLabelGapDp      = 12;
 static constexpr int    s_kCheckWidthDp    = 140;
 static constexpr int    s_kDropdownWidthDp = 200;
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kPagePadDp       = 16;
 static constexpr int    s_kPlayGapDp       = 8;
 static constexpr int    s_kResetWidthDp    = 130;
+static constexpr int    s_kInfoTipGapDp    = 4;
+static constexpr int    s_kGlyphWidthDp    = 7;
+
+// How far below the label's line center the info tip's box sits, as a fraction
+// of the label's font size. Centering the two boxes leaves the ring riding
+// high, because the icon font's ink sits higher in its box than the body
+// face's capitals do in theirs; this puts the ring's center on the capitals'
+// center. Measured from rendered captures.
+static constexpr float  s_kInfoTipDropEm   = 0.05f;
 
 
 
@@ -55,7 +65,8 @@ RECT DiskPage::MakeRect (int l, int t, int w, int h)
 //  pointers). The widgets remain DiskPage-owned members; Adopt is non-owning.
 //  Layout positioning happens in Layout() below because the layout does
 //  things DxuiFormLayout cannot model (per-row indentation for the drive-
-//  audio sub-rows, two checkboxes on the write-protect row).
+//  audio sub-rows, two checkboxes on the write-protect row). The labels get
+//  their text here, because Layout measures them before it places anything.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +74,24 @@ DiskPage::DiskPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
 
+
+    m_diskHeading.SetText        (L"Disk drives");
+    m_wpLabel.SetText            (L"Write protect:");
+    m_writeModeLabel.SetText     (L"Write mode:");
+    m_wozBitTimingLabel.SetText  (L"Use WOZ bit timing:");
+    m_audioLabel.SetText         (L"Drive audio:");
+    m_mechLabel.SetText          (L"Mechanism:");
+    m_motorLabel.SetText         (L"Motor volume:");
+    m_headLabel.SetText          (L"Head volume:");
+    m_doorLabel.SetText          (L"Door volume:");
+    m_panOneLabel.SetText        (L"Drive 1 pan:");
+    m_panTwoLabel.SetText        (L"Drive 2 pan:");
+    m_tapeHeading.SetText        (L"Cassette tape");
+    m_tapeLabel.SetText          (L"Fast tape loading:");
+    m_tapeVolumeLabel.SetText    (L"Tape volume:");
+    m_tapeAutoStopLabel.SetText  (L"Stop at end of tape:");
+    m_tapeIdleStopLabel.SetText  (L"Stop when loading ends:");
+    m_tapeWavFormatLabel.SetText (L"New tape WAV format:");
 
     Adopt (m_wpLabel);
     Adopt (m_writeModeLabel);
@@ -156,7 +185,8 @@ void DiskPage::SetState (SettingsPanelState * state)
 //  them.
 //
 //  Every control starts at the same x, which is what makes the page read as an
-//  aligned form.
+//  aligned form. That x clears the widest label, so no label wraps, and a
+//  label's info tip follows its text rather than the column's edge.
 //
 //  Child rows indent by the same amount as DxuiTreeView, so a sub-option under
 //  the audio toggle reads as nested against the rest of the UI rather than by
@@ -173,7 +203,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     UINT dpi          = scaler.GetDpi();
     int  pad          = scaler.ToPx (s_kPagePadDp);
     int  rowHeight    = scaler.ToPx (s_kRowHeightDp);
-    int  labelWidth   = scaler.ToPx (s_kLabelWidthDp);
+    int  labelWidth   = GetLabelColumnPx (scaler);
     int  checkWidth   = scaler.ToPx (s_kCheckWidthDp);
     int  dropWidth    = scaler.ToPx (s_kDropdownWidthDp);
     int  sectionGap   = scaler.ToPx (s_kSectionGapDp);
@@ -189,11 +219,9 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
     m_diskHeading.SetRect (MakeRect (x, y, right - x, rowHeight));
-    m_diskHeading.SetText (L"Disk drives");
     y += rowHeight + sectionGap;
 
     m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_wpLabel.SetText (L"Write protect:");
     m_writeProtect[0].SetRect (MakeRect (controlsX,                y, checkWidth, rowHeight));
     m_writeProtect[0].SetLabel (L"Drive 1");
     m_writeProtect[1].SetRect (MakeRect (controlsX + checkWidth,   y, checkWidth, rowHeight));
@@ -201,17 +229,14 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     m_writeModeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_writeModeLabel.SetText (L"Write mode:");
     m_writeMode.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_writeMode.SetItems ({ L"Buffer and flush", L"Copy on write" });
     y += rowHeight + sectionGap;
 
     // Off plays every WOZ image at the standard bit timing, which is what the
-    // most titles need. The info tip comes out of the label's width, as the
-    // tape format's does, so the toggle stays in line with the controls.
-    m_wozBitTimingLabel.SetRect (MakeRect (x, y, labelWidth - rowHeight, rowHeight));
-    m_wozBitTimingLabel.SetText (L"Use WOZ bit timing:");
-    m_wozBitTimingInfo.SetRect  (MakeRect (controlsX - rowHeight, y, rowHeight, rowHeight));
+    // most titles need.
+    m_wozBitTimingLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_wozBitTimingInfo.SetRect  (GetInfoTipRect (m_wozBitTimingLabel, scaler));
     m_wozBitTiming.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
     m_wozBitTimingInfo.SetText  (L"Some WOZ images record the bit timing their disk was written at. Playing "
                                  L"a disk at that timing helps some titles load and keeps others from "
@@ -220,14 +245,12 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += rowHeight + sectionGap;
 
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_audioLabel.SetText (L"Drive audio:");
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
     // Mechanism is a child of Drive audio: indent the label by the
     // same childIndent used elsewhere (one DxuiTreeView nesting step).
     m_mechLabel.SetRect  (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
-    m_mechLabel.SetText  (L"Mechanism:");
     m_mechanism.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_mechanism.SetItems ({ L"Shugart", L"Alps" });
     y += rowHeight + sectionGap;
@@ -236,35 +259,30 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // a play button to its right that auditions the sound at the dialed
     // level.
     m_motorLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
-    m_motorLabel.SetText (L"Motor volume:");
     ConfigureVolumeSlider (m_motorVol, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_motorPlay.SetGlyph (s_kpszMdl2Play);
     m_motorPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
     y += rowHeight + sectionGap;
 
     m_headLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
-    m_headLabel.SetText (L"Head volume:");
     ConfigureVolumeSlider (m_headVol, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_headPlay.SetGlyph (s_kpszMdl2Play);
     m_headPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
     y += rowHeight + sectionGap;
 
     m_doorLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
-    m_doorLabel.SetText (L"Door volume:");
     ConfigureVolumeSlider (m_doorVol, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_doorPlay.SetGlyph (s_kpszMdl2Play);
     m_doorPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
     y += rowHeight + sectionGap;
 
     m_panOneLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
-    m_panOneLabel.SetText (L"Drive 1 pan:");
     ConfigurePanSlider (m_panOne, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_panOnePlay.SetGlyph (s_kpszMdl2Play);
     m_panOnePlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
     y += rowHeight + sectionGap;
 
     m_panTwoLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
-    m_panTwoLabel.SetText (L"Drive 2 pan:");
     ConfigurePanSlider (m_panTwo, MakeRect (controlsX, y, dropWidth, rowHeight));
     m_panTwoPlay.SetGlyph (s_kpszMdl2Play);
     m_panTwoPlay.Layout   (MakeRect (playX, y, playSize, rowHeight), scaler);
@@ -277,42 +295,34 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += sectionGap * 2;
 
     m_tapeHeading.SetRect (MakeRect (x, y, right - x, rowHeight));
-    m_tapeHeading.SetText (L"Cassette tape");
     y += rowHeight + sectionGap;
 
     // Off loads tapes at the selected speed with the tape audible, as a real
     // load would sound.
     m_tapeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_tapeLabel.SetText (L"Fast tape loading:");
     m_fastTape.SetRect  (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
     // Heard only when loading at real speed.
     m_tapeVolumeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_tapeVolumeLabel.SetText (L"Tape volume:");
     ConfigureVolumeSlider (m_tapeVolume, MakeRect (controlsX, y, dropWidth, rowHeight));
     y += rowHeight + sectionGap;
 
     // Off leaves the deck running on past the end until Stop is pressed.
     m_tapeAutoStopLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_tapeAutoStopLabel.SetText (L"Stop at end of tape:");
     m_tapeAutoStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
     // Not something the hardware did -- the Apple II has no motor control, so
     // a person pressed Stop -- but nobody misses doing it.
     m_tapeIdleStopLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_tapeIdleStopLabel.SetText (L"Stop when loading ends:");
     m_tapeIdleStop.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
     // 16-bit is the common format. Some tools, among them CiderPress II, read
-    // only 8-bit; recording onto an existing tape keeps its bit depth. The
-    // info tip comes out of the label's width, so the dropdown stays in line
-    // with the controls above it.
-    m_tapeWavFormatLabel.SetRect (MakeRect (x, y, labelWidth - rowHeight, rowHeight));
-    m_tapeWavFormatLabel.SetText (L"New tape WAV format:");
-    m_tapeWavFormatInfo.SetRect  (MakeRect (controlsX - rowHeight, y, rowHeight, rowHeight));
+    // only 8-bit; recording onto an existing tape keeps its bit depth.
+    m_tapeWavFormatLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_tapeWavFormatInfo.SetRect  (GetInfoTipRect (m_tapeWavFormatLabel, scaler));
     m_tapeWavFormat.SetRect      (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_tapeWavFormat.SetItems     ({ L"16-bit", L"8-bit" });
     m_tapeWavFormatInfo.SetText  (L"Casso reads 8-bit and 16-bit tapes alike. Some other tools, such as "
@@ -369,6 +379,141 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // Every control here is a fixed height, so the lowest one is where the
     // content ends, whatever the rect.
     SetContentHeightPx (GetLowestChildBottomPx() + scaler.ToPx (s_kPagePadDp) - rect.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskPage::GetMeasuringRenderer
+//
+//  The renderer Layout measures text with: one set for the page, else the
+//  popup host's, asked each time because the host rebuilds it when the
+//  device is lost. Null before the host has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiTextRenderer * DiskPage::GetMeasuringRenderer() const
+{
+    if (m_textRenderer != nullptr)
+    {
+        return m_textRenderer;
+    }
+
+    return (m_popupHost != nullptr) ? m_popupHost->GetTextRenderer() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskPage::MeasureLabelPx
+//
+//  How wide the label's text draws, in the face and size it draws in. With
+//  nothing to measure with, or a measurement that fails, an average glyph
+//  width per character stands in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskPage::MeasureLabelPx (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
+{
+    HRESULT              hr       = S_OK;
+    IDxuiTextRenderer  * text     = GetMeasuringRenderer();
+    float                widthPx  = 0.0f;
+    float                heightPx = 0.0f;
+
+
+
+    if (text != nullptr)
+    {
+        hr = text->MeasureString (label.GetText().c_str(), scaler.ToPxf (label.GetFontSizeDip()), DxuiTheme::kBodyFace, widthPx, heightPx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    // A failed measurement leaves the width at zero, as no renderer does.
+    if (widthPx <= 0.0f)
+    {
+        widthPx = (float) (label.GetText().size() * scaler.ToPx (s_kGlyphWidthDp));
+    }
+
+    return (int) std::ceil (widthPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskPage::GetLabelColumnPx
+//
+//  Wide enough that no label wraps: the widest label at its indent, with its
+//  info tip after it where it has one, and then the gap before the controls.
+//  Never narrower than the design width, so short labels keep the page's
+//  usual alignment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskPage::GetLabelColumnPx (const DxuiDpiScaler & scaler) const
+{
+    const DxuiLabel  * topLevel[] = { &m_wpLabel, &m_writeModeLabel, &m_audioLabel, &m_tapeLabel,
+                                      &m_tapeVolumeLabel, &m_tapeAutoStopLabel, &m_tapeIdleStopLabel };
+    const DxuiLabel  * nested[]   = { &m_mechLabel, &m_motorLabel, &m_headLabel, &m_doorLabel, &m_panOneLabel, &m_panTwoLabel };
+    const DxuiLabel  * tipped[]   = { &m_wozBitTimingLabel, &m_tapeWavFormatLabel };
+    int                indent     = scaler.ToPx (DxuiTreeView::kIndentDip);
+    int                tipReach   = scaler.ToPx (s_kInfoTipGapDp) + (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
+    int                widest     = 0;
+
+
+
+    for (const DxuiLabel * label : topLevel)
+    {
+        widest = std::max (widest, MeasureLabelPx (*label, scaler));
+    }
+
+    for (const DxuiLabel * label : nested)
+    {
+        widest = std::max (widest, indent + MeasureLabelPx (*label, scaler));
+    }
+
+    for (const DxuiLabel * label : tipped)
+    {
+        widest = std::max (widest, MeasureLabelPx (*label, scaler) + tipReach);
+    }
+
+    return std::max (scaler.ToPx (s_kLabelWidthDp), widest + scaler.ToPx (s_kLabelGapDp));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskPage::GetInfoTipRect
+//
+//  A row-high square whose glyph starts a small gap past the end of the
+//  label's text. The glyph is centered in the square, so the square starts
+//  half its margin before that point. It drops by a fraction of the label's
+//  font size to put the ring's center on the capitals' center.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DiskPage::GetInfoTipRect (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
+{
+    RECT  row     = label.GetRect();
+    int   size    = row.bottom - row.top;
+    int   glyphPx = (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
+    int   glyphX  = row.left + MeasureLabelPx (label, scaler) + scaler.ToPx (s_kInfoTipGapDp);
+    int   drop    = (int) std::lround (scaler.ToPxf (label.GetFontSizeDip()) * s_kInfoTipDropEm);
+
+
+
+    return MakeRect (glyphX - (size - glyphPx) / 2, row.top + drop, size, size);
 }
 
 
@@ -455,12 +600,15 @@ void DiskPage::Rebuild()
 //
 //  Routes each owned dropdown's menu through the supplied host's popup pool
 //  so the menu HWND escapes the page's clipping bounds. Pass nullptr to
-//  revert to the in-panel PaintMenu path.
+//  revert to the in-panel PaintMenu path. Layout measures the labels with the
+//  host's renderer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskPage::SetPopupHost (DxuiHwndSource * host)
 {
+    m_popupHost = host;
+
     m_writeMode.SetPopupHost         (host);
     m_mechanism.SetPopupHost         (host);
     m_tapeWavFormat.SetPopupHost     (host);
