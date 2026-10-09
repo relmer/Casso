@@ -851,6 +851,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_rawSourceBytes = raw;
     m_wozMetadata.Clear();
     m_damagedTracks.clear();
+    m_damagedQuarterTracks.clear();
     m_slotKind.assign   (m_slotKind.size(), TrackKind::Bits);
     m_fluxTracks.assign (m_fluxTracks.size(), FluxTrack());
     InitWholeTrackMap();
@@ -993,6 +994,7 @@ void DiskImage::Eject()
     m_fileNoPermission    = false;
     m_sourceCrcMismatch   = false;
     m_damagedTracks.clear();
+    m_damagedQuarterTracks.clear();
 }
 
 

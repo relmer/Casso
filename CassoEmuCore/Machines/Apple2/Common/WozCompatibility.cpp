@@ -53,26 +53,17 @@ static constexpr WozCompatibility::HardwareLabel  s_kHardwareLabels[] =
 
 WozRequirements WozCompatibility::ReadRequirements (const WozMetadata & meta)
 {
-    constexpr Byte  kFirstVersionWithFields = 2;
-    constexpr int   kHighByteShift          = 8;
+    WozInfo          info;
+    WozRequirements  declared;
 
 
 
-    const vector<Byte> &  info      = meta.infoPayload;
-    bool                  hasFields = false;
-    WozRequirements       declared;
+    WozLoader::ReadInfo (meta.infoPayload, info);
 
-
-
-    hasFields = info.size() >= WozLoader::kInfoChunkSize
-             && info[WozLoader::kInfoOffsetVersion] >= kFirstVersionWithFields;
-
-    if (hasFields)
+    if (info.hasVersion2Fields)
     {
-        declared.compatibleHardware = static_cast<uint16_t> (info[WozLoader::kInfoOffsetCompatibleHw]
-                                                           | (info[WozLoader::kInfoOffsetCompatibleHw + 1] << kHighByteShift));
-        declared.requiredRamK       = static_cast<uint16_t> (info[WozLoader::kInfoOffsetRequiredRam]
-                                                           | (info[WozLoader::kInfoOffsetRequiredRam + 1] << kHighByteShift));
+        declared.compatibleHardware = info.compatibleHardware;
+        declared.requiredRamK       = info.requiredRamK;
     }
 
     return declared;

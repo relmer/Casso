@@ -29,6 +29,42 @@ struct WozChunk
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozInfo
+//
+//  Every INFO field of the file's version, read once by WozLoader::ReadInfo.
+//  Version 2 added sides through largest track, version 3 the two flux
+//  fields; a field the file's version does not have is reported absent, not
+//  as the value the format gives "unknown".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct WozInfo
+{
+    bool         isPresent          = false;
+    Byte         version            = 0;
+    Byte         diskType           = 0;
+    bool         isWriteProtected   = false;
+    bool         isSynchronized     = false;
+    bool         isCleaned          = false;
+    std::string  creator;
+    bool         hasVersion2Fields  = false;
+    Byte         sides              = 0;
+    Byte         bootSectorFormat   = 0;
+    Byte         optimalBitTiming   = 0;
+    uint16_t     compatibleHardware = 0;
+    uint16_t     requiredRamK       = 0;
+    uint16_t     largestTrack       = 0;
+    bool         hasVersion3Fields  = false;
+    uint16_t     fluxBlock          = 0;
+    uint16_t     largestFluxTrack   = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozTrackRecordFields / WozUnreferencedRecord / WozFileLayout
 //
 //  The file's own track maps and track record table, as read. The track model
@@ -48,6 +84,21 @@ struct WozTrackRecordFields
 };
 
 
+struct WozChunkEntry
+{
+    std::array<Byte, 4>  id     = {};
+    size_t               offset = 0;
+    uint32_t             size   = 0;
+};
+
+
+struct WozMetaEntry
+{
+    std::string  key;
+    std::string  value;
+};
+
+
 struct WozUnreferencedRecord
 {
     int           index          = 0;
@@ -61,12 +112,17 @@ struct WozFileLayout
     static constexpr int   kMapEntries = 160;
     static constexpr Byte  kNoTrack    = 0xFF;
 
-    bool                           hasMaps    = false;
-    bool                           hasFluxMap = false;
-    std::array<Byte, kMapEntries>  tmap       = {};
-    std::array<Byte, kMapEntries>  flux       = {};
+    bool                           hasMaps              = false;
+    bool                           hasFluxMap           = false;
+    std::array<Byte, kMapEntries>  tmap                 = {};
+    std::array<Byte, kMapEntries>  flux                 = {};
     vector<WozTrackRecordFields>   records;
     vector<WozUnreferencedRecord>  unreferenced;
+    vector<WozChunkEntry>          chunks;
+    vector<WozMetaEntry>           metaEntries;
+    uint32_t                       storedCrc            = 0;
+    uint32_t                       computedCrc          = 0;
+    bool                           hasDataPastLastChunk = false;
 };
 
 
@@ -106,6 +162,7 @@ struct WozMetadata
     vector<Byte>      infoPayload;
     vector<WozChunk>  passThrough;
     WozFileLayout     layout;
+    WozInfo           info;
 
     bool  IsFromSourceFile () const { return !infoPayload.empty(); }
 
@@ -114,5 +171,6 @@ struct WozMetadata
         infoPayload.clear();
         passThrough.clear();
         layout = WozFileLayout();
+        info   = WozInfo();
     }
 };

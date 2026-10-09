@@ -103,6 +103,10 @@ public:
         std::string             creator;
         std::vector<MetaField>  meta;
 
+        //  Every INFO field, as ReadInfo gives it. The fields above are filled
+        //  from it, so the two never disagree.
+        WozInfo                 info;
+
         //  How much of the surface carries data. The head steps in quarter
         //  tracks, so a disk formatted on half or quarter tracks -- which is a
         //  copy protection, not a defect -- shows more positions than slots.
@@ -129,6 +133,11 @@ public:
     //  bit-stream blocks after TRKS. A separate parser would be a second place
     //  for the layout constants and the version quirks to be got wrong.
     static void  Describe (const vector<Byte> & raw, Description & out);
+
+    //  The one parser of an INFO chunk's payload. Every reader of INFO --
+    //  Load, Describe, the compatibility check, the disk inspector -- goes
+    //  through it, so they cannot disagree about a field or a version.
+    static void  ReadInfo (std::span<const Byte> payload, WozInfo & out);
 
     // Serialize a DiskImage back to a WOZ v2 byte image (INFO + TMAP +
     // TRKS + block-aligned bit streams + retained chunks, with a valid
@@ -177,6 +186,7 @@ public:
     static constexpr size_t  kInfoOffsetCleaned          = 4;
     static constexpr size_t  kInfoOffsetCreator          = 5;
     static constexpr size_t  kInfoCreatorLength          = 32;
+    static constexpr size_t  kInfoOffsetDiskSides        = 37;
     static constexpr size_t  kInfoOffsetBootSectorFormat = 38;
     static constexpr size_t  kInfoOffsetBitTiming        = 39;
     static constexpr size_t  kInfoOffsetCompatibleHw     = 40;

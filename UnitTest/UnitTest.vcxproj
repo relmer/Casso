@@ -373,6 +373,7 @@
     <ClCompile Include="EmuTests\SectorFieldWriterTests.cpp" />
     <ClCompile Include="EmuTests\SectorWriteThroughVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozFileLayoutTests.cpp" />
+    <ClCompile Include="EmuTests\WozImageDetailsTests.cpp" />
     <ClCompile Include="EmuTests\WozFluxLoaderTests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineFluxTests.cpp" />
     <ClCompile Include="EmuTests\WozBitTimingTests.cpp" />
