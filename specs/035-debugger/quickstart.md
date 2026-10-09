@@ -293,6 +293,40 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
 12. Open the Disk ][ debug window, repeat step 1, and compare its rows with a
     run with no disk breakpoint (SC-042).
 
+## Story 21: debug projects
+
+1. Load `include-macro.a65`'s binary and debug file; set three breakpoints,
+   rename one with F2, add two watches and a bookmark, rearrange two panes,
+   and add `ECHO ready` as a startup command in File > Project settings....
+   Close Casso. Expect nothing asked about saving.
+2. Start Casso and load the same debug file. Expect every item back and
+   `ready` in the console.
+3. Boot a DOS 3.3 disk with no debug file; set a breakpoint; load the debug
+   file. Expect the program's project to open and an offer to bring the
+   breakpoint along.
+4. Kill Casso while a change is pending. Expect the project file readable and
+   at most the last 2 seconds of changes lost (SC-046).
+
+## Story 22: Applesoft
+
+1. Type a ten-line program with a GOSUB, a FOR loop, `A%`, `B$` and `C(3)`;
+   open the BASIC view. Expect the listing as LIST prints it.
+2. Set a breakpoint on line 40 and RUN. Expect a stop as line 40 begins, the
+   variables pane matching PRINT, the stack pane showing the GOSUB and FOR.
+3. Step a statement, then a line. Expect the mark to move to the next
+   statement, then the next line.
+4. Set a variable breakpoint on `A%` and run. Expect a stop after the
+   statement that changes it.
+
+## Story 23: window entry points
+
+1. Walk FR-180 to FR-198 without the console. Expect each to do what its
+   command does (SC-049).
+2. With the Visual Studio scheme, press Ctrl+Alt+D, Ctrl+Alt+B and Ctrl+`.
+   Expect those panes to take focus and the View menu to show the keys.
+3. Add three ranges to the Default set on the editable grid. Expect a new
+   trailing row after each (SC-051).
+
 ## Release
 
 1. Boot the Mockingboard speech demo, open the debugger with the Mockingboard

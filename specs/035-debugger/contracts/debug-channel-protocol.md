@@ -242,3 +242,13 @@ connection stays open.
 `protocol` increases only when an existing field changes meaning or is
 removed. Added fields, data kinds, notification types and stop reasons do not
 change it.
+
+## Applesoft stops and debug projects (User Stories 21 and 22)
+
+- New stop reasons: `basicStep` (a BASIC step ended) and `basicError` (with
+  `code` and `line`); BASIC breakpoints stop with `breakpoint`, the entry's
+  `kind` being `basicLine` or `basicVariable`.
+- `breakpointSet` and `breakpointList` entries gain `name` (string, empty for
+  the default).
+- A `project` object (`scope`, `key`, `file`, `isAutomatic`) answers
+  `PROJECT`.

@@ -153,6 +153,12 @@ touches `Casso/` or `CassoCli/`:
 
 **PASS.**
 
+**2026-10-09 additions** (stories 21 to 23): the project model, scope keys and
+store, the Applesoft reader, detokenizer and stepper, the C lexer and the
+editable grid's row logic are core classes tested with in-memory files and
+synthetic memory; only the dialogs, panes and menu wiring are window code.
+No gate is violated.
+
 ### II. Testing Discipline
 
 - **Isolation**: files through `IFileSystem`, preferences through
@@ -406,6 +412,138 @@ objects.
 - **Threading**: every disk event and the record are on the CPU thread, where
   the session runs; nothing on the UI thread touches the controller.
 
+### Debug projects (story 21)
+
+R-042 holds the decisions; data-model.md, "Debug projects", the types;
+contracts/command-modes.md the `BPNAME` and `PROJECT` commands.
+
+- **Model** (`CassoEmuCore/Debugger/Project/DebugProject.h/.cpp`, core): the
+  FR-166 state as one value. The engine's part is the script the debugger's
+  `SAVE` already writes (`BreakpointHandlers::MakeScript`,
+  `WatchHandlers::MakeScript` for watches, zero-page pointers and
+  bookmarks), extended with data directives and step filters, in Casso's own
+  mode so it reads back exactly; beside it the names, the window's state
+  (layout, range sets, disassembly options, open views) and the startup
+  commands. Serialized as JSON through `JsonParser`; paths relative to the
+  project file where they lie beside or below it.
+- **Scope** (`ProjectScope`): the FR-167 signal and its key. A debug or
+  symbol file is keyed by its content hash (SHA-1, which the debug file
+  reader already computes), so a moved file finds its project; a debugger
+  loaded binary by its content hash and load address; otherwise the machine
+  type and the drive-1 disk's path at power-on, or the machine type alone.
+  Automatic projects live under `%LOCALAPPDATA%\Casso\DebugProjects\`, one
+  file per key; a named project (Save project as) lives where the user puts
+  it, and the automatic file for its scope then points at it.
+- **Store** (`DebugProjectStore`, core over `IFileSystem`): load, save and
+  switch. A save is debounced to 2 seconds after the last change on the UI
+  thread, built from the snapshot and the window's state, and written whole
+  to a temporary file that replaces the old one (FR-168). An unreadable file
+  is renamed with the date and replaced by an empty project.
+- **Change sources**: `DebugSession`'s stop-condition, watch, bookmark,
+  symbol and filter changes; the dock site's `onChanged`; the range sets and
+  options. Each marks the project dirty and restarts the debounce.
+- **Switching** (FR-169): `SYM LOAD`, `BLOAD` and power-on report their
+  signal; a more specific signal switches projects after saving the old one,
+  and the window offers to carry breakpoints, watches and bookmarks across.
+- **Names** (FR-172): `Breakpoint` and `Watchpoint` gain `name`;
+  `BreakpointInfo` carries it; the pane's Name cell is editable in place;
+  `BPNAME id "text"` is a Casso engine command reachable in every mode and
+  listed among AppleWin mode's commands; `BPSAVE` and AppleWin's `SAVE` never write
+  names.
+- **Startup commands** (FR-171): stored with their mode; run in order through
+  the console's path after the project loads; edited in File > Project
+  settings... on the editable grid (FR-208).
+
+### Applesoft at source level (story 22)
+
+R-043 holds the interpreter's addresses and layouts, each to be confirmed
+against the fixture ROMs before it is relied on; data-model.md, "Applesoft".
+
+- **Reader** (`CassoEmuCore/Debugger/Basic/ApplesoftProgram.h/.cpp`, core):
+  everything through the target's side-effect-free peek. The program from
+  TXTTAB along the line links; the detokenizer over the token table ($80 to
+  $EA) prints as LIST does; CURLIN gives the line being run ($FFxx in direct
+  mode); the variable table from VARTAB to ARYTAB and the arrays from ARYTAB
+  to STREND, decoded as reals (five-byte floating point, printed as Applesoft
+  prints them), integers and string descriptors; the GOSUB and FOR frames
+  read from the 6502 stack by their tokens.
+- **Presence**: an Applesoft ROM in the machine (not the original Apple ][
+  Integer ROM), a program chain that links up within memory, and the
+  interpreter running; otherwise the BASIC view says so (edge case).
+- **Stops** (`BasicStepper`, core): an internal fetch hook at the
+  interpreter's statement entry (NEWSTT), armed only while a BASIC step, a
+  BASIC breakpoint or an error stop is set, so a program with none runs as
+  before (FR-064). A statement step stops at the next entry; a line step at
+  the next entry whose CURLIN differs; step out at the entry after the
+  frame's RETURN. A line breakpoint is a table entry of a new BASIC kind
+  matched at the entry; a variable breakpoint watches the variable's value
+  bytes, found from the variable table and found again after CLEAR, RUN or
+  NEW moves it, and holds the stop until the next entry so the statement
+  completes. An error stop is a fetch hook at the error handler's entry,
+  reporting the error code and CURLIN. Reverse continue stops on them as on
+  every other kind.
+- **Window**: a BASIC source document (the listing, the line mark, gutter
+  breakpoints, stepping keys as in a source document), a BASIC variables
+  pane and a BASIC stack pane; Kind "BASIC", Trigger "Line" or "Variable
+  change" in the Breakpoints pane.
+
+### C source coloring (FR-178)
+
+A pure C lexer in CassoCore (keywords, types, number, character and string
+literals, comments, preprocessor lines) feeding the source view's existing
+color runs; files are taken as C by the extension the debug file gives
+(`.c`, `.h`) and the theme's source colors are shared with assembly's.
+
+### Window entry points (story 23)
+
+R-044 holds the owner's tiering of ui-entry-point-audit.md; each entry calls
+the handler's function, never a typed command (the console is not the
+plumbing).
+
+- **Menus and toolbars** in `DebuggerWindowMenuBar.cpp` and
+  `DebuggerCommands.cpp`: Load file into memory (and its toolbar button),
+  Save memory to file, Project items, Step filters, Find in Memory panes,
+  bookmarks next and previous.
+- **Context menus**: the code pane (mark as data, Add symbol here, Never step
+  into, Edit instruction, Replace with NOPs, Toggle bookmark, stopwatch
+  here, Call subroutine here), the Memory pane (Fill, Copy to, Compare with,
+  Add as pointer watch), the Stack pane (Push, Pop), the call stack (Never
+  step into), the Registers pane (reset Trip).
+- **New panes**: Symbols, Bookmarks, Profiler, data directives list, BASIC
+  variables and BASIC stack, each in the View menu and the dock layout.
+- **Editable grid** (`Dxui/Widgets/DxuiEditableGrid.h/.cpp`): a list view with
+  a trailing hint row, cell editing in place with per-column validation and
+  required columns, row deletion and gripper reordering; the range list and
+  the startup command list use it.
+- **Disassembly selection**: Ctrl+drag keeps the selection in its starting
+  column; rows selected for Replace with NOPs come from the selection's rows.
+- **Status bar**: a speed section with a popup of 1x, 2x and Maximum, posting
+  the same command the emulator's speed menu posts.
+- **Keys** (FR-203, FR-204): `DebuggerKeySchemes::Action` gains an action per
+  pane and the console; the Visual Studio map binds Visual Studio's chords,
+  every map binds Ctrl+`; every menu item takes its accelerator text from the
+  active map, as the Debug menu does.
+- **Removed**: `BENCHMARK`'s verbs and handler.
+
+### Disassembly, docking and heat map (FR-200 to FR-209)
+
+- **DISASM** settings move from `ConfigHandlers` to the view options the
+  window and the snapshot share, so the command and the check boxes set one
+  value; Tools > Options shows them. Branch rows take a direction glyph in
+  the gutter. The result annotation appends the instruction's cycles from
+  the CPU's timing table, with a branch's taken and not-taken counts and the
+  page-crossing cycle where the mode allows one.
+- **Docking**: a title drag hands the dock site the whole group, whose
+  floating window follows the pointer from the threshold on (the T279 drag);
+  a press on any tab arms its drag; a torn-off group's float takes its
+  docked size. The pane look is the T710 work.
+- **Heat map**: the Default set is created on first use with the built-in
+  ranges; the range list moves to `DxuiEditableGrid`; the FR-209 defects are
+  fixed where they lie (edit box corners in `DxuiTextInput`'s frame, the
+  range grid's widths, the watch row's single click, the tooltip delay, the
+  range set name over the drop-down, the range titles over short ranges'
+  address labels).
+
 ### Threading
 
 As before: batch is single-threaded; in the emulator the session lives on
@@ -470,6 +608,23 @@ landing as its own merge to the branch and gated by the full suite:
     tracker, table entries, `BPDISK`, matching, vectors, logical sectors,
     disk values, reports, reverse continue, the pane, the scenario boots and
     the cost measurements.
+9c. **Review defects and docking (FR-205, FR-209)**: the review's defects
+    first, then the tear-off drag that moves the group, any tab draggable,
+    the float at its docked size.
+9d. **Window entry points and keys (story 23, P2)**: Load and save binary
+    with the toolbar button; the pane keys and menu accelerators; the
+    editable grid, then the range list and the Default set on it; the
+    context menus, the new panes and the status-bar speed control; the
+    DISASM wiring, branch glyphs and cycle annotation; C coloring;
+    `BENCHMARK` removed.
+9e. **Debug projects (story 21, P1)**: names on breakpoints and `BPNAME`; the
+    project model over the existing scripts; scope keys; the store with its
+    debounce and whole-file replace; switching and carrying over; Save as,
+    Open and Project settings with startup commands.
+9f. **Applesoft (story 22, P2)**: confirm R-043's addresses against the
+    fixture ROMs; the reader and detokenizer, checked against LIST on
+    fixture programs; the stepper and its stops; the BASIC kind; the
+    document, variables and stack panes.
 10. **Release**: the README screenshot on the Mockingboard speech demo
     (FR-065), `docs/Debugger.md` for every story, the changelog, the
     pre-merge gate, SC-008 measured, and 033 on master before 035 merges.
@@ -525,6 +680,19 @@ landing as its own merge to the branch and gated by the full suite:
   adopts the first's field definitions, matcher, head and write hook, and a
   merge of the two may conflict in `Disk2Controller`; the tasks that build
   them adopt 040's when it is on master.
+
+- **Applesoft's internals** (R-043): the zero-page pointers, the statement
+  entry and the error entry are from published maps and must be confirmed in
+  each machine's fixture ROM before the stepper relies on them; a wrong one
+  shows as a test failure, never as a silent misstep.
+- **Project scope**: a boot disk used for many programs gives one shared
+  project, which the owner accepted; a debug file's content key misses a
+  program rebuilt with changes, which then starts a fresh project, offered
+  the old one's breakpoints through FR-169's carry-over.
+- **Two windows saving one project**: the last save wins; whole-file replace
+  keeps the file readable.
+- **Always-on logs** (FR-198): bounded buffers keep memory flat; their cost
+  per speaker toggle is measured against SC-008 before they ship.
 
 ## Project Structure
 

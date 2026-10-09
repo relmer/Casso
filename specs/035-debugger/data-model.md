@@ -580,3 +580,35 @@ takes each RWTS and driver breakpoint's routine from its vector at the start
 of each replay and after each write to the vector's bytes during it, and
 counts nothing. The replayer also reports each bay whose disk a boundary
 snapshot changed.
+
+## Debug projects (User Story 21)
+
+- **DebugProject**: `scope` (ProjectScope); `engineScript` (Casso-mode
+  command lines: breakpoints, watchpoints, watches, zero-page pointers,
+  bookmarks, data directives, step filters, symbol and debug file loads);
+  `names` (breakpoint id in the script to name); `layout`, `rangeSets`,
+  `disassemblyOptions`, `openViews` (the window's saved strings);
+  `startupCommands` (ordered list of text and mode); `filePath`.
+  Validation: a script line that fails to read back is reported in the
+  console and skipped, never stopping the load.
+- **ProjectScope**: `kind` (DebugFile, Binary, MachineBoot, Machine);
+  `key` (content hash, content hash and load address, or machine type and
+  disk path); ordered from most specific to least.
+- **Breakpoint / Watchpoint** gain `name` (empty: the default name).
+
+## Applesoft (User Story 22)
+
+- **BasicProgram**: `lines` (number, text as LIST prints it, address);
+  `currentLine` (or none in direct mode); `currentStatementAddress`.
+- **BasicVariable**: `name`, `type` (Real, Integer, String), `value`,
+  `address` of its value bytes; arrays add `dimensions` and `elements`.
+- **BasicStackFrame**: `kind` (Gosub, For); Gosub: return line; For:
+  variable, limit, step, line.
+- **Breakpoint** gains kind `BasicLine` (line number) and `BasicVariable`
+  (variable name; its value address found again after the tables move).
+
+## Editable grid (FR-208)
+
+- **EditableGridRow**: `cells`, `requiredColumns`, `isTrailing` (the "Add new
+  range" row), `isEditing`; a row commits when every required cell holds a
+  valid value.

@@ -2258,3 +2258,65 @@ of their own.
   table.
 - Each drive gets its own head position as an emulation fix (GH #135), not a
   debugger-only value.
+
+## R-042: Debug projects
+
+**Decision**: an automatic project per program, chosen from the most
+specific signal (debug or symbol file by content hash, then a debugger-loaded
+binary, then machine type and boot disk), saved as the user works, debounced
+2 seconds and replaced whole; named copies through Save as and Open; startup
+commands run on load. The engine's state travels as the script the
+debugger's `SAVE` already writes, in Casso's mode; the window's state beside
+it as JSON.
+
+**Rationale**: the owner asked that the right state come back with no user
+action (2026-10-09). Mesen2 does this per ROM: a JSON workspace of
+breakpoints, labels and watches per CPU, autosaved at most once a minute and
+on switching ROMs, loaded with the ROM (`DebugWorkspaceManager.cs`). Visual
+Studio keeps breakpoints and layout per solution with no save step. Reusing
+`SAVE`'s script keeps one serialization of the engine's state, already
+tested by `LOAD`.
+
+**Alternatives considered**: explicit projects only, as WinDbg's named
+workspaces (rejected: ceremony, and lost work when the user forgets);
+a project per machine (rejected: breakpoints from one program would arm in
+another); keying a disk by content (rejected: a disk changes as the guest
+writes it). FCEUX keeps a per-ROM file; MAME keeps only comments; AppleWin,
+VICE, Stella and GSSquared were found to keep none.
+
+## R-043: Applesoft internals for source-level debugging
+
+**Decision**: read the program and its state from Applesoft's zero page and
+tables, and stop at the interpreter's statement and error entries. From the
+published Applesoft memory maps, to be confirmed in the fixture ROMs (][+,
+//e, enhanced //e, //c) before use: TXTTAB $67-$68 (program start), VARTAB
+$69-$6A (simple variables), ARYTAB $6B-$6C (arrays), STREND $6D-$6E,
+CURLIN $75-$76 (line being run; high byte $FF in direct mode), TXTPTR
+$B8-$B9, NEWSTT $D7D2 (statement entry), the error handler's entry and
+ONERR's flag. Program lines are a link, a line number and tokens ending in
+zero; variables are seven bytes (a two-byte name whose high bits give the
+type, five value bytes); reals are five-byte floating point; GOSUB and FOR
+frames on the 6502 stack are marked by their tokens.
+
+**Rationale**: everything is read-only and side-effect free, and the hooks
+are armed only while a BASIC stop is set, so ordinary runs pay nothing.
+
+**Alternatives considered**: patching the ROM's trace hooks (rejected: it
+changes the guest); stepping by the 6502 alone (rejected: the user asked for
+statements and lines).
+
+## R-044: Window entry points
+
+**Decision**: the owner's tiering of ui-entry-point-audit.md (2026-10-09):
+the entries FR-180 to FR-198 list are built; LOAD and SAVE of the debugger
+configuration, IN, OUT, TSAVE, BUDGET, TF and the Monitor ROM idioms stay
+console-only; BENCHMARK, a stub, is removed; BPCHANGE is covered by the
+row checkbox and the Edit dialog. Visual Studio's pane keys go in its
+scheme; Ctrl+` opens the console in all three.
+
+**Rationale**: a feature reachable only by typing is invisible to most
+users; the dropped commands either have a better route (debug projects,
+history) or a side effect a menu should not invite (IN, OUT).
+
+**Alternatives considered**: a menu item for every verb (rejected: menus
+full of Monitor ROM idioms nobody would choose there).

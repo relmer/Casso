@@ -280,3 +280,24 @@ Error: invalid arguments
 
 A wrong argument gives the syntax line of the event typed, as FR-127 has every
 command do.
+
+## Debug projects and names (User Story 21)
+
+| Command | Modes | Effect |
+|---|---|---|
+| `BPNAME id "text"` | every mode (a Casso command; AppleWin mode lists it among its own) | Sets breakpoint or watchpoint `id`'s name; an empty text returns it to the default. |
+| `PROJECT` | every mode | Shows the open project: its scope, file and whether it is automatic or named. |
+| `PROJECT SAVEAS file` | every mode | Writes a copy of the open project to `file` and makes it the open one. |
+| `PROJECT OPEN file` | every mode | Switches to the project in `file`. |
+
+`BPSAVE`, AppleWin's `SAVE` and `LOAD` are unchanged and never carry names.
+
+## Applesoft (User Story 22)
+
+| Command | Modes | Effect |
+|---|---|---|
+| `BPBASIC line` | every mode | Breaks as BASIC line `line` begins. |
+| `BPBASICVAR name` | every mode | Breaks after the statement that changes BASIC variable `name` (`A`, `A%`, `A$`, `A(3)`). |
+| `BASICSTEP` / `BASICLINE` / `BASICOUT` | every mode | Steps a statement, a line, or out of the active GOSUB. |
+| `BASICVARS`, `BASICSTACK` | every mode | Lists the variables or the GOSUB and FOR stack. |
+| `BRKBASIC ON|OFF` | every mode | Breaks on a BASIC error, handled by ONERR or not. |
