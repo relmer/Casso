@@ -6403,15 +6403,8 @@ void DebuggerWindow::RenderFrame()
     SyncHeatMapRecording();
 
     //  Focus moves by click, key and command alike, so the group the user is
-    //  working in is found once a frame rather than at each of them. Of this
-    //  window and the floating ones, the one that took the focus last shows
-    //  the accent.
-    m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? GetPaneOfFocus() : std::wstring());
-
-    for (const auto & entry : m_floats)
-    {
-        entry.second->SetFocusedLook (entry.first == m_accentOwner.GetFocusedFloat(), *m_theme);
-    }
+    //  working in is found once a frame rather than at each of them.
+    ShowFocusAccent();
 
     //  A disassembly view's height changes with a window resize, a sash drag,
     //  a tab brought forward, a pane slid out or floated, a text-size change,
@@ -11358,7 +11351,38 @@ void DebuggerWindow::SyncFloats()
 void DebuggerWindow::OnWindowFocusChanged (bool focused)
 {
     m_accentOwner.OnMainFocusChanged (focused);
+    ShowFocusAccent();
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowFocusAccent
+//
+//  Of this window and the floating ones, the one that took the focus last
+//  shows the accent. The focus messages run this as well as each frame, so
+//  the window losing the accent repaints without it in the same message
+//  rather than at its next frame paint, up to kIdlePaintMs later.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowFocusAccent()
+{
+    if (m_dockSite == nullptr || m_theme == nullptr)
+    {
+        return;
+    }
+
+    m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? GetPaneOfFocus() : std::wstring());
+
+    for (const auto & entry : m_floats)
+    {
+        entry.second->SetFocusedLook (entry.first == m_accentOwner.GetFocusedFloat(), *m_theme);
+    }
 }
 
 
@@ -11455,6 +11479,7 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     window->SetOnFocusChanged ([this, pane] (bool focused)
     {
         m_accentOwner.OnFloatFocusChanged (pane, focused);
+        ShowFocusAccent();
         Invalidate();
     });
 

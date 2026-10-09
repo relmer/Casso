@@ -108,8 +108,9 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  mapSlotRom               = 0;
     uint32_t  mapIo                    = 0;
 
-    //  The gap between docked panes, the band behind a pane's tabs, and the
-    //  drop targets a dragged pane shows. Zero takes the derived color.
+    //  The gap between docked panes, the band behind a pane's tabs, the drop
+    //  targets a dragged pane shows, and the shade over where it would go.
+    //  Zero takes the derived color.
     uint32_t  dockGap                  = 0;
     uint32_t  paneBand                 = 0;
     uint32_t  dockGuideBorder          = 0;
@@ -118,6 +119,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  dockGuideButtonFill      = 0;
     uint32_t  dockGuideGlyph           = 0;
     uint32_t  dockGuideArrow           = 0;
+    uint32_t  dockPreview              = 0;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
@@ -160,6 +162,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  DockGuideButtonFill   () const override { return (dockGuideButtonFill != 0) ? dockGuideButtonFill : IDxuiTheme::DockGuideButtonFill(); }
     uint32_t  DockGuideGlyph        () const override { return (dockGuideGlyph != 0) ? dockGuideGlyph : IDxuiTheme::DockGuideGlyph(); }
     uint32_t  DockGuideArrow        () const override { return (dockGuideArrow != 0) ? dockGuideArrow : IDxuiTheme::DockGuideArrow(); }
+    uint32_t  DockPreview           () const override { return (dockPreview != 0) ? dockPreview : IDxuiTheme::DockPreview(); }
 
     uint32_t  ButtonIdle          () const override { return buttonIdle;         }
     uint32_t  ButtonHover         () const override { return buttonHover;        }

@@ -106,6 +106,9 @@ namespace DxuiDockSiteDragMarksTests
     {
     public:
 
+        //  The center button of a document group's cross shades the pane
+        //  below its tabs and the tab the pane would take, in two marks that
+        //  come before every guide.
         TEST_METHOD (MarksShowTheEdgeGuidesAndOneCrossOnlyDuringADrag)
         {
             Rig                            rig;
@@ -133,8 +136,8 @@ namespace DxuiDockSiteDragMarksTests
 
             Assert::IsNotNull (rig.site.GetHoveredZone(), L"the middle of the group is its cross's center button");
             Assert::AreEqual  ((size_t) 5, guides, L"a guide at each edge and the cross of the group under the pointer");
-            Assert::AreEqual  (guides + 1, marks.size(), L"and the shade of the hovered target, under them");
-            Assert::IsTrue    (marks.front().image == nullptr);
+            Assert::AreEqual  (guides + 2, marks.size(), L"and the shade of the hovered target, the pane and its new tab");
+            Assert::IsTrue    (marks[0].image == nullptr && marks[1].image == nullptr, L"the shade comes first");
 
             rig.site.CancelDrag();
             Assert::IsTrue (rig.site.GetDragMarks (rig.theme).empty(), L"the marks go when the drag ends");

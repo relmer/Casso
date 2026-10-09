@@ -103,14 +103,16 @@ namespace DxuiDockDropZonesTests
 
 
         //  At 125% and 150% every target is as big as the button drawn there,
-        //  40 and 48 px, on a pitch of 45 and 54 px, and an edge guide's
-        //  button lies 8 DIP in from the window's edge, centered along it.
+        //  40 and 48 px, on a pitch of 45 and 54 px. An edge guide's box lies
+        //  10 DIP in from the area's edge, 13 and 15 px, centered along it,
+        //  and its button 4 DIP inside the box: 18 and 21 px in, where Visual
+        //  Studio's are 17 to 18 px in at 125%.
         TEST_METHOD (TheTargetsScaleWithTheDpi)
         {
             constexpr UINT  kDpis[]    = { 120, 144 };
             constexpr long  kButtons[] = { 40, 48 };
             constexpr long  kPitches[] = { 45, 54 };
-            constexpr long  kInsets[]  = { 10, 12 };
+            constexpr long  kInsets[]  = { 18, 21 };
 
 
 
@@ -123,20 +125,24 @@ namespace DxuiDockDropZonesTests
                 const DxuiDockDropZone       * side   = nullptr;
                 const DxuiDockDropZone       * left   = nullptr;
                 const DxuiDockDropZone       * top    = nullptr;
+                const DxuiDockDropZone       * right  = nullptr;
                 std::wstring                   at     = std::format (L"{} dpi", kDpis[i]);
 
                 scaler.SetDpi (kDpis[i]);
                 zones = DxuiDockDropZones::Build (layout.Arrange (s_kArea, nullptr, nullptr), s_kArea, L"trace", scaler);
-                tab   = Find (zones, DxuiDockDropZone::Kind::Tab,  DxuiDockSide::Left, L"code");
-                side  = Find (zones, DxuiDockDropZone::Kind::Side, DxuiDockSide::Left, L"code");
-                left  = Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Left, L"");
-                top   = Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Top,  L"");
+                tab   = Find (zones, DxuiDockDropZone::Kind::Tab,  DxuiDockSide::Left,  L"code");
+                side  = Find (zones, DxuiDockDropZone::Kind::Side, DxuiDockSide::Left,  L"code");
+                left  = Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Left,  L"");
+                top   = Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Top,   L"");
+                right = Find (zones, DxuiDockDropZone::Kind::Edge, DxuiDockSide::Right, L"");
 
-                if (tab == nullptr || side == nullptr || left == nullptr || top == nullptr)
+                if (tab == nullptr || side == nullptr || left == nullptr || top == nullptr || right == nullptr)
                 {
                     Assert::Fail ((L"every zone is there, " + at).c_str());
                     return;
                 }
+
+                Assert::AreEqual (s_kArea.right - kInsets[i], right->target.right, (L"in from the right edge as far, " + at).c_str());
 
                 Assert::AreEqual (kButtons[i], tab->target.right  - tab->target.left,  (L"a cross's button, " + at).c_str());
                 Assert::AreEqual (kButtons[i], tab->target.bottom - tab->target.top,   (L"a cross's button, " + at).c_str());

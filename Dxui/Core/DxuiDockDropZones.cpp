@@ -12,8 +12,8 @@
 //
 //  The window's edge guides first, so a point near the middle of an edge
 //  over a group's cross still finds the cross: HitTest takes the last zone
-//  that holds the point. Each edge guide's button lies kEdgeDip in from its
-//  edge, centered along it.
+//  that holds the point. Each edge guide's box lies kEdgeDip in from its
+//  edge of the area, centered along it, rounding down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,8 @@ std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPa
     std::vector<DxuiDockDropZone>  zones;
     long                           midX     = (area.left + area.right) / 2;
     long                           midY     = (area.top + area.bottom) / 2;
-    long                           inset    = scaler.ToPx (kEdgeDip) + scaler.ToPx (DxuiDockGuide::kButtonDip) / 2;
+    long                           inset    = scaler.ToPx (kEdgeDip);
+    SIZE                           box      = DxuiDockGuide::GetSizePx (DxuiDockGuideKind::Edge, scaler);
     RECT                           well     = {};
     bool                           hasWell  = false;
 
@@ -47,15 +48,14 @@ std::vector<DxuiDockDropZone> DxuiDockDropZones::Build (const std::vector<DxuiPa
     for (DxuiDockSide side : kSides)
     {
         DxuiDockDropZone  zone;
-        POINT             center = { (side == DxuiDockSide::Left)   ? area.left   + inset
-                                   : (side == DxuiDockSide::Right)  ? area.right  - inset : midX,
+        POINT             origin = { (side == DxuiDockSide::Left)   ? area.left   + inset
+                                   : (side == DxuiDockSide::Right)  ? area.right  - inset - box.cx : midX - box.cx / 2,
                                      (side == DxuiDockSide::Top)    ? area.top    + inset
-                                   : (side == DxuiDockSide::Bottom) ? area.bottom - inset : midY };
+                                   : (side == DxuiDockSide::Bottom) ? area.bottom - inset - box.cy : midY - box.cy / 2 };
 
         zone.kind    = DxuiDockDropZone::Kind::Edge;
         zone.side    = side;
-        zone.target  = DxuiDockGuide::GetButtonRect (DxuiDockGuideKind::Edge, DxuiDockGuide::GetDockButton (side),
-                                                     DxuiDockGuide::GetOrigin (DxuiDockGuideKind::Edge, center, scaler), scaler);
+        zone.target  = DxuiDockGuide::GetButtonRect (DxuiDockGuideKind::Edge, DxuiDockGuide::GetDockButton (side), origin, scaler);
         zone.preview = GetQuarter (area, side);
         zones.push_back (zone);
     }

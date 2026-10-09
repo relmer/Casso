@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DxuiDockSiteGapTests
 //
 //  The room Visual Studio leaves between docked panes and around them: 8 px
-//  between neighbors and 5 px at the edges at 125%, painted in the theme's
+//  between neighbors and 8 px at the edges at 125%, painted in the theme's
 //  DockGap. The gap itself is the sash.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,13 +162,37 @@ namespace DxuiDockSiteGapTests
             Assert::AreEqual (8L, regs.left   - console.right, L"and beside the console");
             Assert::AreEqual (8L, console.top - code.bottom,   L"and between stacked ones");
 
-            Assert::AreEqual (5L,   code.left,      L"a 5 px margin on the left");
-            Assert::AreEqual (5L,   code.top,       L"at the top");
-            Assert::AreEqual (5L,   regs.top,       L"at the top on the right");
-            Assert::AreEqual (995L, regs.right,     L"on the right");
-            Assert::AreEqual (595L, regs.bottom,    L"at the bottom on the right");
-            Assert::AreEqual (5L,   console.left,   L"on the left below");
-            Assert::AreEqual (595L, console.bottom, L"and at the bottom");
+            Assert::AreEqual (8L,   code.left,      L"an 8 px margin on the left");
+            Assert::AreEqual (8L,   code.top,       L"at the top");
+            Assert::AreEqual (8L,   regs.top,       L"at the top on the right");
+            Assert::AreEqual (992L, regs.right,     L"on the right");
+            Assert::AreEqual (592L, regs.bottom,    L"at the bottom on the right");
+            Assert::AreEqual (8L,   console.left,   L"on the left below");
+            Assert::AreEqual (592L, console.bottom, L"and at the bottom");
+        }
+
+
+        //  The margin is the gap's 6 DIP, as Visual Studio leaves: 6, 8 and 9
+        //  px at 100%, 125% and 150%.
+        TEST_METHOD (TheMarginIsTheGapAtEveryScale)
+        {
+            constexpr UINT  kDpis[]    = { 96, s_kDpi125, s_kDpi150 };
+            constexpr long  kMargins[] = { 6, 8, 9 };
+
+
+
+            for (size_t i = 0; i < std::size (kDpis); i++)
+            {
+                Rig           rig (kDpis[i], true);
+                RECT          code = rig.GetGroupRect (rig.code);
+                RECT          regs = rig.GetGroupRect (rig.regs);
+                std::wstring  at   = std::format (L"{} dpi", kDpis[i]);
+
+                Assert::AreEqual (kMargins[i],                   code.left,              (L"the margin on the left, " + at).c_str());
+                Assert::AreEqual (kMargins[i],                   code.top,               (L"at the top, " + at).c_str());
+                Assert::AreEqual (s_kBounds.right - kMargins[i], regs.right,             (L"on the right, " + at).c_str());
+                Assert::AreEqual (kMargins[i],                   regs.left - code.right, (L"as wide as the gap, " + at).c_str());
+            }
         }
 
 
@@ -180,7 +204,7 @@ namespace DxuiDockSiteGapTests
             RECT                                    code    = rig.GetGroupRect (rig.code);
             RECT                                    regs    = rig.GetGroupRect (rig.regs);
             RECT                                    console = rig.GetGroupRect (rig.console);
-            RECT                                    inside  = { 6, 6, 994, 594 };
+            RECT                                    inside  = { 9, 9, 991, 591 };
             std::vector<DxuiPaneLayout::SplitRect>  splits  = rig.site.GetPaneLayout().ArrangeSplits (inside, nullptr, nullptr);
             long                                    across  = 0;
             long                                    down    = 0;
@@ -198,7 +222,7 @@ namespace DxuiDockSiteGapTests
             Assert::AreEqual (9L,         console.top - code.bottom, L"9 px between stacked panes");
             Assert::AreEqual (down - 4,   code.bottom,               L"4 px from the upper pane");
             Assert::AreEqual (down + 5,   console.top,               L"5 px from the lower");
-            Assert::AreEqual (6L,         code.left,                 L"a 6 px margin at 150%");
+            Assert::AreEqual (9L,         code.left,                 L"a 9 px margin at 150%");
         }
 
 

@@ -16,7 +16,8 @@
 //  tab strip, a new tab group beside a document group, or an edge of the
 //  window. `target` is the guide button that is drawn and hit-tested;
 //  `preview` is the area the pane would take, which is what the overlay
-//  shades while the pointer is over the button.
+//  shades while the pointer is over the button, and for a tab drop
+//  `previewTab` is the tab it would take, shaded with it.
 //
 //  A zone of a group's cross keeps that group's index in the list Build was
 //  given, in `group`, and its area, in `groupRect`, so the site can show the
@@ -33,6 +34,7 @@ struct DxuiDockDropZone
     std::wstring  targetPane;
     RECT          target     = {};
     RECT          preview    = {};
+    RECT          previewTab = {};
     bool          besideWell = false;
     int           group      = -1;
     RECT          groupRect  = {};
@@ -63,13 +65,15 @@ struct DxuiDockDropZone
 class DxuiDockDropZones
 {
 public:
-    //  How far an edge guide's button lies in from the window's edge.
-    static constexpr int  kEdgeDip = 8;
+    //  How far an edge guide's box lies in from the edge of the area it
+    //  docks along: Visual Studio's 12 to 13 px at 125%.
+    static constexpr int  kEdgeDip = 10;
 
     using GroupTestFn = std::function<bool (const DxuiPaneLayout::GroupRect & group)>;
 
-    //  The zones for dragging `pane` over a window of `area` laid out as
-    //  `groups`; `isDocument` picks the groups that get the larger cross.
+    //  The zones for dragging `pane` over a docked area of `area`, the margin
+    //  around the panes included, laid out as `groups`; `isDocument` picks
+    //  the groups that get the larger cross.
     static std::vector<DxuiDockDropZone>  Build (const std::vector<DxuiPaneLayout::GroupRect> & groups,
                                                  const RECT & area, const std::wstring & pane,
                                                  const DxuiDpiScaler & scaler,

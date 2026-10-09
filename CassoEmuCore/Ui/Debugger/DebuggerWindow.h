@@ -835,6 +835,7 @@ private:
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
     void                         ShowDragMarks     ();
     void                         HideDragMarks     ();
+    void                         ShowFocusAccent   ();
     void                         DockFloatingPane  (const std::wstring & pane);
     void                         SetBreakpointColumns ();
 

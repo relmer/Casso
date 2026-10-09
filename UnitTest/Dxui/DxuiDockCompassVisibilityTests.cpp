@@ -78,6 +78,22 @@ namespace DxuiDockCompassVisibilityTests
 
             return guides;
         }
+
+        //  The cross among the guides shown, larger than an edge guide's box,
+        //  or an empty rect for none. It is not always the last: the guide
+        //  holding the button under the pointer comes first.
+        RECT GetCrossRect()
+        {
+            RECT  cross = {};
+            long  edge  = DxuiDockGuide::GetSizePx (DxuiDockGuideKind::Edge, scaler).cx;
+
+            for (const DxuiDockDragMark & guide : GetGuides())
+            {
+                cross = (guide.rect.right - guide.rect.left > edge) ? guide.rect : cross;
+            }
+
+            return cross;
+        }
     };
 
 
@@ -154,19 +170,48 @@ namespace DxuiDockCompassVisibilityTests
             origin = GetCrossOrigin (DxuiDockGuideKind::LargeCross, code, rig.scaler);
 
             Assert::AreEqual ((size_t) 5, guides.size(), L"the edges and one cross");
-            Assert::AreEqual (origin.x, guides.back().rect.left, L"the documents' large cross");
-            Assert::AreEqual (origin.y, guides.back().rect.top);
+            Assert::AreEqual (origin.x, rig.GetCrossRect().left, L"the documents' large cross");
+            Assert::AreEqual (origin.y, rig.GetCrossRect().top);
 
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { console.left + 20, console.bottom - 20 }));
             guides = rig.GetGuides();
             origin = GetCrossOrigin (DxuiDockGuideKind::SmallCross, console, rig.scaler);
 
             Assert::AreEqual ((size_t) 5, guides.size());
-            Assert::AreEqual (origin.x, guides.back().rect.left, L"the cross moved to the console's group");
-            Assert::AreEqual (origin.y, guides.back().rect.top);
+            Assert::AreEqual (origin.x, rig.GetCrossRect().left, L"the cross moved to the console's group");
+            Assert::AreEqual (origin.y, rig.GetCrossRect().top);
 
             rig.site.CancelDrag();
             Assert::IsTrue (rig.GetGuides().empty());
+        }
+
+
+        //  Between two panes, over neither, only the edge guides show, as in
+        //  Visual Studio.
+        TEST_METHOD (OverNoPaneOnlyTheEdgeGuidesShow)
+        {
+            Rig    rig (600, 120);
+            RECT   code    = {};
+            RECT   regs    = {};
+            RECT   cross   = {};
+            POINT  between = {};
+
+
+
+            rig.site.SetPaneGap (DxuiDockSite::kPaneGapDip, DxuiDockSite::kPaneMarginDip);
+            code    = rig.GetGroupRect (rig.code);
+            regs    = rig.GetGroupRect (rig.regs);
+            between = POINT { (code.right + regs.left) / 2, Center (code).y };
+
+            rig.site.BeginDrag (L"stack");
+            rig.site.OnMouse   (Mouse (DxuiMouseEventKind::Move, Center (code)));
+            Assert::AreEqual ((size_t) 5, rig.GetGuides().size(), L"over a pane, its cross");
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, between));
+            cross = rig.GetCrossRect();
+
+            Assert::AreEqual ((size_t) 4, rig.GetGuides().size(), L"in the gap, the four edge guides alone");
+            Assert::IsTrue   (IsRectEmpty (&cross) != FALSE,     L"and no cross");
         }
 
 
@@ -199,7 +244,7 @@ namespace DxuiDockCompassVisibilityTests
 
             Assert::IsTrue   (hover->kind == DxuiDockDropZone::Kind::Side && hover->side == DxuiDockSide::Bottom);
             Assert::AreEqual (std::wstring (L"code"), hover->targetPane);
-            Assert::AreEqual (origin.y, rig.GetGuides().back().rect.top, L"the documents' cross still shows");
+            Assert::AreEqual (origin.y, rig.GetCrossRect().top, L"the documents' cross still shows");
         }
 
 
@@ -223,7 +268,7 @@ namespace DxuiDockCompassVisibilityTests
             rig.site.OnMouse   (Mouse (DxuiMouseEventKind::Move, past));
 
             Assert::IsNull   (rig.site.GetHoveredZone(), L"no button of the console's cross is there");
-            Assert::AreEqual (GetCrossOrigin (DxuiDockGuideKind::SmallCross, console, rig.scaler).y, rig.GetGuides().back().rect.top,
+            Assert::AreEqual (GetCrossOrigin (DxuiDockGuideKind::SmallCross, console, rig.scaler).y, rig.GetCrossRect().top,
                               L"the console's cross shows");
         }
 
@@ -255,6 +300,7 @@ namespace DxuiDockCompassVisibilityTests
             {
                 Rig                            rig (600, kDpis[i]);
                 RECT                           code    = rig.GetGroupRect (rig.code);
+                RECT                           cross   = {};
                 std::vector<DxuiDockDragMark>  guides;
                 size_t                         checked = 0;
                 std::wstring                   at      = std::format (L"{} dpi", kDpis[i]);
@@ -262,10 +308,11 @@ namespace DxuiDockCompassVisibilityTests
                 rig.site.BeginDrag (L"stack");
                 rig.site.OnMouse   (Mouse (DxuiMouseEventKind::Move, Center (code)));
                 guides = rig.GetGuides();
+                cross  = rig.GetCrossRect();
 
                 for (size_t g = 0; g < guides.size(); g++)
                 {
-                    bool                              isCross = g + 1 == guides.size();
+                    bool                              isCross = EqualRect (&guides[g].rect, &cross) != FALSE;
                     DxuiDockGuideKind                 kind    = isCross ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::Edge;
                     POINT                             origin  = { guides[g].rect.left, guides[g].rect.top };
                     std::vector<DxuiDockGuideButton>  buttons = isCross ? DxuiDockGuide::GetButtons (kind, DxuiDockSide::Left)
