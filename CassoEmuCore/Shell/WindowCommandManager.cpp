@@ -691,13 +691,10 @@ void WindowCommandManager::OnEditCommand (int id)
 //  mutate device state the CPU thread is actively using and must land between
 //  instructions rather than mid-execution.
 //
-//  Step is driven DIRECTLY from the UI thread, which looks like a violation of
-//  that rule and is not. Step only runs while paused, and a paused CPU thread
-//  is provably idle -- blocked in pauseCV.wait -- so there is no concurrent
-//  access to race with. Posting it would in fact deadlock: the CPU thread
-//  cannot drain its command queue while it is parked. It is delegated back
-//  through the shell to keep Disk2Controller's full definition out of this
-//  header.
+//  Step is posted too, and only while paused. A paused CPU thread still
+//  drains its queue: a posted command wakes it from the pause wait without
+//  resuming the machine, so the step runs on the CPU thread, between
+//  instructions, like every other command that touches the machine.
 //
 //  Speed and pause are plain CpuManager calls -- flags the CPU thread reads,
 //  the pause one before every instruction -- so they need no marshalling at

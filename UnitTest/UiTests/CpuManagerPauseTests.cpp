@@ -422,8 +422,8 @@ namespace CpuManagerPauseTests
             rig.cpu.TogglePaused();
 
             isParked = rig.cpu.TryWaitUntilParked (kShortWait);
-            Assert::IsFalse (isParked,            L"a thread held in its frame has not parked, and the wait gave up");
-            Assert::IsFalse (rig.cpu.IsParked(),  L"nor does IsParked say it has");
+            Assert::IsFalse (isParked,            L"a thread held in its frame has not parked, so the wait times out");
+            Assert::IsFalse (rig.cpu.IsParked(),  L"and IsParked returns false");
 
             rig.gate.Release();
 

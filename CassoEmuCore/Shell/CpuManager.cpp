@@ -207,11 +207,11 @@ bool CpuManager::IsPaused() const noexcept
 //
 //  SetPaused
 //
-//  Stores and wakes under the pause mutex. TryPark decides under the same
-//  mutex whether the CPU thread runs a frame, so a pause cannot fall between
-//  that decision and the frame it starts unseen. A lost wakeup on the resume
-//  edge (see Stop) would leave the machine parked with the UI reporting it
-//  running.
+//  Stores and wakes under the pause mutex. TryPark tests the flag under the
+//  same mutex before the CPU thread runs a frame, so a pause cannot land
+//  unseen between that test and the frame after it. A lost wakeup on the
+//  resume edge (see Stop) would leave the machine parked with the UI
+//  reporting it running.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -278,10 +278,12 @@ bool CpuManager::IsParked() const noexcept
 //
 //  TryWaitUntilParked
 //
-//  The acknowledgement of a pause. The CPU thread parks once the machine has
-//  stopped on the instruction boundary after the pause and the frame it was
-//  in has ended. The wait is bounded because the thread may first be busy
-//  with a long command, and a caller on the UI thread must not hang on it.
+//  The acknowledgment of a pause. The CPU thread parks once it is outside a
+//  frame: as it enters the pause wait when the pause lands between frames,
+//  and otherwise once the machine has stopped on the instruction boundary
+//  after the pause and the frame has ended. The wait is bounded because the
+//  thread may first be busy with a long command, and a caller on the UI
+//  thread must not hang on it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -304,7 +306,7 @@ bool CpuManager::TryWaitUntilParked (std::chrono::milliseconds timeout)
 //
 //  CPU thread, outside a frame: parks it when a pause is asked for or the
 //  thread is stopping, and marks it running otherwise; true when it parked.
-//  Decided under the pause mutex, which every change to the pause flag takes,
+//  The test runs under the pause mutex, which every change to the flag takes,
 //  so a pause is either seen here or raised while the next frame runs, where
 //  the machine stops on its next instruction boundary and the thread parks
 //  as soon as the frame returns.
