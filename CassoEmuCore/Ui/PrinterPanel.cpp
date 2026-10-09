@@ -255,6 +255,7 @@ std::span<const uint8_t> PrinterPanel::LoadBinaryResource (int resourceId)
 PrinterPanel::PrinterPanel()
     : m_panZoom (GetPanZoomConfig())
 {
+    m_tooltip.ApplyVisualStudioLook();
 }
 
 PrinterPanel::~PrinterPanel() = default;
@@ -562,12 +563,19 @@ void PrinterPanel::OnCreate()
 //
 //  PrinterPanel::SetTheme
 //
+//  The tip keeps the colors it is given, so it takes the new ones here.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::SetTheme (const CassoTheme * theme)
 {
     m_theme = theme;
     DxuiWindow::SetTheme (theme);   // implicit upcast CassoTheme -> DxuiTheme -> IDxuiTheme
+
+    if (theme != nullptr)
+    {
+        m_tooltip.SetTheme (*theme);
+    }
 }
 
 

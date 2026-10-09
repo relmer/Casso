@@ -55,6 +55,10 @@ public:
 
     HRESULT RenderFrame ();
     void    SetTheme    (const CassoTheme * theme);
+
+    //  The hover tip, which takes the theme's tooltip colors.
+    const DxuiTooltip &  GetTooltip () const { return m_tooltip; }
+
     void    SetCycleCounter (const uint64_t * cycleCounter) { m_cycleCounter = cycleCounter; }
     void    SetUptimeAnchor (std::chrono::steady_clock::time_point anchor) { m_uptimeAnchor = anchor; }
     void    SetMultiControllerHint (bool multi)            { m_multiController = multi; }

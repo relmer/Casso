@@ -2950,7 +2950,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.fg       = m_theme->Foreground();
     pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
     pal.hdrFg    = m_theme->HeadingForeground();
-    pal.bgRow    = m_theme->ContentBackground();
+    pal.bgRow    = m_textViewSurface ? m_theme->TextViewBackground() : m_theme->ContentBackground();
     pal.bgHover  = m_theme->ContentHover();
     pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
     pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();
@@ -3293,9 +3293,16 @@ void DxuiListView::PaintDataRows (
             if (cells[c].icon && !cells[c].icon->bgraPremul.empty())
             {
                 float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
+                float  iconX  = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
+
+                //  A glyph margin centers its icon on a set line.
+                if (c == 0 && m_glyphCenterDip > 0.0f)
+                {
+                    iconX = x + colOff + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
+                }
 
                 hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
-                                          x + colOff + (float) colXPx[c] + cellPadL + iconShift,
+                                          iconX,
                                           ry + (rowH - iconPx) * 0.5f,
                                           iconPx, iconPx);
                 IGNORE_RETURN_VALUE (hr, S_OK);

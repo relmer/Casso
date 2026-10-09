@@ -15,7 +15,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  The colors around docked panes: the gap between them, the band behind
 //  their tabs, and the drop targets a dragged pane shows. Each derives from
 //  the theme's content fill and border unless the theme sets its own, and the
-//  derivation reproduces Visual Studio's dark theme from its two colors.
+//  derivation reproduces Visual Studio's dark and light themes from their
+//  own colors.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,7 +91,50 @@ public:
         AssertGapAndBand (CassoTheme::MakeDarkModern(),    0xFF151619u, 0xFF1C1E22u, L"dark modern");
         AssertGapAndBand (CassoTheme::MakeRetroTerminal(), 0xFF091A0Cu, 0xFF0D2411u, L"retro terminal");
         AssertGapAndBand (dark,                            0xFF111111u, 0xFF171717u, L"system dark");
-        AssertGapAndBand (light,                           0xFFEBEBEBu, 0xFFF3F3F3u, L"system light");
+        AssertGapAndBand (light,                           0xFFEFEFEFu, 0xFFF8F8F8u, L"system light");
+    }
+
+
+    //  Visual Studio's light theme: panes of #F9F9F9, with #EEEEEE between
+    //  them and #F7F7F7 behind their tabs. The gap comes from the content
+    //  alone, so a darker panel color leaves it where it is.
+    TEST_METHOD (LightFactorsReproduceVisualStudio)
+    {
+        DxuiTheme  theme = {};
+
+
+
+        theme.panelBg   = 0xFFFBFBFB;
+        theme.contentBg = 0xFFF9F9F9;
+        theme.panelEdge = 0xFFADADAD;
+
+        Assert::AreEqual (0xFFEEEEEEu, theme.DockGap(),  L"the gap");
+        Assert::AreEqual (0xFFF7F7F7u, theme.PaneBand(), L"the band");
+
+        theme.panelBg = 0xFFE0E0E0;
+
+        Assert::AreEqual (0xFFEEEEEEu, theme.DockGap(),  L"a darker panel does not pull the gap down");
+    }
+
+
+    //  A text view's background is the content color unless a theme sets one,
+    //  and the focus accent is derived unless a theme sets one.
+    TEST_METHOD (TextViewAndFocusAccentTokensOverrideTheDefaults)
+    {
+        DxuiTheme  theme   = DxuiTheme::Light();
+        uint32_t   derived = theme.FocusAccent();
+
+
+
+        Assert::AreEqual (theme.ContentBackground(), theme.TextViewBackground(), L"the content color by default");
+        Assert::AreEqual (DxuiColor::ComputeFocusAccent (theme.Accent(), theme.Background()), derived, L"the derived accent by default");
+
+        theme.textViewBg  = 0xFFFFFFFF;
+        theme.focusAccent = 0xFF5649B0;
+
+        Assert::AreEqual (0xFFFFFFFFu, theme.TextViewBackground());
+        Assert::AreEqual (0xFF5649B0u, theme.FocusAccent());
+        Assert::AreNotEqual (theme.TextViewBackground(), theme.ContentBackground(), L"the content color stays its own");
     }
 
 

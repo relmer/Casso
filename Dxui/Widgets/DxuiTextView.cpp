@@ -988,8 +988,8 @@ uint32_t DxuiTextView::GetFindHighlightFill (const IDxuiTheme & theme)
 
 
 
-    uint32_t  background = theme.ContentBackground() | 0xFF000000u;
-    uint32_t  fill       = theme.WarningAccent()     | 0xFF000000u;
+    uint32_t  background = theme.TextViewBackground() | 0xFF000000u;
+    uint32_t  fill       = theme.WarningAccent()      | 0xFF000000u;
     bool      darkBack   = DxuiColor::ComputeRelativeLuminance (background) < 0.18f;
 
 
@@ -1015,8 +1015,8 @@ uint32_t DxuiTextView::GetFindHighlightFill (const IDxuiTheme & theme)
 uint32_t DxuiTextView::GetFindHighlightText (const IDxuiTheme & theme)
 {
     uint32_t  fill  = GetFindHighlightFill (theme);
-    uint32_t  fore  = theme.Foreground()        | 0xFF000000u;
-    uint32_t  back  = theme.ContentBackground() | 0xFF000000u;
+    uint32_t  fore  = theme.Foreground()         | 0xFF000000u;
+    uint32_t  back  = theme.TextViewBackground() | 0xFF000000u;
 
 
 
@@ -1603,7 +1603,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
                       (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top),
-                      theme.ContentBackground());
+                      theme.TextViewBackground());
 
     if (m_cellWidthPx <= 0 || m_cellHeightPx <= 0)
     {
@@ -1662,9 +1662,9 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     std::vector<uint32_t>    colors   = GetRowColors (row);
     int                      gutter   = GetGutterPx();
     uint32_t                 litText  = GetFindHighlightText (theme);
-    uint32_t                 litEdge  = (litText == (theme.Foreground() | 0xFF000000u)) ? theme.ContentBackground() : theme.Foreground();
-    uint32_t                 fore     = theme.Foreground()        | 0xFF000000u;
-    uint32_t                 back     = theme.ContentBackground() | 0xFF000000u;
+    uint32_t                 litEdge  = (litText == (theme.Foreground() | 0xFF000000u)) ? theme.TextViewBackground() : theme.Foreground();
+    uint32_t                 fore     = theme.Foreground()         | 0xFF000000u;
+    uint32_t                 back     = theme.TextViewBackground() | 0xFF000000u;
     std::vector<bool>        lit;
 
 
@@ -1679,9 +1679,16 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     if (line.first && row.icon != nullptr && !row.icon->bgraPremul.empty() && gutter > 0)
     {
         float  iconPx = m_scaler.ToPxf ((float) m_gutterIconDip);
+        float  iconX  = (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f;
+
+        //  A glyph margin centers its icon on a set line.
+        if (m_glyphCenterDip > 0.0f)
+        {
+            iconX = (float) m_boundsDip.left + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
+        }
 
         hr = text.DrawIconBitmap (row.icon->bgraPremul.data(), row.icon->width, row.icon->height,
-                                  (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f,
+                                  iconX,
                                   (float) y + ((float) m_cellHeightPx - iconPx) * 0.5f,
                                   iconPx, iconPx);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1791,7 +1798,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
     int       count  = (int) chars.size();
     int       first  = selected ? std::clamp (selFrom - flatStart, 0, count) : count;
     int       end    = selected ? std::clamp (selTo - flatStart, first, count) : count;
-    uint32_t  normal = DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
+    uint32_t  normal = DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength);
     int       start  = 0;
     auto      colorAt = [&] (int i)
                         {

@@ -338,6 +338,7 @@
     <ClCompile Include="DebuggerTests\ConsoleHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowThemeTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerSystemThemeColorsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerTextColorsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerRowTintColorsTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />
@@ -653,6 +654,7 @@
     <ClCompile Include="Dxui\DxuiSliderTests.cpp" />
     <ClCompile Include="Dxui\DxuiTreeViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiModalScrimTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTooltipFrameTests.cpp" />
     <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
     <ClCompile Include="Dxui\DxuiAddressBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewTests.cpp" />
@@ -663,6 +665,7 @@
     <ClCompile Include="Dxui\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\DebuggerOpenKeyTests.cpp" />
+    <ClCompile Include="UiTests\DevicePanelTooltipTests.cpp" />
     <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
     <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />

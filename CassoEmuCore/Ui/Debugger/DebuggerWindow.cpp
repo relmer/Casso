@@ -251,8 +251,9 @@ void DebuggerWindow::OnCreate()
             [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
             [this] (Word address)             { ShowCode (address); });
 
-        document.pane->SetOnToggleBody ([this] { ToggleMacroBody(); });
-        document.view->SetGutter       (kGutterColumnDip, kBreakpointIconDip);
+        document.pane->SetOnToggleBody   ([this] { ToggleMacroBody(); });
+        document.view->SetGutter         (kGutterColumnDip, kBreakpointIconDip);
+        document.view->SetGlyphCenterDip (kGlyphCenterDip);
         document.view->SetVisible   (false);
         document.banner->SetVisible (false);
     }
@@ -532,6 +533,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_tooltip.SetPopupHost        (GetPopupHost());
     m_tooltip.SetTheme            (*m_theme);
     m_tooltip.SetMonospace        (true);
+    m_tooltip.ApplyVisualStudioLook();
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_commandBar->SetGrabHandle   (true);
@@ -2633,7 +2635,8 @@ DebuggerKeyScheme DebuggerWindow::GetSavedKeyScheme() const
 //
 //  The window's own theme, or the emulator's for the empty name. The system
 //  themes take the accent from Windows each time one is chosen, as Casso
-//  Explorer's do. The Theme drop-down is rebuilt for the check it carries.
+//  Explorer's do, and then the debugger's own tooltip and pane colors. The
+//  Theme drop-down is rebuilt for the check it holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2647,6 +2650,8 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
 
     m_lightTheme.ApplySystemColors (system);
     m_darkTheme.ApplySystemColors  (system);
+
+    DebuggerThemes::ApplyOwnColors (m_lightTheme, m_darkTheme);
 
     if (m_emulatorTheme != nullptr)
     {
@@ -9316,6 +9321,10 @@ void DebuggerWindow::ConfigureCodeList (int view)
     list->SetTextSelection         (true);
     list->SetOwnerWindow           (GetHwnd());
 
+    //  The breakpoint column is a glyph margin, as an editor's is, and the
+    //  rows are code on a text view's background.
+    list->SetGlyphCenterDip        (kGlyphCenterDip);
+    list->SetTextViewSurface       (true);
 }
 
 
@@ -9723,15 +9732,17 @@ uint32_t DebuggerWindow::GetBreakpointArgb() const
 //  DebuggerWindow::MakeDotIcon
 //
 //  A breakpoint's dot in a color, filled or a ring, drawn as an image so it
-//  can be larger than the text beside it.
+//  can be larger than the text beside it. The image is drawn in a
+//  kBreakpointIconDip box, and the dot fills 0.7 of it: 11.2 DIP across, the
+//  14 pixels Visual Studio's breakpoint is at 125%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<DxuiIconImage> DebuggerWindow::MakeDotIcon (uint32_t argb, bool filled)
 {
     static constexpr int    kSize   = 48;
-    static constexpr float  kRadius = 21.0f;
-    static constexpr float  kRing   = 5.0f;
+    static constexpr float  kRadius = 16.8f;
+    static constexpr float  kRing   = 4.0f;
     auto                    image   = std::make_shared<DxuiIconImage>();
 
 
@@ -10137,6 +10148,7 @@ void DebuggerWindow::ConfigureCommandBarHost()
         tip->SetTheme     (*m_theme);
         tip->SetDpi       (GetDpiForWindow (window.GetHwnd()));
         tip->SetMonospace (true);
+        tip->ApplyVisualStudioLook();
         m_floatTips[kBarFloatKey] = std::move (tip);
     });
 
@@ -11496,6 +11508,7 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
         tip->SetPopupHost (window->GetPopupHost());
         tip->SetTheme     (*m_theme);
         tip->SetDpi       (GetDpiForWindow (window->GetHwnd()));
+        tip->ApplyVisualStudioLook();
         m_floatTips[pane] = std::move (tip);
     }
 

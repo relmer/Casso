@@ -452,7 +452,7 @@ private:
     int           MeasureLabelPx       (const wchar_t * text, float fontPx) const;
     int           GetEntryWidthPx      (const Slot & slot, bool labeled) const;
     int           GetEntryLeadPx       (const Slot & slot) const;
-    int           GetPaneInsetExtraPx  () const;
+    int           GetPaneInsetOffsetPx () const;
     int           GetTotalWidthPx      (int labeledCount) const;
     RECT          GetFlyoutKeepAliveRc () const;
     void          LayoutFlyout         ();

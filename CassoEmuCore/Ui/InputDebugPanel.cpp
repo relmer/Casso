@@ -743,8 +743,10 @@ InputDebugPanel::InputDebugPanel()
     // Content widgets are created as children of this panel in OnCreate
     // (which fires inside DxuiWindow::Create once the backend exists) so
     // the base paint pump walks and paints them. The constructor only
-    // seeds the Uptime anchor; every other member default-initializes.
+    // seeds the Uptime anchor and gives the tip the emulator's tooltip
+    // frame; every other member default-initializes.
     m_uptimeAnchor = std::chrono::steady_clock::now();
+    m_tooltip.ApplyVisualStudioLook();
 }
 
 
@@ -931,11 +933,17 @@ void InputDebugPanel::SetTheme (const CassoTheme * theme)
     // Set the one window theme; the paint pump hands it to the child
     // widget tree (edits, list, labels) each frame, so they need no
     // per-control push. The focus manager keeps a copy only for its
-    // row-height metric; the column-menu popup is themed at show time.
+    // row-height metric; the column-menu popup is themed at show time. The
+    // tip keeps the colors it is given, so it takes the new ones here.
     m_theme = theme;
     DxuiWindow::SetTheme (theme);
 
     m_focusMgr.SetTheme (theme);
+
+    if (theme != nullptr)
+    {
+        m_tooltip.SetTheme (*theme);
+    }
 }
 
 

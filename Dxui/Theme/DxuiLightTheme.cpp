@@ -19,6 +19,9 @@
 //  address box set into it is white, a step above again. Unlike the dark
 //  theme's, these have not yet been measured against Explorer.
 //
+//  A tooltip is File Explorer's: #F9F9F9 bordered in #D1D1D1, with the body
+//  text color.
+//
 //  The drop targets a dragged pane shows are measured from Visual Studio
 //  2026's light drop targets at 125% on 2026-10-08: the cross's border
 //  #CCCEDB over a translucent #E8E8ED, and the button under the pointer
@@ -62,6 +65,8 @@ DxuiLightTheme::DxuiLightTheme()
     buttonHover              = 0xFFF6F6F6;
     buttonPressed            = 0xFFF0F0F0;
     buttonBorder             = 0xFFD1D1D1;
+    tooltipBg                = 0xFFF9F9F9;
+    tooltipBorder            = 0xFFD1D1D1;
     tooltipText              = 0xFF1A1A1A;
     errorText                = 0xFFC42B1C;
     resultText               = 0xFF00727D;

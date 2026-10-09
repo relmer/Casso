@@ -7,6 +7,8 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 
 #include "CppUnitTest.h"
 
@@ -229,5 +231,67 @@ namespace DisassemblyPcDragTests
             Assert::IsTrue  (BranchArrow::HitTest (input, upright + 7.0f, 100.0f), L"right of the upright");
             Assert::IsTrue  (BranchArrow::HitTest (input, upright + 4.0f, 57.0f),  L"below the row it leaves");
             Assert::IsFalse (BranchArrow::HitTest (input, upright + 10.0f, 100.0f), L"not the space between");
-        }    };
+        }
+
+
+
+        //  A breakpoint sits in the glyph margin as Visual Studio's does: its
+        //  dot 0.7 of the 16-DIP icon, 11.2 DIP and so 14 pixels across at
+        //  125%, centered 8.4 DIP in from the list's left, 10.5 pixels there,
+        //  in a 17-DIP column.
+        TEST_METHOD (ABreakpointSitsInTheGlyphMarginAsVisualStudiosDoes)
+        {
+            constexpr int                          kIconPx  = 48;    // the dot image's own size
+            CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
+            ViewingHost                            host;
+            DxuiDpiScaler                          scaler;
+            DxuiDpiScaler                          scaler120;
+            ViewingWindow                          window (theme, host);
+            DxuiListView                         * list     = nullptr;
+            MockDxuiPainter                        painter;
+            MockDxuiTextRenderer                   text;
+            auto                                   snapshot = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot());
+            std::shared_ptr<const DxuiIconImage>   dot;
+            RECT                                   bounds   = {};
+            RECT                                   address  = {};
+            int                                    across   = 0;
+
+
+
+            scaler.SetDpi    (96);
+            scaler120.SetDpi (120);
+
+            snapshot->codeViews[0][0].hasBreakpoint = true;
+            snapshot->codeViews[0][0].isEnabled     = true;
+            snapshot->code                          = snapshot->codeViews[0];
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            list   = window.GetCodeList (0);
+            dot    = list->GetCellsOfRow (0)[0].icon;
+            bounds = list->GetBounds();
+
+            Assert::IsTrue   (dot != nullptr, L"the row has a breakpoint");
+            Assert::AreEqual (kIconPx, dot->width);
+
+            for (int x = 0; x < dot->width; x++)
+            {
+                across += ((dot->bgraPremul[(size_t) ((dot->height / 2) * dot->width + x)] >> 24) >= 0x80u) ? 1 : 0;
+            }
+
+            Assert::AreEqual (34, across, L"the dot is 0.7 of its image across, 33.6 of 48 pixels");
+
+            list->Layout (bounds, scaler120);
+            list->Paint  (painter, text, theme);
+
+            Assert::IsFalse  (text.IconCalls().empty(), L"the dot is drawn");
+            Assert::AreEqual ((float) bounds.left + 10.5f, text.IconCalls()[0].x + text.IconCalls()[0].width * 0.5f, 0.001f, L"centered 10.5 pixels in at 125%");
+            Assert::AreEqual (20.0f, text.IconCalls()[0].width, L"in a 20-pixel icon, so the dot is 14 pixels across");
+            Assert::IsTrue   (list->GetCellTextRectPx (0, 2, address), L"the address has a cell");
+            Assert::AreEqual ((LONG) (scaler120.ToPx (17) + scaler120.ToPx (20) + scaler120.ToPx (4)), address.left,
+                              L"the address after the 17-DIP glyph column, the 20-DIP marker column and its padding");
+        }
+    };
 }

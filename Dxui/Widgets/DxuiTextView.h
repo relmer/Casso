@@ -94,6 +94,11 @@ public:
     void  SetGutter        (int widthDip, int iconDip) { m_gutterDip = widthDip; m_gutterIconDip = iconDip; }
     int   GetGutterPx      () const               { return m_scaler.ToPx (m_gutterDip); }
 
+    //  The gutter as an editor's glyph margin: its icon centered this far in
+    //  from the view's left edge, as Visual Studio centers a breakpoint. Zero,
+    //  the default, centers it in the gutter.
+    void  SetGlyphCenterDip (float dip)           { m_glyphCenterDip = dip; }
+
     //  A view that fills a pane: its text starts where the pane's title
     //  does, rather than a pad in from its left. Off by default.
     void  SetPaneTextInset (bool on)              { m_paneTextInset = on; }
@@ -315,6 +320,7 @@ private:
     int                     m_textTopPx       = 0;
     int                     m_gutterDip       = 0;
     int                     m_gutterIconDip   = 0;
+    float                   m_glyphCenterDip  = 0.0f;
     UINT                    m_measuredDpi     = 0;
     int                     m_topLine         = 0;
     bool                    m_followEnd       = false;
