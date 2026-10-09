@@ -2169,6 +2169,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReportSeatedMedia
+//
+//  SeatMedia emits no bay change, which suits a step through history. When
+//  the shell's drives have to match the seated disks, as after a state load
+//  that failed, the caller emits the change here: an eject for a bay left
+//  empty, and an insert for a bay holding a disk it did not hold before, as
+//  a mount over an occupied bay emits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ReportSeatedMedia (
+    int       slot,
+    int       drive,
+    uint64_t  previousMediaId)
+{
+    uint64_t  mediaId = GetMediaId (slot, drive);
+
+
+
+    if (!IsValidBay (slot, drive) || mediaId == previousMediaId)
+    {
+        return;
+    }
+
+    EmitBayChange (slot, drive, (mediaId == 0) ? BayChange::Ejected : BayChange::Inserted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PruneRetainedMedia
 //
 //  A disk that left its bay at or before the oldest snapshot is in none of

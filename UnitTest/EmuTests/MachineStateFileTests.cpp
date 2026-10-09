@@ -2,6 +2,7 @@
 
 #include "EmuTests/ReverseSessionRig.h"
 #include "Devices/RomDevice.h"
+#include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Shell/MachineStateFile.h"
 
@@ -335,6 +336,71 @@ public:
     }
 
 
+    //  The drive sounds follow the bays through a failed load, fed from the
+    //  bay-change sink as the shell feeds them. Drive 1 starts empty and drive
+    //  2 holds a disk. The load puts the state's disk in drive 1 and empties
+    //  drive 2, then fails, and the bays go back as they were. Unless the sink
+    //  receives that change too, drive 2's motor is silent with a disk in it
+    //  and drive 1's hums with none, until the next real insert or eject.
+    TEST_METHOD (AStateThatFailsToLoadLeavesEachDriveSoundWithItsBay)
+    {
+        constexpr int                                               kOtherDrive = 1;
+        TestMachine                                                 source ("Apple2e");
+        TestMachine                                                 target ("Apple2e");
+        FileLog                                                     sourceLog;
+        FileLog                                                     targetLog;
+        std::vector<Byte>                                           bytes;
+        std::vector<Byte>                                           otherDisk;
+        MachineStateContents                                        contents;
+        MachineStateError                                           error;
+        std::array<Disk2AudioSource, DiskImageStore::kDriveCount>   sounds;
+        DiskImageStore                                            & store       = target.GetDiskStore();
+        bool                                                        isMounted   = false;
+        int                                                         drive       = 0;
+        HRESULT                                                     hr          = S_OK;
+
+
+
+        Prepare (source, sourceLog, true);
+        source.RunCycles (s_kStateWarmupCycles);
+
+        bytes = Build (source);
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        CutShort (contents.machineState);
+
+        Prepare (target, targetLog, true);
+
+        AssertSucceeded (ReadPatternImage (s_kChangedPattern, otherDisk), L"ReadPatternImage");
+
+        hr = store.MountFromBytes (ReverseSessionRig::kDiskSlot, kOtherDrive, "C:\\Disks\\other.nib", DiskFormat::Nib, otherDisk);
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        store.Eject (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+
+        FollowBaysWithSounds (target, sounds);
+
+        Assert::IsFalse (sounds[ReverseSessionRig::kDiskDrive].IsDiskPresent(), L"drive 1's sound source has no disk present before the load");
+        Assert::IsTrue  (sounds[kOtherDrive].IsDiskPresent(),                   L"and drive 2's has one");
+
+        hr = MachineStateFile::Apply (target, contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a state cut short inside its section must not load");
+
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            isMounted = store.IsMounted (ReverseSessionRig::kDiskSlot, drive);
+
+            Assert::AreEqual (isMounted, sounds[drive].IsDiskPresent(),
+                              std::format (L"drive {}'s sound source has a disk present exactly when its bay holds one after the failed load", drive + 1).c_str());
+        }
+
+        Assert::IsFalse (store.IsMounted (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"drive 1 is empty again");
+        Assert::IsTrue  (store.IsMounted (ReverseSessionRig::kDiskSlot, kOtherDrive),                   L"and drive 2 holds its disk again");
+    }
+
+
 private:
 
     //  The rig's //e and loop, with a nibble image read from s_kImagePath in
@@ -393,6 +459,51 @@ private:
         }
 
         return S_OK;
+    }
+
+
+    //  Replaces Prepare's bay-change sink with one that also feeds each slot 6
+    //  bay change to that drive's sound, as DiskManager::OnBayChange does.
+    //  Each sound starts with a disk exactly when its bay holds one.
+    static void FollowBaysWithSounds (TestMachine & machine, std::array<Disk2AudioSource, DiskImageStore::kDriveCount> & sounds)
+    {
+        DiskImageStore  & store = machine.GetDiskStore();
+        int               drive = 0;
+
+
+
+        store.SetBayChangeSink ([&machine, &sounds] (int slot, int changedDrive, BayChange change)
+        {
+            if (slot != ReverseSessionRig::kDiskSlot)
+            {
+                return;
+            }
+
+            machine.GetRefs().diskController->SetExternalDisk (changedDrive, machine.GetDiskStore().GetImage (slot, changedDrive));
+
+            switch (change)
+            {
+                case BayChange::Inserted:
+                    sounds[changedDrive].OnDiskInserted();
+                    break;
+
+                case BayChange::Ejected:
+                    sounds[changedDrive].OnDiskEjected();
+                    break;
+
+                case BayChange::Swapped:
+                    sounds[changedDrive].OnDiskSwapped();
+                    break;
+            }
+        });
+
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            if (store.IsMounted (ReverseSessionRig::kDiskSlot, drive))
+            {
+                sounds[drive].OnDiskInserted();
+            }
+        }
     }
 
 

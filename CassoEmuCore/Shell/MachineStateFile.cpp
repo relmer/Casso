@@ -617,19 +617,45 @@ Error:
 //  It is this machine's own state, saved moments ago, so a failure here is a
 //  Casso bug.
 //
+//  The load seats the disks without a bay change, so each bay it changed is
+//  reported afterward. The failed load's own mounts and ejects were reported,
+//  and without the reports the drive doors, sounds and debug events would be
+//  left as that load set them: a drive it emptied and the rollback refilled
+//  would keep its motor sound off until the next real insert.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineStateFile::RollBack (
     MachineHost              & machine,
     const std::vector<Byte>  & before)
 {
-    HRESULT      hr     = S_OK;
-    StateReader  reader (before);
+    HRESULT                  hr     = S_OK;
+    DiskImageStore         & store  = machine.GetDiskStore();
+    std::vector<uint64_t>    seated;
+    int                      slot   = 0;
+    int                      drive  = 0;
+    StateReader              reader (before);
 
 
+
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            seated.push_back (store.GetMediaId (slot, drive));
+        }
+    }
 
     hr = machine.LoadState (reader);
     CHRA (hr);
+
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            store.ReportSeatedMedia (slot, drive, seated[slot * DiskImageStore::kDriveCount + drive]);
+        }
+    }
 
 Error:
     return hr;
