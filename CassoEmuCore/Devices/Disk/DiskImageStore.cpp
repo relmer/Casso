@@ -2171,14 +2171,18 @@ Error:
 //
 //  PruneRetainedMedia
 //
-//  A disk that left its bay at or before the oldest snapshot is in none of
-//  them, so nothing can put it back.
+//  A disk that left its bay before the oldest snapshot is in none of them,
+//  so nothing can put it back. One that left at the oldest snapshot's
+//  position can still be in it: a changed file is taken up from the drive's
+//  tick, partway through an instruction and before the position counts that
+//  instruction, so the disk it replaces leaves at the position of the
+//  snapshot taken at the instruction's start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::PruneRetainedMedia (uint64_t oldestPosition)
 {
-    std::erase_if (m_retained, [oldestPosition] (const Entry & kept) { return kept.retiredAt <= oldestPosition; });
+    std::erase_if (m_retained, [oldestPosition] (const Entry & kept) { return kept.retiredAt < oldestPosition; });
 }
 
 

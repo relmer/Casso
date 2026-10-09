@@ -662,6 +662,101 @@ public:
     }
 
 
+    //  The drive's quiet-moment callback takes up a changed file inside an
+    //  instruction, after the keyframe at that instruction's start was taken
+    //  with the outgoing disk in the drive. While that keyframe is the oldest
+    //  one held, seeking back to it must still put the outgoing disk back.
+    TEST_METHOD (SeekingBackToTheKeyframeBeforeAReloadInsideAnInstructionPutsTheOutgoingDiskBack)
+    {
+        static constexpr uint64_t  kLongestInstruction = 7;
+        TestMachine                machine     ("Apple2e");
+        ReverseController          controller  (machine);
+        DiskImageStore           & store       = machine.GetDiskStore();
+        FlushLog                   log;
+        ReverseResult              result;
+        HRESULT                    hr          = S_OK;
+        int64_t                    now         = 0;
+        bool                       isRewritten = false;
+        bool                       hasIdled    = false;
+        uint64_t                   sinceIdle   = 0;
+        uint64_t                   start       = 0;
+        uint64_t                   outgoing    = 0;
+
+
+
+        PrepareMotorProgram (machine, log);
+
+        store.SetClock       ([&now] () { return now; });
+        store.SetImageReader ([&isRewritten] (const std::string & path, std::vector<Byte> & bytes)
+        {
+            return isRewritten ? ReadRewrittenImage (path, bytes) : ReadPatternImage (path, bytes);
+        });
+
+        //  As the machine builder installs it, noting each time it runs.
+        machine.GetRefs().diskController->SetIdleCallback ([&store, &hasIdled] ()
+        {
+            hasIdled = true;
+            store.ApplyPendingReload();
+        });
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        //  On from one run of the callback to the last instructions before
+        //  the next.
+        while (!hasIdled)
+        {
+            machine.StepOne();
+        }
+
+        while (sinceIdle + kLongestInstruction < Disk2Controller::kIdleCallbackCycles)
+        {
+            sinceIdle += machine.StepOne();
+        }
+
+        //  Saved first, so taking up the file is a reload rather than a
+        //  conflict with the guest's writes.
+        hr = store.FlushAll();
+        AssertSucceeded (hr, L"FlushAll");
+
+        isRewritten = true;
+
+        store.NoteExternalChange ("history.nib", ExternalChangeIntent::ReloadInPlace);
+
+        now += MountedImageState::kQuietPeriodMs;
+
+        outgoing = store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+        hasIdled = false;
+
+        //  Recording starts again at each instruction that may be the one
+        //  whose tick runs the callback, so the first keyframe is taken at the
+        //  start of the instruction that takes up the file.
+        while (!hasIdled)
+        {
+            controller.Stop();
+
+            hr = controller.Start (MakeSettings());
+            AssertSucceeded (hr, L"Start");
+
+            start = machine.GetPosition();
+
+            machine.StepOne();
+        }
+
+        Assert::AreNotEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the instruction's tick took up the changed file");
+
+        //  The next instruction start takes the keyframe after the reload.
+        machine.StepOne();
+
+        Assert::AreEqual<uint64_t> (start, controller.GetOldestPosition(), L"the keyframe from before the reload is the oldest");
+
+        hr = controller.SeekToPosition (start, result);
+        AssertSucceeded (hr, L"SeekToPosition back to the keyframe before the reload");
+
+        Assert::AreEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the disk that went out is back in the drive");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == store.GetImage (6, 0), L"and the drive reads it");
+    }
+
+
 private:
 
     static ReverseSettings MakeSettings()
