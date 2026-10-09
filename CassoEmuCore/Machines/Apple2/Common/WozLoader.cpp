@@ -48,7 +48,6 @@ static constexpr size_t  kInfoCleanedOff      = 4;
 static constexpr size_t  kInfoCreatorOff      = 5;
 static constexpr size_t  kInfoCreatorSize     = 32;
 static constexpr size_t  kInfoDiskSidesOff    = 37;
-static constexpr size_t  kInfoBitTimingOff    = 39;
 static constexpr size_t  kInfoLargestTrackOff = 44;
 
 static constexpr Byte    kInfoVersion2        = 2;
@@ -56,7 +55,6 @@ static constexpr Byte    kInfoVersion3        = 3;
 static constexpr Byte    kDiskType525         = 1;
 static constexpr Byte    kSingleSided         = 1;
 static constexpr Byte    kCleaned             = 1;
-static constexpr Byte    kBitTiming525        = 32;   // 4us, in 125ns units
 
 // Stamped into creator only on a disk Casso authored. A disk Casso merely
 // edited keeps whoever imaged it in that field -- overwriting it is how a
@@ -1018,6 +1016,8 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
             {
                 out.hasBootSectorFormat = true;
                 out.bootSectorFormat    = info[kInfoOffsetBootSectorFormat];
+                out.hasBitTiming        = true;
+                out.bitTiming           = info[kInfoOffsetBitTiming];
             }
         }
         else if (MatchMagic (id, kTmapMagic) && chunkSize >= kTmapChunkSize)
@@ -1233,7 +1233,7 @@ HRESULT WozLoader::BuildSyntheticV21 (
     info[kInfoDiskTypeOff]      = kDiskType525;
     info[kInfoCleanedOff]       = kCleaned;
     info[kInfoDiskSidesOff]     = kSingleSided;
-    info[kInfoBitTimingOff]     = kBitTiming525;
+    info[kInfoOffsetBitTiming]  = kBitTimingStandard;
     Write16LE (info + kInfoOffsetLargestTrack, static_cast<uint16_t> (largestBits));
     Write16LE (info + kInfoOffsetFluxBlock,    static_cast<uint16_t> (fluxBlock));
     Write16LE (info + kInfoOffsetLargestFlux,  static_cast<uint16_t> (largestFlux));
@@ -1459,9 +1459,9 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         // format, compatible hardware and required RAM.
         if (info[kInfoVersionOff] < kInfoVersion2)
         {
-            info[kInfoVersionOff]   = kInfoVersion2;
-            info[kInfoDiskSidesOff] = kSingleSided;
-            info[kInfoBitTimingOff] = kBitTiming525;
+            info[kInfoVersionOff]      = kInfoVersion2;
+            info[kInfoDiskSidesOff]    = kSingleSided;
+            info[kInfoOffsetBitTiming] = kBitTimingStandard;
         }
 
         // The fields Casso owns, written last so they win over the source.

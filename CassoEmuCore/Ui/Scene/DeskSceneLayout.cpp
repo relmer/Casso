@@ -1440,7 +1440,8 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
                                              int                          drive,
                                              const SIZE                 & labelPx,
                                              int                          gapPx,
-                                             float                        outCorners[4][3])
+                                             float                        outCorners[4][3],
+                                             int                          offsetXPx)
 {
     memset (outCorners, 0, sizeof (float) * 4 * 3);
 
@@ -1449,7 +1450,7 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
         return false;
     }
 
-    return TryMakeLabelQuad (comp, comp.driveLabelWorld[drive], labelPx, gapPx, outCorners);
+    return TryMakeLabelQuad (comp, comp.driveLabelWorld[drive], labelPx, gapPx, outCorners, offsetXPx);
 }
 
 
@@ -1466,7 +1467,8 @@ bool DeskSceneLayout::TryMakeLabelQuad (const DeskSceneComposition & comp,
                                         const float                  anchor[3],
                                         const SIZE                 & labelPx,
                                         int                          gapPx,
-                                        float                        outCorners[4][3])
+                                        float                        outCorners[4][3],
+                                        int                          offsetXPx)
 {
     float          right[3] = {};
     float          up[3]    = {};
@@ -1475,7 +1477,8 @@ bool DeskSceneLayout::TryMakeLabelQuad (const DeskSceneComposition & comp,
     float          halfW    = (float) labelPx.cx * 0.5f;
     float          topPx    = (float) gapPx;
     float          botPx    = (float) (gapPx + labelPx.cy);
-    float          offsX[4] = { -halfW, halfW, -halfW, halfW };
+    float          centerX  = (float) offsetXPx;
+    float          offsX[4] = { centerX - halfW, centerX + halfW, centerX - halfW, centerX + halfW };
     float          offsY[4] = { topPx,  topPx, botPx,  botPx  };
 
 

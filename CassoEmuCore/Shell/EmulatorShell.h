@@ -725,6 +725,12 @@ private:
     // every new machine with a switch panel would need another arm added here.
     bool    MachineHasCaseSwitches () const;
     bool    MachineHasBuiltInDrive () const;
+
+    // The info icon's tooltip for a drive: what its WOZ image declares about
+    // the machine, and what conflicts with the one running. Empty when nothing
+    // does.
+    std::wstring  ComposeDriveInfoTooltip (int drive) const;
+
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
@@ -1155,13 +1161,27 @@ private:
     static constexpr int  s_kTapeDropTag = 2;
 
     // Re-hangs the mounted-image basename strip under each projected drive.
-    // The desk's baked labels: the two drives' names, then the recorder's
-    // tape name, its counter, and the name of the key under the pointer.
-    static constexpr size_t  s_kSceneLabelCount    = 6;
+    // The desk's baked labels: the two drives' names, the recorder's tape
+    // name, its counter, the name of the key under the pointer, the title on
+    // the cassette, and the two drives' info icons.
+    static constexpr size_t  s_kSceneLabelCount    = 8;
     static constexpr int     s_kSceneTapeNameCell  = 2;
     static constexpr int     s_kSceneCounterCell   = 3;
     static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;
     static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
+    static constexpr int     kSceneInfoIconCell    = 6;   // drive 0's info icon; drive 1's is the next cell
+
+    static_assert (s_kSceneLabelCount == (size_t) DeskScene::kLabelCount,
+                   "every baked label the shell makes needs a slot in the scene");
+
+    // Where a baked label's quad sits relative to its anchor, when it is not
+    // the whole cell centered under it: a drive name sharing its strip with
+    // the info icon, and the icon itself. A width of zero means the default.
+    struct SceneLabelSpan
+    {
+        LONG  offsetPx = 0;
+        LONG  widthPx  = 0;
+    };
 
     // The cassette title's pen: a handwriting face that ships with Windows 10
     // and later, in ballpoint blue, with no halo -- it is ink on paper, not a
@@ -1208,6 +1228,18 @@ private:
     void    SetStripLabelMarquee   (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
     int     GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
     bool    TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+
+    // Splits a drive's name strip between the name and the info icon after
+    // it, with the 2D widget's rule: centered together when the name fits,
+    // otherwise the icon at the right and the name scrolling in what is left.
+    // Gives where each is drawn, halo included, and the icon's hover target.
+    void    PlaceSceneNameAndIcon  (IDxuiTextRenderer   & text,
+                                    const std::wstring  & name,
+                                    float                 fontPx,
+                                    const RECT          & strip,
+                                    RECT                & outName,
+                                    RECT                & outIcon,
+                                    RECT                & outIconTarget) const;
 
     // The recorder's volume wheel on screen, where the pointer can reach it
     // (the strip in fullscreen, the desk otherwise); empty when it is not.
@@ -1904,6 +1936,11 @@ private:
     // it is read at a fixed size wherever the desk is posed.
     std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
 
+    // The info icon after each name, in the overlay strip where the names are
+    // chrome. A control of its own because the glyph needs the icon font and
+    // a label has one face. On the desk the icon is baked with the names.
+    std::array<DxuiShadowedText, 2>  m_sceneDriveInfoIcon;
+
     // The recorder's tape name, counter and key name on the fullscreen strip,
     // chrome there for the same reason the strip's drive names are.
     std::array<DxuiShadowedText, 3>  m_stripTapeLabel;
@@ -1925,6 +1962,13 @@ private:
     // The write-protect tooltip belongs to the strip now that the padlock
     // does -- see SyncSceneDriveLabels.
     std::array<RECT, 2>       m_sceneDriveLabelRect = {};
+
+    // Where each name's info icon landed, in client pixels, and empty when
+    // the drive shows none. Its own tooltip target, ahead of the name's.
+    std::array<RECT, 2>       m_sceneInfoIconRect   = {};
+
+    // Each baked label's span; see SceneLabelSpan.
+    std::array<SceneLabelSpan, s_kSceneLabelCount>  m_sceneLabelSpan = {};
 
     // A desk name too long for its strip scrolls while the pointer is on its
     // drive or the name. The period is the name plus its gap in baked pixels,
@@ -1972,6 +2016,11 @@ private:
     // protection moves no pixel the machine owns, so the frame that shows it
     // has to be asked for; see the guard in the present path.
     std::array<bool, 2>         m_driveWpShown = {};
+
+    // The info icon each drive last showed. The same reasoning: a machine
+    // switch or a mount can bring it or take it away with no other pixel
+    // changing.
+    std::array<bool, 2>         m_driveInfoShown = {};
 
     // "Press Esc to release the mouse and exit paddle mode", on screen for as
     // long as the capture holds. The joystick button carries the same words, but

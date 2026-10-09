@@ -538,6 +538,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
+    m_host->GetRoot().Adopt (m_sceneDriveInfoIcon[0]);
+    m_host->GetRoot().Adopt (m_sceneDriveInfoIcon[1]);
     m_host->GetRoot().Adopt (m_stripTapeLabel[0]);
     m_host->GetRoot().Adopt (m_stripTapeLabel[1]);
     m_host->GetRoot().Adopt (m_stripTapeLabel[2]);

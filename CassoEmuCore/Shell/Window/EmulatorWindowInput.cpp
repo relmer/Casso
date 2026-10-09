@@ -285,9 +285,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     DxuiMessageResult  result       = DxuiMessageResult::NotHandled;
     int                x            = ((int) (short) LOWORD (lParam));
     int                y            = ((int) (short) HIWORD (lParam));
+    POINT              pointer      = { x, y };
     bool               leftDown     = (wParam & MK_LBUTTON) != 0;
     bool               shellHandled = false;
     DriveWidget *      wpDrive      = nullptr;
+    DriveWidget *      infoDrive    = nullptr;
     int64_t            nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                           std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -446,11 +448,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // write-protected drive under the pointer so the WP tooltip can show.
     for (DriveWidget & drive : m_driveChrome)
     {
-        RECT  outer  = drive.GetOuterRect();
-        bool  inside = x >= outer.left && x < outer.right &&
-                       y >= outer.top  && y < outer.bottom;
+        RECT  outer    = drive.GetOuterRect();
+        RECT  iconRect = drive.GetInfoIconRect();
+        bool  inside   = x >= outer.left && x < outer.right &&
+                         y >= outer.top  && y < outer.bottom;
+        bool  onIcon   = drive.HasWozConflict() && PtInRect (&iconRect, pointer);
 
-        if (drive.UpdateMarqueeHover (inside, nowMs))
+        if (drive.UpdateMarqueeHover (inside, onIcon, nowMs))
         {
             // The band's button treatment appeared or went away. A static
             // emulator picture presents no frames on its own, so without this
@@ -461,6 +465,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         if (inside && drive.IsWriteProtected())
         {
             wpDrive = &drive;
+        }
+
+        if (onIcon)
+        {
+            infoDrive = &drive;
         }
     }
 
@@ -540,7 +549,29 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         std::wstring  tip;
         RECT          anchor = {};
 
-        if (DeskSceneActive())
+        // The info icon answers first wherever it is drawn. Its target sits
+        // inside the label and the widget, which explain other things, and
+        // the pointer resting on the icon is asking about the icon.
+        if (!DeskSceneActive() && infoDrive != nullptr)
+        {
+            anchor = infoDrive->GetInfoIconRect();
+            tip    = ComposeDriveInfoTooltip (infoDrive->GetDrive());
+        }
+
+        if (tip.empty() && DeskSceneActive())
+        {
+            for (int i = 0; i < (int) m_sceneInfoIconRect.size(); i++)
+            {
+                if (m_driveWidgetState[i].wozConflict && PtInRect (&m_sceneInfoIconRect[i], pointer))
+                {
+                    anchor = m_sceneInfoIconRect[i];
+                    tip    = ComposeDriveInfoTooltip (i);
+                    break;
+                }
+            }
+        }
+
+        if (tip.empty() && DeskSceneActive())
         {
             // The name strip answers for the padlock in BOTH presentations:
             // the strip carries names and locks in fullscreen now, so the
@@ -650,7 +681,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     // the basename scroll.
     for (DriveWidget & drive : m_driveChrome)
     {
-        drive.UpdateMarqueeHover (false, nowMs);
+        drive.UpdateMarqueeHover (false, false, nowMs);
     }
 
     // Off every control, so the recorder's magnified controls ease back down
@@ -1788,6 +1819,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         for (DriveWidget & drive : m_driveChrome)
         {
             region = drive.HitTest (x, y);
+
+            // The info icon only explains, so a click on it is taken and
+            // nothing happens -- above all, the disk is not ejected.
+            if (region == DriveWidgetRegion::Info)
+            {
+                driveTook = true;
+                break;
+            }
 
             if (region == DriveWidgetRegion::Body || region == DriveWidgetRegion::Eject)
             {

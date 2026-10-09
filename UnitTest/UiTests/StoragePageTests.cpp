@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/DiskPage.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -52,6 +53,65 @@ public:
         return nullptr;
     }
 
+
+    template <typename T>
+    static const T * FindOnRow (const DiskPage & page, const RECT & row)
+    {
+        for (size_t i = 0; i < page.GetChildCount(); ++i)
+        {
+            const T  * child   = dynamic_cast<const T *> (page.GetChild (i));
+            int        centerY = 0;
+
+            if (child == nullptr)
+            {
+                continue;
+            }
+
+            centerY = (child->GetBounds().top + child->GetBounds().bottom) / 2;
+
+            if (centerY >= row.top && centerY < row.bottom)
+            {
+                return child;
+            }
+        }
+
+        return nullptr;
+    }
+
+
+    // The tip's glyph starts just past the end of its label's text, on the
+    // label's line, and ends before the controls start.
+    static void AssertTipFollowsItsText (const DiskPage & page, const wchar_t * pszLabel, int textWidthPx)
+    {
+        constexpr int        kGlyphPx    = 14;
+        constexpr int        kNearPx     = 8;
+        constexpr int        kLinePx     = 3;
+        const DxuiLabel    * label       = FindChild<DxuiLabel> (page, pszLabel);
+        const DxuiInfoTip  * tip         = nullptr;
+        RECT                 row         = {};
+        RECT                 tipBounds   = {};
+        int                  textEnd     = 0;
+        int                  glyphLeft   = 0;
+        int                  controlsX   = page.GetFastTapeToggle().GetRect().left;
+
+
+
+        Assert::IsNotNull (label);
+
+        row       = label->GetRect();
+        tip       = FindOnRow<DxuiInfoTip> (page, row);
+        Assert::IsNotNull (tip);
+
+        tipBounds = tip->GetBounds();
+        textEnd   = row.left + textWidthPx;
+        glyphLeft = (tipBounds.left + tipBounds.right) / 2 - kGlyphPx / 2;
+
+        Assert::IsTrue (glyphLeft >= textEnd,                      L"the tip follows the label's text");
+        Assert::IsTrue (glyphLeft - textEnd <= kNearPx,            L"right after it, not at the column's edge");
+        Assert::IsTrue (glyphLeft + kGlyphPx <= controlsX,         L"and ends before the controls start");
+        Assert::IsTrue (std::abs ((tipBounds.top + tipBounds.bottom) / 2 - (row.top + row.bottom) / 2) <= kLinePx,
+                        L"on the label's line");
+    }
 
     static void LayOut (DiskPage & page, int left, int right)
     {
@@ -121,6 +181,33 @@ public:
         Assert::IsTrue (rule->GetBounds().bottom   <= tape->GetRect().top);
         Assert::IsTrue (tape->GetRect().bottom     <= fastTape->GetRect().top);
     }
+
+
+    TEST_METHOD (ControlsClearTheWidestLabelAndTipsFollowTheirText)
+    {
+        constexpr int           kWidestPx   = 220;
+        constexpr int           kWavTextPx  = 130;
+        constexpr int           kLinePx     = 16;
+        DiskPage                page (L"Storage");
+        MockDxuiTextRenderer    text;
+        const DxuiLabel       * idleStop    = nullptr;
+
+
+
+        text.SetCannedMetrics (L"Stop when loading ends:", SIZE { kWidestPx,  kLinePx });
+        text.SetCannedMetrics (L"New tape WAV format:",    SIZE { kWavTextPx, kLinePx });
+        page.SetTextRenderer  (&text);
+
+        LayOut (page, 0, 800);
+        idleStop = FindChild<DxuiLabel> (page, L"Stop when loading ends:");
+
+        Assert::IsNotNull (idleStop);
+        Assert::IsTrue    (idleStop->GetRect().left + kWidestPx < page.GetFastTapeToggle().GetRect().left,
+                           L"every control starts past the widest label, so none wraps");
+
+        AssertTipFollowsItsText (page, L"New tape WAV format:", kWavTextPx);
+    }
+
 
     TEST_METHOD (RestoreDefaultsResetsTheWholePageTapeIncluded)
     {

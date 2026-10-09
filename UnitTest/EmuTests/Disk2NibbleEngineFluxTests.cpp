@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "FluxTestImages.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -478,7 +479,7 @@ public:
     }
 
 
-    TEST_METHOD (BitTrackStepsKeepTheirModuloRule)
+    TEST_METHOD (BitTrackStepsKeepTheAngle)
     {
         DiskImage          disk;
         Disk2NibbleEngine  eng;
@@ -496,7 +497,104 @@ public:
         Assert::AreEqual (static_cast<size_t> (800), eng.GetBitPosition());
 
         eng.SetCurrentTrack (4);
-        Assert::AreEqual (static_cast<size_t> (200), eng.GetBitPosition(),
-                          L"bit to bit keeps the cursor modulo the new length, as before");
+        Assert::AreEqual (static_cast<size_t> (480), eng.GetBitPosition(),
+                          L"bit to bit must keep the fraction of a revolution, not the bit index");
+
+        eng.SetCurrentTrack (0);
+        Assert::AreEqual (static_cast<size_t> (800), eng.GetBitPosition(),
+                          L"stepping back must return to the same angle");
+    }
+
+
+    //  A self-sync track of exactly bitCount bits with a marker run of
+    //  nibbles starting within one sync byte of the given fraction of the
+    //  revolution. Padding with zeros instead would read as weak bits.
+    static vector<Byte> MakeMarkedTrack (size_t bitCount, double markerAngle, const vector<uint8_t> & marker)
+    {
+        vector<uint8_t>  bits;
+        vector<Byte>     packed;
+        size_t           markerBit = static_cast<size_t> (markerAngle * static_cast<double> (bitCount));
+        size_t           i         = 0;
+
+
+
+        while (bits.size() + 10 <= markerBit)
+        {
+            AppendByte (bits, 0xFF, 10);
+        }
+
+        for (i = 0; i < marker.size(); i++)
+        {
+            AppendByte (bits, marker[i], 8);
+        }
+
+        while (bits.size() + 10 <= bitCount)
+        {
+            AppendByte (bits, 0xFF, 10);
+        }
+
+        bits.resize (bitCount, 0);
+        packed.assign ((bitCount + 7) / 8, 0);
+
+        for (i = 0; i < bitCount; i++)
+        {
+            packed[i >> 3] = static_cast<Byte> (packed[i >> 3] | (bits[i] << (7 - (i & 7))));
+        }
+
+        return packed;
+    }
+
+
+    //  Two tracks of the lengths real images show at their extremes, each with
+    //  the same marker at the same angle. The head leaves the long track just
+    //  ahead of its marker and must meet the short track's marker within the
+    //  same short window -- which is what cross-track sync protections and
+    //  spiral loaders count on.
+    TEST_METHOD (MarkerAtTheSameAngleIsFoundAfterAStep)
+    {
+        static constexpr size_t  kLongBits    = 51062;
+        static constexpr size_t  kShortBits   = 45588;
+        static constexpr double  kMarkerAngle = 0.5;
+        static constexpr double  kLeadAngle   = 0.01;
+        static constexpr double  kWindowRevs  = 0.03;
+
+        const vector<uint8_t>       marker  = { 0xD5, 0xAA, 0xAD, 0xE7, 0xF3, 0xFC, 0xEE, 0xDE, 0xAA, 0xEB };
+        vector<WozSyntheticTrack>   tracks (2);
+        vector<Byte>                woz;
+        vector<uint8_t>             nibbles;
+        DiskImage                   disk;
+        Disk2NibbleEngine           eng;
+        size_t                      leadBit = static_cast<size_t> ((kMarkerAngle - kLeadAngle) * kLongBits);
+        uint32_t                    window  = static_cast<uint32_t> (kWindowRevs * kLongBits * Disk2NibbleEngine::kCyclesPerBit);
+        HRESULT                     hr      = S_OK;
+
+
+
+        tracks[0].data          = MakeMarkedTrack (kLongBits, kMarkerAngle, marker);
+        tracks[0].bitCount      = kLongBits;
+        tracks[0].quarterTracks = { 0 };
+        tracks[1].data          = MakeMarkedTrack (kShortBits, kMarkerAngle, marker);
+        tracks[1].bitCount      = kShortBits;
+        tracks[1].quarterTracks = { 4 };
+
+        hr = WozLoader::BuildSyntheticV21 (tracks, woz);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        hr = WozLoader::Load (woz, disk);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        StartOn (eng, disk, 0);
+
+        while (eng.GetBitPosition() < leadBit)
+        {
+            eng.Tick (1);
+        }
+
+        eng.SetCurrentTrack (4);
+
+        nibbles = ReadNibbles (eng, window);
+
+        Assert::IsTrue (Contains (nibbles, marker),
+                        L"the marker at the same angle on the next track must arrive in the same window");
     }
 };
