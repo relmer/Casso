@@ -120,7 +120,7 @@
      one decoder each, starting with RW18; FR-141 to FR-144, SC-028) and User
      Story 16 (comparing quarter tracks of one disk; FR-145 to FR-147,
      SC-029). Protection identification and A2R captures move to P12 and P13,
-     so each is built after the analyses it reports on, except weak bits,
+     so each is built after the analysis it reports on, except weak bits,
      which User Story 14 adds to the Protection category.
   6. Every story heading follows the Spec Kit template.
   7. 040 follows spec 041: the head limit is the head stop of Casso's emulated
