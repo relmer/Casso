@@ -4,7 +4,7 @@ Each entry was found on `master` by a four-finder inventory, confirmed by at lea
 
 ## failed-mount-dangling-disk-image [changed-but-present]
 
-**Evidence:** The core defect is unchanged in the worktree. DiskImageStore::MountFromBytes (CassoEmuCore/Devices/Disk/DiskImageStore.cpp:242-304) still retires the occupied bay before it knows the new bytes load. :263-268 flushes with FlushMoment::Running and calls RetireBay. :271 does `entry.image = make_unique<DiskImage> ()`. :276 calls LoadFromBytes. On !IsLoaded, :280-287 clears the bay and sets hr = E_FAIL. DiskImageStore::Mount's `CHR (hr)` at :620 then jumps to Error (:642), past BeginWatching (:630), EmitBayChange(Inserted) (:635) and NotifyMediaChanged (:640). The only thing that re-points the drive is still EmitBayChange -> DiskManager::OnBayChange -> controller->SetExternalDisk (CassoEmuCore/Shell/DiskManager.cpp:534-565, :564). The controller keeps the old pointer in m_activeDisk[drive] and the engine's m_disk (Machines/Apple2/Common/Disk2Controller.cpp:806-812, Disk2NibbleEngine.cpp:53-57). Nothing on the failure path fixes that. MountDiskInSlot6 only reports the outcome (DiskManager.cpp:466-467, :485-488), HandleMountCompletion only shows a message (Shell/EmulatorShellDisks.cpp:232-259), an Eject of the now-empty bay returns at once (DiskImageStore.cpp:2297), and Disk2Controller::Reset puts the same pointer back (:910-914). The stale pointer is then read by: the write-protect sense (Disk2Controller.cpp:337), StepLss (Disk2NibbleEngine.cpp:595, ReadBit :617, IsWriteProtected :672, WriteBit :692, GetTrackBitCount :695), and SoftReset (Disk2Controller.cpp:942-944). On Reset, RemountDisks runs right before SoftReset (Shell/CpuCommandDispatcher.cpp:69-70), so the drive is dereferenced immediately. Every trigger from master is still live: IDM_DISK_INSERT (CpuCommandDispatcher.cpp:86-89 -> EmulatorShellCpuThread.cpp:434); the machine-switch carry remount (MachineManager.cpp:606, after PowerCycle at :587); the salvage insert (EmulatorShellDisks.cpp:674); and RemountSlot6Disks (DiskManager.cpp:668/:676). There is also a new one: an external tool's InsertDisk intent (Shell/Window/EmulatorWindow.cpp:2768). The comment there at :2762-2764 says an occupied drive is "flushed and ejected" first; no eject happens. The RemountSlot6Disks header (DiskManager.cpp:644-647) still says the remount goes through Eject + Mount, which is also false. MountExternallyModifiedDisk still shows the safe pattern: it loads into a fresh image first (DiskImageStore.cpp:3498-3525), and its comment at :3520-3524 describes this exact hazard.
+**Evidence:** The core defect is unchanged in the worktree. DiskImageStore::MountFromBytes (CassoEmuCore/Devices/Disk/DiskImageStore.cpp:242-304) still retires the occupied bay before it has checked that the new bytes load. :263-268 flushes with FlushMoment::Running and calls RetireBay. :271 does `entry.image = make_unique<DiskImage> ()`. :276 calls LoadFromBytes. On !IsLoaded, :280-287 clears the bay and sets hr = E_FAIL. DiskImageStore::Mount's `CHR (hr)` at :620 then jumps to Error (:642), past BeginWatching (:630), EmitBayChange(Inserted) (:635) and NotifyMediaChanged (:640). The only thing that re-points the drive is still EmitBayChange -> DiskManager::OnBayChange -> controller->SetExternalDisk (CassoEmuCore/Shell/DiskManager.cpp:534-565, :564). The controller keeps the old pointer in m_activeDisk[drive] and the engine's m_disk (Machines/Apple2/Common/Disk2Controller.cpp:806-812, Disk2NibbleEngine.cpp:53-57). Nothing on the failure path fixes that. MountDiskInSlot6 only reports the outcome (DiskManager.cpp:466-467, :485-488), HandleMountCompletion only shows a message (Shell/EmulatorShellDisks.cpp:232-259), an Eject of the now-empty bay returns at once (DiskImageStore.cpp:2297), and Disk2Controller::Reset puts the same pointer back (:910-914). The stale pointer is then read by: the write-protect sense (Disk2Controller.cpp:337), StepLss (Disk2NibbleEngine.cpp:595, ReadBit :617, IsWriteProtected :672, WriteBit :692, GetTrackBitCount :695), and SoftReset (Disk2Controller.cpp:942-944). On Reset, RemountDisks runs right before SoftReset (Shell/CpuCommandDispatcher.cpp:69-70), so the drive is dereferenced immediately. Every trigger from master is still live: IDM_DISK_INSERT (CpuCommandDispatcher.cpp:86-89 -> EmulatorShellCpuThread.cpp:434); the machine switch's remount (MachineManager.cpp:606, after PowerCycle at :587); the salvage insert (EmulatorShellDisks.cpp:674); and RemountSlot6Disks (DiskManager.cpp:668/:676). There is also a new one: an external tool's InsertDisk intent (Shell/Window/EmulatorWindow.cpp:2768). The comment there at :2762-2764 says an occupied drive is "flushed and ejected" first; no eject happens. The RemountSlot6Disks header (DiskManager.cpp:644-647) still says the remount goes through Eject + Mount, which is also false. MountExternallyModifiedDisk still shows the safe pattern: it loads into a fresh image first (DiskImageStore.cpp:3498-3525), and its comment at :3520-3524 describes this exact hazard.
 
 What 035 changed:
 (1) The bare `entry.image.reset()` became RetireBay (DiskImageStore.cpp:2197-2221). With media retention off, the old image is still freed at once (:2216), exactly as on master. With retention on (ReverseController::Start turns it on at ReverseController.cpp:99 whenever reverse recording runs), the old image moves into m_retained (:2203-2213) and is not freed yet. That turns an immediate use-after-free into a deferred one with extra damage. The guest keeps reading and writing a disk that the bay reports as empty (GetMediaId returns 0, :2047). No flush reaches that disk, because FlushEveryBay walks only m_entries (:2262-2273), so the guest's later writes are lost. Keyframes record the bay as empty, so a reverse step or replay seats an empty drive (SeatMedia, then BindDiskDrives at MachineHost.cpp:1791) and no longer matches what the live run did. The pointer finally dangles when PruneRetainedMedia drops that image (ReverseController.cpp:2156 -> DiskImageStore.cpp:2181), or when Stop turns retention off (ReverseController.cpp:143 -> DiskImageStore.cpp:2065-2068).
@@ -13,19 +13,19 @@ What 035 changed:
 (4) MachineHost::PowerCycle now calls BindDiskDrives (MachineHost.cpp:992), which re-points the drives. But IDM_MACHINE_POWERCYCLE runs RemountDisks after it (CpuCommandDispatcher.cpp:74-75), so the dangling pointer is created after that rebind. A later power cycle or a reverse SeatMedia heals it; nothing else does.
 (5) MountRestored (DiskImageStore.cpp:664-705) has the same pattern: it runs EndWatching and RetireBay (:684-685) before MountFromBytes, and `CHR` at :690 skips EmitBayChange. It cannot be reached today, because MachineStateFile::CheckDisks loads every saved image first (Shell/MachineStateFile.cpp:510-514), and Apply rebinds the drives through LoadStateOverMountedMedia (MachineHost.cpp:1671-1673).
 
-The flush inside MountFromBytes is FlushMoment::Running and does not check m_isFlushHeld. Per DiskImageStore.h:133-136 it is one of the flushes that still write while the hold is on, so before the fix a refused mount under the hold also wrote the outgoing disk to its file.
+The flush inside MountFromBytes is FlushMoment::Running and does not check m_isFlushHeld. Per DiskImageStore.h:133-136 it is one of the flushes that still write while the hold is on, so before the fix a declined mount under the hold also wrote the outgoing disk to its file.
 
 **035 impact:** The right fix is the master fixDirection's first option (load first, then swap), with three points 035 forces.
 
 (a) The outgoing disk must still leave through RetireBay, never a bare reset() and never the move-assign trick in MountExternallyModifiedDisk (`*entry.image = std::move (*loaded)`). Retention must keep the outgoing medium with its own image id so a keyframe taken before the swap can still seat it. And a newly inserted disk needs a new id (DiskImage::RenewIdentity, DiskImage.cpp:1046-1052), which only a new DiskImage object gets.
 
-(b) The flush hold needs no new handling. The mount flush is one of the flushes that write while the hold is on, the same as an eject (DiskImageStore.h:133-136). It moves after a successful load, so a refused mount writes nothing, held or not. That is also what reverse execution expects of a mount that did not happen.
+(b) The flush hold needs no new handling. The mount flush is one of the flushes that write while the hold is on, the same as an eject (DiskImageStore.h:133-136). It moves after a successful load, so a declined mount writes nothing, held or not. That is also what reverse execution needs from a mount that did not happen.
 
-(c) With retention on, a refused mount must retire nothing. Otherwise the keyframes record an empty bay that the live run never had, and the replay no longer matches the live run.
+(c) With retention on, a declined mount must retire nothing. Otherwise the keyframes record an empty bay that the live run never had, and the replay no longer matches the live run.
 
 The second fixDirection option, emptying the bay and emitting Ejected, is worse under 035. The guest's disk goes into m_retained with its unsaved writes, after a flush that wrote it anyway. And a Reset at the live end would leave the user with an empty drive because a build tool had left the file half-written.
 
-The step and pause machinery is not involved: everything here runs on the CPU thread inside the command dispatch. RemountSlot6Disks's early return under the hold (DiskManager.cpp:661-664) stays as it is. The fix also gives the remount-discards-dirty defect (FlushEntry's result is ignored at :265-266) a single place to refuse before anything changes. It also gives the watch-leak defect the place for EndWatching on the old path, just before RetireBay.
+The step and pause machinery is not involved: everything here runs on the CPU thread inside the command dispatch. RemountSlot6Disks's early return under the hold (DiskManager.cpp:661-664) stays as it is. The fix also gives the remount-discards-dirty defect (FlushEntry's result is ignored at :265-266) a single place to decline before anything changes. It also gives the watch-leak defect the place for EndWatching on the old path, just before RetireBay.
 
 **Proposed fix:** 1. DiskImageStore::MountFromBytes (CassoEmuCore/Devices/Disk/DiskImageStore.cpp:242-304): load into a local image first, and touch the Entry only after the load succeeds. Replace the body after the diagnosis setup with:
 
@@ -40,7 +40,7 @@ The step and pause machinery is not involved: everything here runs on the CPU th
 
     //  THE NEW DISK LOADS BEFORE THE OLD ONE LEAVES. The Disk II holds a raw
     //  pointer to the bay's DiskImage, and only the bay change from a mount
-    //  that worked re-points it. A refusal emits nothing, so it leaves the
+    //  that worked re-points it. A decline emits nothing, so it leaves the
     //  disk the drive is reading exactly where it was: not flushed, not
     //  retired, not freed.
     loaded = make_unique<DiskImage> ();
@@ -73,9 +73,9 @@ Delete the old failure branch at :278-288. Its "leaves the slot empty rather tha
 
 2. MountRestored (DiskImageStore.cpp:679-690), as hardening. It empties the bay itself before calling MountFromBytes, so a failure there still leaves the drive pointing at the retired image. Change the `CHR (hr)` at :690 to `CHRF (hr, EmitBayChange (slot, drive, BayChange::Ejected))`: the bay really is empty at that point, so the sink sets the drive back to its internal disk. This cannot be reached today, because MachineStateFile::CheckDisks pre-loads every image, but nothing in MountRestored itself enforces that.
 
-3. Comments. Rewrite the RemountSlot6Disks header (CassoEmuCore/Shell/DiskManager.cpp:641-647). There is no Eject + Mount; each disk is mounted over itself. The paths are copied first because retiring the bay clears the string a GetSourcePath reference would point at. A file that no longer loads is refused, and the disk already in the drive stays. Also correct EmulatorWindow.cpp:2762-2764 ("flushed and ejected"): the drive's disk is flushed and replaced, and a refused image leaves the drive as it was.
+3. Comments. Rewrite the RemountSlot6Disks header (CassoEmuCore/Shell/DiskManager.cpp:641-647). There is no Eject + Mount; each disk is mounted over itself. The paths are copied first because retiring the bay clears the string a GetSourcePath reference would point at. A file that no longer loads is declined, and the disk already in the drive stays. Also correct EmulatorWindow.cpp:2762-2764 ("flushed and ejected"): the drive's disk is flushed and replaced, and an image that does not load leaves the drive as it was.
 
-**Regression test:** Primary test: extend UnitTest/EmuTests/DiskImageStoreTests.cpp, which already includes Disk2Controller.h (:10) and builds a standalone `Disk2Controller ctrl (6)` at :732. Add TEST_METHOD (Mount_RefusedOverAMountedDisk_LeavesThatDiskInTheDrive) after MountFromBytes_ShortDsk_RefusesWithALengthReasonAndNoAssert (:1574-1596).
+**Regression test:** Primary test: extend UnitTest/EmuTests/DiskImageStoreTests.cpp, which already includes Disk2Controller.h (:10) and builds a standalone `Disk2Controller ctrl (6)` at :732. Add TEST_METHOD (Mount_UnloadableOverAMountedDisk_LeavesThatDiskInTheDrive) after MountFromBytes_ShortDsk_RefusesWithALengthReasonAndNoAssert (:1574-1596).
 
 Setup:
 - SetImageReader returns MakeDsk (0x11) for "C:\\disks\\Good.dsk" and `vector<Byte> (4096, 0)` for "C:\\disks\\Truncated.dsk".
@@ -99,7 +99,7 @@ Assertions, in this order so that a red run fails before anything dereferences a
 
 Finally, call ctrl.SoftReset(), which reaches Disk2Controller.cpp:942-944, the Reset command's next step. It is safe after the fix and a use-after-free before it.
 
-035-specific companion: extend UnitTest/EmuTests/DiskFlushHoldTests.cpp next to EjectedDiskIsKeptWhileRetained (:143) with TEST_METHOD (RefusedMountRetiresNothingWhileRetained).
+035-specific companion: extend UnitTest/EmuTests/DiskFlushHoldTests.cpp next to EjectedDiskIsKeptWhileRetained (:143) with TEST_METHOD (AFailedMountRetiresNothingWhileRetained).
 - PrepareDirtyDisk, SetPositionSource (&now), SetMediaRetention (true), record mediaId = GetMediaId.
 - MountFromBytes (s_kHoldSlot, s_kHoldDrive, "bad.nib", DiskFormat::Nib, std::vector<Byte> (100, 0)) fails.
 - Assert GetRetainedMediaCount() == 0 (1 before the fix), GetMediaId == mediaId (0 before the fix), HasUnsavedWrites() is true, and files.writes == 0.
@@ -149,8 +149,8 @@ The posted payload goes through DiskManager::Mount's fs::path(...).string(). Wid
 **Proposed fix:** 1. Add a static helper on EmulatorShell for the last step of the flow, and declare it in a public test-seam section of EmulatorShell.h near RunSalvageFlow (:1483 is private, so put it in a public: block as SetKeyOwnerFn is at :1434-1442):
 
     //  Puts the salvaged copy in the drive the way every other user mount
-    //  goes in: queued for the CPU thread, which owns the flush, the swap and
-    //  the bay change, and which journals the insert and asks about history
+    //  goes in: queued for the CPU thread, which runs the flush, the swap and
+    //  the bay change, and journaled, with the divergence question raised
     //  first when the machine is behind live.
     static HRESULT  InsertSalvagedCopy (DiskManager & disks, int drive, const std::string & path);
 
@@ -222,7 +222,7 @@ So the restart callback goes callback -> MachineManager::PowerCycle -> MachineHo
 - After either callback returns, Tick touches only the engine tick (skipped when a cycle source is attached) and PumpIdleCallback (Disk2Controller.cpp:567-570, 584-589, 643-646). Neither reassigns m_activeDisk.
 - The rebind runs whether or not the flush hold is set. Only the flush at MachineHost.cpp:984 (FlushAllUnlessHeld, DiskImageStore.cpp:1893-1906) checks m_isFlushHeld or m_isReplaying.
 
-On master, `git grep BindDiskDrives master` finds nothing, which confirms that 035 introduced the fix.
+On master, `git grep BindDiskDrives master` returns nothing, which confirms that 035 introduced the fix.
 
 What is still missing is a test. The only machine-level test is ReversePowerCycleReplayTests.cpp:55-68 (APowerCycleKeepsTheDrivesOnTheDisksInTheBays). It calls machine.PowerCycle() directly and checks drive 1 only. The restart tests in SharedImageTests.cpp use a bare DiskImageStore and only count callback calls (:212, :1316-1334, :2106-2108). TestMachine's MachineBuildServices leave requestPowerCycle empty (UnitTest/EmuTests/TestMachine.h:73), so in a TestMachine the restart callback does nothing unless a test installs one. As a result, no test runs a stated Restart pick-up and then checks the drives.
 
@@ -266,7 +266,7 @@ To show it is a real regression test, remove the BindDiskDrives() call at Machin
 
 ## step-on-ui-thread-cpu-not-parked [fixed-by-035]
 
-**Evidence:** 035 commit c8680f325 ("fix(debugger): run the main window's Step on the CPU thread") took the step off the UI thread and deleted EmulatorShell::StepInstructionWhilePaused. A search of the worktree finds no definition or caller of it.
+**Evidence:** 035 commit c8680f325 ("fix(debugger): run the main window's Step on the CPU thread") took the step off the UI thread and deleted EmulatorShell::StepInstructionWhilePaused. A search of the worktree shows no definition or caller of it.
 
 - UI side: in CassoEmuCore/Shell/WindowCommandManager.cpp:751-762, IDM_MACHINE_STEP still gates on IsPaused (:753). It then only calls m_shell.PostCommand(id) (:760), which forwards to CpuManager::PostCommand (EmulatorShell.cpp:1335-1338). The UI thread no longer touches the CPU, the bus, Disk2Controller, the engine, the audio sources or the framebuffer.
 - CPU side: a paused CpuManager::ThreadProc wakes on HasPendingCommands (CpuManager.cpp:559-576) and drains the queue (:583) before its pause check (:590). CpuCommandDispatcher.cpp:78-79 routes the step to EmulatorShell::StepInstruction (EmulatorShellCpuThread.cpp:379-405), which runs on the CPU thread.
@@ -349,7 +349,7 @@ Setup:
 1. Build a bare shell with `std::make_unique<EmulatorShell>()` and pause it with `ControllerRig::Paused (shell->GetCpuManager())`. Attach no session and no run driver.
 2. Build a minimal machine on `shell->GetMachine()`, the way the InputJournalTests::Build helper does (UnitTest/DebuggerTests/InputJournalTests.cpp:220-240):
    - a RamDevice covering $0000 through at least $0400
-   - a RomDevice of NOPs carrying the reset vector
+   - a RomDevice of NOPs holding the reset vector
    - `SetCpu (std::make_unique<EmuCpu> (bus))`, then `InitForEmulation`
 3. Building no video modes matters, for two reasons:
    - RenderFramebuffer returns at EmulatorShellPresent.cpp:1898-1901.
@@ -376,7 +376,7 @@ This test is the only one that reaches the no-session branch: the existing rig's
 
 ## update-flush-with-cpu-running [not-applicable]
 
-**Evidence:** The defective code is not in this worktree. HEAD is 811a6f727 (same as origin/035-debugger). Its merge base with master is 13095e558, and the 039 update merge f853f4702 is not an ancestor (`git merge-base --is-ancestor f853f4702 HEAD` exits 1). Master has 192 commits this tree lacks, and 15 of them touch CassoEmuCore/Shell/EmulatorShellUpdate.cpp. A grep of the worktree for WM_APP_UPDATE|UpdateService|UpdateResult in *.cpp/*.h/*.vcxproj finds 0 matches, so EmulatorShellUpdate.cpp, HandleUpdateApplyResult, ApplyPendingUpdateNow and UpdateService::StartDeploy are all absent. The only production caller of FlushAllForShutdown is the destructor, CassoEmuCore/Shell/EmulatorShell.cpp:299, which runs after m_cpuManager.Stop() at :236. Stop sets m_running false and joins the thread (CassoEmuCore/Shell/CpuManager.cpp:110-124), and OnCpuThreadStop runs StopReverseRecording first (CassoEmuCore/Shell/EmulatorShellCpuThread.cpp:319-326). So in this tree the shutdown flush is single-threaded, which is the same "contrast" case the defect cites.
+**Evidence:** The defective code is not in this worktree. HEAD is 811a6f727 (same as origin/035-debugger). Its merge base with master is 13095e558, and the 039 update merge f853f4702 is not an ancestor (`git merge-base --is-ancestor f853f4702 HEAD` exits 1). Master has 192 commits this tree lacks, and 15 of them touch CassoEmuCore/Shell/EmulatorShellUpdate.cpp. A grep of the worktree for WM_APP_UPDATE|UpdateService|UpdateResult in *.cpp/*.h/*.vcxproj gives 0 matches, so EmulatorShellUpdate.cpp, HandleUpdateApplyResult, ApplyPendingUpdateNow and UpdateService::StartDeploy are all absent. The only production caller of FlushAllForShutdown is the destructor, CassoEmuCore/Shell/EmulatorShell.cpp:299, which runs after m_cpuManager.Stop() at :236. Stop sets m_running false and joins the thread (CassoEmuCore/Shell/CpuManager.cpp:110-124), and OnCpuThreadStop runs StopReverseRecording first (CassoEmuCore/Shell/EmulatorShellCpuThread.cpp:319-326). So in this tree the shutdown flush is single-threaded, which is the same "contrast" case the defect cites.
 
 The defect comes back unchanged when master is merged in (or 041 merges to master). Everything it races is still here and still owned by the CPU thread:
 - FlushEntry (CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1069-1260). It calls CommitPendingWrite at :1095, IsDirty at :1097, RepointBayToFile at :1192 (which rewrites entry.path at :3583), Serialize at :1210, writes the file at :1235 and calls ClearDirty at :1243.
@@ -397,7 +397,7 @@ SetPaused is not a substitute. It is not acknowledged (CpuManager.cpp:215-224), 
 
 So the flush must run with the CPU thread parked BETWEEN passes. That means at the top of CpuManager::ThreadProc, before DrainCommandQueue (:583) and the service (:585), never inside a frame or a reverse command.
 
-(2) The flush hold must keep its exit meaning, which is that it is ignored. The deploy ends the process, so it must use the same FlushAllForShutdown as the destructor (DiskImageStore.cpp:1873-1876). That call writes held writes on purpose, as the owner decided (DiskFlushHoldTests.cpp:71-98; DiskImageStore.h:133-137), and writes nothing during a replay (DiskFlushHoldTests.cpp:101-118). Do not switch the deploy to FlushAllUnlessHeld or FlushAll. Parking makes both flags stable, so the deploy's outcome matches exit exactly.
+(2) (Not taken as written: the owner decided on 2026-10-08 that an update installed while the machine is behind live saves the disk at the live end, so the deploy first returns the machine to the live end on the CPU thread and then holds the thread, and its outcome no longer matches exit's behind live; when the return does not complete, the deploy clears the replay flag and saves the disk where the machine stands. The owner confirmed on 2026-10-09 that the rule covers every install path: an MSIX update installed at once holds the thread and saves, and a zip update installed now and an update left until Casso closes return to live first and then save through quit. plan.md section 8; tasks.md T129, T139. The use of FlushAllForShutdown and the hold's exit meaning below are kept.) The flush hold must keep its exit meaning, which is that it is ignored. The deploy ends the process, so it must use the same FlushAllForShutdown as the destructor (DiskImageStore.cpp:1873-1876). That call writes held writes on purpose, as the owner decided (DiskFlushHoldTests.cpp:71-98; DiskImageStore.h:133-137), and writes nothing during a replay (DiskFlushHoldTests.cpp:101-118). Do not switch the deploy to FlushAllUnlessHeld or FlushAll. Parking makes both flags stable, so the deploy's outcome matches exit exactly.
 
 (3) StopReverseRecording, which OnCpuThreadStop runs first at exit (EmulatorShellCpuThread.cpp:321-322), is not needed for this flush. FlushAllForShutdown ignores the hold, so leave history alone. A failed deploy can then simply unpark with history intact, with no restart of recording.
 
@@ -405,11 +405,11 @@ So the flush must run with the CPU thread parked BETWEEN passes. That means at t
 
 (5) A long reverse command must be stopped first so the park lands within a bounded wait. EmulatorShell::StopReplay (EmulatorShell.h:641) sets the flag that ReverseController::IsStopDue polls (ReverseController.cpp:2046).
 
-Related observation, outside this fix: ReverseController::Stop (ReverseController.cpp:130-158) clears the hold but not SetReplaying. ReplayHere leaves the flag set after a step or run from the past (:1885, :1913), and only BecomeLive (:2071) clears it. So both the destructor flush and the fixed deploy flush write nothing in that state, which works against the "exit saves" rule. Settle that for both paths together, not in the deploy path alone.
+Related observation, outside this fix (reported to 035 on 2026-10-08 as 041 audit defect a, which 035 fixed in `c913c9247`; the deploy no longer depends on it, because it clears the flag itself when it saves behind live): ReverseController::Stop (ReverseController.cpp:130-158) clears the hold but not SetReplaying. ReplayHere leaves the flag set after a step or run from the past (:1885, :1913), and only BecomeLive (:2071) clears it. So both the destructor flush and the fixed deploy flush write nothing in that state, which works against the "exit saves" rule. Settle that for both paths together, not in the deploy path alone.
 
 **Proposed fix:** Apply this after merging master into 041-disk-integrity.
 
-(A) CpuManager (CassoEmuCore/Shell/CpuManager.h and .cpp): add an acknowledged park that is separate from pause.
+(A) CpuManager (CassoEmuCore/Shell/CpuManager.h and .cpp): add an acknowledged park that is separate from pause. (Not taken as written: 035's defect b fix adds a pause park of its own, with `IsParked`, `TryWaitUntilParked`, `TryPark`, `ParkForExit`, `m_isParked` and `m_parkedCV`, and moves the pause wait into `WaitWhilePaused`. The plan's API is therefore `HoldForDeploy`, `ReleaseDeployHold`, `IsHeldForDeploy` and `IsDeployHoldRequested`, on 035's code: the request is part of `WaitWhilePaused`'s wake predicate and is notified on `m_pauseCV`, and the hold check sits between `WaitWhilePaused` and `DrainCommandQueue`. The steps below are otherwise kept. tasks.md T128.)
 - New API: `HRESULT Park (DWORD timeoutMs);`, `void Unpark ();` and `bool IsParked () const;`.
 - New members, guarded by m_pauseMutex: `bool m_isParkRequested = false;`, `bool m_isParked = false;` and `std::condition_variable m_parkedCV;`.
 - ThreadProc: add `m_isParkRequested` to the isWoken predicate (CpuManager.cpp:559-564). Immediately after the wait block, before DrainCommandQueue at :583 and before m_onService at :585, add this check: if a park is requested and m_running is true, set m_isParked = true under m_pauseMutex, notify m_parkedCV, wait on m_pauseCV until `!m_isParkRequested || !m_running`, set m_isParked = false, then `continue`. While parked, no frame, no command drain and no service runs, and posted commands stay queued.
@@ -417,8 +417,8 @@ Related observation, outside this fix: ReverseController::Stop (ReverseControlle
 - Unpark(): clear the request under the lock and notify.
 - Stop() needs no change. Its notify plus !m_running already releases a parked thread, so the join at :120-123 still completes.
 
-(B) EmulatorShell, in the merged tree:
-- Add `static HRESULT FlushForDeploy (CpuManager & cpu, DiskImageStore & store, DWORD timeoutMs)`. It calls `cpu.Park (timeoutMs)` with CHR, then `store.FlushAllForShutdown()`, and returns with the machine still parked.
+(B) EmulatorShell, in the merged tree. (Not taken as written: the audit's Park, Unpark, IsParked and m_isParkedForDeploy below are the deploy hold's HoldForDeploy, ReleaseDeployHold and IsHeldForDeploy in the design, apart from 035's pause acknowledgement, which uses IsParked for a weaker state; the call site also returns to live first and serves the zip and close paths as well. tasks.md T128, T139.)
+- Add `static HRESULT FlushForDeploy (CpuManager & cpu, DiskImageStore & store, DWORD timeoutMs)`. (Not taken as written: it is `DeploySave::Flush`, which also clears the replay flag behind live and reports what it found, beside the deploy's return to live; tasks.md T129, T139.) It calls `cpu.Park (timeoutMs)` with CHR, then `store.FlushAllForShutdown()`, and returns with the machine still parked.
 - In HandleUpdateApplyResult's ReadyToDeploy branch (master EmulatorShellUpdate.cpp:679-700), replace the bare flush at :686 with:
   1. StopReplay();
   2. hr = FlushForDeploy (m_cpuManager, m_machine.GetDiskStore(), kDeployParkTimeoutMs). On failure, call m_updateDialog->ShowFailure (UpdateFailure::InstallFailed) and return without deploying.
@@ -426,11 +426,12 @@ Related observation, outside this fix: ReverseController::Stop (ReverseControlle
   4. StartDeploy.
 - If StartDeploy fails synchronously, call `ResumeAfterFailedDeploy()`. That function runs m_cpuManager.Unpark() and sets m_isParkedForDeploy = false.
 - Call the same function in the wasCanceled and failure branches (master :653-677), because a deploy that starts and then fails comes back there as an asynchronous failure result (UpdateServiceTests Deploy_Failure_IsReported).
-- Add `ASSERT (m_cpuManager.IsParked() || !m_cpuManager.IsRunning())` ahead of the flush.
+- Add `isParkedOrStopped = m_cpuManager.IsParked() || !m_cpuManager.IsRunning();` and `ASSERT (isParkedOrStopped);` ahead of the flush. (The calls are hoisted into a local, because no EHM macro condition may contain a call.)
+- Hand disk ownership over with the park (research.md R5 Risks): the CPU thread releases the store before it signals parked and claims it after waking, and the UI claims after Park returns and releases before Unpark (tasks.md T128, T139).
 
-(C) Rewrite the RescueOnTheWayOut header (DiskImageStore.cpp:428-431). It should say that the function runs on the UI thread with the CPU thread either joined (exit) or parked (an update deploy). Its picker pumps messages, but nothing that touches a bay can run, because commands stay queued until the process ends or the machine is unparked. Also fix the matching sentence in ReportPreserveFailure's header (:348-350) and in the master comment over HandleUpdateApplyResult (:636-641).
+(C) Rewrite the RescueOnTheWayOut header (DiskImageStore.cpp:428-431). (In the design, "parked" here is the deploy hold, tasks.md T128.) It should say that the function runs on the UI thread with the CPU thread either joined (exit) or parked (an update deploy). Its picker pumps messages, but nothing that touches a bay can run, because commands stay queued until the process ends or the machine is unparked. Also fix the matching sentence in ReportPreserveFailure's header (:348-350) and in the master comment over HandleUpdateApplyResult (:636-641).
 
-**Regression test:** 1. Extend UnitTest/UiTests/CpuManagerCommandTests.cpp, using its existing WaitFor and WaitForFramesToStop helpers and the s_kWaitMs and s_kParkMs constants:
+**Regression test:** (Not taken as written: the three tests below are T128's `HoldForDeploy_HoldsFramesCommandsAndService`, `Stop_WhileHeldForDeploy_JoinsThread` and `HoldForDeploy_TimesOutAndWithdrawsWhileACommandRuns`, beside a fourth, `HoldForDeploy_WhilePausedWithNoServiceFunction_IsHeldBeforeTheDeadline`, and the deploy-flush tests go through `DeploySave::Flush`; tasks.md T128, T129.) 1. Extend UnitTest/UiTests/CpuManagerCommandTests.cpp, using its existing WaitFor and WaitForFramesToStop helpers and the s_kWaitMs and s_kParkMs constants:
 - Park_HoldsFramesCommandsAndService: call SetServiceFunction with a counter before Start, and Start with frame and command counters. Assert Park (s_kWaitMs) returns S_OK, then take baselines and PostCommand (IDM_DISK_EJECT1). Sleep 2*s_kParkMs, then assert that frames, commands and service calls are unchanged and that HasPendingCommands() is true. Unpark, then WaitFor commands > 0 and frames advancing. Put it beside PostCommand_WhilePaused_StillDispatches (:60-116), which shows that SetPaused alone keeps draining.
 - Stop_WhileParked_JoinsThread: Park, then Stop. Assert that Stop returns and IsRunning() is false.
 - Park_TimesOutAndWithdrawsWhileACommandRuns: a command callback blocks on a test-owned event. Post it, assert Park (50) returns HRESULT_FROM_WIN32 (ERROR_TIMEOUT), release the event, and assert that frames keep running, meaning the withdrawn request never parks.
@@ -575,7 +576,7 @@ Concrete failure scenarios:
 
 **035 impact:** On master the fix direction was to publish a per-bay UI snapshot from OnBayChange, the write-protect setters, FlushEntry and the reload. On 035 that is not enough. The publish has to live inside the store, plus one hook in the state load, for these reasons:
 
-1. SeatMedia (DiskImageStore.cpp:2117-2164) moves disks between bays and the retained list on every reverse-execution keyframe restore, and it emits no BayChange by design (:2110-2113). OnBayChange never sees a rewind put a different disk in a bay. SeatMedia must publish itself.
+1. SeatMedia (DiskImageStore.cpp:2117-2164) moves disks between bays and the retained list on every reverse-execution keyframe restore, and it emits no BayChange by design (:2110-2113). OnBayChange is never called when a rewind puts a different disk in a bay. SeatMedia must publish itself.
 2. 035 adds two write-protect flag writers that sit outside every setter on master's list:
    - DiskImage::LoadState rewrites m_imageWriteProtected and m_userWriteProtected (DiskImage.cpp:1303-1304) and swaps the track vectors.
    - Replayer::ApplyInput sets the user flag through a raw GetImage pointer (Replayer.cpp:481-485).
@@ -588,11 +589,13 @@ Concrete failure scenarios:
 
 **Proposed fix:** Give the UI a published copy of each bay, written only by the thread that owns disk writes, and never a DiskImage*.
 
+(Plan: the published copy is research.md R1's `DriveStatus`, built on the owning thread and read as a whole, in place of the `BayView` table below. The flag-only setter this fix adds is `SetUserWriteProtectFlag` in the plan, written that way below; `SetUserWriteProtect` is FR-015's operation, which saves first (settings-wp-drops-dirty), and a replay never calls it.)
+
 1. DiskImageStore.h
    - Add a public value struct `BayView { bool mounted = false; string path; WriteProtectInfo writeProtect; bool salvageOffered = false; };`.
    - Add public `BayView GetBayView (int slot, int drive) const;` (callable from any thread; returns a copy under the lock, or BayView() for a bad bay).
    - Add public `void PublishAllBayViews ();` (disk-write thread).
-   - Add public `void SetUserWriteProtect (int slot, int drive, bool wp);` and `void SetFileWriteProtect (int slot, int drive, bool readOnly, bool noPermission);`. Both set the flag on the image and publish.
+   - Add public `void SetUserWriteProtectFlag (int slot, int drive, bool wp);` and `void SetFileWriteProtect (int slot, int drive, bool readOnly, bool noPermission);`. Both set the flag on the image and publish; neither saves.
    - Add private `void PublishBayView (int slot, int drive);`, `mutable std::mutex m_viewMutex;` and `BayView m_views[kSlotCount][kDriveCount];`.
    - Document GetImage as disk-write-thread only, and correct the m_pendingMutex comment (:715-718).
 
@@ -607,18 +610,18 @@ Concrete failure scenarios:
    PublishAllBayViews loops over every bay.
 
 3. DiskManager.cpp
-   - Change ApplyExternalWriteProtect (:152-177) to `(int drive, const std::string & path)`. It probes the file, then calls m_diskStore.SetUserWriteProtect (6, drive, userWp) and SetFileWriteProtect (6, drive, readOnly, noPermission). Update its two call sites, :268 and :571.
+   - Change ApplyExternalWriteProtect (:152-177) to `(int drive, const std::string & path)`. It probes the file, then calls m_diskStore.SetUserWriteProtectFlag (6, drive, userWp) and SetFileWriteProtect (6, drive, readOnly, noPermission). Update its two call sites, :268 and :571.
    - In UpdateDriveWidgets, take `DiskImageStore::BayView view = m_diskStore.GetBayView (6, drive);` once per drive at the top of the loop. Use view.path in place of GetSourcePath at :803, which also closes entry-path-string-race for this reader, and replace :894-899 with `st.writeProtect = view.writeProtect;`.
 
 4. EmulatorShellDisks.cpp
    - IsWriteProtectToggleOffered (:769-782) becomes `return ShouldEnableWriteProtectMenuItem (view.mounted, view.writeProtect);`.
    - ReportDamagedMount (:694-735): take the view first, keep the off-thread bounce, test `view.writeProtect.IsDamaged()`, and build the body with the existing `DamagedMountReport::FormatBody (view.writeProtect, fs::path (view.path).filename().wstring())` overload (DamagedMountReport.cpp:170).
    - IsSalvageOffered (:572-579) returns `view.mounted && view.salvageOffered`.
-   - SetDriveUserWriteProtect (:794-816) calls m_machine.GetDiskStore().SetUserWriteProtect (6, drive, wp) instead of dereferencing GetImage.
+   - SetDriveUserWriteProtect (:794-816) calls m_machine.GetDiskStore().SetUserWriteProtectFlag (6, drive, wp) instead of dereferencing GetImage. (The plan then moves this handler to FR-015's saving `SetUserWriteProtect`; tasks.md T027 and T104.)
 
 5. EmulatorWindow.cpp label query (:776-794): use the view. Return an empty label when !view.mounted or the file name is empty; otherwise return GetMenuLabel (IsImageProtected (view.writeProtect), name).
 
-6. Replayer.cpp:479-487: replace the GetImage/SetUserWriteProtected pair with `m_machine.GetDiskStore().SetUserWriteProtect (kDiskControllerSlot, record.value, record.detail != 0);`.
+6. Replayer.cpp:479-487: replace the GetImage/SetUserWriteProtected pair with `m_machine.GetDiskStore().SetUserWriteProtectFlag (kDiskControllerSlot, record.value, record.detail != 0);`, so a replay never saves.
 
 7. MachineHost::LoadStateSeating (MachineHost.cpp:1121-1155): call `m_diskStore->PublishAllBayViews();` after the Error: label, so both a full and a partial load republish what DiskImage::LoadState and SeatMedia changed.
 
@@ -637,12 +640,12 @@ Extend UnitTest/EmuTests/DiskResetRemountHoldTests.cpp, the one test that builds
 Store-level coverage for the 035 paths, which exercises the new API:
 - Extend UnitTest/EmuTests/DiskFlushHoldTests.cpp, which already has PrepareDirtyDisk, retention and SeatMedia, with TEST_METHOD (BayViewFollowsSeatingDiscardAndEject):
   - After the mount, GetBayView (6, 0) shows mounted with path "hold.nib".
-  - SetUserWriteProtect (6, 0, true) sets view.writeProtect.userSetting.
+  - SetUserWriteProtectFlag (6, 0, true) sets view.writeProtect.userSetting.
   - With SetMediaRetention (true), Eject empties the view.
   - SeatMedia (mediaId) shows the disk again, although no bay change fires.
   - After Dirty, DiscardHeldWrites leaves the view mounted and matching the reloaded image.
 - Extend Mount_CrcMismatchedImage_IsWriteProtected in UnitTest/EmuTests/DiskImageStoreTests.cpp (:883) to also assert GetBayView (...).writeProtect.checksumMismatch.
-- Add a case to UnitTest/MachineStateTests.cpp: save a state with the user write-protect off, call SetUserWriteProtect (6, 0, true), load the state, and assert GetBayView (6, 0).writeProtect.userSetting is false again (DiskImage::LoadState restored it and LoadStateSeating republished).
+- Add a case to UnitTest/MachineStateTests.cpp: save a state with the user write-protect off, call SetUserWriteProtectFlag (6, 0, true), load the state, and assert GetBayView (6, 0).writeProtect.userSetting is false again (DiskImage::LoadState restored it and LoadStateSeating republished).
 
 A two-thread stress test (a CPU role looping Eject, Mount and DiscardHeldWrites on a damaged WOZ against UpdateDriveWidgets) would fail before the fix only probabilistically, through the Debug CRT's 0xDD fill. It is useful as a manual check, not as a gate.
 
@@ -770,13 +773,13 @@ CPU-thread mutators that can run during the modals:
 
 So the bay can hold another disk by the time :637 runs. SalvageToFile then writes that disk into the first disk's suggestedPath, and :674 offers to mount it.
 
-New with 035: the direct MountDiskInSlot6 at :674 skips DispatchCpuCommand, so the insert is never journaled (EmulatorShellCpuThread.cpp:350-355). It also skips the divergence gate, which only sees posted commands (EmulatorShellReverse.cpp:303-331; IDM_DISK_INSERT is state-changing via CpuCommandDispatcher.cpp:245-250). On top of that it runs Mount/RetireBay/the controller re-point on the UI thread while the drive engine is reading the image it frees.
+New with 035: the direct MountDiskInSlot6 at :674 skips DispatchCpuCommand, so the insert is never journaled (EmulatorShellCpuThread.cpp:350-355). It also skips the divergence gate, which checks only posted commands (EmulatorShellReverse.cpp:303-331; IDM_DISK_INSERT is state-changing via CpuCommandDispatcher.cpp:245-250). On top of that it runs Mount/RetireBay/the controller re-point on the UI thread while the drive engine is reading the image it frees.
 
 **035 impact:** 1. Media identity (new in 035). DiskImage::GetImageId / DiskImageStore::GetMediaId (DiskImageStore.cpp:2037-2049) are a ready-made token for the "same disk still in the bay" re-check. RenewIdentity runs on every load (DiskImage.cpp:41, :813, :943), so the token changes on eject+insert, on a reload through MountExternallyModifiedDisk (including DiscardHeldWrites) and on SeatMedia. Use it rather than comparing paths, which RepointBayToFile can change without changing the disk.
 
 2. Flush hold (new in 035). While reverse recording holds flushes (ReverseController.cpp:2005/2070), guest writes exist only in entry.image. The decode must keep reading the in-memory image, now on the CPU thread; it must not re-read the source file. The salvage write goes to a separate file through m_flushSink/WriteFileAtomically, so it does not break the hold. Do not route it through FlushEntry/FlushAllUnlessHeld.
 
-3. Journal and divergence gate (new in 035). Inserting the salvaged copy must go through the posted IDM_DISK_INSERT1/2 command (DiskManager::Mount, DiskManager.cpp:699-716), never MountDiskInSlot6 from the UI thread. That way it is journaled as InputKind::DiskMount and, when the machine is behind live, asks to diverge. The new salvage assess and write commands are not state-changing (DivergenceGate.cpp:25-45), so they pass the gate without a question.
+3. Journal and divergence gate (new in 035). Inserting the salvaged copy must go through the posted IDM_DISK_INSERT1/2 command (DiskManager::Mount, DiskManager.cpp:699-716), never MountDiskInSlot6 from the UI thread. That way it is journaled as InputKind::DiskMount and, when the machine is behind live, raises the divergence question. The new salvage assess and write commands are not state-changing (DivergenceGate.cpp:25-45), so they pass the gate without a question.
 
 4. More ways the bay changes mid-modal (new in 035). SeatMedia on a state load or reverse seek, and DiscardHeldWrites, can also swap the bay while the dialog stands. Debug-channel commands keep draining while the modal is up. With retention on, RetireBay moves the image into m_retained (:2203-2213) instead of freeing it. A stale decode would then read a valid but wrong disk instead of crashing, which hides the damage, so the identity check is the real guard rather than a lifetime fix.
 
@@ -786,7 +789,7 @@ New with 035: the direct MountDiskInSlot6 at :674 skips DispatchCpuCommand, so t
 
 1. DiskImageStore.h:76 SalvageAssessment: add `uint64_t mediaId = 0;` and `string sourcePath;`. AssessSalvage fills them from entry.image->GetImageId() and entry.path inside the existing block at DiskImageStore.cpp:1640-1673.
 
-2. Change SalvageToFile to `HRESULT SalvageToFile (int slot, int drive, uint64_t mediaId, const string & path, DenibblizeReport & report);`. After the bay check, before reading entry.path or decoding, add `CBREx (GetMediaId (slot, drive) == mediaId, HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED));`. This is a plain CBREx because it is a runtime condition, not a coding error. Update the four existing callers in DiskImageStoreTests.cpp to pass store.GetMediaId(...).
+2. Change SalvageToFile to `HRESULT SalvageToFile (int slot, int drive, uint64_t mediaId, const string & path, DenibblizeReport & report);`. After the bay check, before reading entry.path or decoding, hoist `isSameMedium = GetMediaId (slot, drive) == mediaId;` and add `CBREx (isSameMedium, HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED));`. This is a plain CBREx because it is a runtime condition, not a coding error. Update the four existing callers in DiskImageStoreTests.cpp to pass store.GetMediaId(...).
 
 3. CPU-thread commands:
 - IDM_DISK_SALVAGE1/2 become CPU-thread commands. WindowCommandManager::OnDiskCommand (:1497-1503) does `m_shell.PostCommand (static_cast<WORD> (id));` and its comment changes accordingly.
@@ -820,7 +823,7 @@ Before the fix, the same sequence through today's SalvageToFile(kSlot, kDrive, a
 Routing tests, UnitTest/EmuTests/CpuCommandDispatcherTests.cpp (extend the Notebook at :447):
 - SalvageAssessesTheDriveItsIdSelects: Dispatch(IDM_DISK_SALVAGE2, "") records AssessSalvage(1). Today it records nothing.
 - ASalvageWriteKeepsTheMediaIdAndThePathWithItsSpaces: "1 42 C:\\My Disks\\broken.salvaged.woz" reaches WriteSalvagedCopy(1, 42, that path).
-- ASalvageWriteThatDoesNotParseAsksForNothing.
+- ASalvageWriteThatDoesNotParseDispatchesNothing.
 
 Gate test, UnitTest/EmuTests/DivergenceGateTests.cpp: IsStateChangingCommand is false for IDM_DISK_SALVAGE1/2 and IDM_DISK_SALVAGE_WRITE and stays true for IDM_DISK_INSERT1/2. This pins the posted insert as the journaled path for the salvaged copy.
 
@@ -1010,7 +1013,7 @@ Two more routes reach the same splice on 035:
 
 2. Place the commit after the early returns (ask outstanding :2862, file held by another process :2871, identity unchanged :2879-2886). Then the 60 Hz common path never ends a burst early. Committing splits one burst into two splices, and FluxTrack::SpliceWrite (FluxTrack.cpp:362-416) quantizes each start tick. A commit taken at a host-timed moment is a small machine-state change the journal does not record. Confining it to a real pick-up keeps it next to the swap, which 035 already treats as a history boundary.
 
-3. 035's history makes the backstop more important. MountExternallyModifiedDisk calls NotifyMediaChanged (:3539), which goes through MachineHost::OnMediaChanged (MachineHost.cpp:60-64) to ReverseController::OnMediaChanged (ReverseController.cpp:283-295). That takes a boundary keyframe of the disks "as they now stand", after EmitBayChange (:3537) has already spliced. Today the keyframe therefore records the corrupted reloaded disk, so rewinding cannot recover the clean one. The burst must be closed before the move assignment, so neither the swap nor the keyframe carries it.
+3. 035's history makes the backstop more important. MountExternallyModifiedDisk calls NotifyMediaChanged (:3539), which goes through MachineHost::OnMediaChanged (MachineHost.cpp:60-64) to ReverseController::OnMediaChanged (ReverseController.cpp:283-295). That takes a boundary keyframe of the disks "as they now stand", after EmitBayChange (:3537) has already spliced. Today the keyframe therefore records the corrupted reloaded disk, so rewinding cannot recover the clean one. The burst must be closed before the move assignment, so neither the swap nor the keyframe holds it.
 
 4. The flush hold does not change the fix. FlushAllUnlessHeld skips under the hold (:1899), but ApplyPendingReload still runs, and the Conflict branch writes only a preserved copy to a new file (SaveLoadedImage :3812-3840), never the bay's own file. That is already true today for committed writes. The fix only makes an open burst count the same way, so the hold is respected unchanged.
 
@@ -1100,7 +1103,7 @@ UI side: WindowCommandManager.cpp:1032-1034 runs OpenDisk2DebugDialog from WM_CO
 
 CPU side: SwitchMachine runs from CpuCommandDispatcher.cpp:53-54 (IDM_FILE_OPEN; LoadMachineState also reaches it, EmulatorShellState.cpp:176). Its only lifetime-lock section is the exclusive scope at MachineManager.cpp:489-527. The slice loop takes no lock: every other GetLifetimeLock() caller is a UI-thread shared lock. Outside that scope, SwitchMachine reads m_shell.m_disk2DebugPanel and writes the panel's cycle counter at :424-427 (before the lock) and :547-550 (after it). It then calls AttachDebugSinksIfOpen at :560, which reads both panel unique_ptrs unlocked (EmulatorShellDebug.cpp:696) and writes the same sinks through MachineHost::AttachObservers (MachineHost.cpp:1884-1907, controller at :1888) and the audio loop (EmulatorShellDebug.cpp:701-707). ResetUptimeAnchor also reads the panel on the CPU thread (EmulatorShell.h:297-314), called from MachineManager.cpp:652 and :670, including the PowerCycle at :587 inside the switch. The CPU thread reads m_eventSink on every Disk II switch, phase, tick and mount (Disk2Controller.cpp:177-253, :463-473, :557, :734, :766, :855, :878), and PublishToRing dereferences m_cycleCounter (Disk2DebugPanel.cpp:1501-1503). The comment at Disk2Controller.cpp:1018-1019 still says the attach is "Safe to call from the UI thread between CPU slices", and nothing enforces that.
 
-Concrete failure: the user opens Disk II Debug after a switch has passed :527. The UI assigns the new panel at :544 and enters Create. The CPU thread at :547/:560 sees the non-null pointer and points the new controller and the new audio sources at it. Create then fails, and CHRF at :551 frees the panel while those sinks still point at it. The PowerCycle at :587 (eject -> OnDiskEjected) or the next $C0Ex access then calls into freed memory. Even when Create succeeds, the unique_ptr itself is read and written on two threads with no ordering. In the opposite order (the UI opens while the switch is between :424 and :489), the panel keeps the old CPU's cycle-counter pointer across SetCpu(nullptr) at :501 until :549 replaces it.
+Concrete failure: the user opens Disk II Debug after a switch has passed :527. The UI assigns the new panel at :544 and enters Create. The CPU thread at :547/:560 reads the non-null pointer and points the new controller and the new audio sources at it. Create then fails, and CHRF at :551 frees the panel while those sinks still point at it. The PowerCycle at :587 (eject -> OnDiskEjected) or the next $C0Ex access then calls into freed memory. Even when Create succeeds, the unique_ptr itself is read and written on two threads with no ordering. In the opposite order (the UI opens while the switch is between :424 and :489), the panel keeps the old CPU's cycle-counter pointer across SetCpu(nullptr) at :501 until :549 replaces it.
 
 Sibling with the same mechanism: OpenInputDebugDialog (EmulatorShellDebug.cpp:613-670) writes the keyboard, //e soft-switch and game-port sinks and the cycle counter (:648-662) on the UI thread with no lifetime lock at all. Meanwhile SwitchMachine nulls those sinks at MachineManager.cpp:434-450 outside the lock and re-attaches them at :560.
 
@@ -1142,7 +1145,7 @@ Optional: :555 and :639 read m_uptimeAnchor, which the CPU thread writes (Emulat
 
 **Regression test:** Extend UnitTest/EmuTests/CpuCommandDispatcherTests.cpp. Give the Notebook (around :447) `void AttachDebugSinks () override { calls.push_back ("AttachDebugSinks"); }`. Add TEST_METHOD (AttachingTheDebugSinksIsTheCpuThreadsJob), which calls `Dispatch (IDM_DEBUG_ATTACH_SINKS, "", target)` and asserts `calls.size() == 1` and `calls[0] == "AttachDebugSinks"`. It also builds an EmulatorCommand with that id and asserts `CpuCommandDispatcher::TryGetJournalInput (cmd, input)` is false. Before the fix, Dispatch's default case drops the id and calls is empty.
 
-Extend UnitTest/EmuTests/DivergenceGateTests.cpp: add IDM_DEBUG_ATTACH_SINKS to the id list in DebuggerAudioAndHistoryCommandsLeaveTheMachineAlone (:70-76). This pins that opening a debug panel behind live neither asks to diverge nor gets dropped by the 035 gate.
+Extend UnitTest/EmuTests/DivergenceGateTests.cpp: add IDM_DEBUG_ATTACH_SINKS to the id list in DebuggerAudioAndHistoryCommandsLeaveTheMachineAlone (:70-76). This pins that opening a debug panel behind live neither raises the divergence question nor gets dropped by the 035 gate.
 
 Limit: the cross-thread interleaving cannot be reproduced deterministically in a unit test. OpenDisk2DebugDialog needs an HWND and a D3D device, which a test-built shell lacks (EmulatorShellResetTests.cpp:23-31, EmulatorDebugWiringTests.cpp:157-164), and MSVC has no thread sanitizer.
 
@@ -1261,7 +1264,7 @@ Callers:
 - MountFromBytes calls it on an occupied bay at :268. Its failed-load branch clears the flag directly at :284-285, and a successful load reassesses at :296-298.
 - MountExternallyModifiedDisk reassesses at :3531-3532.
 
-The deferred eject in ResolvePendingChange calls Eject at :3172, and PowerCycle calls Eject at :2377. Both therefore reach RetireBay. No other code in CassoEmuCore sets `mounted = false` or resets an Entry. A grep finds only :284 and :2218.
+The deferred eject in ResolvePendingChange calls Eject at :3172, and PowerCycle calls Eject at :2377. Both therefore reach RetireBay. No other code in CassoEmuCore sets `mounted = false` or resets an Entry. A grep gives only :284 and :2218.
 
 What is still the same:
 - IsSalvageOffered (:1595-1603) still returns the bare flag without checking `mounted`. That is the backstop the fix direction asked for, and it is absent, but no reachable state makes the flag stale.
@@ -1361,7 +1364,7 @@ The other new IsMounted callers run on the CPU thread and are not part of this r
 2. Use SetBayFlags at every write to a bay's flags:
    - MountFromBytes failure branch (:284-285): `SetBayFlags (entry, false, false)`.
    - MountFromBytes success branch (:298): `SetBayFlags (entry, true, SUCCEEDED (hrAssess) && assessment.isOffered)`.
-   - Keep the provisional `entry.mounted = true` at :274 as an unpublished internal write. AssessSalvage needs it through hasImage at :1533, and leaving it unpublished means the UI never sees a mounted bay that has no salvage answer yet.
+   - Keep the provisional `entry.mounted = true` at :274 as an unpublished internal write. AssessSalvage needs it through hasImage at :1533, and leaving it unpublished means the UI never reads a mounted bay that has no salvage answer yet.
    - RetireBay (:2218-2219): `SetBayFlags (entry, false, false)`. The `kept` writes at :2208-2209 stay plain, because kept entries are never read off the CPU thread.
    - SeatMedia (:2155-2156): `SetBayFlags (entry, true, kept.salvageOffered)`.
    - MountExternallyModifiedDisk (:3532): `SetBayFlags (entry, true, SUCCEEDED (hrAssess) && assessment.isOffered)`.
@@ -1378,7 +1381,7 @@ Part B: the replace prompt.
    - Expose `bool DiskManager::IsReplacePromptNeeded (int drive) const`, returning `m_diskStore.IsMounted (6, drive) && !m_driveWidgetState[drive].isEjectPosted`.
    - Call it at WindowCommandManager.cpp:1281 in place of the direct store read.
 
-2. Make the CPU-side mount the authority, so a stale answer cannot drop a disk. In MountFromBytes's replace branch (:263), before FlushEntry, add `CBRFEx (!entry.sharedState.IsEjectWhenAnswered(), HRESULT_FROM_WIN32 (ERROR_BUSY), outDiagnosis.failure = MountFailure::AwaitingAnswer)`.
+2. Make the CPU-side mount the authority, so a stale answer cannot drop a disk. In MountFromBytes's replace branch (:263), before FlushEntry, hoist `isEjectPending = entry.sharedState.IsEjectWhenAnswered();` and add `CBRFEx (!isEjectPending, HRESULT_FROM_WIN32 (ERROR_BUSY), outDiagnosis.failure = MountFailure::AwaitingAnswer)`. (Not taken: research.md R2's decline already keeps the disk in this case, so the plan adds no AwaitingAnswer value; tasks.md T088 tests it.)
    - Add the new MountFailure value, and a sentence for it in FormatMountFailureMessage (for example "Drive 1 is waiting for an answer about the disk in it.").
    - The existing m_onMountCompleted path (DiskManager.cpp:485-488) and the "could not be mounted" message (WindowCommandManager.cpp:1344-1346) report it.
    - The disk then stays in the drive until the answer finishes its eject.
@@ -1489,13 +1492,13 @@ What 035 changed:
 - The UI handler posts the step. WindowCommandManager.cpp:751-761 checks IsPaused, then calls m_shell.PostCommand(IDM_MACHINE_STEP). The comment at :758-759 says "The step runs on the CPU thread ... A paused CPU thread still drains its queue, so it arrives."
 - CpuCommandDispatcher.cpp:78-80 sends the command to EmulatorShell::StepInstruction (EmulatorShellCpuThread.cpp:379-405). There it is either the debug session's StepInto or SampleHostInputs + StepOne + Render/Publish, all on the CPU thread.
 - The pause wait still wakes on a queued command (CpuManager.cpp:448-449, 559-564), DrainCommandQueue still runs before the pause check (:579-583, :590-593), and PostCommand still notifies the paused thread (:134-139, :163-169).
-- EmulatorShell::StepInstructionWhilePaused is gone, along with the master comment at EmulatorShell.cpp:1371 ("MUST have verified the CPU thread is paused"). A grep for that text finds nothing. Fixed.
+- EmulatorShell::StepInstructionWhilePaused is gone, along with the master comment at EmulatorShell.cpp:1371 ("MUST have verified the CPU thread is paused"). A grep for that text returns nothing. Fixed.
 - Master's note at WindowCommandManager.cpp:728 ("The paused CPU thread runs no slices") is now :737-738: "pausing only sets a flag, so the write is queued to run there between slices". That is accurate. Fixed.
 - Every path that ticks the machine is now on the CPU thread: EmulatorShellCpuThread.cpp:401 and :1122 (RunCycles), Replayer.cpp:302 under the CPU-thread debug session, and SynchronousRunDriver.cpp:62 for headless runs. MachineHost::FinishStep calls Disk2Controller::Tick (MachineHost.cpp:844-847). So the motor-off and idle callbacks no longer fire on the UI thread. The "races nothing" / "race-free" comments at Disk2Controller.cpp:562-566, Disk2Controller.h:116-122 and MachineBuilder.cpp:1513-1518 are no longer contradicted by a step. They still claim more than is true, though: the UI thread reads and mutates the store. That access is covered by the separate defects salvage-mount-on-ui-thread, ui-derefs-store-diskimage, entry-path-string-race and stale-thread-ownership-comments. Disk2Controller.h:120-121 also still says the shell wires the hook to "DiskImageStore::FlushAll". MachineBuilder.cpp:1519-1528 actually wires FlushAllUnlessHeld followed by ApplyPendingReload.
 
 What is still stale:
 - The banner at WindowCommandManager.cpp:694-700 still says: "Step is driven DIRECTLY from the UI thread ... a paused CPU thread is provably idle -- blocked in pauseCV.wait ... Posting it would in fact deadlock: the CPU thread cannot drain its command queue while it is parked. It is delegated back through the shell to keep Disk2Controller's full definition out of this header." Every clause is now false. The step is posted (:760). The paused thread drains its queue (CpuManager.cpp:579-583). The handler does not touch Disk2Controller.
-- The banner at :702-703 says "Speed and pause are plain CpuManager calls ... so they need no marshalling at all". The pause case at :723-733 now also posts IDM_DEBUG_PAUSE_CHANGED (:729) so the debugger learns of the change on the CPU thread.
+- The banner at :702-703 says "Speed and pause are plain CpuManager calls ... so they need no marshalling at all". The pause case at :723-733 now also posts IDM_DEBUG_PAUSE_CHANGED (:729) so the debugger receives the change on the CPU thread.
 - The banner's claim that reset and power cycle are posted (:690-692) still holds: RequestReset posts IDM_MACHINE_RESET (EmulatorShellCpuThread.cpp:564), and :719 posts IDM_MACHINE_POWERCYCLE.
 
 **035 impact:** 035 already did the half that changes behavior. The step now runs on the CPU thread through the command queue, so the fallback in the defect's fix direction (state the contract while the step stays on the UI thread) no longer applies.
@@ -1508,7 +1511,7 @@ What is left is comment-only, and the comments should describe the 035 mechanism
 
 The Disk2Controller and MachineBuilder comments no longer need the "whichever thread ticks the controller" hedge, because every tick path is on the CPU thread. Their "races nothing" / "race-free" wording should still be narrowed to "no guest write is in progress". UI-thread access to the store is a live problem tracked by other defects, and an absolute claim would hide it. The flush hold is unaffected; only the Disk2Controller.h text needs to say FlushAllUnlessHeld instead of FlushAll. No code changes.
 
-**Proposed fix:** This is comment-only. Do not change code.
+**Proposed fix:** This is comment-only. Do not change code. (035's `e8290e93f`, part of its defect b fix, rewrites the banner item 1 covers, so on the merged code tasks.md T130 checks it and changes it only if it still says Step runs on the UI thread.)
 
 1) CassoEmuCore/Shell/WindowCommandManager.cpp:687-703. Replace the paragraphs from "These commands do NOT all reach the CPU the same way" through "so they need no marshalling at all." with:
 
@@ -1558,7 +1561,7 @@ This test passes on the 035 worktree today. It guards against the step moving ba
 
 **Evidence:** All five comments are word for word what master has; only their line numbers moved. Master's DiskImageStore.h:627 is now 718, Disk2Controller.cpp:1016 is now 1018, EmulatorShellDisks.cpp:570 is now 710, DiskManager.cpp:431 is unchanged and :854 is now 862. Each claim is still false in the worktree.
 
-(1) DiskImageStore.h:715-718 says m_pendingMutex guards only the pending records, and that "the image, the path and the identity are touched only by the thread that owns disk writes". DiskImageStore.h:383-385 says NoteExternalChange is "CALLED FROM ANY THREAD", which promises the same safety.
+(1) DiskImageStore.h:715-718 says m_pendingMutex guards only the pending records, and that "the image, the path and the identity are touched only by the thread that owns disk writes". DiskImageStore.h:383-385 says NoteExternalChange is "CALLED FROM ANY THREAD", which implies the same safety.
 - The UI thread reads the path every frame. TryPresentUiFrame (EmulatorShellPresent.cpp:637) calls UpdateDriveWidgets, which binds a reference into Entry.path at DiskManager.cpp:803 through GetSourcePath. GetSourcePath (DiskImageStore.cpp:2442-2447) takes no lock.
 - The UI thread also dereferences the image every frame, at DiskManager.cpp:895-897, through GetImage (DiskImageStore.cpp:2411-2415, no lock). RunSalvageFlow (EmulatorShellDisks.cpp:621) and ReportDamagedMount (:696, :733-734) do the same on the UI thread.
 - NoteExternalChange (DiskImageStore.cpp:2692-2712) runs on watcher threads and the UI thread. It reads entry.mounted and entry.path under m_pendingMutex, but no writer takes that lock:
@@ -1645,7 +1648,7 @@ Secondary tests for the other corrected comments:
 
 1. Clean tracks are copied from the mount-time bytes. DiskImage::Serialize sends a Nib image to NibbleImageCodec::Serialize (*this, m_rawSourceBytes, out) (CassoEmuCore/Devices/Disk/DiskImage.cpp:686-695). Serialize works out the geometry from the source size (NibbleImageCodec.cpp:397-415). In Render, hasSource is true when the size matches (NibbleImageCodec.cpp:461), and every track that is not dirty is memcpy'd straight from sourceBytes (NibbleImageCodec.cpp:475-479). Only dirty tracks are derived from the live bits (NibbleImageCodec.cpp:481-501).
 
-2. The source bytes are only ever set at load. m_rawSourceBytes (DiskImage.h:320) is assigned in exactly three places: LoadFromBytes (DiskImage.cpp:807), Load (DiskImage.cpp:885, .dsk only) and Eject, which clears it (DiskImage.cpp:935). It has no setter (DiskImage.h:150-262). Grep finds no other writer in the tree.
+2. The source bytes are only ever set at load. m_rawSourceBytes (DiskImage.h:320) is assigned in exactly three places: LoadFromBytes (DiskImage.cpp:807), Load (DiskImage.cpp:885, .dsk only) and Eject, which clears it (DiskImage.cpp:935). It has no setter (DiskImage.h:150-262). Grep shows no other writer in the tree.
 
 3. Every successful save clears all the per-track dirty bits without moving that baseline:
    - ClearDirty (DiskImage.cpp:642-651).
@@ -1697,7 +1700,7 @@ void DiskImage::MarkSaved (const vector<Byte> & savedBytes)
    - RescueOnTheWayOut (465): `entry.image->MarkSaved (held)`.
    - ResolvePendingChange (3140 and 3222): `entry.image->MarkSaved (held)`.
 
-4. **Leave these ClearDirty calls alone:** the write-protected gate (1101) and the user discard (3152). Nothing is written at either, so the file and the baseline still agree.
+4. **Leave these ClearDirty calls alone:** the write-protected gate (1101) and the user discard (3152). Nothing is written at either, so the file and the baseline still match.
 
 5. **Nothing changes in NibbleImageCodec.** Render's copy-clean-tracks rule is correct once its source is the file's current bytes. Render's output always has the source's size, so .nb2 stays .nb2.
 
@@ -1765,21 +1768,21 @@ ScratchHeatReplayer.cpp:491 installs an always-S_OK flush sink, so it is unaffec
 
 **035 impact:** 1. **Keep the flush hold and the replay bail as they are.**
    - RemountSlot6Disks' early return under the hold (DiskManager.cpp:658-664) stays, and so does FlushAllUnlessHeld (1893-1906). The fix must not add a flush on any path that the hold or m_isReplaying suppresses.
-   - The refusal test in MountFromBytes must be FAILED(hr), not "image still dirty". While m_isReplaying, FlushEntry returns S_OK and leaves the image dirty (1090). The hold-skipped paths also leave dirty images, legitimately.
+   - The decline test in MountFromBytes must be FAILED(hr), not "image still dirty". While m_isReplaying, FlushEntry returns S_OK and leaves the image dirty (1090). The hold-skipped paths also leave dirty images, legitimately.
 
-2. **Do not add the refusal to MountRestored or SeatMedia.** They retire without flushing by design, to put a snapshot's disks back (2106-2164, 652-662). For load state, the check belongs in MachineStateFile::Apply, the caller that is supposed to flush first.
+2. **Do not add the decline to MountRestored or SeatMedia.** They retire without flushing by design, to put a snapshot's disks back (2106-2164, 652-662). For load state, the check belongs in MachineStateFile::Apply, the caller that is supposed to flush first.
 
 3. **Retention changes nothing about the fix.** RetireBay's retention (2203-2214) parks the dirty image in m_retained, where it is never flushed and is freed by PruneRetainedMedia or Stop. The bay must keep the disk; letting retention hold it is not enough.
 
-4. **Machine switch: the refused disk stays attached.**
+4. **Machine switch: the declined disk stays attached.**
    - StopReverseRecording runs first (MachineManager.cpp:401), so the hold is off. The FlushAll and PowerCycle flushes then run (FlushAll is unconditional; PowerCycle goes through FlushAllUnlessHeld).
-   - A refused carry-mount leaves the old dirty image in the store's bay. MachineHost::PowerCycle's BindDiskDrives (MachineHost.cpp:992, 1810-1825) has already pointed the new controller at it, so the new machine still sees the disk.
+   - A declined remount of the kept disk leaves the old dirty image in the store's bay. MachineHost::PowerCycle's BindDiskDrives (MachineHost.cpp:992, 1810-1825) has already pointed the new controller at it, so the new machine still has the disk.
 
 5. **The eject question can reuse 035's ask path.** The FlushMoment::Ejecting route already exists for the external-change case: ReportPreserveFailure sets EjectWhenAnswered (410-413), Eject waits on it (2312-2315), and ResolvePendingChange's Conflict branch finishes the eject (3107-3176). The plain write-failure path should join that route rather than add a second one.
 
-6. **Both remount paths are journaled inputs.** A refused mount must not call EmitBayChange or NotifyMediaChanged. Mount's CHR at 620 already leaves before 626-640, so no boundary keyframe is recorded for a change that did not happen. Replay ignores media inputs (Replayer.cpp:470-475).
+6. **Both remount paths are journaled inputs.** A declined mount must not call EmitBayChange or NotifyMediaChanged. Mount's CHR at 620 already leaves before 626-640, so no boundary keyframe is recorded for a change that did not happen. Replay ignores media inputs (Replayer.cpp:470-475).
 
-**Proposed fix:** 1. **DiskImageStore::MountFromBytes (DiskImageStore.cpp:263-269): refuse to replace a bay whose flush failed.** Replace the IGNORE_RETURN_VALUE with:
+**Proposed fix:** 1. **DiskImageStore::MountFromBytes (DiskImageStore.cpp:263-269): decline to replace a bay whose flush failed.** Replace the IGNORE_RETURN_VALUE with:
 ```cpp
             //  A DISK WHOSE WRITES DID NOT REACH ITS FILE STAYS IN THE DRIVE.
             //  Replacing it would throw away the only copy of them, and the
@@ -1793,12 +1796,12 @@ ScratchHeatReplayer.cpp:491 installs an always-S_OK flush sink, so it is unaffec
    - On reset and power cycle, RemountSlot6Disks keeps the dirty disk in the drive. Reset's SoftReset flush, or the next spindown, retries.
    - With this change, the "still has them" text at 911-912 becomes true for every Running caller.
 
-2. **Add a mount failure for the refusal.** Add `UnsavedWrites` to MountFailure (MountDiagnosis.h:57-70, plus its doc line), and a MountDiagnosis::Describe case (MountDiagnosis.cpp:40-140), for example: "was not inserted. The disk already in that drive has changes that could not be saved to its file, and inserting this one would have thrown them away. That disk is still in the drive with its changes".
+2. **Add a mount failure for the decline.** Add `UnsavedWrites` to MountFailure (MountDiagnosis.h:57-70, plus its doc line), and a MountDiagnosis::Describe case (MountDiagnosis.cpp:40-140), for example: "was not inserted. The disk already in that drive has changes that could not be saved to its file, and inserting this one would have thrown them away. That disk is still in the drive with its changes".
    - In EmulatorShell::HandleMountCompletion (EmulatorShellDisks.cpp:248-259), skip the EhmNotifyUser when failure is UnsavedWrites and completion.path IsSamePath as the bay's current source path. That covers a remount from reset, power cycle or machine switch, where FlushEntry's notice already said all of it.
    - A different file still gets the sentence.
    - Update the DebugBatchRunner.cpp MountFailure switch (around line 301) if it lists cases.
 
-3. **MachineStateFile::Apply (MachineStateFile.cpp:229-230): honor the flush.** Make it `hr = machine.GetDiskStore().FlushAll(); CHRF (hr, outError = MakeError ("disk not saved", "A disk in a drive has changes that could not be saved, so the state was not loaded."));`. Check has already run, so a refusal here changes nothing else. Update the comment at 227-228 and MountRestored's header comment (DiskImageStore.cpp:659-660) to match.
+3. **MachineStateFile::Apply (MachineStateFile.cpp:229-230): act on the flush's result.** Make it `hr = machine.GetDiskStore().FlushAll(); CHRF (hr, outError = MakeError ("disk not saved", "A disk in a drive has changes that could not be saved, so the state was not loaded."));`. Check has already run, so a decline here changes nothing else. Update the comment at 227-228 and MountRestored's header comment (DiskImageStore.cpp:659-660) to match.
 
 4. **Make FlushEntry's loss report depend on the moment.** Route the three CHRN sites (1218, 1223, 1236) through one helper, for example `ReportWriteFailure (entry, moment, hr, recoveryPath)`, declared beside ReportPreserveFailure in DiskImageStore.h:547-552.
    - **Running:** use FormatFlushLossMessage, as today.
@@ -1810,7 +1813,7 @@ ScratchHeatReplayer.cpp:491 installs an always-S_OK flush sink, so it is unaffec
 5. **Leave the rest alone, and note two side effects.**
    - Leave RemountSlot6Disks' hold bail, FlushAllUnlessHeld, MountRestored, SeatMedia and the m_isReplaying bail unchanged.
    - Reset will now show two notices for a disk that cannot be written: the remount's flush, then SoftReset's. A machine switch already shows three today. That is acceptable against the data loss; removing the duplicates is a follow-up.
-   - A Serialize failure whose .recovered.woz did land also returns failure, so the remount is refused there too. That is conservative, but each retry writes another recovery file. Coordinate with the recovery-file-per-spindown fix. If it records that the current dirty generation was rescued, MountFromBytes can let that case through.
+   - A Serialize failure whose .recovered.woz did land also returns failure, so the remount is declined there too. That is conservative, but each retry writes another recovery file. Coordinate with the recovery-file-per-spindown fix. If it records that the current dirty generation was rescued, MountFromBytes can let that case through.
 
 **Regression test:** 1. **UnitTest/EmuTests/DiskImageStoreTests.cpp: add TEST_METHOD (FlushError_remountKeepsTheDiskWhoseWritesWereNotSaved).**
    - Setup: use ScopedFlushNotifyCapture. Set a flush sink that returns HRESULT_FROM_WIN32 (ERROR_DISK_FULL). MountFromBytes (kSlot, kDrive, "keep.dsk", DiskFormat::Dsk, MakeDsk (0)), take `before = GetImage (kSlot, kDrive)`, and dirty it with WriteBit (0, 0, 1).
@@ -1820,7 +1823,7 @@ ScratchHeatReplayer.cpp:491 installs an always-S_OK flush sink, so it is unaffec
      - GetImage returns `before`, before->IsDirty() is true, and GetSourcePath is still "keep.dsk".
      - s_flushNotifyCount == 1.
    - Repeat with "other.dsk" and assert the same.
-   - Add a companion where the sink succeeds: the dirty bay is written once and replaced. This guards against refusing too much.
+   - Add a companion where the sink succeeds: the dirty bay is written once and replaced. This guards against declining too much.
    - Before the fix, hr is S_OK and the bay holds a new, clean image, so the test fails.
 
 2. **Same file: add TEST_METHOD (FlushError_ejectWaitsForAnAnswerAndNeverClaimsTheDriveKeepsTheWrites).** Use a failing sink and a dirty .dsk.
@@ -1830,7 +1833,7 @@ ScratchHeatReplayer.cpp:491 installs an always-S_OK flush sink, so it is unaffec
      - The prompt offers "Eject and discard".
      - After ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard, ""), IsMounted is false.
    - Before the fix, the bay is empty after Eject, no prompt is raised, and the notice says the drive still has the writes.
-   - FlushError_surfacesThroughVoidEjectPath (469-484) still expects one notice and should keep passing.
+   - FlushError_surfacesThroughVoidEjectPath (469-484) still asserts one notice and should keep passing.
 
 3. **UnitTest/EmuTests/DiskResetRemountHoldTests.cpp: add TEST_METHOD (RemountAfterAFailedFlushKeepsTheDisk).**
    - Setup: use the same scaffold as RemountUnderHoldWritesNothingAndKeepsTheDisk (59-92): TestMachine ("Apple2e"), whose slot-6 Disk II is wired, so MountDiskInSlot6 gets past its CBR at DiskManager.cpp:452. Use the image and identity reader seams, and leave the hold OFF. Set a flush sink that counts attempts and returns HRESULT_FROM_WIN32 (ERROR_DISK_FULL). Install a SetNotifyFunction capture for the test's lifetime, because without a notifier EhmNotifyUser falls back to stderr or a MessageBox (Ehm.cpp:247-268).
@@ -1844,7 +1847,7 @@ ScratchHeatReplayer.cpp:491 installs an always-S_OK flush sink, so it is unaffec
    - Assert: Apply fails, error.label is "disk not saved", and the bay still holds the same dirty image.
    - Before the fix, Apply succeeds, and the dirty disk is retired and freed.
 
-**Sites:** CassoEmuCore/Devices/Disk/DiskImageStore.cpp:263-276 (MountFromBytes: FlushEntry ignored, RetireBay, image replaced), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:877-916 (FormatFlushLossMessage; 911-912 says the drive still has the writes), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1210-1237 (FlushEntry Serialize/write-failure CHRNs, not moment-aware), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:2290-2330 (Eject: 2304-2305 ignored, 2312 waits only for ReportPreserveFailure, 2319-2322 EndWatching + RetireBay), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:2197-2221 (RetireBay: retention keeps the image in m_retained, never flushed), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:664-705 (MountRestored: retires at 680-686 without a flush), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:584-644 (Mount: 603-606 same-bay exemption, 616-620 read then MountFromBytes), CassoEmuCore/Shell/DiskManager.cpp:650-682 (RemountSlot6Disks: 661-664 hold bail, 676-677 result ignored), CassoEmuCore/Shell/DiskManager.cpp:443-491 (MountDiskInSlot6), CassoEmuCore/Shell/DiskManager.cpp:507-519 (EjectDiskInSlot6), CassoEmuCore/Shell/CpuCommandDispatcher.cpp:62-76, 86-95 (reset, power cycle, insert, eject), CassoEmuCore/Shell/MachineManager.cpp:401-407, 587, 606 (machine switch), CassoEmuCore/Shell/MachineHost.cpp:984-985, 992 (PowerCycle flush ignored; BindDiskDrives), CassoEmuCore/Shell/MachineStateFile.cpp:229-233, 562, 565-567 (load state: FlushAll ignored, MountRestored/Eject retire the dirty bays), CassoEmuCore/Shell/EmulatorShell.cpp:299-300 (shutdown: same 'still has them' text on a write failure as the process exits), CassoEmuCore/Shell/EmulatorShellDisks.cpp:222-260 (HandleMountCompletion reports a refused mount), CassoEmuCore/Devices/Disk/MountDiagnosis.h:57-70 (MountFailure has no entry for this refusal), CassoEmuCore/Devices/Disk/ChangePrompt.cpp:366-423 (ComposeSaveFailure's Ejecting wording assumes an external change)
+**Sites:** CassoEmuCore/Devices/Disk/DiskImageStore.cpp:263-276 (MountFromBytes: FlushEntry ignored, RetireBay, image replaced), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:877-916 (FormatFlushLossMessage; 911-912 says the drive still has the writes), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1210-1237 (FlushEntry Serialize/write-failure CHRNs, not moment-aware), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:2290-2330 (Eject: 2304-2305 ignored, 2312 waits only for ReportPreserveFailure, 2319-2322 EndWatching + RetireBay), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:2197-2221 (RetireBay: retention keeps the image in m_retained, never flushed), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:664-705 (MountRestored: retires at 680-686 without a flush), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:584-644 (Mount: 603-606 same-bay exemption, 616-620 read then MountFromBytes), CassoEmuCore/Shell/DiskManager.cpp:650-682 (RemountSlot6Disks: 661-664 hold bail, 676-677 result ignored), CassoEmuCore/Shell/DiskManager.cpp:443-491 (MountDiskInSlot6), CassoEmuCore/Shell/DiskManager.cpp:507-519 (EjectDiskInSlot6), CassoEmuCore/Shell/CpuCommandDispatcher.cpp:62-76, 86-95 (reset, power cycle, insert, eject), CassoEmuCore/Shell/MachineManager.cpp:401-407, 587, 606 (machine switch), CassoEmuCore/Shell/MachineHost.cpp:984-985, 992 (PowerCycle flush ignored; BindDiskDrives), CassoEmuCore/Shell/MachineStateFile.cpp:229-233, 562, 565-567 (load state: FlushAll ignored, MountRestored/Eject retire the dirty bays), CassoEmuCore/Shell/EmulatorShell.cpp:299-300 (shutdown: same 'still has them' text on a write failure as the process exits), CassoEmuCore/Shell/EmulatorShellDisks.cpp:222-260 (HandleMountCompletion reports a declined mount), CassoEmuCore/Devices/Disk/MountDiagnosis.h:57-70 (MountFailure has no entry for this decline), CassoEmuCore/Devices/Disk/ChangePrompt.cpp:366-423 (ComposeSaveFailure's Ejecting wording assumes an external change)
 
 ## settings-wp-drops-dirty [still-present]
 
@@ -1863,7 +1866,7 @@ The user-switch path is the only one that does not.
 
 5. What 035 adds around the defect (none of it fixes it):
 - IDM_DISK_WRITEPROTECT1/2 is now a journaled input, kind DriveWriteProtect (CpuCommandDispatcher.cpp:258-263). It is recorded before dispatch (EmulatorShellCpuThread.cpp:350-355) and replayed as a bare SetUserWriteProtected (Debugger/Reverse/Replayer.cpp:479-487).
-- It is therefore a state-changing command for the divergence gate (Debugger/Reverse/DivergenceGate.cpp:25-45). Behind live, AllowCommand (EmulatorShellReverse.cpp:303-333) asks on the UI thread. A yes queues IDM_DEBUG_DIVERGE ahead of the command, and its handler ends the flush hold before SetDriveUserWriteProtect runs: ReverseHost::Diverge (ReverseHost.cpp:210-225), then ReverseController::OnMachineChanged (ReverseController.cpp:227-266), then BecomeLive and SetFlushHold(false) (2064-2070). BecomeLive does not flush.
+- It is therefore a state-changing command for the divergence gate (Debugger/Reverse/DivergenceGate.cpp:25-45). Behind live, AllowCommand (EmulatorShellReverse.cpp:303-333) raises the divergence question on the UI thread. A yes queues IDM_DEBUG_DIVERGE ahead of the command, and its handler ends the flush hold before SetDriveUserWriteProtect runs: ReverseHost::Diverge (ReverseHost.cpp:210-225), then ReverseController::OnMachineChanged (ReverseController.cpp:227-266), then BecomeLive and SetFlushHold(false) (2064-2070). BecomeLive does not flush.
 - While the hold was on, FlushAllUnlessHeld skipped the motor-off flushes (DiskImageStore.cpp:1899), and keyframe restore puts back m_dirty (DiskTrackSnapshot.cpp:97-99). So at the moment of divergence the image normally holds unflushed writes. The protect that follows silently drops them at the next flush, and the file keeps the abandoned future's contents instead of the disk as it now stands. The 035 hold makes the window wider, not narrower.
 
 **035 impact:** 1. Flush through the store's explicit flush, not through FlushAllUnlessHeld. The store's own contract (DiskImageStore.h:133-137) limits the hold to the three automatic moments: motor-off, reset and power cycle. Every explicit flush still writes the disk as it stands. Both sibling protect paths flush without checking IsFlushHeld: SetImageWriteProtect calls FlushEntry (DiskImageStore.cpp:1459) and ToggleImageWriteProtect calls m_diskStore.Flush (DiskManager.cpp:245). The user switch should do the same.
@@ -1914,7 +1917,7 @@ Error:
 hr = m_machine.GetDiskStore().SetUserWriteProtect (6, drive, wp);
 IGNORE_RETURN_VALUE (hr, S_OK);
 ```
-   Add an HRESULT local and an Error label, per the EHM rule. The pref stays recorded on failure, so the next mount re-applies it (DiskManager.cpp:168-175). That remount flushes the old entry first while it is still writable (DiskImageStore.cpp:263-266), which retries the write.
+   Add an HRESULT local and an Error label, per the EHM rule. The pref stays recorded on failure, so the next mount re-applies it (DiskManager.cpp:168-175). That remount flushes the old entry first while it is still writable (DiskImageStore.cpp:263-266), which retries the write. (Not taken as written: keeping the pref on a failed save leaves it saying protected while the disk is writable, so the next Settings apply that sends "1" would count as unchanged, change nothing and raise no notice, and the next mount would apply a protection the save never got. The plan stores the pref only when the drive is empty or the store's `SetUserWriteProtect` succeeds, so the next apply runs the save again; tasks.md T092, T104, T105.)
 
 4. CassoEmuCore/Shell/EmulatorShell.h:1149-1154: change the comment to say the command is posted by the Settings apply path only. The Disk menu's items go through IDM_DISK_WP1/2 and ToggleImageWriteProtect.
 
@@ -1929,7 +1932,7 @@ IGNORE_RETURN_VALUE (hr, S_OK);
 - Run the production path: `shell->DispatchCpuCommand (EmulatorCommand { IDM_DISK_WRITEPROTECT1, "1" });`.
 - Assert img->IsUserWriteProtected(). Then call `store.Eject (6, 0);` and `AssertSucceeded (WozLoader::Load (file, reloaded));`, and assert `reloaded.ReadBit (0, 0) == bit0 ^ 1` with the message "the guest write made before the switch moved must reach the file".
 - Before the fix: the Eject flush reaches the gate at DiskImageStore.cpp:1099-1103, the sink never runs, and `file` stays blank, so the assertion fails. After the fix: the toggle's flush writes the bit first.
-- Variant in the same test or a sibling: call `store.SetFlushHold (true)` before the dispatch and assert the bit still reaches the file. This pins the decision that the switch is an explicit flush, not an automatic one.
+- Variant in the same test or a sibling, at the store: call `store.SetFlushHold (true)`, then `store.SetUserWriteProtect (6, 0, true)`, and assert the bit still reaches the file. This pins the decision that the switch's save is an explicit flush, not an automatic one. (The plan moves this variant from the shell to the store. Through the shell, a `DispatchCpuCommand (IDM_DISK_WRITEPROTECT1, "1")` under the hold is a command that reached the emulation thread behind live, and the plan's command handler changes nothing and raises the behind-live notice; tasks.md T092, T093 and T105.)
 
 2. TEST_METHOD (UserWriteProtect_FlushFailure_LeavesTheDiskWritable). This is the store contract test.
 - Use a plain DiskImageStore whose sink returns HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT); DiskImageStoreTests.cpp:394-397 is the precedent for a failing sink. Mount, dirty a bit, call `store.SetUserWriteProtect (6, 0, true)`.
@@ -1948,7 +1951,7 @@ IGNORE_RETURN_VALUE (hr, S_OK);
    - The replay bail (1090) and the not-mounted bail (1091) do not apply.
    - IsDirty is still true (1097), because a failed flush never clears it.
    - IsWriteProtected (DiskImage.cpp:527-534) depends on IsDamaged (DiskImage.h:159), which counts only load-time CRC mismatch or load-time damaged tracks.
-   - The identity check (1131-1208) sees the original unchanged, because nothing wrote it.
+   - At the identity check (1131-1208) the original is unchanged, because nothing wrote it.
 
 3. Serialize fails again every time. DiskImage::Serialize (DiskImage.cpp:668-680) calls the strict NibblizationLayer::Denibblize for Dsk/Do/Po, which ends in CBR(!coverage.HasDataLoss()) (NibblizationLayer.cpp:1193-1194).
 
@@ -1988,7 +1991,7 @@ Out of scope: the image keeps its dirty bit, because the original file still lac
 
 (A) Test name: FlushEntry_UnserializableImage_IsPreservedOnceUntilTheGuestWritesAgain.
   Setup:
-  - Install a sink that counts writes to paths ending ".recovered.woz", remembers the last such path, and flags any write to the original.
+  - Install a sink that counts writes to paths ending ".recovered.woz", records the last such path, and flags any write to the original.
   - MountFromBytes(6, 0, "C:\\disks\\Session.dsk", Dsk, MakeDsk(0x5A)), then CorruptOneAddressField(track 3) and SetLoadedForTest(true, true).
   - Wire a Disk2Controller ctrl(6) with SetMotorOffFlushCallback([&]{ store.FlushAllUnlessHeld(); }), as MotorOffFlush_persistsDirtyWozThroughStore does (713-745).
   - Run three motor cycles. Each is Write(0xC0E9), Write(0xC0E8), Tick(1100000).
@@ -2002,6 +2005,7 @@ Out of scope: the image keeps its dirty bit, because the original file still lac
   - s_flushNotifyCount is still 1.
 
 (B) Test name: FlushEntry_UnserializableImage_LeavesOneRecoveryFileOnDisk. This one shows the visible symptom.
+  (Not taken: this test creates a real folder, which the constitution's test-isolation rule forbids in unit tests; `Win32DiskFileIoTests`, the disk seams' real-file class, moves to the scenario suite, tasks.md T057. The plan runs the same steps through `FakeDiskFileIo` as `FlushEntry_UnserializableImage_LeavesOneRecoveryFile`, research.md R3 store test 7, written with the fix and checked by mutation because before it `TryWriteRecoveryImage` reaches the real file system; tasks.md T065.)
   Setup:
   - Create a fresh folder under fs::temp_directory_path(), following the casso_atomic_ helper at 767 or SharedImageTests.cpp:2248.
   - Write Session.dsk there and Mount it by its real path, with no sink.
@@ -2124,6 +2128,8 @@ Why this placement:
 
 ## softreset-second-write-path [changed-but-present]
 
+**Status on this branch:** fixed in `e32b2b68c` (tasks.md T066, T067). Reported to 035 as 041 audit defect c on 2026-10-08. 035's tip `d3c15b55c` holds no cherry-pick of the commit, only a comment (`fe0427676`) that gives the reset as the exception to the flushes held behind live, so 035 reaches `master` with the defect and 041's merge removes it; tasks.md T008 corrects that comment once both are merged. The evidence below is as found at `811a6f727`.
+
 **Evidence:** The unguarded write is still there, unchanged. 035 has made it reachable in more ways, and in those ways it is worse.
 
 1. The write itself (unchanged). Disk2Controller::SoftReset calls Reset() and then m_activeDisk[drive]->Flush() on every loaded drive (CassoEmuCore/Machines/Apple2/Common/Disk2Controller.cpp:931-948, the call is at 944). m_activeDisk is the store-owned image that SetExternalDisk hands over (Disk2Controller.cpp:806-813). MachineHost::BindDiskDrives does this at MachineHost.cpp:1821-1824, and so does DiskManager.cpp:564. DiskImage::Flush (CassoEmuCore/Devices/Disk/DiskImage.cpp:981-1009) checks only the dirty bit (991). It then calls DiskImageStore::WriteFileAtomically(m_filePath) directly (1000). That write skips everything FlushEntry has:
@@ -2145,7 +2151,7 @@ It also ignores the flush hold, which is checked only in FlushAllUnlessHeld (Dis
 
 In each case the old dirty image stays in the drive, and Disk2Controller::SoftReset writes it raw to m_filePath.
 
-4. New in 035: under the flush hold, the remount no longer protects anything. RemountSlot6Disks returns at once while the store holds flushes (DiskManager.cpp:661-664). LeaveLive sets the hold (ReverseController.cpp:2005). After that early return, SoftReset still reaches DiskImage::Flush. The existing hold test (DiskResetRemountHoldTests.cpp:59-92) covers only the remount half of the Reset command. A user Reset from behind live normally diverges first: AllowCommand asks and posts IDM_DEBUG_DIVERGE, and Diverge then calls OnMachineChanged, which calls BecomeLive and clears the hold (EmulatorShellReverse.cpp:315-330, ReverseHost.cpp:210-218, ReverseController.cpp:259, 2070). But the gate decides from IsBehindLiveForUi() on the UI thread. A Reset posted just behind a queued step back may therefore run with the hold on. This is plausible but not verified.
+4. New in 035: under the flush hold, the remount no longer protects anything. RemountSlot6Disks returns at once while the store holds flushes (DiskManager.cpp:661-664). LeaveLive sets the hold (ReverseController.cpp:2005). After that early return, SoftReset still reaches DiskImage::Flush. The existing hold test (DiskResetRemountHoldTests.cpp:59-92) covers only the remount half of the Reset command. A user Reset from behind live normally diverges first: AllowCommand raises the divergence question and posts IDM_DEBUG_DIVERGE, and Diverge then calls OnMachineChanged, which calls BecomeLive and clears the hold (EmulatorShellReverse.cpp:315-330, ReverseHost.cpp:210-218, ReverseController.cpp:259, 2070). But the gate's check reads IsBehindLiveForUi() on the UI thread. A Reset posted just behind a queued step back may therefore run with the hold on. This is plausible but not verified.
 
 5. New in 035, deterministic: replays and running forward from the past. A recorded Reset is applied by Replayer::ApplyInput, which calls m_machine.SoftReset() (Replayer.cpp:493-496). It is reached two ways:
 - Replayer::RunTo, with the store marked replaying (Replayer.cpp:162, 175)
@@ -2166,12 +2172,12 @@ So the reset flush has to go through DiskImageStore::FlushAllUnlessHeld, exactly
 
 Doing this also gives DiskImageStore::SoftReset (DiskImageStore.cpp:2345-2352) its first production caller. The hold tests already assume it behaves this way (DiskFlushHoldTests.cpp:46-68, 101-118). Once nothing calls DiskImage::Flush on a store-owned image, the stale m_filePath after RepointBayToFile becomes harmless: the store writes entry.path through FlushEntry. It needs no separate fix.
 
-**Proposed fix:** 1. CassoEmuCore/Machines/Apple2/Common/Disk2Controller.cpp:931-948. Make Disk2Controller::SoftReset just call Reset(). Delete the hrFlush and drive locals and the loop that calls m_activeDisk[drive]->Flush(). Rewrite the banner (925-927) along these lines: "//e soft reset clears the controller's hardware state and keeps the disks in the drives. Writing dirty images back belongs to the disk store, which MachineHost::SoftReset asks first, so every safeguard on a write, the reverse-execution hold and the replay flag apply."
+**Proposed fix:** 1. CassoEmuCore/Machines/Apple2/Common/Disk2Controller.cpp:931-948. Make Disk2Controller::SoftReset just call Reset(). Delete the hrFlush and drive locals and the loop that calls m_activeDisk[drive]->Flush(). Rewrite the banner (925-927) along these lines: "//e soft reset clears the controller's hardware state and keeps the disks in the drives. Writing dirty images back belongs to the disk store, which MachineHost::SoftReset calls first, so every safeguard on a write, the reverse-execution hold and the replay flag apply."
 
 2. CassoEmuCore/Shell/MachineHost.cpp:919. At the top of MachineHost::SoftReset, before m_memoryBus->SoftResetAll(), add `m_diskStore->SoftReset();` with a comment matching PowerCycle's (978-983): flush dirty disks through the store before the devices reset, but not while reverse execution holds the disks, nor during a replay of a recorded reset. m_diskStore is always constructed (MachineHost.cpp:41), so the empty-machine test (MachineHostLifecycleTests.cpp:262-273) stays safe. Flushing before the device resets matches PowerCycle. The order cannot lose a write either way: FlushEntry commits a pending flux write (DiskImageStore.cpp:1095), and so does Disk2NibbleEngine::Reset (Disk2NibbleEngine.cpp:500). An equivalent alternative is `hrFlush = m_diskStore->FlushAllUnlessHeld(); IGNORE_RETURN_VALUE (hrFlush, S_OK);` as PowerCycle does it.
 
 3. What the user's Reset does afterward:
-- Live: the remount flushes and re-reads as before, and the store flush finds the image clean.
+- Live: the remount flushes and re-reads as before, and the image is clean when the store flush runs.
 - Failed remount (the master case): FlushEntry runs with all of its safeguards. A write-protected image is not written. A repointed bay writes to entry.path, with the identity check. A lost file whose question is outstanding gets the copy saved under the question's own path, with no repoint (1180-1190). The original file is not touched.
 - Under the hold, or during replay or running forward from the past: nothing is written.
 
@@ -2181,7 +2187,7 @@ Doing this also gives DiskImageStore::SoftReset (DiskImageStore.cpp:2345-2352) i
 
 Not this defect, but seen on the same path: when MountFromBytes rejects the re-read bytes, RetireBay has already reset entry.image (DiskImageStore.cpp:2216) unless reverse retention is on (2203-2214). No bay change is emitted on that failure (Mount exits at 620, before 635), so the controller is left pointing at freed memory.
 
-**Regression test:** Primary: extend UnitTest/EmuTests/DiskHistoryTests.cpp with TEST_METHOD (ReplayingAResetWritesNothing), modeled on ReplayingAPowerCycleWritesNothing (DiskHistoryTests.cpp:182-221).
+**Regression test:** (Not taken as written: the temp-path, `std::filesystem::exists` and working-directory checks below would read and write real files, which the constitution's test-isolation rule forbids in unit tests. The tests that shipped in `e32b2b68c` use disks with no file behind them and take the dirty bit as the witness: a write around the store has nowhere to go but still clears the bit, so a disk still dirty where nothing may write it shows that nothing wrote it; tasks.md T066. The two store tests mount with `MountFromBytes` and an empty path, `ReplayingAResetWritesNothing` through a new private `MountWithoutFile` helper in place of the scratch path and `PrepareRigLoop` path parameter below, and the reset-semantics test marks a bare controller's disks loaded, the first dirty, with `SetLoadedForTest`, with no store at all. The replay test also checks two things the steps below do not: the keyframe the forward seek starts from is before the reset, and `ReverseSessionRig::Checksum` at the end of the replay equals the live end's. There is no heat-rebuild case, because a heat rebuild reaches the same `Disk2Controller::SoftReset` through the same `Replayer::RunTo`.) Primary: extend UnitTest/EmuTests/DiskHistoryTests.cpp with TEST_METHOD (ReplayingAResetWritesNothing), modeled on ReplayingAPowerCycleWritesNothing (DiskHistoryTests.cpp:182-221).
 
 Setup: give PrepareRigLoop a path parameter (existing callers keep "history.nib", DiskHistoryTests.cpp:457). Mount this test's disk at a scratch path, (std::filesystem::temp_directory_path() / "casso_reset_replay.nib").string(), following the ScratchPath precedent at DiskImageStoreTests.cpp:765-768. Remove the scratch file at the start and again before the asserts. The image reader and identity reader are seams, so the file need not exist, and with the counting flush sink installed, nothing the store writes reaches it.
 
@@ -2305,7 +2311,7 @@ Emulator commit, DiskImageStore::WriteFileAtomically (CassoEmuCore/Devices/Disk/
 - One WriteFile writes the bytes (1343-1344). CloseHandle follows (1348). No FlushFileBuffers anywhere.
 - fs::rename(tempPath, path, ec) replaces the target (1357).
 - In the installed STL, fs::rename is MoveFileExW(MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING), with no MOVEFILE_WRITE_THROUGH (VC/Tools/MSVC/14.51.36231/crt/src/stl/filesystem.cpp:707-709).
-- The comment at 1354-1356 promises only "old or new" for a running system.
+- The comment at 1354-1356 states only "old or new" for a running system.
 
 Callers in the worktree:
 - FlushEntry (DiskImageStore.cpp:1235)
@@ -2332,7 +2338,7 @@ What 035 added does not touch the commit primitive. The flush hold (DiskImageSto
 - checked in FlushAllUnlessHeld at DiskImageStore.cpp:1899
 - turned on at ReverseController.cpp:2005 and turned off at ReverseController.cpp:2070, :98 and :142
 
-It only decides whether a spin-down, reset or power-cycle flush happens. Every commit that does happen ends in WriteFileAtomically. That includes CommitHeldWrites (1970-1973), eject, FlushAllForShutdown (EmulatorShell.cpp:299) and the write-protect toggle. So durability belongs in the commit primitive, and the fix must not add a new flush trigger that would get around the hold.
+It only controls whether a spin-down, reset or power-cycle flush happens. Every commit that does happen ends in WriteFileAtomically. That includes CommitHeldWrites (1970-1973), eject, FlushAllForShutdown (EmulatorShell.cpp:299) and the write-protect toggle. So durability belongs in the commit primitive, and the fix must not add a new flush trigger that would get around the hold.
 
 The hold makes this defect more costly. While reverse execution holds the disks, a whole session of guest writes reaches the file in one commit, when the hold is released or at exit. Losing that one commit loses all of them.
 
@@ -2352,14 +2358,14 @@ The removed StepInstructionWhilePaused and the new pause and step code are not i
 2. CLI and Cassque. In DiskImageSession::Commit (DiskImageSession.cpp:629-634), between WriteAllBytes and ReplaceAtomically, add `hr = m_fileIo.FlushToStorage (tempPath); CHRF (hr, RefuseCommit (opened.imagePath, DescribeTemporaryWriteFailure (hr), result));`. progress.furthestAttempted is still WriteTemporary at that point, so CommitPlan::ShouldRemoveTemporary already removes the temporary on a failed flush. No CommitPlan change is needed.
 
 3. Emulator. Replace the private CreateFileW/WriteFile/CloseHandle block (DiskImageStore.cpp:1329-1352) and fs::rename (1357) with the same sequence over an IDiskFileIo.
-   - Add a static `CommitThroughFileIo (IDiskFileIo & io, const string & path, const vector<Byte> & bytes)`. It finds a free name with io.Exists over GetCommitTemporaryPath, then calls io.WriteAllBytes(temp), io.FlushToStorage(temp) and io.ReplaceAtomically(temp, path), and calls io.Remove(temp) on any failure.
+   - Add a static `CommitThroughFileIo (IDiskFileIo & io, const string & path, const vector<Byte> & bytes)`. It tries names from GetCommitTemporaryPath with io.Exists until one is free, then calls io.WriteAllBytes(temp), io.FlushToStorage(temp) and io.ReplaceAtomically(temp, path), and calls io.Remove(temp) on any failure.
    - WriteFileAtomically keeps its signature, for DiskImage::Flush and the existing tests, and calls CommitThroughFileIo with a local Win32DiskFileIo.
    - FlushEntry (1235), SetImageWriteProtect (1474), SalvageToFile (1731) and WritePreserved (3791) call it with *m_fileIo when one is installed. Production installs Win32DiskFileIo at DiskManager.cpp:967-970. Otherwise they fall back to WriteFileAtomically.
    - This drops MOVEFILE_COPY_ALLOWED, which could turn a cross-volume replace into a non-atomic copy, and keeps the real Win32 code traveling, since both CWR.
 
 4. In TryWriteRecoveryImage (DiskImageStore.cpp:1037-1041), call FlushFileBuffers before CloseHandle and capture its error the same way. That file may be the session's only lossless copy.
 
-5. Correct the comments that promise more than the code does: DiskImageStore.cpp:1354-1356, Win32DiskFileIo.cpp:209-211 and :479-482, and IDiskFileIo.h:76-77.
+5. Correct the comments that state more than the code does: DiskImageStore.cpp:1354-1356, Win32DiskFileIo.cpp:209-211 and :479-482, and IDiskFileIo.h:76-77.
 
 Leave for separate follow-ups:
 - Keeping ACLs, attributes and streams with ReplaceFileW. It requires an existing target, so salvage and preserved copies need a MoveFileExW fallback, and the gap is identical on the CLI.
@@ -2384,8 +2390,9 @@ Leave for separate follow-ups:
    - Use a DiskImageStore with store.SetFileIo(&fakeIo) and no flush sink. MountFromBytes at a path that does not exist, such as Z:/casso-fake/flush.dsk, with MakeDsk(0x24). Flip a bit as at :846-847, call store.Flush(kSlot, kDrive), then fakeIo.SimulatePowerLoss().
    - Assert that fakeIo.files holds the full-size image (NibblizationLayer::kImageByteSize), that the op log is Write, Flush, Replace on GetCommitTemporaryPath(target, 0), and fakeIo.HasNoTemporaryFiles().
    - Before the fix, the store goes around the seam and writes the real filesystem directly. The fake records nothing, and the missing folder fails the flush with ERROR_PATH_NOT_FOUND, so the test fails. After the fix it passes.
+   - (Not taken as written: the run against the code before the fix calls CreateFileW and fs::rename on the real path, which the constitution's test-isolation rule forbids in unit tests, and its result depends on whether that root exists on the machine, a mapped Z: drive for one. The plan writes the test with the fix and checks it against R3's mutations of the fixed code instead, each of which fails it, all on the fake, and lists it among the SC-001 exceptions; tasks.md T059, and T065 for the recovery-copy tests that reach TryWriteRecoveryImage's fs::exists and CreateFileW the same way.)
 
-4. Win32DiskFileIoTests.cpp, which already uses real scratch files: add FlushToStorage_OfAMissingFile_ReportsFileNotFound_NotEFail and a round trip after FlushToStorage. These cover the Win32 method's error code. They are not a durability check.
+4. Win32DiskFileIoTests.cpp, which already uses real scratch files: add FlushToStorage_OfAMissingFile_ReportsFileNotFound_NotEFail and a round trip after FlushToStorage. These cover the Win32 method's error code. They are not a durability check. (The class moves from UnitTest to ScenarioTests with these cases, because unit tests may not touch real files; tasks.md T057.)
 
 **Sites:** CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1337-1348 (CreateFileW/WriteFile/CloseHandle, no FlushFileBuffers), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1357 (fs::rename = MoveFileExW COPY_ALLOWED|REPLACE_EXISTING, no WRITE_THROUGH), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1354-1356 (comment promising old-or-new only), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1235 (FlushEntry caller), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1474 (SetImageWriteProtect caller), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1731 (SalvageToFile caller), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:3791 (WritePreserved caller), CassoEmuCore/Devices/Disk/DiskImage.cpp:1000 (DiskImage::Flush caller, reached from Disk2Controller.cpp:944), CassoEmuCore/Devices/Disk/DiskImageStore.cpp:1033-1041 (TryWriteRecoveryImage, no flush), CassoEmuCore/Seams/Win32DiskFileIo.cpp:94-120 (WriteAllBytes, no FlushFileBuffers), CassoEmuCore/Seams/Win32DiskFileIo.cpp:232-233 (ReplaceAtomically, WRITE_THROUGH does not flush a same-volume rename), CassoEmuCore/Seams/Win32DiskFileIo.cpp:479-482 (comment wrongly says the temporary is flushed), CassoEmuCore/Devices/Disk/DiskImageSession.cpp:629-634 (CLI/Cassque commit: write then replace, no flush), CassoEmuCore/Devices/Disk/IDiskFileIo.h:68,76-79 (seam has no durability step), CassoEmuCore/Config/Win32FileSystem.cpp:126-155 (same pattern for settings, out of scope)
 
@@ -2398,7 +2405,7 @@ How the path flows:
 - GuiMain.cpp:704-705 copies it again. GuiMain.cpp:429-442 only runs fs::exists on it. GuiMain.cpp:813-815 passes fs::path(disk1Path).string() to EmulatorShell::Initialize.
 - EmulatorShell.cpp:626 calls DiskManager::MountCommandLineDisks. DiskManager.cpp:321-322 copies the path into resolvedDisk1/2. DiskManager.cpp:402-412 calls MountDiskInSlot6, which reaches m_diskStore.Mount at DiskManager.cpp:466.
 - DiskImageStore::Mount (DiskImageStore.cpp:584-644) calls MountFromBytes at :619. MountFromBytes stores `entry.path = virtualPath` unchanged (:272). Mount then calls BeginWatching at :630.
-- BeginWatching (DiskImageStore.cpp:3613-3633) calls MountedImageState::GetDirectory(entry.path) at :3616. For "game.dsk", find_last_of finds no separator, so GetDirectory returns "" (MountedImageState.cpp:224-237). The `!directory.empty()` guard at DiskImageStore.cpp:3621 skips m_watcher->Watch, and :3630 records SetWatching(false).
+- BeginWatching (DiskImageStore.cpp:3613-3633) calls MountedImageState::GetDirectory(entry.path) at :3616. For "game.dsk", find_last_of returns npos, because the path has no separator, so GetDirectory returns "" (MountedImageState.cpp:224-237). The `!directory.empty()` guard at DiskImageStore.cpp:3621 skips m_watcher->Watch, and :3630 records SetWatching(false).
 - Nothing in production reads IsWatching (MountedImageState.h:81), so there is no fallback.
 - The comment at MountedImageState.cpp:218-221 is still wrong for this case: for a bare name, the working directory IS where the image is.
 - A relative path that contains a separator (for example "disks\game.dsk" or ".\game.dsk") IS watched. Win32ImageWatcher.cpp:314-316 reports `fs::path(directory) / name`, and IsSamePath matches that form. So the miss is specific to a bare filename.
@@ -2416,29 +2423,31 @@ Further consequences found in the worktree:
 - **One file can go into both drives.** `--disk1 a.dsk --disk2 .\a.dsk` passes both duplicate checks: DiskManager.cpp:384-385 and IsFileInAnotherBay at DiskImageStore.cpp:606/558 each compare only case and separators. The same file then lands in both bays, which is the double-flush hazard the comment at DiskImageStore.cpp:596-601 describes.
 - **Data is still protected.** The pre-write identity check at DiskImageStore.cpp:1131-1147 still catches the conflict before an overwrite, so the user gets a stale disk and later a conflict or rescue prompt instead of an automatic reload.
 
-**035 impact:** **What 035 does not change.** The flush hold plays no part. The fix sits upstream of the store: the path is made absolute before DiskImageStore::Mount ever sees it. The hold checks are left as they are:
+**035 impact:** **What 035 does not change.** The flush hold plays no part. The fix sits upstream of the store: the path is made absolute before DiskImageStore::Mount ever receives it. The hold checks are left as they are:
 - RemountSlot6Disks still returns early under IsFlushHeld (DiskManager.cpp:661-664).
 - Mount still flushes an occupied bay through FlushEntry (DiskImageStore.cpp:265).
 
 The new step and pause machinery is not involved.
 
-**What 035 adds that makes the fix more important and decides where it goes.**
+**What 035 adds that makes the fix more important and shows where it goes.**
 - **Machine-state files keep the relative path.** 035's state file records the bay path with GetSourcePath (MachineStateFile.cpp:75). MountRestored replays it (MachineStateFile.cpp:562 -> DiskImageStore.cpp:664-705), and MountRestored's watch at :692-698 is skipped for a bare name the same way. A state saved from a relative --disk1 and loaded from another working directory points the bay, and its later flushes, at the wrong file. The fix therefore has to make the path absolute before the store records it. A watch-only fallback (watching cwd when GetDirectory is empty) would fix the watch and leave every persisted form relative, so it is the wrong fix.
 - **Store-level absolutizing breaks the test seams.** MountFromBytes treats the path as an opaque round-trip identifier (DiskImageStore.cpp:207-209), and the read, identity and flush seams in tests are keyed by that string. Rewriting the path inside the store would break those seams. The shell edge (DiskManager) is the right layer.
-- **Paths carried between mounts follow automatically.** MachineManager.cpp:417-418/606 and RemountSlot6Disks (DiskManager.cpp:668) re-feed GetSourcePath. Once the first mount is absolute, these stay absolute, and applying the conversion again is harmless.
+- **Paths kept between mounts follow automatically.** MachineManager.cpp:417-418/606 and RemountSlot6Disks (DiskManager.cpp:668) re-feed GetSourcePath. Once the first mount is absolute, these stay absolute, and applying the conversion again is harmless.
 - **A precedent exists.** 035's DebugSession::ResolvePath (DebugSession.cpp:882-918) already resolves relative debugger paths against the working directory. It is a session member with its own CD state, so it is not the helper to reuse.
 - **The sender must change in the same commit.** Today a relative path on both sides from one directory matches by accident (DiskImageStore.cpp:2707). Making only --disk1 absolute would break that case, because CassoCli would still send "game.dsk" against an absolute bay path. DiskCommandRunner::AnnounceIntent and ImageArtifactSink must send the absolute path too.
 
 **Proposed fix:** 1. **Add a helper.** In CassoEmuCore/Core/PathResolver.h/.cpp, add a class static beside MakeExeRelativePath, with EHM-exempt pure style:
    `static std::string MakeAbsolutePath (const std::string & path);`
+   - The plan takes this with an explicit base, `MakeAbsolutePath (path, baseDirectory)`, so the unit tests do not depend on the test process's working directory; the shell reads the real working directory in `EmulatorShell::InitAssetPathsAndStores`, and the CLI senders read it through the `IDiskFileIo` seam (`GetWorkingDirectory`, whose `Win32DiskFileIo` version calls `PathResolver::GetWorkingDirectory()`), so `CassoCli` stays code-free and no unit test reads it (contracts/internal-interfaces.md, Paths; tasks.md T073).
    - Empty input returns empty.
    - Otherwise it returns `fs::absolute (fs::path (path), ec).string()`, or the input unchanged if ec is set.
    - On MSVC, fs::absolute goes through GetFullPathNameW. That collapses "." and "..", and resolves drive-relative "C:x" and rooted "\x" correctly, which a hand join to current_path does not.
+   - (Not taken: `fs::absolute` and `GetFullPathNameW` resolve against the process's working directory, which the explicit base replaces. The plan's helper resolves against `baseDirectory`, rooted forms and drive-relative forms on the base's drive against that drive, and normalizes the result; a drive-relative path on another drive comes back unchanged, because only that drive's working directory, process state, could resolve it; per the contract; tasks.md T073.)
 
 2. **Use it at the shell edge.** In DiskManager::MountCommandLineDisks (DiskManager.cpp:321-322), change the two copies to:
    `std::string  resolvedDisk1 = PathResolver::MakeAbsolutePath (disk1Path);`
    `std::string  resolvedDisk2 = PathResolver::MakeAbsolutePath (disk2Path);`
-   This covers the --disk1/--disk2 launch (EmulatorShell.cpp:626) and the machine-switch carry (MachineManager.cpp:606). The saved-prefs branch at :326-368 already yields absolute paths. After this one change, everything downstream gets the absolute form:
+   This covers the --disk1/--disk2 launch (EmulatorShell.cpp:626) and the machine switch's remount (MachineManager.cpp:606). The saved-prefs branch at :326-368 already yields absolute paths. After this one change, everything downstream gets the absolute form:
    - the bay path (DiskImageStore.cpp:272)
    - the watch directory (:3616)
    - the duplicate checks (DiskManager.cpp:384-385, DiskImageStore.cpp:606)
@@ -2454,7 +2463,9 @@ The new step and pause machinery is not involved.
 
 Keep to the copilot-instructions rules for new code: the helper is a class static, no std <> includes in the .cpp, and insert it before the `////` banner of the next function.
 
-**Regression test:** **(A) Emulator side.** Extend UnitTest/EmuTests/DiskResetRemountHoldTests.cpp, the only existing rig that builds a real DiskManager, and add `#include "FakeImageWatcher.h"`.
+**Regression test:** (Not taken as written: every `fs::absolute (...)` and `fs::current_path()` below would tie the tests to the test process's working directory. The plan's tests pass a synthetic base directory, `"C:\\work"`, and compare against paths built from it, for example `"C:\\work\\relative.nib"`; tasks.md T072. The cases themselves are kept.)
+
+**(A) Emulator side.** Extend UnitTest/EmuTests/DiskResetRemountHoldTests.cpp, the only existing rig that builds a real DiskManager, and add `#include "FakeImageWatcher.h"`.
 
 New `TEST_METHOD (ARelativeCommandLineDiskIsMountedByItsFullPathAndWatched)`:
 - Declare `FakeImageWatcher watcher;` BEFORE `TestMachine machine ("Apple2e");`. The store keeps a raw pointer, so the watcher must outlive the machine's teardown ejects.
@@ -2543,7 +2554,7 @@ The removal of StepInstructionWhilePaused does not matter here. The change sits 
   - Call out.EnsureTrackSlots(r + 1) and then out.ResizeTrack(r, 0), so the slot is an empty Bits slot even on a reused image.
   - Call out.SetQuarterTrackSlot(4*N, r), and the same for 4*N-1 and 4*N+1 when each is in range and still unmapped. Leave 4*N+2 alone; this follows the usual WOZ layout for a standard track.
 - Because the slot holds 0 bits, ResolveQuarterTrack still returns -1 (DiskImage.cpp:123-126). Reads, TrackWritability (TrackWritability.cpp:46-53), DamagedMountReport and Serialize's TMAP rebuild (WozLoader.cpp:1496-1504, which still writes $FF and a zero record) behave as before until the guest writes.
-- A mapped zero-bit record needs no reservation: its slot already exists.
+- A mapped zero-bit record needs no reservation: its slot already exists. (Not taken as written: R4 unmaps an empty bit slot and reserves it like an unmapped track, on an image with no damage. Under spec 040's track-record rule (its FR-053, built in 040's `51ad867e8`, which this branch takes), every record with a zero bit count is such a slot, whatever its start block, the one with start block 3 or more included (owner confirmed 2026-10-09); a record with a count above zero and a zero start block or block count, a start block below 3, or a count larger than its blocks hold, and a map entry from 160 to 254, are damage and write-protect the image, and the reservation does nothing for an image with any damage. research.md R4; tasks.md T111, T115, T136.)
 
 2. DiskImage: add `int MakeBlankTrackWritable (int quarterTrack, size_t bitCount)`.
 - slot = GetMappedSlot(quarterTrack).
@@ -2589,7 +2600,7 @@ Known gap left open: a write at an unmapped half-track (4N+2) is still dropped. 
 - Round trip: WozLoader::Serialize and Load into a fresh DiskImage; require ResolveQuarterTrack(4) >= 0 and the FF run present in FrameTrack.
 - Before the fix the first assert fails: the image is never dirty and the position stays at -1.
 
-(b) The same test over a zero-bit record. Use BuildSyntheticV2(1, false, {}, 0, woz) and write at quarter track 0, whose TRK record has bitCount 0 and bails at WozLoader.cpp:288.
+(b) The same test over a zero-bit record. Use BuildSyntheticV2(1, false, {}, 0, woz) and write at quarter track 0, whose TRK record has bitCount 0 and bails at WozLoader.cpp:288. (Not taken as written: that record has start block 3 and block count 1 (WozLoader.cpp:1102-1105, :1147-1149); under spec 040's rule it is empty, not damage (owner confirmed 2026-10-09), so T112's load tests use it beside an all-zero record, the form the WOZ format gives an unused record, and the write test uses the all-zero record. research.md R4; tasks.md T112, T113.)
 
 (c) LssWrite_OverABlankTrackOfAProtectedWoz_LeavesItBlank. Build with writeProtected = true. After the same write, require:
 - ResolveQuarterTrack(4) == -1

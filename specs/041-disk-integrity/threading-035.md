@@ -2,9 +2,11 @@
 
 Paths are relative to `C:\Users\relmer\source\repos\relmer\Casso-worktrees\041-disk-integrity`. Where I say something is new in 035, I checked against the merge base with master, 13095e55.
 
+This record describes 035 at `811a6f727`. 035's fixes for the defects 041 reported on 2026-10-08 (a, b, d, e and f; `origin/035-debugger` at `d3c15b55c`) change sections 1 to 4 where noted below, and tasks.md "What 035 brings" gives their commits.
+
 ## 1. CpuManager pause and resume
 
-**There is no handshake.**
+**There is no handshake.** (Reported to 035 on 2026-10-08 as 041 audit defect b. 035 fixed it in `3698a1a0a`, `f793616db` and `e8290e93f`, merged at `21306089a`: `TogglePaused` and `SetPaused` store and wake under the pause mutex, `MachineHost::RunCycles` stops on the next instruction boundary, and the CPU thread parks, with `CpuManager::IsParked` and `TryWaitUntilParked` as the acknowledgement and the pause wait moved into `WaitWhilePaused`. A parked, paused machine still runs posted commands. 041's deploy hold for the update installer, `HoldForDeploy`, is built on that code after tasks.md T008, with names and an acknowledgement of its own, and holds the posted commands too.)
 - `SetPaused` stores `m_paused` and calls `notify_all` under `m_pauseMutex` (`CassoEmuCore/Shell/CpuManager.cpp:215-224`).
 - `TogglePaused` reads the flag and then stores it, which is not atomic (`CpuManager.cpp:243-256`).
 - Neither one waits, and the CPU thread sends no acknowledgement. Nothing in the code records that the thread is parked. CassoEmuCore has no promise or future.
@@ -43,7 +45,7 @@ After `Finish`, the slice loop breaks (`EmulatorShellCpuThread.cpp:1306-1310`), 
   - `ServiceHistoryThumbnails`: publishes the playhead and caption, and hands one packed keyframe to the thumbnail worker (`EmulatorShellReverse.cpp:1003-1060`).
 - **Drained commands** (`CpuCommandDispatcher.cpp:45-198`):
   - Mount, eject, write-protect, resolve-change.
-  - Reset and power cycle, each followed by `RemountDisks`.
+  - Reset, which runs `RemountDisks` first and then `SoftReset`, and power cycle, which runs `RemountDisks` after (`CpuCommandDispatcher.cpp:62-76`). A reset's remount that swaps a disk captured a boundary keyframe before `SoftReset`, past the `Reset` journal record (reported to 035 on 2026-10-08 as 041 audit defect d; 035 fixed it in `5ee85434f`, so a disk change while live now becomes a boundary keyframe before the next instruction or reverse command).
   - `IDM_MACHINE_STEP`.
   - `IDM_DEBUG_COMMAND`, `IDM_DEBUG_ACTION`, `IDM_DEBUG_VIEW`.
   - `IDM_DEBUG_REVERSE`.
@@ -54,7 +56,7 @@ After `Finish`, the slice loop breaks (`EmulatorShellCpuThread.cpp:1306-1310`), 
   - Any debugger command that starts a run calls `SetPaused(false)` from the CPU thread (`CpuManagerRunDriver.cpp:76`), so the same pass goes on to run a frame.
 
 **What does keep the UI out.** Only two things, and neither excludes ordinary running, steps or replays:
-- The lifetime lock (`MachineHost.h:194-199`). It is taken exclusively only by a machine switch; the UI frame tries for it shared (`EmulatorShellPresent.cpp:564-579`).
+- The lifetime lock (`MachineHost.h:194-199`). It is taken exclusively only by a machine switch; the UI frame takes it shared with `try_to_lock` (`EmulatorShellPresent.cpp:564-579`).
 - `HostInputGate` (see section 5).
 
 ## 2. How a debugger step runs now
@@ -76,6 +78,7 @@ After `Finish`, the slice loop breaks (`EmulatorShellCpuThread.cpp:1306-1310`), 
 `StepOne` on the live machine runs only on the CPU thread. `Replayer::Step` (`Replayer.cpp:302`) is the other caller, also on the CPU thread. Off-thread `StepOne` happens only on scratch machines that have their own `MachineHost`:
 - `ScratchHeatReplayer` (`ScratchHeatReplayer.h:22-49`, `104-113`).
 - `ScratchMachineRenderer`, which has no disks (`ScratchMachineRenderer.h:15-29`).
+- On 035's tip `d3c15b55c`, `ScratchCallReplayer` as well, which rebuilds the debugger's call record on a pool thread of its own. It and `ScratchHeatReplayer` now each build their scratch machine, with its own disk store, through `ScratchReplayMachine` (`ScratchReplayMachine.cpp:63-112`).
 
 **How many instructions.**
 - Step into, or `T` with no count: exactly one (`DebugSession.cpp:2484`; `RunStopHook.cpp:394-396`), or the interrupt entry taken in its place (`RunStopHook.cpp:219-224`). Step into does not run through interrupts (`514-517`).
@@ -111,12 +114,12 @@ After `Finish`, the slice loop breaks (`EmulatorShellCpuThread.cpp:1306-1310`), 
 - `OnCpuThreadStart` and `OnCpuThreadStop` (`EmulatorShellCpuThread.cpp:212-219`, `319-326`).
 - The machine switch (`MachineManager.cpp:399-401`).
 
-The comment at `ReverseController.h:88-90` says the flushes are held "while recording". That is out of date: the code holds them only while the machine is behind live.
+The comment at `ReverseController.h:88-90` says the flushes are held "while recording". That is out of date: the code holds them only while the machine is behind live. (035 corrected it in `c414dd193`; `fe0427676` then gave a reset as the one exception, which 041's `e32b2b68c` ends, so tasks.md T008 puts the reset back in that comment's list.)
 
 **Two companion flags.**
 - **`m_isReplaying`** (`DiskImageStore.h:150-154`).
   - Set by `Replayer::RunTo` for the length of a replay (`Replayer.cpp:162`, `195`).
-  - Also set by `ReplayHere` (`ReverseController.cpp:1885`, `1913`), and cleared only by `BecomeLive` (`2071`).
+  - Also set by `ReplayHere` (`ReverseController.cpp:1885`, `1913`), and cleared only by `BecomeLive` (`2071`), and since 035's `c913c9247` (defect a) by `Stop` as well.
   - So after a forward step or run from the past, it stays set while the machine sits behind live.
 - **Retention.**
   - Turned on at `Start` (`99`) and off at `Stop` (`143`).
@@ -137,17 +140,18 @@ The comment at `ReverseController.h:88-90` says the flushes are held "while reco
 
 | Operation | While held |
 |---|---|
-| Automatic flushes: spindown (`MachineBuilder.cpp:1519-1521`), `SoftReset` (`DiskImageStore.cpp:2345-2352`), `MachineHost::PowerCycle` (`MachineHost.cpp:978-984`) | Skipped through `FlushAllUnlessHeld` (`DiskImageStore.cpp:1893-1906`) |
+| Automatic flushes: spindown (`MachineBuilder.cpp:1519-1521`) and `MachineHost::PowerCycle` (`MachineHost.cpp:978-984`) | Skipped through `FlushAllUnlessHeld` (`DiskImageStore.cpp:1893-1906`) |
+| Reset, at `811a6f727`: `MachineHost::SoftReset` (`MachineHost.cpp:919-952`) never called the store, and `DiskImageStore::SoftReset` (`DiskImageStore.cpp:2345-2352`) had no production caller. `MemoryBus::SoftResetAll` reached `Disk2Controller::SoftReset`, which called `DiskImage::Flush` on every loaded drive (`Disk2Controller.cpp:931-948`) | Still wrote, ignoring both the hold and `m_isReplaying`, and so did a replay of a recorded reset (`Replayer.cpp:493-496`). Corrected after the first reading of this table. Fixed on this branch in `e32b2b68c` (FR-017): `MachineHost::SoftReset` now calls the store's `SoftReset` (`FlushAllUnlessHeld`) first and the controller's reset writes nothing, so a reset is skipped while held or replaying. Reported to 035 as 041 audit defect c. 035's tip `d3c15b55c` holds no cherry-pick of that commit, only a comment (`fe0427676`) giving the reset as the exception to the held flushes, so 035 reaches `master` with the defect and 041's merge removes it |
 | `RemountSlot6Disks` on reset or power cycle | Skipped entirely (`DiskManager.cpp:658-664`) |
 | Explicit flushes: `Eject` (`DiskImageStore.cpp:2304`), `FlushAll` on machine switch (`MachineManager.cpp:405-408`) and state save, `FlushAllForShutdown` (`EmulatorShell.cpp:299`), `SetImageWriteProtect` | Still write, and write the disk as it stands at the current, past position (`DiskImageStore.h:133-136`). `FlushEntry` checks only `m_isReplaying` (`DiskImageStore.cpp:1088-1097`) |
 | Anything while `m_isReplaying` is set | No flush (`1090`), no reload (`2745-2750`), no media-change notice (`2233-2239`) |
 | Eject or mount | Flushes (unless replaying), retires the image (`2322`), then the bay-change notice and `NotifyMediaChanged` lead to `OnMachineChanged`, which drops the recorded future and calls `BecomeLive`, clearing the hold |
-| UI-posted mount, eject, write-protect, resolve-change, state load or machine switch behind live | `AllowCommand` asks first; on yes it queues `IDM_DEBUG_DIVERGE` ahead of the command, which makes the machine live (`EmulatorShellReverse.cpp:303-333`; `DivergenceGate.cpp:25-45`; `ReverseHost.cpp:210-225`). Commands posted by the CPU thread itself skip this check (`EmulatorShellReverse.cpp:315-318`) |
+| UI-posted mount, eject, write-protect, resolve-change, state load or machine switch behind live | `AllowCommand` raises the divergence question first; on yes it queues `IDM_DEBUG_DIVERGE` ahead of the command, which makes the machine live (`EmulatorShellReverse.cpp:303-333`; `DivergenceGate.cpp:25-45`; `ReverseHost.cpp:210-225`). Commands posted by the CPU thread itself skip this check (`EmulatorShellReverse.cpp:315-318`) |
 | Reload of an externally changed file (`ApplyPendingReload`) | Not stopped by the hold, only by `m_isReplaying` (`DiskImageStore.cpp:2733-2787`) |
 | Keyframe load that reseats a bay (`MachineHost.cpp:1668-1679`, `1773-1825`; `DiskImageStore.cpp:2117-2164`) | No flush, no bay-change notice, no media notice |
 | `CommitHeldWrites` (= `FlushAll`, `1970-1973`) and `DiscardHeldWrites` (reload dirty bays, `1989-2025`) | No production caller; only `UnitTest/EmuTests/DiskFlushHoldTests.cpp:91`, `133` use them |
 
-**Possible bug, found by reading, not tested.** `ReverseController::Stop` clears the hold (`142`) but not `m_isReplaying`. If the user quits while behind live after a forward step, `FlushAllForShutdown` reaches `FlushEntry`, which returns at `DiskImageStore.cpp:1090` and writes nothing. That contradicts the stated intent at `EmulatorShellCpuThread.cpp:321` and `ReverseHost.cpp:66-73`.
+**Possible bug, found by reading, not tested.** `ReverseController::Stop` clears the hold (`142`) but not `m_isReplaying`. If the user quits while behind live after a forward step, `FlushAllForShutdown` reaches `FlushEntry`, which returns at `DiskImageStore.cpp:1090` and writes nothing. That contradicts the stated intent at `EmulatorShellCpuThread.cpp:321` and `ReverseHost.cpp:66-73`. Reported to 035 on 2026-10-08 as 041 audit defect a; 035 fixed it in `c913c9247` and `65499c194`, and 041's tasks.md T008 and T137 confirm the fix on the merged code before 041 merges.
 
 ## 4. Cross-thread readers of disk or drive state that 035 added
 
@@ -165,7 +169,7 @@ Every reader 035 added reads on the CPU thread and hands over a copy.
   - `FindInStretch` runs synchronously on the calling thread, which is the CPU thread (`HeatHistory.cpp:557-596`).
 - **Keyframes.**
   - `CaptureNow` → `DiskImage::SaveState` (`ReverseController.cpp:1726-1741`) updates DiskImage's `mutable` shared-track cache (`DiskImage.cpp:1202-1224`), CPU thread only.
-  - The result is flattened into a job buffer and packed on a work queue (`KeyframeStore.cpp:320-346`, `736-817`). The worker sees only the copy.
+  - The result is flattened into a job buffer and packed on a work queue (`KeyframeStore.cpp:320-346`, `736-817`). The worker reads only the copy.
 - **Timeline.** It reads no disk state. Its renderer machine has no disks (`ScratchMachineRenderer.h:19-23`), and the playhead values are atomics (`HistoryThumbnails.cpp:1341-1399`).
 - **`DiskTrackSnapshot`.** No production reader. Its header documents it as CPU-thread only (`DiskTrackSnapshot.h:26-28`).
 - **UI thread into the store.** `NoteExternalChange` (`EmulatorWindow.cpp:2789`) may be called from any thread and is guarded by `m_pendingMutex` (`DiskImageStore.h:381-386`, `715-719`).
