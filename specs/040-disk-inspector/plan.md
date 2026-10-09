@@ -310,7 +310,7 @@ By message, never by editing another branch:
 ## Risks
 
 - **The Dxui hook disturbs the frame or the device's state.** Mitigation: it
-  is the first item of Phase 9, measured before anything depends on it, with
+  is the first item of the views step (tasks.md T051), measured before anything depends on it, with
   the CPU fallback in R19.
 - **The framer disagrees with the engine** (SC-002). Mitigation: the test
   compares against the engine itself, and the two share constants.

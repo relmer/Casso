@@ -55,11 +55,11 @@ list; `GetDamagedQuarterTracks` merges both lists.
 ### DiskImage additions
 
 - `ResolveWholeTrack (int track)`: `ResolveQuarterTrack (4 × track)`.
-- Per slot: `guestWriteCount` (uint64), `isChangedByEdit` (bool, cleared by a
-  save), the `WozFileLayout` and `WozInfo` it was loaded with (inside
+- Per slot: `guestWriteCount` (uint64), `isChangedByWriter` (bool, set by the shared
+  sector writer for every caller, cleared by a save), the `WozFileLayout` and `WozInfo` it was loaded with (inside
   `WozMetadata`).
 - `GetAngle` on `Disk2NibbleEngine` becomes public.
-- Rule: a guest write never sets `isChangedByEdit`; an edit never increments
+- Rule: a guest write never sets `isChangedByWriter`; an edit never increments
   `guestWriteCount` (FR-109).
 
 ### SectorWrite (API type, `SectorFieldWriter.h`)
@@ -159,7 +159,7 @@ Nonstandard; later release adds a custom-format class per decoder (FR-016).
 `content` (Nothing, BitTrack, FluxTrack, Damaged), `slot`, `sourceMap`,
 `sharesWith` (quarter tracks), `class`, counts (good, found, not checked),
 `isBeyondHeadReach`, `damageReason`. Casso: `isWrittenSinceInsert`,
-`visitCount`, `isChangedByEdit`.
+`visitCount`, `isChangedByApply` (from the applied-edit history, FR-109).
 
 ### Finding
 

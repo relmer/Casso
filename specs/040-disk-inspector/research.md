@@ -372,8 +372,9 @@ A guest write to a record the apply changes, while it waits, ends the wait
 (FR-103): the request sees the record's write count change.
 
 The edit never counts as a guest write (FR-109). `DiskImage` gets a separate
-per-record "changed by an edit" flag for the Tracks tab and for the NIB save
-rule (R17).
+per-record `isChangedByWriter` flag, set by the shared writer for every caller and cleared by a save, for the NIB
+save rule (R17). The Tracks tab's mark for records an apply changed (FR-109)
+comes from the applied-edit history instead, since every apply saves at once.
 
 ## R15. The shared sector writer (FR-110 to FR-116)
 
@@ -481,7 +482,7 @@ decision recorded by 041, 2026-10-08).
   FR-099's "the bit record is left as it was" true after a save. Each track
   keeps its kind (spec 038).
 - **NIB, NB2**: `NibbleImageCodec::Serialize` writes a record whose only
-  change is an edit, undo or redo (R14's "changed by an edit" flag, with no
+  change is an edit, undo or redo (the `isChangedByWriter` flag, R14, with no
   guest write) by copying the field's new nibbles into the stored track bytes
   at their place. A record with a guest write is rebuilt as today, and the
   window says so before the apply.
