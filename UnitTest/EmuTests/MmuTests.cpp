@@ -4,6 +4,9 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
+#include "Machines/Apple2/Common/AppleLoResMode.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -300,6 +303,104 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    //  The display scans main for 40-column text, lo-res and hi-res whatever
+    //  the CPU's banking. RAMRD, and 80STORE with PAGE2 (and HIRES for the
+    //  hi-res page), move only the CPU's view; a renderer given main RAM must
+    //  draw the same frame under all of them.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static constexpr int  kFbWidth  = 560;
+    static constexpr int  kFbHeight = 384;
+
+    //  Main and aux hold different bytes across the whole page, so a frame
+    //  scanned from the wrong bank cannot match.
+    static void FillPage (MmuFixture & f, Word first, Word last, Byte mainValue, Byte auxValue)
+    {
+        for (uint32_t a = first; a <= last; a++)
+        {
+            f.mainRam.GetData()[a]  = mainValue;
+            f.mmu.GetAuxBuffer()[a] = auxValue;
+        }
+    }
+
+    static vector<uint32_t> RenderFrame (VideoOutput & mode, AppleTextMode * text)
+    {
+        vector<uint32_t>  fb (kFbWidth * kFbHeight, 0);
+
+        // The text renderer keeps a dirty-row cache; a fresh frame must not
+        // reuse rows from the last one.
+        if (text != nullptr)
+        {
+            text->InvalidateCache();
+        }
+
+        mode.Render (nullptr, fb.data(), kFbWidth, kFbHeight);
+        return fb;
+    }
+
+    static void AssertScansMainWhateverTheBanking (MmuFixture & f, VideoOutput & mode, AppleTextMode * text, Word probe, bool hires)
+    {
+        vector<uint32_t>  baseline = RenderFrame (mode, text);
+        vector<uint32_t>  banked;
+        Byte              auxByte  = f.mmu.GetAuxBuffer()[probe];
+
+        f.sw.Write (0xC003, 0);                // RAMRD on
+        Assert::AreEqual (auxByte, f.bus.ReadByte (probe), L"fixture: RAMRD must bank the CPU's reads to aux");
+
+        banked = RenderFrame (mode, text);
+        Assert::IsTrue (baseline == banked, L"RAMRD moves the CPU's reads, not the display's");
+
+        f.sw.Write (0xC002, 0);                // RAMRD off
+        f.sw.Write (0xC001, 0);                // 80STORE on
+
+        if (hires)
+        {
+            f.bus.ReadByte (0xC057);           // HIRES on
+        }
+
+        f.bus.ReadByte (0xC055);               // PAGE2 on
+        Assert::AreEqual (auxByte, f.bus.ReadByte (probe), L"fixture: 80STORE+PAGE2 must bank the CPU to aux");
+
+        banked = RenderFrame (mode, text);
+        Assert::IsTrue (baseline == banked, L"80STORE+PAGE2 select the CPU's bank, not the displayed one");
+    }
+
+    TEST_METHOD (Text40_ScansMainWhateverTheCpuBanking)
+    {
+        MmuFixture     f;
+        AppleTextMode  text (f.bus);
+
+        FillPage (f, 0x0400, 0x07FF, 0xC1, 0xA0);   // main 'A', aux space
+        text.SetMainMemory (f.mainRam.GetData());
+
+        AssertScansMainWhateverTheBanking (f, text, &text, 0x0400, false);
+    }
+
+    TEST_METHOD (LoRes_ScansMainWhateverTheCpuBanking)
+    {
+        MmuFixture      f;
+        AppleLoResMode  loRes (f.bus);
+
+        FillPage (f, 0x0400, 0x07FF, 0x11, 0xEE);
+        loRes.SetMainMemory (f.mainRam.GetData());
+
+        AssertScansMainWhateverTheBanking (f, loRes, nullptr, 0x0400, false);
+    }
+
+    TEST_METHOD (HiRes_ScansMainWhateverTheCpuBanking)
+    {
+        MmuFixture      f;
+        AppleHiResMode  hiRes (f.bus);
+
+        FillPage (f, 0x2000, 0x3FFF, 0x00, 0x7F);
+        hiRes.SetMainMemory (f.mainRam.GetData());
+
+        AssertScansMainWhateverTheBanking (f, hiRes, nullptr, 0x2000, true);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     //  Audit-fix anchors: each $C002-$C00B write-switch lands at the
     //  correct address (legacy AuxRamCard wired $C003-$C006 wrong).
     //
@@ -495,6 +596,31 @@ public:
             L"A shadowed device must not observe the read");
     }
 
+    TEST_METHOD (NoSlotsFastMap_YieldsToRegisteredSlotIoDevice)
+    {
+        MmuFixture           f;
+        RecordingIoDevice    card   (0xC400);
+        CxxxRomRouter      * router = f.mmu.GetCxxxRouter();
+
+        // A //c with a slot card added by hand: the device is registered
+        // before the internal ROM, as the builder does it.
+        router->SetNoExternalSlots  (true);
+        router->SetSlotIoDevice     (4, &card);
+        f.mmu.AttachInternalCxxxRom (vector<Byte> (0x0F00, 0xEA));
+
+        f.bus.WriteByte (0xC401, 0x33);
+        Assert::AreEqual (static_cast<Word> (0xC401), card.m_lastWriteAddr, L"writes reach the card");
+
+        Assert::AreEqual (static_cast<Byte> (0x5A), f.bus.ReadByte (0xC404),
+            L"reads of a page with a registered device must reach it too");
+        Assert::AreEqual (static_cast<Word> (0xC404), card.m_lastReadAddr);
+
+        Assert::IsNotNull (f.bus.GetReadPage (0xC500),
+            L"pages with no device stay fast-mapped");
+        Assert::AreEqual (static_cast<Byte> (0xEA), f.bus.ReadByte (0xC500),
+            L"to internal ROM");
+    }
+
     TEST_METHOD (SlotC3Rom_ClearMapsInternal80ColFirmware)
     {
         MmuFixture f;
@@ -566,6 +692,46 @@ public:
         f.bus.ReadByte (0xCFFF);
         Assert::IsFalse (f.mmu.GetIntC8Rom(),
             L"$CFFF read must auto-clear INTC8ROM");
+    }
+
+    TEST_METHOD (IntC8Rom_LatchedByAnyC3xxAccessWithSlotC3RomReset)
+    {
+        MmuFixture    f;
+        vector<Byte>  internal (0x0F00, 0x00);
+
+        internal[0x700] = 0xC8;                 // internal $C800
+        f.mmu.AttachInternalCxxxRom (move (internal));
+
+        // A write: STA $C300 with INTCXROM and SLOTC3ROM reset.
+        f.sw.Write      (0xC006, 0);            // INTCXROM off
+        f.sw.Write      (0xC00A, 0);            // SLOTC3ROM off
+        f.bus.WriteByte (0xC300, 0x00);
+
+        Assert::IsTrue (f.mmu.GetIntC8Rom(),
+            L"A $C3xx write with SLOTC3ROM reset must latch INTC8ROM");
+        Assert::AreEqual (static_cast<Byte> (0xC8), f.bus.ReadByte (0xC800));
+
+        f.bus.WriteByte (0xCFFF, 0x00);
+        Assert::IsFalse (f.mmu.GetIntC8Rom(),
+            L"A $CFFF write must clear INTC8ROM");
+
+        // A read while INTCXROM is on.
+        f.sw.Write     (0xC007, 0);             // INTCXROM on
+        f.bus.ReadByte (0xC300);
+        f.sw.Write     (0xC006, 0);             // INTCXROM off
+
+        Assert::IsTrue (f.mmu.GetIntC8Rom(),
+            L"INTCXROM must not gate the INTC8ROM latch");
+        Assert::AreEqual (static_cast<Byte> (0xC8), f.bus.ReadByte (0xC800));
+
+        // With SLOTC3ROM set, $C3xx is slot 3's and leaves INTC8ROM alone.
+        f.bus.ReadByte  (0xCFFF);
+        f.sw.Write      (0xC00B, 0);            // SLOTC3ROM on
+        f.bus.ReadByte  (0xC300);
+        f.bus.WriteByte (0xC300, 0x00);
+
+        Assert::IsFalse (f.mmu.GetIntC8Rom(),
+            L"A $C3xx access with SLOTC3ROM set must not latch INTC8ROM");
     }
 
     TEST_METHOD (CxxxExpansionWindow_FloatsWhenIntC8RomClear)

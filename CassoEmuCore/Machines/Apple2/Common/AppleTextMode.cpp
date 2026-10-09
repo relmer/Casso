@@ -129,8 +129,7 @@ Word AppleTextMode::GetActivePageAddress (bool page2) const
 //  update is one pass and the same bytes drive both the dirty test and the
 //  stored copy.
 //
-//  A null videoRam reads through the bus instead, which is how the //e's MMU
-//  banking is honored; passing an explicit pointer is the standalone path.
+//  Screen bytes come from ReadScreenByte, which prefers main RAM to the bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,7 +179,7 @@ void AppleTextMode::Render (
         for (int col = 0; col < kTextCols; col++)
         {
             Word addr    = static_cast<Word> (rowAddr + col);
-            Byte b       = videoRam ? videoRam[addr] : m_bus.ReadByte (addr);
+            Byte b       = ReadScreenByte (videoRam, addr);
             rowBytes[col] = b;
             changed      |= (b != cacheRow[col]);
         }
@@ -244,6 +243,36 @@ bool AppleTextMode::HasFlashChar (const Byte * rowBytes) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReadScreenByte
+//
+//  One byte of the displayed text page. The display scans main RAM for 40-
+//  column text whatever the CPU's banking, so main is read straight from its
+//  buffer when one is known. The bus follows that banking -- RAMRD, and
+//  80STORE with PAGE2 -- and read through it the screen showed aux while a
+//  program had either switched on. videoRam, then the bus, serve a renderer
+//  with no main buffer, as on a machine with no aux bank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleTextMode::ReadScreenByte (const Byte * videoRam, Word addr) const
+{
+    Byte  value = 0;
+
+
+
+    if      (m_mainMem != nullptr) { value = m_mainMem[addr];        }
+    else if (videoRam  != nullptr) { value = videoRam[addr];         }
+    else                           { value = m_bus.ReadByte (addr);  }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RenderRowRange
 //
 //  Renders rows [startRow, endRow) into framebuffer. Shared between full
@@ -278,7 +307,7 @@ void AppleTextMode::RenderRowRange (
         for (int col = 0; col < kTextCols; col++)
         {
             Word  addr        = static_cast<Word> (rowAddr + col);
-            Byte  charCode    = videoRam ? videoRam[addr] : m_bus.ReadByte (addr);
+            Byte  charCode    = ReadScreenByte (videoRam, addr);
             bool  showInverse = false;
             int   fbColOrigin = 0;
 

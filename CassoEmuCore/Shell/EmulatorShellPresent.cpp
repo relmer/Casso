@@ -1900,12 +1900,11 @@ void EmulatorShell::TakeScreenshot()
 //  Steady color text hits neither, which is the case that matters -- it lets
 //  AppleTextMode redraw only the rows that changed.
 //
-//  Render is handed a null videoRam so it reads through MemoryBus rather than
-//  the CPU's memory array. Only the bus page table reflects live MMU banking
-//  ($0400-$07FF and $2000-$3FFF switching between main and aux under 80STORE
-//  with PAGE2 / HIRES); the //e MMU re-points those pages at buffers the
-//  RamDevice owns, so reading the CPU array directly would show main memory
-//  while the guest is displaying aux.
+//  Render is handed a null videoRam. On a machine with an MMU every renderer
+//  reads main RAM directly, and 80-column text and double hi-res also read
+//  aux directly, because the display scans fixed banks while the bus follows
+//  the CPU's banking (RAMRD, and 80STORE with PAGE2 / HIRES). On a ][ or ][+
+//  there is no banking, and the renderers read through the bus.
 //
 //  Mixed mode overlays rows 20-23 through the same RenderRowRange entry point
 //  on both the 40- and 80-column renderers, so the split screen is one code
@@ -1979,11 +1978,8 @@ void EmulatorShell::RenderFramebuffer()
 
     if (m_machine.GetRefs().activeVideoMode != nullptr)
     {
-        // Pass nullptr for videoRam so the renderer reads through MemoryBus.
-        // The bus's page table reflects the current MMU banking state
-        // (main vs aux for $0400-$07FF / $2000-$3FFF under 80STORE+PAGE2/HIRES);
-        // CPU memory[] alone does not, since the //e MMU re-points pages at
-        // the RamDevice / aux RAM buffers it owns.
+        // No videoRam: the renderer reads its own RAM buffers, or the bus on
+        // a machine with no MMU (see the comment above this function).
         m_machine.GetRefs().activeVideoMode->Render (nullptr,
                                    m_cpuFramebuffer.data(),
                                    kFramebufferWidth,

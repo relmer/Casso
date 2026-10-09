@@ -253,6 +253,9 @@ Notes:
 - The reactive `$Cxxx` pages (`$C3xx` latches INTC8ROM, `$CFFF` clears it) keep
   the handler even on the //c where the effect is inert, modeled faithfully as
   "reactive page → handler."
+- A //c slot page with a registered I/O device, which only a hand-edited
+  configuration can produce, keeps the handler too, so its reads reach the
+  device as its writes do.
 
 ### 3.4 Re-pointing: keeping the cache correct
 
@@ -509,8 +512,9 @@ marks the display pages "watched"; a write that actually *changes a displayed
 byte* raises `m_videoDirty`. Two refinements keep an idle DOS prompt from
 re-rendering: **screen-hole exclusion** (the `$78–$7F` bytes of each 128-byte
 block are undisplayed scratch that firmware hammers) and a **same-value compare**
-(a re-store of the same byte is not dirty). A banking change also raises dirty,
-since it can swap which buffer the renderer reads with no write landing.
+(a re-store of the same byte is not dirty). A banking change from PAGE2, HIRES
+or DHIRES also raises dirty, since it can change what the screen shows with no
+write landing.
 
 **Present gating (GPU), present on change.** `D3DRenderer::NeedsPresent` returns
 false (skip both the CRT post-process and the swap-chain `Present`) when the

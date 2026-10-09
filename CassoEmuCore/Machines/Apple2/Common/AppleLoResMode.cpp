@@ -67,6 +67,36 @@ Word AppleLoResMode::GetActivePageAddress (bool page2) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReadScreenByte
+//
+//  One byte of the displayed page. The display scans main RAM for this mode
+//  whatever the CPU's banking, so main is read straight from its buffer when
+//  one is known. The bus follows that banking -- RAMRD, and 80STORE with
+//  PAGE2 -- and read through it the screen showed aux while a program had
+//  either switched on. videoRam, then the bus, serve a renderer with no main
+//  buffer, as on a machine with no aux bank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleLoResMode::ReadScreenByte (const Byte * videoRam, Word addr) const
+{
+    Byte  value = 0;
+
+
+
+    if      (m_mainMem != nullptr) { value = m_mainMem[addr];        }
+    else if (videoRam  != nullptr) { value = videoRam[addr];         }
+    else                           { value = m_bus.ReadByte (addr);  }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Render
 //
 //  Rasterizes the 40x48 lo-res screen from the SAME memory the text screen
@@ -85,8 +115,7 @@ Word AppleLoResMode::GetActivePageAddress (bool page2) const
 //  framebuffer whose dimensions are not exact multiples of 40 and 48 leaves a
 //  remainder, and writing it would run off the edge.
 //
-//  A null videoRam reads through the bus, honoring //e MMU banking; an
-//  explicit pointer is the standalone path.
+//  Screen bytes come from ReadScreenByte, which prefers main RAM to the bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +141,7 @@ void AppleLoResMode::Render (
 
         for (int col = 0; col < 40; col++)
         {
-            Byte data = (videoRam ? videoRam[static_cast<Word> (rowAddr + col)] : m_bus.ReadByte (static_cast<Word> (rowAddr + col)));
+            Byte data = ReadScreenByte (videoRam, static_cast<Word> (rowAddr + col));
 
             uint32_t topColor    = kAppleColors[data & 0x0F];
             uint32_t bottomColor = kAppleColors[(data >> 4) & 0x0F];

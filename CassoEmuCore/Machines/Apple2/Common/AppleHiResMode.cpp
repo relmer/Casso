@@ -65,6 +65,36 @@ Word AppleHiResMode::GetActivePageAddress (bool page2) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReadScreenByte
+//
+//  One byte of the displayed page. The display scans main RAM for this mode
+//  whatever the CPU's banking, so main is read straight from its buffer when
+//  one is known. The bus follows that banking -- RAMRD, and 80STORE with
+//  PAGE2 -- and read through it the screen showed aux while a program had
+//  either switched on. videoRam, then the bus, serve a renderer with no main
+//  buffer, as on a machine with no aux bank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleHiResMode::ReadScreenByte (const Byte * videoRam, Word addr) const
+{
+    Byte  value = 0;
+
+
+
+    if      (m_mainMem != nullptr) { value = m_mainMem[addr];        }
+    else if (videoRam  != nullptr) { value = videoRam[addr];         }
+    else                           { value = m_bus.ReadByte (addr);  }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Render
 //
 //  Rasterizes the hi-res screen. Which decode runs depends on the monitor:
@@ -93,8 +123,7 @@ Word AppleHiResMode::GetActivePageAddress (bool page2) const
 //  Scanlines are doubled vertically, so 192 emulated lines fill the 384-line
 //  framebuffer and hi-res matches the other modes' geometry.
 //
-//  A null videoRam reads through the bus, honoring //e MMU banking; an
-//  explicit pointer is the standalone path.
+//  Screen bytes come from ReadScreenByte, which prefers main RAM to the bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,9 +159,7 @@ void AppleHiResMode::Render (
         // Pass 1: decode all 280 pixels and palette bits
         for (int byteIdx = 0; byteIdx < 40; byteIdx++)
         {
-            data   = videoRam
-                   ? videoRam[static_cast<Word> (lineAddr + byteIdx)]
-                   : m_bus.ReadByte (static_cast<Word> (lineAddr + byteIdx));
+            data   = ReadScreenByte (videoRam, static_cast<Word> (lineAddr + byteIdx));
             palBit = (data & 0x80) != 0;
 
             for (int bit = 0; bit < 7; bit++)

@@ -198,8 +198,8 @@ void AppleMouse::SetHostTargetFraction (uint16_t fx, uint16_t fy)
 //  CPU thread. Projects the host viewport fraction into the mouse
 //  firmware's LIVE clamp window and REPLACES the pending motion with the
 //  delta from the firmware's current position (both read from the slot-7
-//  screen holes over the bus — same thread as guest execution, so the
-//  reads are race-free and see the live MMU mapping). A latched-but-
+//  screen holes, in main RAM whatever the CPU banking -- same thread as
+//  guest execution, so the reads are race-free). A latched-but-
 //  unacknowledged unit is counted as already applied. Self-correcting:
 //  anything the firmware clamps away re-derives on the next pass. The
 //  hole sanity checks make this inert until the guest app has initialized
@@ -209,8 +209,9 @@ void AppleMouse::SetHostTargetFraction (uint16_t fx, uint16_t fy)
 
 void AppleMouse::RetargetFromHoles()
 {
-    // No bus, or no host position staged: nothing to project.
-    if (m_bus != nullptr && m_hasTarget.load (std::memory_order_acquire))
+    // No memory to read the holes from, or no host position staged: nothing
+    // to project.
+    if ((m_mainRam != nullptr || m_bus != nullptr) && m_hasTarget.load (std::memory_order_acquire))
     {
         uint32_t  packed = m_hostTarget.load (std::memory_order_acquire);
         int       fx     = static_cast<int> (packed >> 16);
@@ -222,10 +223,16 @@ void AppleMouse::RetargetFromHoles()
         int       curX   = 0;
         int       curY   = 0;
 
-        auto rd16 = [this] (Word lo, Word hi)
+        // The holes are main RAM. The bus serves whichever bank RAMRD or
+        // 80STORE+PAGE2 selects for the CPU, so it is only the fallback.
+        auto rd8 = [this] (Word addr)
         {
-            return static_cast<int> (m_bus->ReadByte (lo))
-                 | (static_cast<int> (m_bus->ReadByte (hi)) << 8);
+            return static_cast<int> (m_mainRam != nullptr ? m_mainRam[addr] : m_bus->ReadByte (addr));
+        };
+
+        auto rd16 = [&rd8] (Word lo, Word hi)
+        {
+            return rd8 (lo) | (rd8 (hi) << 8);
         };
 
         xMin = rd16 (kHoleXMinLo, kHoleXMinHi);

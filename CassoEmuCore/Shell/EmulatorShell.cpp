@@ -352,12 +352,9 @@ EmulatorShell::~EmulatorShell()
 //  The window is created before the devices because the renderer needs an
 //  HWND, and the devices need the renderer's device / context.
 //
-//  Video watch pages are marked once, here, rather than per machine: a write
-//  into text pages 1/2 ($0400-$0BFF) or hi-res pages 1/2 ($2000-$5FFF) raises
-//  the bus video-dirty flag that drives the render-skip gate. Watching the
-//  PAGE INDEX covers main and aux together, since the //e MMU re-points those
-//  same indices, and the page layout is identical on every Apple II variant --
-//  so this survives an in-session machine switch untouched.
+//  The video watch pages that drive the render-skip gate are not marked here:
+//  MachineBuilder::Build marks them on every build, because a machine switch
+//  replaces the bus and its marks with it.
 //
 //  ReconcileInitialClientSize runs after ShowWindow (the non-client frame is
 //  not fully materialized before that) but before UpdateWindowTitle, so a
@@ -506,22 +503,6 @@ HRESULT EmulatorShell::Initialize (
     hr = m_controllerThread->Start (m_controllerBackend.get(), m_controllerService.get(),
                                     [this] { return m_controllerService->Tick(); });
     IGNORE_RETURN_VALUE (hr, S_OK);
-
-    // Mark the display pages so a write into them raises the bus video-dirty
-    // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
-    // hi-res pages 1/2 ($2000-$5FFF). Aux writes share these page indices (the
-    // //e MMU re-points them), so watching the index covers main and aux.
-    // The page layout is identical across every Apple II variant, so this is
-    // set once and survives an in-session machine switch.
-    for (int page = 0x04; page <= 0x0B; page++)
-    {
-        m_machine.GetMemoryBus().SetVideoWatchPage (page, true);
-    }
-
-    for (int page = 0x20; page <= 0x5F; page++)
-    {
-        m_machine.GetMemoryBus().SetVideoWatchPage (page, true);
-    }
 
     hr = InitializeRenderer();
     CHR (hr);
@@ -1350,6 +1331,21 @@ std::wstring EmulatorShell::ComposeDriveInfoTooltip (int drive) const
 const Byte * EmulatorShell::GetAuxRamBuffer() const
 {
     return m_machineBuilder != nullptr ? m_machineBuilder->GetAuxRamBuffer() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetMainRamBuffer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Byte * EmulatorShell::GetMainRamBuffer() const
+{
+    return m_machineBuilder != nullptr ? m_machineBuilder->GetMainRamBuffer() : nullptr;
 }
 
 

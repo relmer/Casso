@@ -630,7 +630,9 @@ void WindowCommandManager::OnEditCommand (int id)
     {
         case IDM_EDIT_COPY_TEXT:
         {
-            m_shell.m_clipboardManager->CopyScreenText (m_shell.m_hwnd, m_shell.GetAuxRamBuffer());
+            // Main RAM comes in only where an MMU banks it: there the bus may
+            // be serving aux at the text page.
+            m_shell.m_clipboardManager->CopyScreenText (m_shell.m_hwnd, m_shell.GetMainRamBuffer(), m_shell.GetAuxRamBuffer());
             break;
         }
 
