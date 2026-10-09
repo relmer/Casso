@@ -229,6 +229,13 @@ public:
     void         SetDebugHook (DebugHook * hook) noexcept { m_debugHook = hook; }
     DebugHook *  GetDebugHook () const noexcept           { return m_debugHook; }
 
+    //  A flag another thread raises to stop the machine, or null. RunCycles
+    //  tests it before each instruction and returns early once it is up, so
+    //  a pause asked for while a slice runs lands on the next instruction
+    //  boundary rather than at the end of the slice. Unset, each instruction
+    //  costs one pointer test.
+    void  SetStopFlag (const std::atomic<bool> * stopFlag) noexcept { m_stopFlag = stopFlag; }
+
     //  Reverse execution's recorder, or null. While set, StepOne tells it of
     //  each instruction about to run; unset, each instruction costs one
     //  pointer test.
@@ -430,6 +437,8 @@ private:
     bool                 m_isSoundMuted     = false;
     bool                 m_isPrinterMuted   = false;
     bool                 m_wasMotorOnAtMute = false;
+
+    const std::atomic<bool>  * m_stopFlag = nullptr;
 
     mutable uint64_t  m_romIdentity           = 0;
     mutable uint64_t  m_romIdentityGeneration = 0;

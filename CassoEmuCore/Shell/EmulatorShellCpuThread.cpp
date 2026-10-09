@@ -1250,6 +1250,15 @@ void EmulatorShell::ExecuteCpuSlices()
 
     while (executed < targetCycles)
     {
+        // A pause asked for while this pass runs ends it here, on the
+        // instruction boundary RunCycles stopped the last slice at, rather
+        // than at the end of the frame. The pass after the resume runs the
+        // rest of the frame.
+        if (m_cpuManager.IsPaused())
+        {
+            break;
+        }
+
         sliceTarget = targetCycles - executed;
 
         if (sliceTarget > FrameCycleBudget::kSliceCycles)

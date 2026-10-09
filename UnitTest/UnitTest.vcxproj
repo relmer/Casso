@@ -664,6 +664,7 @@
     <ClCompile Include="UiTests\DebuggerOpenKeyTests.cpp" />
     <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
     <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
+    <ClCompile Include="UiTests\CpuManagerPauseTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetHitTests.cpp" />

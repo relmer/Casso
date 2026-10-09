@@ -117,6 +117,10 @@ EmulatorShell::EmulatorShell()
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
     m_machine.SetVideoTiming (make_unique<VideoTiming>());
 
+    // A pause stops the machine on the instruction boundary after it is asked
+    // for, rather than at the end of the frame the CPU thread is running.
+    m_machine.SetStopFlag (&m_cpuManager.GetPauseFlag());
+
     m_clipboardManager = std::make_unique<ClipboardManager> (m_hostClipboard,
                                                               m_machine.GetMemoryBus(),
                                                               m_cpuManager.GetCommandMutex(),

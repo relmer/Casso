@@ -207,20 +207,22 @@ bool CpuManager::IsPaused() const noexcept
 //
 //  SetPaused
 //
-//  Wakes under the pause mutex (see Stop): a lost wakeup on the resume
-//  edge would leave the machine parked with the UI reporting it running.
+//  Stores and wakes under the pause mutex. TryPark decides under the same
+//  mutex whether the CPU thread runs a frame, so a pause cannot fall between
+//  that decision and the frame it starts unseen. A lost wakeup on the resume
+//  edge (see Stop) would leave the machine parked with the UI reporting it
+//  running.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuManager::SetPaused (bool paused) noexcept
 {
+    std::lock_guard<std::mutex>  lock (m_pauseMutex);
+
+
+
     m_paused.store (paused, std::memory_order_release);
-
-    {
-        std::lock_guard<std::mutex>  lock (m_pauseMutex);
-
-        m_pauseCV.notify_all();
-    }
+    m_pauseCV.notify_all();
 }
 
 
@@ -231,7 +233,10 @@ void CpuManager::SetPaused (bool paused) noexcept
 //
 //  TogglePaused
 //
-//  Flips the pause flag and wakes the CPU thread.
+//  Flips the pause flag and wakes the CPU thread, in one step under the pause
+//  mutex that every change to the flag takes. A read and then a store with
+//  nothing held between them lost a toggle whenever another change landed
+//  in between.
 //
 //  Returns nothing: the one caller re-derives the state through IsPaused
 //  (via UpdateWindowTitle), and a bool return whose meaning is "the new
@@ -242,17 +247,108 @@ void CpuManager::SetPaused (bool paused) noexcept
 
 void CpuManager::TogglePaused() noexcept
 {
-    bool  next = !m_paused.load (std::memory_order_acquire);
+    std::lock_guard<std::mutex>  lock (m_pauseMutex);
 
 
 
-    m_paused.store (next, std::memory_order_release);
+    m_paused.store (!m_paused.load (std::memory_order_acquire), std::memory_order_release);
+    m_pauseCV.notify_all();
+}
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsParked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManager::IsParked() const noexcept
+{
+    return m_isParked.load (std::memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryWaitUntilParked
+//
+//  The acknowledgement of a pause. The CPU thread parks once the machine has
+//  stopped on the instruction boundary after the pause and the frame it was
+//  in has ended. The wait is bounded because the thread may first be busy
+//  with a long command, and a caller on the UI thread must not hang on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManager::TryWaitUntilParked (std::chrono::milliseconds timeout)
+{
+    std::unique_lock<std::mutex>  lock (m_pauseMutex);
+
+
+
+    return m_parkedCV.wait_for (lock, timeout, [this] { return m_isParked.load (std::memory_order_acquire); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPark
+//
+//  CPU thread, outside a frame: parks it when a pause is asked for or the
+//  thread is stopping, and marks it running otherwise; true when it parked.
+//  Decided under the pause mutex, which every change to the pause flag takes,
+//  so a pause is either seen here or raised while the next frame runs, where
+//  the machine stops on its next instruction boundary and the thread parks
+//  as soon as the frame returns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManager::TryPark()
+{
+    std::lock_guard<std::mutex>  lock (m_pauseMutex);
+    bool                         isParked = m_paused.load (std::memory_order_acquire) || !m_running.load (std::memory_order_acquire);
+
+
+
+    m_isParked.store (isParked, std::memory_order_release);
+
+    if (isParked)
     {
-        std::lock_guard<std::mutex>  lock (m_pauseMutex);
-
-        m_pauseCV.notify_all();
+        m_parkedCV.notify_all();
     }
+
+    return isParked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParkForExit
+//
+//  CPU thread, last thing before it ends: no thread runs the machine now,
+//  however the loop was left, so a waiter is let go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::ParkForExit()
+{
+    std::lock_guard<std::mutex>  lock (m_pauseMutex);
+
+
+
+    m_isParked.store (true, std::memory_order_release);
+    m_parkedCV.notify_all();
 }
 
 
@@ -469,7 +565,8 @@ bool CpuManager::HasPendingCommands()
 //
 //  CPU-thread entry point. Owns COM init/uninit on this thread, the
 //  high-resolution waitable timer for 60 Hz frame pacing, the pause
-//  CV wait, and the per-frame callback fan-out.
+//  CV wait, the park that acknowledges a pause (TryPark), and the
+//  per-frame callback fan-out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -587,7 +684,7 @@ void CpuManager::ThreadProc()
             m_onService();
         }
 
-        if (m_paused.load (std::memory_order_acquire) && m_running.load (std::memory_order_acquire))
+        if (TryPark())
         {
             continue;
         }
@@ -640,6 +737,16 @@ void CpuManager::ThreadProc()
             m_onFrame();
         }
 
+        //  A pause raised while the frame ran stopped the machine on the next
+        //  instruction boundary and ended the frame there. The thread parks now
+        //  rather than after the pacing wait, so the pause is acknowledged as
+        //  soon as the frame returns, and the deadline is re-based on resume.
+        if (TryPark())
+        {
+            deadline = 0;
+            continue;
+        }
+
         speed = m_speedMode.load (std::memory_order_acquire);
 
         if (speed != SpeedMode::Maximum)
@@ -669,4 +776,6 @@ Error:
     {
         CoUninitialize();
     }
+
+    ParkForExit();
 }

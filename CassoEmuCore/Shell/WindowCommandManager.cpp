@@ -699,8 +699,9 @@ void WindowCommandManager::OnEditCommand (int id)
 //  through the shell to keep Disk2Controller's full definition out of this
 //  header.
 //
-//  Speed and pause are plain CpuManager calls -- atomics the CPU thread reads
-//  each frame -- so they need no marshalling at all.
+//  Speed and pause are plain CpuManager calls -- flags the CPU thread reads,
+//  the pause one before every instruction -- so they need no marshalling at
+//  all. A pause then waits, briefly, for the CPU thread to park.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -722,7 +723,22 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_PAUSE:
         {
+            constexpr std::chrono::milliseconds  kParkWait { 100 };
+            bool                                 isParked  = false;
+
+
+
             m_shell.m_cpuManager.TogglePaused();
+
+            // The pause is acted on before anything reports it: the CPU thread
+            // stops the machine on the next instruction boundary and parks.
+            // The wait is bounded: the thread may first be busy with a long
+            // command, and the UI waits a moment for it rather than hanging.
+            if (m_shell.m_cpuManager.IsPaused())
+            {
+                isParked = m_shell.m_cpuManager.TryWaitUntilParked (kParkWait);
+                IGNORE_RETURN_VALUE (isParked, false);
+            }
 
             // An attached debugger hears about it on the CPU thread, where the
             // session and any run in progress live.
