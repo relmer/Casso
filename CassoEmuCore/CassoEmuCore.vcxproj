@@ -192,6 +192,7 @@
     <ClCompile Include="Shell\BackgroundWorkQueue.cpp" />
     <ClCompile Include="Shell\EmulatorShellInspector.cpp" />
     <ClCompile Include="Shell\InspectorRequestQueue.cpp" />
+    <ClCompile Include="Shell\InspectorStatusPublisher.cpp" />
     <ClCompile Include="Shell\ShellInspectorHost.cpp" />
     <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
@@ -589,6 +590,7 @@
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Shell\BackgroundWorkQueue.h" />
     <ClInclude Include="Shell\InspectorRequestQueue.h" />
+    <ClInclude Include="Shell\InspectorStatusPublisher.h" />
     <ClInclude Include="Shell\ShellInspectorHost.h" />
     <ClInclude Include="Devices\Tape\RecordingCapture.h" />
     <ClInclude Include="Devices\Tape\TapeRecorder.h" />

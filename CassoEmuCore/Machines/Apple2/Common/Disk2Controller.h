@@ -175,6 +175,7 @@ public:
     bool   IsQ6() const { return m_q6; }
     bool   IsQ7() const { return m_q7; }
     Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
+    const Disk2NibbleEngine &  GetEngine (int drive) const { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
