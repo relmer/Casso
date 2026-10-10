@@ -634,7 +634,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
         return;
     }
 
-    hr = m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.suggestedPath, report);
+    hr = m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.mediaId, assessment.suggestedPath, report);
 
     if (FAILED (hr))
     {

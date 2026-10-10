@@ -380,7 +380,7 @@ private:
             { L"CommitHeldWrites",          [&store] { (void) store.CommitHeldWrites(); } },
             { L"DiscardHeldWrites",         [&store] { (void) store.DiscardHeldWrites(); } },
             { L"SoftReset",                 [&store] { store.SoftReset(); } },
-            { L"SalvageToFile",             [&store] { DenibblizeReport r; (void) store.SalvageToFile (s_kOwnedSlot, s_kOwnedDrive, "salvaged.woz", r); } },
+            { L"SalvageToFile",             [&store] { DenibblizeReport r; (void) store.SalvageToFile (s_kOwnedSlot, s_kOwnedDrive, 0, "salvaged.woz", r); } },
             { L"SeatMedia",                 [&store] { bool changed = false; (void) store.SeatMedia (s_kOwnedSlot, s_kOwnedDrive, 0, changed); } },
             { L"SetFileIo",                 [&store] { store.SetFileIo (nullptr); } },
             { L"Mount",                     [&store] { (void) store.Mount (s_kOwnedSlot, s_kOwnedDrive, "second.nib"); } },

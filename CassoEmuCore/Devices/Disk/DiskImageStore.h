@@ -80,6 +80,9 @@
 //      totalSectors   sectors on the tracks this disk actually has -- 320 on a
 //                     20-track disk, not a flat 560, or the count is a lie.
 //      suggestedPath  "<name>.salvaged.woz" beside the original.
+//      mediaId        the medium assessed; the copy is written only while the
+//                     bay still holds it.
+//      sourcePath     the file that medium came from.
 //
 struct SalvageAssessment
 {
@@ -87,6 +90,8 @@ struct SalvageAssessment
     int               totalSectors  = 0;
     DenibblizeReport  report;
     string            suggestedPath;
+    uint64_t          mediaId       = 0;
+    string            sourcePath;
 };
 
 
@@ -240,7 +245,10 @@ public:
     //  publisher, provenance) but is stamped with Casso as creator, because
     //  Casso did write this particular file and claiming otherwise would put
     //  a preservation tool's name on a lossy reconstruction.
-    HRESULT       SalvageToFile (int slot, int drive, const string & path,
+    //
+    //  `mediaId` is the medium the user saw assessed. If the bay holds another
+    //  one now, nothing is written and the result is ERROR_MEDIA_CHANGED.
+    HRESULT       SalvageToFile (int slot, int drive, uint64_t mediaId, const string & path,
                                  DenibblizeReport & report);
     void          SoftReset         ();
     void          PowerCycle        ();

@@ -1165,7 +1165,7 @@ public:
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
                                                DiskFormat::Woz, original));
 
-        AssertSucceeded (store.SalvageToFile (kSlot, kDrive, "broken.salvaged.woz", report));
+        AssertSucceeded (store.SalvageToFile (kSlot, kDrive, store.GetMediaId (kSlot, kDrive), "broken.salvaged.woz", report));
 
         Assert::AreEqual (string ("broken.salvaged.woz"), writtenTo,
             L"the copy goes to its own file");
@@ -1202,7 +1202,7 @@ public:
 
         UnitTestHelpers::ExpectedEhmAssert  expected;
 
-        hr = store.SalvageToFile (kSlot, kDrive, "broken.woz", report);
+        hr = store.SalvageToFile (kSlot, kDrive, store.GetMediaId (kSlot, kDrive), "broken.woz", report);
 
         Assert::IsTrue (FAILED (hr), L"salvaging onto the source must be refused");
         Assert::AreEqual (0, sinkCalls, L"and nothing may be written on the way to refusing");
@@ -1234,7 +1234,7 @@ public:
 
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
                                                DiskFormat::Woz, original));
-        AssertSucceeded (store.SalvageToFile (kSlot, kDrive, "broken.salvaged.woz", report));
+        AssertSucceeded (store.SalvageToFile (kSlot, kDrive, store.GetMediaId (kSlot, kDrive), "broken.salvaged.woz", report));
 
         {
             string  blob (reinterpret_cast<const char *> (written.data()), written.size());
@@ -1246,6 +1246,82 @@ public:
         }
     }
 
+
+    TEST_METHOD (SalvageToFile_AfterTheBayChanged_WritesNothing)
+    {
+        // The copy is of the disk the user saw assessed. If another disk went
+        // in since, writing it would salvage a disk nobody looked at.
+        DiskImageStore    store;
+        DenibblizeReport  report;
+        uint64_t          assessed  = 0;
+        int               sinkCalls = 0;
+        HRESULT           hr        = S_OK;
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+        assessed = store.GetMediaId (kSlot, kDrive);
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "other.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+
+        store.SetFlushSink ([&sinkCalls] (const string &, const vector<Byte> &)
+        {
+            sinkCalls++;
+            return S_OK;
+        });
+
+        hr = store.SalvageToFile (kSlot, kDrive, assessed, "broken.salvaged.woz", report);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED), hr, L"the bay holds another disk now");
+        Assert::AreEqual (0, sinkCalls, L"so nothing is written");
+    }
+
+
+    TEST_METHOD (SalvageToFile_AfterEjectAndReinsertOfTheSameFile_WritesNothing)
+    {
+        // The same file put back is a new medium: the guest may have written
+        // the first one before it came out.
+        DiskImageStore    store;
+        DenibblizeReport  report;
+        uint64_t          assessed  = 0;
+        int               sinkCalls = 0;
+        HRESULT           hr        = S_OK;
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+        assessed = store.GetMediaId (kSlot, kDrive);
+
+        store.Eject (kSlot, kDrive);
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+
+        store.SetFlushSink ([&sinkCalls] (const string &, const vector<Byte> &)
+        {
+            sinkCalls++;
+            return S_OK;
+        });
+
+        hr = store.SalvageToFile (kSlot, kDrive, assessed, "broken.salvaged.woz", report);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED), hr, L"the reinserted disk is another medium");
+        Assert::AreEqual (0, sinkCalls, L"so nothing is written");
+    }
+
+
+    TEST_METHOD (AssessSalvage_GivesTheMediaIdAndSourcePath)
+    {
+        // The window shows the assessment and later asks for the copy; both
+        // facts travel with it so nothing has to read the bay again.
+        DiskImageStore     store;
+        SalvageAssessment  assessment;
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+        AssertSucceeded (store.AssessSalvage (kSlot, kDrive, assessment));
+
+        Assert::AreEqual (store.GetMediaId (kSlot, kDrive), assessment.mediaId, L"the medium that was assessed");
+        Assert::AreEqual (string ("broken.woz"), assessment.sourcePath, L"and the file it came from");
+    }
 
     TEST_METHOD (FlushEntry_RecoveryImage_KeepsTheTrackThatCausedTheRefusal)
     {

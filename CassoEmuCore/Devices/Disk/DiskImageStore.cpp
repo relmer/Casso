@@ -1661,6 +1661,9 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
+        out.mediaId    = GetMediaId (slot, drive);
+        out.sourcePath = entry.path;
+
         // Damage is free to test and decoding is not, so test damage first.
         // This runs from the Disk menu's enable query, which means it runs
         // every time that menu is drawn: decoding both drives unconditionally
@@ -1709,14 +1712,16 @@ Error:
 HRESULT DiskImageStore::SalvageToFile (
     int                 slot,
     int                 drive,
+    uint64_t            mediaId,
     const string     &  path,
     DenibblizeReport &  report)
 {
-    HRESULT       hr       = S_OK;
-    bool          bayOk    = false;
-    bool          hasImage = false;
-    bool          hasPath  = !path.empty();
-    bool          isSource = false;
+    HRESULT       hr           = S_OK;
+    bool          bayOk        = false;
+    bool          hasImage     = false;
+    bool          hasPath      = !path.empty();
+    bool          isSource     = false;
+    bool          isSameMedium = false;
     vector<Byte>  bytes;
 
 
@@ -1726,6 +1731,11 @@ HRESULT DiskImageStore::SalvageToFile (
     bayOk = IsValidBay (slot, drive);
     CBRAEx (bayOk, E_INVALIDARG);
     CBRAEx (hasPath, E_INVALIDARG);
+
+    // The copy is of the disk the user saw assessed. Another disk in the bay
+    // since, or the same file put back, is another medium.
+    isSameMedium = GetMediaId (slot, drive) == mediaId;
+    CBREx (isSameMedium, HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED));
 
     {
         Entry &  entry = GetEntry (slot, drive);
