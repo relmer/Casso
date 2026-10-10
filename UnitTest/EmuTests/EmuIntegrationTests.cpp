@@ -7,6 +7,7 @@
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -338,7 +339,7 @@ public:
         rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, romPath, error);
 
         Assert::IsNotNull (rom.get(),
-            std::format (L"Failed to load ROM: {}", std::wstring (error.begin(), error.end())).c_str());
+            std::format (L"Failed to load ROM: {}", TextEncoding::NarrowToWide (error)).c_str());
 
         bus.AddDevice (rom.get());
 

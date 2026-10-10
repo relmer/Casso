@@ -3,6 +3,7 @@
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
 #include "HarteTestRunner.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -852,7 +853,7 @@ namespace HarteTests
 
         static std::wstring ToWide (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
     };
 

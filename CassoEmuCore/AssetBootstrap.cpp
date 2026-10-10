@@ -3493,7 +3493,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             StartupAssetEntry  entry;
             size_t             missingCount = 0;
             string             mechStr   (mechanism);
-            wstring            mechW     (mechanism.begin(), mechanism.end());
+            wstring            mechW     = TextEncoding::NarrowToWide (mechStr);
 
             for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
             {
@@ -3566,7 +3566,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     BAIL_OUT_IF (cancel.load (std::memory_order_relaxed), E_ABORT);
 
                     urlPath  = s_kpszOpenEmulatorPathFmt;
-                    urlPath += wstring (spec.mechanism.begin(), spec.mechanism.end());
+                    urlPath += TextEncoding::NarrowToWide (string (spec.mechanism));
                     urlPath += L"/";
 
                     for (char ch : spec.oggBasename)

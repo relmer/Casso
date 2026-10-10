@@ -4,6 +4,7 @@
 #include "Assembler.h"
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -249,7 +250,7 @@ namespace DormannIntegrationTests
                 for (size_t i = 0; i < result.errors.size() && i < 10; i++)
                 {
                     msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
-                         + L": " + std::wstring (result.errors[i].message.begin(), result.errors[i].message.end());
+                         + L": " + TextEncoding::NarrowToWide (result.errors[i].message);
                 }
 
                 Assert::Fail (msg.c_str());
@@ -541,7 +542,7 @@ namespace DormannIntegrationTests
                 for (size_t i = 0; i < result.errors.size() && i < 15; i++)
                 {
                     msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
-                         + L": " + std::wstring (result.errors[i].message.begin(), result.errors[i].message.end());
+                         + L": " + TextEncoding::NarrowToWide (result.errors[i].message);
                 }
 
                 Assert::Fail (msg.c_str());

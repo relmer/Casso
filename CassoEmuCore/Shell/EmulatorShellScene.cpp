@@ -55,6 +55,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -1053,7 +1054,7 @@ void EmulatorShell::SyncSceneViewReadout()
                                                              m_sceneView.panX,
                                                              m_sceneView.panY);
 
-        m_sceneViewReadout.SetText (wstring (pose.begin(), pose.end()).c_str());
+        m_sceneViewReadout.SetText (TextEncoding::NarrowToWide (pose).c_str());
     }
 
 

@@ -760,12 +760,12 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
     // there is nothing left to draw the eye to.
     if (m_isUpdatePending)
     {
-        m_updateIndicator.SetToolTipText (L"Casso " + std::wstring (version.begin(), version.end()) + L" installs when you close Casso");
+        m_updateIndicator.SetToolTipText (L"Casso " + TextEncoding::NarrowToWide (version) + L" installs when you close Casso");
         m_updateIndicator.SetText        (UpdateDialogModel::kpszPendingLine);
     }
     else
     {
-        m_updateIndicator.SetToolTipText (L"Update available: Casso " + std::wstring (version.begin(), version.end()));
+        m_updateIndicator.SetToolTipText (L"Update available: Casso " + TextEncoding::NarrowToWide (version));
         m_updateIndicator.SetText        (m_updateIndicatorLine);
     }
 

@@ -4,6 +4,7 @@
 #include "CommandLineHelp.h"
 #include "CommandLineParser.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -220,7 +221,7 @@ public:
 
     static std::wstring Widen (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 
     TEST_METHOD (HelpText_CarriesAWorkedExampleOfTheWholeLoop_NotOnlyAFlagList)

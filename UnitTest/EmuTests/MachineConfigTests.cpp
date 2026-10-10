@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/MachineConfig.h"
 #include "Machines/MachineDefinitions.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -33,7 +34,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
         Assert::AreEqual (std::string ("TestMachine"), config.name,
             L"Name must be 'TestMachine'");
         Assert::AreEqual (std::string ("6502"), config.cpu,
@@ -162,7 +163,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"65C02 profile should load: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
         Assert::AreEqual (std::string ("65C02"), config.cpu,
             L"CPU must be preserved as '65C02'");
     }
@@ -199,7 +200,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"Banked //c ROM should load: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
         Assert::AreEqual (Word (0x4000), config.systemRom.romBankSize,
             L"romBankSize must parse to 0x4000");
         Assert::AreEqual (Word (0xC028), config.systemRom.romBankSelect,
@@ -250,7 +251,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"aux ram config should load: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
 
         Assert::AreEqual (size_t (2), config.ram.size(),
             L"Should have 2 RAM regions");
@@ -399,7 +400,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"CollectRomFiles should succeed: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
         Assert::AreEqual (size_t (1), files.size(),
             L"Minimal config has only systemRom");
         Assert::AreEqual (std::string ("Apple2Plus.rom"), files[0],
@@ -501,7 +502,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
 
         Assert::AreEqual (size_t (1), config.internalDevices.size());
         Assert::IsTrue (config.internalDevices[0].capabilityFlag == CapabilityFlag::Required,
@@ -769,7 +770,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
 
         Assert::AreEqual (size_t (1), config.slots.size());
         Assert::AreEqual (size_t (2), config.slots[0].ports.size(),
@@ -863,7 +864,7 @@ public:
 
         AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin(), error.end())).c_str());
+                TextEncoding::NarrowToWide (error)).c_str());
 
         Assert::IsTrue (config.slots.empty(), L"The //c has no slots at all.");
         Assert::AreEqual (size_t (2), config.ports.size());

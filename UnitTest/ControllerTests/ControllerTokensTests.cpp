@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Controllers/ControllerTokens.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -184,8 +185,8 @@ namespace ControllerTests
                 std::string  token = ControllerTokens::ControlToToken (control);
                 HRESULT      hr    = ControllerTokens::ControlFromToken (token, parsed);
 
-                Assert::AreEqual (S_OK, hr, std::wstring (token.begin(), token.end()).c_str());
-                Assert::IsTrue   (parsed == control, std::wstring (token.begin(), token.end()).c_str());
+                Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (token).c_str());
+                Assert::IsTrue   (parsed == control, TextEncoding::NarrowToWide (token).c_str());
             }
         }
 
@@ -270,7 +271,7 @@ namespace ControllerTests
 
                 Assert::IsFalse (token.empty(), L"every adapter has a token");
                 Assert::IsTrue  (ControllerTokens::GamePortAdapterFromToken (token) == adapter,
-                                 std::wstring (token.begin(), token.end()).c_str());
+                                 TextEncoding::NarrowToWide (token).c_str());
             }
         }
 

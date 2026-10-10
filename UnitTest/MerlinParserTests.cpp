@@ -2,6 +2,7 @@
 
 #include "MerlinDialect.h"
 #include "DialectRegistry.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -473,7 +474,7 @@ namespace MerlinParserTests
             for (const MerlinDirectiveTable::Spelling & spelling : spellings)
             {
                 std::string   name = spelling.name;
-                std::wstring  what (name.begin(), name.end());
+                std::wstring  what = TextEncoding::NarrowToWide (name);
 
                 Assert::IsFalse (name.empty(), L"a spelling with no characters cannot be written at all");
                 Assert::AreNotEqual ('.', name[0], (what + L" is written the way as65 writes a directive").c_str());
