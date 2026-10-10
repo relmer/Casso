@@ -84,6 +84,10 @@ public:
     //  nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
+    //  The builder that built this machine, for the accessors the shell reads
+    //  through it.
+    MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
+
 private:
 
     static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);

@@ -8,6 +8,7 @@
 #include "TapeTestEncoder.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -55,7 +56,7 @@ public:
 
     static std::wstring ToWide (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 
 
