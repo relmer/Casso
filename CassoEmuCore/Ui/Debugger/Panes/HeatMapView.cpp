@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/Reply.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -1949,7 +1950,7 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
 
     if (m_symbols != nullptr && m_symbols->TryGetNameAt (cpu, name))
     {
-        text += L"\nSymbol " + std::wstring (name.begin(), name.end());
+        text += L"\nSymbol " + TextEncoding::NarrowToWide (name);
     }
 
     return text;
@@ -2565,7 +2566,7 @@ std::wstring HeatMapView::GetDetailLine (Byte value, bool isOpcode, const std::s
 
     if (isOpcode && !form.empty())
     {
-        return std::wstring (form.begin(), form.end());
+        return TextEncoding::NarrowToWide (form);
     }
 
     for (int bit = kBits - 1; bit >= 0; bit--)

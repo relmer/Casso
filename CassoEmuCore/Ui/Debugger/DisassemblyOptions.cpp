@@ -2,6 +2,7 @@
 
 #include "DisassemblyOptions.h"
 #include "SourceSyntax.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -197,7 +198,7 @@ std::wstring DisassemblyOptions::GetSymbolsTip (const std::vector<std::string> &
 
     for (const std::string & source : sources)
     {
-        tip += L"\n" + std::wstring (source.begin(), source.end());
+        tip += L"\n" + TextEncoding::NarrowToWide (source);
     }
 
     return tip;
@@ -333,5 +334,5 @@ bool DisassemblyOptions::CanTakeBreakpoint (const DebuggerViewSnapshot::CodeLine
 
 
 
-    return !mnemonic.empty() && SourceSyntax::IsMnemonic (std::wstring (mnemonic.begin(), mnemonic.end()));
+    return !mnemonic.empty() && SourceSyntax::IsMnemonic (TextEncoding::NarrowToWide (mnemonic));
 }

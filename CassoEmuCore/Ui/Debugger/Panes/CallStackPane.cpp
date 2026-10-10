@@ -4,6 +4,7 @@
 #include "Ui/Debugger/ColorLegend.h"
 
 #include "Debugger/CallStack.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -203,20 +204,19 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     Row                              row;
     std::optional<CallStackBreak>    above;
     bool                             isMidRun = false;
-    auto                             widen    = [] (const std::string & text) { return std::wstring (text.begin(), text.end()); };
-    auto                             frameRow = [&widen] (const CallStackFrame & frame)
+    auto                             frameRow = [] (const CallStackFrame & frame)
     {
         Row  made;
 
         made.site    = std::format (L"${:04X}", frame.callSite);
-        made.routine = std::format (L"{} ${:04X}", widen (CallStack::GetKindName (frame.kind)), frame.target);
+        made.routine = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (CallStack::GetKindName (frame.kind)), frame.target);
         made.foundBy = (frame.provenance == CallProvenance::Recorded) ? L"recorded as it ran" : L"found on the stack";
         made.isDim   = !frame.isVerified;
         made.address = frame.callSite;
 
         if (!frame.symbol.empty())
         {
-            made.routine += L" " + widen (frame.symbol);
+            made.routine += L" " + TextEncoding::NarrowToWide (frame.symbol);
         }
 
         if (!frame.isVerified)
@@ -237,7 +237,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
             //  frame's does; the second column says what it did.
             row         = Row();
             row.site    = std::format (L"${:04X}", each.chainBreak->pc);
-            row.routine = widen (CallStack::DescribeBreak (*each.chainBreak));
+            row.routine = TextEncoding::NarrowToWide (CallStack::DescribeBreak (*each.chainBreak));
 
             //  It stands alone on its row, so it starts with a capital.
             row.routine[0] = (wchar_t) towupper (row.routine[0]);
@@ -287,7 +287,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     if (data.lastReturn.has_value())
     {
         row          = frameRow (*data.lastReturn);
-        row.foundBy  = widen (data.lastReturn->note);
+        row.foundBy  = TextEncoding::NarrowToWide (data.lastReturn->note);
         row.isDim    = true;
         row.isReturn = true;
         rows.push_back (row);
@@ -410,7 +410,7 @@ std::wstring CallStackPane::GetUnverifiedTip (const std::optional<CallStackBreak
     {
     case CallBreakKind::Txs:
         text = CallStack::DescribeBreak (*above);
-        why  = std::format (L"The {} above set the stack pointer directly, so the stack may not be where these calls left it.", std::wstring (text.begin(), text.end()));
+        why  = std::format (L"The {} above set the stack pointer directly, so the stack may not be where these calls left it.", TextEncoding::NarrowToWide (text));
         break;
 
     case CallBreakKind::PulledReturn:

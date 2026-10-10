@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -93,7 +94,7 @@ std::span<const DebuggerLayout::DiagnosticsPanel> DebuggerLayout::GetDiagnostics
 
 std::wstring DebuggerLayout::GetDiagnosticsPaneId (const std::string & id)
 {
-    return s_kpszDiagnosticsPrefix + std::wstring (id.begin(), id.end());
+    return s_kpszDiagnosticsPrefix + TextEncoding::NarrowToWide (id);
 }
 
 

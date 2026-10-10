@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/TracePane.h"
 
 #include "Debugger/AppleWinFormatter.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -167,9 +168,9 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
         out[0].text = L"next";
         out[2].text = std::format (L"{:04X}", record->pc);
-        out[3].text = std::wstring (bytes.begin(), bytes.end());
-        out[4].text = std::wstring (record->symbol.begin(), record->symbol.end());
-        out[5].text = std::wstring (record->instruction.begin(), record->instruction.end());
+        out[3].text = TextEncoding::NarrowToWide (bytes);
+        out[4].text = TextEncoding::NarrowToWide (record->symbol);
+        out[5].text = TextEncoding::NarrowToWide (record->instruction);
         AddColors (out, m_colors);
         return;
     }
@@ -192,11 +193,11 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
     out[0].text = std::format (L"{}", record->index);
     out[1].text = std::format (L"{}", record->cycles);
     out[2].text = std::format (L"{:04X}", record->pc);
-    out[3].text = std::wstring (bytes.begin(), bytes.end());
-    out[4].text = std::wstring (record->symbol.begin(), record->symbol.end());
-    out[5].text = std::wstring (record->instruction.begin(), record->instruction.end());
+    out[3].text = TextEncoding::NarrowToWide (bytes);
+    out[4].text = TextEncoding::NarrowToWide (record->symbol);
+    out[5].text = TextEncoding::NarrowToWide (record->instruction);
     out[6].text = std::format (L"A={:02X} X={:02X} Y={:02X} SP={:02X} ", record->a, record->x, record->y, record->sp);
-    out[7].text = std::wstring (access.begin(), access.end());
+    out[7].text = TextEncoding::NarrowToWide (access);
 
     for (char ch : AppleWinFormatter::FormatFlags (record->p))
     {
