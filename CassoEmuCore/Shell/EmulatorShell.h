@@ -51,8 +51,6 @@
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Ui/Chrome/MainMenu.h"
-#include "Ui/Chrome/UpdateIndicatorButton.h"
-#include "Update/UpdateRuntime.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/DriveWidgetController.h"
@@ -76,7 +74,7 @@ class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
-class UpdateDialog;
+class ShellUpdater;
 struct MonitorSpec;
 
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
@@ -230,16 +228,12 @@ public:
     // not refresh the caption itself.
     void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
 
-    // A launch by a finished zip update (--updated, --cleanup-old <pid>).
-    // Set before Initialize; the old files are removed once the first frame
-    // is up and the old process has exited.
-    void SetUpdateLaunch      (bool wasUpdated, DWORD cleanupOldPid) { m_wasLaunchedByUpdate = wasUpdated; m_cleanupOldPid = cleanupOldPid; }
+    // Update notification and self-update, including the launch-by-update
+    // flags and the Settings > General update toggles.
+    ShellUpdater &  GetUpdater();
 
-    // Settings > General: whether the once-a-day update check runs, the
-    // skipped release, and the two download offers. Each is saved
+    // Settings > General: the two download offers. Each is saved
     // immediately, like the other live toggles in Settings.
-    void SetAutoUpdateCheck      (bool enabled);
-    void StopSkippingVersion     ();
     void SetAudioDownloadConsent (const std::string & consent);
     void SetRomRefreshConsent    (const std::string & consent);
     void OpenSettingsFolder      ();
@@ -1536,73 +1530,15 @@ private:
     // it to DiskMru, which drops anything that did not actually mount.
     void    RecordRecentDisk     (const std::wstring & path, HRESULT mountResult);
 
-    // Update notification and self-update (EmulatorShellUpdate.cpp). The
-    // service does the slow work on its own threads and posts each result
-    // back as WM_APP_UPDATE_RESULT; everything here runs on the UI thread.
-    UpdateService *        GetUpdateService            ();
-    void                   StartAutomaticUpdateCheck   ();
-    void                   CheckForUpdatesNow          ();
-    void                   HandleUpdateResult          (UpdateResult & result);
-    void                   HandleUpdateCheckResult     (UpdateResult & result);
-    void                   StartSharedCheckWait        ();
-    void                   PollSharedCheckRecord       ();
-    void                   StopSharedCheckWait         ();
-    void                   HandleUpdateApplyResult     (UpdateResult & result);
-    void                   ShowUpdateIndicator         (bool isShown);
-    void                   RefitUpdateIndicator        (bool force);
-    bool                   TickUpdateIndicator         (int64_t nowMs);
-    void                   OpenUpdateDialog            ();
-    void                   ReportUpdateCheckFailure    (UpdateFailure failure);
-    void                   ReportUpToDate              ();
-    void                   SkipOfferedRelease          ();
-    void                   RefreshSettingsUpdateStatus ();
-    void                   StopUpdateService           ();
-    bool                   OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx, int yPx);
-    void                   OpenUrl                     (const std::wstring & url);
-    static ReleaseVersion  GetRunningVersion           ();
-    static size_t          GetRandomIndex              (size_t count);
-    std::wstring           MakeUpdateHeader            (const std::string & runningReleaseDate);
-    void                   HandlePendingUpdateAtLaunch ();
-    void                   SetUpdatePending            (const UpdateResult & result);
-    void                   ClearPendingUpdatePrefs     ();
-    void                   CommitPendingUpdateAtExit   ();
-    void                   ApplyPendingUpdateNow       ();
-    static std::vector<std::wstring>  GetRelaunchArguments ();
-    static std::wstring    GetInstallDirectory         ();
+    // The shell's components, each owned here and reached through its
+    // getter. Held by pointer so this header needs only their names.
+    std::unique_ptr<ShellUpdater>    m_updater;
 
-    std::unique_ptr<UpdateRuntime>  m_updateRuntime;
-    UpdateIndicatorButton           m_updateIndicator;
-    UpdateDialog                  * m_updateDialog          = nullptr;
-    ReleaseInfo                     m_updateRelease;
-    InstallType                     m_updateInstallType     = InstallType::Unknown;
-    bool                            m_hasUpdateRelease      = false;
-    bool                            m_updateCheckStarted    = false;
-    bool                            m_isManualCheckPending  = false;
-    bool                            m_wasLaunchedByUpdate   = false;
-    DWORD                           m_cleanupOldPid         = 0;
-
-    // An instance whose startup check was skipped for the check lock polls
-    // the prefs file for the record the lock holder writes.
-    static constexpr UINT_PTR       kSharedCheckTimerId     = 0xCA56;
-    std::int64_t                    m_launchCheckUtc        = 0;
-    int                             m_sharedCheckPolls      = 0;
-    bool                            m_isSharedCheckWaiting  = false;
-    std::wstring                    m_updateIndicatorLine;
-    int                             m_indicatorClientPx     = -1;
-    int                             m_indicatorWidthDip     = 0;
-
-    // An update applied when Casso closes: the zip copy's staged files, or
-    // the bundle Windows registers once Casso exits.
-    bool                            m_isUpdatePending       = false;
-    InstallType                     m_pendingInstallType    = InstallType::Unknown;
-    std::wstring                    m_pendingInstallDir;
-    std::vector<std::string>        m_pendingPaths;
-    std::wstring                    m_pendingBundlePath;
-
-    // MachineManager and WindowCommandManager touch enough shell
-    // state during construction and command dispatch that friend
-    // declarations are the pragmatic seam; no new global state is
+    // MachineManager, WindowCommandManager and the shell's components touch
+    // enough shell state during construction and command dispatch that
+    // friend declarations are the pragmatic seam; no new global state is
     // introduced.
+    friend class ShellUpdater;
     friend class MachineManager;
     friend class WindowCommandManager;
     friend class SettingsSheet;

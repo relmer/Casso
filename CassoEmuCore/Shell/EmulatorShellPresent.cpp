@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -1068,7 +1069,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
         // The update indicator's shimmer asks for frames only while it sweeps;
         // between sweeps the idle loop sleeps until the next one is due.
-        if (TickUpdateIndicator ((int64_t) GetTickCount64()))
+        if (m_updater->TickUpdateIndicator ((int64_t) GetTickCount64()))
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }

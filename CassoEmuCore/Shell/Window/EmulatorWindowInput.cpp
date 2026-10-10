@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -297,7 +298,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // The update indicator sits in the caption, above every band, so a move
     // over it is its own and nothing below sees it.
-    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
+    if (!m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -668,14 +669,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     m_uiShell.OnMouseLeave();
 
-    // Leaving the window -- into the caption counts -- from the update
-    // indicator takes its tooltip down at once; nothing else would, since the
-    // indicator is a client-area control under the caption's tooltip.
-    if (m_updateIndicator.OnPointer (false, (int64_t) GetTickCount64()).hideTip)
-    {
-        m_captionTooltip.HideImmediate();
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-    }
+    m_updater->OnMouseLeave();
 
     // Drop drive marquee-hover state so re-entering the window re-triggers
     // the basename scroll.
@@ -1278,7 +1272,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // The caption's update indicator, ahead of the capture and every band:
     // nothing else lives in the caption strip's client area.
-    if (OfferMouseToUpdateIndicator (DxuiMouseEventKind::Down, x, y))
+    if (m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Down, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1625,7 +1619,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     //  The update indicator's own press ends here, and its click is this
     //  release landing on it.
-    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
+    if (!m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
     {
         return DxuiMessageResult::Handled;
     }

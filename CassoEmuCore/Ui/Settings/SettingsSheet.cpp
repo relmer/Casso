@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Config/GlobalUserPrefs.h"
 #include "GeneralPageModel.h"
 #include "../../Shell/ScreenshotCapture.h"
@@ -324,7 +325,7 @@ HRESULT SettingsSheet::OpenModeless (
 
     m_generalPage->SetOnAutoUpdateToggled ([this] (bool enabled)
     {
-        m_emuShell->SetAutoUpdateCheck (enabled);
+        m_emuShell->GetUpdater().SetAutoUpdateCheck (enabled);
     });
     m_generalPage->SetOnAudioOfferToggled ([this] (bool checked)
     {
@@ -336,11 +337,11 @@ HRESULT SettingsSheet::OpenModeless (
     });
     m_generalPage->SetOnCheckNow ([this] ()
     {
-        m_emuShell->CheckForUpdatesNow();
+        m_emuShell->GetUpdater().CheckForUpdatesNow();
     });
     m_generalPage->SetOnStopSkipping ([this] ()
     {
-        m_emuShell->StopSkippingVersion();
+        m_emuShell->GetUpdater().StopSkippingVersion();
     });
     m_generalPage->SetFolderPath   (EmulatorShell::GetSettingsFolder());
     m_generalPage->SetOnOpenFolder ([this] ()

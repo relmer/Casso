@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellUpdater.h"
+#include "Update/UpdateResult.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -1541,11 +1543,11 @@ int EmulatorShell::RunMessageLoop()
         {
             WaitForFrameOrMessage();
         }
-        else if (!m_updateCheckStarted)
+        else if (!m_updater->HasCheckStarted())
         {
             // After the first frame is on screen, so the update check never
             // stands between a launch and a picture.
-            StartAutomaticUpdateCheck();
+            m_updater->StartAutomaticUpdateCheck();
         }
     }
 
@@ -1606,7 +1608,7 @@ void EmulatorShell::WaitForFrameOrMessage()
     DWORD                   timeout      = s_kIdleUpkeepMs;
     DWORD                   waited       = 0;
     std::optional<int64_t>  nextChangeMs = m_notices.GetNextChangeMs();
-    std::optional<int64_t>  shimmerMs    = m_updateIndicator.IsVisible() ? m_updateIndicator.GetMsUntilShimmer ((int64_t) GetTickCount64()) : std::nullopt;
+    std::optional<int64_t>  shimmerMs    = m_updater->GetMsUntilShimmer ((int64_t) GetTickCount64());
     int64_t                 untilMs      = 0;
     int64_t                 nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -2211,9 +2213,9 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == kSharedCheckTimerId)
+    if (timerId == ShellUpdater::kSharedCheckTimerId)
     {
-        PollSharedCheckRecord();
+        m_updater->PollSharedCheckRecord();
         return DxuiMessageResult::Handled;
     }
 
@@ -2702,7 +2704,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         if (carried != nullptr)
         {
-            HandleUpdateResult (*carried);
+            m_updater->HandleUpdateResult (*carried);
             delete carried;
         }
 

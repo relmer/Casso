@@ -14,6 +14,7 @@
 #include "Core/PathResolver.h"
 #include "Config/DiskSettings.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -718,7 +719,7 @@ int WINAPI wWinMain (
 
     // --updated / --cleanup-old: a relaunch by a finished zip update, which
     // removes the old files once the process that ran them has exited.
-    shell->SetUpdateLaunch (parsed.wasUpdated, (DWORD) parsed.cleanupOldPid);
+    shell->GetUpdater().SetUpdateLaunch (parsed.wasUpdated, (DWORD) parsed.cleanupOldPid);
 
     // --trace: size the CPU ring and install the crash-time dump filter
     // before the CPU thread starts, so an illegal-opcode/__debugbreak or

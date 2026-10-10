@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
@@ -111,6 +112,8 @@ EmulatorShell::EmulatorShell()
 
     SetPrngSeed (seed);
 
+    m_updater = std::make_unique<ShellUpdater> (*this);
+
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
@@ -196,7 +199,7 @@ EmulatorShell::~EmulatorShell()
 
     // The update workers next: a download in flight is canceled, and every
     // worker is joined before anything it posts to or reads from goes.
-    StopUpdateService();
+    m_updater->StopUpdateService();
 
     //  THE CONTROLLER STACK GOES BY HAND, HERE, for the same reason. Its
     //  members are declared after the window, so member-order destruction
@@ -241,7 +244,7 @@ EmulatorShell::~EmulatorShell()
 
     // An update applied when Casso closes, now that the disks and the
     // preferences are written.
-    CommitPendingUpdateAtExit();
+    m_updater->CommitPendingUpdateAtExit();
 
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
@@ -269,6 +272,21 @@ EmulatorShell::~EmulatorShell()
         OleUninitialize();
         m_fOleInitialized = false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetUpdater
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellUpdater & EmulatorShell::GetUpdater()
+{
+    return *m_updater;
 }
 
 

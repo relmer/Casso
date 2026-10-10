@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -1028,5 +1029,79 @@ void EmulatorShell::FlushDeferredGlobalPrefs()
     if (m_globalPrefsDirty)
     {
         SaveGlobalPrefs();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetAudioDownloadConsent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetAudioDownloadConsent (const std::string & consent)
+{
+    m_globalPrefs.audioDownloadConsent = consent;
+    SaveGlobalPrefs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetRomRefreshConsent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetRomRefreshConsent (const std::string & consent)
+{
+    m_globalPrefs.romRefreshConsent = consent;
+    SaveGlobalPrefs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetSettingsFolder
+//
+//  %LOCALAPPDATA%\Casso, where the preferences files live. Empty when the
+//  folder cannot be resolved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::GetSettingsFolder()
+{
+    return PathResolver::GetLocalAppDataDir (L"Casso").wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OpenSettingsFolder
+//
+//  Opens the settings folder in Explorer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OpenSettingsFolder()
+{
+    std::wstring  folder = GetSettingsFolder();
+
+
+
+    if (!folder.empty())
+    {
+        ShellUpdater::OpenUrl (folder);
     }
 }

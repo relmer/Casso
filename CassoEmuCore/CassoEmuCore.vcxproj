@@ -500,7 +500,7 @@
     <ClCompile Include="Shell\EmulatorShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
     <ClCompile Include="Shell\EmulatorShellDialogs.cpp" />
-    <ClCompile Include="Shell\EmulatorShellUpdate.cpp" />
+    <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrinter.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebug.cpp" />
     <ClCompile Include="WasapiAudio.cpp" />
@@ -896,6 +896,7 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
+    <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />
     <ClInclude Include="Machines\IMachine.h" />

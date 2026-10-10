@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"
@@ -2400,7 +2401,7 @@ void WindowCommandManager::OnHelpCommand (int id)
         {
             // Runs on the update service's thread; the result comes back to
             // the shell, which reports it whatever it is.
-            m_shell.CheckForUpdatesNow();
+            m_shell.GetUpdater().CheckForUpdatesNow();
             break;
         }
 
