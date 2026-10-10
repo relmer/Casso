@@ -215,5 +215,74 @@ bool SearchQuery::MatchesName (const std::wstring & name, const std::vector<std:
         lower += (wchar_t) towlower (c);
     }
 
-    return std::all_of (words.begin(), words.end(), [&lower] (const std::wstring & word) { return lower.find (word) != std::wstring::npos; });
+    return std::all_of (words.begin(), words.end(), [&lower] (const std::wstring & word)
+    {
+        return (word.find_first_of (L"*?") != std::wstring::npos) ? MatchesPattern (lower.c_str(), word.c_str())
+                                                                    : lower.find (word) != std::wstring::npos;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::HasWildcards
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchQuery::HasWildcards (const std::wstring & query)
+{
+    return query.find_first_of (L"*?") != std::wstring::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::MatchesPattern
+//
+//  * stands for any run of characters and ? for any one, over the whole name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchQuery::MatchesPattern (const wchar_t * name, const wchar_t * pattern)
+{
+    const wchar_t *  star     = nullptr;
+    const wchar_t *  resumeAt = nullptr;
+
+
+
+    while (*name != L'\0')
+    {
+        if (*pattern == L'*')
+        {
+            star     = pattern++;
+            resumeAt = name;
+        }
+        else if (*pattern == L'?' || *pattern == *name)
+        {
+            pattern++;
+            name++;
+        }
+        else if (star != nullptr)
+        {
+            pattern = star + 1;
+            name    = ++resumeAt;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    while (*pattern == L'*')
+    {
+        pattern++;
+    }
+
+    return *pattern == L'\0';
 }

@@ -1766,6 +1766,15 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
         cells[0].contentLeft = { DxuiListView::Cell { L"Type: " + row.typeText, false } };
     }
 
+    //  A search result says where it is, ahead of its type; a folder, which
+    //  has no type, by its place alone.
+    cells[0].contentPath = row.folderPath;
+
+    if (!row.folderPath.empty() && cells[0].contentLeft.empty())
+    {
+        cells[0].contentLeft = { DxuiListView::Cell { std::wstring(), false } };
+    }
+
     if (row.hasModified)
     {
         cells[0].contentRight.push_back (DxuiListView::Cell { L"Date modified: " + FormatModified (row.modifiedUnix, row.modifiedIsWallClock), false });

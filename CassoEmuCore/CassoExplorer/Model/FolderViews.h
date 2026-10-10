@@ -59,7 +59,7 @@ struct FolderViewEntry
 class FolderViews
 {
 public:
-    enum class FolderType { Generic, Documents, Pictures, Music, Videos, Drives };
+    enum class FolderType { Generic, Documents, Pictures, Music, Videos, Drives, SearchResults };
 
     static DxuiListView::View  GetDefaultView (FolderType type);
 

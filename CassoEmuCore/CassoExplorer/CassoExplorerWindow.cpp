@@ -769,6 +769,18 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_findBox->SetFont         (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
     m_findBox->SetExplorerChrome (true);
     m_findBox->SetTrailingGlyph  (s_kpszMdl2Search, DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace);
+    m_findBox->SetClearGlyph     (s_kpszMdl2Cancel);
+
+    //  An emptied box leaves the search for the folder it searched, as
+    //  Explorer's does, whether by its X or by deleting the query.
+    m_findBox->SetOnChange ([this] (const std::wstring & text)
+    {
+        if (text.empty() && SearchQuery::IsId (m_browser.GetLocation().path) && m_browser.GoBack())
+        {
+            FillList();
+        }
+    });
+
     m_address->SetOnHistory   ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
     m_address->SetHistoryChevron (false);
 
@@ -6485,8 +6497,22 @@ std::wstring CassoExplorerWindow::GetFolderViewKey (FolderViews::FolderType * ou
             return location.path;
 
         default:
-            return location.path + L"|" + TextEncoding::NarrowToWide (location.innerPath);
+            break;
     }
+
+    //  Every search shares one view, Content unless chosen otherwise, as
+    //  File Explorer's results do.
+    if (SearchQuery::IsId (location.path))
+    {
+        if (outType != nullptr)
+        {
+            *outType = FolderViews::FolderType::SearchResults;
+        }
+
+        return SearchQuery::kPrefix;
+    }
+
+    return location.path + L"|" + TextEncoding::NarrowToWide (location.innerPath);
 }
 
 
@@ -7989,6 +8015,8 @@ void CassoExplorerWindow::ShowRowProperties (int row)
     std::wstring                       text;
     size_t                             i        = 0;
     FileEntry                          entry;
+    CassoExplorerBrowser::SearchMatch  match;
+    std::wstring                       error;
 
 
 
@@ -7997,9 +8025,20 @@ void CassoExplorerWindow::ShowRowProperties (int row)
         return;
     }
 
-    if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::Root)
+    //  Anything on the disk, a search's result among them, has Windows' sheet.
+    if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::Root || GetFileAttributesW (path.c_str()) != INVALID_FILE_ATTRIBUTES)
     {
         ShowHostProperties (path);
+        return;
+    }
+
+    //  A search's match inside an image has the sheet it has in its image.
+    if (m_browser.TryFindSearchMatch (m_browser.GetRows()[(size_t) row], match, error))
+    {
+        CassoExplorerPropertiesDialog::Show (GetHwnd(), m_theme, m_browser.GetRows()[(size_t) row].name,
+                                            CassoExplorerProperties::DescribeEntry (match.entry, match.kind,
+                                                BrowserModel::FormatAddress (match.directory.empty() ? Location::MakeDiskImage (match.imagePath)
+                                                                                                     : Location::MakeDiskDirectory (match.imagePath, match.directory))));
         return;
     }
 
@@ -9659,8 +9698,10 @@ void CassoExplorerWindow::SearchLocation (const std::wstring & query)
 
 
 
+    //  Enter in an empty box goes back to the list, as File Explorer's does.
     if (query.empty())
     {
+        SetFocusPane (Pane::List);
         return;
     }
 

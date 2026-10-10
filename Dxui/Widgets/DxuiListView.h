@@ -84,6 +84,10 @@ public:
         //  column to its right (the date and the size). Empty draws none.
         std::vector<Cell>  contentLeft;
         std::vector<Cell>  contentRight;
+
+        //  A search result's folder, ahead of the first line under the name
+        //  and cut short to leave that line room, as Explorer shows it.
+        std::wstring       contentPath;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -930,6 +934,7 @@ private:
     //  every cell has room for.
     static constexpr int    s_kItemNameMaxLines    = 4;
     static constexpr float  s_kContentNameScale    = 11.0f / 9.0f;
+    static constexpr float  s_kContentPathGapDip   = 14.0f;   // from a result's folder to its type
     static constexpr float  s_kMediumLabelWDip     = 60.67f;
     static constexpr float  s_kLargeLabelWDip      = 92.0f;
     static constexpr int    s_kXLargeLabelInsetPx  = 1;   // Extra large's names, as wide as its icon less this, at any scale

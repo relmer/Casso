@@ -52,4 +52,15 @@ public:
         Assert::AreEqual (scope, parsed, L"Several folders survive the id");
         Assert::AreEqual (std::wstring (L"Search results in Casso"), SearchQuery::GetLabel (scope));
     }
+
+    TEST_METHOD (Wildcards_MatchTheWholeNameAndLeaveTheIndexOut)
+    {
+        Assert::IsTrue  (SearchQuery::HasWildcards (L"*paint*"));
+        Assert::IsFalse (SearchQuery::HasWildcards (L"paint"));
+        Assert::IsTrue  (SearchQuery::MatchesName (L"MousePaint.do", SearchQuery::GetNameWords (L"*paint*")), L"* stands for any run");
+        Assert::IsTrue  (SearchQuery::MatchesName (L"MOUSEPAINT",    SearchQuery::GetNameWords (L"*paint")));
+        Assert::IsFalse (SearchQuery::MatchesName (L"MousePaint.do", SearchQuery::GetNameWords (L"paint*")), L"and the pattern covers the whole name");
+        Assert::IsTrue  (SearchQuery::MatchesName (L"disk1.dsk",     SearchQuery::GetNameWords (L"disk?.dsk")), L"? stands for one character");
+        Assert::IsFalse (SearchQuery::MatchesName (L"disk10.dsk",    SearchQuery::GetNameWords (L"disk?.dsk")));
+    }
 };

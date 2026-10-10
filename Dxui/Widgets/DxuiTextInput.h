@@ -81,6 +81,10 @@ public:
     //  A glyph drawn at the field's right end, in an icon face.
     void  SetTrailingGlyph (const wchar_t * glyph, const wchar_t * face) { m_trailGlyph = glyph; m_trailFace = face; }
 
+    //  An X left of the trailing glyph while the field holds text, which
+    //  empties it, as Explorer's search box has. In the trailing glyph's face.
+    void  SetClearGlyph    (const wchar_t * glyph)       { m_clearGlyph = glyph; }
+
     //  The field lies over another control's text, as a rename in place lies
     //  over a list row, and must hide it.
     void  SetOverText   (bool overText)               { m_overText = overText; }
@@ -214,6 +218,17 @@ private:
     bool                      m_explorerChrome    = false;
     const wchar_t           * m_trailGlyph        = nullptr;
     const wchar_t           * m_trailFace         = nullptr;
+    const wchar_t           * m_clearGlyph        = nullptr;
+
+    //  Explorer's clear X, measured at 150%: its middle 36.67 dip left of
+    //  the magnifier's.
+    static constexpr float    s_kClearGlyphDip    = 10.0f;
+    static constexpr float    s_kClearCenterDip   = 55.0f;
+
+    bool   IsClearShown   () const { return m_clearGlyph != nullptr && m_trailFace != nullptr && !m_text.empty(); }
+    RECT   GetClearRect   () const;
+    bool   IsOverClear    (POINT pointDip) const { RECT clear = GetClearRect(); return IsClearShown() && PtInRect (&clear, pointDip) != FALSE; }
+    float  GetRightPadPx  () const;
 
     //  Explorer's search magnifier, measured at 150%: 16 pixels of ink, its
     //  middle 18.33 dip from the box's right edge.

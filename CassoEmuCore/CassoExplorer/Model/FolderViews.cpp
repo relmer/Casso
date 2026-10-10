@@ -16,10 +16,11 @@ DxuiListView::View FolderViews::GetDefaultView (FolderType type)
 {
     switch (type)
     {
-        case FolderType::Drives:   return DxuiListView::View::Tiles;
-        case FolderType::Pictures: return DxuiListView::View::LargeIcons;
-        case FolderType::Videos:   return DxuiListView::View::LargeIcons;
-        default:                   return DxuiListView::View::Details;
+        case FolderType::Drives:        return DxuiListView::View::Tiles;
+        case FolderType::Pictures:      return DxuiListView::View::LargeIcons;
+        case FolderType::Videos:        return DxuiListView::View::LargeIcons;
+        case FolderType::SearchResults: return DxuiListView::View::Content;
+        default:                        return DxuiListView::View::Details;
     }
 }
 

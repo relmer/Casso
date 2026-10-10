@@ -1617,7 +1617,7 @@ HRESULT Win32ShellItemVerbs::RunSearch (const std::wstring & id, std::vector<She
     {
         std::vector<std::wstring>  found;
 
-        indexed = IsIndexed (folder);
+        indexed = IsIndexed (folder) && !SearchQuery::HasWildcards (query);
         hr      = indexed ? QueryIndex (folder, query, found) : S_OK;
 
         //  A folder the index leaves out, or an index that cannot answer, is

@@ -489,7 +489,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        w         = (float) (m_boundsDip.right  - m_boundsDip.left);
     float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
     float        padL      = m_scaler.ToPxf (s_kPadLeftDip);
-    float        padR      = m_scaler.ToPxf (s_kPadRightDip);
+    float        padR      = GetRightPadPx();
     float        fontPx    = m_scaler.ToPxf (m_fontDip);
     // Floored at zero: a control laid out against a window with no client
     // area yet is zero DIPs wide, and the padding inset would otherwise take
@@ -567,6 +567,16 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
         hr = text.DrawString (m_trailGlyph, x + w - m_scaler.ToPxf (s_kTrailCenterDip) - boxW * 0.5f, y, boxW, h,
                               (fgArgb & 0x00FFFFFFu) | 0xC8000000u, m_scaler.ToPxf (s_kTrailGlyphDip), m_trailFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (IsClearShown())
+    {
+        RECT  clear = GetClearRect();
+
+        hr = text.DrawString (m_clearGlyph, (float) clear.left, (float) clear.top, (float) (clear.right - clear.left), (float) (clear.bottom - clear.top),
+                              (fgArgb & 0x00FFFFFFu) | 0xC8000000u, m_scaler.ToPxf (s_kClearGlyphDip), m_trailFace,
                               DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -1226,6 +1236,58 @@ void DxuiTextInput::Restore (std::vector<EditState> & from, std::vector<EditStat
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetClearRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTextInput::GetClearRect() const
+{
+    int  center = m_boundsDip.right - (int) std::lround (m_scaler.ToPxf (s_kClearCenterDip));
+    int  half   = (int) std::lround (m_scaler.ToPxf (s_kTrailBoxDip) * 0.5f);
+
+
+
+    return RECT { center - half, m_boundsDip.top, center + half, m_boundsDip.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRightPadPx
+//
+//  Room at the right end for the trailing glyph and the clear X, so the text
+//  never runs under them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextInput::GetRightPadPx() const
+{
+    float  pad = m_scaler.ToPxf (s_kPadRightDip);
+
+
+
+    if (m_trailGlyph != nullptr && m_trailFace != nullptr)
+    {
+        pad = (std::max) (pad, m_scaler.ToPxf (s_kTrailCenterDip + s_kTrailBoxDip * 0.5f));
+    }
+
+    if (IsClearShown())
+    {
+        pad = (std::max) (pad, m_scaler.ToPxf (s_kClearCenterDip + s_kTrailBoxDip * 0.5f));
+    }
+
+    return pad;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FireChange
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1421,7 +1483,16 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
 
         break;
     case DxuiMouseEventKind::Down:
-        if (ev.button == DxuiMouseButton::Left)
+        if (ev.button == DxuiMouseButton::Left && IsOverClear (ev.positionDip))
+        {
+            //  The X empties the field and tells the host, as typing would.
+            m_text.clear();
+            m_caret  = 0;
+            m_anchor = 0;
+            FireChange();
+            handled = true;
+        }
+        else if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }

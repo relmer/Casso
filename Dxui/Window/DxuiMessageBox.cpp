@@ -108,7 +108,15 @@ public:
         }
 
         {
-            DxuiFontHandle  bf = theme.BodyFont();
+            DxuiFontHandle   bf      = theme.BodyFont();
+            float            fullW   = 0.0f;
+            float            fullH   = 0.0f;
+            DxuiTextVAlign   vAlign  = DxuiTextVAlign::Center;
+
+            //  Text taller than its box starts at the top rather than spilling
+            //  up under the caption.
+            hr = text.MeasureStringWrapped (m_text.c_str(), m_scaler.ToPxf (bf.sizeDip), bf.face, (float) (tr.right - tr.left), fullW, fullH);
+            vAlign = (SUCCEEDED (hr) && fullH > (float) (tr.bottom - tr.top)) ? DxuiTextVAlign::Top : DxuiTextVAlign::Center;
 
             hr = text.DrawString (
 m_text.c_str(),
@@ -120,7 +128,7 @@ theme.TextColor (DxuiTextRole::Body),
 m_scaler.ToPxf (bf.sizeDip),
 bf.face,
 DxuiTextHAlign::Left,
-DxuiTextVAlign::Center,
+vAlign,
 bf.weight,
 true);
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -208,11 +216,45 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 
     for (;;)
     {
-        size_t  nl  = text.find (L'\n', pos);
-        size_t  end = (nl == std::wstring::npos) ? text.size() : nl;
-        int     len = (int) (end - pos);
+        size_t  nl     = text.find (L'\n', pos);
+        size_t  end    = (nl == std::wstring::npos) ? text.size() : nl;
+        int     used   = 0;
+        int     pieces = 0;
 
-        lines += (std::max) (1, (len + cpl - 1) / cpl);
+        //  Wrapped as the renderer wraps, a piece at a time: a word ends at a
+        //  space or a hyphen, and a path breaks before each backslash, so a
+        //  long path takes more lines than its length alone says.
+        for (size_t at = pos; at < end; )
+        {
+            size_t  stop = at + 1;
+            int     len  = 0;
+
+            while (stop < end && text[stop] != L'\\' && text[stop - 1] != L' ' && text[stop - 1] != L'-')
+            {
+                stop++;
+            }
+
+            len = (int) (stop - at);
+
+            if (used > 0 && used + len > cpl)
+            {
+                lines++;
+                used = 0;
+            }
+
+            used += len;
+
+            while (used > cpl)
+            {
+                lines++;
+                used -= cpl;
+            }
+
+            pieces++;
+            at = stop;
+        }
+
+        lines += (used > 0 || pieces == 0) ? 1 : 0;
 
         if (nl == std::wstring::npos)
         {

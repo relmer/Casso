@@ -3351,7 +3351,34 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
             for (size_t at = 0; at < cells[0].contentLeft.size(); at++)
             {
-                hr = text.DrawString (cells[0].contentLeft[at].text.c_str(), (float) label.left, top + (float) ((at + 1) * lineH), rightX - (float) label.left, (float) lineH,
+                float  lineX = (float) label.left;
+
+                //  A result's folder leads the first line, cut short so the
+                //  line after it still fits.
+                if (at == 0 && !cells[0].contentPath.empty())
+                {
+                    float         restW = 0.0f;
+                    float         restH = 0.0f;
+                    float         pathW = 0.0f;
+                    std::wstring  path;
+
+                    hr = text.MeasureString (cells[0].contentLeft[0].text.c_str(), fontPx, DxuiTheme::kBodyFace, restW, restH);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+
+                    path = DxuiTextElide::ToWidth (text, cells[0].contentPath, fontPx, DxuiTheme::kBodyFace,
+                                                   (std::max) (0.0f, rightX - lineX - restW - m_scaler.ToPxf (s_kContentPathGapDip)), DxuiElide::Tail, 0, true);
+
+                    hr = text.MeasureString (path.c_str(), fontPx, DxuiTheme::kBodyFace, pathW, restH);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+
+                    hr = text.DrawString (path.c_str(), lineX, top + (float) lineH, rightX - lineX, (float) lineH,
+                                          pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+
+                    lineX += pathW + m_scaler.ToPxf (s_kContentPathGapDip);
+                }
+
+                hr = text.DrawString (cells[0].contentLeft[at].text.c_str(), lineX, top + (float) ((at + 1) * lineH), rightX - lineX, (float) lineH,
                                       pal.fgDim, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }

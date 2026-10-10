@@ -349,8 +349,8 @@ private:
         { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
         { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
         { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer", false, false, true },
-        { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane",           false, true },
         { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
+        { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane",           false, true },
     };
 
     //  The Recycle Bin's buttons, after View while the bin is shown, as
