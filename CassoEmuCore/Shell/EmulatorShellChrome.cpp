@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Ui/ThemeManager.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -448,7 +451,7 @@ void EmulatorShell::SyncFrameRateReadout()
 
 
 
-    if (!m_globalPrefs.showFrameRate || m_host == nullptr
+    if (!m_settings->GetPrefs().showFrameRate || m_host == nullptr
         || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
         m_fpsReadout.SetVisible (false);
@@ -662,14 +665,14 @@ void EmulatorShell::RefreshToolbarThemeList()
 
 
 
-    if (m_themeManager == nullptr)
+    if (m_settings->GetThemeManager() == nullptr)
     {
         return;
     }
 
-    activeName = m_themeManager->GetActiveThemeName();
+    activeName = m_settings->GetThemeManager()->GetActiveThemeName();
 
-    for (const LoadedTheme & theme : m_themeManager->GetAvailableThemes())
+    for (const LoadedTheme & theme : m_settings->GetThemeManager()->GetAvailableThemes())
     {
         if (theme.name == activeName)
         {
@@ -732,9 +735,9 @@ void EmulatorShell::SyncToolbarState()
         default:                   colorIndex = 0; break;
     }
 
-    if (m_themeManager != nullptr)
+    if (m_settings->GetThemeManager() != nullptr)
     {
-        const std::string &  activeName = m_themeManager->GetActiveThemeName();
+        const std::string &  activeName = m_settings->GetThemeManager()->GetActiveThemeName();
 
         for (const std::string & id : m_toolbarThemeIds)
         {
@@ -1369,17 +1372,17 @@ void EmulatorShell::SetCrtMonitorEnabled (bool enabled)
 
 
 
-    BAIL_OUT_IF (m_globalPrefs.crtMonitor == enabled, S_OK);
+    BAIL_OUT_IF (m_settings->GetPrefs().crtMonitor == enabled, S_OK);
 
-    m_globalPrefs.crtMonitor = enabled;
+    m_settings->GetPrefs().crtMonitor = enabled;
 
-    if (m_userConfigStore != nullptr)
+    if (m_settings->GetConfigStore() != nullptr)
     {
-        hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+        hr = m_settings->GetConfigStore()->SaveAll (m_settings->GetPrefs(), m_settings->GetFileSystem());
     }
     else
     {
-        hr = m_globalPrefs.Save (m_machine.GetAssetBaseDir(), m_uiFs);
+        hr = m_settings->GetPrefs().Save (m_machine.GetAssetBaseDir(), m_settings->GetFileSystem());
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);

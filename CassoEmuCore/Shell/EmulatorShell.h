@@ -2,10 +2,7 @@
 
 #include "Pch.h"
 
-#include "Config/GlobalUserPrefs.h"
-#include "Config/UserConfigStore.h"
 #include "Devices/Tape/TapeDeck.h"
-#include "Config/Win32FileSystem.h"
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Seams/Win32ControllerBackend.h"
@@ -34,7 +31,6 @@
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
-#include "Shell/WindowManager.h"
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/VolumeFlyout.h"
@@ -44,7 +40,6 @@
 #include "Ui/Scene/DeskScene.h"
 #include "Ui/Scene/DeskSceneHitTester.h"
 #include "Ui/Scene/FullscreenStripState.h"
-#include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
@@ -55,11 +50,13 @@
 
 class DxuiHwndSource;
 class SettingsSheet;
+class WindowManager;
 class JsonValue;
 class DriveWidget;
 class ShellAudio;
 class ShellDisks;
 class ShellPrinter;
+class ShellSettings;
 class ShellTapeDeck;
 class ShellUpdater;
 struct MonitorSpec;
@@ -228,14 +225,9 @@ public:
     // the recent-disks list, salvage and the external-change notice.
     ShellDisks &  GetDisks();
 
-    // Settings > General: the two download offers. Each is saved
-    // immediately, like the other live toggles in Settings.
-    void SetAudioDownloadConsent (const std::string & consent);
-    void SetRomRefreshConsent    (const std::string & consent);
-    void OpenSettingsFolder      ();
-
-    // %LOCALAPPDATA%\Casso, where the preferences files live.
-    static std::wstring GetSettingsFolder();
+    // The preferences and the Settings dialog: the global preferences, the
+    // config store, the theme catalog and the Settings sheet.
+    ShellSettings &  GetSettings();
 
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void    DumpTrace        (const wstring & reason);
@@ -249,8 +241,6 @@ public:
     // owning device from the shared Prng before SoftReset (audit S10).
     void SoftReset();
     void PowerCycle();
-
-    void OpenSettings (bool showControllers = false);
 
 private:
 
@@ -423,17 +413,9 @@ private:
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
     void    RestoreColorTextPref            ();
-    void    RecordActiveMachineSelection    ();
     void    SubscribeAndActivateTheme       ();
     HRESULT FinishUiShellLayout             ();
     void    InstallDragDropTarget           ();
-
-    // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
-    // merges the machine JSON, handing back the "$cassoUiPrefs" object in
-    // outUiPrefs -- or null when it is absent OR unreadable/corrupt, both
-    // recovered to defaults, never fatal. Each Apply* helper loads its own
-    // copy and seeds one subsystem (chrome vs audio).
-    void    LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
 
     // The monitor this machine ships with, from its config rather than from
     // its name. Both the desk scene's mesh and the screen's default color
@@ -815,19 +797,6 @@ private:
     // survives an eject/remount because MountDiskInSlot6 re-applies it.
     void  SetDriveUserWriteProtect (int drive, bool wp);
 
-    // Activates the named theme in ThemeManager (which notifies the
-    // chrome cache listener) and persists the choice into GlobalUserPrefs.
-    // No-op if the name is empty; falls back to Skeuomorphic if unknown.
-    HRESULT ApplyAndPersistTheme  (const std::string & themeName);
-
-    // Activates the named theme LIVE (reskins the chrome via the
-    // ThemeManager listener) WITHOUT persisting it to GlobalUserPrefs.
-    // Used by the Settings Theme page's "Apply now" affordance so the
-    // user can preview a theme on the real chrome; a subsequent Cancel
-    // re-activates the baseline theme, and OK persists via
-    // ApplyAndPersistTheme. No-op if empty; falls back to Skeuomorphic.
-    HRESULT ApplyThemeLive        (const std::string & themeName);
-
     // Pushes a freshly-activated CassoTheme into the layout-affecting
     // chrome state: drive bar thickness, per-drive compact flag, and
     // (if the bottom inset changed) a window resize that preserves the
@@ -857,10 +826,7 @@ private:
     // row still composed in the band below it. Everything keyed off the
     // curved glass -- the glass-fill fullscreen, the inverse-projected
     // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
-    bool    CrtMonitorActive     () const
-    {
-        return DeskSceneActive() && m_globalPrefs.crtMonitor;
-    }
+    bool    CrtMonitorActive     () const;
 
     // A left-button orbit that has not yet travelled far enough to BE one.
     // The press arms it over anything the scene shows; only movement past
@@ -1181,23 +1147,6 @@ public:
 
 private:
 
-    // Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as
-    // the WindowManager save callback so per-monitor window placement
-    // edits land on disk immediately after the user moves/resizes the
-    // window. Safe to call before m_userConfigStore exists -- the no-op
-    // path lets the in-class WindowManager initializer not race the
-    // shell's Initialize sequence.
-    void    SaveGlobalPrefs      ();
-
-    // Marks GlobalUserPrefs dirty and arms the coalescing timer instead of
-    // writing now. For a control that reports every intermediate value --
-    // the volume slider fires on each drag tick -- where a write per tick
-    // would put a file rewrite in the middle of a drag. The pending write
-    // is flushed by the timer, by any SaveGlobalPrefs that beats it, and on
-    // shutdown, so a quit taken mid-debounce still lands.
-    void    SaveGlobalPrefsDeferred   ();
-    void    FlushDeferredGlobalPrefs  ();
-
     // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
     // shown via ShowModalDialog). Returns the resultCode of the chosen button,
     // or -1 on close-gesture.
@@ -1269,6 +1218,7 @@ private:
     // introduced.
     friend class ShellDisks;
     friend class ShellPrinter;
+    friend class ShellSettings;
     friend class ShellTapeDeck;
     friend class ShellUpdater;
     friend class MachineManager;
@@ -1344,11 +1294,10 @@ private:
     // The host audio output and every source mixed into it.
     std::unique_ptr<ShellAudio>  m_audio;
 
-    // UI-thread filesystem and chrome ownership. The painter pass
-    // and shell composition is reintroduced in a later phase; for now
-    // only the per-window filesystem stays here so the settings panel
-    // and config store can resolve paths on the UI thread.
-    Win32FileSystem        m_uiFs;
+    // The preferences, the store that keeps them, the UI thread's file system,
+    // the theme catalog and the Settings sheet. Declared early so it outlives
+    // every component and manager that holds a reference into it.
+    std::unique_ptr<ShellSettings>  m_settings;
 
     // Chrome surfaces. MainMenu owns the parity table for legacy IDM_*
     // commands and runs alongside the existing Win32 menu bar until the
@@ -1374,7 +1323,6 @@ private:
     void  WireToolbarPickers               ();
     void  RefreshToolbarThemeList          ();
     void  SyncToolbarState                 ();
-    void  PersistColorModeForMachine       (int settingsColorModeIndex);
     void  MigrateJoyportAtLaunch           (const JsonValue * uiPrefs);
     void  ApplyJoyportToMachine            ();
     void  SyncJoyport                      ();
@@ -1852,32 +1800,6 @@ private:
     // frame between the emulator blit and Present.
     UiShell                    m_uiShell;
 
-    // Settings-dialog dependencies. ThemeManager + UserConfigStore +
-    // GlobalUserPrefs are owned here and handed to the SettingsSheet each
-    // time it opens (OpenSettings).
-    std::unique_ptr<ThemeManager>        m_themeManager;
-    std::unique_ptr<UserConfigStore>     m_userConfigStore;
-    GlobalUserPrefs                      m_globalPrefs;
-
-    // A global-prefs write asked for but not yet made. See
-    // SaveGlobalPrefsDeferred. The delay is long enough that a slider drag
-    // writes once when it settles, short enough that it is over before the
-    // user reaches for the window's close button.
-    //
-    // ATOMIC because two threads reach it: the UI thread arms it from the
-    // toolbar callbacks, and the CPU thread clears it through the
-    // SaveGlobalPrefs that SwitchMachine calls.
-    static constexpr UINT_PTR            kPrefsSaveTimerId  = 0xCA55;
-    static constexpr UINT                kPrefsSaveDelayMs  = 750;
-    std::atomic<bool>                    m_globalPrefsDirty = false;
-
-    // The Settings dialog, shown modeless so the emulator keeps running behind
-    // it (FR-041). Heap-owned + null when closed; OpenSettings creates it and
-    // the close callback flags m_settingsSheetClosePending so RunMessageLoop
-    // destroys it at a safe point (not from inside its own EndDialog handler).
-    std::unique_ptr<SettingsSheet>       m_settingsSheet;
-    bool                                 m_settingsSheetClosePending = false;
-
     // Set true once OleInitialize has succeeded on the UI thread so
     // shutdown can pair the call with OleUninitialize. RegisterDragDrop
     // requires OLE (STA) on the registering thread.
@@ -2046,7 +1968,7 @@ private:
     // ClipboardManager holds references back to the shared CPU/UI
     // state it operates on plus a pointer-to-pointer for the active
     // keyboard so machine switches do not require re-wiring.
-    WindowManager                             m_windowManager { m_globalPrefs, [this] { SaveGlobalPrefs(); } };
+    std::unique_ptr<WindowManager>            m_windowManager;
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;

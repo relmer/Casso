@@ -3,6 +3,7 @@
 #include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -95,7 +96,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
 
 
 
-    LoadMachineUiPrefs (doc, uiPrefs);
+    m_settings->LoadMachineUiPrefs (doc, uiPrefs);
 
     // The input mapping and the //c pointer default are settled whether or
     // not this machine has a prefs block, so they come BEFORE the bail. A
@@ -467,12 +468,12 @@ void EmulatorShell::PersistSwitchState (const char * key, bool value)
 
 
 
-    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
+    if (m_settings->GetConfigStore() == nullptr || m_machine.GetCurrentMachineName().empty())
     {
         return;
     }
 
-    hr = DiskSettings::WriteSavedUiPrefBool (*m_userConfigStore, m_uiFs, key,
+    hr = DiskSettings::WriteSavedUiPrefBool (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), key,
                                              m_machine.GetCurrentMachineName(), value);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

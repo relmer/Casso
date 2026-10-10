@@ -3,6 +3,8 @@
 #include "MachineManager.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/TapeManager.h"
 #include "Shell/Components/ShellAudio.h"
@@ -240,12 +242,12 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
 
-    if (SUCCEEDED (hrParse) && m_shell.m_userConfigStore != nullptr)
+    if (SUCCEEDED (hrParse) && m_shell.m_settings->GetConfigStore() != nullptr)
     {
-        hrMerge = m_shell.m_userConfigStore->Load (machineNameNarrow,
-                                                   defaultJson,
-                                                   m_shell.m_uiFs,
-                                                   mergedJson);
+        hrMerge = m_shell.m_settings->GetConfigStore()->Load (machineNameNarrow,
+                                                              defaultJson,
+                                                              m_shell.m_settings->GetFileSystem(),
+                                                              mergedJson);
 
         if (SUCCEEDED (hrMerge))
         {
@@ -516,10 +518,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // Record the new active machine in GlobalUserPrefs so the next
     // launch boots it by default. SaveGlobalPrefs flushes the change
     // to UserPrefs.json on disk.
-    if (m_shell.m_globalPrefs.lastSelectedMachine != machineNameNarrow)
+    if (m_shell.m_settings->GetPrefs().lastSelectedMachine != machineNameNarrow)
     {
-        m_shell.m_globalPrefs.lastSelectedMachine = machineNameNarrow;
-        m_shell.SaveGlobalPrefs();
+        m_shell.m_settings->GetPrefs().lastSelectedMachine = machineNameNarrow;
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 
     // Same cold-power-on sequence as Initialize() -- seed DRAM and

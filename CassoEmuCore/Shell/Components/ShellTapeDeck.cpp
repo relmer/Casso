@@ -10,6 +10,7 @@
 #include "Ui/Dialogs/TapePositionDialog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
 
 
@@ -677,8 +678,8 @@ void ShellTapeDeck::CreateBlankTape()
 
     // New tapes and new disks share the create folder.
     folderUtf8 = picked.parent_path().u8string();
-    m_shell.m_globalPrefs.lastDiskCreateFolder.assign (folderUtf8.begin(), folderUtf8.end());
-    m_shell.SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().lastDiskCreateFolder.assign (folderUtf8.begin(), folderUtf8.end());
+    m_shell.m_settings->SaveGlobalPrefs();
 
     m_tapeManager->CreateBlank (picked.string());
     m_shell.m_disks->RecordRecentDisk (picked.wstring(), S_OK);

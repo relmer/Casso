@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellDisks.h"
@@ -139,7 +141,7 @@ void EmulatorShell::SaveStorageDevices()
 
 
 
-    BAIL_OUT_IF (m_userConfigStore == nullptr || configPath.empty(), S_OK);
+    BAIL_OUT_IF (m_settings->GetConfigStore() == nullptr || configPath.empty(), S_OK);
 
     configFile.open (configPath);
     BAIL_OUT_IF (!configFile.good(), S_OK);
@@ -149,7 +151,7 @@ void EmulatorShell::SaveStorageDevices()
     hr = JsonParser::Parse (ss.str(), defaultJson, parseErr);
     CHRA (hr);
 
-    hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, mergedJson);
+    hr = m_settings->GetConfigStore()->Load (machineNameNarrow, defaultJson, m_settings->GetFileSystem(), mergedJson);
     CHR (hr);
 
     hr = state.LoadFromMachine (machineNameNarrow, defaultJson, mergedJson);
@@ -164,7 +166,7 @@ void EmulatorShell::SaveStorageDevices()
 
     savedJson = state.BuildCurrentJson();
 
-    hr = m_userConfigStore->SaveDelta (machineNameNarrow, savedJson, defaultJson, m_uiFs);
+    hr = m_settings->GetConfigStore()->SaveDelta (machineNameNarrow, savedJson, defaultJson, m_settings->GetFileSystem());
     CHR (hr);
 
 Error:

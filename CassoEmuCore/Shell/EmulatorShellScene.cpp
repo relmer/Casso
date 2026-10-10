@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Config/UserConfigStore.h"
+#include "Ui/ThemeManager.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -83,8 +86,8 @@
 void EmulatorShell::ApplySavedBezelTilt()
 {
     const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
-    auto                 found   = m_globalPrefs.monitorTilt.find (std::string (monitor.configName));
-    float                radians = (found != m_globalPrefs.monitorTilt.end()) ? found->second : 0.0f;
+    auto                 found   = m_settings->GetPrefs().monitorTilt.find (std::string (monitor.configName));
+    float                radians = (found != m_settings->GetPrefs().monitorTilt.end()) ? found->second : 0.0f;
 
 
 
@@ -115,16 +118,16 @@ void EmulatorShell::PersistBezelTilt()
     // it back.
     if (radians == 0.0f)
     {
-        m_globalPrefs.monitorTilt.erase (std::string (monitor.configName));
+        m_settings->GetPrefs().monitorTilt.erase (std::string (monitor.configName));
     }
     else
     {
-        m_globalPrefs.monitorTilt[std::string (monitor.configName)] = radians;
+        m_settings->GetPrefs().monitorTilt[std::string (monitor.configName)] = radians;
     }
 
-    if (m_userConfigStore != nullptr)
+    if (m_settings->GetConfigStore() != nullptr)
     {
-        HRESULT  hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+        HRESULT  hr = m_settings->GetConfigStore()->SaveAll (m_settings->GetPrefs(), m_settings->GetFileSystem());
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -224,7 +227,7 @@ HRESULT EmulatorShell::InitializeDeskScene()
         const JsonValue  * uiPrefs = nullptr;
         HRESULT            hrOpt   = S_OK;
 
-        LoadMachineUiPrefs (doc, uiPrefs);
+        m_settings->LoadMachineUiPrefs (doc, uiPrefs);
 
         if (uiPrefs != nullptr)
         {
@@ -329,15 +332,15 @@ Error:
 
 void EmulatorShell::FallBackFromDeskScene()
 {
-    std::string  themeName = m_globalPrefs.activeTheme;
+    std::string  themeName = m_settings->GetPrefs().activeTheme;
 
 
 
     m_deskSceneFailed = true;
 
-    if (m_themeManager != nullptr)
+    if (m_settings->GetThemeManager() != nullptr)
     {
-        themeName = m_themeManager->GetActiveThemeName();
+        themeName = m_settings->GetThemeManager()->GetActiveThemeName();
     }
 
     ApplyChromeThemeByName (themeName);
@@ -744,14 +747,14 @@ void EmulatorShell::PersistTapeVolume()
 
 
 
-    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
+    if (m_settings->GetConfigStore() == nullptr || m_machine.GetCurrentMachineName().empty())
     {
         return;
     }
 
     entries.emplace_back ("tapeVolume", JsonValue ((double) m_audio->GetTapeSource().GetVolume()));
 
-    hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(), entries);
+    hr = DiskSettings::WriteSavedUiPrefs (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), m_machine.GetCurrentMachineName(), entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1028,7 +1031,7 @@ void EmulatorShell::SyncSceneViewReadout()
 
 
 
-    if (!m_globalPrefs.showSceneView || m_host == nullptr || !posed || !DeskSceneActive())
+    if (!m_settings->GetPrefs().showSceneView || m_host == nullptr || !posed || !DeskSceneActive())
     {
         m_sceneViewReadout.SetVisible (false);
         return;
@@ -2874,19 +2877,19 @@ void EmulatorShell::SetSceneAntiAliasing (int samples)
 
 
 
-    BAIL_OUT_IF (m_globalPrefs.sceneAntiAliasing == wanted, S_OK);
+    BAIL_OUT_IF (m_settings->GetPrefs().sceneAntiAliasing == wanted, S_OK);
 
-    m_globalPrefs.sceneAntiAliasing = wanted;
+    m_settings->GetPrefs().sceneAntiAliasing = wanted;
 
     ApplySceneAntiAliasing();
 
-    if (m_userConfigStore != nullptr)
+    if (m_settings->GetConfigStore() != nullptr)
     {
-        hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+        hr = m_settings->GetConfigStore()->SaveAll (m_settings->GetPrefs(), m_settings->GetFileSystem());
     }
     else
     {
-        hr = m_globalPrefs.Save (m_machine.GetAssetBaseDir(), m_uiFs);
+        hr = m_settings->GetPrefs().Save (m_machine.GetAssetBaseDir(), m_settings->GetFileSystem());
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -2913,7 +2916,7 @@ Error:
 
 void EmulatorShell::ApplySceneAntiAliasing()
 {
-    m_deskScene.SetSampleCount ((UINT) m_globalPrefs.sceneAntiAliasing);
+    m_deskScene.SetSampleCount ((UINT) m_settings->GetPrefs().sceneAntiAliasing);
 }
 
 

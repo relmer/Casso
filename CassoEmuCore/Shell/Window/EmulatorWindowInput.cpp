@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
@@ -3525,11 +3526,11 @@ void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string p
 
 void EmulatorShell::StartNewControllerProfile (ControllerUnitKey unit)
 {
-    OpenSettings (false);
+    m_settings->OpenSettings (false);
 
-    if (m_settingsSheet != nullptr)
+    if (m_settings->GetSheet() != nullptr)
     {
-        m_settingsSheet->StartNewControllerProfile (unit);
+        m_settings->GetSheet()->StartNewControllerProfile (unit);
     }
 }
 

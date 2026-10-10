@@ -1,6 +1,10 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Config/UserConfigStore.h"
+#include "Ui/ThemeManager.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/WindowManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellAudio.h"
@@ -117,11 +121,13 @@ EmulatorShell::EmulatorShell()
 
     SetPrngSeed (seed);
 
-    m_updater  = std::make_unique<ShellUpdater> (*this);
-    m_audio    = std::make_unique<ShellAudio>();
-    m_tapeDeck = std::make_unique<ShellTapeDeck> (*this);
-    m_printer  = std::make_unique<ShellPrinter> (*this);
-    m_disks    = std::make_unique<ShellDisks> (*this);
+    m_settings      = std::make_unique<ShellSettings> (*this);
+    m_windowManager = std::make_unique<WindowManager> (m_settings->GetPrefs(), [this] { m_settings->SaveGlobalPrefs(); });
+    m_updater       = std::make_unique<ShellUpdater> (*this);
+    m_audio         = std::make_unique<ShellAudio>();
+    m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
+    m_printer       = std::make_unique<ShellPrinter> (*this);
+    m_disks         = std::make_unique<ShellDisks> (*this);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -242,7 +248,7 @@ EmulatorShell::~EmulatorShell()
 
     // Same idea for a preference change still inside its debounce window:
     // quitting right after a volume nudge would otherwise lose it.
-    FlushDeferredGlobalPrefs();
+    m_settings->FlushDeferredGlobalPrefs();
 
     // An update applied when Casso closes, now that the disks and the
     // preferences are written.
@@ -334,6 +340,42 @@ ShellPrinter & EmulatorShell::GetPrinter()
 ShellDisks & EmulatorShell::GetDisks()
 {
     return *m_disks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSettings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellSettings & EmulatorShell::GetSettings()
+{
+    return *m_settings;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CrtMonitorActive
+//
+//  The desk scene, and the monitor on top of it, which the user CAN turn off:
+//  the picture then sits on a flat rect at classic sizes with the 3D drive row
+//  still composed in the band below it. Everything keyed off the curved glass
+//  -- the glass-fill fullscreen, the inverse-projected pointer mapping, the
+//  Ctrl+0 solve -- follows this, not DeskSceneActive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::CrtMonitorActive() const
+{
+    return DeskSceneActive() && m_settings->GetPrefs().crtMonitor;
 }
 
 
@@ -724,14 +766,14 @@ void EmulatorShell::InitAssetPathsAndStores()
 
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
-    m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
+    m_settings->CreateConfigStore (assetBaseDir.wstring());
 
-    m_disks->Initialize (*m_userConfigStore, m_uiFs, m_imageWatchDisabled);
+    m_disks->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), m_imageWatchDisabled);
 
     m_audio->AttachTape (&m_machine.GetTapeDeck(),
                          [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
 
-    m_tapeDeck->Initialize (*m_userConfigStore, m_uiFs);
+    m_tapeDeck->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem());
 }
 
 
@@ -804,12 +846,12 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // and the -N family is CHRF with its action fixed to one EhmNotifyUser
     // call. EhmNotifyUser rather than a themed dialog: this runs before the
     // chrome theme or main window exist, and it auto-detects GUI vs console.
-    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, report);
+    hr = m_settings->GetConfigStore()->LoadAll (m_settings->GetPrefs(), m_settings->GetFileSystem(), report);
     CHRF (hr,
           message = UserConfigStore::ComposeLoadFailureMessage (
-                        m_machine.GetAssetBaseDir(), m_userConfigStore->GetUserPrefsFilePath(), report);
+                        m_machine.GetAssetBaseDir(), m_settings->GetConfigStore()->GetUserPrefsFilePath(), report);
           EhmNotifyUser (message.c_str());
-          m_globalPrefs = GlobalUserPrefs {});
+          m_settings->GetPrefs() = GlobalUserPrefs {});
 
     // A migration that carried forward what it could and left the rest is the
     // one degraded outcome that reports SUCCESS, so nothing else will mention
@@ -823,7 +865,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
     }
 
 Error:
-    ApplyChromeThemeByName (m_globalPrefs.activeTheme);
+    ApplyChromeThemeByName (m_settings->GetPrefs().activeTheme);
     return;
 }
 
@@ -891,7 +933,7 @@ HRESULT EmulatorShell::InitializeUiShell()
     CHR (hr);
 
     RestoreColorTextPref();
-    RecordActiveMachineSelection();
+    m_settings->RecordActiveMachineSelection();
 
     SubscribeAndActivateTheme();
 
@@ -967,8 +1009,9 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // no second LoadAll here. Discover scans the themes directory (an empty
     // or absent one returns S_OK -- the built-in themes still work), so only
     // a genuine enumeration failure propagates.
-    m_themeManager = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
-    hr             = m_themeManager->Discover();
+    m_settings->CreateThemeManager (themesDir.wstring());
+
+    hr = m_settings->GetThemeManager()->Discover();
     CHR (hr);
 
 Error:
@@ -1039,7 +1082,7 @@ void EmulatorShell::WireToolbarPickers()
 
             if (inRange)
             {
-                hrTheme = ApplyThemeLive (m_toolbarThemeIds[index]);
+                hrTheme = m_settings->ApplyThemeLive (m_toolbarThemeIds[index]);
                 IGNORE_RETURN_VALUE (hrTheme, S_OK);
             }
         },
@@ -1051,7 +1094,7 @@ void EmulatorShell::WireToolbarPickers()
             if (inRange)
             {
                 m_mainMenu.GetCommands().SetThemeIndex (index);
-                hrTheme = ApplyAndPersistTheme (m_toolbarThemeIds[index]);
+                hrTheme = m_settings->ApplyAndPersistTheme (m_toolbarThemeIds[index]);
                 IGNORE_RETURN_VALUE (hrTheme, S_OK);
             }
         });
@@ -1065,7 +1108,7 @@ void EmulatorShell::WireToolbarPickers()
         {
             m_mainMenu.GetCommands().SetMonitorColorIndex (index);
             SetColorModeLive              (index);
-            PersistColorModeForMachine    (index);
+            m_settings->PersistColorModeForMachine    (index);
         });
 }
 

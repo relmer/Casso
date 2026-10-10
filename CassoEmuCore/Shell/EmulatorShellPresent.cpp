@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Ui/ThemeManager.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -373,7 +375,7 @@ CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
     const ThemeCrtDefaults *  themeDefaults = nullptr;
     size_t                    mode          = (size_t) m_colorMode.load (std::memory_order_acquire);
     CrtOverrides              overrides;
-    auto                      found         = m_globalPrefs.crtOverrides.end();
+    auto                      found         = m_settings->GetPrefs().crtOverrides.end();
 
 
 
@@ -382,8 +384,8 @@ CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
         mode = 0;
     }
 
-    found = m_globalPrefs.crtOverrides.find (m_crtOverrideKeys[mode]);
-    if (found != m_globalPrefs.crtOverrides.end())
+    found = m_settings->GetPrefs().crtOverrides.find (m_crtOverrideKeys[mode]);
+    if (found != m_settings->GetPrefs().crtOverrides.end())
     {
         overrides = found->second;
     }
@@ -391,9 +393,9 @@ CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
     // Resolved defaults, never the base theme: the base drops the machine
     // variant overrides, which is what made the picture change brightness
     // depending on which caller set the parameters last.
-    if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
+    if (m_settings->GetThemeManager() != nullptr && m_settings->GetThemeManager()->GetActiveTheme() != nullptr)
     {
-        themeDefaults = &m_themeManager->ActiveCrtDefaults();
+        themeDefaults = &m_settings->GetThemeManager()->ActiveCrtDefaults();
     }
 
     return CrtResolver::Resolve (CrtPresets::GetPreset (mode), themeDefaults, overrides);
@@ -419,7 +421,7 @@ const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
     // The merged document, not the shipped one: a machine's monitor is
     // configuration like everything else in there, so a user copy that names a
     // different monitor is answered the same way the machine's own does.
-    LoadMachineUiPrefs (doc, uiPrefs);
+    m_settings->LoadMachineUiPrefs (doc, uiPrefs);
 
     return MonitorCatalog::ForMachineJson (doc);
 }
@@ -997,7 +999,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // sheet decoupled it, so between framebuffer changes (e.g. a cursor
     // blink) a CRT-param edit would otherwise wait for the next
     // NeedsPresent trigger and appear laggy.
-    if (m_settingsSheet != nullptr)
+    if (m_settings->GetSheet() != nullptr)
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1710,9 +1712,9 @@ void EmulatorShell::TakeScreenshot()
         inputs.defaultPicturesFolder = fs::path (picturesRaw);
     }
 
-    inputs.mode            = ScreenshotModeToken::Parse (m_globalPrefs.screenshotMode);
-    inputs.saveFile        = m_globalPrefs.screenshotSaveFile;
-    inputs.folder          = fs::path (m_globalPrefs.screenshotFolder);
+    inputs.mode            = ScreenshotModeToken::Parse (m_settings->GetPrefs().screenshotMode);
+    inputs.saveFile        = m_settings->GetPrefs().screenshotSaveFile;
+    inputs.folder          = fs::path (m_settings->GetPrefs().screenshotFolder);
     //  THE TWO RECTS ARE NOT THE SAME THING, and m_viewportBoundsPx is not
     //  either of them under a desk scene. That member is the DxuiViewport
     //  panel's bounds, which the scene layout puts on the GLASS -- measured,

@@ -6,6 +6,8 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/WindowManager.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
@@ -893,15 +895,15 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_FRAME_RATE:
         {
             // Persisted, so the choice outlives the session in either build.
-            m_shell.m_globalPrefs.showFrameRate = !m_shell.m_globalPrefs.showFrameRate;
-            m_shell.SaveGlobalPrefs();
+            m_shell.m_settings->GetPrefs().showFrameRate = !m_shell.m_settings->GetPrefs().showFrameRate;
+            m_shell.m_settings->SaveGlobalPrefs();
             break;
         }
 
         case IDM_VIEW_SCENE_VIEW:
         {
-            m_shell.m_globalPrefs.showSceneView = !m_shell.m_globalPrefs.showSceneView;
-            m_shell.SaveGlobalPrefs();
+            m_shell.m_settings->GetPrefs().showSceneView = !m_shell.m_settings->GetPrefs().showSceneView;
+            m_shell.m_settings->SaveGlobalPrefs();
             break;
         }
 
@@ -1003,7 +1005,7 @@ void WindowCommandManager::OnViewCommand (int id)
                     // only at the end of the OS drag loop or on a user maximize or
                     // restore, precisely so a programmatic SetWindowPos cannot
                     // stomp it. This one is the user's, so it has to say so.
-                    m_shell.m_windowManager.SaveWindowPlacement (m_shell.m_hwnd, false);
+                    m_shell.m_windowManager->SaveWindowPlacement (m_shell.m_hwnd, false);
                 }
             }
 
@@ -1012,13 +1014,13 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_SETTINGS:
         {
-            m_shell.OpenSettings();
+            m_shell.m_settings->OpenSettings();
             break;
         }
 
         case IDM_VIEW_CONTROLLER_SETTINGS:
         {
-            m_shell.OpenSettings (true);
+            m_shell.m_settings->OpenSettings (true);
             break;
         }
 
@@ -1153,7 +1155,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
         mountedDrives.push_back (mounted.drive);
     }
 
-    model.Bind (&m_shell.m_uiFs);
+    model.Bind (&m_shell.m_settings->GetFileSystem());
     model.SetExtensionFilter (L".woz");
     model.SetMountedPaths (std::move (mountedPaths), std::move (mountedDrives));
 
@@ -1250,7 +1252,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     // a failure here leaves no partial image behind.
     imageContent.assign (reinterpret_cast<const char *> (imageBytes.data()), imageBytes.size());
 
-    hr = m_shell.m_uiFs.WriteAllText (dialog.GetOutcome().targetPath, imageContent);
+    hr = m_shell.m_settings->GetFileSystem().WriteAllText (dialog.GetOutcome().targetPath, imageContent);
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                               (L"Could not write \"" + dialog.GetOutcome().targetPath + L"\".\n\n"
                                + FormatSystemError (hr)).c_str(),
@@ -1262,8 +1264,8 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
         std::u8string  u8folder = std::filesystem::path (dialog.GetOutcome().targetPath)
                                       .parent_path().u8string();
 
-        m_shell.m_globalPrefs.lastDiskCreateFolder.assign (u8folder.begin(), u8folder.end());
-        m_shell.SaveGlobalPrefs();
+        m_shell.m_settings->GetPrefs().lastDiskCreateFolder.assign (u8folder.begin(), u8folder.end());
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 
     hr = m_shell.m_disks->Mount (6, drive - 1, dialog.GetOutcome().targetPath);
@@ -1296,9 +1298,9 @@ std::wstring WindowCommandManager::GetDiskCreateFolder()
 
 
 
-    if (!m_shell.m_globalPrefs.lastDiskCreateFolder.empty())
+    if (!m_shell.m_settings->GetPrefs().lastDiskCreateFolder.empty())
     {
-        const std::string &  stored = m_shell.m_globalPrefs.lastDiskCreateFolder;
+        const std::string &  stored = m_shell.m_settings->GetPrefs().lastDiskCreateFolder;
         std::u8string        u8     (reinterpret_cast<const char8_t *> (stored.data()), stored.size());
         std::wstring         last   = std::filesystem::path (u8).wstring();
 
@@ -1343,8 +1345,8 @@ Error:
 
 void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<DiskMru::Entry> & entries)
 {
-    DiskMru                      mru      = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
-                                                               m_shell.m_globalPrefs.recentDiskLoadedAt);
+    DiskMru                      mru      = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
+                                                               m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
     std::vector<DiskMru::Entry>  existing = mru.Prune ([] (const std::filesystem::path & p)
                                                        {
                                                            return std::filesystem::exists (p)
@@ -1400,7 +1402,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
                                               anchorRectPx,
                                               entries,
                                               AssetBootstrap::GetDiskDirectory(),
-                                              m_shell.m_globalPrefs.activeTheme,
+                                              m_shell.m_settings->GetPrefs().activeTheme,
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
@@ -1466,7 +1468,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
                                               anchorRectPx,
                                               mruPruned,
                                               diskDir,
-                                              m_shell.m_globalPrefs.activeTheme,
+                                              m_shell.m_settings->GetPrefs().activeTheme,
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
@@ -1672,7 +1674,7 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     bool                      picked      = false;
     HRESULT                   hrPictures  = S_OK;
     std::error_code           ec;
-    const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
+    const GlobalUserPrefs &   prefs       = m_shell.m_settings->GetPrefs();
 
 
 
@@ -1753,7 +1755,7 @@ Error:
 HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage, PrintOutcome & outOutcome)
 {
     HRESULT                               hr       = S_OK;
-    const GlobalUserPrefs               & prefs    = m_shell.m_globalPrefs;
+    const GlobalUserPrefs               & prefs    = m_shell.m_settings->GetPrefs();
     vector<PrintPagination::PageRange>    pages    = PrintPagination::Paginate (raster);
     PRINTDLGW                             pd       = {};
     DOCINFOW                              di       = {};
@@ -1910,7 +1912,7 @@ Error:
 HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raster)
 {
     HRESULT                  hr       = S_OK;
-    const GlobalUserPrefs &  prefs    = m_shell.m_globalPrefs;
+    const GlobalUserPrefs &  prefs    = m_shell.m_settings->GetPrefs();
     PaperRenderer            renderer;
     PaperRenderer::Options   opt;
     RgbaImage                img;
@@ -2254,7 +2256,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         // (which prints with honest error reporting, just no preview pane). The
         // CASSO_CLASSIC_PRINT env var forces the classic path -- a support
         // hatch for the rare machine whose print stack misbehaves.
-        const GlobalUserPrefs &  prefs  = m_shell.m_globalPrefs;
+        const GlobalUserPrefs &  prefs  = m_shell.m_settings->GetPrefs();
         HRESULT                  hrShow = m_shell.m_printer->GetPrintDialog().ShowAsync (m_shell.m_hwnd, job->GetRaster(),
                                                                                          PrintDpiFromPrefs (prefs),
                                                                                          PrintDotStyleFromPrefs (prefs));

@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
@@ -331,11 +332,11 @@ HRESULT SettingsSheet::OpenModeless (
     });
     m_generalPage->SetOnAudioOfferToggled ([this] (bool checked)
     {
-        m_emuShell->SetAudioDownloadConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+        m_emuShell->GetSettings().SetAudioDownloadConsent (GeneralPageModel::MakeConsentFromChecked (checked));
     });
     m_generalPage->SetOnRomOfferToggled ([this] (bool checked)
     {
-        m_emuShell->SetRomRefreshConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+        m_emuShell->GetSettings().SetRomRefreshConsent (GeneralPageModel::MakeConsentFromChecked (checked));
     });
     m_generalPage->SetOnCheckNow ([this] ()
     {
@@ -345,10 +346,10 @@ HRESULT SettingsSheet::OpenModeless (
     {
         m_emuShell->GetUpdater().StopSkippingVersion();
     });
-    m_generalPage->SetFolderPath   (EmulatorShell::GetSettingsFolder());
+    m_generalPage->SetFolderPath   (ShellSettings::GetSettingsFolder());
     m_generalPage->SetOnOpenFolder ([this] ()
     {
-        m_emuShell->OpenSettingsFolder();
+        m_emuShell->GetSettings().OpenSettingsFolder();
     });
 
     // Scene antialiasing rides the same live-and-persist channel: the cost is
@@ -704,7 +705,7 @@ void SettingsSheet::ShowControllersPage()
 
 void SettingsSheet::RefreshUpdateStatus()
 {
-    const GlobalUserPrefs  & prefs = m_emuShell->m_globalPrefs;
+    const GlobalUserPrefs  & prefs = m_emuShell->GetSettings().GetPrefs();
     std::wstring             skipped;
 
 

@@ -2,6 +2,8 @@
 
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShell.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Ui/Dialogs/UpdateDialog.h"
 #include "Update/UpdateDialogModel.h"
@@ -194,8 +196,8 @@ UpdateService * ShellUpdater::GetUpdateService()
 
 void ShellUpdater::SetAutoUpdateCheck (bool enabled)
 {
-    m_shell.m_globalPrefs.autoUpdateCheck = enabled;
-    m_shell.SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().autoUpdateCheck = enabled;
+    m_shell.m_settings->SaveGlobalPrefs();
 }
 
 
@@ -217,12 +219,12 @@ void ShellUpdater::StopSkippingVersion()
 
 
 
-    m_shell.m_globalPrefs.skippedVersion.clear();
-    m_shell.SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().skippedVersion.clear();
+    m_shell.m_settings->SaveGlobalPrefs();
 
     isShown = m_isUpdatePending ||
-              (m_shell.m_globalPrefs.autoUpdateCheck &&
-               UpdateSchedule::ShouldShowIndicator (GetRunningVersion(), m_shell.m_globalPrefs.latestKnownVersion, m_shell.m_globalPrefs.skippedVersion));
+              (m_shell.m_settings->GetPrefs().autoUpdateCheck &&
+               UpdateSchedule::ShouldShowIndicator (GetRunningVersion(), m_shell.m_settings->GetPrefs().latestKnownVersion, m_shell.m_settings->GetPrefs().skippedVersion));
 
     if (m_updateCheckStarted)
     {
@@ -246,9 +248,9 @@ void ShellUpdater::StopSkippingVersion()
 
 void ShellUpdater::RefreshSettingsUpdateStatus()
 {
-    if (m_shell.m_settingsSheet != nullptr)
+    if (m_shell.m_settings->GetSheet() != nullptr)
     {
-        m_shell.m_settingsSheet->RefreshUpdateStatus();
+        m_shell.m_settings->GetSheet()->RefreshUpdateStatus();
     }
 }
 
@@ -306,30 +308,30 @@ void ShellUpdater::StartAutomaticUpdateCheck()
     }
 
     isDue = UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic,
-                                        m_shell.m_globalPrefs.autoUpdateCheck,
-                                        m_shell.m_globalPrefs.lastUpdateCheckUtc,
+                                        m_shell.m_settings->GetPrefs().autoUpdateCheck,
+                                        m_shell.m_settings->GetPrefs().lastUpdateCheckUtc,
                                         UpdateRuntime::GetUtcNow(),
                                         m_updateRuntime->IsUsingLocalFeed());
 
     if (isDue)
     {
-        m_launchCheckUtc = m_shell.m_globalPrefs.lastUpdateCheckUtc;
+        m_launchCheckUtc = m_shell.m_settings->GetPrefs().lastUpdateCheckUtc;
 
-        hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_shell.m_globalPrefs.skippedVersion);
+        hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_shell.m_settings->GetPrefs().skippedVersion);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         OutputDebugStringW (std::format (L"Casso: update check started (automatic, hr=0x{:08X})\n", (unsigned) hr).c_str());
     }
     else
     {
-        isShown = m_shell.m_globalPrefs.autoUpdateCheck &&
-                  UpdateSchedule::ShouldShowIndicator (running, m_shell.m_globalPrefs.latestKnownVersion, m_shell.m_globalPrefs.skippedVersion);
+        isShown = m_shell.m_settings->GetPrefs().autoUpdateCheck &&
+                  UpdateSchedule::ShouldShowIndicator (running, m_shell.m_settings->GetPrefs().latestKnownVersion, m_shell.m_settings->GetPrefs().skippedVersion);
         ShowUpdateIndicator (isShown);
 
         OutputDebugStringW (std::format (L"Casso: update check not due (auto={}, last={}); latest known '{}', skipped '{}': indicator {}\n",
-                                         m_shell.m_globalPrefs.autoUpdateCheck, m_shell.m_globalPrefs.lastUpdateCheckUtc,
-                                         TextEncoding::Utf8ToWide (m_shell.m_globalPrefs.latestKnownVersion),
-                                         TextEncoding::Utf8ToWide (m_shell.m_globalPrefs.skippedVersion),
+                                         m_shell.m_settings->GetPrefs().autoUpdateCheck, m_shell.m_settings->GetPrefs().lastUpdateCheckUtc,
+                                         TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().latestKnownVersion),
+                                         TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().skippedVersion),
                                          isShown ? L"shown" : L"hidden").c_str());
     }
 
@@ -362,7 +364,7 @@ void ShellUpdater::CheckForUpdatesNow()
 
     m_isManualCheckPending = true;
 
-    hr = service->StartCheck (UpdateCheckTrigger::Manual, GetRunningVersion(), m_shell.m_globalPrefs.skippedVersion);
+    hr = service->StartCheck (UpdateCheckTrigger::Manual, GetRunningVersion(), m_shell.m_settings->GetPrefs().skippedVersion);
 
     if (hr == E_PENDING)
     {
@@ -482,9 +484,9 @@ void ShellUpdater::HandleUpdateCheckResult (UpdateResult & result)
         return;
     }
 
-    m_shell.m_globalPrefs.lastUpdateCheckUtc = result.checkedAtUtc;
-    m_shell.m_globalPrefs.latestKnownVersion = result.release.version.ToString();
-    m_shell.SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().lastUpdateCheckUtc = result.checkedAtUtc;
+    m_shell.m_settings->GetPrefs().latestKnownVersion = result.release.version.ToString();
+    m_shell.m_settings->SaveGlobalPrefs();
     RefreshSettingsUpdateStatus();
 
     m_updateRelease     = result.release;
@@ -559,7 +561,7 @@ void ShellUpdater::PollSharedCheckRecord()
     HRESULT             hr       = S_OK;
     GlobalUserPrefs     stored;
     SharedCheckOutcome  outcome  = SharedCheckOutcome::Wait;
-    bool                hasStore = m_shell.m_userConfigStore != nullptr;
+    bool                hasStore = m_shell.m_settings->GetConfigStore() != nullptr;
 
 
 
@@ -567,27 +569,27 @@ void ShellUpdater::PollSharedCheckRecord()
 
     CBRA (hasStore);
 
-    hr = m_shell.m_userConfigStore->ReadGlobalPrefs (m_shell.m_uiFs, stored);
+    hr = m_shell.m_settings->GetConfigStore()->ReadGlobalPrefs (m_shell.m_settings->GetFileSystem(), stored);
     CHR (hr);
 
     outcome = UpdateSchedule::DecideSharedCheck (m_launchCheckUtc,
                                                  stored.lastUpdateCheckUtc,
-                                                 m_shell.m_globalPrefs.autoUpdateCheck,
+                                                 m_shell.m_settings->GetPrefs().autoUpdateCheck,
                                                  GetRunningVersion(),
                                                  stored.latestKnownVersion,
                                                  stored.skippedVersion,
                                                  m_sharedCheckPolls >= UpdateSchedule::kSharedCheckPollLimit);
     BAIL_OUT_IF (outcome == SharedCheckOutcome::Wait, S_OK);
 
-    m_shell.m_globalPrefs.lastUpdateCheckUtc = stored.lastUpdateCheckUtc;
-    m_shell.m_globalPrefs.latestKnownVersion = stored.latestKnownVersion;
-    m_shell.m_globalPrefs.skippedVersion     = stored.skippedVersion;
+    m_shell.m_settings->GetPrefs().lastUpdateCheckUtc = stored.lastUpdateCheckUtc;
+    m_shell.m_settings->GetPrefs().latestKnownVersion = stored.latestKnownVersion;
+    m_shell.m_settings->GetPrefs().skippedVersion     = stored.skippedVersion;
 
     ShowUpdateIndicator (outcome == SharedCheckOutcome::Show);
     RefreshSettingsUpdateStatus();
 
     OutputDebugStringW (std::format (L"Casso: adopted another Casso's update check record; latest known '{}': indicator {}\n",
-                                     TextEncoding::Utf8ToWide (m_shell.m_globalPrefs.latestKnownVersion),
+                                     TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().latestKnownVersion),
                                      outcome == SharedCheckOutcome::Show ? L"shown" : L"hidden").c_str());
 
 Error:
@@ -684,7 +686,7 @@ void ShellUpdater::HandleUpdateApplyResult (UpdateResult & result)
 
         hrFlush = m_shell.m_machine.GetDiskStore().FlushAllForShutdown();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
-        m_shell.FlushDeferredGlobalPrefs();
+        m_shell.m_settings->FlushDeferredGlobalPrefs();
 
         CBRA (service != nullptr);
 
@@ -735,7 +737,7 @@ Error:
 
 void ShellUpdater::ShowUpdateIndicator (bool isShown)
 {
-    std::string  version = m_shell.m_globalPrefs.latestKnownVersion;
+    std::string  version = m_shell.m_settings->GetPrefs().latestKnownVersion;
 
 
 
@@ -946,8 +948,8 @@ Error:
 
 void ShellUpdater::SkipOfferedRelease()
 {
-    m_shell.m_globalPrefs.skippedVersion = m_updateRelease.version.ToString();
-    m_shell.SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().skippedVersion = m_updateRelease.version.ToString();
+    m_shell.m_settings->SaveGlobalPrefs();
 
     ShowUpdateIndicator (false);
     RefreshSettingsUpdateStatus();
@@ -1335,9 +1337,9 @@ void ShellUpdater::HandlePendingUpdateAtLaunch()
 
 
 
-    pending.version = m_shell.m_globalPrefs.pendingUpdateVersion;
-    pending.kind    = m_shell.m_globalPrefs.pendingUpdateKind;
-    pending.failure = (UpdateFailure) m_shell.m_globalPrefs.pendingUpdateFailure;
+    pending.version = m_shell.m_settings->GetPrefs().pendingUpdateVersion;
+    pending.kind    = m_shell.m_settings->GetPrefs().pendingUpdateKind;
+    pending.failure = (UpdateFailure) m_shell.m_settings->GetPrefs().pendingUpdateFailure;
 
     action = PendingUpdateModel::DecideAtLaunch (pending, GetRunningVersion());
 
@@ -1400,10 +1402,10 @@ void ShellUpdater::SetUpdatePending (const UpdateResult & result)
     m_pendingPaths       = result.stagedPaths;
     m_pendingBundlePath  = result.bundlePath;
 
-    m_shell.m_globalPrefs.pendingUpdateVersion = m_updateRelease.version.ToString();
-    m_shell.m_globalPrefs.pendingUpdateKind    = isZip ? PendingUpdate::kpszZip : PendingUpdate::kpszMsix;
-    m_shell.m_globalPrefs.pendingUpdateFailure = 0;
-    m_shell.SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().pendingUpdateVersion = m_updateRelease.version.ToString();
+    m_shell.m_settings->GetPrefs().pendingUpdateKind    = isZip ? PendingUpdate::kpszZip : PendingUpdate::kpszMsix;
+    m_shell.m_settings->GetPrefs().pendingUpdateFailure = 0;
+    m_shell.m_settings->SaveGlobalPrefs();
 
     if (m_updateDialog != nullptr)
     {
@@ -1425,17 +1427,17 @@ void ShellUpdater::SetUpdatePending (const UpdateResult & result)
 
 void ShellUpdater::ClearPendingUpdatePrefs()
 {
-    bool  isSet = !m_shell.m_globalPrefs.pendingUpdateVersion.empty() || m_shell.m_globalPrefs.pendingUpdateFailure != 0;
+    bool  isSet = !m_shell.m_settings->GetPrefs().pendingUpdateVersion.empty() || m_shell.m_settings->GetPrefs().pendingUpdateFailure != 0;
 
 
 
-    m_shell.m_globalPrefs.pendingUpdateVersion.clear();
-    m_shell.m_globalPrefs.pendingUpdateKind.clear();
-    m_shell.m_globalPrefs.pendingUpdateFailure = 0;
+    m_shell.m_settings->GetPrefs().pendingUpdateVersion.clear();
+    m_shell.m_settings->GetPrefs().pendingUpdateKind.clear();
+    m_shell.m_settings->GetPrefs().pendingUpdateFailure = 0;
 
     if (isSet)
     {
-        m_shell.SaveGlobalPrefs();
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 }
 
@@ -1530,8 +1532,8 @@ Error:
         hr = ZipUpdateInstaller::DiscardStaged (fileSystem, m_pendingInstallDir);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        m_shell.m_globalPrefs.pendingUpdateFailure = (int) failure;
-        m_shell.SaveGlobalPrefs();
+        m_shell.m_settings->GetPrefs().pendingUpdateFailure = (int) failure;
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 
     m_isUpdatePending = false;

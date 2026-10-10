@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/WindowManager.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -429,7 +431,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH, m_startMaximized);
+    hadSavedPlacement = m_windowManager->TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH, m_startMaximized);
 
     // Clamp a restored placement to the work area as well: prefs written by
     // older builds could hold a full-monitor rect (a fullscreen transition
@@ -762,19 +764,19 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
-        m_globalPrefs.masterVolume = volume01;
-        m_globalPrefs.masterMuted  = muted;
+        m_settings->GetPrefs().masterVolume = volume01;
+        m_settings->GetPrefs().masterMuted  = muted;
         m_audio->GetOutput().SetMasterGain (muted ? 0.0f : volume01);
         m_mainMenu.GetCommands().SetMuted (muted);
 
         // Deferred, not immediate: the slider reports every intermediate
         // value, so a save here would rewrite the prefs file on each tick of
         // a drag.
-        SaveGlobalPrefsDeferred();
+        m_settings->SaveGlobalPrefsDeferred();
     });
-    m_volumeFlyout.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
-    m_mainMenu.GetCommands().SetMuted (m_globalPrefs.masterMuted);
-    m_audio->GetOutput().SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
+    m_volumeFlyout.SetVolume (m_settings->GetPrefs().masterVolume, m_settings->GetPrefs().masterMuted);
+    m_mainMenu.GetCommands().SetMuted (m_settings->GetPrefs().masterMuted);
+    m_audio->GetOutput().SetMasterGain (m_settings->GetPrefs().masterMuted ? 0.0f : m_settings->GetPrefs().masterVolume);
 
     // The theme + monitor-color pickers, and the catalog behind the first of
     // them. Both option lists render through the host popup pool for the same
@@ -788,8 +790,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
-            case IDM_VIEW_FRAME_RATE:         return m_globalPrefs.showFrameRate;
-            case IDM_VIEW_SCENE_VIEW:         return m_globalPrefs.showSceneView;
+            case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
+            case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
 
             default:                          return false;
         }
@@ -1294,7 +1296,7 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 
 void EmulatorShell::OnExitSizeMove()
 {
-    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    m_windowManager->SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
 }
 
 
@@ -1475,11 +1477,8 @@ int EmulatorShell::RunMessageLoop()
         // Destroy a closed modeless settings sheet at a safe point: its
         // EndDialog callback ran deep inside DispatchMessage, so deferring the
         // reset here avoids tearing the window down from its own message handler.
-        if (m_settingsSheetClosePending)
+        if (m_settings->TryDestroyClosedSheet())
         {
-            m_settingsSheet.reset();
-            m_settingsSheetClosePending = false;
-
             // The sheet may have created, renamed or deleted profiles, and
             // the command bar's profile list is built from them.
             SyncPaddleSourceList();
@@ -1513,7 +1512,7 @@ int EmulatorShell::RunMessageLoop()
             // heap-allocated copy of the text, handed over by ShowNotification.
             // Modeless Settings: let the sheet claim its dialog-navigation keys
             // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
-            if (m_settingsSheet != nullptr && m_settingsSheet->ProcessDialogMessage (msg))
+            if (m_settings->GetSheet() != nullptr && m_settings->GetSheet()->ProcessDialogMessage (msg))
             {
                 continue;
             }
@@ -1521,8 +1520,8 @@ int EmulatorShell::RunMessageLoop()
             // Suppress the emulator's accelerators while the settings sheet is
             // the active window, so keystrokes meant for it (the color-picker
             // hex field, Ctrl chords) never leak into emulator menu commands.
-            bool  settingsActive = (m_settingsSheet != nullptr &&
-                                    m_settingsSheet->GetHwnd() == GetActiveWindow());
+            bool  settingsActive = (m_settings->GetSheet() != nullptr &&
+                                    m_settings->GetSheet()->GetHwnd() == GetActiveWindow());
 
             if (settingsActive ||
                 m_accelTable == nullptr ||
@@ -2150,7 +2149,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     if (m_userStateChange)
     {
         m_userStateChange = false;
-        m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+        m_windowManager->SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     }
 
     m_inChromeLayout = false;
@@ -2209,18 +2208,18 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId != kPrefsSaveTimerId)
+    if (timerId != ShellSettings::kPrefsSaveTimerId)
     {
         return DxuiMessageResult::NotHandled;
     }
 
     if (m_hwnd != nullptr && m_host != nullptr)
     {
-        hr = m_host->KillTimer (kPrefsSaveTimerId);
+        hr = m_host->KillTimer (ShellSettings::kPrefsSaveTimerId);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    FlushDeferredGlobalPrefs();
+    m_settings->FlushDeferredGlobalPrefs();
 
     return DxuiMessageResult::Handled;
 }

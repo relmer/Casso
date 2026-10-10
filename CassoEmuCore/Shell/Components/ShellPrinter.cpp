@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -377,8 +378,8 @@ void ShellPrinter::UpdatePrinterPreview()
     // prefs each frame so an OK / Cancel in Settings binds on the next update
     // without any live-apply plumbing; the shared "Drive audio" master still
     // gates the whole bus above this.
-    m_shell.m_audio->GetPrinterAudio().SetVolume (m_shell.m_globalPrefs.printerAudioVolume);
-    m_shell.m_audio->GetPrinterAudio().SetMuted  (!m_shell.m_globalPrefs.printerAudioEnabled);
+    m_shell.m_audio->GetPrinterAudio().SetVolume (m_shell.m_settings->GetPrefs().printerAudioVolume);
+    m_shell.m_audio->GetPrinterAudio().SetMuted  (!m_shell.m_settings->GetPrefs().printerAudioEnabled);
 
     // Position the printer sound in the stereo field. Manual override (Settings >
     // Printing) pins a fixed pan; otherwise it auto-follows where the preview
@@ -390,9 +391,9 @@ void ShellPrinter::UpdatePrinterPreview()
         float  panL = 0.0f;
         float  panR = 0.0f;
 
-        if (m_shell.m_globalPrefs.printerAudioPanOverride)
+        if (m_shell.m_settings->GetPrefs().printerAudioPanOverride)
         {
-            pan = std::clamp (m_shell.m_globalPrefs.printerAudioPan, -1.0f, 1.0f);
+            pan = std::clamp (m_shell.m_settings->GetPrefs().printerAudioPan, -1.0f, 1.0f);
         }
         else
         {

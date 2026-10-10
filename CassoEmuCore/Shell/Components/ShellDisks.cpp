@@ -4,6 +4,7 @@
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -311,13 +312,13 @@ void ShellDisks::RecordRecentDisk (const std::wstring & path, HRESULT mountResul
                   std::chrono::system_clock::now().time_since_epoch()).count();
 
     fsPath = std::filesystem::path (path);
-    mru    = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks, m_shell.m_globalPrefs.recentDiskLoadedAt);
+    mru    = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks, m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
     mru.RecordMountResult (mountResult, fsPath, nowUnix);
     mru.ToUtf8 (serialized, loadedAt);
-    m_shell.m_globalPrefs.recentDisks        = std::move (serialized);
-    m_shell.m_globalPrefs.recentDiskLoadedAt = std::move (loadedAt);
+    m_shell.m_settings->GetPrefs().recentDisks        = std::move (serialized);
+    m_shell.m_settings->GetPrefs().recentDiskLoadedAt = std::move (loadedAt);
 
-    m_shell.SaveGlobalPrefs();
+    m_shell.m_settings->SaveGlobalPrefs();
 
 Error:
     return;
