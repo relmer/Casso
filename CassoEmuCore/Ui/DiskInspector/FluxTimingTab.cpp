@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Core/UnicodeSymbols.h"
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -796,4 +797,42 @@ int FluxTimingTab::HitBin (POINT pointPx) const
     }
 
     return bin;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxTimingTab::GetHistogramText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FluxTimingTab::GetHistogramText() const
+{
+    const TrackAnalysis *         track        = m_context.GetTrack();
+    bool                          hasSelection = false;
+    FluxHistogram                 histogram;
+    vector<vector<std::wstring>>  rows;
+    int                           b            = 0;
+
+
+
+    if (track != nullptr && track->framed.isFlux)
+    {
+        Update (*track);
+        histogram = GetHistogram (*track, hasSelection);
+    }
+
+    for (b = 0; b < FluxHistogram::kBinCount; b++)
+    {
+        if (histogram.counts[b] > 0)
+        {
+            rows.push_back ({ std::format (L"{:.3f}", b * FluxHistogram::kBinMicroseconds), std::format (L"{:.3f}", (b + 1) * FluxHistogram::kBinMicroseconds),
+                              std::to_wstring (histogram.counts[b]) });
+        }
+    }
+
+    return rows.empty() ? std::wstring() : InspectorClipboard::FormatTable ({ std::format (L"From ({}s)", s_kpszMicro), std::format (L"To ({}s)", s_kpszMicro), L"Transitions" }, rows);
 }

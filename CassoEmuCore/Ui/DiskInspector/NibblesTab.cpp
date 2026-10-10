@@ -9,6 +9,7 @@
 
 
 
+static constexpr uint32_t  s_kRangeAlpha = 0x60000000u;
 static constexpr int    s_kWheelRows   = 3;
 static constexpr float  s_kSelectDip   = 2.0f;
 static constexpr Byte   s_kSyncValue   = 0xFF;
@@ -77,6 +78,11 @@ void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                 if (IsInSelection (*track, n))
                 {
                     painter.FillRect (x, y, cellW, rowH, theme.SelectionBackground());
+                }
+
+                if (IsInRange (n))
+                {
+                    painter.FillRect (x, y, cellW, rowH, (theme.Accent() & 0x00FFFFFFu) | s_kRangeAlpha);
                 }
 
                 painter.FillRect (x + 1, y + rowH - m_scaler.ToPxf (3.0f), cellW - 2, m_scaler.ToPxf (2.0f), color);
@@ -154,9 +160,14 @@ bool NibblesTab::OnMouse (const DxuiMouseEvent & ev)
         }
         else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
         {
-            nibble = HitTest (ev.positionDip);
+            nibble       = HitTest (ev.positionDip);
+            m_isDragging = nibble >= 0;
 
-            if (nibble >= 0)
+            if (nibble >= 0 && ev.shift && m_context.model->GetNibbleCount() > 0)
+            {
+                m_context.model->ExtendNibbles (nibble);
+            }
+            else if (nibble >= 0)
             {
                 m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), nibble, 1);
                 NotifySelection();
@@ -166,8 +177,21 @@ bool NibblesTab::OnMouse (const DxuiMouseEvent & ev)
         }
         else if (ev.kind == DxuiMouseEventKind::Move)
         {
+            nibble = m_isDragging ? HitTest (ev.positionDip) : -1;
+
+            if (nibble >= 0)
+            {
+                m_context.model->ExtendNibbles (nibble);
+            }
+
             isHandled = true;
         }
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up && m_isDragging)
+    {
+        m_isDragging = false;
+        isHandled    = true;
     }
 
     return isHandled;
@@ -347,4 +371,25 @@ bool NibblesTab::IsOutsideTable (const TrackAnalysis & track, int nibble)
     }
 
     return isOutside;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblesTab::IsInRange
+//
+//  Whether a nibble is in the selected run of nibbles (FR-043).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool NibblesTab::IsInRange (int nibble) const
+{
+    int  first = m_context.model->GetFirstNibble();
+
+
+
+    return first >= 0 && nibble >= first && nibble < first + m_context.model->GetNibbleCount();
 }

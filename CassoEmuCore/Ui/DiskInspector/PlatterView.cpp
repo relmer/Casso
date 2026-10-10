@@ -22,6 +22,7 @@ static constexpr float  s_kTickMinDip       = 3.0f;
 static constexpr float  s_kTickShare        = 0.3f;
 static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr double s_kPanStep          = 0.1;
+static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 
 
 
@@ -213,6 +214,11 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                 continue;
             }
 
+            if (IsSelectedNibble (quarterTrack, static_cast<int> (i)))
+            {
+                ShadeArc (painter, view, a, b, rInner, rOuter, (theme.Accent() & 0x00FFFFFFu) | s_kSelectionAlpha);
+            }
+
             if (showValues && arc >= m_scaler.ToPxf (s_kValueMinDip))
             {
                 DrawRadial (painter, view, a, rInner, rOuter, 1.0f, theme.Background());
@@ -263,6 +269,53 @@ void PlatterView::DrawRadial (IDxuiPainter & painter, const PlatterPlacement & v
 
     painter.DrawLine (static_cast<float> (view.centerXPx + r0 * s), static_cast<float> (view.centerYPx - r0 * co),
                       static_cast<float> (view.centerXPx + r1 * s), static_cast<float> (view.centerYPx - r1 * co), thicknessPx, argb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::ShadeArc
+//
+//  A stretch of a ring filled between two turns; zoomed in this far the
+//  arc is near enough straight for a quadrilateral.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::ShadeArc (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb)
+{
+    double  angleA = (a + view.rotation) * s_kTwoPi;
+    double  angleB = (b + view.rotation) * s_kTwoPi;
+    float   cx     = view.centerXPx;
+    float   cy     = view.centerYPx;
+
+
+
+    painter.FillConvexQuad (static_cast<float> (cx + r0 * std::sin (angleA)), static_cast<float> (cy - r0 * std::cos (angleA)),
+                            static_cast<float> (cx + r1 * std::sin (angleA)), static_cast<float> (cy - r1 * std::cos (angleA)),
+                            static_cast<float> (cx + r1 * std::sin (angleB)), static_cast<float> (cy - r1 * std::cos (angleB)),
+                            static_cast<float> (cx + r0 * std::sin (angleB)), static_cast<float> (cy - r0 * std::cos (angleB)), argb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::IsSelectedNibble
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::IsSelectedNibble (int quarterTrack, int nibble) const
+{
+    int  first = m_context.model->GetFirstNibble();
+
+
+
+    return quarterTrack == m_context.model->GetQuarterTrack() && first >= 0 && nibble >= first && nibble < first + m_context.model->GetNibbleCount();
 }
 
 

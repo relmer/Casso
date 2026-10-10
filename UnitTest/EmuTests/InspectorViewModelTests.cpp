@@ -60,6 +60,61 @@ public:
 
 
 
+    TEST_METHOD (RangesExtendFromWhereTheyStartedInEitherDirection)
+    {
+        DiskAnalysis        analysis;
+        InspectorViewModel  model;
+
+
+
+        AnalyzeDsk (analysis);
+        model.SetDisk     (7);
+        model.SetAnalysis (&analysis);
+        model.SelectNibbles (0, 100, 1);
+        model.ExtendNibbles (110);
+
+        Assert::AreEqual (100, model.GetFirstNibble());
+        Assert::AreEqual (11,  model.GetNibbleCount());
+
+        model.ExtendNibbles (95);
+
+        Assert::AreEqual (95, model.GetFirstNibble(), L"back past the start, the range turns around it");
+        Assert::AreEqual (6,  model.GetNibbleCount());
+
+        model.SelectAllNibbles();
+
+        Assert::AreEqual (0, model.GetFirstNibble());
+        Assert::AreEqual (static_cast<int> (model.GetTrack()->framed.nibbles.size()), model.GetNibbleCount());
+    }
+
+
+
+    TEST_METHOD (BytesSelectWithinTheSectorAndClearWithANewSector)
+    {
+        DiskAnalysis        analysis;
+        InspectorViewModel  model;
+
+
+
+        AnalyzeDsk (analysis);
+        model.SetDisk     (7);
+        model.SetAnalysis (&analysis);
+        model.SelectSector (0, 2);
+        model.SelectBytes  (0x40, 1, true);
+        model.ExtendBytes  (0x3C);
+
+        Assert::AreEqual (0x3C, model.GetFirstByte());
+        Assert::AreEqual (5,    model.GetByteCount());
+        Assert::IsTrue   (model.IsTextColumn());
+
+        model.SelectAllBytes();
+        Assert::AreEqual (256, model.GetByteCount());
+
+        model.SelectSector (0, 3);
+        Assert::AreEqual (0, model.GetByteCount());
+    }
+
+
     TEST_METHOD (ClickingANibbleSelectsItsSector)
     {
         DiskAnalysis           analysis;

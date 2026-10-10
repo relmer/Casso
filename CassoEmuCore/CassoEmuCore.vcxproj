@@ -282,6 +282,7 @@
     <ClCompile Include="Devices\Disk\Inspector\DiskCopy.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FindingFormatter.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\ImageDetails.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\InspectorClipboard.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorFormat.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorSearch.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\StandardTrackDecoder.cpp" />
@@ -667,6 +668,7 @@
     <ClInclude Include="Devices\Disk\Inspector\FindingFormatter.h" />
     <ClInclude Include="Devices\Disk\Inspector\ITrackFormatDecoder.h" />
     <ClInclude Include="Devices\Disk\Inspector\ImageDetails.h" />
+    <ClInclude Include="Devices\Disk\Inspector\InspectorClipboard.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorFormat.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorSearch.h" />
     <ClInclude Include="Devices\Disk\Inspector\StandardTrackDecoder.h" />

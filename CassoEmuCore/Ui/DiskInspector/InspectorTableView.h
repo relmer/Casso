@@ -41,6 +41,9 @@ public:
 
     const vector<TableRow> &  GetRows () const { return m_rows; }
 
+    //  The selected row under the header, tab-separated, for Copy (FR-057).
+    std::wstring  GetSelectedText () const;
+
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
@@ -51,9 +54,10 @@ protected:
     virtual int   GetTopHeightPx () const;
     virtual void  PaintTop       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top);
 
-    DxuiListView      m_list;
-    vector<TableRow>  m_rows;
-    std::wstring      m_caption;
-    SelectFn          m_select;
-    bool              m_isSelecting = false;
+    DxuiListView          m_list;
+    vector<TableRow>      m_rows;
+    vector<std::wstring>  m_titles;
+    std::wstring          m_caption;
+    SelectFn              m_select;
+    bool                  m_isSelecting = false;
 };

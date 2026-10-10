@@ -15,6 +15,7 @@ static constexpr float  s_kByteDip         = 22.0f;
 static constexpr float  s_kTextGapDip      = 12.0f;
 static constexpr float  s_kCharDip         = 8.0f;
 static constexpr float  s_kHeaderGapDip    = 20.0f;
+static constexpr uint32_t  s_kSelectionAlpha = 0x50000000u;
 
 
 
@@ -34,6 +35,8 @@ void SectorByteView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     std::wstring            empty;
 
 
+
+    m_grid.isShown = false;
 
     if (m_context.hasDisk && m_context.analysis != nullptr)
     {
@@ -158,6 +161,9 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
         y += rowH * 1.25f;
     }
 
+    m_grid = { y, rowH, hexLeft, txtLeft, byteW, charW, true };
+    PaintSelection (painter, theme);
+
     for (i = 0; i < data.bytes.size(); i++)
     {
         row   = static_cast<int> (i) / kBytesPerRow;
@@ -177,4 +183,129 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
         text.DrawString (ch, txtLeft + col * charW, y + row * rowH, charW, rowH, color, textPx,
                          DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::PaintSelection
+//
+//  The selected bytes shaded in both columns, a run per row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorByteView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme)
+{
+    int       first = m_context.model->GetFirstByte();
+    int       end   = first + m_context.model->GetByteCount();
+    int       row   = 0;
+    int       a     = 0;
+    int       b     = 0;
+    float     y     = 0;
+    uint32_t  shade = (theme.Accent() & 0x00FFFFFFu) | s_kSelectionAlpha;
+
+
+
+    for (row = (first >= 0) ? first / kBytesPerRow : kBytesPerRow; row * kBytesPerRow < end; row++)
+    {
+        a = std::max (first, row * kBytesPerRow) % kBytesPerRow;
+        b = (std::min (end, (row + 1) * kBytesPerRow) - 1) % kBytesPerRow + 1;
+        y = m_grid.top + row * m_grid.rowH;
+
+        painter.FillRect (m_grid.hexLeft + a * m_grid.byteW, y, (b - a) * m_grid.byteW, m_grid.rowH, shade);
+        painter.FillRect (m_grid.textLeft + a * m_grid.charW, y, (b - a) * m_grid.charW, m_grid.rowH, shade);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::OnMouse
+//
+//  A press on a byte in either column selects it, Shift extends the
+//  selection to it, and a drag extends it as it goes (FR-043).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorByteView::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  isText    = false;
+    int   index     = HitTest (ev.positionDip, isText);
+    bool  isHandled = false;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && index >= 0)
+    {
+        if (ev.shift && m_context.model->GetByteCount() > 0)
+        {
+            m_context.model->ExtendBytes (index);
+        }
+        else
+        {
+            m_context.model->SelectBytes (index, 1, isText);
+        }
+
+        m_isDragging = true;
+        isHandled    = true;
+    }
+    else if (ev.kind == DxuiMouseEventKind::Move && m_isDragging)
+    {
+        if (index >= 0)
+        {
+            m_context.model->ExtendBytes (index);
+        }
+
+        isHandled = true;
+    }
+    else if (ev.kind == DxuiMouseEventKind::Up && m_isDragging)
+    {
+        m_isDragging = false;
+        isHandled    = true;
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::HitTest
+//
+//  The byte under a point and which column it is in, or -1. A drag past
+//  either column's edge takes the byte at that edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SectorByteView::HitTest (POINT pointPx, bool & outIsText) const
+{
+    int    index    = -1;
+    int    row      = 0;
+    int    col      = 0;
+    float  hexRight = m_grid.hexLeft + kBytesPerRow * m_grid.byteW;
+    float  txtRight = m_grid.textLeft + kBytesPerRow * m_grid.charW;
+
+
+
+    outIsText = pointPx.x >= m_grid.textLeft - (m_grid.textLeft - hexRight) / 2;
+
+    if (m_grid.isShown && pointPx.y >= m_grid.top && pointPx.y < m_grid.top + kBytesPerRow * m_grid.rowH && pointPx.x < txtRight + m_grid.charW &&
+        pointPx.x >= m_grid.hexLeft - m_grid.byteW)
+    {
+        row   = std::clamp (static_cast<int> ((pointPx.y - m_grid.top) / m_grid.rowH), 0, kBytesPerRow - 1);
+        col   = outIsText ? static_cast<int> ((pointPx.x - m_grid.textLeft) / m_grid.charW) : static_cast<int> ((pointPx.x - m_grid.hexLeft) / m_grid.byteW);
+        col   = std::clamp (col, 0, kBytesPerRow - 1);
+        index = row * kBytesPerRow + col;
+    }
+
+    return index;
 }

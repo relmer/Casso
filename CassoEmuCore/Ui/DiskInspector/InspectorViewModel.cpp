@@ -104,6 +104,8 @@ void InspectorViewModel::SelectQuarterTrack (int quarterTrack)
     m_quarterTrack = std::clamp (quarterTrack, 0, DiskImage::kQuarterTrackCount - 1);
     m_firstNibble  = -1;
     m_nibbleCount  = 0;
+    m_nibbleAnchor = -1;
+    ClearBytes();
 
     SelectFirstSector();
     BringSelectionIntoView();
@@ -128,6 +130,8 @@ void InspectorViewModel::SelectSector (int quarterTrack, int sectorIndex)
     m_quarterTrack = std::clamp (quarterTrack, 0, DiskImage::kQuarterTrackCount - 1);
     m_firstNibble  = -1;
     m_nibbleCount  = 0;
+    m_nibbleAnchor = -1;
+    ClearBytes();
     track          = GetTrack();
 
     if (track != nullptr && sectorIndex >= 0 && sectorIndex < static_cast<int> (track->sectors.size()))
@@ -173,8 +177,10 @@ void InspectorViewModel::SelectNibbles (int quarterTrack, int firstNibble, int n
     }
     else
     {
-        m_firstNibble = firstNibble;
-        m_nibbleCount = std::max (nibbleCount, 1);
+        m_firstNibble  = firstNibble;
+        m_nibbleCount  = std::max (nibbleCount, 1);
+        m_nibbleAnchor = firstNibble;
+        ClearBytes();
         m_anchorCell  = track->framed.nibbles[firstNibble].startCell;
         m_hasAnchor   = true;
         field         = (firstNibble < static_cast<int> (track->fieldOfNibble.size())) ? track->fieldOfNibble[firstNibble] : -1;
@@ -189,6 +195,131 @@ void InspectorViewModel::SelectNibbles (int quarterTrack, int firstNibble, int n
 
         BringSelectionIntoView();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::ExtendNibbles
+//
+//  From the nibble the range started on to the one given, in either
+//  direction, keeping where it started for the next extension.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::ExtendNibbles (int toNibble)
+{
+    int  anchor = (m_nibbleAnchor >= 0) ? m_nibbleAnchor : toNibble;
+
+
+
+    SelectNibbles (m_quarterTrack, std::min (anchor, toNibble), std::abs (toNibble - anchor) + 1);
+    m_nibbleAnchor = anchor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::SelectAllNibbles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::SelectAllNibbles()
+{
+    const TrackAnalysis *  track = GetTrack();
+
+
+
+    if (track != nullptr && !track->framed.nibbles.empty())
+    {
+        SelectNibbles (m_quarterTrack, 0, static_cast<int> (track->framed.nibbles.size()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::SelectBytes
+//
+//  Bytes of the selected sector's data, clamped to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::SelectBytes (int firstByte, int byteCount, bool isTextColumn)
+{
+    int  first = std::clamp (firstByte, 0, DiskFieldFormat::kSectorBytes - 1);
+
+
+
+    if (GetSector() != nullptr && GetSector()->dataField >= 0)
+    {
+        m_firstByte    = first;
+        m_byteCount    = std::clamp (byteCount, 1, DiskFieldFormat::kSectorBytes - first);
+        m_byteAnchor   = first;
+        m_isTextColumn = isTextColumn;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::ExtendBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::ExtendBytes (int toByte)
+{
+    int  to     = std::clamp (toByte, 0, DiskFieldFormat::kSectorBytes - 1);
+    int  anchor = (m_byteAnchor >= 0) ? m_byteAnchor : to;
+
+
+
+    SelectBytes (std::min (anchor, to), std::abs (to - anchor) + 1, m_isTextColumn);
+    m_byteAnchor = anchor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::SelectAllBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::SelectAllBytes()
+{
+    SelectBytes (0, DiskFieldFormat::kSectorBytes, m_isTextColumn);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::ClearBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::ClearBytes()
+{
+    m_firstByte  = -1;
+    m_byteCount  = 0;
+    m_byteAnchor = -1;
 }
 
 

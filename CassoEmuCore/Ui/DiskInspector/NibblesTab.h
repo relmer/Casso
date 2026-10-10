@@ -16,8 +16,9 @@
 //  nibbles sized to the pane, each under a hex offset, in its kind's color,
 //  with each sync nibble's width and any extra zero cells after a nibble in
 //  small figures beside it, invalid nibbles and random-bit regions marked,
-//  and the selected sector's nibbles highlighted. A click selects a nibble;
-//  a selection made elsewhere scrolls its row a third of the way down.
+//  and the selected sector's nibbles highlighted. A click selects a nibble,
+//  a drag or Shift and a click a range of them (FR-043); a selection made
+//  elsewhere scrolls its row a third of the way down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,12 +41,15 @@ public:
 
     static int  GetNibblesPerRow (float widthPx, float cellPx, float offsetPx);
 
-private:
     int   GetPerRow     () const;
+
+private:
     int   GetVisibleRows () const;
     int   HitTest       (POINT pointPx) const;
     bool  IsInSelection (const TrackAnalysis & track, int nibble) const;
+    bool  IsInRange     (int nibble) const;
     static bool  IsOutsideTable (const TrackAnalysis & track, int nibble);
 
-    int   m_firstRow = 0;
+    int   m_firstRow   = 0;
+    bool  m_isDragging = false;
 };

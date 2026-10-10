@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorTableView.h"
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
 
 
 
@@ -45,6 +46,8 @@ void InspectorTableView::SetColumns (const vector<std::wstring> & titles)
     vector<DxuiListView::Column>  columns;
 
 
+
+    m_titles = titles;
 
     for (const std::wstring & title : titles)
     {
@@ -259,4 +262,29 @@ void InspectorTableView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & t
     text.DrawString (m_caption.c_str(), static_cast<float> (top.left), static_cast<float> (top.top), static_cast<float> (top.right - top.left),
                      static_cast<float> (top.bottom - top.top), theme.ForegroundMuted(), m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace,
                      DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTableView::GetSelectedText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorTableView::GetSelectedText() const
+{
+    int                            row  = m_list.GetSelectedRow();
+    vector<vector<std::wstring>>   rows;
+
+
+
+    if (row >= 0 && row < static_cast<int> (m_rows.size()))
+    {
+        rows.push_back (m_rows[row].cells);
+    }
+
+    return rows.empty() ? std::wstring() : InspectorClipboard::FormatTable (m_titles, rows);
 }

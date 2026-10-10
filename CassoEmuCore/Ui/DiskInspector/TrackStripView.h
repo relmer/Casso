@@ -43,6 +43,7 @@ private:
     void           PaintTrack   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
     void           PaintCells      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom);
+    void           PaintSelection  (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
     void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
@@ -59,6 +60,7 @@ private:
     mutable vector<double>         m_cellTurns;
     bool                           m_isPressed   = false;
     bool                           m_isPanning   = false;
+    bool                           m_isSelecting = false;
     POINT                          m_pressAt     = {};
     POINT                          m_lastAt      = {};
     int64_t                        m_lastClickMs = 0;

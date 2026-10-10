@@ -628,3 +628,52 @@ std::wstring InspectorText::FormatStripReadout (double span, uint32_t firstCell,
     return std::format (L"{}{:.0f}", s_kpszMultiplyX, 1.0 / std::max (span, 1e-9)) + s_kSeparator
          + L"cells " + InspectorFormat::FormatCount (firstCell) + L"-" + InspectorFormat::FormatCount (lastCell);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatSelection
+//
+//  A run of nibbles' length in nibbles and cells, and on a flux track in
+//  time (FR-043).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatSelection (const TrackAnalysis & track, int firstNibble, int nibbleCount)
+{
+    const FramedTrack &  framed = track.framed;
+    size_t               n      = framed.nibbles.size();
+    uint32_t             count  = framed.cellCount;
+    uint32_t             start  = 0;
+    uint32_t             cells  = 0;
+    uint32_t             k      = 0;
+    double               ticks  = 0;
+    std::wstring         text;
+
+
+
+    if (n > 0 && count > 0 && firstNibble >= 0 && nibbleCount > 0)
+    {
+        start = framed.nibbles[static_cast<size_t> (firstNibble) % n].startCell % count;
+        cells = (framed.nibbles[static_cast<size_t> (firstNibble + nibbleCount) % n].startCell % count + count - start) % count;
+        cells = (cells == 0) ? count : cells;
+        text  = FormatCount (nibbleCount, L"nibble", L"nibbles") + s_kSeparator + FormatCount (static_cast<int> (cells), L"cell", L"cells");
+
+        if (framed.isFlux && framed.cellTicks.size() >= count)
+        {
+            for (k = 0; k < cells; k++)
+            {
+                ticks += framed.cellTicks[(start + k) % count];
+            }
+
+            text += s_kSeparator + InspectorFormat::FormatMicroseconds (ticks);
+        }
+
+        text += L" selected";
+    }
+
+    return text;
+}

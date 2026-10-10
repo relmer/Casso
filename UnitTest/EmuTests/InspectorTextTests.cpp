@@ -1,12 +1,12 @@
 #include "Pch.h"
 
-#include "Core/UnicodeSymbols.h"
-
 #include "../EhmTestHelper.h"
+#include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "InspectorTrackBuilder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -76,6 +76,22 @@ public:
         Assert::AreEqual (std::wstring (L"2 nonstandard tracks"), chips[1].text);
     }
 
+
+
+    TEST_METHOD (TheSelectionGivesItsLengthInNibblesAndCells)
+    {
+        InspectorTrackBuilder  builder;
+        TrackContext           context;
+        TrackAnalysis          track;
+
+
+
+        builder.AppendStandardTrack (DiskFieldKind::Sixteen, 254, 0, InspectorTrackBuilder::FillPattern);
+        TrackAnalyzer::Analyze (*builder.MakeBitCopy(), context, DecodeSettings::MakeStandard(), track);
+
+        Assert::AreEqual (std::wstring (L"3 nibbles") + L" " + s_kpszMiddleDot + L" 24 cells selected",
+                          InspectorText::FormatSelection (track, track.fields[track.sectors[0].addressField].firstNibble, 3), L"an address prologue");
+    }
 
 
     TEST_METHOD (TheStripReadoutGivesTheZoomAndTheCellsInView)

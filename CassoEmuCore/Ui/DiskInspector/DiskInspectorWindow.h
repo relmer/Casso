@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/InspectorSearch.h"
+#include "Seams/Win32Clipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
@@ -21,6 +22,24 @@ class FindingsTab;
 class InspectorTableView;
 class PlatterLegendView;
 class FluxTimingTab;
+
+
+
+
+
+//  Which view the keys act on: the one pressed last (FR-029, FR-034, FR-043).
+enum class KeyTarget
+{
+    Platter,
+    Strip,
+    SectorRow,
+    SectorData,
+    Nibbles,
+    Fields,
+    FluxTiming,
+    Tracks,
+    Findings,
+};
 
 
 
@@ -75,6 +94,11 @@ private:
     void  OnSelection      ();
     void  ShowTrackTab     (int tab);
     static bool  IsStripKey (WPARAM vk);
+    KeyTarget    GetKeyTarget (POINT pointPx) const;
+    void  SelectAll       ();
+    void  ExtendSelection (WPARAM vk);
+    void  Copy            ();
+    void  CopySector      ();
     void  OpenFind  ();
     void  OpenGoTo  ();
     void  StepFind  (int step);
@@ -127,7 +151,8 @@ private:
     DxuiButton *                             m_stripWhole     = nullptr;
     DxuiLabel *                              m_stripReadout   = nullptr;
     DxuiLabel *                              m_stripHint      = nullptr;
-    bool                                     m_isStripKeys    = false;
+    KeyTarget                                m_keyTarget      = KeyTarget::Platter;
+    Win32Clipboard                           m_clipboard;
     SearchQuery                              m_findQuery;
     vector<SearchHit>                        m_findHits;
     int                                      m_findIndex      = -1;

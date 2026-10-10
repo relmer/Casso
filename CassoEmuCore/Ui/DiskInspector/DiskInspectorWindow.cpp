@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/FindingsTab.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
 #include "Ui/DiskInspector/FindPanel.h"
 #include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Ui/DiskInspector/GoToDialog.h"
@@ -576,12 +577,9 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    //  The keys go to the strip after a press on it or its buttons, and to the
-    //  platter after a press anywhere else (FR-029, FR-034).
     if (ev.kind == DxuiMouseEventKind::Down)
     {
-        m_isStripKeys = IsInside (m_stripView->GetBounds(), p) || IsInside (m_stripOut->GetBounds(), p) || IsInside (m_stripIn->GetBounds(), p)
-                     || IsInside (m_stripWhole->GetBounds(), p);
+        m_keyTarget = GetKeyTarget (p);
     }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, p))
@@ -660,12 +658,19 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_RIGHT: m_model.PanBy ({ -s_kPanStep, 0.0 }); break;
                 case VK_UP:    m_model.PanBy ({ 0.0,  s_kPanStep }); break;
                 case VK_DOWN:  m_model.PanBy ({ 0.0, -s_kPanStep }); break;
+                case 'A':      SelectAll();                          break;
+                case 'C':      if (ev.shift) { CopySector(); } else { Copy(); } break;
                 case 'F':      OpenFind();                           break;
                 case 'G':      OpenGoTo();                           break;
                 default:       isHandled = false;                    break;
             }
         }
-        else if (m_isStripKeys && IsStripKey (ev.vk))
+        else if (ev.shift && (m_keyTarget == KeyTarget::Nibbles || m_keyTarget == KeyTarget::SectorData) &&
+                 (ev.vk == VK_LEFT || ev.vk == VK_RIGHT || ev.vk == VK_UP || ev.vk == VK_DOWN))
+        {
+            ExtendSelection (ev.vk);
+        }
+        else if (m_keyTarget == KeyTarget::Strip && IsStripKey (ev.vk))
         {
             switch (ev.vk)
             {
@@ -955,7 +960,8 @@ void DiskInspectorWindow::UpdateControls()
         m_stripWhole->SetVisible   (m_context.hasDisk);
         m_stripWhole->SetEnabled   (m_model.GetStripSpan() < 1.0);
         m_stripReadout->SetVisible (m_context.hasDisk);
-        m_stripReadout->SetText    (m_stripView->GetReadout());
+        m_stripReadout->SetText    (m_stripView->GetReadout() + ((m_model.GetTrack() != nullptr && m_model.GetNibbleCount() > 0)
+                                    ? L"    " + InspectorText::FormatSelection (*m_model.GetTrack(), m_model.GetFirstNibble(), m_model.GetNibbleCount()) : L""));
         m_stripHint->SetVisible    (m_context.hasDisk);
         m_alignmentCheck->SetVisible (m_context.hasDisk);
         m_modeTabs->SetVisible   (m_context.hasDisk);
@@ -1529,4 +1535,210 @@ void DiskInspectorWindow::SelectHit (const SearchHit & hit)
     }
 
     OnSelection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetKeyTarget
+//
+//  The view under a press, for the keys that act on the view pressed last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
+{
+    KeyTarget  target = KeyTarget::Platter;
+
+
+
+    if (IsInside (m_stripView->GetBounds(), pointPx) || IsInside (m_stripOut->GetBounds(), pointPx) || IsInside (m_stripIn->GetBounds(), pointPx) ||
+        IsInside (m_stripWhole->GetBounds(), pointPx))
+    {
+        target = KeyTarget::Strip;
+    }
+    else if (IsInside (m_sectorRow->GetBounds(), pointPx))
+    {
+        target = KeyTarget::SectorRow;
+    }
+    else if (m_byteView->IsVisible() && IsInside (m_byteView->GetBounds(), pointPx))
+    {
+        target = KeyTarget::SectorData;
+    }
+    else if (m_nibblesTab->IsVisible() && IsInside (m_nibblesTab->GetBounds(), pointPx))
+    {
+        target = KeyTarget::Nibbles;
+    }
+    else if (m_fieldsTab->IsVisible() && IsInside (m_fieldsTab->GetBounds(), pointPx))
+    {
+        target = KeyTarget::Fields;
+    }
+    else if (m_fluxTab->IsVisible() && IsInside (m_fluxTab->GetBounds(), pointPx))
+    {
+        target = KeyTarget::FluxTiming;
+    }
+    else if (m_tracksTab->IsVisible() && IsInside (m_tracksTab->GetBounds(), pointPx))
+    {
+        target = KeyTarget::Tracks;
+    }
+    else if (m_findingsTab->IsVisible() && IsInside (m_findingsTab->GetBounds(), pointPx))
+    {
+        target = KeyTarget::Findings;
+    }
+
+    return target;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SelectAll
+//
+//  The sector's bytes in the Sector data tab, the track's nibbles in the
+//  Nibbles tab and the strip (FR-043).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SelectAll()
+{
+    if (m_keyTarget == KeyTarget::SectorData)
+    {
+        m_model.SelectAllBytes();
+    }
+    else if (m_keyTarget == KeyTarget::Nibbles || m_keyTarget == KeyTarget::Strip)
+    {
+        m_model.SelectAllNibbles();
+        OnSelection();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ExtendSelection
+//
+//  Shift with an arrow moves the end of the selection away from where it
+//  started: a byte or a nibble across, a row up or down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ExtendSelection (WPARAM vk)
+{
+    const TrackAnalysis *  track  = m_model.GetTrack();
+    bool                   isByte = m_keyTarget == KeyTarget::SectorData;
+    int                    row    = isByte ? SectorByteView::kBytesPerRow : std::max (m_nibblesTab->GetPerRow(), 1);
+    int                    first  = isByte ? m_model.GetFirstByte()  : m_model.GetFirstNibble();
+    int                    count  = isByte ? m_model.GetByteCount()  : m_model.GetNibbleCount();
+    int                    anchor = isByte ? m_model.GetByteAnchor() : m_model.GetNibbleAnchor();
+    int                    last   = isByte ? DiskFieldFormat::kSectorBytes - 1 : (track != nullptr ? static_cast<int> (track->framed.nibbles.size()) - 1 : -1);
+    int                    end    = (first == anchor) ? first + count - 1 : first;
+    int                    step   = (vk == VK_LEFT) ? -1 : (vk == VK_RIGHT) ? 1 : (vk == VK_UP) ? -row : row;
+
+
+
+    if (first >= 0 && count > 0 && last >= 0)
+    {
+        if (isByte)
+        {
+            m_model.ExtendBytes (std::clamp (end + step, 0, last));
+        }
+        else
+        {
+            m_model.ExtendNibbles (std::clamp (end + step, 0, last));
+            OnSelection();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::Copy
+//
+//  Whatever the view pressed last has selected, as the window contract
+//  gives it (FR-057): bytes as hex or text, nibbles as hex, a table's row,
+//  the histogram; the sector as a hex dump when nothing smaller is chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::Copy()
+{
+    const TrackAnalysis *   track  = m_model.GetTrack();
+    const AnalyzedSector *  sector = m_model.GetSector();
+    std::wstring            text;
+
+
+
+    switch (m_keyTarget)
+    {
+        case KeyTarget::Fields:     text = m_fieldsTab->GetSelectedText();   break;
+        case KeyTarget::Tracks:     text = m_tracksTab->GetSelectedText();   break;
+        case KeyTarget::Findings:   text = m_findingsTab->GetSelectedText(); break;
+        case KeyTarget::FluxTiming: text = m_fluxTab->GetHistogramText();    break;
+
+        case KeyTarget::Strip:
+        case KeyTarget::Nibbles:
+            text = (track != nullptr && m_model.GetNibbleCount() > 0) ? InspectorClipboard::FormatNibbles (*track, m_model.GetFirstNibble(), m_model.GetNibbleCount())
+                                                                      : std::wstring();
+            break;
+
+        case KeyTarget::SectorData:
+            if (track != nullptr && sector != nullptr && sector->dataField >= 0 && m_model.GetByteCount() > 0)
+            {
+                std::span<const Byte>  bytes = std::span<const Byte> (track->fields[sector->dataField].data.bytes).subspan (m_model.GetFirstByte(), m_model.GetByteCount());
+
+                text = m_model.IsTextColumn() ? InspectorClipboard::FormatText (bytes) : InspectorClipboard::FormatHex (bytes);
+            }
+
+            break;
+
+        default:
+            break;
+    }
+
+    if (text.empty())
+    {
+        CopySector();
+    }
+    else
+    {
+        (void) m_clipboard.SetText (GetHwnd(), text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::CopySector
+//
+//  "Copy sector": the whole sector as a hex dump (FR-057).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::CopySector()
+{
+    const TrackAnalysis *   track  = m_model.GetTrack();
+    const AnalyzedSector *  sector = m_model.GetSector();
+
+
+
+    if (track != nullptr && sector != nullptr && sector->dataField >= 0)
+    {
+        (void) m_clipboard.SetText (GetHwnd(), InspectorClipboard::FormatHexDump (track->fields[sector->dataField].data.bytes));
+    }
 }

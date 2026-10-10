@@ -46,10 +46,24 @@ public:
     void  SelectSector       (int quarterTrack, int sectorIndex);
     void  SelectNibbles      (int quarterTrack, int firstNibble, int nibbleCount);
 
+    //  Ranges (FR-043): from the nibble or byte last clicked to another, all
+    //  of the track's nibbles, or the sector's bytes in the hex or the text
+    //  column.
+    void  ExtendNibbles      (int toNibble);
+    void  SelectAllNibbles   ();
+    void  SelectBytes        (int firstByte, int byteCount, bool isTextColumn);
+    void  ExtendBytes        (int toByte);
+    void  SelectAllBytes     ();
+
     int                    GetQuarterTrack     () const { return m_quarterTrack; }
     int                    GetSectorIndex      () const { return m_sectorIndex; }
     int                    GetFirstNibble      () const { return m_firstNibble; }
     int                    GetNibbleCount      () const { return m_nibbleCount; }
+    int                    GetFirstByte        () const { return m_firstByte; }
+    int                    GetByteCount        () const { return m_byteCount; }
+    bool                   IsTextColumn        () const { return m_isTextColumn; }
+    int                    GetNibbleAnchor     () const { return m_nibbleAnchor; }
+    int                    GetByteAnchor       () const { return m_byteAnchor; }
     const TrackAnalysis *  GetTrack            () const;
     const AnalyzedSector * GetSector           () const;
 
@@ -72,6 +86,7 @@ public:
 
 private:
     void    SelectFirstSector      ();
+    void    ClearBytes             ();
     void    BringSelectionIntoView ();
     void    ClampPan               ();
     double  GetSelectionTurn       (double & outEnd) const;
@@ -82,6 +97,11 @@ private:
     int                   m_sectorIndex   = -1;
     int                   m_firstNibble   = -1;
     int                   m_nibbleCount   = 0;
+    int                   m_nibbleAnchor  = -1;
+    int                   m_firstByte     = -1;
+    int                   m_byteCount     = 0;
+    int                   m_byteAnchor    = -1;
+    bool                  m_isTextColumn  = false;
     uint32_t              m_anchorCell    = 0;
     bool                  m_hasAnchor     = false;
     double                m_zoom          = 1.0;

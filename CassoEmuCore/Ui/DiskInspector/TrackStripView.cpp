@@ -27,6 +27,7 @@ static constexpr float  s_kLineDip         = 1.5f;
 static constexpr float  s_kSeamRuleDip     = 3.0f;
 static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
 static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
+static constexpr uint32_t  s_kSelectionAlpha = 0x60000000u;
 
 
 
@@ -159,8 +160,9 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
         PaintTimingLine (painter, theme, track, g, top + valueH, top + valueH + (height - valueH) / 2);
     }
 
-    PaintSeam   (painter, text, theme, track, g);
-    PaintLabels (painter, text, theme, track, g);
+    PaintSelection (painter, theme, g);
+    PaintSeam      (painter, text, theme, track, g);
+    PaintLabels    (painter, text, theme, track, g);
 }
 
 
@@ -455,7 +457,23 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Down:
-            if (isInside && ev.button == DxuiMouseButton::Left)
+            if (isInside && ev.button == DxuiMouseButton::Left && ev.shift)
+            {
+                UpdateTurns (*track);
+                nibble        = GetNibbleAtX (*track, static_cast<float> (p.x));
+                m_isSelecting = nibble >= 0;
+                isHandled     = true;
+
+                if (nibble >= 0 && m_context.model->GetNibbleCount() > 0)
+                {
+                    m_context.model->ExtendNibbles (nibble);
+                }
+                else if (nibble >= 0)
+                {
+                    m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), nibble, 1);
+                }
+            }
+            else if (isInside && ev.button == DxuiMouseButton::Left)
             {
                 m_isPressed = true;
                 m_isPanning = false;
@@ -467,6 +485,17 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Move:
+            if (m_isSelecting)
+            {
+                UpdateTurns (*track);
+                nibble = GetNibbleAtX (*track, std::clamp (static_cast<float> (p.x), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.right - 1)));
+
+                if (nibble >= 0)
+                {
+                    m_context.model->ExtendNibbles (nibble);
+                }
+            }
+
             if (m_isPressed && !m_isPanning && std::abs (p.x - m_pressAt.x) > GetSystemMetrics (SM_CXDRAG) / 2)
             {
                 m_isPanning = true;
@@ -482,7 +511,13 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Up:
-            isHandled = m_isPressed;
+            isHandled = m_isPressed || m_isSelecting;
+
+            if (m_isSelecting)
+            {
+                m_isSelecting = false;
+                NotifySelection();
+            }
 
             if (m_isPressed && !m_isPanning && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
             {
@@ -789,4 +824,39 @@ std::wstring TrackStripView::GetReadout() const
     }
 
     return (track != nullptr && track->framed.cellCount > 0) ? InspectorText::FormatStripReadout (span, first, last) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintSelection
+//
+//  A run of selected nibbles shaded across the bar (FR-043).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g)
+{
+    RECT                         bar   = GetBarRect();
+    std::array<StripSegment, 2>  parts = {};
+    int                          first = m_context.model->GetFirstNibble();
+    int                          end   = first + m_context.model->GetNibbleCount();
+    int                          count = 0;
+    int                          k     = 0;
+
+
+
+    if (first >= 0 && end > first && end < static_cast<int> (m_turns.size()))
+    {
+        count = g.GetSegments (m_turns[first], m_turns[end] - m_turns[first], parts);
+    }
+
+    for (k = 0; k < count; k++)
+    {
+        painter.FillRect (parts[k].x0, static_cast<float> (bar.top), std::max (parts[k].x1 - parts[k].x0, 1.0f), static_cast<float> (bar.bottom - bar.top),
+                          (theme.Accent() & 0x00FFFFFFu) | s_kSelectionAlpha);
+    }
 }

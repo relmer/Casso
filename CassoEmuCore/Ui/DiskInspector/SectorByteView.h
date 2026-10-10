@@ -28,7 +28,8 @@ public:
 
     explicit SectorByteView (InspectorViewContext & context) : InspectorView (context) {}
 
-    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     //  The text column's character for a byte: high bit masked, "." for
     //  anything not printable.
@@ -37,4 +38,21 @@ public:
 private:
     float  PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
     void   PaintBytes  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
+    void   PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme);
+    int    HitTest     (POINT pointPx, bool & outIsText) const;
+
+    //  Where the bytes were last drawn, for hit testing.
+    struct ByteGrid
+    {
+        float  top      = 0.0f;
+        float  rowH     = 1.0f;
+        float  hexLeft  = 0.0f;
+        float  textLeft = 0.0f;
+        float  byteW    = 1.0f;
+        float  charW    = 1.0f;
+        bool   isShown  = false;
+    };
+
+    ByteGrid  m_grid;
+    bool      m_isDragging = false;
 };
