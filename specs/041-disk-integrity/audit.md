@@ -1796,7 +1796,7 @@ ScratchHeatReplayer.cpp:491 installs an always-S_OK flush sink, so it is unaffec
    - On reset and power cycle, RemountSlot6Disks keeps the dirty disk in the drive. Reset's SoftReset flush, or the next spindown, retries.
    - With this change, the "still has them" text at 911-912 becomes true for every Running caller.
 
-2. **Add a mount failure for the decline.** Add `UnsavedWrites` to MountFailure (MountDiagnosis.h:57-70, plus its doc line), and a MountDiagnosis::Describe case (MountDiagnosis.cpp:40-140), for example: "was not inserted. The disk already in that drive has changes that could not be saved to its file, and inserting this one would have thrown them away. That disk is still in the drive with its changes".
+2. **Add a mount failure for the decline.** Add `UnsavedWrites` to MountFailure (MountDiagnosis.h:57-70, plus its doc line), and a MountDiagnosis::Describe case (MountDiagnosis.cpp:40-140), for example: "was not inserted. The disk already in that drive has changes that could not be saved to its file, and inserting this one would have thrown them away. That disk is still in the drive with its changes". (Final wording: contracts/user-messages.md section 5, "was not inserted, because the disk has changes that could not be saved".)
    - In EmulatorShell::HandleMountCompletion (EmulatorShellDisks.cpp:248-259), skip the EhmNotifyUser when failure is UnsavedWrites and completion.path IsSamePath as the bay's current source path. That covers a remount from reset, power cycle or machine switch, where FlushEntry's notice already said all of it.
    - A different file still gets the sentence.
    - Update the DebugBatchRunner.cpp MountFailure switch (around line 301) if it lists cases.

@@ -360,7 +360,8 @@ declined or waits for an answer, and declining calls none of `RetireBay`,
 ### 5. Write path (R3)
 
 - **Durable commit** (FR-018): `DurableCommit` runs write-temporary, copy
-  metadata from the target, `FlushToStorage`, `ReplaceAtomically` (or
+  metadata from the target (best-effort: a failure there does not stop the commit,
+  and nothing is shown), `FlushToStorage`, `ReplaceAtomically` (or
   `RenameWithoutReplacing` for `CommitMode::CreateNew`) through `IDiskFileIo`,
   and reports the step it reached in `CommitPlan::Progress`. Spec 040 builds it to
   this spec's contract and this branch cherry-picks it (tasks.md T054). The store, the CLI,

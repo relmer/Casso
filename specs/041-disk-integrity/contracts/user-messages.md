@@ -1,21 +1,12 @@
 # Contract: user messages
 
-**Status: draft. Every text below needs the owner's approval (tasks.md T005)
-before a task composes it or a test asserts it.** This is every text the user
-can read that this work adds or changes, collected from research.md R2 and R3
-and from audit.md. All UI text is sentence case. `<path>` is an image's full
-path, `<file>` its file name, `<reason>` is `ChangePrompt::DescribeError`'s
+**Status: every text below is approved by the owner on 2026-10-09 (tasks.md
+T005).** This is every text the user can read that this work adds or changes.
+All UI text is sentence case. `<path>` is an image's full path, `<file>` its
+file name, `<copy file name>` the file name only of a recovery copy (for
+example `Game.recovered.woz`), `<reason>` is `ChangePrompt::DescribeError`'s
 text for the failure, `<n>` is the drive number and `<ext>` the image's format
 extension. Line breaks inside a text are blank lines in the dialog.
-
-Where research.md R2 and an earlier draft of this file disagreed, the text
-below is the one settled for approval, and R2's message table follows it.
-
-On 2026-10-08 the owner was shown three texts from that earlier draft (a
-change declined for unsaved writes, the eject question, an eject declined)
-and asked for no changes. Each of the three is marked where it appears below,
-with the wording shown and how the text here differs; the full list still
-needs sign-off under T005.
 
 ## 1. Unchanged, now true
 
@@ -28,7 +19,7 @@ wherever it is used; the eject and quit cases get their own tails (section 2).
 
 ## 2. The save-failure notice (`FormatFlushLossMessage`)
 
-Every case shares the existing head:
+Every case shares the existing head, except the one marked below:
 
 > Casso could not save changes to the disk image:
 >
@@ -38,13 +29,13 @@ Every case shares the existing head:
 >
 > The file on disk is unchanged.
 
-| Case | Tail after the head | Status |
-|---|---|---|
-| A recovery copy was written | The existing text at `DiskImageStore.cpp:903-905` | Unchanged |
-| The format cannot hold the writes, and the recovery copy failed (the Error line gives the copy's error) | Its changes cannot be stored as a `<ext>` image, and the complete copy Casso tried to write beside it could not be saved. | New |
-| A save nobody asked for, or a user save | Your recent writes have not been saved. The disk in the drive still has them. | Unchanged |
-| An eject with no question possible (no question sink, the post failed, or a question is already open) | The disk was not ejected, and the drive still has your changes. | New. Shown to the owner 2026-10-08, no changes asked; final sign-off with the full list (T005). The wording shown was the earlier draft below, which differs |
-| Quit, when no rescue happened | Casso is closing, so these changes cannot be kept. | New |
+| Case | Tail after the head |
+|---|---|
+| A recovery copy was written | The existing text at `DiskImageStore.cpp:903-905` (unchanged) |
+| The format cannot hold the writes, and the recovery copy failed | No "Error: `<reason>`" line in the head. The tail is: Its changes cannot be stored as a `<ext>` image. Casso tried to save them to `<copy file name>` instead, but failed: `<reason>`. |
+| A save nobody asked for, or a user save | Your recent writes have not been saved. The disk in the drive still has them. (unchanged) |
+| An eject with no question possible (no question sink, the post failed, or a question is already open) | The disk was not ejected, and the drive still has your changes. |
+| Quit, when no rescue happened | Casso is closing, so these changes cannot be kept. |
 
 A save just before a mount (`FlushMoment::Replacing`, the save of the disk
 being replaced) raises none of these tails except the recovery-copy one: it
@@ -65,55 +56,41 @@ which reads both report fields). So one failed save gets one text:
 - Nothing at all, when the failure was already reported for this mount
   (section 11).
 
-The eject text shown to the owner on 2026-10-08 was an earlier draft, a
-notice of its own rather than this table's tail:
+## 3. The preserve-failure notice (`FormatPreserveFailureMessage`)
 
-> The disk was not ejected, because its changes could not be saved:
+Replaces `FormatDiscardedWritesMessage`. Shown when another program changed the
+file and saving the guest's version to a separate file failed. There is no
+separate "Error:" line; the reason is inline. The first three paragraphs are
+the same for both cases:
+
+> Casso could not save your changes to the disk image:
 >
 > `<path>`
 >
-> Error: `<reason>`
+> Another program changed this file after it was inserted, so Casso did not
+> overwrite it. Casso tried to save your changes to `<copy file name>`
+> instead, but failed: `<reason>`.
 
-It differs from the text above in its opening sentence (above, the shared
-head "Casso could not save changes to the disk image:" comes first and the
-tail ends the notice), in having no "The file on disk is unchanged." line,
-and in ending without the tail's "and the drive still has your changes".
+Then, by case:
 
-## 3. The preserve-failure notice (`FormatPreserveFailureMessage`)
+- **Ejecting**:
 
-Replaces `FormatDiscardedWritesMessage`. Its head is unchanged.
+  > The disk is still in drive `<n>` with your changes. Eject it again to
+  > choose another place to save them. The file on disk has the other
+  > program's version.
 
-| Case | Tail | Status |
-|---|---|---|
-| Ejecting | The disk was not ejected, and the drive still has your changes. The file on disk keeps the other program's version. | New |
-| Quit | Casso is closing, so these changes cannot be recovered. The file on disk keeps the other program's version. | Replaces "The disk is leaving the drive, so these changes cannot be recovered." |
+- **Quit**:
+
+  > Casso is closing, so your changes are lost. The file on disk has the other
+  > program's version.
 
 ## 4. The eject question (`ChangePrompt::ComposeSaveFailure`)
 
 Raised when an eject's save fails and no current recovery copy exists. The
 eject waits for the answer.
 
-Shown to the owner 2026-10-08, no changes asked; final sign-off with the full
-list (T005). The wording shown was an earlier draft, with the same title and
-answers and this body for every cause:
-
-> The changes to this disk could not be saved:
->
-> `<path>`
->
-> Error: `<reason>`
->
-> Save them to another file before ejecting, or eject the disk and discard
-> them.
-
-The `Unwritable` body below differs from it in its opening ("Your changes to
-`<file>` could not be saved to" in place of "The changes to this disk could
-not be saved:") and in its last paragraph, which first says "The disk is
-still in drive `<n>`." and reads "Save the changes" for "Save them". The
-`Unserializable` body is new since that draft.
-
 - **Title**: Disk not saved
-- **Body, `SaveFailureCause::Unwritable`** (new):
+- **Body, `SaveFailureCause::Unwritable`**:
 
   > Your changes to `<file>` could not be saved to
   >
@@ -124,14 +101,10 @@ still in drive `<n>`." and reads "Save the changes" for "Save them". The
   > The disk is still in drive `<n>`. Save the changes to another file before
   > ejecting, or eject the disk and discard them.
 
-- **Body, `SaveFailureCause::Unserializable`** (new):
+- **Body, `SaveFailureCause::Unserializable`**:
 
-  > Your changes to `<file>` cannot be stored as a `<ext>` image, and the
-  > complete WOZ copy could not be saved to
-  >
-  > `<copy path>`
-  >
-  > Error: `<reason>`
+  > Your changes to `<file>` cannot be stored as a `<ext>` image. Casso tried
+  > to save them to `<copy file name>` instead, but failed: `<reason>`.
   >
   > The disk is still in drive `<n>`. Save a WOZ copy to another file before
   > ejecting, or eject the disk and discard the changes.
@@ -144,7 +117,7 @@ still in drive `<n>`." and reads "Save the changes" for "Save them". The
 ## 5. A mount declined (`FormatMountFailureMessage`, `MountDiagnosis::Describe`)
 
 - **`MountFailure::UnsavedWrites`, another file** (an insert or a salvage
-  insert; new):
+  insert):
 
   > Casso did not insert this disk image:
   >
@@ -165,7 +138,7 @@ still in drive `<n>`." and reads "Save the changes" for "Save them". The
   paragraph is left out.
 
 - **`MountFailure::UnsavedWrites`, the same file** (a re-insert, reset, power
-  cycle or machine-switch remount; new):
+  cycle or machine-switch remount):
 
   > Casso could not save changes to the disk image:
   >
@@ -178,41 +151,12 @@ still in drive `<n>`." and reads "Save the changes" for "Save them". The
 
 - **Any other decline over an occupied drive**: the existing text, followed by
   a new paragraph, "The disk already in the drive was not changed."
-- **`MountDiagnosis::Describe`, `UnsavedWrites`** (new): "was not inserted,
-  because the disk already in the drive has changes that could not be saved to
-  its file"
-- **`MountDiagnosis::Describe`, `BehindLive`** (new): "was not inserted,
-  because the machine was behind live in its history when the insert ran"
+- **`MountDiagnosis::Describe`, `UnsavedWrites`**: "was not inserted, because
+  the disk has changes that could not be saved"
+- **`MountDiagnosis::Describe`, `BehindLive`**: "was not inserted, because the
+  machine was behind live in its history when the insert ran"
 
-The earlier draft "Casso did not change the disk in drive `<n>`, because the
-disk in it has changes that could not be saved..." is withdrawn in favor of
-the two texts above.
-
-The two `UnsavedWrites` texts above: shown to the owner 2026-10-08, no changes
-asked; final sign-off with the full list (T005). The wording shown was that
-earlier draft, one text for both cases:
-
-> Casso did not change the disk in drive `<n>`, because the disk in it has
-> changes that could not be saved:
->
-> `<path>`
->
-> Error: `<reason>`
->
-> The disk stays in the drive with its changes. Fix the problem and try
-> again, or eject the disk and save its changes to another file.
-
-The texts above differ from it: the other-file text opens "Casso did not
-insert this disk image:" with the new path, then gives the kept disk's path
-after "The disk already in drive `<n>` has changes that could not be saved to
-its file:", and ends "That disk is still in the drive with its changes.
-Eject it to save them to another file."; the same-file text uses the
-save-failure head ("Casso could not save changes to the disk image:") and
-ends "The file on disk is unchanged, and the disk was not read from it again.
-The drive still has your changes."; neither has "Fix the problem and try
-again".
-
-## 6. An insert over a file another program changed (`ChangePrompt::ComposeReplacedReport`, new)
+## 6. An insert over a file another program changed (`ChangePrompt::ComposeReplacedReport`)
 
 Shown when, at the save before an insert of another file, the disk's own file
 had been changed by another program, so Casso kept the guest's version in a
@@ -229,7 +173,7 @@ new file and then inserted the new disk.
 >
 > The original file keeps the other program's version.
 
-## 7. A state load declined (`MachineStateFile::SaveDisksFirst`, new)
+## 7. A state load declined (`MachineStateFile::SaveDisksFirst`)
 
     Error: disk not saved
            A disk in a drive has changes that could not be saved, so the state
@@ -237,8 +181,7 @@ new file and then inserted the new disk.
 
 ## 8. Salvage
 
-- **The disk changed before the copy was written** (`ERROR_MEDIA_CHANGED`,
-  new):
+- **The disk changed before the copy was written** (`ERROR_MEDIA_CHANGED`):
 
   > Casso did not write the salvaged copy, because the disk in drive `<n>`
   > changed after it was assessed. Salvage again to copy the disk now in the
@@ -247,18 +190,17 @@ new file and then inserted the new disk.
 - The salvage dialog, the result, the failure dialog and the Insert / Not now
   question keep their wording; they are now shown from `WM_APP_SALVAGE_DONE`.
 
-## 9. A command that reached the machine behind live (new)
+## 9. A command that reached the machine behind live
 
 - **Eject**:
 
   > Casso did not eject the disk in drive `<n>`, because the machine was behind
-  > live in its history when the eject ran. Return to live and try again.
+  > live in its history when the eject ran. Go live and try again.
 
 - **Write protection** (Settings and the Disk menu):
 
   > Casso did not change write protection for drive `<n>`, because the machine
-  > was behind live in its history when the change ran. Return to live and try
-  > again.
+  > was behind live in its history when the change ran. Go live and try again.
 
 - **Insert**: the mount failure text with the `BehindLive` description
   (section 5).
@@ -266,18 +208,16 @@ new file and then inserted the new disk.
   raises no notice, behind live or not: Settings sends the command for both
   drives on every apply, changed or not (`Ui/Settings/SettingsPanelState.cpp:1054-1057`),
   and an apply that only changed a color is not a write-protect change.
-- "Return to live" stands for whatever the history band calls going to the
-  live end; the owner confirms the term with the rest. The history band's
-  link reads "Go live" (`Ui/Debugger/HistoryBand.h:68`).
+- "Go live" is the term, matching the history band's link
+  (`Ui/Debugger/HistoryBand.h:68`).
 
-## 10. The command-line tools (`DiskImageSession`, new)
+## 10. The command-line tools (`DiskImageSession`)
 
-When a put, delete or other change could not copy the image's attributes and
-permissions to the new version:
-
-    Error: could not keep the image's attributes
-           The attributes and permissions of <path> could not be copied to the
-           new version, so the image was not changed.
+No message for a metadata copy failure. Copying the image's attributes,
+creation time and permissions to the new version is best-effort: when
+`CopyFileMetadata` fails, nothing is shown and the commit goes ahead with the
+flush and the replace, so the new version may lose hidden or system flags or
+custom permissions. This holds for every `DurableCommit` caller.
 
 The temporary-write and replace failures keep their existing texts.
 
@@ -298,7 +238,7 @@ this mount stays silent (`MountDiagnosis::ShouldReport`).
 - The other mount failure texts, the external-change questions and the rescue
   question are unchanged.
 
-## 13. An update installed behind live (`DeploySave`, new)
+## 13. An update installed behind live (`DeploySave`)
 
 Every update install returns the machine to the live end before its save
 (owner confirmed 2026-10-09). The notice is shown when the disks were not, or
@@ -311,9 +251,9 @@ installed at once goes ahead, judged once the emulation thread is held for
 the save, and before a zip update installed now closes Casso, judged right
 after the return:
 
-> Casso could not return the machine to the live end of its history before
-> installing the update, so each disk was saved as it was at the point in
-> history where the machine stood.
+> Casso could not go live before installing the update, so each disk was saved
+> as it was at the point in history you had stepped back to. Changes made after
+> that point are not in the saved disks.
 
 When the disks are saved at the live end, nothing is shown, as the owner
 decided on 2026-10-08, including when the request's own answer arrived late

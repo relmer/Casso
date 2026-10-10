@@ -122,7 +122,7 @@ successful save and an external reload; the asked cause on mount and eject.
 
 | Addition | Meaning |
 |---|---|
-| `Step::CopyMetadata`, `Step::FlushTemporary` | between `WriteTemporary` and `Replace`; a failure at either removes the temporary |
+| `Step::CopyMetadata`, `Step::FlushTemporary` | between `WriteTemporary` and `Replace`; a failure at `FlushTemporary` removes the temporary, and a failure at `CopyMetadata` does not stop the commit (best-effort, owner decision 2026-10-09) |
 
 ## Disk2Controller (changed)
 

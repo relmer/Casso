@@ -879,20 +879,20 @@ All moments share the `FormatFlushLossMessage` head: "Casso could not save chang
 | Function | Case | Text |
 |---|---|---|
 | `FormatFlushLossMessage` tail | A recovery copy was written (any moment) | Unchanged (`:903-905`). |
-| | Unserializable, and the copy failed | The Error line uses the copy's error, followed by "Its changes cannot be stored as a <ext> image, and the complete copy Casso tried to write beside it could not be saved." |
+| | Unserializable, and the copy failed | No Error line in the head. The tail is "Its changes cannot be stored as a <ext> image. Casso tried to save them to <copy file name> instead, but failed: <reason>." (<copy file name> is the file name only, for example Game.recovered.woz.) |
 | | Running or Background | "Your recent writes have not been saved. The disk in the drive still has them." (unchanged text, now true wherever it is used) |
 | | Replacing, any file | No tail of its own: the save notifies only for a first recovery copy, with that copy's tail, and a mount its failure declines is reported by `FormatMountFailureMessage` below, unless this mount has already reported a save failure of either kind, so a same-file decline after its save reported a first copy is silent. A power cycle and a machine switch report at `Background` before their remount, whose decline is then silent. One event gets one text (contracts/user-messages.md section 2) |
 | | Ejecting, no question possible | "The disk was not ejected, and the drive still has your changes." |
 | | ShuttingDown, rescue declined or failed | "Casso is closing, so these changes cannot be kept." |
-| `FormatPreserveFailureMessage` tail | Ejecting | "The disk was not ejected, and the drive still has your changes. The file on disk keeps the other program's version." |
-| | ShuttingDown | "Casso is closing, so these changes cannot be recovered. The file on disk keeps the other program's version." (replaces "The disk is leaving the drive" at `:507`) |
+| `FormatPreserveFailureMessage` | Ejecting | "Casso could not save your changes to the disk image:\n\n<path>\n\nAnother program changed this file after it was inserted, so Casso did not overwrite it. Casso tried to save your changes to <copy file name> instead, but failed: <reason>.\n\nThe disk is still in drive <n> with your changes. Eject it again to choose another place to save them. The file on disk has the other program's version." (No separate Error line.) |
+| | ShuttingDown | The same first three paragraphs, then "Casso is closing, so your changes are lost. The file on disk has the other program's version." (replaces "The disk is leaving the drive" at `:507`) |
 | `ComposeSaveFailure` | `Unwritable` | "Your changes to <file> could not be saved to\n\n<path>\n\nError: ...\n\nYour changes are only in <drive>, which is about to be emptied. Save them somewhere, or discard them." (Superseded by contracts/user-messages.md section 4.) |
-| | `Unserializable` | "Your changes to <file> cannot be stored as a <ext> image, and the complete WOZ copy could not be saved to\n\n<copy>\n\nError: ...\n\nYour changes are only in <drive>, which is about to be emptied. Save a WOZ copy somewhere, or discard them." (Superseded by contracts/user-messages.md section 4.) |
+| | `Unserializable` | "Your changes to <file> cannot be stored as a <ext> image. Casso tried to save them to <copy file name> instead, but failed: <reason>.\n\nThe disk is still in drive <n>. Save a WOZ copy to another file before ejecting, or eject the disk and discard the changes." (Final wording in contracts/user-messages.md section 4.) |
 | `FormatMountFailureMessage` | `UnsavedWrites`, other file | "Casso did not insert this disk image:\n\n<B>\n\nThe disk already in the drive has changes that could not be saved to its file:\n\n<A>\n\nError: ...\n\nInserting another disk would discard them, so that disk is still in the drive with your changes. Eject it to save them somewhere else." When `saveError` is `S_OK`: "have not been saved to its file yet", with no Error paragraph. (Superseded by contracts/user-messages.md section 5.) |
 | | `UnsavedWrites`, same file | "Casso could not save changes to the disk image:\n\n<A>\n\nError: ...\n\nThe file on disk is unchanged, and the disk was not read from it again. The drive still has your changes." |
 | | Any other decline over an occupied drive | Existing text, plus "\n\nThe disk already in the drive was not changed." |
 | `ComposeSaveFailure` answers | `Unwritable` and `Unserializable` | **Save as...** and **Eject and discard**; `safeAnswer = 0` |
-| `MountDiagnosis::Describe` | `UnsavedWrites` | "was not inserted, because the disk already in the drive has changes that could not be saved to its file" |
+| `MountDiagnosis::Describe` | `UnsavedWrites` | "was not inserted, because the disk has changes that could not be saved" |
 
 #### How this fits 035's history model
 
@@ -1000,7 +1000,7 @@ Paths are relative to `C:\Users\relmer\source\repos\relmer\Casso-worktrees\041-d
 
 2. **Put one commit sequence above the seam, in a new core class `DurableCommit`.** The emulator, the CLI and Cassque all use it. The steps run in this order:
    1. `WriteAllBytes` to a sibling temporary.
-   2. If the target exists, `CopyFileMetadata (target, temp)`. This is new. It copies the hidden, system and not-content-indexed attributes, the creation time, and the DACL when that DACL is protected or has explicit ACEs.
+   2. If the target exists, `CopyFileMetadata (target, temp)`. This is new. It copies the hidden, system and not-content-indexed attributes, the creation time, and the DACL when that DACL is protected or has explicit ACEs. It is best-effort: a failure here does not stop the commit (owner decision, 2026-10-09).
    3. `FlushToStorage (temp)`. This is new and calls `FlushFileBuffers`.
    4. `ReplaceAtomically`, which is `MoveFileExW (MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)` and stays as it is. A copy that must never overwrite anything uses a new `RenameWithoutReplacing` instead, which is `MoveFileExW (MOVEFILE_WRITE_THROUGH)`.
 
@@ -1171,7 +1171,7 @@ private:
 1. Loop over `CommitPlan::GetTemporaryPath` with `fileIo.Exists`. When every attempt is taken, fail with `ERROR_ALREADY_EXISTS`.
 2. Set `hasTarget = (rule == ReplaceExisting) && fileIo.Exists (targetPath)`.
 3. `WriteAllBytes`.
-4. If `hasTarget`, `CopyFileMetadata`.
+4. If `hasTarget`, `CopyFileMetadata`. A failure here is best-effort: `Commit` continues to step 5 and the caller is told nothing (owner decision, 2026-10-09).
 5. `FlushToStorage (temp)`.
 6. `ReplaceAtomically` or `RenameWithoutReplacing`, then set `progress.replaceSucceeded = true`.
 7. At `Error:`, if `CommitPlan::ShouldRemoveTemporary`, call `Remove (temp)` with `IGNORE_RETURN_VALUE`.
@@ -1184,7 +1184,7 @@ private:
 - Choose the message from `progress.furthestAttempted`:
   - `WriteTemporary` or `FlushTemporary`: `DescribeTemporaryWriteFailure`.
   - `Replace`: `DescribeReplaceFailure`.
-  - `CopyMetadata`: needs a new sentence, for the owner to approve.
+  - `CopyMetadata`: not a failure; the commit continues past a metadata copy that fails (best-effort, owner decision 2026-10-09), so it needs no message.
   - The temporary loop was exhausted: `ERROR_ALREADY_EXISTS` before `WriteTemporary` keeps today's text.
 
 #### `DiskImageStore.h/.cpp`
@@ -1296,7 +1296,7 @@ Comparing generations alone is safe even after a reverse restore, because the ge
 4. `Commit_OverAnExistingFile_KeepsItsAttributesAndPermissions`
 5. `Commit_ToAPathWithNoFile_CopiesNoMetadata`
 6. `Commit_FailedFlush_LeavesTheTargetAndRemovesTheTemporary`
-7. `Commit_FailedMetadataCopy_LeavesTheTargetAndRemovesTheTemporary`
+7. `Commit_FailedMetadataCopy_StillFlushesAndReplacesTheTarget`
 8. `Commit_RequireNew_LeavesAFileAlreadyAtTheTargetAlone`
 9. `Commit_StepsPastAnAbandonedTemporary`
 
@@ -1338,7 +1338,7 @@ Comparing generations alone is safe even after a reverse restore, because the ge
 5. `ReplaceAtomically_OntoAReadOnlyFile_ReportsAccessDenied`
 6. `RenameWithoutReplacing_OntoAnExistingFile_ReportsAlreadyExists`
 
-**Totals.** 34 new tests in both Debug and Release, none of them assertion-behavior tests: 28 unit tests and the six scenario tests above, whether this branch writes them or T054's cherry-pick brings them. With T057's 65 moved cases leaving the unit suite, this decision's share of SC-004 is 9,488 Debug and 9,482 Release (9,525 + 28 - 65, and 9,519 + 28 - 65), plus whatever the other FRs add.
+**Totals.** 35 new tests in both Debug and Release, none of them assertion-behavior tests: 29 unit tests and the six scenario tests above, whether this branch writes them or T054's cherry-pick brings them. With T057's 65 moved cases leaving the unit suite, this decision's share of SC-004 is 9,489 Debug and 9,483 Release (9,525 + 29 - 65, and 9,519 + 29 - 65), plus whatever the other FRs add.
 
 **Mutation checks**
 
@@ -1371,7 +1371,7 @@ Comparing generations alone is safe even after a reverse restore, because the ge
 
 3. **Some metadata is still not copied:** the owner (it was not copied before either), alternate data streams (`Zone.Identifier`), object ID, short name, per-file encryption or compression, and cloud pin attributes. `ReplaceFileW` would have copied these. This needs to be accepted explicitly against FR-018's wording, "attributes and permissions".
 
-4. **A failed DACL copy fails the save.** This happens only for images with explicit or protected permissions, for example on an SMB share where `SetNamedSecurityInfoW` is denied. Such saves would fail where they succeed today, though they fail visibly, with the writes kept and the original untouched. The alternative, saving and notifying, gives up on keeping the permissions; that choice is the owner's.
+4. **A failed metadata copy does not fail the save (owner decision, 2026-10-09).** Copying the attributes, creation time and permissions is best-effort: when `CopyFileMetadata` fails, for example on an SMB share where `SetNamedSecurityInfoW` is denied, `DurableCommit` goes ahead with the flush and the replace and shows nothing. The new version may then lose hidden or system flags or custom permissions. The alternative, failing the save so the original stays untouched, was rejected. Spec 040's commit `8cccbd3f0` aborts on a metadata failure; 041 changes it after the cherry-pick (tasks.md T054).
 
 5. **Seam ripple.** All three `IDiskFileIo` implementations change. The CLI and Cassque gain a flush on every put and delete, and need one new user-facing sentence, which the owner must approve.
 

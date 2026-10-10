@@ -262,9 +262,14 @@ public:
 - Order: write the temporary, copy metadata from the target when it exists and
   the mode is `Replace`, flush the temporary to storage, then replace (or
   rename without replacing). `progress.furthestAttempted` records the step
-  reached, so `DiskImageSession` chooses between its temporary-write,
-  metadata and replace messages. On any failure the temporary is removed and
-  the target is untouched.
+  reached, so `DiskImageSession` chooses between its temporary-write and
+  replace messages. The metadata copy is best-effort (owner decision,
+  2026-10-09): when `CopyFileMetadata` fails, the commit goes ahead with the
+  flush and the replace, nothing is shown, and the new version may lose
+  hidden or system flags or custom permissions. This holds for every caller,
+  the emulator's store saves and the command line alike. On a failure of the
+  write, the flush or the replace, the temporary is removed and the target is
+  untouched.
 - `CommitPlan::Step` gains `CopyMetadata` and `FlushTemporary` between
   `WriteTemporary` and `Replace`, and `ShouldRemoveTemporary` treats all four
   as steps after which a temporary may exist.

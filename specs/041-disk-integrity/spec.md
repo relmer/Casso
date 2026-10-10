@@ -73,7 +73,8 @@ the image file byte-for-byte with the expected result.
    reset runs, **Then** no write bypasses the checks every other save goes
    through.
 7. **Given** an image saved over an existing file, **When** the save completes,
-   **Then** the file keeps its attributes and permissions.
+   **Then** the file keeps its attributes and permissions when they can be
+   copied; a copy that fails is best-effort and does not stop the save.
 
 ---
 
@@ -268,7 +269,9 @@ and checks the file parses and holds both changes.
 - **FR-017**: A reset MUST NOT write any disk through a path that skips the
   store's checks (identity, preserved copy, write protection, recovery).
 - **FR-018**: A completed save MUST be durable against power loss once reported,
-  and MUST keep the replaced file's attributes and permissions. This covers the
+  and MUST keep the replaced file's attributes and permissions on a best-effort
+  basis (a failed copy of them does not stop the save and shows nothing; owner
+  decision, 2026-10-09). This covers the
   emulator's saves, the `casso disk` commands, `casso debug --write-disks` and
   Cassque.
 - **FR-019**: After the `master` merge, the update installer's final save MUST
