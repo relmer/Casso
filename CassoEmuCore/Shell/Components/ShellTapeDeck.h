@@ -4,6 +4,7 @@
 
 #include "Devices/Tape/MfTapeAudioDecoder.h"
 #include "Devices/Tape/TapeDeck.h"
+#include "Shell/CpuCommandTargets.h"
 #include "Ui/Chrome/TapeDeckWidget.h"
 
 
@@ -27,11 +28,12 @@ class UserConfigStore;
 //  The cassette recorder as the emulator presents it: the tape manager and
 //  the worker that reads and decodes tape files, the flat recorder widget,
 //  the recorder's key latches, and the tape settings. The deck itself -- the
-//  transport and the samples -- is the machine's.
+//  transport and the samples -- is the machine's. The queued tape commands
+//  are carried out here, on the CPU thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ShellTapeDeck
+class ShellTapeDeck : public ICpuTapeCommands
 {
 public:
     explicit ShellTapeDeck (EmulatorShell & shell);
@@ -45,6 +47,10 @@ public:
     // Null before Initialize.
     TapeManager *     GetManager () const { return m_tapeManager.get(); }
     TapeDeckWidget &  GetWidget  ()       { return m_tapeChrome; }
+
+    // ICpuTapeCommands: one tape-deck command, against the recorder the
+    // machine host owns, timed at the current bus cycle. CPU thread.
+    void  ControlTape (TapeCommand command) override;
 
     // Shown when the machine has a cassette port and the recorder is
     // connected. The flag is per machine, saved in $cassoUiPrefs.

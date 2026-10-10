@@ -81,7 +81,7 @@ enum class AppleSpecialKey;
 
 class EmulatorShell : public IDxuiHostClient,
                       public IDxuiViewportInputSink,
-                      private ICpuCommandTarget
+                      private ICpuMachineCommands
 {
 public:
     EmulatorShell();
@@ -264,56 +264,23 @@ private:
     void TickKeyboardAutoRepeat();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
 
-    // ICpuCommandTarget: the outcomes a queued command can ask for, each one
-    // call into the machine, the disk manager or a mixer. SwitchMachine,
-    // SoftReset, PowerCycle, SetDriveUserWriteProtect and the
-    // three drive-audio setters are members of long standing that already
-    // have the target's signature; these are the ones that were inline in
-    // the dispatch switch before it became CpuCommandDispatcher.
-    void     StepInstruction         () override;
-    void     SaveTrace               () override;
+    // ICpuMachineCommands: the queued machine-wide commands. SwitchMachine,
+    // SoftReset and PowerCycle are members of long standing that already have
+    // the interface's signature; these were inline in the dispatch switch
+    // before it became CpuCommandDispatcher. The disk, drive-sound and tape
+    // commands go to ShellDisks, ShellAudio and ShellTapeDeck.
+    void     StepInstruction           () override;
+    void     SaveTrace                 () override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
-    void     RemountDisks            () override;
 
     // Posts a reset with the Apple keys as they are at this moment, read on
     // the UI thread where the key state is valid. The strip, the toolbar and
     // the menu all come through here so a Ctrl-Open-Apple-Reset cold starts
     // from any of them.
     void     RequestReset ();
-    HRESULT  MountDisk               (int drive, const std::string & path) override;
-    void     EjectDisk               (int drive) override;
-    HRESULT  ToggleImageWriteProtect (int drive) override;
-    void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
-    void     SetDriveAudioEnabled    (bool enabled) override;
-    HRESULT  SetDriveAudioMechanism  (const std::wstring & mechanism) override;
-
-    // Stores the live drive-audio gains and applies them to every
-    // registered Disk2AudioSource. Must run on the CPU thread (the same
-    // thread that mixes audio), so callers marshal through the command
-    // queue (IDM_AUDIO_DRIVE_VOLUMES) rather than calling it directly.
-    void SetDriveAudioVolumes (float motor, float head, float door);
-
-    // Stores a live per-drive stereo pan (drive 0/1, value -1..+1) and
-    // applies it to the matching Disk2AudioSource. Like the volumes, this
-    // must run on the CPU thread, so callers marshal through the command
-    // queue (IDM_AUDIO_DRIVE_PAN).
-    void SetDriveAudioPan (int drive, float pan);
-
-    // Auditions a drive sound on demand (settings play buttons). drive =
-    // 0/1, kind matches Disk2AudioSource::TestSoundKind. CPU-thread only,
-    // marshaled via IDM_AUDIO_DRIVE_TEST.
-    void PlayDriveTestSound (int drive, int kind);
-
-    // Runs one tape-deck command. CPU-thread only, marshaled through
-    // the IDM_TAPE_* commands.
-    void ControlTape (TapeCommand command);
-
 
     // Engages or releases the fast-load override from the tape governor.
     void ApplyTapeTurbo ();
-
-    // Decodes the drive, printer and PSG sounds to the host device's sample
-    // rate. CPU thread only.
 
     void OnCpuThreadStart();
     void OnCpuThreadStop();
@@ -601,14 +568,6 @@ private:
     {
         return m_machine.GetPendingPrintDir();
     }
-
-    // Records the user's per-drive write-protect preference and applies
-    // it to the currently mounted image (if any) so the change takes
-    // effect immediately. Called on the CPU thread from the
-    // IDM_DISK_WRITEPROTECT command handler, which the Settings apply
-    // path and the write-protect menu items post. The preference also
-    // survives an eject/remount because MountDiskInSlot6 re-applies it.
-    void  SetDriveUserWriteProtect (int drive, bool wp);
 
     // The 3D scene renders whenever a skeuo theme is active and the models
     // loaded. The DRIVES are not optional -- they are 3D objects in every

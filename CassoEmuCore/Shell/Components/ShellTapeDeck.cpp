@@ -752,3 +752,21 @@ void ShellTapeDeck::InsertTape (const std::wstring & path)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControlTape
+//
+//  One tape-deck command, against the recorder the machine host owns, timed
+//  at the current bus cycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::ControlTape (TapeCommand command)
+{
+    uint64_t  now = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
+
+
+
+    m_tapeManager->Execute (command, m_shell.m_machine.GetTapeDeck(), now);
+}

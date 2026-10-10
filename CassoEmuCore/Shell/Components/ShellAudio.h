@@ -6,6 +6,7 @@
 #include "Audio/PrinterAudioSource.h"
 #include "Audio/TapeAudioSource.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
+#include "Shell/CpuCommandTargets.h"
 #include "Shell/AudioSampleBudget.h"
 #include "WasapiAudio.h"
 
@@ -32,7 +33,7 @@ struct MachineBuildServices;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ShellAudio
+class ShellAudio : public ICpuDriveAudioCommands
 {
 public:
     ShellAudio();
@@ -84,11 +85,14 @@ public:
                                           &m_tapeAudioMixer);
     }
 
-    // CPU thread: the live drive gains and pans, and a sound auditioned on
-    // demand from Settings.
-    void  SetDriveVolumes    (float motor, float head, float door);
-    void  SetDrivePan        (int drive, float pan);
-    void  PlayDriveTestSound (int drive, int kind);
+    // ICpuDriveAudioCommands, on the CPU thread: the drive sounds on or off,
+    // the mechanism they come from, the live gains and pans, and a sound
+    // auditioned on demand from Settings.
+    void     SetDriveAudioEnabled   (bool enabled) override;
+    HRESULT  SetDriveAudioMechanism (const std::wstring & mechanism) override;
+    void     SetDriveAudioVolumes   (float motor, float head, float door) override;
+    void     SetDriveAudioPan       (int drive, float pan) override;
+    void     PlayDriveTestSound     (int drive, int kind) override;
 
 private:
     WasapiAudio                           m_wasapiAudio;
@@ -114,7 +118,7 @@ private:
     TapeAudioSource                       m_tapeAudioSource;
 
     // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
-    // at startup and updated via SetDriveVolumes. Kept here so they survive
+    // at startup and updated via SetDriveAudioVolumes. Kept here so they survive
     // machine resets (MachineManager re-seeds fresh sources from these).
     float                                 m_driveMotorVolume = Disk2AudioSource::kMotorVolume;
     float                                 m_driveHeadVolume  = Disk2AudioSource::kHeadVolume;
@@ -122,7 +126,7 @@ private:
 
     // Live per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
     // right), index 0 = Drive 1, 1 = Drive 2. Seeded from $cassoUiPrefs at
-    // startup and updated via SetDrivePan; survives machine resets
+    // startup and updated via SetDriveAudioPan; survives machine resets
     // (MachineManager re-seeds fresh sources from these).
     float                                 m_drivePan[2] = { DriveAudioMixer::kDefaultDriveOnePan,
                                                             DriveAudioMixer::kDefaultDriveTwoPan };

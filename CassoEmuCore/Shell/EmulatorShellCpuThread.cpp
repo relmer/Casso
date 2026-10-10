@@ -175,14 +175,14 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     IGNORE_RETURN_VALUE (hrOpt, S_OK);
     hrOpt = uiPrefs->GetNumber ("driveDoorVolume",  doorV);
     IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
+    m_audio->SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
 
     hrOpt = uiPrefs->GetNumber ("driveOnePan", pan0);
     IGNORE_RETURN_VALUE (hrOpt, S_OK);
     hrOpt = uiPrefs->GetNumber ("driveTwoPan", pan1);
     IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    SetDriveAudioPan (0, (float) pan0);
-    SetDriveAudioPan (1, (float) pan1);
+    m_audio->SetDriveAudioPan (0, (float) pan0);
+    m_audio->SetDriveAudioPan (1, (float) pan1);
 
     // //c case-switch latches: restore the 80/40 and keyboard (Dvorak) switch
     // positions onto the keyboard device. Absent keys leave the hardware
@@ -257,15 +257,15 @@ void EmulatorShell::OnCpuThreadStop()
 //
 //  Invoked by CpuManager once per drained EmulatorCommand, on the CPU
 //  thread, where it is safe to touch CPU, bus and device state. The command
-//  ids and the payload grammar live in CpuCommandDispatcher; this shell is
-//  the target it calls, and the eight small overrides below are the calls
-//  that used to be inline in the switch.
+//  ids and the payload grammar live in CpuCommandDispatcher. The shell takes
+//  the machine-wide commands, and the drives, the drive sounds and the
+//  recorder take their own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 {
-    CpuCommandDispatcher::Dispatch (cmd, *this);
+    CpuCommandDispatcher::Dispatch (cmd, { *this, *m_disks, *m_audio, *m_tapeDeck });
 }
 
 
@@ -276,8 +276,8 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 //
 //  StepInstruction
 //
-//  The first of the ICpuCommandTarget overrides: each one outcome, over the
-//  machine, the disk manager or a mixer.
+//  The first of the ICpuMachineCommands overrides: each one outcome, over the
+//  machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,113 +287,6 @@ void EmulatorShell::StepInstruction()
     {
         m_machine.StepOne();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RemountDisks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RemountDisks()
-{
-    m_disks->GetManager()->RemountSlot6Disks();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MountDisk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::MountDisk (int drive, const std::string & path)
-{
-    return m_disks->GetManager()->MountDiskInSlot6 (drive, path);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EjectDisk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::EjectDisk (int drive)
-{
-    m_disks->GetManager()->EjectDiskInSlot6 (drive);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ToggleImageWriteProtect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::ToggleImageWriteProtect (int drive)
-{
-    // On the CPU thread like mount and eject, so the flush never races the
-    // drive engine; failures are already reported inside.
-    return m_disks->GetManager()->ToggleImageWriteProtect (drive);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResolvePendingChange
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
-{
-    m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDriveAudioEnabled
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDriveAudioEnabled (bool enabled)
-{
-    m_audio->GetDriveMixer().SetEnabled (enabled);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDriveAudioMechanism
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::SetDriveAudioMechanism (const std::wstring & mechanism)
-{
-    return m_audio->GetDriveMixer().SetMechanism (mechanism);
 }
 
 
@@ -486,57 +379,6 @@ void EmulatorShell::PersistSwitchState (const char * key, bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDriveAudioVolumes
-//
-//  The live drive-audio gains. CPU thread, the mixing thread.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
-{
-    m_audio->SetDriveVolumes (motor, head, door);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDriveAudioPan
-//
-//  A live per-drive stereo pan. CPU thread, the mixing thread.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDriveAudioPan (int drive, float pan)
-{
-    m_audio->SetDrivePan (drive, pan);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlayDriveTestSound
-//
-//  Auditions a single drive sound on demand. CPU thread, the mixing thread.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PlayDriveTestSound (int drive, int kind)
-{
-    m_audio->PlayDriveTestSound (drive, kind);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ApplyTapeTurbo
 //
 //  Runs a tape load at Maximum speed while the governor returns true, and
@@ -562,28 +404,6 @@ void EmulatorShell::ApplyTapeTurbo()
     {
         m_cpuManager.SetMaximumOverride (isFast);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ControlTape
-//
-//  One tape-deck command, against the recorder the machine host owns, timed
-//  at the current bus cycle.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ControlTape (TapeCommand command)
-{
-    uint64_t  now = m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0;
-
-
-
-    m_tapeDeck->GetManager()->Execute (command, m_machine.GetTapeDeck(), now);
 }
 
 

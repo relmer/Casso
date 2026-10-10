@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/ChangePrompt.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Shell/CpuCommandTargets.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
@@ -34,11 +35,13 @@ struct DialogDefinition;
 //  controller and the image store -- are the machine's.
 //
 //  It is the drive widgets' command sink: a drop, a click to browse or the
-//  eject affordance arrives here and is queued to the CPU thread.
+//  eject affordance arrives here and is queued to the CPU thread. The queued
+//  disk commands come back here too, on the CPU thread, to be carried out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ShellDisks : public IDriveCommandSink
+class ShellDisks : public IDriveCommandSink,
+                   public ICpuDiskCommands
 {
 public:
     explicit ShellDisks (EmulatorShell & shell);
@@ -75,7 +78,15 @@ public:
     // Records the user's per-drive write-protect preference and applies it to
     // the currently mounted image (if any) so the change takes effect
     // immediately. CPU thread.
-    void  SetDriveUserWriteProtect (int drive, bool wp);
+    void  SetDriveUserWriteProtect (int drive, bool wp) override;
+
+    // ICpuDiskCommands: the queued mounts, ejects and image changes, carried
+    // out on the CPU thread so they never race the drive engine.
+    void     RemountDisks            () override;
+    HRESULT  MountDisk               (int drive, const std::string & path) override;
+    void     EjectDisk               (int drive) override;
+    HRESULT  ToggleImageWriteProtect (int drive) override;
+    void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user

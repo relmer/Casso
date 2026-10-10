@@ -199,7 +199,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellAudio::SetDriveVolumes
+//  ShellAudio::SetDriveAudioVolumes
 //
 //  Stores the live drive-audio gains and pushes them to every registered
 //  Disk2AudioSource. Runs on the CPU thread (the mixing thread), so it is
@@ -207,7 +207,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellAudio::SetDriveVolumes (float motor, float head, float door)
+void ShellAudio::SetDriveAudioVolumes (float motor, float head, float door)
 {
     m_driveMotorVolume = motor;
     m_driveHeadVolume  = head;
@@ -225,7 +225,7 @@ void ShellAudio::SetDriveVolumes (float motor, float head, float door)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellAudio::SetDrivePan
+//  ShellAudio::SetDriveAudioPan
 //
 //  Stores a live per-drive stereo pan and applies it to the matching
 //  Disk2AudioSource via equal-power panning. Runs on the CPU thread (the
@@ -233,7 +233,7 @@ void ShellAudio::SetDriveVolumes (float motor, float head, float door)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellAudio::SetDrivePan (int drive, float pan)
+void ShellAudio::SetDriveAudioPan (int drive, float pan)
 {
     HRESULT  hr   = S_OK;
     float    panL = DriveAudioMixer::kSpeakerCenter;
@@ -293,4 +293,34 @@ void ShellAudio::PlayDriveTestSound (int drive, int kind)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellAudio::SetDriveAudioEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellAudio::SetDriveAudioEnabled (bool enabled)
+{
+    m_driveAudioMixer.SetEnabled (enabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellAudio::SetDriveAudioMechanism
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellAudio::SetDriveAudioMechanism (const std::wstring & mechanism)
+{
+    return m_driveAudioMixer.SetMechanism (mechanism);
 }

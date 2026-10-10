@@ -246,8 +246,12 @@ public:
 
 private:
 
-    //  A target that writes down what it was asked, one line per call.
-    class Notebook : public ICpuCommandTarget
+    //  Every target at once, writing down what it was asked, one line per
+    //  call, so the order across the four is on the record too.
+    class Notebook : public ICpuMachineCommands,
+                     public ICpuDiskCommands,
+                     public ICpuDriveAudioCommands,
+                     public ICpuTapeCommands
     {
     public:
 
@@ -346,13 +350,13 @@ private:
     };
 
 
-    static void Dispatch (WORD id, const char * payload, ICpuCommandTarget & target)
+    static void Dispatch (WORD id, const char * payload, Notebook & target)
     {
         EmulatorCommand  cmd;
 
         cmd.id      = id;
         cmd.payload = payload;
 
-        CpuCommandDispatcher::Dispatch (cmd, target);
+        CpuCommandDispatcher::Dispatch (cmd, { target, target, target, target });
     }
 };

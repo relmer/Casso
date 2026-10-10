@@ -245,20 +245,3 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 
     DxuiContextMenu::Show (*m_host, x, y, std::move (items));
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::SetDriveUserWriteProtect
-//
-//  The user's per-drive write-protect preference. CPU thread.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
-{
-    m_disks->SetDriveUserWriteProtect (drive, wp);
-}
