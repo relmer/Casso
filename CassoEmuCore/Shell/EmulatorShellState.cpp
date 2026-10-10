@@ -199,7 +199,7 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
 
     m_debugger->NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string());
 
-    m_debugger->m_isDebugViewDirty = true;
+    m_debugger->MarkViewDirty();
 
     RenderFramebuffer();
     PublishFramebuffer();

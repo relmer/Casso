@@ -347,9 +347,9 @@ public:
         GlobalUserPrefs     loaded;
         HRESULT             hr;
 
-        Assert::AreEqual (string ("VisualStudio"), saved.debuggerKeyScheme);
+        Assert::AreEqual (string ("VisualStudio"), saved.debugger.keyScheme);
 
-        saved.debuggerKeyScheme = "AppleWin";
+        saved.debugger.keyScheme = "AppleWin";
 
         hr = saved.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
@@ -357,7 +357,7 @@ public:
         hr = loaded.Load (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (string ("AppleWin"), loaded.debuggerKeyScheme);
+        Assert::AreEqual (string ("AppleWin"), loaded.debugger.keyScheme);
     }
 
 
@@ -431,9 +431,9 @@ public:
         HRESULT             hr;
         string              text = "dxui-layout 1\ntree (split h 0.6000 (tabs 0 \"code\") (tabs 0 \"registers\"))\n";
 
-        Assert::IsTrue (saved.debuggerLayout.empty(), L"empty until a pane moves");
+        Assert::IsTrue (saved.debugger.layout.empty(), L"empty until a pane moves");
 
-        saved.debuggerLayout = text;
+        saved.debugger.layout = text;
 
         hr = saved.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
@@ -441,7 +441,7 @@ public:
         hr = loaded.Load (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (text, loaded.debuggerLayout);
+        Assert::AreEqual (text, loaded.debugger.layout);
     }
 
 

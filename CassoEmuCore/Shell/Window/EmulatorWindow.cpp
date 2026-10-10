@@ -2262,7 +2262,7 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == kClickReleaseTimerId)
+    if (timerId == ShellDebugger::kClickReleaseTimerId)
     {
         m_debugger->ReleaseGuestMouseAfterClick();
         return DxuiMessageResult::Handled;
@@ -2390,11 +2390,7 @@ void EmulatorShell::UpdateWindowTitle()
     }
 
     // Behind live, where the replay stands.
-    {
-        std::lock_guard<std::mutex>  held (m_debugger->m_replayCaptionMutex);
-
-        title += m_debugger->m_replayCaption;
-    }
+    title += m_debugger->GetReplayCaption();
 
 #if defined (_DEBUG)
     // Dev builds stamp the exact binary identity (version, arch, compile
@@ -2721,18 +2717,17 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
             return DxuiMessageResult::Handled;
         }
 
-        m_debugger->m_divergenceGate.OnLive();
+        m_debugger->GetDivergenceGate().OnLive();
 
-        if (m_debugger->m_isJoyportSyncOwed)
+        if (m_debugger->TakeJoyportSyncOwed())
         {
-            m_debugger->m_isJoyportSyncOwed = false;
             SyncJoyport();
         }
 
         // Input held behind live lands now: told yes at a read, or never
         // read before the replay reached live.
-        mouseTarget = m_debugger->m_divergenceGate.GetMouseTarget();
-        m_debugger->m_divergenceGate.TakeHeld (held, heldInputs);
+        mouseTarget = m_debugger->GetDivergenceGate().GetMouseTarget();
+        m_debugger->GetDivergenceGate().TakeHeld (held, heldInputs);
         m_debugger->PublishHeldInput();
 
         for (const DxuiKeyEvent & ev : held)

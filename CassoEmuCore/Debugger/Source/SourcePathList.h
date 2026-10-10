@@ -1,6 +1,6 @@
 #pragma once
 
-struct GlobalUserPrefs;
+struct DebuggerSettings;
 
 
 
@@ -24,7 +24,7 @@ class SourcePathList
 public:
     static constexpr size_t  kMaxFolders = 16;
 
-    explicit SourcePathList (GlobalUserPrefs & prefs) : m_prefs (prefs) {}
+    explicit SourcePathList (DebuggerSettings & settings) : m_settings (settings) {}
 
     std::vector<std::wstring>  GetProgramFolders (const std::string & programKey) const;
     std::vector<std::wstring>  GetGlobalFolders  () const;
@@ -41,5 +41,5 @@ private:
     static void                        PushFront (std::vector<std::string> & list, const std::string & folder);
     static std::vector<std::wstring>   ToWide    (const std::vector<std::string> & list);
 
-    GlobalUserPrefs  & m_prefs;
+    DebuggerSettings  & m_settings;
 };

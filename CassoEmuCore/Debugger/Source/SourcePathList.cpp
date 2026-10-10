@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Source/SourcePathList.h"
-#include "Config/GlobalUserPrefs.h"
+#include "Config/DebuggerSettings.h"
 
 
 
@@ -15,11 +15,11 @@
 
 std::vector<std::wstring> SourcePathList::GetProgramFolders (const std::string & programKey) const
 {
-    auto  found = m_prefs.debuggerProgramSourceFolders.find (programKey);
+    auto  found = m_settings.programSourceFolders.find (programKey);
 
 
 
-    return (found == m_prefs.debuggerProgramSourceFolders.end()) ? std::vector<std::wstring>() : ToWide (found->second);
+    return (found == m_settings.programSourceFolders.end()) ? std::vector<std::wstring>() : ToWide (found->second);
 }
 
 
@@ -34,7 +34,7 @@ std::vector<std::wstring> SourcePathList::GetProgramFolders (const std::string &
 
 std::vector<std::wstring> SourcePathList::GetGlobalFolders() const
 {
-    return ToWide (m_prefs.debuggerSourceFolders);
+    return ToWide (m_settings.sourceFolders);
 }
 
 
@@ -58,11 +58,11 @@ void SourcePathList::AddFound (const std::string & programKey, const std::wstrin
         return;
     }
 
-    PushFront (m_prefs.debuggerSourceFolders, utf8);
+    PushFront (m_settings.sourceFolders, utf8);
 
     if (!programKey.empty())
     {
-        PushFront (m_prefs.debuggerProgramSourceFolders[programKey], utf8);
+        PushFront (m_settings.programSourceFolders[programKey], utf8);
     }
 }
 

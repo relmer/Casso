@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/EmulatorShellDebuggerHost.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/Reverse/ReverseHost.h"
@@ -122,7 +123,8 @@ EmulatorShell::EmulatorShell()
 
     SetPrngSeed (seed);
 
-    m_debugger = std::make_unique<ShellDebugger> (*this);
+    m_debuggerHost = std::make_unique<DebuggerHost> (*this);
+    m_debugger     = std::make_unique<ShellDebugger> (*m_debuggerHost, m_machine, m_cpuManager, m_globalPrefs.debugger);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -227,11 +229,7 @@ EmulatorShell::~EmulatorShell()
 
     // The window posts to the CPU thread through this shell, so it is cut off
     // before either goes.
-    if (m_debugger->m_debuggerWindow != nullptr)
-    {
-        m_debugger->m_debuggerWindow->DetachHost();
-        m_debugger->m_debuggerWindow.reset();
-    }
+    m_debugger->DestroyWindow();
 
     //  THE CONTROLLER STACK GOES BY HAND, HERE, for the same reason. Its
     //  members are declared after the window, so member-order destruction
@@ -473,7 +471,7 @@ HRESULT EmulatorShell::Initialize (
 
     // Held back, a real press or deflection is held line by line, and the
     // lines go to the watch the replay checks the guest's reads against.
-    m_gamePortSink->SetDivergenceGate (&m_debugger->m_divergenceGate, [this]
+    m_gamePortSink->SetDivergenceGate (&m_debugger->GetDivergenceGate(), [this]
     {
         m_debugger->PublishHeldInput();
     });

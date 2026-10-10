@@ -856,7 +856,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 
     if (!isGateOpen)
     {
-        m_debugger->m_divergenceGate.SetMouseTarget (target);
+        m_debugger->GetDivergenceGate().SetMouseTarget (target);
         m_debugger->PublishHeldInput();
     }
     else if (target.has_value())
@@ -1930,7 +1930,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     if (IsGuestMouseActive() && !isGateOpen)
     {
-        m_debugger->m_divergenceGate.ReleaseMousePress();
+        m_debugger->GetDivergenceGate().ReleaseMousePress();
         m_debugger->PublishHeldInput();
     }
 
@@ -2721,13 +2721,13 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // where the key would change what it reads, or the machine is live; the
     // keys that follow wait with it. A key that drives the game port goes to
     // the mixer now, which holds it there the same way.
-    verdict = m_debugger->m_divergenceGate.JudgeKey (!isGateOpen, ev);
+    verdict = m_debugger->GetDivergenceGate().JudgeKey (!isGateOpen, ev);
 
     if (verdict == DivergenceVerdict::Hold)
     {
         latch = GetHeldKeyLatch (ev, isMachineKey);
 
-        m_debugger->m_divergenceGate.HoldKey (ev, latch, isMachineKey);
+        m_debugger->GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
         RouteKeyToGamePort (ev);
         m_debugger->PublishHeldInput();
 
@@ -3373,7 +3373,7 @@ void EmulatorShell::SyncJoyport()
     }
     else
     {
-        m_debugger->m_isJoyportSyncOwed = true;
+        m_debugger->OweJoyportSync();
     }
 
     gate.unlock();
@@ -4279,17 +4279,17 @@ void EmulatorShell::PasteClipboardText()
         return;
     }
 
-    if (isBehindLive && !m_debugger->m_divergenceGate.HasHeldPaste())
+    if (isBehindLive && !m_debugger->GetDivergenceGate().HasHeldPaste())
     {
-        m_debugger->m_pasteLengthBeforeHold = m_clipboardManager->GetPasteLength (first);
+        m_debugger->SetPasteLengthBeforeHold (m_clipboardManager->GetPasteLength (first));
     }
 
     raisedLetters = m_clipboardManager->PasteFromClipboard (m_hwnd, capsLockOn);
     length        = m_clipboardManager->GetPasteLength (first);
 
-    if (isBehindLive && length > m_debugger->m_pasteLengthBeforeHold && m_machine.GetRefs().keyboard != nullptr)
+    if (isBehindLive && length > m_debugger->GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
     {
-        m_debugger->m_divergenceGate.HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
+        m_debugger->GetDivergenceGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
         m_debugger->PublishHeldInput();
     }
 

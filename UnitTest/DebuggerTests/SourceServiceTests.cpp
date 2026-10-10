@@ -42,7 +42,7 @@ namespace DebuggerTests
         {
             InMemoryFileSystem  files;
             GlobalUserPrefs     prefs;
-            SourcePathList      paths   { prefs };
+            SourcePathList      paths   { prefs.debugger };
             SourceService       service { files, paths };
         };
 
@@ -255,7 +255,7 @@ namespace DebuggerTests
         {
             Rig              rig;
             GlobalUserPrefs  loaded;
-            SourcePathList   reloaded { loaded };
+            SourcePathList   reloaded { loaded.debugger };
 
 
 

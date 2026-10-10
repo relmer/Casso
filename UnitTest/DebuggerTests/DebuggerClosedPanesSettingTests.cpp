@@ -164,9 +164,9 @@ namespace DebuggerClosedPanesSettingTests
 
 
 
-            Assert::IsTrue (saved.debuggerClosedPanes.empty(), L"empty until a pane closes");
+            Assert::IsTrue (saved.debugger.closedPanes.empty(), L"empty until a pane closes");
 
-            saved.debuggerClosedPanes = "registers watches";
+            saved.debugger.closedPanes = "registers watches";
 
             hr = saved.Save (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
@@ -174,7 +174,7 @@ namespace DebuggerClosedPanesSettingTests
             hr = loaded.Load (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
 
-            Assert::AreEqual (std::string ("registers watches"), loaded.debuggerClosedPanes);
+            Assert::AreEqual (std::string ("registers watches"), loaded.debugger.closedPanes);
         }
     };
 }

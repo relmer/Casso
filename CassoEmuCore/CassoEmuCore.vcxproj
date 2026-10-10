@@ -643,6 +643,7 @@
     <ClCompile Include="Shell\EmulatorShellPresent.cpp" />
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
     <ClCompile Include="Shell\ShellDebugger.cpp" />
+    <ClCompile Include="Shell\EmulatorShellDebuggerHost.cpp" />
     <ClCompile Include="Shell\EmulatorShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
     <ClCompile Include="Shell\EmulatorShellDialogs.cpp" />
@@ -1276,6 +1277,10 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\ShellDebugger.h" />
+    <ClInclude Include="Shell\IDebuggerHost.h" />
+    <ClInclude Include="Shell\EmulatorShellDebuggerHost.h" />
+    <ClInclude Include="Config\DebuggerSettings.h" />
+    <ClInclude Include="Shell\DebuggerSliceHooks.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="RichEditSquiggle.h" />
     <ClInclude Include="WasapiAudio.h" />

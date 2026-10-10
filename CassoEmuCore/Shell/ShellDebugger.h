@@ -2,10 +2,41 @@
 
 #include "Pch.h"
 
+#include "Config/Win32FileSystem.h"
+#include "Core/ParallelWorkPool.h"
+#include "Core/ThreadPoolWorkQueue.h"
+#include "Debugger/DebugSessionView.h"
+#include "Debugger/Reverse/DivergenceGate.h"
+#include "Debugger/Reverse/HeldInputWatch.h"
+#include "Debugger/Reverse/HistoryThumbnails.h"
+#include "Debugger/Reverse/ReplayControl.h"
+#include "Debugger/Reverse/ReverseOutcome.h"
 #include "Shell/CpuCommandDispatcher.h"
+#include "Shell/DebuggerSliceHooks.h"
+#include "Shell/ScratchCallReplayer.h"
+#include "Shell/ScratchHeatReplayer.h"
+#include "Shell/ScratchMachineRenderer.h"
+#include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebugViewPublisher.h"
 
-class EmulatorShell;
+class Apple2eKeyboard;
+class CpuManager;
+class CpuManagerRunDriver;
+class DebuggerController;
+struct DebuggerSettings;
+class DebugSession;
+struct DebugSourceFile;
+struct DebugViewInput;
+struct HistoryStatus;
+class IDebuggerHost;
+class IReverseStopTest;
+class MachineHost;
+class ReverseHost;
+struct SourceLookup;
+class Win32NamedPipeApi;
+class Win32PipeTransport;
 
 
 
@@ -27,12 +58,14 @@ class ShellDebugger : public IDebugCommandTarget,
                       private IDebuggerWindowHost
 {
 public:
-    // Stage 1 of the extraction only: the shell reaches the debugger's state
-    // directly until the narrow interface replaces it.
-    friend class EmulatorShell;
-
-    explicit ShellDebugger (EmulatorShell & shell);
+    ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuManager & cpuManager, DebuggerSettings & settings);
     ~ShellDebugger() override;
+
+    // A guest mouse press that asked behind live and was let go of before
+    // the machine was live is held down this long once live, so the guest
+    // sees a click rather than nothing. The timer is on the emulator's window.
+    static constexpr UINT_PTR  kClickReleaseTimerId = 0xCA56;
+    static constexpr UINT      kClickHoldMs         = 100;
 
     // Attaches the driver the slice loop reports to, or detaches it with null.
     // The caller owns it and must detach before destroying it.
@@ -118,8 +151,42 @@ public:
     void  ToggleHeldEightyColumnSwitch  ();
     void  ToggleEightyColumnSwitch      (Apple2eKeyboard * iieKbd);
 
+    // The gate input passes behind live, which the shell's input handling
+    // asks before handing input to the machine. A players' change made behind
+    // live is owed to the Joyport once live; so is the length the paste
+    // buffer had before a paste was held.
+    DivergenceGate &  GetDivergenceGate         ()                { return m_divergenceGate; }
+    void              OweJoyportSync            ()                { m_isJoyportSyncOwed = true; }
+    bool              TakeJoyportSyncOwed       ();
+    size_t            GetPasteLengthBeforeHold  () const          { return m_pasteLengthBeforeHold; }
+    void              SetPasteLengthBeforeHold  (size_t length)   { m_pasteLengthBeforeHold = length; }
+
     // CPU thread: the caption's replay note, kept in step with the machine.
-    void  UpdateReplayCaption   ();
+    // Any thread may read it.
+    void          UpdateReplayCaption   ();
+    std::wstring  GetReplayCaption      ();
+
+    // CPU thread, once a frame: what the slice loop reads of the debugger,
+    // and history's turn, which pauses recording at a Maximum speed the user
+    // chose. The reverse settings are read from the preferences once, when
+    // the CPU thread starts.
+    DebuggerSliceHooks  GetSliceHooks       ();
+    void                RecordHistoryFrame  (bool isUserMaximumSpeed);
+    void                LoadReverseSettings ();
+
+    // CPU thread: a step of the attached session, as a main window's step
+    // key asks for; false when no session is attached. And the views built
+    // again on the next publish, after the machine changed under them.
+    bool  StepSession      ();
+    void  MarkViewDirty    ()   { m_isDebugViewDirty = true; }
+
+    // Whether the beam mark is drawn: turned on and the session stopped.
+    bool  IsBeamMarkShown  ();
+
+    // UI thread: the debugger window's frame, drawn with the emulator's, and
+    // the window cut off from the debugger and destroyed at shutdown.
+    void  RenderWindowFrame   ();
+    void  DestroyWindow       ();
 
     // Where debugger commands go. The session machine events go to is set
     // with SetDebugSession.
@@ -230,6 +297,46 @@ public:
                                              const std::string & programKey, int & recordIndex) override;
     bool         DoesDebuggerFileExist      (const std::wstring & path) override;
 
+    // CPU thread, each frame: the timeline's pictures of history drawn.
+    void  ServiceHistoryThumbnails ();
+
+public:
+
+    //  Reachable by a test subclass, which drives the debugger and its call
+    //  history as the CPU thread does and takes its views as the window
+    //  does: the debug channel's lifecycle, the debugger attached over a
+    //  transport the test holds rather than the pipe OpenDebugger opens, the
+    //  call record's rebuilder, whose jobs a test runs on a queue of its own,
+    //  and what Initialize and the debugger window would set up otherwise --
+    //  the framebuffers a reverse command draws into, and whether the window
+    //  is showing, since its view is built only while it is.
+
+    // Opens and closes the debug channel. CPU thread only. Opening an open
+    // channel does nothing; a channel that cannot open is reported and the
+    // emulator goes on without one.
+    HRESULT OpenDebugger    ();
+    void    CloseDebugger   ();
+    void    ServiceDebugger ();
+    bool    IsDebuggerOpen  () const { return m_debugController != nullptr; }
+
+    // IDebuggerWindowHost: the window's next view and console lines.
+    bool    TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
+                                std::vector<std::string>                     & consoleLines) override;
+
+    // Makes the controller the shell's debugger: the shell's debug pointers
+    // at it, and the session's requests routed to the CPU thread.
+    void                    AttachDebugger      (std::unique_ptr<DebuggerController> controller);
+    ScratchCallReplayer   & GetCallReplayer     ()             { return m_callReplayer; }
+    void                    PrepareFramebuffers ();
+    void                    SetDebugWindowShown (bool isShown) { m_isDebugWindowShown.store (isShown); }
+
+private:
+
+    IDebuggerHost     & m_host;
+    MachineHost       & m_machine;
+    CpuManager        & m_cpuManager;
+    DebuggerSettings  & m_settings;   // the emulator's preferences hold it; saved through the host
+
     // The driver of a debugger run, when one is attached. Null on a machine
     // nobody is debugging, which is what keeps the slice loop's cost to a
     // comparison. Owned by whoever attached the session, not by the shell.
@@ -282,48 +389,12 @@ public:
     // debugger, whose call history holds it.
     ScratchCallReplayer           m_callReplayer;
 
-    void            ServiceHistoryThumbnails();
     bool            TryPublishHistoryPlayhead();
     void            SyncHeatHistory         (bool isAttached);
     void            ServiceCallHistory();
 
-public:
-
-    //  Reachable by a test subclass, which drives the debugger and its call
-    //  history as the CPU thread does and takes its views as the window
-    //  does: the debug channel's lifecycle, the debugger attached over a
-    //  transport the test holds rather than the pipe OpenDebugger opens, the
-    //  call record's rebuilder, whose jobs a test runs on a queue of its own,
-    //  and what Initialize and the debugger window would set up otherwise --
-    //  the framebuffers a reverse command draws into, and whether the window
-    //  is showing, since its view is built only while it is.
-
-    // Opens and closes the debug channel. CPU thread only. Opening an open
-    // channel does nothing; a channel that cannot open is reported and the
-    // emulator goes on without one.
-    HRESULT OpenDebugger    ();
-    void    CloseDebugger   ();
-    void    ServiceDebugger ();
-    bool    IsDebuggerOpen  () const { return m_debugController != nullptr; }
-
-    // IDebuggerWindowHost: the window's next view and console lines.
-    bool    TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
-                                std::vector<std::string>                     & consoleLines) override;
-
-    // Makes the controller the shell's debugger: the shell's debug pointers
-    // at it, and the session's requests routed to the CPU thread.
-    void                    AttachDebugger      (std::unique_ptr<DebuggerController> controller);
-    ScratchCallReplayer   & GetCallReplayer     ()             { return m_callReplayer; }
-    void                    PrepareFramebuffers ();
-    void                    SetDebugWindowShown (bool isShown) { m_isDebugWindowShown.store (isShown); }
-
-private:
-
-    EmulatorShell  & m_shell;
-
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
-    bool                                  m_openDebuggerAtStart = false;
     Win32FileSystem                       m_debugFiles;
     std::unique_ptr<Win32NamedPipeApi>    m_pipeApi;
     std::unique_ptr<Win32PipeTransport>   m_pipeTransport;

@@ -13,7 +13,6 @@
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Core/ComponentRegistry.h"
-#include "Debugger/Reverse/DivergenceGate.h"
 #include "Core/EmuCpu.h"
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
@@ -35,18 +34,11 @@
 #include "Shell/ModernPrintDialog.h"
 #include "Shell/ScreenshotCapture.h"
 #include "Shell/CpuManager.h"
-#include "Core/ParallelWorkPool.h"
-#include "Core/ThreadPoolWorkQueue.h"
-#include "Ui/Debugger/DebuggerWindow.h"
-#include "Ui/Debugger/DebugViewPublisher.h"
 #include "Shell/BackgroundWorkQueue.h"
 #include "Shell/TapeManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
-#include "Shell/ScratchCallReplayer.h"
-#include "Shell/ScratchHeatReplayer.h"
-#include "Shell/ScratchMachineRenderer.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
 #include "Ui/Chrome/Apple2cSwitchBar.h"
@@ -85,20 +77,12 @@ class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
-class CpuManagerRunDriver;
-class DebuggerController;
-class Win32NamedPipeApi;
-class Win32PipeTransport;
-class DebugSession;
-class IReverseStopTest;
-class ReverseHost;
 class UpdateDialog;
 struct MonitorSpec;
 class MachineGamePortSink;
 class ControllerInputThread;
 class Win32ControllerBackend;
 struct ScreenshotFacts;
-class ScreenshotMetadata;
 class DiskManager;
 class ThemeManager;
 
@@ -175,6 +159,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellDebugger;
+struct DebuggerSliceHooks;
 
 class EmulatorShell : public IDxuiHostClient,
                       public IDriveCommandSink,
@@ -182,7 +167,6 @@ class EmulatorShell : public IDxuiHostClient,
                       private ICpuCommandTarget
 {
 public:
-    friend class ShellDebugger;
 
     EmulatorShell();
     ~EmulatorShell();
@@ -432,7 +416,7 @@ private:
     void RenderFramebuffer();
 
     // One slice of a frame, watching input held back behind live.
-    uint32_t  RunWatchedSlice (uint32_t sliceTarget);
+    uint32_t  RunWatchedSlice (uint32_t sliceTarget, const DebuggerSliceHooks & hooks);
 
     // Take a screenshot in the user's configured mode: copy it to the
     // clipboard, write the PNG if saving is on, and say what happened.
@@ -2422,12 +2406,6 @@ private:
     static constexpr UINT                kPrefsSaveDelayMs  = 750;
     std::atomic<bool>                    m_globalPrefsDirty = false;
 
-    // A guest mouse press that asked behind live and was let go of before
-    // the machine was live is held down this long once live, so the guest
-    // sees a click rather than nothing.
-    static constexpr UINT_PTR            kClickReleaseTimerId = 0xCA56;
-    static constexpr UINT                kClickHoldMs         = 100;
-
     // The Settings dialog, shown modeless so the emulator keeps running behind
     // it (FR-041). Heap-owned + null when closed; OpenSettings creates it and
     // the close callback flags m_settingsSheetClosePending so RunMessageLoop
@@ -2504,6 +2482,8 @@ private:
     // The debugger: its window and session, reverse execution and the
     // replays of history, and the debug channel. Declared after the CPU
     // manager it drives, so it is destroyed before it.
+    class                           DebuggerHost;
+    std::unique_ptr<DebuggerHost>   m_debuggerHost;   // what the debugger asks of the shell; outlives it
     std::unique_ptr<ShellDebugger>  m_debugger;
 
 

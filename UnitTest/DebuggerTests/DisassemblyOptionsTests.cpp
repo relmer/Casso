@@ -396,7 +396,7 @@ namespace DisassemblyOptionsTests
 
 
 
-            saved.debuggerDisassemblyOptions = "address source";
+            saved.debugger.disassemblyOptions = "address source";
 
             hr = saved.Save (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
@@ -404,7 +404,7 @@ namespace DisassemblyOptionsTests
             hr = loaded.Load (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
 
-            Assert::AreEqual (std::string ("address source"), loaded.debuggerDisassemblyOptions);
+            Assert::AreEqual (std::string ("address source"), loaded.debugger.disassemblyOptions);
         }
     };
 }

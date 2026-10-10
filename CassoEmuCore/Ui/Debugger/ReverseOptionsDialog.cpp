@@ -28,7 +28,7 @@ std::optional<ReverseOptions> ReverseOptionsDialog::TryParse (
 
     options.isRecording = isRecording;
 
-    isBudgetOk = TryParseWhole (budgetText, GlobalUserPrefs::kMinReverseBudgetMb, GlobalUserPrefs::kMaxReverseBudgetMb, options.budgetMb);
+    isBudgetOk = TryParseWhole (budgetText, DebuggerSettings::kMinReverseBudgetMb, DebuggerSettings::kMaxReverseBudgetMb, options.budgetMb);
 
     if (isBudgetOk)
     {
@@ -136,7 +136,7 @@ std::wstring ReverseOptionsDialog::GetEstimateText (const std::wstring & budgetT
 
     if (!parsed.has_value())
     {
-        return std::format (L"The memory is {} to {} MB.", GlobalUserPrefs::kMinReverseBudgetMb, GlobalUserPrefs::kMaxReverseBudgetMb);
+        return std::format (L"The memory is {} to {} MB.", DebuggerSettings::kMinReverseBudgetMb, DebuggerSettings::kMaxReverseBudgetMb);
     }
 
     EstimateMinutes (parsed->budgetMb, ReverseOptions::kDefaultIntervalFrames, low, high);

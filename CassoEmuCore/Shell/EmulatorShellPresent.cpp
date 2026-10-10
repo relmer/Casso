@@ -1034,10 +1034,7 @@ bool EmulatorShell::TryPresentUiFrame()
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (m_debugger->m_debuggerWindow != nullptr)
-    {
-        m_debugger->m_debuggerWindow->RenderFrame();
-    }
+    m_debugger->RenderWindowFrame();
 
     if (m_inputDebugPanel != nullptr)
     {
@@ -1366,8 +1363,7 @@ uint64_t EmulatorShell::ComputeBeamOverlaySig()
 
 
 
-    if (!m_debugger->m_isBeamOverlayOn.load (memory_order_acquire) || timing == nullptr ||
-        m_debugger->m_debugSession == nullptr || m_debugger->m_debugSession->GetRunState() != RunState::Paused)
+    if (timing == nullptr || !m_debugger->IsBeamMarkShown())
     {
         return 0;
     }

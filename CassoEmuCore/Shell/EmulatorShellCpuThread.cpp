@@ -247,10 +247,7 @@ void EmulatorShell::OnCpuThreadStart()
     // Reverse execution records from here, on the thread that runs the
     // machine, which is built and power cycled by now. The settings are read
     // once, here, and hold for every machine built after.
-    m_debugger->m_isReverseOn           = m_globalPrefs.reverseRecording;
-    m_debugger->m_reverseBudgetMb       = m_globalPrefs.reverseBudgetMb;
-    m_debugger->m_reverseIntervalFrames = m_globalPrefs.reverseIntervalFrames;
-
+    m_debugger->LoadReverseSettings();
     m_debugger->StartReverseRecording();
 
     // On the CPU thread, which is where the debugger lives from here on.
@@ -413,17 +410,8 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
 void EmulatorShell::StepInstruction()
 {
-    DebugCommand  stepInto;
-
-
-
-    if (m_debugger->m_debugSession != nullptr)
+    if (m_debugger->StepSession())
     {
-        stepInto.verb       = DebugVerb::StepInto;
-        stepInto.sourceName = "T";
-
-        (void) m_debugger->m_debugSession->Execute (stepInto);
-        m_debugger->m_isDebugViewDirty = true;
         return;
     }
 
@@ -822,7 +810,6 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
-    HRESULT         hr          = S_OK;
     FrameSignature  current;
     FrameSignature  lastRendered;
     bool            needsRender = false;
@@ -831,11 +818,7 @@ void EmulatorShell::RunCpuThreadFrame()
 
     // Recording pauses at a Maximum speed the user chose, and running the
     // machine from the past makes it live again.
-    if (m_debugger->m_reverseHost != nullptr)
-    {
-        hr = m_debugger->m_reverseHost->OnFrame (m_cpuManager.IsUserMaximumSpeed());
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    m_debugger->RecordHistoryFrame (m_cpuManager.IsUserMaximumSpeed());
 
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
@@ -943,17 +926,16 @@ void EmulatorShell::TickKeyboardAutoRepeat()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget)
+uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget, const DebuggerSliceHooks & hooks)
 {
-    bool      isBehind   = m_debugger->m_reverseHost != nullptr && m_debugger->m_reverseHost->IsBehindLive();
-    bool      isWatching = isBehind && m_debugger->m_heldInputWatch.Refresh();
+    bool      isWatching = hooks.isBehindLive && hooks.heldInputWatch->Refresh();
     uint32_t  actual     = 0;
 
 
 
     if (isWatching)
     {
-        m_machine.SetHeldInputWatch (&m_debugger->m_heldInputWatch);
+        m_machine.SetHeldInputWatch (hooks.heldInputWatch);
     }
 
     actual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
@@ -1012,21 +994,22 @@ uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget)
 
 void EmulatorShell::ExecuteCpuSlices()
 {
-    HRESULT   hr              = S_OK;
-    uint32_t  nominalCycles   = m_cyclesPerFrame;
-    uint32_t  targetCycles    = 0;
-    uint32_t  executed        = 0;
-    SpeedMode speed           = m_cpuManager.GetEffectiveSpeedMode();
-    bool      audioActive     = false;
-    bool      isSilent        = false;
-    double    cyclesPerSample = 0.0;
-    uint32_t  sliceTarget     = 0;
-    uint32_t  sliceActual     = 0;
-    uint32_t  numSamples      = 0;
-    Byte      pasted          = 0;
-    bool      isPauseLanding  = false;
-    bool      hasRunEnded     = false;
-    bool      isBehindLive    = m_debugger->m_reverseHost != nullptr && m_debugger->m_reverseHost->IsBehindLive();
+    HRESULT                   hr              = S_OK;
+    uint32_t                  nominalCycles   = m_cyclesPerFrame;
+    uint32_t                  targetCycles    = 0;
+    uint32_t                  executed        = 0;
+    SpeedMode                 speed           = m_cpuManager.GetEffectiveSpeedMode();
+    bool                      audioActive     = false;
+    bool                      isSilent        = false;
+    double                    cyclesPerSample = 0.0;
+    uint32_t                  sliceTarget     = 0;
+    uint32_t                  sliceActual     = 0;
+    uint32_t                  numSamples      = 0;
+    Byte                      pasted          = 0;
+    bool                      isPauseLanding  = false;
+    bool                      hasRunEnded     = false;
+    const DebuggerSliceHooks  hooks           = m_debugger->GetSliceHooks();   // the slices touch the debugger only through these
+    const bool                isBehindLive    = hooks.isBehindLive;
 
 
 
@@ -1068,13 +1051,13 @@ void EmulatorShell::ExecuteCpuSlices()
 
         // A pending pause shortens this pass to the share of the frame that
         // matches how far through the host tick it was asked for.
-        isPauseLanding = m_debugger->m_debugRunDriver != nullptr && m_debugger->m_debugRunDriver->IsPausePending();
+        isPauseLanding = hooks.runDriver != nullptr && hooks.runDriver->IsPausePending();
 
         if (isPauseLanding)
         {
             targetCycles = FrameCycleBudget::GetPauseTarget (nominalCycles,
                                                              m_machine.GetCpu()->GetTotalCycles(),
-                                                             m_debugger->m_debugRunDriver->GetPauseFraction());
+                                                             hooks.runDriver->GetPauseFraction());
         }
     }
 
@@ -1116,12 +1099,12 @@ void EmulatorShell::ExecuteCpuSlices()
         // slice, here where the machine first holds it. Off, one bool test.
         m_machine.SampleHostInputs();
 
-        sliceActual = RunWatchedSlice (sliceTarget);
+        sliceActual = RunWatchedSlice (sliceTarget, hooks);
         executed   += sliceActual;
 
         // Behind live, the slice ended after a read that input held back
         // would change: the machine stops there and the user is asked.
-        if (m_debugger->m_heldInputWatch.HasHit())
+        if (hooks.heldInputWatch->HasHit())
         {
             m_debugger->StopForHeldInputRead();
             hasRunEnded = true;
@@ -1141,7 +1124,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // A debugger step is silent: whether this slice belonged to one is
         // read before the run can end, and its speaker toggles are dropped
         // rather than played, here or with the next run's first slice.
-        isSilent = m_debugger->m_debugRunDriver != nullptr && m_debugger->m_debugRunDriver->IsSilent();
+        isSilent = hooks.runDriver != nullptr && hooks.runDriver->IsSilent();
 
         if (audioActive && isSilent)
         {
@@ -1149,7 +1132,7 @@ void EmulatorShell::ExecuteCpuSlices()
             m_machine.GetRefs().speaker->BeginFrame();
         }
 
-        if (m_debugger->m_debugRunDriver != nullptr && m_debugger->m_debugRunDriver->OnSliceExecuted (sliceActual))
+        if (hooks.runDriver != nullptr && hooks.runDriver->OnSliceExecuted (sliceActual))
         {
             hasRunEnded = true;
             break;
@@ -1203,6 +1186,6 @@ void EmulatorShell::ExecuteCpuSlices()
     // as a breakpoint, ended the pass and the pause along with it.
     if (isPauseLanding && !hasRunEnded)
     {
-        m_debugger->m_debugRunDriver->OnPausePointReached (executed);
+        hooks.runDriver->OnPausePointReached (executed);
     }
 }

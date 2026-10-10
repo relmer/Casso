@@ -1,7 +1,10 @@
 #include "Pch.h"
 
-#include "Shell/EmulatorShell.h"
+#include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
+#include "Config/DebuggerSettings.h"
+#include "Shell/CpuManager.h"
+#include "Shell/HeldHostInputs.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
@@ -53,7 +56,7 @@ void ShellDebugger::StartReverseRecording()
 
     if (m_reverseHost == nullptr)
     {
-        m_reverseHost = std::make_unique<ReverseHost> (m_shell.m_machine);
+        m_reverseHost = std::make_unique<ReverseHost> (m_machine);
         m_reverseHost->GetController().SetReplayControl (&m_replayControl);
 
         m_reverseHost->GetController().SetCallerProbe ([this] (uint64_t historyStartCycle)
@@ -73,7 +76,7 @@ void ShellDebugger::StartReverseRecording()
 
         m_reverseHost->SetLiveCallback ([this] ()
         {
-            PostMessageW (m_shell.m_hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+            PostMessageW (m_host.GetMainWindow(), WM_APP_GAMEPORT_FLUSH, 0, 0);
         });
     }
 
@@ -89,10 +92,10 @@ void ShellDebugger::StartReverseRecording()
     //  heat map's rebuilds and its look-ups of last accesses, and the call
     //  record's rebuilds.
     m_historyThumbnails.Clear();
-    m_historyRenderer.SetMachine (m_shell.m_machine.GetConfig(), m_shell.m_machine.GetCurrentMachineName());
-    m_heatReplayer.SetMachine    (m_shell.m_machine.GetConfig(), m_shell.m_machine.GetCurrentMachineName());
-    m_heatFinder.SetMachine      (m_shell.m_machine.GetConfig(), m_shell.m_machine.GetCurrentMachineName());
-    m_callReplayer.SetMachine    (m_shell.m_machine.GetConfig(), m_shell.m_machine.GetCurrentMachineName());
+    m_historyRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_heatReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_heatFinder.SetMachine      (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_callReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 }
 
 
@@ -185,7 +188,7 @@ void ShellDebugger::PostReverseCommand (
 {
     m_replayControl.isStopRequested.store (false, memory_order_release);
 
-    m_shell.PostCommand (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (command, argument));
+    m_host.PostCommand (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (command, argument));
 }
 
 
@@ -208,8 +211,8 @@ void ShellDebugger::RunReverseCommand (
     uint64_t        argument)
 {
     HRESULT        hr          = S_OK;
-    EmuCpu       * cpu         = m_shell.m_machine.GetCpu();
-    AppleSpeaker * speaker     = m_shell.m_machine.GetRefs().speaker;
+    EmuCpu       * cpu         = m_machine.GetCpu();
+    AppleSpeaker * speaker     = m_machine.GetRefs().speaker;
     bool           isPublished = false;
     ReverseResult  result;
     StopEvent      stop;
@@ -262,7 +265,7 @@ void ShellDebugger::RunReverseCommand (
     stop.history   = result.outcome;
 
     m_lastReverseOutcome  = result.outcome;
-    m_lastReversePosition = m_shell.m_machine.GetPosition();
+    m_lastReversePosition = m_machine.GetPosition();
 
     if (result.outcome == ReverseOutcome::NoCaller)
     {
@@ -278,8 +281,7 @@ void ShellDebugger::RunReverseCommand (
 
     m_isDebugViewDirty = true;
 
-    m_shell.RenderFramebuffer();
-    m_shell.PublishFramebuffer();
+    m_host.DrawFrame();
 
 Error:
     //  Landed or not, the seek is no longer on its way. The timeline hears
@@ -320,7 +322,7 @@ bool ShellDebugger::AllowCommand (
     WORD                 id,
     const std::string  & payload)
 {
-    bool               isUiThread = m_shell.m_hwnd != nullptr && GetWindowThreadProcessId (m_shell.m_hwnd, nullptr) == GetCurrentThreadId();
+    bool               isUiThread = m_host.GetMainWindow() != nullptr && GetWindowThreadProcessId (m_host.GetMainWindow(), nullptr) == GetCurrentThreadId();
     DivergenceVerdict  verdict    = DivergenceVerdict::Proceed;
     bool               isAllowed  = true;
 
@@ -341,7 +343,7 @@ bool ShellDebugger::AllowCommand (
 
         if (isAllowed)
         {
-            m_shell.m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+            m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
         }
     }
 
@@ -363,7 +365,7 @@ bool ShellDebugger::AllowCommand (
 
 bool ShellDebugger::AskToDiverge()
 {
-    int  choice = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
+    int  choice = DxuiMessageBox (m_host.GetMainWindow(), &m_host.GetChromeTheme(), DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
                                   MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
 
@@ -434,7 +436,7 @@ bool ShellDebugger::GuardHistoryEdit (
         m_pendingDivergeCommand = DebugCommandPayload::Encode (m_debugCommandClient, line, mode);
     }
 
-    PostMessageW (m_shell.m_hwnd, WM_APP_CONFIRM_DIVERGE, 0, 0);
+    PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_DIVERGE, 0, 0);
 
     return false;
 }
@@ -469,8 +471,8 @@ void ShellDebugger::OnConfirmDiverge()
         return;
     }
 
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, *command);
+    m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, *command);
 }
 
 
@@ -502,7 +504,7 @@ void ShellDebugger::HoldInputBehindLive (HeldInput input)
 
     if (verdict == DivergenceVerdict::Ask)
     {
-        PostMessageW (m_shell.m_hwnd, WM_APP_CONFIRM_INPUT, 0, 0);
+        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_INPUT, 0, 0);
     }
 }
 
@@ -544,21 +546,21 @@ void ShellDebugger::StopForHeldInputRead()
 {
     uint64_t  position  = m_heldInputWatch.GetHitPosition();
     bool      isStep    = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
-    bool      isRunning = !m_shell.m_cpuManager.IsPaused() && !isStep;
+    bool      isRunning = !m_cpuManager.IsPaused() && !isStep;
 
 
 
     m_heldInputWatch.ClearHit();
 
-    m_shell.m_cpuManager.SetPaused (true);
+    m_cpuManager.SetPaused (true);
     NotifyDebugPauseChanged (true);
 
     RunReverseCommand (ReverseCommand::Seek, position);
 
     m_isResumeOwedAfterHeldRead.store (isRunning, memory_order_release);
 
-    m_shell.UpdateWindowTitle();
-    PostMessageW (m_shell.m_hwnd, WM_APP_HELD_INPUT_READ, 0, 0);
+    m_host.UpdateWindowTitle();
+    PostMessageW (m_host.GetMainWindow(), WM_APP_HELD_INPUT_READ, 0, 0);
 }
 
 
@@ -627,10 +629,10 @@ void ShellDebugger::ResumeAfterHeldInput()
         return;
     }
 
-    m_shell.m_cpuManager.SetPaused (false);
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
+    m_cpuManager.SetPaused (false);
+    m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
 
-    m_shell.UpdateWindowTitle();
+    m_host.UpdateWindowTitle();
 }
 
 
@@ -667,22 +669,22 @@ void ShellDebugger::OnConfirmInputDiverge()
 
     if (!isConfirmed)
     {
-        if (hasHeldPaste && m_shell.m_clipboardManager != nullptr)
+        if (hasHeldPaste)
         {
-            m_shell.m_clipboardManager->TruncatePaste (m_pasteLengthBeforeHold);
+            m_host.TruncatePaste (m_pasteLengthBeforeHold);
         }
 
         ResumeAfterHeldInput();
         return;
     }
 
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+    m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
 
     // Live already, the replay having caught up while the question was
     // open: no return to live will hand the input back, so hand it now.
     if (!IsBehindLiveForUi())
     {
-        PostMessageW (m_shell.m_hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+        PostMessageW (m_host.GetMainWindow(), WM_APP_GAMEPORT_FLUSH, 0, 0);
     }
 }
 
@@ -734,18 +736,18 @@ void ShellDebugger::ApplyHeldInputs (const std::vector<HeldInput> & inputs)
 void ShellDebugger::ApplyHeldMouseTarget (uint32_t target)
 {
     HRESULT                              hr         = S_OK;
-    std::shared_lock<std::shared_mutex>  lifetime   (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     std::shared_lock<std::shared_mutex>  gate;
     bool                                 isGateOpen = false;
 
 
 
-    BAIL_OUT_IF (!lifetime.owns_lock() || m_shell.m_machine.GetMouse() == nullptr, S_OK);
+    BAIL_OUT_IF (!lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
 
-    isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
     BAIL_OUT_IF (!isGateOpen, S_OK);
 
-    m_shell.m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (target >> 16), static_cast<uint16_t> (target & 0xFFFF));
+    m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (target >> 16), static_cast<uint16_t> (target & 0xFFFF));
 
 Error:
     return;
@@ -761,31 +763,31 @@ Error:
 //
 //  The press goes down as a real one would. The question may have taken the
 //  release, which went to the message box, so a button no longer down is
-//  let go of after EmulatorShell::kClickHoldMs, long enough for the guest to see a click.
+//  let go of after kClickHoldMs, long enough for the guest to see a click.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::PressGuestMouseHeldBehindLive()
 {
     HRESULT                              hr         = S_OK;
-    std::shared_lock<std::shared_mutex>  lifetime   (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     std::shared_lock<std::shared_mutex>  gate;
     bool                                 isGateOpen = false;
     bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
 
 
-    BAIL_OUT_IF (!lifetime.owns_lock() || m_shell.m_machine.GetMouse() == nullptr, S_OK);
+    BAIL_OUT_IF (!lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
 
-    isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
     BAIL_OUT_IF (!isGateOpen, S_OK);
 
-    m_shell.m_machine.GetMouse()->SetButton (true);
-    m_shell.m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, true);
+    m_machine.GetMouse()->SetButton (true);
+    m_host.GetHeldHostInputs().OnPress (HeldHostInputs::kMouseButton, true);
 
     if (!isHostDown)
     {
-        hr = m_shell.m_host->SetTimer (EmulatorShell::kClickReleaseTimerId, EmulatorShell::kClickHoldMs);
+        hr = m_host.SetUiTimer (kClickReleaseTimerId, kClickHoldMs);
         CHRA (hr);
     }
 
@@ -809,24 +811,24 @@ Error:
 void ShellDebugger::ReleaseGuestMouseAfterClick()
 {
     HRESULT                              hr         = S_OK;
-    std::shared_lock<std::shared_mutex>  lifetime   (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     std::shared_lock<std::shared_mutex>  gate;
     bool                                 isGateOpen = false;
     bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
 
 
-    hr = m_shell.m_host->KillTimer (EmulatorShell::kClickReleaseTimerId);
+    hr = m_host.KillUiTimer (kClickReleaseTimerId);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    BAIL_OUT_IF (isHostDown || !lifetime.owns_lock() || m_shell.m_machine.GetMouse() == nullptr, S_OK);
+    BAIL_OUT_IF (isHostDown || !lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
 
-    isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
-    m_shell.m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    m_host.GetHeldHostInputs().OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
 
     if (isGateOpen)
     {
-        m_shell.m_machine.GetMouse()->SetButton (false);
+        m_machine.GetMouse()->SetButton (false);
     }
 
 Error:
@@ -845,13 +847,13 @@ Error:
 
 void ShellDebugger::ToggleHeldEightyColumnSwitch()
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
 
 
 
     if (lifetime.owns_lock())
     {
-        ToggleEightyColumnSwitch (m_shell.m_machine.GetRefs().iieKeyboard);
+        ToggleEightyColumnSwitch (m_machine.GetRefs().iieKeyboard);
     }
 }
 
@@ -880,7 +882,7 @@ void ShellDebugger::ToggleEightyColumnSwitch (Apple2eKeyboard * iieKbd)
 
     BAIL_OUT_IF (iieKbd == nullptr, S_OK);
 
-    isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
 
     if (!isGateOpen)
     {
@@ -890,7 +892,7 @@ void ShellDebugger::ToggleEightyColumnSwitch (Apple2eKeyboard * iieKbd)
 
     newIn = !iieKbd->IsEightyColumnSwitchIn();
     iieKbd->SetEightyColumnSwitchIn (newIn);
-    m_shell.PersistSwitchState ("eightyColumnSwitch", newIn);
+    m_host.PersistSwitchState ("eightyColumnSwitch", newIn);
 
 Error:
     return;
@@ -913,7 +915,7 @@ Error:
 
 void ShellDebugger::UpdateReplayCaption()
 {
-    EmuCpu        * cpu       = m_shell.m_machine.GetCpu();
+    EmuCpu        * cpu       = m_machine.GetCpu();
     bool            isBehind  = m_reverseHost != nullptr && cpu != nullptr && m_reverseHost->IsBehindLive();
     uint64_t        cycle     = 0;
     std::wstring    caption;
@@ -940,8 +942,125 @@ void ShellDebugger::UpdateReplayCaption()
 
     if (isChanged)
     {
-        m_shell.UpdateWindowTitle();
+        m_host.UpdateWindowTitle();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReplayCaption
+//
+//  Any thread. The note UpdateReplayCaption keeps, for the caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDebugger::GetReplayCaption()
+{
+    std::lock_guard<std::mutex>  held (m_replayCaptionMutex);
+
+
+
+    return m_replayCaption;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSliceHooks
+//
+//  CPU thread, once a frame. Behind live does not change within a frame:
+//  a reverse command or a cut runs between frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerSliceHooks ShellDebugger::GetSliceHooks()
+{
+    DebuggerSliceHooks  hooks;
+
+
+
+    hooks.runDriver      = m_debugRunDriver;
+    hooks.heldInputWatch = &m_heldInputWatch;
+    hooks.isBehindLive   = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+
+    return hooks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordHistoryFrame
+//
+//  CPU thread, ahead of each frame. Recording pauses at a Maximum speed
+//  the user chose, and running the machine from the past makes it live again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::RecordHistoryFrame (bool isUserMaximumSpeed)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_reverseHost != nullptr)
+    {
+        hr = m_reverseHost->OnFrame (isUserMaximumSpeed);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadReverseSettings
+//
+//  CPU thread, when it starts. The settings hold for every machine built
+//  after; Tools > Options changes them through ApplyReverseOptions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::LoadReverseSettings()
+{
+    m_isReverseOn           = m_settings.reverseRecording;
+    m_reverseBudgetMb       = m_settings.reverseBudgetMb;
+    m_reverseIntervalFrames = m_settings.reverseIntervalFrames;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeJoyportSyncOwed
+//
+//  UI thread, once live: whether a players' change made behind live is
+//  owed to the Joyport, cleared as it is read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::TakeJoyportSyncOwed()
+{
+    bool  isOwed = m_isJoyportSyncOwed;
+
+
+
+    m_isJoyportSyncOwed = false;
+
+    return isOwed;
 }
 
 
@@ -1048,7 +1167,7 @@ void ShellDebugger::ServiceHistoryThumbnails()
 
 bool ShellDebugger::TryPublishHistoryPlayhead()
 {
-    EmuCpu                * cpu       = m_shell.m_machine.GetCpu();
+    EmuCpu                * cpu       = m_machine.GetCpu();
     uint64_t                cycle     = 0;
     bool                    isBehind  = false;
     const KeyframeStore   * keyframes = nullptr;
@@ -1064,7 +1183,7 @@ bool ShellDebugger::TryPublishHistoryPlayhead()
     isBehind  = m_reverseHost->IsBehindLive();
     keyframes = &m_reverseHost->GetController().GetKeyframes();
 
-    m_historyThumbnails.SetPlayhead     (m_shell.m_machine.GetPosition(), isBehind);
+    m_historyThumbnails.SetPlayhead     (m_machine.GetPosition(), isBehind);
     m_historyThumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetLiveEndCycle() : cycle);
 
     if (keyframes->GetCount() > 0)
@@ -1121,7 +1240,7 @@ ReplayProgress ShellDebugger::GetReplayProgress()
 HistoryStatus ShellDebugger::GetHistoryStatus()
 {
     HistoryStatus  status;
-    bool           hasMoved = !m_shell.m_cpuManager.IsPaused() || m_shell.m_machine.GetPosition() != m_lastReversePosition;
+    bool           hasMoved = !m_cpuManager.IsPaused() || m_machine.GetPosition() != m_lastReversePosition;
 
 
 

@@ -1,9 +1,11 @@
 #include "Pch.h"
 
-#include "Shell/EmulatorShell.h"
+#include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/CpuManager.h"
 
 #include "Config/WindowPlacementProfile.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/Channel/PipeSecurity.h"
 #include "Debugger/Channel/Win32NamedPipeApi.h"
@@ -31,8 +33,11 @@ static constexpr uint32_t  s_kWindowClientId = 0;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ShellDebugger::ShellDebugger (EmulatorShell & shell) :
-    m_shell (shell)
+ShellDebugger::ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuManager & cpuManager, DebuggerSettings & settings) :
+    m_host       (host),
+    m_machine    (machine),
+    m_cpuManager (cpuManager),
+    m_settings   (settings)
 {
 }
 
@@ -60,7 +65,7 @@ ShellDebugger::~ShellDebugger() = default;
 
 IHostDialogs & ShellDebugger::GetHostDialogs() noexcept
 {
-    return m_shell.GetHostDialogs();
+    return m_host.GetHostDialogs();
 }
 
 
@@ -75,7 +80,7 @@ IHostDialogs & ShellDebugger::GetHostDialogs() noexcept
 
 bool ShellDebugger::IsBehindLiveForUi()
 {
-    return m_shell.m_machine.GetHostInputGate().IsHeld();
+    return m_machine.GetHostInputGate().IsHeld();
 }
 
 
@@ -90,7 +95,7 @@ bool ShellDebugger::IsBehindLiveForUi()
 
 bool ShellDebugger::DoesDebuggerFileExist (const std::wstring & path)
 {
-    return m_shell.m_uiFs.Exists (path);
+    return m_host.GetUiFileSystem().Exists (path);
 }
 
 
@@ -105,7 +110,7 @@ bool ShellDebugger::DoesDebuggerFileExist (const std::wstring & path)
 
 void ShellDebugger::PrepareFramebuffers()
 {
-    m_shell.AllocateFramebuffers();
+    m_host.PrepareFramebuffers();
 }
 
 
@@ -134,10 +139,10 @@ void ShellDebugger::OpenDebuggerWindow (bool activate)
     {
         m_debuggerWindow = std::make_unique<DebuggerWindow>();
 
-        hr = m_debuggerWindow->Create (m_shell.m_hInstance, m_shell.m_hwnd, &m_shell.m_chromeTheme, this, activate);
+        hr = m_debuggerWindow->Create (m_host.GetInstance(), m_host.GetMainWindow(), &m_host.GetChromeTheme(), this, activate);
         CHRF (hr, m_debuggerWindow.reset());
 
-        m_shell.ApplyAppIconToWindow (m_debuggerWindow->GetHwnd());
+        m_host.ApplyAppIcon (m_debuggerWindow->GetHwnd());
 
         //  While the debugger's title bar is held the OS runs its own move
         //  loop on this thread, so no frame runs for it or for the machine's
@@ -145,14 +150,14 @@ void ShellDebugger::OpenDebuggerWindow (bool activate)
         //  the printer's window does.
         m_debuggerWindow->SetOnModalLoopTick ([this] ()
         {
-            m_shell.TryPresentUiFrame();
+            m_host.PresentUiFrame();
         });
     }
 
     m_debuggerWindow->Show (activate);
 
     SetDebugWindowShown (true);
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_OPEN);
+    m_cpuManager.PostCommand (IDM_DEBUG_OPEN);
 
 Error:
     return;
@@ -218,7 +223,7 @@ void ShellDebugger::OnDebuggerWindowClosed()
 
 
     SetDebugWindowShown (false);
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
+    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
 }
 
 
@@ -248,7 +253,7 @@ void ShellDebugger::DetachDebugger()
 
 std::string ShellDebugger::GetDebuggerKeyScheme()
 {
-    return m_shell.m_globalPrefs.debuggerKeyScheme;
+    return m_settings.keyScheme;
 }
 
 
@@ -263,8 +268,8 @@ std::string ShellDebugger::GetDebuggerKeyScheme()
 
 void ShellDebugger::SetDebuggerKeyScheme (const std::string & name)
 {
-    m_shell.m_globalPrefs.debuggerKeyScheme = name;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.keyScheme = name;
+    m_host.SaveSettings();
 }
 
 
@@ -279,7 +284,7 @@ void ShellDebugger::SetDebuggerKeyScheme (const std::string & name)
 
 std::string ShellDebugger::GetDebuggerTheme()
 {
-    return m_shell.m_globalPrefs.debuggerTheme;
+    return m_settings.theme;
 }
 
 
@@ -294,8 +299,8 @@ std::string ShellDebugger::GetDebuggerTheme()
 
 void ShellDebugger::SetDebuggerTheme (const std::string & name)
 {
-    m_shell.m_globalPrefs.debuggerTheme = name;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.theme = name;
+    m_host.SaveSettings();
 }
 
 
@@ -314,8 +319,8 @@ ReverseOptions ShellDebugger::GetReverseOptions()
 
 
 
-    options.isRecording = m_shell.m_globalPrefs.reverseRecording;
-    options.budgetMb    = m_shell.m_globalPrefs.reverseBudgetMb;
+    options.isRecording = m_settings.reverseRecording;
+    options.budgetMb    = m_settings.reverseBudgetMb;
     return options;
 }
 
@@ -334,11 +339,11 @@ ReverseOptions ShellDebugger::GetReverseOptions()
 
 void ShellDebugger::SetReverseOptions (const ReverseOptions & options)
 {
-    m_shell.m_globalPrefs.reverseRecording = options.isRecording;
-    m_shell.m_globalPrefs.reverseBudgetMb  = options.budgetMb;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.reverseRecording = options.isRecording;
+    m_settings.reverseBudgetMb  = options.budgetMb;
+    m_host.SaveSettings();
 
-    m_shell.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (options.isRecording, options.budgetMb));
+    m_host.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (options.isRecording, options.budgetMb));
 }
 
 
@@ -353,7 +358,7 @@ void ShellDebugger::SetReverseOptions (const ReverseOptions & options)
 
 std::string ShellDebugger::GetDebuggerLayout()
 {
-    return m_shell.m_globalPrefs.debuggerLayout;
+    return m_settings.layout;
 }
 
 
@@ -368,13 +373,13 @@ std::string ShellDebugger::GetDebuggerLayout()
 
 void ShellDebugger::SetDebuggerLayout (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerLayout == text)
+    if (m_settings.layout == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerLayout = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.layout = text;
+    m_host.SaveSettings();
 }
 
 
@@ -389,7 +394,7 @@ void ShellDebugger::SetDebuggerLayout (const std::string & text)
 
 std::string ShellDebugger::GetDebuggerClosedPanes()
 {
-    return m_shell.m_globalPrefs.debuggerClosedPanes;
+    return m_settings.closedPanes;
 }
 
 
@@ -404,13 +409,13 @@ std::string ShellDebugger::GetDebuggerClosedPanes()
 
 void ShellDebugger::SetDebuggerClosedPanes (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerClosedPanes == text)
+    if (m_settings.closedPanes == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerClosedPanes = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.closedPanes = text;
+    m_host.SaveSettings();
 }
 
 
@@ -425,7 +430,7 @@ void ShellDebugger::SetDebuggerClosedPanes (const std::string & text)
 
 std::string ShellDebugger::GetDebuggerCommandBarDock()
 {
-    return m_shell.m_globalPrefs.debuggerCommandBarDock;
+    return m_settings.commandBarDock;
 }
 
 
@@ -440,13 +445,13 @@ std::string ShellDebugger::GetDebuggerCommandBarDock()
 
 void ShellDebugger::SetDebuggerCommandBarDock (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerCommandBarDock == text)
+    if (m_settings.commandBarDock == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerCommandBarDock = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.commandBarDock = text;
+    m_host.SaveSettings();
 }
 
 
@@ -461,7 +466,7 @@ void ShellDebugger::SetDebuggerCommandBarDock (const std::string & text)
 
 std::string ShellDebugger::GetDebuggerTimelineDock()
 {
-    return m_shell.m_globalPrefs.debuggerTimelineDock;
+    return m_settings.timelineDock;
 }
 
 
@@ -476,13 +481,13 @@ std::string ShellDebugger::GetDebuggerTimelineDock()
 
 void ShellDebugger::SetDebuggerTimelineDock (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerTimelineDock == text)
+    if (m_settings.timelineDock == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerTimelineDock = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.timelineDock = text;
+    m_host.SaveSettings();
 }
 
 
@@ -497,7 +502,7 @@ void ShellDebugger::SetDebuggerTimelineDock (const std::string & text)
 
 std::string ShellDebugger::GetDebuggerFocusedPane()
 {
-    return m_shell.m_globalPrefs.debuggerFocusedPane;
+    return m_settings.focusedPane;
 }
 
 
@@ -512,13 +517,13 @@ std::string ShellDebugger::GetDebuggerFocusedPane()
 
 void ShellDebugger::SetDebuggerFocusedPane (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerFocusedPane == text)
+    if (m_settings.focusedPane == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerFocusedPane = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.focusedPane = text;
+    m_host.SaveSettings();
 }
 
 
@@ -533,7 +538,7 @@ void ShellDebugger::SetDebuggerFocusedPane (const std::string & text)
 
 int ShellDebugger::GetDebuggerTextZoomPercent()
 {
-    return m_shell.m_globalPrefs.debuggerTextZoomPercent;
+    return m_settings.textZoomPercent;
 }
 
 
@@ -548,13 +553,13 @@ int ShellDebugger::GetDebuggerTextZoomPercent()
 
 void ShellDebugger::SetDebuggerTextZoomPercent (int percent)
 {
-    if (m_shell.m_globalPrefs.debuggerTextZoomPercent == percent)
+    if (m_settings.textZoomPercent == percent)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerTextZoomPercent = percent;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.textZoomPercent = percent;
+    m_host.SaveSettings();
 }
 
 
@@ -569,7 +574,7 @@ void ShellDebugger::SetDebuggerTextZoomPercent (int percent)
 
 std::string ShellDebugger::GetDebuggerDisassemblyOptions()
 {
-    return m_shell.m_globalPrefs.debuggerDisassemblyOptions;
+    return m_settings.disassemblyOptions;
 }
 
 
@@ -584,13 +589,13 @@ std::string ShellDebugger::GetDebuggerDisassemblyOptions()
 
 void ShellDebugger::SetDebuggerDisassemblyOptions (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerDisassemblyOptions == text)
+    if (m_settings.disassemblyOptions == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerDisassemblyOptions = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.disassemblyOptions = text;
+    m_host.SaveSettings();
 }
 
 
@@ -605,7 +610,7 @@ void ShellDebugger::SetDebuggerDisassemblyOptions (const std::string & text)
 
 std::string ShellDebugger::GetDebuggerHeatMapOptions()
 {
-    return m_shell.m_globalPrefs.debuggerHeatMapOptions;
+    return m_settings.heatMapOptions;
 }
 
 
@@ -624,15 +629,15 @@ std::string ShellDebugger::GetDebuggerHeatMapOptions()
 
 void ShellDebugger::SetDebuggerHeatMapOptions (const std::string & text)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap options " + text);
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap options " + text);
 
-    if (m_shell.m_globalPrefs.debuggerHeatMapOptions == text)
+    if (m_settings.heatMapOptions == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerHeatMapOptions = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.heatMapOptions = text;
+    m_host.SaveSettings();
 }
 
 
@@ -647,7 +652,7 @@ void ShellDebugger::SetDebuggerHeatMapOptions (const std::string & text)
 
 void ShellDebugger::ResetDebuggerHeatMap()
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
 }
 
 
@@ -662,7 +667,7 @@ void ShellDebugger::ResetDebuggerHeatMap()
 
 void ShellDebugger::SendDebuggerHeatMapRequest (const std::string & words)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
 }
 
 
@@ -677,7 +682,7 @@ void ShellDebugger::SendDebuggerHeatMapRequest (const std::string & words)
 
 std::string ShellDebugger::GetDebuggerHeatMapRanges()
 {
-    return m_shell.m_globalPrefs.debuggerHeatMapRanges;
+    return m_settings.heatMapRanges;
 }
 
 
@@ -695,13 +700,13 @@ std::string ShellDebugger::GetDebuggerHeatMapRanges()
 
 void ShellDebugger::SetDebuggerHeatMapRanges (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerHeatMapRanges == text)
+    if (m_settings.heatMapRanges == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerHeatMapRanges = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.heatMapRanges = text;
+    m_host.SaveSettings();
 }
 
 
@@ -716,7 +721,7 @@ void ShellDebugger::SetDebuggerHeatMapRanges (const std::string & text)
 
 std::string ShellDebugger::GetDebuggerOpenViews()
 {
-    return m_shell.m_globalPrefs.debuggerOpenViews;
+    return m_settings.openViews;
 }
 
 
@@ -731,13 +736,13 @@ std::string ShellDebugger::GetDebuggerOpenViews()
 
 void ShellDebugger::SetDebuggerOpenViews (const std::string & text)
 {
-    if (m_shell.m_globalPrefs.debuggerOpenViews == text)
+    if (m_settings.openViews == text)
     {
         return;
     }
 
-    m_shell.m_globalPrefs.debuggerOpenViews = text;
-    m_shell.SaveGlobalPrefsDeferred();
+    m_settings.openViews = text;
+    m_host.SaveSettings();
 }
 
 
@@ -776,7 +781,7 @@ std::string ShellDebugger::GetDebuggerPlacementKey() const
 bool ShellDebugger::TryGetDebuggerPlacement (RECT & rectPx)
 {
     WindowPlacementProfile::Bounds  bounds;
-    WindowPlacementProfile          profile (m_shell.m_globalPrefs);
+    WindowPlacementProfile          profile  = m_host.GetWindowPlacements();
     std::string                     key      = GetDebuggerPlacementKey();
     RECT                            saved    = {};
 
@@ -829,9 +834,9 @@ bool ShellDebugger::TryGetDebuggerPlacement (RECT & rectPx)
 
 void ShellDebugger::SetDebuggerPlacement (const RECT & rectPx)
 {
-    WindowPlacementProfile          profile (m_shell.m_globalPrefs);
+    WindowPlacementProfile          profile = m_host.GetWindowPlacements();
     WindowPlacementProfile::Bounds  bounds;
-    std::string                     key    = GetDebuggerPlacementKey();
+    std::string                     key     = GetDebuggerPlacementKey();
 
 
 
@@ -842,7 +847,7 @@ void ShellDebugger::SetDebuggerPlacement (const RECT & rectPx)
 
     WindowTrace::LogRect ("save.prefs", "debugger", rectPx, "key=" + key);
     profile.Save (key, bounds, WindowPlacementProfile::Target::Debugger);
-    m_shell.SaveGlobalPrefsDeferred();
+    m_host.SaveSettings();
 }
 
 
@@ -861,15 +866,15 @@ void ShellDebugger::SetDebuggerPlacement (const RECT & rectPx)
 SourceLookup ShellDebugger::FindDebuggerSource (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                                 const std::string & programKey)
 {
-    SourcePathList  paths   (m_shell.m_globalPrefs);
-    SourceService   service (m_shell.m_uiFs, paths);
+    SourcePathList  paths   (m_settings);
+    SourceService   service (m_host.GetUiFileSystem(), paths);
     SourceLookup    lookup  = service.Find (record, debugFilePath, programKey);
 
 
 
     if (lookup.match == SourceMatch::Exact || lookup.match == SourceMatch::Unverified)
     {
-        m_shell.SaveGlobalPrefsDeferred();
+        m_host.SaveSettings();
     }
 
     return lookup;
@@ -888,15 +893,15 @@ SourceLookup ShellDebugger::FindDebuggerSource (const DebugSourceFile & record, 
 SourceLookup ShellDebugger::MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
                                                         const std::string & programKey, int & recordIndex)
 {
-    SourcePathList  paths   (m_shell.m_globalPrefs);
-    SourceService   service (m_shell.m_uiFs, paths);
+    SourcePathList  paths   (m_settings);
+    SourceService   service (m_host.GetUiFileSystem(), paths);
     SourceLookup    lookup  = service.MatchDropped (files, path, programKey, recordIndex);
 
 
 
     if (recordIndex >= 0)
     {
-        m_shell.SaveGlobalPrefsDeferred();
+        m_host.SaveSettings();
     }
 
     return lookup;
@@ -914,7 +919,7 @@ SourceLookup ShellDebugger::MatchDroppedDebuggerSource (const std::vector<DebugS
 
 void ShellDebugger::RunDebuggerCommand (const std::string & line)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line));
+    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line));
 }
 
 
@@ -929,7 +934,7 @@ void ShellDebugger::RunDebuggerCommand (const std::string & line)
 
 void ShellDebugger::RunDebuggerCommandInMode (const std::string & line, CommandMode mode)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line, mode));
+    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line, mode));
 }
 
 
@@ -953,7 +958,7 @@ void ShellDebugger::RunDebuggerAction (const DebuggerAction & action)
         m_debugActionsPending.push_back (action);
     }
 
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_ACTION);
+    m_cpuManager.PostCommand (IDM_DEBUG_ACTION);
 }
 
 
@@ -968,7 +973,7 @@ void ShellDebugger::RunDebuggerAction (const DebuggerAction & action)
 
 void ShellDebugger::PauseDebugger()
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_PAUSE);
+    m_cpuManager.PostCommand (IDM_DEBUG_PAUSE);
 }
 
 
@@ -986,7 +991,7 @@ void ShellDebugger::PauseDebugger()
 
 void ShellDebugger::RunEmulatorCommand (int commandId)
 {
-    PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (commandId, 0), 0);
+    PostMessageW (m_host.GetMainWindow(), WM_COMMAND, MAKEWPARAM (commandId, 0), 0);
 }
 
 
@@ -1019,13 +1024,13 @@ std::string ShellDebugger::GetCodeViewSuffix (int view)
 
 void ShellDebugger::SetDebuggerFollowView (int view)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("follow {}", view + 1));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("follow {}", view + 1));
 }
 
 
 void ShellDebugger::CloseDebuggerCodeView (int view)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeclose {}", view + 1));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeclose {}", view + 1));
 }
 
 
@@ -1040,7 +1045,7 @@ void ShellDebugger::CloseDebuggerCodeView (int view)
 
 void ShellDebugger::SetDebuggerCodeLines (int lines, int view)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
 }
 
 
@@ -1055,7 +1060,7 @@ void ShellDebugger::SetDebuggerCodeLines (int lines, int view)
 
 void ShellDebugger::SetDebuggerCodeAddress (std::optional<Word> address, int view)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code{} {:04X}", GetCodeViewSuffix (view), *address)
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code{} {:04X}", GetCodeViewSuffix (view), *address)
                                                                  : std::format ("code{} pc", GetCodeViewSuffix (view)));
 }
 
@@ -1071,7 +1076,7 @@ void ShellDebugger::SetDebuggerCodeAddress (std::optional<Word> address, int vie
 
 void ShellDebugger::SetDebuggerCodeTop (Word top, int view)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codetop{} {:04X}", GetCodeViewSuffix (view), top));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codetop{} {:04X}", GetCodeViewSuffix (view), top));
 }
 
 
@@ -1093,7 +1098,7 @@ void ShellDebugger::SetDebuggerMemoryWindow (int id, std::optional<Word> address
 
 
 
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("{} {:04X}", view, *address)
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("{} {:04X}", view, *address)
                                                                  : view + " close");
 }
 
@@ -1109,7 +1114,7 @@ void ShellDebugger::SetDebuggerMemoryWindow (int id, std::optional<Word> address
 
 void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, first.has_value() ? std::format ("trace {}", *first)
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, first.has_value() ? std::format ("trace {}", *first)
                                                                : std::string ("trace end"));
 }
 
@@ -1125,7 +1130,7 @@ void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 
 void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatmap on") : std::string ("heatmap off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatmap on") : std::string ("heatmap off"));
 }
 
 
@@ -1144,7 +1149,7 @@ void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 void ShellDebugger::SetBeamOverlayOn (bool on)
 {
     m_isBeamOverlayOn.store (on, memory_order_release);
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "beam");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "beam");
 }
 
 
@@ -1159,7 +1164,7 @@ void ShellDebugger::SetBeamOverlayOn (bool on)
 
 void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll{} {}", GetCodeViewSuffix (view), lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll{} {}", GetCodeViewSuffix (view), lines));
 }
 
 
@@ -1174,7 +1179,7 @@ void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 
 void ShellDebugger::GoToDebuggerMemory (int window, const std::string & text)
 {
-    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("goto {} {}", window, text));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("goto {} {}", window, text));
 }
 
 
@@ -1302,7 +1307,7 @@ void ShellDebugger::CloseDebugChannel (bool isDetach)
         }
 
         m_debugController->GetSession().SetAttached (false);
-        m_shell.m_cpuManager.SetPaused (false);
+        m_cpuManager.SetPaused (false);
         m_debugController->GetSession().OnUserResumed();
     }
 
@@ -1656,9 +1661,9 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
         break;
 
     case HeatAccessPlan::Kind::Seek:
-        if (!m_shell.m_cpuManager.IsPaused())
+        if (!m_cpuManager.IsPaused())
         {
-            m_shell.m_cpuManager.SetPaused (true);
+            m_cpuManager.SetPaused (true);
             NotifyDebugPauseChanged (true);
         }
 
@@ -1693,19 +1698,7 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 
 void ShellDebugger::RedrawDebugFrame()
 {
-    uint64_t  colorSig = m_shell.ComputeColorSig();
-
-
-
-    if (colorSig == m_shell.m_lastRenderColorSig)
-    {
-        return;
-    }
-
-    m_shell.RenderFramebuffer();
-    m_shell.PublishFramebuffer();
-
-    m_shell.m_lastRenderColorSig = colorSig;
+    m_host.RedrawStoppedFrame();
 }
 
 
@@ -1763,7 +1756,7 @@ void ShellDebugger::PublishDebuggerView()
         isTaken = !m_isDebugViewFresh;
     }
 
-    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_shell.m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
+    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
                                            isTaken, now, m_debugViewBuiltAt);
 
     //  A stopped machine waiting on the heat map's rebuild, or the call
@@ -1778,7 +1771,7 @@ void ShellDebugger::PublishDebuggerView()
 
     //  The clock panel reports the speed, which the CPU manager paces and the
     //  machine does not know.
-    m_shell.m_machine.SetSpeedMode (m_shell.m_cpuManager.GetSpeedMode());
+    m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
 
     //  Anything the window did is shown at once, the heat map included.
     if (m_isDebugViewDirty)
@@ -1808,7 +1801,7 @@ void ShellDebugger::PublishDebuggerView()
     m_debugViewPublisher.Submit (std::move (input), std::move (live));
 
     m_debugViewBuiltAt      = now;
-    m_wasPausedAtDebugBuild = m_shell.m_cpuManager.IsPaused();
+    m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
     m_wasHeatRebuilding     = m_debugController->GetSession().GetTarget().IsHeatMapRebuilding();
     m_wasCallRebuilding     = m_debugController->GetCallHistory().IsRebuilding();
     m_isDebugViewDirty = false;
@@ -1836,7 +1829,7 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
 {
     DebugSession              & session  = m_debugController->GetSession();
     IDebugTarget              & target   = session.GetTarget();
-    bool                        isPaused = m_shell.m_cpuManager.IsPaused();
+    bool                        isPaused = m_cpuManager.IsPaused();
     auto                        capture  = std::make_shared<DebugViewCapture>();
     uint64_t                    first    = 0;
     std::vector<TraceRecord>    entries;
@@ -1979,7 +1972,7 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
 
     if (m_debugSession != nullptr)
     {
-        m_debugSession->OnMachineChanged (machineName, m_shell.m_cpuManager.IsPaused());
+        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
     }
 }
 
@@ -2026,11 +2019,11 @@ HRESULT ShellDebugger::OpenDebugger()
 
     api        = std::make_unique<Win32NamedPipeApi>();
     transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
-    controller = std::make_unique<DebuggerController> (m_shell.m_machine, m_shell.m_cpuManager, *transport, m_debugFiles,
+    controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport, m_debugFiles,
         [this] (ChannelHello & hello)
         {
-            hello.title   = TextEncoding::WideToNarrow (m_shell.m_titlePrefix);
-            hello.machine = m_shell.m_machine.GetConfig().name;
+            hello.title   = TextEncoding::WideToNarrow (m_host.GetTitlePrefix());
+            hello.machine = m_machine.GetConfig().name;
         },
         processId);
 
@@ -2152,10 +2145,106 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
     m_debugController->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
     {
-        m_shell.PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
+        m_host.PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
         return true;
     });
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepSession
+//
+//  CPU thread. One instruction stepped through the attached session, so the
+//  step lands where the debugger's own would; false when none is attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::StepSession()
+{
+    DebugCommand  stepInto;
+
+
+
+    if (m_debugSession == nullptr)
+    {
+        return false;
+    }
+
+    stepInto.verb       = DebugVerb::StepInto;
+    stepInto.sourceName = "T";
+
+    (void) m_debugSession->Execute (stepInto);
+    m_isDebugViewDirty = true;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBeamMarkShown
+//
+//  The beam mark is drawn while it is turned on and the session has the
+//  machine stopped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::IsBeamMarkShown()
+{
+    return m_isBeamOverlayOn.load (memory_order_acquire) &&
+           m_debugSession != nullptr                     &&
+           m_debugSession->GetRunState() == RunState::Paused;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderWindowFrame
+//
+//  UI thread. The debugger window's frame, drawn with the emulator's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::RenderWindowFrame()
+{
+    if (m_debuggerWindow != nullptr)
+    {
+        m_debuggerWindow->RenderFrame();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DestroyWindow
+//
+//  UI thread, at shutdown. The window posts to the CPU thread through the
+//  debugger, so it is cut off before either goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::DestroyWindow()
+{
+    if (m_debuggerWindow != nullptr)
+    {
+        m_debuggerWindow->DetachHost();
+        m_debuggerWindow.reset();
+    }
+}
+
 
 
 

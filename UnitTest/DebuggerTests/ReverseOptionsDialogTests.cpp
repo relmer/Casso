@@ -39,8 +39,8 @@ public:
         Assert::IsFalse (ReverseOptionsDialog::TryParse (true, L"").has_value(), L"empty");
         Assert::IsFalse (ReverseOptionsDialog::TryParse (true, L"99999999999").has_value(), L"too long to be a budget");
 
-        Assert::IsTrue (ReverseOptionsDialog::TryParse (true, std::to_wstring (GlobalUserPrefs::kMinReverseBudgetMb)).has_value(), L"the ends of the ranges");
-        Assert::IsTrue (ReverseOptionsDialog::TryParse (true, std::to_wstring (GlobalUserPrefs::kMaxReverseBudgetMb)).has_value());
+        Assert::IsTrue (ReverseOptionsDialog::TryParse (true, std::to_wstring (DebuggerSettings::kMinReverseBudgetMb)).has_value(), L"the ends of the ranges");
+        Assert::IsTrue (ReverseOptionsDialog::TryParse (true, std::to_wstring (DebuggerSettings::kMaxReverseBudgetMb)).has_value());
     }
 
 
