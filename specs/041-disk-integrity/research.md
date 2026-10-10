@@ -1296,7 +1296,7 @@ Comparing generations alone is safe even after a reverse restore, because the ge
 4. `Commit_OverAnExistingFile_KeepsItsAttributesAndPermissions`
 5. `Commit_ToAPathWithNoFile_CopiesNoMetadata`
 6. `Commit_FailedFlush_LeavesTheTargetAndRemovesTheTemporary`
-7. `Commit_FailedMetadataCopy_StillFlushesAndReplacesTheTarget`
+7. `AFailedMetadataCopyStillFlushesAndReplacesTheTarget` (040's `5fc3c330f`)
 8. `Commit_RequireNew_LeavesAFileAlreadyAtTheTargetAlone`
 9. `Commit_StepsPastAnAbandonedTemporary`
 
@@ -1371,7 +1371,7 @@ Comparing generations alone is safe even after a reverse restore, because the ge
 
 3. **Some metadata is still not copied:** the owner (it was not copied before either), alternate data streams (`Zone.Identifier`), object ID, short name, per-file encryption or compression, and cloud pin attributes. `ReplaceFileW` would have copied these. This needs to be accepted explicitly against FR-018's wording, "attributes and permissions".
 
-4. **A failed metadata copy does not fail the save (owner decision, 2026-10-09).** Copying the attributes, creation time and permissions is best-effort: when `CopyFileMetadata` fails, for example on an SMB share where `SetNamedSecurityInfoW` is denied, `DurableCommit` goes ahead with the flush and the replace and shows nothing. The new version may then lose hidden or system flags or custom permissions. The alternative, failing the save so the original stays untouched, was rejected. Spec 040's commit `8cccbd3f0` aborts on a metadata failure; 041 changes it after the cherry-pick (tasks.md T054).
+4. **A failed metadata copy does not fail the save (owner decision, 2026-10-09).** Copying the attributes, creation time and permissions is best-effort: when `CopyFileMetadata` fails, for example on an SMB share where `SetNamedSecurityInfoW` is denied, `DurableCommit` goes ahead with the flush and the replace and shows nothing. The new version may then lose hidden or system flags or custom permissions. The alternative, failing the save so the original stays untouched, was rejected. Spec 040's `5fc3c330f` makes `DurableCommit` continue past a metadata failure; 041 cherry-picks it after `8cccbd3f0` (tasks.md T054).
 
 5. **Seam ripple.** All three `IDiskFileIo` implementations change. The CLI and Cassque gain a flush on every put and delete, and need one new user-facing sentence, which the owner must approve.
 
