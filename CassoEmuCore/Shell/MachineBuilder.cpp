@@ -43,6 +43,8 @@
 #include "Print/PrinterWorker.h"
 #include "WasapiAudio.h"
 #include "../AssetBootstrap.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
+#include "Machines/MachineDefinition.h"
 
 
 

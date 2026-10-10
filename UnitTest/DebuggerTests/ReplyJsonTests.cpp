@@ -3,6 +3,7 @@
 #include "Core/JsonParser.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/ReplyJson.h"
+#include "Core/JsonValue.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -4,6 +4,9 @@
 
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Shell/Input/CapsLockTracker.h"
+#include "Capture/CapturedImage.h"
+#include "Core/MemoryBus.h"
+#include "Seams/IHostClipboard.h"
 
 
 

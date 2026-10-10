@@ -7,6 +7,7 @@
 #include "Debugger/DebuggerController.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "resource.h"
+#include "Debugger/Source/SourcePathList.h"
 
 
 

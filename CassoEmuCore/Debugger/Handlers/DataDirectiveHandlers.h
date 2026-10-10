@@ -1,9 +1,10 @@
 #pragma once
 
-#include "Debugger/DataBlockTable.h"
 #include "Debugger/IDebugCommandHandler.h"
 
 class IDebugTarget;
+struct DataBlockEntry;
+class DataBlockTable;
 
 
 

@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "MemoryProbeHelpers.h"
+#include "Shell/MachineHost.h"
 
 
 

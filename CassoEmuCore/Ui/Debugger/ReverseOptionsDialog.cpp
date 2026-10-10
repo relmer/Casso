@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/ReverseOptionsDialog.h"
 #include "Config/GlobalUserPrefs.h"
+#include "Ui/Debugger/BreakpointDialog.h"
 
 
 

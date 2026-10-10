@@ -3,6 +3,7 @@
 #include "Core/AppleSingleCodec.h"
 #include "Cassque/CassqueBrowser.h"
 #include "Core/TextEncoding.h"
+#include "Seams/IShellIcons.h"
 
 
 

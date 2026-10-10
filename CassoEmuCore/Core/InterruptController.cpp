@@ -3,6 +3,7 @@
 #include "InterruptController.h"
 #include "StateReader.h"
 #include "StateWriter.h"
+#include "ICpu.h"
 
 
 

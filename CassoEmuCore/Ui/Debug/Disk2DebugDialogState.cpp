@@ -2,6 +2,7 @@
 
 #include "Disk2DebugDialogState.h"
 #include "DebugDialogProjection.h"
+#include "Ui/Debug/Disk2EventDisplay.h"
 
 
 

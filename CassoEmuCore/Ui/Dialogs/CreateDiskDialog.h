@@ -3,8 +3,9 @@
 #include "Pch.h"
 
 #include "../FileBrowseModel.h"
-#include "../CreateDiskBodyPanel.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+
+class CreateDiskBodyPanel;
 
 
 

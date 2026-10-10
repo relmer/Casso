@@ -9,6 +9,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/MachineGamePortSink.h"
 #include "HResultAssert.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

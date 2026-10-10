@@ -3,6 +3,7 @@
 #include "DialogBodyContent.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 
 
 static constexpr int      s_kLineHeightDip = 18;   // == DxuiTheme::BodyLineHeightDip, so a run's block matches real text line flow

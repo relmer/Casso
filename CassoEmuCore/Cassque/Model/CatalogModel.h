@@ -2,8 +2,11 @@
 
 #include "Pch.h"
 
-#include "Config/IFileSystem.h"
-#include "Machines/Apple2/Common/VolumeTypes.h"
+struct FileSystemEntry;
+class IFileSystem;
+struct FileEntry;
+struct VolumeListing;
+
 
 
 enum class VolumeKind;

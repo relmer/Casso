@@ -9,6 +9,7 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/Reverse/ReplayControl.h"
 
 
 

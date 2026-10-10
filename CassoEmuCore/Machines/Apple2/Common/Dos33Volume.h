@@ -3,7 +3,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/IVolume.h"
-#include "Devices/Disk/ChainWalkGuard.h"
+
+class ChainWalkGuard;
 
 
 

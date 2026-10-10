@@ -8,6 +8,7 @@
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiPaneMetrics.h"
 #include "Render/IDxuiPainter.h"
+#include "Core/DxuiEvents.h"
 
 
 

@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/ControllersPageState.h"
 
 #include "SettingsPanelState.h"
@@ -14,11 +13,8 @@
 #include "Ui/Scene/DeskScene.h"
 #include "ColorPickerOverlay.h"
 #include "HardwarePage.h"
-#include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
-#include "PrintingPage.h"
-#include "ScreenshotsPage.h"
 
 
 class UserConfigStore;
@@ -27,6 +23,10 @@ class ThemeManager;
 class EmulatorShell;
 class IFileSystem;
 class DxuiLabel;
+class ControllersPage;
+class PrintingPage;
+class DiskPage;
+class ScreenshotsPage;
 
 
 

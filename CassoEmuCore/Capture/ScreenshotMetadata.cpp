@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Capture/ScreenshotMetadata.h"
+#include "Devices/Printer/PngMetadata.h"
 
 
 

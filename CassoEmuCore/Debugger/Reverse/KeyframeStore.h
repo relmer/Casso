@@ -2,12 +2,13 @@
 
 #include "Pch.h"
 
-#include "Core/IWorkQueue.h"
-#include "Debugger/Reverse/KeyframeUnpacker.h"
 #include "Debugger/Reverse/SnapshotCompressor.h"
 
 class MachineHost;
 class StateWriter;
+class IWorkQueue;
+struct PackedKeyframe;
+class KeyframeUnpacker;
 
 
 

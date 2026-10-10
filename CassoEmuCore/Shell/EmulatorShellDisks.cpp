@@ -58,6 +58,7 @@
 #include "Config/Win32FileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
+#include "Shell/DiskManager.h"
 
 
 

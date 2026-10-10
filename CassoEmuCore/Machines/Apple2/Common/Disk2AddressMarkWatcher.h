@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/IDisk2EventSink.h"
+class IDisk2EventSink;
 
 
 

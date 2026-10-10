@@ -4,6 +4,7 @@
 
 #include "Render/SceneCamera.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Scene/DeskSceneLayout.h"
 
 
 

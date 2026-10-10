@@ -14,6 +14,7 @@
 #include "../Dxui/MockDxuiTheme.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

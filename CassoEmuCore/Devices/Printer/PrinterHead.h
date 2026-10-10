@@ -3,7 +3,8 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PrinterTypes.h"
-#include "Devices/Printer/PrintRaster.h"
+
+class PrintRaster;
 
 
 

@@ -2,9 +2,12 @@
 
 #include "Pch.h"
 
-#include "Controllers/ControlMapping.h"
 #include "Controllers/ControllerTypes.h"
 #include "Controllers/GamePortInputMixer.h"
+
+struct AxisBinding;
+struct ButtonBinding;
+struct ControlMapping;
 
 
 

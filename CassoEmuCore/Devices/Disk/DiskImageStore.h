@@ -6,11 +6,12 @@
 #include "MountedImageState.h"
 #include "ChangePrompt.h"
 #include "PreservedCopy.h"
-#include "IImageWatcher.h"
 #include "IDiskFileIo.h"
-#include "MountDiagnosis.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "BayChange.h"
+#include "IImageWatcher.h"
+
+class MountDiagnosis;
 
 
 

@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
+#include "Ui/Debugger/DebuggerActions.h"
 
 
 

@@ -11,6 +11,9 @@
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/IRomSource.h"
+#include "Devices/Disk/MountDiagnosis.h"
+#include "Debugger/MachineDebugTarget.h"
+#include "Debugger/SynchronousRunDriver.h"
 
 
 
@@ -27,6 +30,20 @@ DebugBatchRunner::DebugBatchRunner (const IRomSource & roms, IFileSystem & files
     m_files (files)
 {
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugBatchRunner::~DebugBatchRunner
+//
+//  Here, where the run driver it owns is complete; the header only declares it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugBatchRunner::~DebugBatchRunner() = default;
 
 
 

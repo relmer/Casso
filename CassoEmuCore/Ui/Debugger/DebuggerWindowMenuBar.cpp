@@ -6,6 +6,10 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "resource.h"
+#include "Ui/Debugger/BreakpointBarCommands.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
+#include "Ui/Debugger/ToolbarCheckEntry.h"
+#include "Ui/Debugger/DebuggerCommands.h"
 
 
 

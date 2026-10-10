@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Disassembler.h"
+struct DisassembledInstruction;
+class Disassembler;
 
 class Microcode;
 

@@ -2,8 +2,9 @@
 
 #include "../../CassoEmuCore/Pch.h"
 
-#include "Shell/MachineHost.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+
+class MachineHost;
 
 
 

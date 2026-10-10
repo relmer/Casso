@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Debugger/Reverse/ReplayControl.h"
 
 
 

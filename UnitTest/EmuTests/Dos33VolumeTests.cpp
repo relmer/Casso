@@ -5,6 +5,8 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "HResultAssert.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

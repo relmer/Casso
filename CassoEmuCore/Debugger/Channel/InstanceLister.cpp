@@ -4,6 +4,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
+#include "Debugger/Channel/IInstanceDirectory.h"
 
 
 

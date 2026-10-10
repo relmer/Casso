@@ -5,6 +5,8 @@
 #include "PathResolver.h"
 
 #include "Machines/MachineDefinitions.h"
+#include "Core/JsonValue.h"
+#include "Machines/MachineDefinition.h"
 
 
 static constexpr int    kMinSlot       = 1;

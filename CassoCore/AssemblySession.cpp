@@ -7,6 +7,8 @@
 #include "ExpressionEvaluator.h"
 #include "Parser.h"
 #include "StringEncoding.h"
+#include "SubsetBoundary.h"
+#include "InstructionSetProvider.h"
 
 
 

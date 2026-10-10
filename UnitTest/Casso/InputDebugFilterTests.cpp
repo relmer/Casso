@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Ui/Debug/InputDebugDialogState.h"
+#include "Ui/Debug/InputEventDisplay.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

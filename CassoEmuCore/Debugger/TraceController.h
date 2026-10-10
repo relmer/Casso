@@ -1,9 +1,10 @@
 #pragma once
 
 #include "Core/IWatchSink.h"
-#include "Debugger/Reply.h"
 
 class MachineHost;
+struct TraceRecord;
+struct Reply;
 
 
 

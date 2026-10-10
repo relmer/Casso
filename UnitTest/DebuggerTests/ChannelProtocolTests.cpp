@@ -5,6 +5,7 @@
 #include "Debugger/ReplyJson.h"
 
 #include "CppUnitTest.h"
+#include "Core/JsonValue.h"
 
 
 

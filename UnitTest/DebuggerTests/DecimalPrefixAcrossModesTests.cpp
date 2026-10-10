@@ -8,6 +8,7 @@
 #include "MockExpressionContext.h"
 
 #include "CppUnitTest.h"
+#include "Debugger/MonitorState.h"
 
 
 

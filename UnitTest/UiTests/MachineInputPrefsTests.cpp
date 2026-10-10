@@ -9,6 +9,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Machines/MachineDefinition.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

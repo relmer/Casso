@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Window/DxuiToolbarDragSession.h"
+#include "Widgets/DxuiToolbarDock.h"
+#include "Window/IDxuiToolbarDragSite.h"
 
 
 

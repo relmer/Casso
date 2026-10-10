@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Core/DxuiEvents.h"
 
 
 

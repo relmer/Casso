@@ -5,6 +5,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/TextEncoding.h"
+#include "Config/IFileSystem.h"
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Via6522.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

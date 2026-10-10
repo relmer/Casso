@@ -7,6 +7,7 @@
 #include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "Render/DxuiStroke.h"
+#include "Core/DxuiEvents.h"
 
 
 

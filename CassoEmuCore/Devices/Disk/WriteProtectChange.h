@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/IDiskImage.h"
+struct WriteProtectInfo;
+class IDiskImage;
 
 
 

@@ -3,6 +3,7 @@
 #include "DisplayPage.h"
 
 #include "../Chrome/CassoTheme.h"
+#include "Ui/Settings/SettingsPanelState.h"
 
 
 

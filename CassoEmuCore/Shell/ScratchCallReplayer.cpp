@@ -4,6 +4,8 @@
 
 #include "Debugger/CallRecordCopies.h"
 #include "Debugger/Reverse/Replayer.h"
+#include "Debugger/DebugMemoryView.h"
+#include "Debugger/Reverse/ReplayDiskCopier.h"
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Chrome/LedIndicator.h"
+#include "Ui/Chrome/CassoTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

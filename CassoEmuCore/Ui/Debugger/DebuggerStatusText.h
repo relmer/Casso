@@ -2,8 +2,10 @@
 
 #include "Pch.h"
 #include "Debugger/Reverse/HistoryStatus.h"
-#include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+
+struct ReplayControl;
+struct ReplayProgress;
 
 
 

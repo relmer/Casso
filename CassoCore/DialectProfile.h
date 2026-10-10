@@ -2,7 +2,9 @@
 
 #include "Dialect.h"
 #include "Parser.h"
-#include "SubsetBoundary.h"
+
+struct SubsetBoundaryRow;
+class SubsetBoundary;
 
 
 

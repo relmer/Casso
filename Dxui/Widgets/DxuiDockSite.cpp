@@ -3,6 +3,9 @@
 #include "Widgets/DxuiDockSite.h"
 #include "Render/IDxuiPainter.h"
 #include "Theme/IDxuiTheme.h"
+#include "Widgets/DxuiPaneFrame.h"
+#include "Core/DxuiEvents.h"
+#include "Render/DxuiCoverageRaster.h"
 
 
 

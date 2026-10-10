@@ -1,11 +1,14 @@
 #pragma once
 
 #include "AssemblerTypes.h"
-#include "CommandLineOptions.h"
 #include "Cpu.h"
-#include "DialectReporting.h"
-#include "InstructionSetProvider.h"
 #include "Microcode.h"
+
+class InstructionSetProvider;
+struct CommandLineOptions;
+struct CpuReport;
+struct DialectReportLine;
+class DialectReporting;
 
 
 

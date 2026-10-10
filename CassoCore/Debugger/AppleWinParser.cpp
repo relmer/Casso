@@ -5,6 +5,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDebugExpressionContext.h"
+#include "Debugger/AppleWinCommandTable.h"
 
 
 

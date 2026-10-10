@@ -3,9 +3,10 @@
 #include "Pch.h"
 
 #include "CommitPlan.h"
-#include "DiskCommandResult.h"
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+
+struct DiskCommandResult;
 
 enum class VolumeKind;
 

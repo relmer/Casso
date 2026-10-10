@@ -2,11 +2,10 @@
 
 #include "Pch.h"
 
-#include "Dialogs/DialogDefinition.h"
-
-
 class DxuiPanel;
 class IDxuiControl;
+struct DialogButton;
+struct DialogDefinition;
 
 
 

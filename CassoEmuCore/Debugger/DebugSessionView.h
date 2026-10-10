@@ -1,14 +1,16 @@
 #pragma once
 
-#include "Debugger/BreakpointTable.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/LineTable.h"
-#include "Debugger/SymbolTable.h"
 #include "Debugger/WatchTable.h"
-#include "Debugger/WatchpointTable.h"
 
 class IFileSystem;
+struct Breakpoint;
+class BreakpointTable;
+class SymbolTable;
+struct Watchpoint;
+class WatchpointTable;
 
 
 

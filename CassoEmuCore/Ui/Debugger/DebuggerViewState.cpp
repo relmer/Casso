@@ -25,6 +25,9 @@
 #include "Debugger/Handlers/WatchHandlers.h"
 #include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/TraceLookahead.h"
+#include "Config/IFileSystem.h"
+#include "Debugger/HeatAccessJump.h"
+#include "Core/IParallelRunner.h"
 
 
 

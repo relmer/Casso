@@ -54,6 +54,9 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Ui/ThemeManager.h"
+#include "Shell/DiskManager.h"
+#include "Capture/ScreenshotMetadata.h"
 
 
 

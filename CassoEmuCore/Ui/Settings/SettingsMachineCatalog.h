@@ -2,9 +2,6 @@
 
 #include "Pch.h"
 
-#include "SettingsPanelState.h"
-
-
 class EmulatorShell;
 class UserConfigStore;
 class IFileSystem;
@@ -12,6 +9,7 @@ class ThemeManager;
 class HardwarePage;
 class ThemePage;
 struct GlobalUserPrefs;
+class SettingsPanelState;
 
 
 

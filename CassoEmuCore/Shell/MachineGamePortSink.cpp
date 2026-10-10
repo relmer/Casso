@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Shell/HostInputGate.h"
 
 
 

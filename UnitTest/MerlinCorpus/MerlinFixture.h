@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../EmuTests/IFixtureProvider.h"
+class IFixtureProvider;
 
 
 

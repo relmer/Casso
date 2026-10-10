@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/InstructionEffect.h"
+#include "Debugger/IDebugExpressionContext.h"
 
 
 

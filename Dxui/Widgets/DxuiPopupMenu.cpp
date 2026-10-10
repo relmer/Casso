@@ -10,6 +10,7 @@
 #include "Core/DxuiSystemSettings.h"
 #include "Core/WindowTrace.h"
 #include "Render/DxuiStroke.h"
+#include "Core/DxuiCommand.h"
 
 
 

@@ -11,6 +11,8 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "MachineIdle.h"
 #include "HResultAssert.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

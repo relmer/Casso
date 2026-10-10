@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Core/UnicodeSymbols.h"
+#include "Debugger/Source/SourcePathList.h"
 
 
 

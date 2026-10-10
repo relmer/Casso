@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Shell/ScratchCallReplayer.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Debugger/DebugSessionView.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

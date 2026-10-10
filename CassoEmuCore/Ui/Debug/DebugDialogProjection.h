@@ -3,8 +3,9 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Disk2Event.h"
-#include "Machines/Apple2/Common/Disk2EventRing.h"
-#include "Disk2EventDisplay.h"
+
+class Disk2EventRing;
+struct Disk2EventDisplay;
 
 
 

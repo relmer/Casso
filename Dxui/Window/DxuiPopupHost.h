@@ -1,10 +1,11 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/DxuiPanel.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiShadow.h"
 #include "Render/DxuiTextRenderer.h"
+
+class DxuiPanel;
 
 
 

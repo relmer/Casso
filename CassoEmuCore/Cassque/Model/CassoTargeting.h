@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Core/MachineConfig.h"
+struct MachineConfig;
 
 
 

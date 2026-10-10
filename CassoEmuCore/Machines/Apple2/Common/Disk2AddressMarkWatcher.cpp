@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
+#include "Machines/Apple2/Common/IDisk2EventSink.h"
 
 
 

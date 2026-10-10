@@ -1,11 +1,6 @@
 #pragma once
 
-#include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
-#include "Ui/Debugger/MemoryAddressEntry.h"
-#include "Ui/Debugger/MemoryBarCommands.h"
-#include "Ui/Debugger/HeatMapBarCommands.h"
-#include "Ui/Debugger/HeatMapRangeBarCommands.h"
 #include "Debugger/HeatMapRangeSets.h"
 #include "Debugger/HeatMapSymbols.h"
 #include "Seams/IHostDialogs.h"
@@ -14,9 +9,7 @@
 #include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ByteChanges.h"
 #include "Ui/Debugger/ColorLegend.h"
-#include "Ui/Debugger/ColorKeyButton.h"
 #include "Ui/Debugger/ColorKeyPopup.h"
-#include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
@@ -26,30 +19,37 @@
 #include "Ui/Debugger/RegisterHistory.h"
 #include "Ui/Debugger/StackHistory.h"
 #include "Ui/Debugger/StopChanges.h"
-#include "Ui/Debugger/UndoBarCommands.h"
-#include "Ui/Debugger/ToolbarCheckEntry.h"
-#include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/OpeningFocusDeferral.h"
 #include "Ui/Debugger/FocusAccentOwner.h"
 #include "Ui/Debugger/OperandResultTip.h"
-#include "Ui/Debugger/HistoryBand.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
 #include "Ui/Debugger/ReverseOptionsDialog.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
-#include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
-#include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/FindWidgetPlate.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
-#include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
-#include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Chrome/CassoTheme.h"
 
-struct CassoTheme;
+class DebuggerCommands;
+class MemoryAddressEntry;
+class UndoBarCommands;
+class BreakpointBarCommands;
+class MemoryBarCommands;
+class HeatMapBarCommands;
+class HeatMapRangeBarCommands;
+class ColorKeyButton;
+class ToolbarCheckEntry;
+class ToolbarLabelEntry;
+class HistoryBand;
+class CallStackPane;
+class DiagnosticsPane;
+class MemoryPane;
+class TracePane;
 
 
 
@@ -310,7 +310,7 @@ private:
 class DebuggerWindow : public DxuiWindow
 {
 public:
-    DebuggerWindow() = default;
+    DebuggerWindow();
     ~DebuggerWindow() override;
 
     static DxuiListView::Cell  GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb);

@@ -12,6 +12,7 @@
 #include "Cassque/Model/LaunchCommand.h"
 #include "Core/TextEncoding.h"
 #include "resource.h"
+#include "Core/MachineConfig.h"
 
 
 

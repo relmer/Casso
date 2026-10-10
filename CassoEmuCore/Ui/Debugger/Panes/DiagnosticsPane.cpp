@@ -3,6 +3,9 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
 
 
 

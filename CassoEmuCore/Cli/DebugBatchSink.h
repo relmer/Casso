@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Debugger/DebugSession.h"
 #include "Debugger/IDebugNotificationSink.h"
+
+class DebugSession;
 
 
 

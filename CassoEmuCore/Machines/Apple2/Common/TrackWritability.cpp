@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/TrackWritability.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 
 

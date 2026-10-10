@@ -4,6 +4,7 @@
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintRaster.h"
+#include "Devices/Printer/RgbaImage.h"
 
 
 

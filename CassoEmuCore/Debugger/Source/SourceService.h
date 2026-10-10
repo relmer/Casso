@@ -1,8 +1,10 @@
 #pragma once
 
 #include "Config/IFileSystem.h"
-#include "Debugger/DebugFile.h"
-#include "Debugger/Source/SourcePathList.h"
+
+class SourcePathList;
+struct DebugSourceFile;
+struct DebugFile;
 
 
 

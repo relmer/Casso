@@ -5,7 +5,8 @@
 //  line, and this parser is what says so.
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugCommand.h"
-#include "Debugger/MonitorState.h"
+
+struct MonitorState;
 
 
 

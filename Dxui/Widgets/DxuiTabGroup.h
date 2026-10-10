@@ -2,8 +2,11 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
-#include "Widgets/DxuiPaneFrame.h"
 #include "Widgets/DxuiTabStrip.h"
+
+struct DxuiPaneFrameSpec;
+struct DxuiPaneFrameColors;
+class DxuiPaneFrame;
 
 
 

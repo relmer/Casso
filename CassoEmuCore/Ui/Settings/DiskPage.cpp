@@ -3,6 +3,7 @@
 #include "DiskPage.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Ui/Settings/SettingsPanelState.h"
 
 
 

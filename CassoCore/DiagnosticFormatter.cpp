@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiagnosticFormatter.h"
+#include "AssemblerTypes.h"
 
 
 

@@ -6,6 +6,7 @@
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "../Cassque/FakeProcessLauncher.h"
 #include "HResultAssert.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -6,6 +6,7 @@
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/DxuiDockGuide.h"
+#include "Render/DxuiCoverageRaster.h"
 
 
 

@@ -2,12 +2,10 @@
 
 #include "Pch.h"
 
-#include "Core/MemoryBus.h"
-#include "Capture/CapturedImage.h"
-#include "Seams/IHostClipboard.h"
-
-
 class AppleKeyboard;
+class MemoryBus;
+struct CapturedImage;
+class IHostClipboard;
 
 
 

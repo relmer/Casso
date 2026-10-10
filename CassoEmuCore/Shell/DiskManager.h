@@ -2,9 +2,6 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/MountDiagnosis.h"
-#include "Devices/Disk/IImageWatcher.h"
-#include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/BayChange.h"
 
 
@@ -18,6 +15,9 @@ class DriveWidgetController;
 struct DriveWidgetState;
 class MemoryDevice;
 class WasapiAudio;
+class IDiskFileIo;
+class MountDiagnosis;
+class IImageWatcher;
 
 
 

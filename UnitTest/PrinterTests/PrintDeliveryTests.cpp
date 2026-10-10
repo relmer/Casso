@@ -4,6 +4,7 @@
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "HResultAssert.h"
+#include "Devices/Printer/RgbaImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

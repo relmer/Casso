@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/IDisk2EventSink.h"
 
 
 // Some helpers below allocate large stack buffers (random-nibble

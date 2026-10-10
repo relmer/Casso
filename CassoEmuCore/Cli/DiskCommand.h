@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "CommandLineOptions.h"
+struct CommandLineOptions;
 
 
 

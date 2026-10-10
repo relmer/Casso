@@ -2,13 +2,13 @@
 
 #include "Pch.h"
 
-#include "Debugger/Reverse/HistoryStatus.h"
 #include "Debugger/Reverse/ReverseCommand.h"
 #include "Debugger/Reverse/ReverseController.h"
 
 class IReverseStopTest;
 class MachineHost;
 struct TraceRecord;
+struct HistoryStatus;
 
 
 

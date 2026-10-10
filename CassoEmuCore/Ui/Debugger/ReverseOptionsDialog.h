@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Pch.h"
-#include "Ui/Debugger/BreakpointDialog.h"
+
+class BreakpointDialogPanel;
+class BreakpointDialog;
 
 
 

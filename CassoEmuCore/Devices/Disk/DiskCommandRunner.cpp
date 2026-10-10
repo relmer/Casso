@@ -18,6 +18,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "Utils.h"
+#include "ApplesoftTokenizer.h"
 
 
 

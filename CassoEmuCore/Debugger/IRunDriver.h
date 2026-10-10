@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Debugger/Reply.h"
+struct Reply;
+struct RunRequest;
 
 class IRunObserver;
 

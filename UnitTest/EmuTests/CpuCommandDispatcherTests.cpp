@@ -5,6 +5,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 
 #include "resource.h"
+#include "Shell/CpuManager.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -2,7 +2,7 @@
 
 #include "../../CassoEmuCore/Pch.h"
 
-#include "Shell/MachineHost.h"
+class MachineHost;
 
 
 

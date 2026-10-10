@@ -7,6 +7,7 @@
 #include "Machines/MachineDefinitions.h"
 
 #include "TestMachine.h"
+#include "Machines/MachineDefinition.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

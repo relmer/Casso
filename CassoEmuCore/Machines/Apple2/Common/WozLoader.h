@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/MountDiagnosis.h"
+
+class DiskImage;
 
 
 

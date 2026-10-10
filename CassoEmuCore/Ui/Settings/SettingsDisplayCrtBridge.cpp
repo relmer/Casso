@@ -8,6 +8,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
+#include "Ui/Settings/SettingsPanelState.h"
 
 
 

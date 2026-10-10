@@ -10,6 +10,7 @@
 #include "MerlinSubsetBoundary.h"
 
 #include "CppUnitTest.h"
+#include "SubsetBoundary.h"
 
 
 

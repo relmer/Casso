@@ -2,12 +2,9 @@
 
 #include "Pch.h"
 
-#include "SettingsPanelState.h"
-
-
-
 class IDxuiTheme;
 class DxuiHwndSource;
+class SettingsPanelState;
 
 
 

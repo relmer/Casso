@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 
-#include "AssemblerTypes.h"
-#include "Machines/Apple2/Common/VolumeTypes.h"
+struct SavePoint;
+struct FilePayload;
+
 
 //  Forward-declared rather than included, for the reason DiskCommandRunner's
 //  header records: pulling the volume image in drags the disk image through

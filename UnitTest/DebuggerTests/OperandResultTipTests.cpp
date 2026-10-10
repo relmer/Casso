@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/OperandResultTip.h"
+#include "Ui/Debugger/ColorKeyButton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

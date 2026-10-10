@@ -2,14 +2,14 @@
 
 #include "Pch.h"
 
-#include "SettingsPanelState.h"
-
 #include "Config/GlobalUserPrefs.h"
+#include "Config/CrtTypes.h"
 
 
 class ThemeManager;
 class DisplayPage;
 class EmulatorShell;
+class SettingsPanelState;
 
 
 

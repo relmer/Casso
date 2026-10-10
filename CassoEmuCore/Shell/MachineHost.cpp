@@ -24,6 +24,8 @@
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
+#include "Devices/IAciaEndpoint.h"
 
 
 

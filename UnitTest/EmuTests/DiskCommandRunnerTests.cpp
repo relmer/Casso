@@ -11,6 +11,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "HResultAssert.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

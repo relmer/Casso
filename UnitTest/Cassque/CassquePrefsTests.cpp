@@ -4,6 +4,7 @@
 #include "Cassque/Model/CassquePrefs.h"
 #include "Config/GlobalUserPrefs.h"
 #include "HResultAssert.h"
+#include "Cassque/Model/Location.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -4,9 +4,10 @@
 
 #include "Core/JsonValue.h"
 #include "Config/CrtTypes.h"
-#include "Config/IFileSystem.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/ColorUtil.h"
+
+class IFileSystem;
 
 
 

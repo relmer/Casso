@@ -2,6 +2,7 @@
 
 #include "Version.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Devices/Disk/DiskImage.h"
 
 
 

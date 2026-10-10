@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Core/IWorkQueue.h"
 #include "Ui/Debugger/DebugViewBuilder.h"
+
+class IWorkQueue;
 
 
 

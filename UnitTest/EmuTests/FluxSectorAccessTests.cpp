@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "FluxTestImages.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

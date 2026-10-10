@@ -3,8 +3,9 @@
 #include "Pch.h"
 
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/FluxBitView.h"
-#include "Machines/Apple2/Common/SectorDecodeReport.h"
+
+class SectorDecodeReport;
+class FluxBitView;
 
 
 

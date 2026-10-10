@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Apple2/Apple2.h"
+#include "Core/MachineConfig.h"
 
 
 

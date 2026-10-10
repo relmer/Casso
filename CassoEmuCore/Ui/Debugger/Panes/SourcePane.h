@@ -4,6 +4,7 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/SourceSyntax.h"
+#include "Ui/Debugger/DebuggerActions.h"
 
 
 

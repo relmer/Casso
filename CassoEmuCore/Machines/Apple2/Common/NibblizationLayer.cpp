@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/FluxBitView.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 
 

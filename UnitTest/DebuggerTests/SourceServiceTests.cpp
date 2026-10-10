@@ -7,6 +7,8 @@
 #include "UiTests/InMemoryFileSystem.h"
 
 #include "CppUnitTest.h"
+#include "Debugger/DebugFile.h"
+#include "Debugger/Source/SourcePathList.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

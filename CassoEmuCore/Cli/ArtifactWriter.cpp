@@ -5,6 +5,9 @@
 #include "Assembler.h"
 #include "CommandLineParser.h"
 #include "OutputFormats.h"
+#include "DialectReporting.h"
+#include "Debugger/DebugFileWriter.h"
+#include "Debugger/DebugFile.h"
 
 
 

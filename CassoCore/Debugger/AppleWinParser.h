@@ -1,8 +1,10 @@
 #pragma once
 
-#include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/DebugCommand.h"
 #include "Debugger/IDebugExpressionContext.h"
+
+struct AppleWinCommand;
+class AppleWinCommandTable;
 
 
 

@@ -9,6 +9,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Machines/MachineDefinitions.h"
+#include "Machines/MachineDefinition.h"
 
 
 

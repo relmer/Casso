@@ -6,6 +6,7 @@
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Devices/IInputEventSink.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 

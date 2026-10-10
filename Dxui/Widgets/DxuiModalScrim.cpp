@@ -2,6 +2,7 @@
 
 #include "DxuiModalScrim.h"
 #include "Render/IDxuiPainter.h"
+#include "Core/DxuiEvents.h"
 
 
 

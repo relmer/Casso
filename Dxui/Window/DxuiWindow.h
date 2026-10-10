@@ -6,6 +6,7 @@
 #include "Core/DxuiKeyMap.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
+#include "Core/DxuiEvents.h"
 
 
 class DxuiButton;

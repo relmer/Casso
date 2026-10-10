@@ -17,6 +17,23 @@
 #include "Debugger/SymbolDescriptions.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/MemoryBarCommands.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/DiagnosticsPane.h"
+#include "Ui/Debugger/ColorKeyButton.h"
+#include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/HeatMapRangeBarCommands.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
+#include "Ui/Debugger/ToolbarCheckEntry.h"
+#include "Ui/Debugger/UndoBarCommands.h"
+#include "Ui/Debugger/BreakpointBarCommands.h"
 
 
 
@@ -89,6 +106,21 @@ static bool TryParseHexWord (std::wstring text, Word & value)
     value = (Word) parsed;
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DebuggerWindow
+//
+//  Here, where the panes and bars it owns are complete; the header only
+//  declares most of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerWindow::DebuggerWindow() = default;
 
 
 

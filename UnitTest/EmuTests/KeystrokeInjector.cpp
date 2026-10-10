@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
+#include "Shell/MachineHost.h"
 
 
 

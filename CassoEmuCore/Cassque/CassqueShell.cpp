@@ -4,6 +4,7 @@
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
 #include "Cassque/Model/KnownFolderStore.h"
+#include "Cassque/CassqueWindow.h"
 
 
 

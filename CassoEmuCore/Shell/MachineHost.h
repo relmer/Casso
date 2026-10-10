@@ -12,8 +12,6 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/IAciaEndpoint.h"
-#include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/HostInputGate.h"
@@ -34,6 +32,8 @@ class SiriusJoyport;
 class IDisk2EventSink;
 class IInputEventSink;
 class Prng;
+class IAciaEndpoint;
+class CharacterRomData;
 
 
 

@@ -4,10 +4,10 @@
 #include "IFloatingBusSource.h"
 #include "IMachineState.h"
 #include "IWatchSink.h"
-#include "MemoryDevice.h"
 
 class Prng;
 class RamPages;
+class MemoryDevice;
 
 
 

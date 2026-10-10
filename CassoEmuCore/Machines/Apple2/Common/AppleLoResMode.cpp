@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/AppleLoResMode.h"
 #include "Machines/Apple2/Common/NtscColorTable.h"
+#include "Core/MemoryBus.h"
 
 
 

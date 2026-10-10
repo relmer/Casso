@@ -4,6 +4,7 @@
 
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/InstructionSemantics.h"
+#include "Debugger/IDebugExpressionContext.h"
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Render/DxuiCoverageRaster.h"
+#include "Core/DxuiIconImage.h"
 
 
 

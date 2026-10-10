@@ -4,6 +4,7 @@
 #include "Controllers/PlayerModeRules.h"
 
 #include "Controllers/DeadzoneShaper.h"
+#include "Controllers/ControllerCalibration.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

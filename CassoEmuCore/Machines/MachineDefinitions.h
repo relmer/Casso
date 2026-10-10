@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "Machines/MachineDefinition.h"
-#include "Machines/IMachine.h"
+struct MachineDefinition;
+class IMachine;
 
 
 

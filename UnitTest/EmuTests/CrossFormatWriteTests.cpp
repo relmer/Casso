@@ -12,6 +12,8 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "HResultAssert.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -6,6 +6,9 @@
 
 #include "../TestMachine.h"
 #include "../TextScreenScraper.h"
+#include "Machines/MachineDefinition.h"
+#include "Machines/Apple2/Apple2c/Apple2c.h"
+#include "Machines/IMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

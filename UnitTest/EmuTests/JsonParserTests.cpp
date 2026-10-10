@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/JsonParser.h"
 #include "HResultAssert.h"
+#include "Core/JsonValue.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

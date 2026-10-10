@@ -10,6 +10,7 @@
 #include "Devices/Printer/PrinterPreviewModel.h"
 #include "Devices/Printer/RgbaImage.h"
 #include "Print/PrinterWorker.h"
+#include "Ui/PrinterPaperView.h"
 
 
 

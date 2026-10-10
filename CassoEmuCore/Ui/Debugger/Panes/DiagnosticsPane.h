@@ -2,10 +2,11 @@
 
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Ui/Debugger/ColorLegend.h"
-#include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
-#include "Ui/Debugger/Panes/MemoryMapBar.h"
-#include "Ui/Debugger/Panes/MeterBar.h"
+
+class DebuggerPaneFrame;
+class MemoryMapBar;
+class MeterBar;
 
 
 

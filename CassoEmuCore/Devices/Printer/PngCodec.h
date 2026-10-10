@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 
-#include "Devices/Printer/RgbaImage.h"
-#include "Devices/Printer/PngMetadata.h"
+struct RgbaImage;
+struct MetadataEntry;
+class PngMetadata;
 
 
 

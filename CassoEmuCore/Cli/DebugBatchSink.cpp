@@ -6,6 +6,7 @@
 #include "Debugger/MonitorFormatter.h"
 #include "Debugger/ReplyJson.h"
 #include "Debugger/WinDbgFormatter.h"
+#include "Debugger/DebugSession.h"
 
 
 

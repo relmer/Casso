@@ -20,6 +20,7 @@
 #include "../Ui/DriveWidgetState.h"
 #include "../resource.h"
 #include "CpuManager.h"
+#include "Devices/Disk/MountDiagnosis.h"
 
 
 

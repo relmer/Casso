@@ -2,9 +2,11 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/MountDiagnosis.h"
-#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Devices/Disk/IDiskImage.h"
+
+class DiskImage;
+class MountDiagnosis;
+class SectorDecodeReport;
 
 
 

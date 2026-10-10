@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CommandLineOptions.h"
+struct CommandLineOptions;
 
 
 

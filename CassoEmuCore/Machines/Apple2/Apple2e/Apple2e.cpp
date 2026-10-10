@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Apple2e/Apple2e.h"
 
 #include "Machines/MachineDeviceTypes.h"
+#include "Core/MachineConfig.h"
 
 
 

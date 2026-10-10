@@ -2,10 +2,9 @@
 
 #include "Pch.h"
 
-#include "Core/JsonValue.h"
-
 class UserConfigStore;
 class IFileSystem;
+class JsonValue;
 
 
 

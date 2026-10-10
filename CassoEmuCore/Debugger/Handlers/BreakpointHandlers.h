@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Debugger/BreakpointTable.h"
-#include "Debugger/DebugFile.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/WatchpointTable.h"
 
 class DebugSession;
 class Microcode;
+struct DebugFile;
 
 
 

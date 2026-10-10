@@ -6,6 +6,8 @@
 #include "Debugger/HeatMapRangeSets.h"
 #include "resource.h"
 #include "Core/TextEncoding.h"
+#include "Shell/CpuManager.h"
+#include "Debugger/Reverse/InputJournal.h"
 
 
 

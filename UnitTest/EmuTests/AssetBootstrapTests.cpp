@@ -7,6 +7,7 @@
 #include "EmbeddedMachineConfigs.h"
 #include "EmbeddedMachineJson.h"
 #include "HResultAssert.h"
+#include "Machines/MachineDefinition.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

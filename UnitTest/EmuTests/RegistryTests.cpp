@@ -2,6 +2,7 @@
 #include "Core/ComponentRegistry.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/MemoryDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

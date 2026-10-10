@@ -3,8 +3,10 @@
 #include "Pch.h"
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
-#include "Core/MachineConfig.h"
-#include "Core/MemoryBus.h"
+
+struct DeviceConfig;
+struct MachineConfig;
+class MemoryBus;
 
 
 

@@ -9,6 +9,7 @@
 #include "Core/JsonWriter.h"
 
 #include "Config/CrtResolver.h"
+#include "Config/IFileSystem.h"
 
 
 

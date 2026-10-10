@@ -28,6 +28,9 @@
 #include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "UnreadableStackTarget.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
 
 
 

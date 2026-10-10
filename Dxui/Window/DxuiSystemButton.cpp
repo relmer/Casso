@@ -5,6 +5,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Core/DxuiThread.h"
+#include "Core/DxuiEvents.h"
 
 
 

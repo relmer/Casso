@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskCommandResult.h"
 
 
 

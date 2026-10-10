@@ -4,6 +4,8 @@
 
 #include "Shell/CpuCommandDispatcher.h"
 #include "resource.h"
+#include "Debugger/Reverse/InputJournal.h"
+#include "Shell/CpuManager.h"
 
 
 

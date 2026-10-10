@@ -6,6 +6,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/Reverse/ReplayDiskCopier.h"
+#include "Debugger/Reverse/Replayer.h"
 
 
 

@@ -3,6 +3,7 @@
 #include "Debugger/TraceController.h"
 
 #include "Shell/MachineHost.h"
+#include "Debugger/Reply.h"
 
 
 

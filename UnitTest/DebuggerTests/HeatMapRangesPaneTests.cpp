@@ -6,6 +6,8 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/HeatMapRangeBarCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

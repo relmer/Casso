@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Debugger/DebugMemoryImage.h"
 #include "Debugger/Reply.h"
 
 class MachineHost;
+struct DebugMemoryImage;
 
 
 

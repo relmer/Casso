@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "DebugDialogProjection.h"
+#include "Ui/Debug/Disk2EventDisplay.h"
+#include "Machines/Apple2/Common/Disk2EventRing.h"
 
 
 

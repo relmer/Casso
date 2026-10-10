@@ -3,7 +3,8 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Widgets/DxuiInfoBanner.h"
-#include "Widgets/DxuiButton.h"
+
+class DxuiButton;
 
 
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "AssemblerTypes.h"
-#include "Debugger/DebugFile.h"
+struct AssemblyResult;
+struct DebugFile;
 
 
 

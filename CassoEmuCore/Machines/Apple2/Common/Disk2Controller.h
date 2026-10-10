@@ -3,8 +3,6 @@
 #include "Pch.h"
 
 #include "Core/MemoryDevice.h"
-#include "Core/MachineConfig.h"
-#include "Core/MemoryBus.h"
 #include "Core/IMachineState.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Disk/DiskImage.h"
@@ -14,6 +12,9 @@
 
 class IDriveAudioSink;
 class IDisk2EventSink;
+struct DeviceConfig;
+struct MachineConfig;
+class MemoryBus;
 
 
 

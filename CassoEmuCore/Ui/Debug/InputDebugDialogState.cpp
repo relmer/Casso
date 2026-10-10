@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "InputDebugDialogState.h"
+#include "Ui/Debug/InputEventDisplay.h"
 
 
 

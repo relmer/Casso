@@ -9,11 +9,12 @@
 #include "Cpu.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/CallStackRebuildJob.h"
-#include "Debugger/DebugMemoryView.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 #include "Shell/MachineHost.h"
 #include "Shell/ScratchReplayMachine.h"
+
+class DebugMemoryView;
 
 
 

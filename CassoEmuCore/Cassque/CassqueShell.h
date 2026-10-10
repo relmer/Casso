@@ -4,12 +4,13 @@
 
 #include "Cassque/CassqueActions.h"
 #include "Cassque/CassqueBrowser.h"
-#include "Cassque/CassqueWindow.h"
 #include "Cassque/Model/CassquePrefs.h"
 #include "Config/Win32FileSystem.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Seams/Win32IntentChannel.h"
+
+class CassqueWindow;
 
 
 

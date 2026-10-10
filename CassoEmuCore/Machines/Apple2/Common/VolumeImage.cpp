@@ -8,6 +8,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 
 

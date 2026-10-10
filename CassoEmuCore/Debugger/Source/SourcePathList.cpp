@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Source/SourcePathList.h"
+#include "Config/GlobalUserPrefs.h"
 
 
 

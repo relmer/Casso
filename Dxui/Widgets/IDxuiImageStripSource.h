@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/DxuiIconImage.h"
+
+struct DxuiIconImage;
 
 
 

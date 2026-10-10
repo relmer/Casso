@@ -4,12 +4,13 @@
 
 #include "Core/MachineConfig.h"
 #include "Debugger/Reverse/KeyframeStore.h"
-#include "Debugger/Reverse/ReplayDiskCopier.h"
-#include "Debugger/Reverse/Replayer.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineBuilder.h"
 
 class MachineHost;
+struct ReplayDisk;
+class ReplayDiskCopier;
+class Replayer;
 
 
 

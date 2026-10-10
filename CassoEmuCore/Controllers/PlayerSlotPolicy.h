@@ -3,10 +3,11 @@
 #include "Pch.h"
 
 #include "Controllers/ControlMapping.h"
-#include "Controllers/ControllerCalibration.h"
 #include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/ControllerTypes.h"
 #include "Controllers/PlayerTargetRules.h"
+
+class ControllerCalibration;
 
 
 

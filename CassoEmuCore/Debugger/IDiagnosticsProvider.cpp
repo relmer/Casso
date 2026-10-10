@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/IDiagnosticsProvider.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 

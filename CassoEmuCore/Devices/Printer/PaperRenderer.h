@@ -3,9 +3,9 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PrinterTypes.h"
-#include "Devices/Printer/RgbaImage.h"
 
 class PrintRaster;
+struct RgbaImage;
 
 
 

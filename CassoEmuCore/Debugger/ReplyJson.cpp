@@ -5,6 +5,7 @@
 #include "Core/JsonWriter.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/CommandModeNames.h"
+#include "Core/JsonValue.h"
 
 
 

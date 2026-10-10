@@ -3,8 +3,10 @@
 #include "Pch.h"
 
 #include "Render/CurvedDisplayMath.h"
-#include "Ui/Scene/DeskSceneLayout.h"
 #include "Ui/Scene/DeskSceneModel.h"
+
+struct DeskSceneComposition;
+class DeskSceneLayout;
 
 
 

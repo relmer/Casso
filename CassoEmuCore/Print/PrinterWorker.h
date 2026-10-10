@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PrinterEngine.h"
+#include "Devices/Printer/PrintRaster.h"
 
 class PrinterByteRing;
 

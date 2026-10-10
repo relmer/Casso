@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PngCodec.h"
+#include "Devices/Printer/RgbaImage.h"
+#include "Devices/Printer/PngMetadata.h"
 
 #pragma comment (lib, "windowscodecs.lib")
 

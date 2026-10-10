@@ -2,10 +2,8 @@
 
 #include "Pch.h"
 
-#include "Audio/AudioEndpointNotifier.h"
-
-
 class DriveAudioMixer;
+class AudioEndpointNotifier;
 
 
 

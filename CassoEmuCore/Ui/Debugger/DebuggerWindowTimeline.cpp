@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Video/MachineFrameRenderer.h"
+#include "Ui/Debugger/DebuggerCommands.h"
 
 
 

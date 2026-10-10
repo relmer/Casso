@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "CassoTheme.h"
+struct CassoTheme;
 
 
 

@@ -1,6 +1,12 @@
 #pragma once
 
-#include "Debugger/Reply.h"
+struct MemoryData;
+struct DisassemblyData;
+struct BreakpointInfo;
+struct BreakpointListData;
+struct WatchListData;
+struct SymbolData;
+struct Reply;
 
 
 

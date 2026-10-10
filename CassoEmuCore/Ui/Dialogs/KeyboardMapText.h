@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "DialogDefinition.h"
+struct DialogTextRun;
+struct DialogDefinition;
 
 
 

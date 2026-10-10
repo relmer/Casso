@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/ConditionContext.h"
+#include "Debugger/DebugExpressionEvaluator.h"
 
 
 

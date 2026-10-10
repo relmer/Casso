@@ -2,10 +2,10 @@
 
 #include "Pch.h"
 
-#include "DialogDefinition.h"
-
-
 class IDxuiControl;
+struct DialogImage;
+struct DialogTextRun;
+struct DialogDefinition;
 
 
 

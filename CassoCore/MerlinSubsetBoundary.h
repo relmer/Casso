@@ -1,6 +1,7 @@
 #pragma once
 
-#include "SubsetBoundary.h"
+struct SubsetBoundaryRow;
+class SubsetBoundary;
 
 
 

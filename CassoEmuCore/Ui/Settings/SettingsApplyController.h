@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "SettingsPanelState.h"
-
 #include "Config/GlobalUserPrefs.h"
 #include "Controllers/ControllerProfileStore.h"
 
@@ -16,6 +14,7 @@ class SettingsMachineCatalog;
 class SettingsPreviewController;
 class ControllersPageState;
 class ControllerInputService;
+class SettingsPanelState;
 
 
 

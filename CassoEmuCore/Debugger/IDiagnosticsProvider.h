@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Pch.h"
-#include "Debugger/DiagnosticsSnapshot.h"
+
+struct DiagnosticsRow;
+struct DiagnosticsSnapshot;
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MerlinFixture.h"
+#include "EmuTests/IFixtureProvider.h"
 
 
 

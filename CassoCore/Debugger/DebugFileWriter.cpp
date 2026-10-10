@@ -2,6 +2,8 @@
 
 #include "Debugger/DebugFileWriter.h"
 #include "Sha1.h"
+#include "AssemblerTypes.h"
+#include "Debugger/DebugFile.h"
 
 
 

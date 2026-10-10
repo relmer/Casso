@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Debugger/Channel/IInstanceDirectory.h"
+class IInstanceDirectory;
 
 
 

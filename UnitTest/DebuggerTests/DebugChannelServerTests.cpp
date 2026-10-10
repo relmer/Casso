@@ -5,6 +5,7 @@
 #include "InMemoryPipeTransport.h"
 
 #include "CppUnitTest.h"
+#include "Core/JsonValue.h"
 
 
 

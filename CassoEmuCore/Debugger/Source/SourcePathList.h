@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Config/GlobalUserPrefs.h"
+struct GlobalUserPrefs;
 
 
 

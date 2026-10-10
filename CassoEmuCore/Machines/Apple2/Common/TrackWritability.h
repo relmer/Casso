@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/SectorDecodeReport.h"
+class DiskImage;
+class SectorDecodeReport;
 
 
 

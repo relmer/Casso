@@ -57,6 +57,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
+#include "Shell/DiskManager.h"
 
 
 

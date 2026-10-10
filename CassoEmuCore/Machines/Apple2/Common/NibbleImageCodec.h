@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImage.h"
+class DiskImage;
 
 
 

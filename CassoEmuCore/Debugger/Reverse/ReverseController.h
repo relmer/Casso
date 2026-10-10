@@ -7,13 +7,13 @@
 #include "Debugger/Reverse/CallerLink.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
-#include "Debugger/Reverse/ReplayControl.h"
 #include "Debugger/Reverse/Replayer.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
 
 class IHistoryObserver;
 class IReverseStopTest;
 class MachineHost;
+struct ReplayControl;
 
 
 

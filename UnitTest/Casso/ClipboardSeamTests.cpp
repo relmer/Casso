@@ -4,6 +4,7 @@
 #include "Shell/ClipboardManager.h"
 
 #include "FakeHostClipboard.h"
+#include "Capture/CapturedImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

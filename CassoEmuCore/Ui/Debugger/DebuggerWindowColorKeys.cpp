@@ -2,6 +2,9 @@
 
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/DiagnosticsPane.h"
+#include "Ui/Debugger/ColorKeyButton.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
 
 
 

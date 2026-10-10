@@ -4,6 +4,9 @@
 #include "Utils.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/ChainWalkGuard.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
 
 
 

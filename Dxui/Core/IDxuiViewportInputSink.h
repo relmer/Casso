@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/DxuiEvents.h"
+
+struct DxuiMouseEvent;
+struct DxuiKeyEvent;
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/WriteProtectChange.h"
+#include "Devices/Disk/IDiskImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

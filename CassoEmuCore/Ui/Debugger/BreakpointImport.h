@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Debugger/DebugCommand.h"
-#include "Debugger/Reply.h"
 
 class DebugSession;
+struct Reply;
 
 
 

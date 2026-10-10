@@ -5,11 +5,11 @@
 #include "ICpu.h"
 #include "MemoryBus.h"
 #include "MemoryBusCpu.h"
-#include "Machines/Apple2/Common/VideoTiming.h"
-#include "ICycleSink.h"
 #include "IMachineState.h"
 
 class Prng;
+class VideoTiming;
+class ICycleSink;
 
 
 

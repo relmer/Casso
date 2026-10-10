@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "FluxBitView.h"
+#include "Devices/Disk/FluxTrack.h"
 
 
 

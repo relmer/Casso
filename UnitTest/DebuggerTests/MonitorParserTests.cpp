@@ -3,6 +3,7 @@
 #include "Debugger/MonitorParser.h"
 
 #include "CppUnitTest.h"
+#include "Debugger/MonitorState.h"
 
 
 

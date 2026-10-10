@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
+#include "Core/MemoryBus.h"
 
 
 

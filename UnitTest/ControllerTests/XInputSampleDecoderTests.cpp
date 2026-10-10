@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Controllers/XInputSampleDecoder.h"
+#include "Controllers/ControllerTypes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

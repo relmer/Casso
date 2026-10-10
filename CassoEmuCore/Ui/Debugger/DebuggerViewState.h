@@ -1,10 +1,7 @@
 #pragma once
 
-#include "Core/IParallelRunner.h"
-
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
-#include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatMapOptions.h"
 #include "Debugger/Reply.h"
 #include "Debugger/Reverse/HistoryStatus.h"
@@ -19,6 +16,10 @@ class HeatMapSymbols;
 class AccessHeatMap;
 class IDebugTarget;
 class Microcode;
+class IParallelRunner;
+struct HeatAccessInfo;
+struct HeatAccessHover;
+class HeatAccessJump;
 
 class DebugSession;
 class IDiagnosticsProvider;

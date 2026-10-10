@@ -9,6 +9,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -2,13 +2,13 @@
 
 #include "Devices/Printer/PrinterViewport.h"
 #include "Devices/Printer/RgbaImage.h"
-#include "PrinterPaperView.h"
 
 
 struct CassoTheme;
 class  PrintRaster;
 class  PrinterWorker;
 class  Printer3DScene;
+class PrinterPaperView;
 
 
 

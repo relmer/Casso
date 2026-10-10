@@ -2,8 +2,10 @@
 
 #include "Pch.h"
 #include "Core/DxuiDpiScaler.h"
-#include "Core/DxuiEvents.h"
 #include "Core/DxuiStandardCommand.h"
+
+struct DxuiMouseEvent;
+struct DxuiKeyEvent;
 
 
 

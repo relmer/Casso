@@ -59,6 +59,12 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Shell/DiskManager.h"
+#include "Shell/ControllerInputThread.h"
+#include "Ui/ThemeManager.h"
+#include "Machines/MachineDefinition.h"
+#include "Shell/MachineGamePortSink.h"
+#include "Seams/Win32ControllerBackend.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")

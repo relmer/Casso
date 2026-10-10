@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Debugger/DebugFile.h"
+struct DebugFile;
 
 
 

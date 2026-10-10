@@ -7,6 +7,7 @@
 #include "Debugger/Reverse/IHistoryObserver.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/SnapshotCompressor.h"
+#include "Debugger/Reverse/ReplayDiskCopier.h"
 
 class MachineHost;
 

@@ -3,8 +3,9 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Disk2Event.h"
-#include "Disk2EventDisplay.h"
 #include "TrackSectorPredicate.h"
+
+struct Disk2EventDisplay;
 
 
 

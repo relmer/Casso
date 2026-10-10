@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "HResultAssert.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

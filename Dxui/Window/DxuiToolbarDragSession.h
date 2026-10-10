@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Pch.h"
-#include "Window/IDxuiToolbarDragSite.h"
+
+class IDxuiToolbarDragSite;
 
 
 

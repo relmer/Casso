@@ -3,6 +3,7 @@
 #include "Core/MachineConfig.h"
 #include "Machines/MachineDefinitions.h"
 #include "HResultAssert.h"
+#include "Machines/IMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

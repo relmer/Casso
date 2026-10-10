@@ -7,6 +7,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "HResultAssert.h"
+#include "Config/GlobalUserPrefs.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

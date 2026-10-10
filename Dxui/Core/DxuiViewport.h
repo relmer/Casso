@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
-#include "Core/IDxuiViewportInputSink.h"
+
+class IDxuiViewportInputSink;
 
 
 

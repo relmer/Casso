@@ -2,9 +2,11 @@
 
 #include "Pch.h"
 
-#include "Config/CrtTypes.h"
-
-#include "Ui/ThemeLoader.h"
+struct ThemeCrtDefaults;
+class ThemeLoader;
+struct CrtValues;
+struct CrtOverrides;
+struct CrtResolved;
 
 
 

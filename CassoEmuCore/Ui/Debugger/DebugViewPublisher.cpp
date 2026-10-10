@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebugViewPublisher.h"
+#include "Core/IWorkQueue.h"
 
 
 

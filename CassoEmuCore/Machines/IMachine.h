@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
-#include "Core/MachineConfig.h"
+struct RamRegion;
+struct InternalDevice;
+struct MachineConfig;
 
 
 

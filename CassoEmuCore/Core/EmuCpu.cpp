@@ -2,6 +2,8 @@
 
 #include "EmuCpu.h"
 #include "MemoryBusCpu.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
+#include "Core/ICycleSink.h"
 
 
 

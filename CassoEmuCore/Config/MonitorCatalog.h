@@ -3,6 +3,7 @@
 #include "resource.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/Scene/DeskSceneModel.h"
+#include "Core/JsonValue.h"
 
 
 

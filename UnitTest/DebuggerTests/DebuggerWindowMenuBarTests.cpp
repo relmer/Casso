@@ -7,6 +7,7 @@
 #include "resource.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/DebuggerCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

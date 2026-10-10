@@ -8,6 +8,8 @@
 #include "Core/DxuiPaneMetrics.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Render/IDxuiPainter.h"
+#include "Core/DxuiIconImage.h"
+#include "Core/DxuiEvents.h"
 
 
 

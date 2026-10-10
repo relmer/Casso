@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
-#include "Controllers/ControllerTypes.h"
+struct ControllerUnitKey;
+struct ControllerSample;
+struct ControllerDeviceInfo;
 
 
 

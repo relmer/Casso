@@ -10,6 +10,7 @@
 
 #include "Devices/Disk/PreservedCopy.h"
 #include "Core/TextEncoding.h"
+#include "Config/GlobalUserPrefs.h"
 
 
 

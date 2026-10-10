@@ -23,6 +23,7 @@
 #include "Debugger/RomSymbols.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/DebugSessionView.h"
 
 
 

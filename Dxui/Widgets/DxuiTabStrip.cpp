@@ -7,6 +7,8 @@
 #include "Core/DxuiTextElide.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Render/IDxuiTextRenderer.h"
+#include "Core/DxuiEvents.h"
+#include "Core/DxuiIconImage.h"
 
 
 

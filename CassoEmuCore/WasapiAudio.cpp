@@ -5,6 +5,7 @@
 #include "Audio/AudioGenerator.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Core/MachineConfig.h"
+#include "Audio/AudioEndpointNotifier.h"
 
 #pragma comment(lib, "ole32.lib")
 

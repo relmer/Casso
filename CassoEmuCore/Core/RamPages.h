@@ -2,9 +2,8 @@
 
 #include "Pch.h"
 
-#include "Core/StateWriter.h"
-
 class MemoryBus;
+class StateWriter;
 
 
 

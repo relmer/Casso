@@ -4,9 +4,12 @@
 
 #include "Debugger/DebugCommand.h"
 #include "Debugger/HeatAccessJump.h"
-#include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/ReverseCommand.h"
-#include "Shell/CpuManager.h"
+
+struct EmulatorCommand;
+class CpuManager;
+struct InputRecord;
+class InputJournal;
 
 
 

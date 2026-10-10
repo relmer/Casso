@@ -2,11 +2,11 @@
 
 #include "Debugger/DebugSession.h"
 #include "Debugger/IDebugNotificationSink.h"
-#include "Debugger/MachineDebugTarget.h"
-#include "Debugger/SynchronousRunDriver.h"
 #include "EmuTests/TestMachine.h"
-#include "MockDebugTarget.h"
+#include "DebuggerTests/MockDebugTarget.h"
 #include "UiTests/InMemoryFileSystem.h"
+#include "Debugger/SynchronousRunDriver.h"
+#include "Debugger/MachineDebugTarget.h"
 
 
 

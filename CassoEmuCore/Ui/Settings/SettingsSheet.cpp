@@ -9,6 +9,10 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
 #include "resource.h"
+#include "Ui/Settings/PrintingPage.h"
+#include "Ui/Settings/ScreenshotsPage.h"
+#include "Ui/Settings/ControllersPage.h"
+#include "Ui/Settings/DiskPage.h"
 
 
 

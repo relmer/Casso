@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/DebugMemoryImage.h"
 
 
 

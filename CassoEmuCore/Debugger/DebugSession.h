@@ -5,7 +5,6 @@
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
-#include "Debugger/DebugSessionView.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
@@ -22,6 +21,7 @@ class IDebugNotificationSink;
 class IFileSystem;
 class IInstructionObserver;
 class OpcodeTable;
+struct DebugSessionView;
 
 
 

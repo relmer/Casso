@@ -5,6 +5,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseController.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/CallStackRebuildJob.h"
 
 
 

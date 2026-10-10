@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Cpu6502.h"
-#include "Debugger/IDebugExpressionContext.h"
+
+class IDebugExpressionContext;
 
 
 

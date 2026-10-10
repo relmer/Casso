@@ -7,6 +7,7 @@
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Version.h"
 #include "resource.h"
+#include "Devices/Printer/RgbaImage.h"
 
 
 

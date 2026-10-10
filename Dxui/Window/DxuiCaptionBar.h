@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
-#include "DxuiSystemButton.h"
+
+class DxuiSystemButton;
 
 
 

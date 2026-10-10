@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Dialogs/SalvageDialogContent.h"
+#include "Devices/Disk/DiskImageStore.h"
 
 
 

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDebugExpressionContext.h"
+
+struct Expression;
+class DebugExpressionEvaluator;
 
 
 

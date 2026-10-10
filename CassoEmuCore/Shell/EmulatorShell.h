@@ -10,9 +10,6 @@
 #include "Config/Win32FileSystem.h"
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
-#include "Seams/Win32ControllerBackend.h"
-#include "Shell/ControllerInputThread.h"
-#include "Shell/MachineGamePortSink.h"
 #include "Core/ComponentRegistry.h"
 #include "Debugger/Reverse/DivergenceGate.h"
 #include "Core/EmuCpu.h"
@@ -35,13 +32,11 @@
 #include "Shell/FrameClock.h"
 #include "Shell/ModernPrintDialog.h"
 #include "Shell/ScreenshotCapture.h"
-#include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
 #include "Core/ParallelWorkPool.h"
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DebugViewPublisher.h"
-#include "Shell/DiskManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
@@ -66,7 +61,6 @@
 #include "Ui/Scene/DeskScene.h"
 #include "Ui/Scene/DeskSceneHitTester.h"
 #include "Ui/Scene/FullscreenStripState.h"
-#include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
@@ -75,6 +69,8 @@
 #include "WasapiAudio.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Shell/HeldHostInputs.h"
+#include "Capture/CapturedImage.h"
+#include "Devices/Disk/MountDiagnosis.h"
 
 
 
@@ -90,6 +86,13 @@ class DebugSession;
 class IReverseStopTest;
 class ReverseHost;
 struct MonitorSpec;
+class MachineGamePortSink;
+class ControllerInputThread;
+class Win32ControllerBackend;
+struct ScreenshotFacts;
+class ScreenshotMetadata;
+class DiskManager;
+class ThemeManager;
 
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
 // key classifiers can name it without dragging the device header in.

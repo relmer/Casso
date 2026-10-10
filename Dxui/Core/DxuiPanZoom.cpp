@@ -3,6 +3,7 @@
 #include "Core/DxuiPanZoom.h"
 
 #include "Core/DxuiInput.h"
+#include "Core/DxuiEvents.h"
 
 
 

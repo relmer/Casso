@@ -5,7 +5,8 @@
 #include "Controllers/ControlMapping.h"
 #include "Controllers/ControllerCalibration.h"
 #include "Controllers/PlayerSlotPolicy.h"
-#include "Core/JsonValue.h"
+
+class JsonValue;
 
 
 

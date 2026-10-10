@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/IoEventLog.h"
+#include "Debugger/Reply.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

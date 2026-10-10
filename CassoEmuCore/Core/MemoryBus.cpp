@@ -5,6 +5,7 @@
 #include "RamPages.h"
 #include "StateReader.h"
 #include "StateWriter.h"
+#include "Core/MemoryDevice.h"
 
 
 

@@ -2,6 +2,7 @@
 
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PrintRaster.h"
+#include "Devices/Printer/RgbaImage.h"
 
 
 

@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "Devices/Printer/ObjMeshParser.h"
+struct ObjTriangle;
+class ObjMeshParser;
 
 
 

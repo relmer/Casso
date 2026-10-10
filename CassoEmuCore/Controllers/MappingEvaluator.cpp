@@ -4,6 +4,7 @@
 
 #include "Controllers/DeadzoneShaper.h"
 #include "Controllers/XInputSampleDecoder.h"
+#include "Controllers/ControlMapping.h"
 
 
 
