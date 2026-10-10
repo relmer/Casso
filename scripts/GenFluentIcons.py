@@ -37,9 +37,8 @@ ICONS = {
     'Rename':  ('rename_a_20_regular',          [([0, 3, 4], True, 0, 0), ([1, 2], False, 0, 0)]),
     #  Explorer's Share: the box in the ink, the arrow leaving it in the accent.
     'Share':   ('share_20_regular',             [([0], False, 0, 0), ([1, 2], True, 0, 0)]),
-    'Delete':  ('delete_20_regular',            [([0, 1, 2, 3, 4], False, 0, 0)]),
-    'Sort':    ('arrow_sort_20_regular',        [([0], False, 0, 0), ([1], True, 0, 0)]),
-    'View':    ('line_horizontal_4_20_regular', [([0, 1, 2, 3], False, 0, 0)]),
+    'Delete':  ('delete_16_regular',            ALL),
+    'Sort':    ('arrow_sort_24_regular',        [([1], False, 0, 0), ([0], True, 0, 0)]),
     #  The filled dots, which are Explorer's weight; the outline ones are thin.
     'More':    ('more_horizontal_20_filled',    [([0, 1, 2], False, 0, 0)]),
     'Preview': ('panel_right_20_regular',       [([0, 1, 2], False, 0, 0)]),
@@ -61,6 +60,19 @@ FRAMES = {
     'ViewExtraLargeIcons': (2.0, 3.5, 18.0, 14.5, 16.0),
     'ViewLargeIcons':      (3.5, 5.0, 16.5, 13.0, 14.5),
     'ViewMediumIcons':     (5.5, 6.5, 14.5, 12.0, 13.5),
+}
+
+#  File Explorer draws these three from the Segoe Fluent Icons font at 16 dip,
+#  whose drawings are smaller than Fluent's 20-pixel SVGs, or (Sort) of other
+#  proportions. Each is scaled about its view box's center by the factor given,
+#  in 20-unit pixels per source unit, so its ink matches the font's: the
+#  font's Share is 22 by 21 pixels at 150%, Delete 22 by 24 and Sort 24 by 18,
+#  where a 20-unit pixel is 1.5 screen pixels. The second value moves it down,
+#  in 20-unit pixels, to sit where the font's does.
+FIT = {
+    'Share':  (0.917, 0.67),   # 16 units of ink to 14.67
+    'Delete': (1.128, 0.0),    # 13 units of ink to 14.67
+    'Sort':   (0.762, 0.0),    # 21 units of ink to 16
 }
 
 B = '/' * 80
@@ -92,11 +104,63 @@ def frame_path(left, top, right, bottom, bar_top):
             + rounded_rect(left + inset, bar_top, right - inset, bar_top + 1, 0.5, True))
 
 
+def bars_path(count, left, right, pitch, thickness):
+    """Bars `thickness` thick, `pitch` apart, centered on the icon."""
+    first = 10.0 - pitch * (count - 1) / 2.0
+
+    return ''.join(rounded_rect(left, first + i * pitch - thickness / 2.0, right, first + i * pitch + thickness / 2.0, thickness / 2.0, True) for i in range(count))
+
+
 def path_of(name):
     svg = (SOURCE / f'ic_fluent_{name}.svg').read_text(encoding='utf-8')
     paths = re.findall(r'<path[^>]*\sd="([^"]+)"', svg)
     assert len(paths) == 1, f'{name}: expected one path, found {len(paths)}'
     return paths[0]
+
+
+def fit_path(d, size, k, dy):
+    "Scales an absolute-command path about its view box's center into 20 units."
+    tokens = re.findall(r'[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?', d)
+    result = []
+    command = None
+    index = 0
+
+    def x(v):
+        return 10.0 + (float(v) - size / 2.0) * k
+
+    def y(v):
+        return 10.0 + dy + (float(v) - size / 2.0) * k
+
+    while index < len(tokens):
+        token = tokens[index]
+
+        if token.isalpha():
+            assert token.isupper() or token in 'Zz', f'relative command {token}'
+            command = token
+            result.append(token)
+            index += 1
+            continue
+
+        if command in 'MLT':
+            result.append(f'{x(tokens[index]):.4f} {y(tokens[index + 1]):.4f}')
+            index += 2
+        elif command == 'H':
+            result.append(f'{x(tokens[index]):.4f}')
+            index += 1
+        elif command == 'V':
+            result.append(f'{y(tokens[index]):.4f}')
+            index += 1
+        elif command in 'CSQ':
+            result.append(f'{x(tokens[index]):.4f} {y(tokens[index + 1]):.4f}')
+            index += 2
+        elif command == 'A':
+            rx, ry, rot, large, sweep = tokens[index:index + 5]
+            result.append(f'{float(rx) * k:.4f} {float(ry) * k:.4f} {rot} {large} {sweep} {x(tokens[index + 5]):.4f} {y(tokens[index + 6]):.4f}')
+            index += 7
+        else:
+            raise AssertionError(f'unexpected command {command}')
+
+    return ' '.join(result)
 
 
 def mask(indices):
@@ -134,8 +198,13 @@ def main():
     out('namespace CassoExplorerIcons')
     out('{')
 
-    entries = [(name, svg, path_of(svg), layers) for name, (svg, layers) in ICONS.items()]
+    entries = [(name, svg, fit_path(path_of(svg), float(re.search(r'_(\d+)_', svg).group(1)), *FIT[name]) if name in FIT else path_of(svg), layers)
+               for name, (svg, layers) in ICONS.items()]
     entries += [(name, 'drawn by this script', frame_path(*frame), ALL) for name, frame in FRAMES.items()]
+
+    #  Explorer's View is four bars a pixel thick and 5 pixels apart at 150%,
+    #  thinner and closer than Fluent's line_horizontal_4.
+    entries += [('View', 'drawn by this script', bars_path(4, 2.0, 18.0, 10.0 / 3.0, 2.0 / 3.0), ALL)]
 
     for name, svg, d, layers in entries:
         if layers == ALL:

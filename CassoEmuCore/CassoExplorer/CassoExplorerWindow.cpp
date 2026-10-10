@@ -356,6 +356,8 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar->SetChevronOnIcons (true);
     m_commandBar->SetGroupSeparators (true);
     m_commandBar->SetButtonPadDip    (kCommandBarPadDip);
+    m_commandBar->SetLabeledLeadDip  (kCommandBarLabeledDip);
+    m_commandBar->SetContentDropDip  (kCommandBarDropDip);
     m_commandBar->SetChevronGapDip   (kCommandBarChevronGapDip);
     m_commandBar->SetIconGapDip      (kCommandBarIconGapDip);
     m_commandBar->SetLabelFontDip    (kCommandBarLabelDip);

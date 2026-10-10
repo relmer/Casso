@@ -210,6 +210,7 @@ void DxuiAddressBar::LayoutSegments()
     int               padX     = m_scaler.ToPx (s_kPadXDip);
     int               segPad   = m_scaler.ToPx (s_kSegmentPadDip);
     int               sep      = m_scaler.ToPx (s_kSeparatorDip);
+    int               roots    = m_scaler.ToPx (s_kRootsDip);
     int               overflow = m_scaler.ToPx (s_kOverflowDip);
     int               history  = HasHistoryChevron() ? m_scaler.ToPx (s_kHistoryDip) : 0;
     int               avail    = (int) (m_boundsDip.right - m_boundsDip.left) - padX * 2 - history;
@@ -231,6 +232,8 @@ void DxuiAddressBar::LayoutSegments()
     //  The location's icon and the roots chevron lead, ahead of everything.
     if (m_leadIcon || m_leadGlyph != nullptr)
     {
+        x         += m_scaler.ToPx (s_kLeadPadDip);
+        avail     -= m_scaler.ToPx (s_kLeadPadDip);
         m_leadRect = RECT { x, m_boundsDip.top, x + m_scaler.ToPx (s_kLeadIconDip), m_boundsDip.bottom };
         x         += m_scaler.ToPx (s_kLeadIconDip);
         avail     -= m_scaler.ToPx (s_kLeadIconDip);
@@ -238,9 +241,9 @@ void DxuiAddressBar::LayoutSegments()
 
     if (m_onRoots)
     {
-        m_rootsRect = RECT { x, m_boundsDip.top, x + sep, m_boundsDip.bottom };
-        x          += sep;
-        avail      -= sep;
+        m_rootsRect = RECT { x, m_boundsDip.top, x + roots, m_boundsDip.bottom };
+        x          += roots;
+        avail      -= roots;
     }
 
     for (const std::wstring & label : m_labels)
@@ -558,7 +561,7 @@ void DxuiAddressBar::PaintChevron (IDxuiPainter & painter, const RECT & rc, floa
 
 
     float  cx    = (float) (rc.left + rc.right) * 0.5f;
-    float  cy    = (float) (rc.top + rc.bottom) * 0.5f;
+    float  cy    = (float) (rc.top + rc.bottom) * 0.5f + m_scaler.ToPxf (s_kChevronDropDip);
     float  halfH = m_scaler.ToPxf (s_kChevronHalfDip);
     float  depth = m_scaler.ToPxf (s_kChevronDepthDip);
     float  thick = (std::max) (1.0f, m_scaler.ToPxf (s_kChevronStrokeDip));

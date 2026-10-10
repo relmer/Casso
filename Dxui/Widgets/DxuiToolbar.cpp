@@ -773,7 +773,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
     }
 
     labeled = labeled || !HasGlyph (slot);
-    width   = padX * 2 + (HasGlyph (slot) ? iconW : 0);
+    width   = GetLeadPadPx (labeled) + padX + (HasGlyph (slot) ? iconW : 0);
 
     if (labeled && slot.entry.command != nullptr)
     {
@@ -1000,8 +1000,8 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     groupGap = m_scaler.ToPx (m_groupGapDp);
     barPad   = m_scaler.ToPx (m_barPadDp);
     x        = boundsDip.left + barPad;
-    top      = boundsDip.top + marginY;
-    bottom   = boundsDip.bottom - marginY;
+    top      = boundsDip.top + marginY + (int) std::lround (m_scaler.ToPxf (m_contentDropDip));
+    bottom   = boundsDip.bottom - marginY + (int) std::lround (m_scaler.ToPxf (m_contentDropDip));
 
     m_barRect = boundsDip;
 
@@ -1832,7 +1832,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
     // A labeled entry keeps its icon left-padded with the label beside it; a
     // collapsed one centers the icon in what is left.
-    icon.x    = slot.labeled ? bl + (float) padX : bl + (bw - iconDip) * 0.5f;
+    icon.x    = slot.labeled ? bl + (float) GetLeadPadPx (true) : bl + (bw - iconDip) * 0.5f;
     icon.top  = bt;
     icon.size = iconDip;
     icon.rowH = bh;
@@ -1850,7 +1850,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
         if (!label.empty())
         {
-            textX = bl + (float) padX + (HasGlyph (slot) ? iconDip + (float) iconGap : 0.0f);
+            textX = bl + (float) GetLeadPadPx (true) + (HasGlyph (slot) ? iconDip + (float) iconGap : 0.0f);
 
             hr = text.DrawString (label.c_str(), textX, bt,
                                   (float) slot.rc.right - textX, bh,
@@ -1977,7 +1977,7 @@ void DxuiToolbar::PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme
 
             if (gap > 0 && gap <= groupGap + groupGap / 2)
             {
-                painter.FillRect ((float) previous->rc.right + (float) (gap / 2), top, width, height, theme.Divider());
+                painter.FillRect ((float) previous->rc.right + std::floor (((float) gap - width) * 0.5f), top, width, height, theme.Divider());
             }
         }
 

@@ -912,7 +912,8 @@ RECT DxuiTabStrip::GetCloseRect (int index) const
 {
     RECT  tab    = GetTabScreenRect (index);
     int   box    = m_scaler.ToPx (s_kCloseBoxDip);
-    int   center = tab.right - m_scaler.ToPx (s_kCloseCenterDip);
+    int   center = tab.right - ((m_style == DxuiTabStripStyle::Explorer) ? (int) std::lround (m_scaler.ToPxf (s_kExplorerCloseCenterDip))
+                                                                     : m_scaler.ToPx (s_kCloseCenterDip));
     int   top    = tab.top + ((tab.bottom - tab.top) - box) / 2;
 
 
@@ -1160,7 +1161,7 @@ void DxuiTabStrip::PaintTabClose (
                           (float) close.left, (float) close.top,
                           (float) (close.right - close.left), (float) (close.bottom - close.top),
                           glyphArgb,
-                          m_scaler.ToPxf ((float) s_kCloseGlyphDip),
+                          m_scaler.ToPxf ((m_style == DxuiTabStripStyle::Explorer) ? s_kExplorerCloseGlyphDip : (float) s_kCloseGlyphDip),
                           m_iconFace,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center,

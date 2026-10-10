@@ -126,7 +126,7 @@ public:
     //  center, the first 34.67 dip from the window's left edge: measured at
     //  150%. A 12 dip glyph, 16 dip either side and the toolbar's 4 dip gap.
     static constexpr float     kNavButtonPadDip    = 16.0f;
-    static constexpr int       kNavBarPadDp        = 6;
+    static constexpr int       kNavBarPadDp        = 5;
     static constexpr int       kNavAddressGapDp    = 8;      // from the refresh button to the address box
 
     //  File Explorer's command bar, measured at 125%: buttons 48 dip apart
@@ -136,13 +136,15 @@ public:
     //  toolbar's 4 dip gap keep the 48.
     static constexpr float  kCommandBarIconDip       = 20.0f;
     static constexpr float  kCommandBarPadDip        = 12.0f;
+    static constexpr float  kCommandBarLabeledDip    = 10.0f;   // a labeled button's pad before its icon, measured at 150%
+    static constexpr float  kCommandBarDropDip       = 0.67f;   // Explorer's buttons sit a pixel below the bar's middle at 150%
     static constexpr float  kCommandBarLabelDip      = 12.0f;
-    static constexpr float  kCommandBarChevronGapDip = 5.33f;   // a drop-down's label to its chevron, measured at 150%
+    static constexpr float  kCommandBarChevronGapDip = 6.0f;    // a drop-down's label to its chevron, measured at 150%
     static constexpr float  kCommandBarIconGapDip    = 6.33f;   // a button's icon to its label, measured at 150%
 
     //  Explorer's tree and list text: 9 points, 12 dip.
     static constexpr float     kProseFontDip         = 12.0f;
-    static constexpr int       kCommandBarGroupGapDp = 10;   // measured at 100, 125 and 150%
+    static constexpr int       kCommandBarGroupGapDp = 9;    // 14 px at 150%, with the separator centered in it
 
     //  Explorer's two strips, measured at 100, 125, 150 and 200%: the command
     //  bar is 47 dip rounded down, its line included; the address bar's strip
@@ -154,9 +156,9 @@ public:
     static constexpr int       kFindBoxMinDip        = 100;
     static constexpr int       kFindBoxMaxDip        = 720;
     static constexpr float     kFindBoxShare         = 0.3f;    // of the width right of the tree, measured at 150%
-    static constexpr float     kFindBoxRightInsetDip = 4.67f;   // past the toolbar's own padding
+    static constexpr float     kFindBoxRightInsetDip = 5.33f;   // past the toolbar's own padding
     static constexpr int       kFindBoxGapDip        = 8;
-    static constexpr int       kCommandBarPadXDp     = 4;
+    static constexpr int       kCommandBarPadXDp     = 6;
     static constexpr UINT      kListRowHalfDip       = 14;
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.

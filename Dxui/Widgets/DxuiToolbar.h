@@ -189,6 +189,8 @@ public:
     //  keeps the defaults; a bar following File Explorer widens the one and
     //  shrinks the other to Explorer's measure.
     void  SetButtonPadDip   (float dip)                  { m_buttonPadDip = dip; }
+    void  SetLabeledLeadDip (float dip)                  { m_labeledLeadDip = dip; }   // a labeled button's pad before its icon; the button pad when unset
+    void  SetContentDropDip (float dip)                  { m_contentDropDip = dip; }   // moves the buttons down within the bar
     void  SetChevronGapDip  (float dip)                  { m_chevronGapDip = dip; }   // a drop-down's label to its chevron
     void  SetIconGapDip     (float dip)                  { m_iconGapDip    = dip; }   // a button's icon to its label
     void  SetLabelScale     (float scale)                { m_labelScale   = scale; }
@@ -323,6 +325,7 @@ private:
     //  this avoids -- the pickers are popup menus and paint in that font.
     float  GetChromeFontPx () const { return (m_labelFontDip > 0.0f) ? m_scaler.ToPxf (m_labelFontDip) : m_metrics.fontPx * m_labelScale; }
     int    GetButtonPadPx  () const { return (int) std::lround (m_scaler.ToPxf (m_buttonPadDip)); }
+    int    GetLeadPadPx    (bool labeled) const { return (labeled && m_labeledLeadDip >= 0.0f) ? (int) std::lround (m_scaler.ToPxf (m_labeledLeadDip)) : GetButtonPadPx(); }
     void   RefreshMetrics  ();
 
     //  Runtime state the strip keeps per entry.
@@ -416,6 +419,8 @@ private:
     bool                            m_chevronOnIcons  = false;
     bool                            m_groupSeparators = false;
     float                           m_buttonPadDip    = (float) kBtnPadXDp;
+    float                           m_labeledLeadDip  = -1.0f;
+    float                           m_contentDropDip  = 0.0f;
     float                           m_chevronGapDip   = (float) kIconGapDp;
     float                           m_iconGapDip      = (float) kIconGapDp;
     float                           m_labelScale      = 1.0f;

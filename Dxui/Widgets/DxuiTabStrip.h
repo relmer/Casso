@@ -167,7 +167,11 @@ private:
     static constexpr int  s_kCloseCenterDip   = 22;   // close button's center from the tab's right edge
     static constexpr int  s_kCloseBoxDip      = 24;
     static constexpr int  s_kCloseGlyphDip    = 8;
-    static constexpr int  s_kCornerDip        = 6;    // the selected tab's rounded top corners
+
+    //  File Explorer's, measured at 125 and 150%.
+    static constexpr float  s_kExplorerCloseCenterDip = 20.67f;
+    static constexpr float  s_kExplorerCloseGlyphDip  = 8.67f;
+    static constexpr int    s_kCornerDip              = 6;   // the selected tab's rounded top corners
 
     void  Commit         (int newIndex);
     bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }

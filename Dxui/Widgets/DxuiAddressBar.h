@@ -142,18 +142,21 @@ private:
     static constexpr float  s_kChevronDip       = 12.0f;
     static constexpr int    s_kPadXDip          = 4;
     static constexpr int    s_kSegmentPadDip    = 8;
-    static constexpr int    s_kSeparatorDip     = 28;
+    static constexpr int    s_kSeparatorDip     = 25;   // between crumbs
+    static constexpr int    s_kRootsDip         = 28;   // the roots chevron after the location's icon
     static constexpr int    s_kHoverInsetDip    = 4;
     static constexpr int    s_kOverflowDip      = 32;
     static constexpr int    s_kClearDip         = 32;
     static constexpr int    s_kHistoryDip       = 28;
+    static constexpr int    s_kLeadPadDip       = 2;    // before the location's icon, as Explorer's
     static constexpr int    s_kLeadIconDip      = 32;
     static constexpr int    s_kIconDip          = 16;
     static constexpr float  s_kCancelDip        = 10.0f;
     static constexpr float  s_kTurnMs           = 150.0f;   // a chevron's quarter turn
-    static constexpr float  s_kChevronHalfDip   = 4.5f;   // half the chevron's height, measured off Explorer
-    static constexpr float  s_kChevronDepthDip  = 4.5f;
-    static constexpr float  s_kChevronStrokeDip = 1.25f;
+    static constexpr float  s_kChevronHalfDip   = 3.75f;  // half the chevron's height, measured off Explorer at 150%
+    static constexpr float  s_kChevronDepthDip  = 3.75f;
+    static constexpr float  s_kChevronStrokeDip = 1.0f;
+    static constexpr float  s_kChevronDropDip   = 1.33f;  // below the bar's middle, as Explorer's sits
 
     void  LayoutSegments ();
     int   MeasurePx      (const std::wstring & label) const;
