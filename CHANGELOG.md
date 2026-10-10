@@ -16,6 +16,10 @@ Entries before versioning was introduced use dates only.
   requirement. In the flat themes, on the desk and on the fullscreen drive
   strip.
 
+### Removed
+
+- The Disk II and Input debug panels.
+
 ### Fixed
 
 - Infocom's 128K games, such as Border Zone, no longer hang on the //e and //c.

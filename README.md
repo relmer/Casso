@@ -507,9 +507,7 @@ puts the arrow keys on paddle 0/1 with **X** / **Z** on buttons 0/1, so
 *Karateka*, *Choplifter* and *Lode Runner* play from the host keyboard with no
 physical stick. The //e keyboard generates hardware-faithful auto-repeat — initial
 delay, then steady cadence — rather than leaning on host-OS key repeat, so
-timing-sensitive arrow input behaves the way it did on real hardware. An Input
-Debug panel (**Ctrl+Shift+I**) logs host → guest key events, the `$C000`/`$C010`
-strobe, Open/Closed-Apple state, and synthesized paddle reads.
+timing-sensitive arrow input behaves the way it did on real hardware.
 
 Physical game controllers (Xbox controllers, gamepads, joysticks and flight
 sticks) can drive the Apple's paddles and buttons too. Controllers are assigned
