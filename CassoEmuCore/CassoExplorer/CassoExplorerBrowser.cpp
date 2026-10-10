@@ -416,6 +416,7 @@ HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
         row.folderPath   = items[index].folder;
         row.imagePath    = items[index].imagePath;
         row.imageCatalogIndex = items[index].catalogIndex;
+        row.imageDirectory    = items[index].imageDirectory;
         row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
         row.sourceIndex  = index;
 
@@ -1352,7 +1353,7 @@ void CassoExplorerBrowser::PreviewSearchMatch (const CatalogRow & row)
         return;
     }
 
-    PreviewEntry (match.imagePath, match.entry.name, match.entry, match.kind);
+    PreviewEntry (match.imagePath, match.directory.empty() ? match.entry.name : match.directory + "/" + match.entry.name, match.entry, match.kind);
 }
 
 
@@ -1383,9 +1384,10 @@ bool CassoExplorerBrowser::TryFindSearchMatch (const CatalogRow & row, SearchMat
         return false;
     }
 
-    if (!m_model.TryGetCachedCatalog (row.imagePath, listing, kind))
+    //  The volume's own catalog is cached; a directory inside it is read.
+    if (!row.imageDirectory.empty() || !m_model.TryGetCachedCatalog (row.imagePath, listing, kind))
     {
-        result = m_operations.List (TextEncoding::WideToNarrow (row.imagePath), listing, kind);
+        result = m_operations.List (TextEncoding::WideToNarrow (row.imagePath), row.imageDirectory, listing, kind);
 
         if (!result.Succeeded())
         {
@@ -1393,7 +1395,10 @@ bool CassoExplorerBrowser::TryFindSearchMatch (const CatalogRow & row, SearchMat
             return false;
         }
 
-        m_model.CacheCatalog (row.imagePath, listing, kind);
+        if (row.imageDirectory.empty())
+        {
+            m_model.CacheCatalog (row.imagePath, listing, kind);
+        }
     }
 
     for (const FileEntry & entry : listing.entries)
@@ -1402,6 +1407,7 @@ bool CassoExplorerBrowser::TryFindSearchMatch (const CatalogRow & row, SearchMat
         {
             outMatch.imagePath = row.imagePath;
             outMatch.kind      = kind;
+            outMatch.directory = row.imageDirectory;
             outMatch.entry     = entry;
             found              = true;
         }
@@ -2169,9 +2175,12 @@ bool CassoExplorerBrowser::OpenRow (int row)
     //  selected, where it previews and copies as any of the image's files.
     if (row >= 0 && (size_t) row < m_rows.size() && !m_rows[(size_t) row].imagePath.empty())
     {
-        std::wstring  name = m_rows[(size_t) row].name;
+        std::wstring  name      = m_rows[(size_t) row].name;
+        std::wstring  image     = m_rows[(size_t) row].imagePath;
+        std::string   directory = m_rows[(size_t) row].imageDirectory;
 
-        m_model.NavigateTo (Location::MakeDiskImage (m_rows[(size_t) row].imagePath));
+        //  A match in a directory opens that directory.
+        m_model.NavigateTo (directory.empty() ? Location::MakeDiskImage (image) : Location::MakeDiskDirectory (image, directory));
         ReloadAfterNavigation();
         SelectRowsByKeys ({ L"0:" + name });
         return true;

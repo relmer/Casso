@@ -1692,34 +1692,59 @@ void Win32ShellItemVerbs::SearchImages (const std::wstring & scope, const std::v
 
     for (const std::wstring & image : images)
     {
-        VolumeListing           listing;
-        VolumeKind              kind   = VolumeKind::Dos33;
-        DiskOperations::Result  result = operations.List (TextEncoding::WideToNarrow (image), listing, kind);
+        std::vector<std::string>  pending = { std::string() };
+        size_t                    read    = 0;
 
-        if (!result.Succeeded())
+        //  Every directory in the image, the volume's first, as far as the
+        //  limits allow: a subdirectory's files match as the volume's do.
+        while (!pending.empty() && read < s_kMaxImageDirectories && outItems.size() < s_kMaxResults)
         {
-            continue;
-        }
+            std::string             directory = pending.back();
+            VolumeListing           listing;
+            VolumeKind              kind      = VolumeKind::Dos33;
+            DiskOperations::Result  result    = operations.List (TextEncoding::WideToNarrow (image), directory, listing, kind);
+            std::wstring            shownIn   = image;
 
-        for (const FileEntry & file : listing.entries)
-        {
-            ShellFolderItem  entry;
+            pending.pop_back();
+            read++;
 
-            entry.name = AppleFileName::ToDisplay (file.name);
-
-            if (!SearchQuery::MatchesName (entry.name, words) || outItems.size() >= s_kMaxResults)
+            if (!result.Succeeded())
             {
                 continue;
             }
 
-            entry.id        = image + L"\\" + entry.name;
-            entry.typeText  = CatalogModel::GetTypeText (file.type, kind);
-            entry.sizeBytes = file.hasEofBytes ? file.eofBytes : (uint64_t) file.sizeUnits * ((kind == VolumeKind::Dos33) ? 256u : 512u);
-            entry.isFolder  = file.isDirectory;
-            entry.folder    = image;
-            entry.imagePath = image;
-            entry.catalogIndex = file.catalogIndex;
-            outItems.push_back (std::move (entry));
+            if (!directory.empty())
+            {
+                shownIn += L"\\" + AppleFileName::ToDisplay (directory);
+                std::replace (shownIn.begin(), shownIn.end(), L'/', L'\\');
+            }
+
+            for (const FileEntry & file : listing.entries)
+            {
+                ShellFolderItem  entry;
+
+                if (file.isDirectory)
+                {
+                    pending.push_back (directory.empty() ? file.name : directory + "/" + file.name);
+                }
+
+                entry.name = AppleFileName::ToDisplay (file.name);
+
+                if (!SearchQuery::MatchesName (entry.name, words) || outItems.size() >= s_kMaxResults)
+                {
+                    continue;
+                }
+
+                entry.id             = shownIn + L"\\" + entry.name;
+                entry.typeText       = CatalogModel::GetTypeText (file.type, kind);
+                entry.sizeBytes      = file.hasEofBytes ? file.eofBytes : (uint64_t) file.sizeUnits * ((kind == VolumeKind::Dos33) ? 256u : 512u);
+                entry.isFolder       = file.isDirectory;
+                entry.folder         = shownIn;
+                entry.imagePath      = image;
+                entry.catalogIndex   = file.catalogIndex;
+                entry.imageDirectory = directory;
+                outItems.push_back (std::move (entry));
+            }
         }
     }
 }

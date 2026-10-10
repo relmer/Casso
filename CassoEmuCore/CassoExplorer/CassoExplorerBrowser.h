@@ -204,6 +204,7 @@ public:
     {
         std::wstring  imagePath;
         VolumeKind    kind = VolumeKind::Unknown;
+        std::string   directory;   // inside the image, or empty for the volume's
         FileEntry     entry;
     };
 

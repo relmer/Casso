@@ -379,7 +379,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
             entries.clear();
 
-            while (last < matches.size() && matches[last].imagePath == matches[first].imagePath)
+            while (last < matches.size() && matches[last].imagePath == matches[first].imagePath && matches[last].directory == matches[first].directory)
             {
                 entries.push_back (matches[last].entry);
                 last++;
@@ -388,8 +388,14 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
             plan = DragPayload::Build (DragPayload::SourceKind::CatalogEntries, from, matches[first].kind, entries, style,
                                        [] (const std::string &, VolumeListing &) { return E_NOTIMPL; }, {});
 
-            for (const DragPayload::Descriptor & descriptor : plan.descriptors)
+            //  The plan addresses files by name; one in a directory is read by its path.
+            for (DragPayload::Descriptor & descriptor : plan.descriptors)
             {
+                if (!matches[first].directory.empty())
+                {
+                    descriptor.catalogPath = matches[first].directory + "/" + descriptor.catalogPath;
+                }
+
                 descriptors->push_back (descriptor);
                 images->push_back (from);
             }

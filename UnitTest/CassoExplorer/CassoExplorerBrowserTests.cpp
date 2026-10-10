@@ -7,6 +7,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/AppleSingleCodec.h"
+#include "Machines/Apple2/Common/AppleFileName.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -551,6 +552,57 @@ public:
         Assert::AreEqual ((size_t) 1, matches.size(), L"and copies from its image");
         Assert::AreEqual (std::string ("HELLO"), matches[0].entry.name);
         Assert::IsTrue   (matches[0].kind == VolumeKind::Dos33);
+    }
+
+
+    //  A match in a directory inside an image is read from that directory.
+    TEST_METHOD (SearchMatchInAnImagesDirectory_PreviewsAndCopiesFromThere)
+    {
+        Host                                            host;
+        FakeRecycleBin                                  shell;
+        IShellItemVerbs::ShellFolderItem                match;
+        VolumeListing                                   root;
+        VolumeListing                                   inner;
+        VolumeKind                                      kind      = VolumeKind::Unknown;
+        std::string                                     directory;
+        const FileEntry                               * file      = nullptr;
+        std::vector<CassoExplorerBrowser::SearchMatch>  matches;
+
+
+        host.Seed ("Disks/Merlin-proProdos2.33-a.dsk", L"C:\\Disks\\merlin.dsk");
+        Assert::IsTrue (host.browser.GetOperations().List ("C:\\Disks\\merlin.dsk", root, kind).Succeeded());
+
+        for (const FileEntry & entry : root.entries)
+        {
+            directory = (directory.empty() && entry.isDirectory) ? entry.name : directory;
+        }
+
+        Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
+        Assert::IsTrue  (host.browser.GetOperations().List ("C:\\Disks\\merlin.dsk", directory, inner, kind).Succeeded());
+
+        for (const FileEntry & entry : inner.entries)
+        {
+            file = (file == nullptr && !entry.isDirectory) ? &entry : file;
+        }
+
+        Assert::IsNotNull (file);
+
+        match.id             = L"C:\\Disks\\merlin.dsk\\" + AppleFileName::ToDisplay (directory) + L"\\" + AppleFileName::ToDisplay (file->name);
+        match.name           = AppleFileName::ToDisplay (file->name);
+        match.imagePath      = L"C:\\Disks\\merlin.dsk";
+        match.catalogIndex   = file->catalogIndex;
+        match.imageDirectory = directory;
+        shell.shellItems.push_back (match);
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"x"), SearchQuery::GetLabel (kDisks)));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, match.name.c_str()) });
+
+        Assert::IsTrue (host.browser.GetPreview().kind != PreviewContent::Kind::Error, L"It previews from its directory");
+
+        host.browser.GetSelectedSearchMatches (matches);
+        Assert::AreEqual ((size_t) 1, matches.size());
+        Assert::AreEqual (directory, matches[0].directory, L"and copies from there");
     }
 
 

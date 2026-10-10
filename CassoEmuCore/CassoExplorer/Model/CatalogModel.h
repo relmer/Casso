@@ -63,6 +63,7 @@ struct CatalogRow
     std::wstring  folderPath;
     std::wstring  imagePath;
     size_t        imageCatalogIndex = 0;
+    std::string   imageDirectory;
     int64_t       deletedUnix       = 0;
     bool          hasDeleted        = false;
 

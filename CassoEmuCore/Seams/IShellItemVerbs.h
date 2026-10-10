@@ -69,6 +69,7 @@ public:
         std::wstring  folder;                  // a search result's folder
         std::wstring  imagePath;               // a search result inside this disk image
         size_t        catalogIndex  = 0;       // and where it is in that image's catalog
+        std::string   imageDirectory;          // the directory inside the image that lists it, or empty for the volume's
         std::wstring  iconId;                  // the namespace entry whose icon it shows, as OneDrive's cloud
     };
 
