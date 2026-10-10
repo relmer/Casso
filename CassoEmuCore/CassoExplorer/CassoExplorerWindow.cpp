@@ -1509,6 +1509,7 @@ void CassoExplorerWindow::FillList()
 
     FillTabs();
     FillAddress();
+    FillNavTips();
     FillPreview();
     FillStatus();
     Invalidate();
@@ -8286,6 +8287,70 @@ std::vector<BrowserModel::AddressSegment> CassoExplorerWindow::GetAddressSegment
     }
 
     return segments;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetNavLabel
+//
+//  A location as the address bar shows it: a drive by its name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetNavLabel (const Location & location)
+{
+    std::vector<BrowserModel::AddressSegment>  segments = GetAddressSegmentsFor (location);
+
+
+
+    return segments.back().label.empty() ? CassoExplorerBrowser::GetLocationLabel (location) : segments.back().label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FillNavTips
+//
+//  File Explorer's navigation tips say where each button goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::FillNavTips()
+{
+    const BrowserModel &  model = m_browser.GetBrowserModel();
+    Location              up;
+    std::wstring          back    = L"Back";
+    std::wstring          forward = L"Forward";
+    std::wstring          upTip   = L"Up (Alt + Up Arrow)";
+
+
+
+    if (model.HasTabs() && !model.GetActiveTab().back.empty())
+    {
+        back = L"Back to " + GetNavLabel (model.GetActiveTab().back.back());
+    }
+
+    if (model.HasTabs() && !model.GetActiveTab().forward.empty())
+    {
+        forward = L"Forward to " + GetNavLabel (model.GetActiveTab().forward.back());
+    }
+
+    if (m_browser.TryGetUpTarget (up))
+    {
+        upTip = L"Up to \"" + GetNavLabel (up) + L"\" (Alt + Up Arrow)";
+    }
+
+    m_commands.SetTip (CassoExplorerCommands::kBack,    back);
+    m_commands.SetTip (CassoExplorerCommands::kForward, forward);
+    m_commands.SetTip (CassoExplorerCommands::kUp,      upTip);
+    m_commands.SetTip (CassoExplorerCommands::kRefresh, L"Refresh \"" + GetNavLabel (m_browser.GetLocation()) + L"\" (F5)");
 }
 
 

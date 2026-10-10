@@ -416,6 +416,8 @@ private:
     int   WalkTreeLabels (int row, const std::wstring & path);
     void  FillTabs();
     void  FillAddress();
+    void  FillNavTips();
+    std::wstring  GetNavLabel (const Location & location);
     std::vector<BrowserModel::AddressSegment>  GetAddressSegmentsFor (const Location & location);
     void  SubmitAddress (const std::wstring & text);
     void  ShowAddressMenu (int index, const RECT & anchor);

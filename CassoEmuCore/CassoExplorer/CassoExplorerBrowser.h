@@ -119,6 +119,9 @@ public:
     bool  OpenRow (int row);
 
     bool  CanGoUp () const;
+
+    //  Where Up goes from the active tab, for its tooltip and for GoUp.
+    bool  TryGetUpTarget (Location & outTarget) const;
     bool  GoBack    ();
     bool  GoForward ();
 

@@ -167,6 +167,7 @@ public:
     //  The SVG a command's button and menu rows draw in place of its glyph;
     //  the text is the caller's and must outlive the command.
     void  SetSvg (int id, const std::string * svg);
+    void  SetTip (int id, const std::wstring & tip);
 
     //  The SVG a menu draws beside the command, which the host reads for the
     //  theme in use and sets again when the theme changes.

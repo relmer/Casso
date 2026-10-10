@@ -2194,17 +2194,16 @@ bool CassoExplorerBrowser::CanGoUp() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::GoUp
+//  CassoExplorerBrowser::TryGetUpTarget
 //
 //  An image's parent is the folder holding it; a directory inside an image
 //  goes to the image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerBrowser::GoUp()
+bool CassoExplorerBrowser::TryGetUpTarget (Location & outTarget) const
 {
     Location  location = GetLocation();
-    Location  target;
 
 
 
@@ -2215,15 +2214,42 @@ bool CassoExplorerBrowser::GoUp()
 
     if (location.kind == Location::Kind::DiskDirectory)
     {
-        target = Location::MakeDiskImage (location.path);
+        outTarget = Location::MakeDiskImage (location.path);
     }
     else if (location.kind == Location::Kind::ShellFolder)
     {
-        target = m_shellParent;
+        outTarget = m_shellParent;
     }
     else
     {
-        target = Location::MakeHostFolder (GetParentFolder (location.path));
+        outTarget = Location::MakeHostFolder (GetParentFolder (location.path));
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GoUp
+//
+//  An image's parent is the folder holding it; a directory inside an image
+//  goes to the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::GoUp()
+{
+    Location  target;
+
+
+
+    if (!TryGetUpTarget (target))
+    {
+        return false;
     }
 
     m_model.NavigateTo (target);
