@@ -1322,7 +1322,7 @@ void DxuiTabStrip::PaintExplorer (
     float     focusThick = m_scaler.ToPxf (s_kFocusThickDip);
     float     focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
     float     padX       = m_scaler.ToPxf (kLabelPadXDip);
-    float     fontDip    = m_scaler.ToPxf (kLabelFontDip);
+    float     fontDip    = m_scaler.ToPxf (kExplorerLabelFontDip);
     float     corner     = m_scaler.ToPxf ((float) s_kCornerDip);
     float     dividerH   = m_scaler.ToPxf (s_kDividerDip);
     float     baseLine   = (std::max) (1.0f, std::round (m_scaler.ToPxf (s_kBaseLineDip)));

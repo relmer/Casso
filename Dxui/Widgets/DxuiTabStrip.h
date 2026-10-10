@@ -72,8 +72,9 @@ public:
     // label keeps from its tab's sides (in the Explorer style, from its right
     // side only). Callers sizing tabs to their labels measure at the same
     // size, in GetLabelFace's face, at normal weight.
-    static constexpr float  kLabelFontDip = 13.0f;
-    static constexpr float  kLabelPadXDip = 8.0f;
+    static constexpr float  kLabelFontDip         = 13.0f;
+    static constexpr float  kExplorerLabelFontDip = 12.0f;   // File Explorer's, measured at 150%
+    static constexpr float  kLabelPadXDip         = 8.0f;
 
     static const wchar_t *  GetLabelFace();
 
