@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"

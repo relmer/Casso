@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/WindowCommandManager.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"

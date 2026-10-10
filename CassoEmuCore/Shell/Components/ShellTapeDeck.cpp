@@ -10,6 +10,7 @@
 #include "Ui/Dialogs/TapePositionDialog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/WindowCommandManager.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"

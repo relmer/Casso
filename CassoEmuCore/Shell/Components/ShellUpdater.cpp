@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShell.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"

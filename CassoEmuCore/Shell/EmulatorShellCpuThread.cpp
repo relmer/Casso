@@ -3,6 +3,7 @@
 #include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"

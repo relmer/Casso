@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"

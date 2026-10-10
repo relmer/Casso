@@ -1,9 +1,13 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/MachineManager.h"
+#include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellWindow.h"
+#include "Shell/ClipboardManager.h"
+#include "Shell/WindowCommandManager.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Config/UserConfigStore.h"
 #include "Ui/ThemeManager.h"

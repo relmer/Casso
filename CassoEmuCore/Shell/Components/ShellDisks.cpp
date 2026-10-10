@@ -4,6 +4,8 @@
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/WindowCommandManager.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSettings.h"

@@ -8,35 +8,25 @@
 #include "Seams/Win32ControllerBackend.h"
 #include "Shell/ControllerInputThread.h"
 #include "Shell/MachineGamePortSink.h"
-#include "Core/ComponentRegistry.h"
-#include "Core/EmuCpu.h"
-#include "Core/InterruptController.h"
-#include "Core/MachineConfig.h"
-#include "Core/MemoryBus.h"
-#include "Devices/Disk/DiskImageStore.h"
-#include "Devices/IAciaEndpoint.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
-#include "Shell/ClipboardManager.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
-#include "Shell/BackgroundWorkQueue.h"
-#include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
-#include "Shell/MachineManager.h"
-#include "Shell/WindowCommandManager.h"
-#include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
-#include "Machines/Apple2/Common/CharacterRomData.h"
-#include "Video/VideoOutput.h"
-#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
+class ClipboardManager;
 class DxuiHwndSource;
+class MachineBuilder;
+class MachineManager;
+class WindowCommandManager;
+struct DialogDefinition;
+struct MachineConfig;
 class SettingsSheet;
 class JsonValue;
 class DriveWidget;
