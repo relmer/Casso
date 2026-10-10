@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
+#include "Ui/DiskInspector/FileMapText.h"
 #include "FileMapTestImages.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -360,6 +361,37 @@ public:
         map = MapOf (invalid, false);
         Assert::IsTrue (map.fileSystem == MapFileSystem::Cpm, L"more than four valid entries still find the volume");
         AssertOnce (map, FindingKind::CpmInvalidEntry, true);
+    }
+
+
+
+    TEST_METHOD (TheTabSaysWhereEachSectorSitsInItsFile)
+    {
+        FileMap           map  = MapOf (Images::MakeDos33(), false);
+        vector<TableRow>  rows = FileMapText::BuildFileRows (map, false, false, 0, false);
+        std::wstring      copy = FileMapText::FormatMap (map);
+
+
+
+        Assert::AreEqual (std::wstring (L"HELLO, data sector 2 of 3"), FileMapText::FormatOwners (map, DosCell (18, 13)));
+        Assert::AreEqual (std::wstring (L"HELLO, track/sector list"),  FileMapText::FormatOwners (map, DosCell (18, 15)));
+        Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (17, 0)).starts_with (L"Track 17, DOS 3.3 sector $0 (physical $0)"));
+        Assert::IsTrue   (std::none_of (rows.begin(), rows.end(), [] (const TableRow & r) { return r.cells[0] == L"OLD"; }), L"deleted files hidden by default");
+        Assert::AreEqual (std::wstring (L"Complete"), rows[0].cells[4]);
+        Assert::IsTrue   (copy.starts_with (L" 0  BBBBBBBBBBBBBBBB\r\n"), L"a row per track");
+        Assert::IsTrue   (copy.find (L"V  VTOC\r\n") != std::wstring::npos, L"and the key to the letters");
+        Assert::IsTrue   (copy.find (L"17  VCCCCCCCCCCCCCCC") != std::wstring::npos);
+    }
+
+
+
+    TEST_METHOD (NotMappedReasonsAreGiven)
+    {
+        FileMap  zero = MapOf (vector<Byte> (Images::kImageBytes, 0), false);
+
+
+
+        Assert::IsTrue (FileMapText::FormatNotMapped (zero).starts_with (L"No DOS 3.3, ProDOS, Apple Pascal or CP/M volume was found."));
     }
 
 

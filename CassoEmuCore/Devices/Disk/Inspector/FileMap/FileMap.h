@@ -148,6 +148,15 @@ struct FileMap
 
     int  GetTrack  (int cell) const { return cell / cellsPerTrack; }
     int  GetColumn (int cell) const { return cell % cellsPerTrack; }
+
+    //  The physical sector that holds a cell, or a half of a block; and the
+    //  cell a physical sector holds, with which half of a block it is, or -1.
+    int  GetPhysical (int cell, int half = 0) const;
+    int  GetCellOf   (int track, int physical, int & outHalf) const;
+
+    //  A sector's place in a file: its role there and its number among the
+    //  file's sectors, counting from 1, or 0 when the file does not use it.
+    int  GetPlaceInFile (int file, int cell, SectorRole & outRole) const;
 };
 
 

@@ -21,12 +21,15 @@
 
 struct InspectorViewContext
 {
-    const DiskAnalysis    * analysis     = nullptr;
-    InspectorViewModel    * model        = nullptr;
-    DiskInspectorPalette    palette      = DiskInspectorPalette::MakeFallback (true);
-    bool                    hasDisk      = false;
-    bool                    isTimingMode = false;
-    double                  timingRange  = 0.05;
+    const DiskAnalysis    * analysis       = nullptr;
+    InspectorViewModel    * model          = nullptr;
+    DiskInspectorPalette    palette        = DiskInspectorPalette::MakeFallback (true);
+    bool                    hasDisk        = false;
+    bool                    isTimingMode   = false;
+    double                  timingRange    = 0.05;
+    const FileMap         * fileMap        = nullptr;
+    int                     selectedFile   = -1;
+    bool                    isFilesOverlay = false;
     std::function<void ()>    onSelectionChanged;
 
     const TrackAnalysis *  GetTrack () const { return (model != nullptr && hasDisk) ? model->GetTrack() : nullptr; }

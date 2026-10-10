@@ -16,6 +16,8 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Ui/DiskInspector/ExportDialog.h"
+#include "Ui/DiskInspector/FileMapGridView.h"
+#include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/FindPanel.h"
 #include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Ui/DiskInspector/GoToDialog.h"
@@ -62,6 +64,11 @@ static constexpr double   s_kMinSplit       = 0.3;
 static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr double   s_kPlatterShare   = 0.55;
+static constexpr double   s_kMapPlatterShare = 0.32;
+static constexpr double   s_kMapGridShare   = 0.62;
+static constexpr int      s_kMapCheckDip    = 190;
+static constexpr int      s_kMapButtonDip   = 170;
+static constexpr int      s_kMapVolumeDip   = 150;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 140;
 static constexpr int      s_kExportButtonDip = 90;
@@ -295,6 +302,14 @@ void DiskInspectorWindow::OnCreate()
     m_tracksTab   = CreateChild<InspectorTableView> (m_context);
     m_findingsTab = CreateChild<FindingsTab>     (m_context);
     m_imageTab    = CreateChild<InspectorTableView> (m_context);
+    m_mapGrid     = CreateChild<FileMapGridView>    (m_context);
+    m_fileList    = CreateChild<InspectorTableView> (m_context);
+    m_mapVolumes  = CreateChild<DxuiTabStrip>();
+    m_mapDeleted  = CreateChild<DxuiCheckbox> (L"Show deleted files");
+    m_mapBadOnly  = CreateChild<DxuiCheckbox> (L"Files touching bad sectors");
+    m_mapPrev     = CreateChild<DxuiButton> (L"Previous sector in file");
+    m_mapNext     = CreateChild<DxuiButton> (L"Next sector in file");
+    m_mapCopy     = CreateChild<DxuiButton> (L"Copy map");
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
     m_trackTabs->SetOnChange ([this] (int index) { ShowTrackTab (index); });
@@ -302,6 +317,15 @@ void DiskInspectorWindow::OnCreate()
     m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
     m_imageTab->SetColumns   (InspectorTables::GetImageColumns());
+    m_mapGrid->SetOnChoose   ([this] (int cell) { SelectMapCell (cell); });
+    m_fileList->SetOnSelect  ([this] (const TableRow & row) { ChooseFile (row.finding); });
+    m_fileList->SetOnSort    ([this] (int column) { m_fileSortDescending = (column == m_fileSortColumn) && !m_fileSortDescending; m_fileSortColumn = column; RefreshFileList(); });
+    m_mapVolumes->SetOnChange ([this] (int index) { m_mapIndex = index; m_mapFile = -1; RefreshFileList(); });
+    m_mapDeleted->SetOnChange ([this] (bool) { RefreshFileList(); });
+    m_mapBadOnly->SetOnChange ([this] (bool) { RefreshFileList(); });
+    m_mapPrev->SetOnClick    ([this] () { StepFileSector (-1); });
+    m_mapNext->SetOnClick    ([this] () { StepFileSector (1); });
+    m_mapCopy->SetOnClick    ([this] () { CopyFileMap(); });
     m_tracksTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_findingsTab->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
     m_fieldsTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
@@ -433,6 +457,10 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
                      rowBottom };
     m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, isTwoRows ? static_cast<int> (boundsDip.right) - margin : i, rowBottom };
 
+    //  The File map takes most of the column; the platter stays in view for
+    //  the Files overlay, and the legend and hint give way.
+    side = (m_diskTab == kTabFileMap) ? std::min (side, static_cast<int> ((boundsDip.bottom - top) * s_kMapPlatterShare)) : side;
+
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
     m_platterView->Layout (platter, scaler);
 
@@ -444,9 +472,17 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_alignmentCheck->Layout ({ x + 6 * button + margin, y, splitX - margin, y + row }, scaler);
     m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
 
-    y += 2 * row;
-    m_legend->Layout ({ x, y, splitX - margin, y + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows) }, scaler);
-    y += scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows);
+    if (m_diskTab == kTabFileMap)
+    {
+        y += row + margin / 2;
+    }
+    else
+    {
+        y += 2 * row;
+        m_legend->Layout ({ x, y, splitX - margin, y + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows) }, scaler);
+        y += scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows);
+    }
+
     tabs.clear();
 
     for (LPCWSTR label : { L"Tracks", L"Findings", L"File map", L"Image" })
@@ -463,6 +499,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_tracksTab->Layout   ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
     m_findingsTab->Layout ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
     m_imageTab->Layout    ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
+    LayoutFileMap ({ x, y, splitX - margin, static_cast<int> (boundsDip.bottom) - margin }, scaler);
     m_diskContentPx = { x, y, splitX - margin, boundsDip.bottom - margin };
     m_platterAreaPx = { boundsDip.left, top, splitX, y - scaler.ToPx (s_kTabsDip) - margin / 2 };
     m_trackAreaPx   = { m_splitterPx.right, top, boundsDip.right, boundsDip.bottom };
@@ -1049,7 +1086,9 @@ void DiskInspectorWindow::UpdateControls()
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
-        m_hintLabel->SetVisible (m_context.hasDisk);
+        m_hintLabel->SetVisible (m_context.hasDisk && m_diskTab != kTabFileMap);
+        m_legend->SetVisible    (m_diskTab != kTabFileMap);
+        SyncFileMapSelection();
         m_stripOut->SetVisible     (m_context.hasDisk);
         m_stripIn->SetVisible      (m_context.hasDisk);
         m_stripWhole->SetVisible   (m_context.hasDisk);
@@ -1134,7 +1173,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     std::wstring                          tip;
     RECT                                  anchor = {};
     int64_t                               now    = static_cast<int64_t> (GetTickCount64());
-    const std::array<InspectorView *, 5>  views  = { m_platterView, m_stripView, m_sectorRow, m_nibblesTab, m_fluxTab };
+    const std::array<InspectorView *, 6>  views  = { m_platterView, m_stripView, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid };
 
 
 
@@ -1259,6 +1298,13 @@ void DiskInspectorWindow::ShowDiskTab (int tab)
     m_tracksTab->SetVisible   (tab == kTabTracks);
     m_findingsTab->SetVisible (tab == kTabFindings);
     m_imageTab->SetVisible    (tab == kTabImage);
+    ShowFileMap (tab == kTabFileMap);
+
+    if (m_scaler.GetDpi() != 0)
+    {
+        Layout (m_boundsDip, m_scaler);
+    }
+
     m_diskTabs->SetSelected   (tab);
 }
 
@@ -1290,6 +1336,7 @@ void DiskInspectorWindow::RefreshTables()
                                      : L"");
         m_findingsTab->Refresh();
         m_imageTab->SetRows (m_context.hasDisk ? InspectorTables::BuildImage (m_analysis.image) : vector<TableRow>());
+        RefreshFileList();
 
         //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image
         //  tab, and every other view is covered by a note (FR-054).
@@ -1704,6 +1751,10 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     {
         target = KeyTarget::Image;
     }
+    else if (m_fileList->IsVisible() && IsInside (m_fileList->GetBounds(), pointPx))
+    {
+        target = KeyTarget::FileList;
+    }
 
     return target;
 }
@@ -1803,6 +1854,7 @@ void DiskInspectorWindow::Copy()
         case KeyTarget::Tracks:     text = m_tracksTab->GetSelectedText();   break;
         case KeyTarget::Findings:   text = m_findingsTab->GetSelectedText(); break;
         case KeyTarget::Image:      text = m_imageTab->GetSelectedText();    break;
+        case KeyTarget::FileList:   text = m_fileList->GetSelectedText();    break;
         case KeyTarget::FluxTiming: text = m_fluxTab->GetHistogramText();    break;
 
         case KeyTarget::Strip:
@@ -2182,4 +2234,319 @@ void DiskInspectorWindow::PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer 
 bool DiskInspectorWindow::IsCovered (POINT pointPx) const
 {
     return m_is35 && (IsInside (m_platterAreaPx, pointPx) || IsInside (m_trackAreaPx, pointPx) || (m_diskTab != kTabImage && IsInside (m_diskContentPx, pointPx)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetFileMap
+//
+//  The map of the volume chosen in the File map tab, or none while the
+//  disk is still being analyzed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const FileMap * DiskInspectorWindow::GetFileMap() const
+{
+    const vector<FileMap> &  maps = m_analysis.fileMaps;
+
+
+
+    return (m_context.hasDisk && !maps.empty()) ? &maps[std::clamp (m_mapIndex, 0, static_cast<int> (maps.size()) - 1)] : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::LayoutFileMap
+//
+//  Two rows of controls, the grid, then the file list; a disk that is not
+//  mapped gives the grid the whole room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler & scaler)
+{
+    const FileMap *            map     = GetFileMap();
+    int                        row     = scaler.ToPx (s_kRowDip);
+    int                        margin  = scaler.ToPx (s_kMarginDip);
+    int                        check   = scaler.ToPx (s_kMapCheckDip);
+    int                        button  = scaler.ToPx (s_kMapButtonDip);
+    int                        volume  = scaler.ToPx (s_kMapVolumeDip);
+    int                        y       = area.top;
+    int                        gridH   = 0;
+    bool                       isList  = map != nullptr && map->notMapped == NotMappedReason::None;
+    vector<DxuiTabStrip::Tab>  tabs;
+
+
+
+    m_mapDeleted->Layout ({ area.left,         y, area.left + check,     y + row }, scaler);
+    m_mapBadOnly->Layout ({ area.left + check, y, area.left + 2 * check, y + row }, scaler);
+    m_mapCopy->Layout    ({ area.right - scaler.ToPx (s_kExportButtonDip), y, area.right, y + row }, scaler);
+    y += row + margin / 2;
+
+    m_mapPrev->Layout ({ area.left,          y, area.left + button,     y + row }, scaler);
+    m_mapNext->Layout ({ area.left + button, y, area.left + 2 * button, y + row }, scaler);
+
+    for (size_t v = 0; v < m_analysis.fileMaps.size() && m_analysis.fileMaps.size() > 1; v++)
+    {
+        int  left = area.left + 2 * button + margin + static_cast<int> (v) * volume;
+
+        tabs.push_back ({ { left, y, left + volume, y + row }, FileMapText::FormatVolume (m_analysis.fileMaps[v]) });
+    }
+
+    m_mapVolumes->SetTabs     (std::move (tabs));
+    m_mapVolumes->SetSelected (m_mapIndex);
+    m_mapVolumes->Layout      ({ area.left + 2 * button + margin, y, area.right, y + row }, scaler);
+    y += row + margin / 2;
+
+    gridH = isList ? std::min (m_mapGrid->GetHeightFor (area.right - area.left), static_cast<int> ((area.bottom - y) * s_kMapGridShare)) : area.bottom - y;
+    m_mapGrid->Layout  ({ area.left, y, area.right, y + gridH }, scaler);
+    m_fileList->Layout ({ area.left, y + gridH + margin / 2, area.right, area.bottom }, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowFileMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowFileMap (bool isShown)
+{
+    const FileMap *  map    = GetFileMap();
+    bool             isList = isShown && map != nullptr && map->notMapped == NotMappedReason::None;
+
+
+
+    m_mapGrid->SetVisible    (isShown);
+    m_fileList->SetVisible   (isList);
+    m_mapDeleted->SetVisible (isList);
+    m_mapBadOnly->SetVisible (isList);
+    m_mapPrev->SetVisible    (isList);
+    m_mapNext->SetVisible    (isList);
+    m_mapCopy->SetVisible    (isList);
+    m_mapVolumes->SetVisible (isShown && m_analysis.fileMaps.size() > 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RefreshFileList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RefreshFileList()
+{
+    const FileMap *  map = GetFileMap();
+
+
+
+    m_mapFile = (map != nullptr && m_mapFile < static_cast<int> (map->files.size())) ? m_mapFile : -1;
+    m_mapGrid->SetMap (map);
+
+    if (map != nullptr)
+    {
+        m_fileList->SetColumns (FileMapText::GetFileColumns (*map));
+        m_fileList->SetRows    (FileMapText::BuildFileRows (*map, m_mapDeleted->IsChecked(), m_mapBadOnly->IsChecked(), m_fileSortColumn, m_fileSortDescending));
+        m_fileList->SetCaption (map->isCatalogComplete ? L"" : L"The catalog is incomplete: " + FileMapText::FormatCell (*map, map->unreadableCell) + L" could not be read");
+    }
+    else
+    {
+        m_fileList->SetRows (vector<TableRow>());
+    }
+
+    m_context.fileMap      = map;
+    m_context.selectedFile = m_mapFile;
+    ShowFileMap (m_diskTab == kTabFileMap);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ChooseFile
+//
+//  A file chosen in the list: its sectors marked, and its first selected
+//  in every view (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ChooseFile (int file)
+{
+    const FileMap *  map = GetFileMap();
+
+
+
+    m_mapFile              = file;
+    m_context.selectedFile = file;
+
+    for (const FilePlace & place : (map != nullptr && file >= 0) ? map->files[file].sectors : vector<FilePlace>())
+    {
+        if (place.cell >= 0)
+        {
+            SelectMapCell (place.cell);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SelectMapCell
+//
+//  The physical sector that holds a cell, or the first half of a block, on
+//  its whole track, from the first field with that number and an address
+//  field that reads (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SelectMapCell (int cell)
+{
+    const FileMap *        map      = GetFileMap();
+    int                    qt       = 0;
+    int                    physical = 0;
+    int                    found    = -1;
+    const TrackAnalysis *  track    = nullptr;
+
+
+
+    if (map != nullptr && cell >= 0)
+    {
+        qt       = map->GetTrack (cell) * DiskImage::kQuarterTracksPerWholeTrack;
+        physical = map->GetPhysical (cell, 0);
+
+        m_model.SelectQuarterTrack (qt);
+        track = m_model.GetTrack();
+
+        for (size_t s = 0; track != nullptr && found < 0 && s < track->sectors.size(); s++)
+        {
+            const AnalyzedSector &  sector = track->sectors[s];
+
+            found = (sector.sector == physical && (sector.isAddressGood || !sector.isAddressCheck)) ? static_cast<int> (s) : -1;
+        }
+
+        if (found >= 0)
+        {
+            m_model.SelectSector (qt, found);
+        }
+
+        OnSelection();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StepFileSector
+//
+//  "Next sector in file" and "Previous sector in file", across tracks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StepFileSector (int step)
+{
+    const FileMap *  map     = GetFileMap();
+    vector<int>      cells;
+    int              current = GetSelectedMapCell();
+    int              at      = -1;
+
+
+
+    for (const FilePlace & place : (map != nullptr && m_mapFile >= 0) ? map->files[m_mapFile].sectors : vector<FilePlace>())
+    {
+        if (place.cell >= 0)
+        {
+            at = (place.cell == current && at < 0) ? static_cast<int> (cells.size()) : at;
+            cells.push_back (place.cell);
+        }
+    }
+
+    if (!cells.empty())
+    {
+        SelectMapCell (cells[std::clamp (at < 0 ? 0 : at + step, 0, static_cast<int> (cells.size()) - 1)]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetSelectedMapCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::GetSelectedMapCell() const
+{
+    const FileMap *         map    = GetFileMap();
+    const AnalyzedSector *  sector = m_model.GetSector();
+    int                     qt     = m_model.GetQuarterTrack();
+    int                     half   = 0;
+
+
+
+    return (map != nullptr && sector != nullptr && qt % DiskImage::kQuarterTracksPerWholeTrack == 0)
+               ? map->GetCellOf (qt / DiskImage::kQuarterTracksPerWholeTrack, sector->sector, half) : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SyncFileMapSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SyncFileMapSelection()
+{
+    m_mapGrid->SetSelected (GetSelectedMapCell(), m_mapFile);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::CopyFileMap
+//
+//  "Copy map" (FR-095).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::CopyFileMap()
+{
+    const FileMap *  map = GetFileMap();
+
+
+
+    if (map != nullptr)
+    {
+        (void) m_clipboard.SetText (GetHwnd(), FileMapText::FormatMap (*map));
+    }
 }

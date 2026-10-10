@@ -60,6 +60,9 @@ public:
     static uint32_t                         GetAllCategories ();
     static bool                             IsAlignmentNoteShown (const DiskAnalysis & analysis);
 
+    //  Cells in sort order: numbers by value, text by its letters.
+    static bool  IsLess (const std::wstring & a, const std::wstring & b);
+
 private:
     static std::wstring  FormatQuarterTrackCell (int quarterTrack);
     static std::wstring  FormatContent          (const QuarterTrackEntry & entry);
@@ -67,7 +70,6 @@ private:
     static std::wstring  FormatChecksum         (Byte stored, Byte computed, bool isGood);
     static std::wstring  FormatUnchecked        (Byte stored, Byte computed);
     static std::wstring  FormatMarks            (std::span<const Byte> found);
-    static bool          IsLess                 (const std::wstring & a, const std::wstring & b);
     static bool          IsNumberChar           (wchar_t ch);
     static bool          TryParseNumber         (const std::wstring & s, double & outValue);
 

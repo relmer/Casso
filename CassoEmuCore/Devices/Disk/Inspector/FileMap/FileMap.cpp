@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/FileMap/Dos33MapReader.h"
 #include "Devices/Disk/Inspector/FileMap/PascalMapReader.h"
 #include "Devices/Disk/Inspector/FileMap/ProDosMapReader.h"
+#include "Devices/Disk/Inspector/FileMap/SectorSource.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 
 
@@ -177,4 +178,102 @@ vector<FileMap> FileMapBuilder::Build (const DiskAnalysis & analysis)
     }
 
     return maps;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMap::GetPhysical
+//
+//  A map that is not mapped holds its grid by physical sector already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FileMap::GetPhysical (int cell, int half) const
+{
+    int  physical = GetColumn (cell);
+
+
+
+    switch (fileSystem)
+    {
+        case MapFileSystem::Dos33:  physical = SectorSource::GetDos33Physical (GetColumn (cell)); break;
+        case MapFileSystem::ProDos:
+        case MapFileSystem::Pascal: physical = SectorSource::GetBlockPhysical (cell, half);      break;
+        case MapFileSystem::Cpm:    physical = SectorSource::GetCpmPhysical (GetColumn (cell));   break;
+        default:                                                                                 break;
+    }
+
+    return physical;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMap::GetCellOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FileMap::GetCellOf (int track, int physical, int & outHalf) const
+{
+    int  found = -1;
+
+
+
+    outHalf = 0;
+
+    for (int column = 0; found < 0 && track >= 0 && track < tracks && column < cellsPerTrack; column++)
+    {
+        int  cell = track * cellsPerTrack + column;
+
+        for (int half = 0; found < 0 && half < 2; half++)
+        {
+            if (GetPhysical (cell, half) == physical)
+            {
+                found   = cell;
+                outHalf = half;
+            }
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMap::GetPlaceInFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FileMap::GetPlaceInFile (int file, int cell, SectorRole & outRole) const
+{
+    int  place = 0;
+    int  count = 0;
+
+
+
+    outRole = SectorRole::FileData;
+
+    for (const FilePlace & at : files[file].sectors)
+    {
+        count += (at.cell >= 0 && at.role == SectorRole::FileData) ? 1 : 0;
+
+        if (place == 0 && at.cell == cell)
+        {
+            place   = (at.role == SectorRole::FileData) ? count : 1;
+            outRole = at.role;
+        }
+    }
+
+    return place;
 }

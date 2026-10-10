@@ -512,6 +512,8 @@
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
     <ClCompile Include="Ui\DiskInspector\ExportDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\FileMapGridView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\FileMapText.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\FluxTimingTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\GoToDialog.cpp" />
@@ -976,6 +978,8 @@
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterCells.h" />
     <ClInclude Include="Ui\DiskInspector\ExportDialog.h" />
+    <ClInclude Include="Ui\DiskInspector\FileMapGridView.h" />
+    <ClInclude Include="Ui\DiskInspector\FileMapText.h" />
     <ClInclude Include="Ui\DiskInspector\FindPanel.h" />
     <ClInclude Include="Ui\DiskInspector\FluxTimingTab.h" />
     <ClInclude Include="Ui\DiskInspector\GoToDialog.h" />
