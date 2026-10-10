@@ -327,6 +327,33 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
 3. Add three ranges to the Default set on the editable grid. Expect a new
    trailing row after each (SC-051).
 
+## Story 24: event logs and one source
+
+1. Boot a DOS 3.3 disk with no debugger pane open, then open the Disk II
+   event log. Expect the boot's address marks, sector reads and head steps,
+   each stamped in cycles, and the Disk II diagnostics pane showing the last
+   address field and read or write.
+2. With the log open, run a program that reads the disk. Expect new events as
+   they happen.
+3. Rewind to the middle of the boot. Expect the log to end at the machine's
+   position; run on and expect the new run's events.
+4. Scroll back past the newest events to the start of the boot. Expect older
+   events to fill in, each screen within a quarter second (SC-054).
+5. Rebuild a recorded boot's log from history and compare it with the live
+   log. Expect identical events, order and cycles (SC-053).
+6. In a keyboard polling loop, press a key. Expect one host key row and one
+   guest read row in the input log, not a row per poll.
+7. Confirm neither emulator debug window nor its menu item remains (SC-055).
+
+## FR-218: debugger and input components (measurement)
+
+1. Before the move: Release build, pinned to one CCD, alternating runs;
+   record emulated MHz at Maximum speed and Casso's processor time over 60 s
+   at 1x, history recording on, idle at a DOS 3.3 prompt and during a boot.
+2. After each move (debugger, then input): repeat. Expect both within the
+   baseline's run-to-run noise (SC-052).
+3. Check `EmulatorShell.h` includes no debugger or input header, only forward
+   declarations.
 ## Release
 
 1. Boot the Mockingboard speech demo, open the debugger with the Mockingboard

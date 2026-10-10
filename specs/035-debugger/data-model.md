@@ -612,3 +612,39 @@ snapshot changed.
 - **EditableGridRow**: `cells`, `requiredColumns`, `isTrailing` (the "Add new
   range" row), `isEditing`; a row commits when every required cell holds a
   valid value.
+
+## Debug events (User Story 24, FR-210 to FR-217)
+
+- **DebugEvent** (one per view kind): `cycle` (machine cycle count, the sort
+  key), `wallTime` (optional; the journal's host time where it has one), and
+  the kind's facts: a **DiskEvent** has `drive`, `kind` (the kinds the old
+  window shows, from the FR-217 inventory), `quarterTrack`, `track`,
+  `sector`, `addressField` (volume, track, sector, checksum) and `value`; an
+  **InputEvent** has `source` (key, mouse, controller, paddle 0-3, button
+  0-2), `origin` (host or guest), `kind` and `value`. Records are fixed-size
+  so a ring holds them without allocating.
+- **DebugEventCache<T>**: a bounded ring of one view's events, newest last;
+  `capacity`; `oldestCycle`; `gaps` (cycle spans where history recording
+  paused). Recording starts with the session. Invariant: no entry lies after
+  the machine's position; a rewind or seek truncates to it.
+- **EventSpanRequest**: `fromCycle`, `toCycle`, `view`; served from the cache
+  where it covers the span, the rest queued to the replayer by stretch.
+- **StretchEvents**: one stretch's rebuilt events (`firstPosition`,
+  `lastPosition`, `events`), held in an LRU of recent stretches.
+- **GuestReadFilter**: the last value read per source; a guest read is
+  recorded only when its value differs.
+
+## Debugger and input components (FR-218)
+
+- **IShellDebugger**: what the shell calls; each method is tagged with its rate
+  (per frame, per slice, per event) in research R-046. Header holds forward
+  declarations only.
+- **ShellDebugger**: owns the debugger window, controller, session, run
+  driver, view state, publisher and build pool, `ReverseHost`, history
+  renderer, thumbnails, heat and call replayers, divergence gate, debug
+  channel and their flags; implements `IDebuggerWindowHost`.
+- **IDebuggerHost**: the UI services the debugger asks of the shell (window
+  handle, theme, clipboard, held inputs, saving preferences, posting to the
+  UI thread); implemented by an adapter private to the shell's `.cpp`.
+- **ShellInput**: owns keyboard routing, caps lock, held host inputs, the
+  game port mixer and the controller service, backend and thread.

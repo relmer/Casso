@@ -2320,3 +2320,83 @@ history) or a side effect a menu should not invite (IN, OUT).
 
 **Alternatives considered**: a menu item for every verb (rejected: menus
 full of Monitor ROM idioms nobody would choose there).
+
+## R-045: One source of debug events
+
+**Decision**: recorded history is the only record of machine activity; each
+debug view is computed from it by replaying stretches on a scratch machine
+with the view's probe, using the scratch replay machinery the heat map and
+call stack use. A view keeps a bounded cache of the newest events the running
+machine produced, always recording, cut back to the machine's position on a
+rewind or seek, with gaps where recording paused. Older events are rebuilt
+stretch by stretch (a stretch is keyframe to keyframe, 10 frames by default),
+newest first, neighbors prefetched, recent stretches kept in a small LRU.
+
+**Rationale**: the owner asked for one source (2026-10-10). Views computed
+from it agree with each other and with every rewind, reach as far back as
+history (hours at the default 64 MB budget), and need no pane open to start
+collecting. Replaying continuously to feed a live view would roughly double
+host time during disk activity; a cache fed by the same probe costs a ring
+append per event, and events arrive per address field, head step or input
+change, hundreds a second at most. The scratch replayers already load each
+keyframe over the disks it was saved with, mounted from their images and
+never written back, so a rebuilt event sees the disk as it was.
+
+**To measure before the panes rely on it**: stretches replayed per second on
+a DOS 3.3 boot, the slowest case, which sets the prefetch depth for SC-054.
+
+**Alternatives considered**: keeping the old windows' own buffers, started
+when a window opens (rejected: no events from before it opened, wall-clock
+stamps, and a second record that a rewind leaves wrong); a buffer as deep as
+history (rejected: hours of events held in memory for what replay recomputes
+on demand); replay only, with no cache (rejected: no live view while running).
+
+## R-046: Debugger and input components in the shell
+
+**Decision**: `ShellDebugger` behind `IShellDebugger`, and `ShellInput`
+behind its own interface, each held by `EmulatorShell` through a forward
+declaration and a `unique_ptr`, constructor and destructor out of line.
+`ShellDebugger` implements `IDebuggerWindowHost` in the shell's place and
+reaches the shell through references to `MachineHost`, `CpuManager` and
+`GlobalUserPrefs` and an `IDebuggerHost` adapter private to the shell's
+`.cpp`.
+
+**Measured (2026-10-10)**:
+
+- `EmulatorShell.h` pulls in 254 project headers (1,468 KB of text) today;
+  with the debugger's includes gone, 163; with input's too, 157 (931 KB).
+  Its 28 includers include 15 `EmulatorShell*.cpp` files.
+- The debugger's state is used 214 times inside `EmulatorShellDebugger.cpp`
+  and `EmulatorShellReverse.cpp` and 72 times elsewhere. From those two files
+  it reaches outward to about eight shell members: `m_globalPrefs` (42 uses,
+  the reverse settings), `m_cpuManager` (36), `m_machine` (32), the window
+  handle, host, instance and theme (15 together), and the clipboard manager,
+  held inputs and file system (2 each).
+- The rest of the shell reaches the debugger from four places: the CPU
+  thread (about 54 uses across `AttachDebugger`, `ExecuteCpuSlices`,
+  `OpenDebugger`, `NotifyDebugPauseChanged`, `ServiceDebugger`,
+  `NotifyDebugMachineChanged`, `CloseDebugger`, `RunWatchedSlice`,
+  `RunCpuThreadFrame`, `NotifyDebugReset`, `RunDebugCommand` and
+  `StepInstruction`), the keyboard path through the divergence gate (9),
+  presenting (4) and the shell's own open and close (4).
+- `EmulatorShellDebug.cpp` predates 035 (one line changed) and holds the
+  emulator's Disk II and Input debug windows, which User Story 24 replaces;
+  it is not part of the move.
+
+**Rationale**: the shell's header shrinks by a third and the ten shell files
+that have nothing to do with debugging stop parsing the debugger; the code
+leaves files only 035 edits, so later merges with master stay small.
+Per-instruction and per-cycle work already lives in the machine and the
+session's hooks, so only slice- and frame-rate calls cross the interface.
+
+**Measurement method for SC-052**: Release build, pinned to one CCD, A and B
+runs alternated; guest speed as emulated MHz at Maximum speed with history
+recording on, and host processor time of the Casso process over 60 s at 1x
+with history recording on, each idle at a DOS 3.3 prompt and during a DOS 3.3
+boot. The baseline is taken after master is merged and before the move.
+
+**Alternatives considered**: the concrete class behind a pimpl with no
+interface (equally light in the header; kept open for the owner's review of
+the block diagram, since the shell would then call `ShellDebugger` directly);
+moving only includes (measured 2026-10-10: forward declarations alone cut the
+tree's parsed header text by 6%, since the shell holds its parts by value).

@@ -544,6 +544,89 @@ plumbing).
   range set name over the drop-down, the range titles over short ranges'
   address labels).
 
+### One source of debug events (FR-210 to FR-212)
+
+R-045 holds the decisions; data-model.md, "Debug events", the types.
+
+**Design principle**: recorded history (the keyframe store and the input
+journal reverse execution already keeps) is the only record of what the
+machine did. Every debug view of past activity is computed from it by
+replaying stretches on a scratch machine with that view's probe attached, as
+`ScratchHeatReplayer` and `ScratchCallReplayer` already do for the heat map
+and the call stack, with their disk handling: each part loads its keyframe
+over the job's disks, mounted from their images and never written back, so a
+replay sees the disks as they were. A view's live buffer is a cache of what
+replay would produce, never a second record.
+
+- **Event cache** (`DebugEventCache<T>`, core): a bounded ring per view, fed
+  by the running machine through the same probe the replay uses, recording
+  from session start whatever panes are open, cut back to the machine's
+  position on every rewind or seek (`ReverseController`'s truncate callback),
+  and marked with gaps where recording paused.
+- **Rebuild on demand** (`DebugEventReplayer`, core, over the scratch replay
+  machinery): a view asks for the events of a span; the replayer serves the
+  cache's part at once and queues the stretches before it, a stretch being
+  keyframe to keyframe (10 frames by default), newest first, prefetching the
+  neighbors of the last one asked for on the replay pool. A newer request
+  replaces a waiting one, as heat jobs do. Results are kept per stretch in a
+  small LRU so scrolling back and forth does not replay twice.
+- **Cost**: the probes append a fixed-size record to a preallocated ring; no
+  allocation, lock or interface call is added per instruction or per cycle.
+  Disk events arrive per address field and per head step, input per change,
+  so their rate is in the hundreds a second at most.
+
+### Disk and input event logs (User Story 24, FR-213 to FR-217)
+
+- **Disk events**: the Disk II controller's existing event feed
+  (`IDisk2EventSink`) gains a second listener slot, so the live machine's
+  cache listens always and the scratch machine's replay listens during a
+  rebuild; the event kinds are those the old window shows (inventory, T-list
+  first). The Disk II diagnostics pane's rows gain the last address field and
+  the read or write state from the controller (FR-216).
+- **Input events**: host input from `InputJournal` directly (it is already the
+  replay's input); guest reads of the keyboard and game port from a read
+  probe on their soft switches that records a read only when its value
+  differs from the last read of that source, live and in replay.
+- **Panes**: two dockable panes over `DxuiListView` with the columns and
+  filters the approved inventory keeps; cycle stamps with an optional wall
+  time column (the journal's host time where one exists). The track and
+  sector filter (`TrackSectorPredicate`) and the row formatting
+  (`DebugDialogProjection`) are reused only if they fit the cycle-stamped
+  event; otherwise they go with the old windows.
+- **Removal**: once the panes pass SC-055, `Disk2DebugPanel`,
+  `InputDebugPanel`, their state classes, `EmulatorShellDebug.cpp`'s opening
+  and sink wiring, and the emulator's menu items are deleted with their
+  tests.
+
+### Debugger and input components (FR-218)
+
+R-046 holds the measurements. The owner reviews the component's next-level
+block diagram before the move starts.
+
+- **`ShellDebugger`** (core) owns what the debugger work added to
+  `EmulatorShell`: the debugger window and controller, the session and run
+  driver, the view state, publisher and build pool, reverse execution
+  (`ReverseHost`), the history renderer, thumbnails and the heat and call
+  replayers, the divergence gate, the debug channel, and their flags. It
+  implements `IDebuggerWindowHost` in the shell's place. It takes
+  `MachineHost`, `CpuManager` and `GlobalUserPrefs` by reference; the window
+  handle, theme, clipboard, held inputs and preference saving come through
+  `IDebuggerHost`, which a private adapter in the shell's `.cpp` implements,
+  so `EmulatorShell` gains no base class.
+- **`IShellDebugger`**: what the shell calls, about a dozen methods: the CPU
+  thread's slice and frame hooks, the input gate, present and caption
+  queries, open and close, reset, machine change and shutdown, each marked in
+  research R-046 with how often it runs. Its header forward-declares only.
+- **`ShellInput`** likewise owns keyboard routing, caps lock, held host
+  inputs, the game port mixer and the controller service, backend and thread.
+- **The shell** holds each through a forward declaration and a `unique_ptr`,
+  its constructor and destructor in the `.cpp`. `EmulatorShell.h` falls from
+  254 project headers to about 157.
+- **No new cost**: per-instruction and per-cycle work stays in the machine and
+  the session's hooks, untouched; only slice and frame hooks cross the
+  interface, moved as they are, with their order and locking. SC-052 is
+  measured before and after (R-046's method).
+
 ### Threading
 
 As before: batch is single-threaded; in the emulator the session lives on
@@ -625,6 +708,17 @@ landing as its own merge to the branch and gated by the full suite:
     fixture ROMs; the reader and detokenizer, checked against LIST on
     fixture programs; the stepper and its stops; the BASIC kind; the
     document, variables and stack panes.
+9g. **Debugger and input components (FR-218)**: the SC-052 baseline first;
+    the owner's review of the component's block diagram; then `ShellDebugger`
+    behind `IShellDebugger` with no change of behavior, measured; then
+    `ShellInput`, measured.
+9h. **Event logs (story 24, P2)**: the inventory of the two old windows for
+    the owner's approval (FR-217); the event cache and the replayer over
+    history (FR-210 to FR-212); the Disk II event feed's second slot and the
+    guest-read probe; the two panes and the diagnostics rows; SC-053 to
+    SC-055; then the old windows removed.
+9i. **Logs brought in line (FR-198 amended)**: the video and sound logs and
+    the trace buffer moved onto the event cache and replayer.
 10. **Release**: the README screenshot on the Mockingboard speech demo
     (FR-065), `docs/Debugger.md` for every story, the changelog, the
     pre-merge gate, SC-008 measured, and 033 on master before 035 merges.
@@ -693,6 +787,18 @@ landing as its own merge to the branch and gated by the full suite:
   keeps the file readable.
 - **Always-on logs** (FR-198): bounded buffers keep memory flat; their cost
   per speaker toggle is measured against SC-008 before they ship.
+- **A replayed event must equal the live one** (SC-053). A probe that read
+  host state, or a disk mounted differently in the scratch machine, would
+  make the rebuilt log disagree with the cache. The scratch machine's disk
+  handling is the one reverse execution already depends on, and SC-053
+  compares a live log with its rebuild on the scenario boots.
+- **Scroll-back speed depends on replay speed** (SC-054). Disk-heavy
+  stretches replay slowest; R-045 measures stretches per second on a DOS 3.3
+  boot before the panes rely on it, and the prefetch depth is set from it.
+- **The CPU thread's hooks are timing-sensitive** (FR-218). They move as
+  they are, in the same order and under the same locks, and SC-052's A/B
+  measurement decides; a regression is explained and fixed before the move
+  merges.
 
 ## Project Structure
 

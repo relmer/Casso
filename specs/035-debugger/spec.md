@@ -132,6 +132,13 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Are the trace pane's next-instruction rows meant to show while tracing is off? -> A: Yes, as User Story 19 has them; the owner may revisit.
 - Q: Is there a heat map range set to start from? -> A: Yes, one called Default holding the built-in ranges, enabled.
 
+### Session 2026-10-10 (owner review: one source of debug events, shell separation)
+
+- Q: Where do debug views get their events? -> A: From recorded history alone, the single source; each view of past activity is computed by replaying history with that view's probe, as the heat map and call stack already are. A view may keep the newest events the running machine produces, but only as a cache: always recording, cut back on rewind, never a second record (FR-210 to FR-212).
+- Q: What becomes of the emulator's Disk II and Input debug windows? -> A: They are replaced by debugger panes reimplemented from their features, not moved: a Disk II event log and an input log, live and as deep as history, stamped in cycles; the features are listed first and each kept, changed or dropped with the owner (FR-213 to FR-217).
+- Q: Do the video and sound logs and the trace buffer change? -> A: Yes, they follow the same rule (FR-198 amended).
+- Q: Does the debugger stay inside the emulator's shell? -> A: No; it becomes one component the shell holds through a narrow interface, as does input, with no measurable cost to emulation speed and host time (FR-218, SC-052).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -1190,8 +1197,63 @@ a key shows that key from the active key scheme.
 
 ---
 
+### User Story 24 - See every disk and input event, now or hours back (Priority: P2)
+
+A user debugging a disk loader or an input routine opens the Disk II event log
+or the input log in the debugger and sees what happened: address marks and
+sectors read, head steps, keys pressed, paddles moved and what the program
+read back. The events were recorded whether or not the pane was open, and the
+user can scroll back through them as far as history reaches, or rewind and see
+the log as it stood then.
+
+**Why this priority**: the emulator's two standalone debug windows show these
+events today, but only from the moment they are opened, outside the debugger,
+on wall-clock time and with no tie to history. Debug views computed from one
+source agree with each other and with every rewind.
+
+**Independent Test**: Boot a DOS 3.3 disk with no debugger pane open, then open
+the Disk II event log: the boot's address marks and sector reads are there,
+stamped in machine cycles. Rewind to the middle of the boot: the log ends where
+the machine now stands. Scroll back past the newest events: older ones fill in
+without the scrolling stalling.
+
+**Acceptance Scenarios**:
+
+1. **Given** a machine that has booted a disk with no debugger pane open,
+   **When** the user opens the Disk II event log, **Then** it lists the boot's
+   events, newest last, each with its cycle count.
+2. **Given** a running machine and the Disk II event log open, **When** the
+   drive reads, **Then** new events appear as they happen.
+3. **Given** a log scrolled back past its most recent events, **When** the user
+   keeps scrolling, **Then** older events appear as far back as history
+   reaches, with no pause long enough to interrupt the scrolling.
+4. **Given** the user rewinds, **When** the log redraws, **Then** it ends at
+   the machine's new position, and running forward again records the events
+   the new run produces.
+5. **Given** a program polling the keyboard in a loop, **When** the user
+   presses a key, **Then** the input log shows the key press once and the
+   program's read of it once, not one row per poll.
+6. **Given** the Disk II diagnostics pane, **When** the drive reads, **Then**
+   it shows the last address field read (volume, track, sector) and whether
+   the drive is reading or writing.
+
+---
+
 ### Edge Cases
 
+- **An event older than history**: Scrolling a log back past the oldest
+  history kept ends the log there, with a row saying history begins at that
+  point; nothing older is shown.
+- **A gap in history**: Where recording paused (Maximum speed chosen by the
+  user), a log shows a row marking the gap, as the timeline does, and no
+  events inside it.
+- **A rewound log**: Events after the machine's position are not shown once
+  the user rewinds, and they go when the machine runs forward on a different
+  path, as history after that point does.
+- **A disk changed since**: A log rebuilt from history shows the events the
+  machine saw against the disk as it was then, never as it is now.
+- **A keyboard polled in a loop**: A guest read is logged only when the value
+  read differs from the previous read of the same source.
 - **A word two modes use differently**: When a word the user types is not a
   command of the current mode but is one in more than one other mode, the
   reply lists each mode's meaning and suggests the current mode's equivalent
@@ -2642,10 +2704,12 @@ a key shows that key from the active key scheme.
 - **FR-197**: The code pane's context menu MUST offer Start stopwatch here and
   Stop stopwatch here, timing in cycles whatever the run speed, and Call
   subroutine here, running the routine as JSR does.
-- **FR-198**: The video log and the sound log MUST record all the time into
-  bounded buffers, the oldest entries giving way, and the Video and
-  Mockingboard panels MUST show them with Clear and Save; recording MUST cost
-  no measurable emulation speed (SC-008).
+- **FR-198**: The video log and the sound log MUST record all the time, and
+  the Video and Mockingboard panels MUST show them with Clear and Save;
+  recording MUST cost no measurable emulation speed (SC-008). *(Amended
+  2026-10-10)*: they MUST follow FR-210 and FR-211, their recorded entries a
+  cache over history and their depth that of history, as MUST the trace
+  buffer.
 - **FR-199**: Copy text from the emulator window MUST render inverse and
   flashing characters as the characters they show, not as other characters.
 - **FR-200**: The disassembly view MUST honor the DISASM settings OPCODE,
@@ -2692,6 +2756,46 @@ a key shows that key from the active key scheme.
   shows at once instead of after the usual delay; a new range set's name is
   drawn over the set drop-down; with every range shown, a short range's title
   overlaps its row address labels.
+
+**One source of debug events (User Story 24, owner decisions 2026-10-10)**
+
+- **FR-210**: Recorded history MUST be the single source of every debug event.
+  Every view of past machine activity (disk events, input, video and sound
+  logs, trace, heat, calls) MUST be computed from it, by replaying the history
+  it covers on a machine of its own with that view's probe attached.
+- **FR-211**: A view MAY keep the newest events the running machine produces
+  as it produces them, but only as a cache of what FR-210's replay would give.
+  The cache MUST record from the start of the session, whether or not any pane
+  is open; MUST cost no guest time and no more host time than SC-052 allows;
+  and MUST be cut back to the machine's position when the user rewinds.
+- **FR-212**: Events older than a view's cache MUST be rebuilt on demand as
+  the user scrolls back to them, newest first, the neighboring history fetched
+  ahead in the background, so that a view reaches as far back as history does.
+- **FR-213**: The debugger MUST have a Disk II event log pane showing every
+  kind of event the emulator's Disk II debug window shows today (among them
+  address marks, sector reads and writes, and head steps), with its filters,
+  the track and sector filter among them, and its columns; live while the
+  machine runs and rebuilt from history per FR-210 to FR-212.
+- **FR-214**: The debugger MUST have an input log pane showing the host's
+  input (keys, mouse, game controllers, paddles and joysticks, with the
+  per-pair paddle or joystick view) from the input journal, and the guest's
+  reads of the keyboard and game port, a read shown only when its value
+  differs from the previous read of the same source; live and rebuilt per
+  FR-210 to FR-212.
+- **FR-215**: Event logs MUST stamp events with the machine's cycle count,
+  with wall time available as an optional column.
+- **FR-216**: The Disk II diagnostics pane MUST show the last address field
+  read (volume, track, sector) and whether the drive is reading or writing.
+- **FR-217**: Before FR-213 and FR-214 are built, every feature of the
+  emulator's Disk II and Input debug windows MUST be listed from their code,
+  tests and spec 006, and each kept, changed or dropped with the owner's
+  approval. When the panes ship, those two windows, the emulator's code that
+  opens and wires them, and their menu items MUST be removed.
+- **FR-218**: The debugger MUST be one component the emulator's shell holds
+  through a narrow interface, the shell's header including none of the
+  debugger's own headers; the shell's input handling MUST be one component held the same
+  way. Neither MUST add a call through an interface to any path run per
+  instruction or per cycle, and SC-052 MUST hold across the change.
 ### Key Entities
 
 - **Debug session**: The debugger's attachment to one running machine; holds
@@ -2767,6 +2871,14 @@ a key shows that key from the active key scheme.
   all read from memory without side effects.
 - **Editable grid row**: a range set entry being edited in place, with its
   required fields and whether it is the trailing "Add new range" row.
+- **Debug event**: One thing a view reports the machine did, with its cycle
+  count and the facts its kind has: a disk event (drive, kind, track, sector,
+  address field, value), an input event (source, kind, value, host or guest),
+  a video or sound log entry, a trace entry.
+- **Event cache**: A view's newest debug events as the running machine
+  produced them, bounded, recorded from the start of the session and cut back
+  on rewind; a cache of what replaying history would produce, never a second
+  record.
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
@@ -2904,6 +3016,18 @@ a key shows that key from the active key scheme.
 - **SC-050**: 100% of menu items with a key in the active scheme show it.
 - **SC-051**: A user adds three ranges to a set with the editable grid in under
   a minute without using the + button or a dialog.
+- **SC-052**: With history recording on and every event cache recording,
+  emulation speed at maximum is unchanged within measurement noise from before
+  User Story 24 and FR-218, and the host's processor time at normal speed rises
+  by no more than measurement noise, both measured idle at a DOS prompt and
+  during a disk boot.
+- **SC-053**: For a recorded run, the Disk II event log rebuilt from history
+  shows the same events, in the same order and at the same cycles, as the
+  log recorded live.
+- **SC-054**: Scrolling a log back through history shows each newly reached
+  screen of events within a quarter second.
+- **SC-055**: Every feature on the approved FR-217 list works in the new
+  panes, and neither standalone debug window remains.
 
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
