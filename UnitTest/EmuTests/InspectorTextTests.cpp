@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/UnicodeSymbols.h"
+
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
@@ -72,6 +74,17 @@ public:
 
         Assert::AreEqual (static_cast<size_t> (2), chips.size(), L"no volume chip without standard sectors");
         Assert::AreEqual (std::wstring (L"2 nonstandard tracks"), chips[1].text);
+    }
+
+
+
+    TEST_METHOD (TheStripReadoutGivesTheZoomAndTheCellsInView)
+    {
+        std::wstring  readout = InspectorText::FormatStripReadout (1.0 / 83.0, 12400, 13016);
+
+
+
+        Assert::AreEqual (std::wstring (s_kpszMultiplyX) + L"83" + L" " + s_kpszMiddleDot + L" cells 12,400-13,016", readout);
     }
 
 

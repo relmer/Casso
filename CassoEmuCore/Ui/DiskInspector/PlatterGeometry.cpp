@@ -311,3 +311,79 @@ bool PlatterGeometry::IsCellInSpan (uint32_t cell, uint32_t start, uint32_t end,
 
     return isIn;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::GetVisibleRings
+//
+//  From the ring at the rectangle's farthest corner to the one at its
+//  nearest point, clamped to the disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterGeometry::GetVisibleRings (const PlatterPlacement & view, const RECT & boundsPx, int & outFirst, int & outLast)
+{
+    double  nearX = std::clamp (static_cast<double> (view.centerXPx), static_cast<double> (boundsPx.left), static_cast<double> (boundsPx.right));
+    double  nearY = std::clamp (static_cast<double> (view.centerYPx), static_cast<double> (boundsPx.top),  static_cast<double> (boundsPx.bottom));
+    double  farX  = std::max (std::abs (boundsPx.left - view.centerXPx), std::abs (boundsPx.right  - view.centerXPx));
+    double  farY  = std::max (std::abs (boundsPx.top  - view.centerYPx), std::abs (boundsPx.bottom - view.centerYPx));
+    double  r     = std::max (static_cast<double> (view.outerRadiusPx), 1.0);
+    double  inner = std::hypot (nearX - view.centerXPx, nearY - view.centerYPx) / r;
+    double  outer = std::hypot (farX, farY) / r;
+
+
+
+    outFirst = std::clamp (static_cast<int> (std::floor ((1.0 - outer) / GetRingWidth())), 0, DiskImage::kQuarterTrackCount - 1);
+    outLast  = std::clamp (static_cast<int> (std::floor ((1.0 - inner) / GetRingWidth())), 0, DiskImage::kQuarterTrackCount - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::GetVisibleTurns
+//
+//  A rectangle that holds the center shows the whole turn; one that does not
+//  spans less than half a turn, between the angles of two of its corners.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterGeometry::GetVisibleTurns (const PlatterPlacement & view, const RECT & boundsPx, double & outStart, double & outEnd)
+{
+    const std::array<POINT, 4>  corners   = { POINT { boundsPx.left, boundsPx.top }, POINT { boundsPx.right, boundsPx.top },
+                                              POINT { boundsPx.right, boundsPx.bottom }, POINT { boundsPx.left, boundsPx.bottom } };
+    bool                        isPartial = view.centerXPx < boundsPx.left || view.centerXPx > boundsPx.right ||
+                                            view.centerYPx < boundsPx.top  || view.centerYPx > boundsPx.bottom;
+    double                      first     = GetTurnAt (corners[0].x - view.centerXPx, corners[0].y - view.centerYPx);
+    double                      low       = 0;
+    double                      high      = 0;
+    double                      delta     = 0;
+
+
+
+    outStart = 0.0;
+    outEnd   = 1.0;
+
+    for (const POINT & corner : corners)
+    {
+        delta  = GetTurnAt (corner.x - view.centerXPx, corner.y - view.centerYPx) - first;
+        delta -= std::round (delta);
+        low    = std::min (low, delta);
+        high   = std::max (high, delta);
+    }
+
+    if (isPartial)
+    {
+        outStart  = first + low - view.rotation;
+        outStart -= std::floor (outStart);
+        outEnd    = outStart + (high - low);
+    }
+
+    return isPartial;
+}

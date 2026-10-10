@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/FluxTiming.h"
+#include "Ui/DiskInspector/PlatterCells.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -175,6 +177,29 @@ uint32_t DiskInspectorPalette::GetTimingColor (double deviation, double range) c
 
 
     return DxuiColor::Lerp (colors.timingNominal, (t < 0) ? colors.timingFast : colors.timingSlow, static_cast<float> (std::abs (t)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorPalette::GetNibbleColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskInspectorPalette::GetNibbleColor (const TrackAnalysis & track, int nibble, bool isTimingMode, double range) const
+{
+    const FramedTrack &  framed   = track.framed;
+    size_t               next     = (static_cast<size_t> (nibble) + 1) % std::max<size_t> (framed.nibbles.size(), 1);
+    bool                 isFailed = nibble < static_cast<int> (track.isFailedChecksum.size()) && track.isFailedChecksum[nibble] != 0;
+    bool                 isTimed  = isTimingMode && framed.isFlux && framed.cellTicks.size() >= framed.cellCount;
+
+
+
+    return isTimed ? GetTimingColor (FluxTiming::GetMeanDeviation (track, framed.nibbles[nibble].startCell, framed.nibbles[next].startCell), range)
+                   : GetKindColor (isFailed ? PlatterKind::FailedChecksum : PlatterCells::GetKindOf (track.nibbleKinds[nibble]));
 }
 
 

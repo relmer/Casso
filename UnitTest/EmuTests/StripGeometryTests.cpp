@@ -70,6 +70,18 @@ public:
 
 
 
+    TEST_METHOD (TheStripZoomsInToAboutTwentyCells)
+    {
+        double  start = StripGeometry::GetStartForZoom (0.25, 1.0, StripGeometry::kMinSpan, 0.5);
+
+
+
+        Assert::AreEqual (20.0, StripGeometry::kMinSpan * 51200.0, 1e-9);
+        Assert::AreEqual (0.75, start + StripGeometry::kMinSpan / 2, 1e-9, L"zoomed about the middle, the middle stays put");
+    }
+
+
+
     TEST_METHOD (NibbleTurnsMatchTheAnalyzersAngles)
     {
         InspectorTrackBuilder  builder;

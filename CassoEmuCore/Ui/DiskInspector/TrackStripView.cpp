@@ -14,13 +14,12 @@
 
 
 static constexpr int    s_kLabelRowDip     = 18;
-static constexpr int    s_kDragThresholdPx = 4;
 static constexpr float  s_kOutlineDip      = 2.0f;
 static constexpr float  s_kValueMinPx      = 18.0f;
 static constexpr float  s_kLabelDip        = 11.0f;
 static constexpr float  s_kPadDip          = 6.0f;
 static constexpr float  s_kCellDigitDip    = 9.0f;
-static constexpr float  s_kCellTimingDip   = 40.0f;
+static constexpr float  s_kCellTimingDip   = 30.0f;
 static constexpr float  s_kValueShare      = 0.4f;
 static constexpr float  s_kLineInsetDip    = 3.0f;
 static constexpr float  s_kLineStepDip     = 2.0f;
@@ -87,11 +86,9 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float                        height    = static_cast<float> (bar.bottom - bar.top);
     float                        textPx    = m_scaler.ToPxf (kSmallDip);
     bool                         isTimed   = IsTimed (track);
-    bool                         isTiming  = isTimed && m_context.isTimingMode;
     bool                         showCells = GetCellPx (track) >= m_scaler.ToPxf (s_kCellDigitDip);
     float                        valueH    = showCells ? height * s_kValueShare : height;
     size_t                       i         = 0;
-    size_t                       next      = 0;
     int                          count     = 0;
     int                          k         = 0;
     uint32_t                     color     = 0;
@@ -106,11 +103,8 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     for (i = 0; i + 1 < m_turns.size(); i++)
     {
-        next  = (i + 1) % framed.nibbles.size();
         count = g.GetSegments (m_turns[i], m_turns[i + 1] - m_turns[i], parts);
-        color = isTiming ? m_context.palette.GetTimingColor (FluxTiming::GetMeanDeviation (track, framed.nibbles[i].startCell, framed.nibbles[next].startCell),
-                                                             m_context.timingRange)
-                         : GetNibbleColor (track, static_cast<int> (i));
+        color = m_context.palette.GetNibbleColor (track, static_cast<int> (i), m_context.isTimingMode, m_context.timingRange);
 
         for (k = 0; k < count; k++)
         {
@@ -439,6 +433,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
     double                 fraction  = (p.x - m_boundsDip.left) / std::max (GetWidth(), 1.0f);
     double                 newSpan   = 0;
     int                    nibble    = -1;
+    int64_t                now       = static_cast<int64_t> (GetTickCount64());
 
 
 
@@ -472,7 +467,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Move:
-            if (m_isPressed && !m_isPanning && std::abs (p.x - m_pressAt.x) >= s_kDragThresholdPx)
+            if (m_isPressed && !m_isPanning && std::abs (p.x - m_pressAt.x) > GetSystemMetrics (SM_CXDRAG) / 2)
             {
                 m_isPanning = true;
             }
@@ -489,8 +484,14 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Up:
             isHandled = m_isPressed;
 
-            if (m_isPressed && !m_isPanning)
+            if (m_isPressed && !m_isPanning && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
             {
+                ShowWholeTrack();
+                m_lastClickMs = 0;
+            }
+            else if (m_isPressed && !m_isPanning)
+            {
+                m_lastClickMs = now;
                 UpdateTurns (*track);
                 nibble = GetNibbleAtX (*track, static_cast<float> (p.x));
 
@@ -650,25 +651,6 @@ int TrackStripView::GetNibbleAtX (const TrackAnalysis & track, float xPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TrackStripView::GetNibbleColor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t TrackStripView::GetNibbleColor (const TrackAnalysis & track, int nibble) const
-{
-    bool  isFailed = nibble < static_cast<int> (track.isFailedChecksum.size()) && track.isFailedChecksum[nibble] != 0;
-
-
-
-    return m_context.palette.GetKindColor (isFailed ? PlatterKind::FailedChecksum : PlatterCells::GetKindOf (track.nibbleKinds[nibble]));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TrackStripView::IsTimed
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -720,4 +702,91 @@ bool TrackStripView::IsOverSeam (const TrackAnalysis & track, float xPx) const
     }
 
     return isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::ZoomAboutCenter
+//
+//  For the strip's buttons and keys; the zoom keeps the middle of the view
+//  where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::ZoomAboutCenter (double factor)
+{
+    double  span    = m_context.model->GetStripSpan();
+    double  newSpan = std::clamp (span / factor, StripGeometry::kMinSpan, 1.0);
+
+
+
+    m_context.model->SetStrip (StripGeometry::GetStartForZoom (m_context.model->GetStripStart(), span, newSpan, 0.5), newSpan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PanBy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PanBy (double fractionOfView)
+{
+    double  span = m_context.model->GetStripSpan();
+
+
+
+    m_context.model->SetStrip (m_context.model->GetStripStart() + fractionOfView * span, span);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::ShowWholeTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::ShowWholeTrack()
+{
+    m_context.model->SetStrip (0.0, 1.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetReadout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TrackStripView::GetReadout() const
+{
+    const TrackAnalysis *  track = m_context.GetTrack();
+    double                 start = m_context.model->GetStripStart();
+    double                 span  = m_context.model->GetStripSpan();
+    uint32_t               first = 0;
+    uint32_t               last  = 0;
+
+
+
+    if (track != nullptr && track->framed.cellCount > 0)
+    {
+        UpdateTurns (*track);
+        first = (span >= 1.0) ? 0 : FluxTiming::GetCellAt (m_cellTurns, start);
+        last  = (span >= 1.0) ? track->framed.cellCount - 1 : FluxTiming::GetCellAt (m_cellTurns, start + span);
+    }
+
+    return (track != nullptr && track->framed.cellCount > 0) ? InspectorText::FormatStripReadout (span, first, last) : std::wstring();
 }

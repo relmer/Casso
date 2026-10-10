@@ -29,7 +29,8 @@ struct StripSegment
 class StripGeometry
 {
 public:
-    static constexpr double  kMinSpan = 1.0 / 51200.0 * 8.0;
+    //  About 20 cells of a nominal 51,200-cell track across the strip.
+    static constexpr double  kMinSpan = 20.0 / 51200.0;
 
     StripGeometry (double start, double span, float leftPx, float widthPx);
 

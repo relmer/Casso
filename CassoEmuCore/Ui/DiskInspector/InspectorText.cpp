@@ -609,3 +609,22 @@ std::wstring InspectorText::FormatNibbleTooltip (const TrackAnalysis & track, in
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatStripReadout
+//
+//  The strip's zoom and the cells in view, as "×83 · cells 12,400-13,016"
+//  (FR-034).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatStripReadout (double span, uint32_t firstCell, uint32_t lastCell)
+{
+    return std::format (L"{}{:.0f}", s_kpszMultiplyX, 1.0 / std::max (span, 1e-9)) + s_kSeparator
+         + L"cells " + InspectorFormat::FormatCount (firstCell) + L"-" + InspectorFormat::FormatCount (lastCell);
+}

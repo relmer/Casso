@@ -27,6 +27,7 @@
 static constexpr LPCWSTR  s_kpszWindowTitle = L"Disk inspector";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
 static constexpr LPCWSTR  s_kpszHint        = L"Scroll to zoom, drag to pan, double-click to fit";
+static constexpr LPCWSTR  s_kpszStripHint   = L"Scroll to zoom, drag to pan, Shift+drag to select, double-click for the whole track";
 static constexpr LPCWSTR  s_kpszNoDisk      = L"No disk";
 static constexpr LPCWSTR  s_kpszAnalyzing   = L"Analyzing";
 
@@ -34,6 +35,9 @@ static constexpr int      s_kToolbarDip     = 40;
 static constexpr int      s_kRowDip         = 28;
 static constexpr int      s_kTabsDip        = 30;
 static constexpr int      s_kStripDip       = 64;
+static constexpr int      s_kHintRowDip     = 20;
+static constexpr int      s_kWholeTrackDip  = 104;
+static constexpr int      s_kReadoutDip     = 220;
 static constexpr int      s_kSectorRowDip   = 76;
 static constexpr int      s_kMarginDip      = 8;
 static constexpr int      s_kSplitterDip    = 6;
@@ -250,6 +254,11 @@ void DiskInspectorWindow::OnCreate()
     m_hintLabel   = CreateChild<DxuiLabel> (s_kpszHint,  DxuiTextRole::Muted  , DxuiTextHAlign::Left);
     m_headerView  = CreateChild<TrackHeaderView> (m_context);
     m_stripView   = CreateChild<TrackStripView>  (m_context);
+    m_stripOut    = CreateChild<DxuiButton> (s_kpszMinus);
+    m_stripIn     = CreateChild<DxuiButton> (L"+");
+    m_stripWhole  = CreateChild<DxuiButton> (L"Whole track");
+    m_stripReadout = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
+    m_stripHint   = CreateChild<DxuiLabel> (s_kpszStripHint, DxuiTextRole::Muted, DxuiTextHAlign::Left);
     m_sectorRow   = CreateChild<SectorRowView>   (m_context);
     m_trackTabs   = CreateChild<DxuiTabStrip>();
     m_byteView    = CreateChild<SectorByteView>  (m_context);
@@ -278,6 +287,9 @@ void DiskInspectorWindow::OnCreate()
     m_zoomOut->SetOnClick    ([this] () { m_platterView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_zoomIn->SetOnClick     ([this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
     m_fit->SetOnClick        ([this] () { m_model.Fit(); });
+    m_stripOut->SetOnClick   ([this] () { m_stripView->ZoomAboutCenter (1.0 / kZoomStep); });
+    m_stripIn->SetOnClick    ([this] () { m_stripView->ZoomAboutCenter (kZoomStep); });
+    m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
     m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
     m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
@@ -413,7 +425,14 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_headerView->Layout ({ right.left, y, right.right, y + header }, scaler);
     y += header;
     m_stripView->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kStripDip) }, scaler);
-    y += scaler.ToPx (s_kStripDip) + margin;
+    y += scaler.ToPx (s_kStripDip) + margin / 2;
+    m_stripOut->Layout     ({ right.left,          y, right.left + button,     y + row }, scaler);
+    m_stripIn->Layout      ({ right.left + button, y, right.left + 2 * button, y + row }, scaler);
+    m_stripWhole->Layout   ({ right.left + 2 * button, y, right.left + 2 * button + scaler.ToPx (s_kWholeTrackDip), y + row }, scaler);
+    m_stripReadout->Layout ({ right.left + 2 * button + scaler.ToPx (s_kWholeTrackDip) + margin, y, right.right, y + row }, scaler);
+    y += row;
+    m_stripHint->Layout    ({ right.left, y, right.right, y + scaler.ToPx (s_kHintRowDip) }, scaler);
+    y += scaler.ToPx (s_kHintRowDip) + margin / 2;
     m_sectorRow->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kSectorRowDip) }, scaler);
     y += scaler.ToPx (s_kSectorRowDip);
 
@@ -555,6 +574,14 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    //  The keys go to the strip after a press on it or its buttons, and to the
+    //  platter after a press anywhere else (FR-029, FR-034).
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        m_isStripKeys = IsInside (m_stripView->GetBounds(), p) || IsInside (m_stripOut->GetBounds(), p) || IsInside (m_stripIn->GetBounds(), p)
+                     || IsInside (m_stripWhole->GetBounds(), p);
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, p))
     {
         m_isSplitting = true;
@@ -602,7 +629,8 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 //  whole track, Left and Right step through the sectors in passing order
 //  wrapping at the index, Home and End go to the first and last (FR-029);
 //  plus and minus zoom, 0 returns to fit (FR-025), and Ctrl with an arrow
-//  pans the zoomed platter.
+//  pans the zoomed platter. After a press on the strip, plus and minus zoom
+//  it, 0 shows the whole track, and Left and Right pan it (FR-034).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -630,6 +658,17 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_UP:    m_model.PanBy ({ 0.0,  s_kPanStep }); break;
                 case VK_DOWN:  m_model.PanBy ({ 0.0, -s_kPanStep }); break;
                 default:       isHandled = false;                    break;
+            }
+        }
+        else if (m_isStripKeys && IsStripKey (ev.vk))
+        {
+            switch (ev.vk)
+            {
+                case VK_OEM_PLUS:  case VK_ADD:      m_stripView->ZoomAboutCenter (kZoomStep);       break;
+                case VK_OEM_MINUS: case VK_SUBTRACT: m_stripView->ZoomAboutCenter (1.0 / kZoomStep); break;
+                case VK_LEFT:                        m_stripView->PanBy (-s_kPanStep);               break;
+                case VK_RIGHT:                       m_stripView->PanBy (s_kPanStep);                break;
+                default:                             m_stripView->ShowWholeTrack();                  break;
             }
         }
         else
@@ -905,6 +944,13 @@ void DiskInspectorWindow::UpdateControls()
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
         m_hintLabel->SetVisible (m_context.hasDisk);
+        m_stripOut->SetVisible     (m_context.hasDisk);
+        m_stripIn->SetVisible      (m_context.hasDisk);
+        m_stripWhole->SetVisible   (m_context.hasDisk);
+        m_stripWhole->SetEnabled   (m_model.GetStripSpan() < 1.0);
+        m_stripReadout->SetVisible (m_context.hasDisk);
+        m_stripReadout->SetText    (m_stripView->GetReadout());
+        m_stripHint->SetVisible    (m_context.hasDisk);
         m_alignmentCheck->SetVisible (m_context.hasDisk);
         m_modeTabs->SetVisible   (m_context.hasDisk);
         m_rangeDown->SetVisible  (m_context.hasDisk && m_context.isTimingMode);
@@ -1290,4 +1336,19 @@ void DiskInspectorWindow::StepRange (int delta)
 {
     m_rangeStep           = std::clamp (m_rangeStep + delta, 0, static_cast<int> (std::size (s_kRanges)) - 1);
     m_context.timingRange = s_kRanges[m_rangeStep];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsStripKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsStripKey (WPARAM vk)
+{
+    return vk == VK_OEM_PLUS || vk == VK_ADD || vk == VK_OEM_MINUS || vk == VK_SUBTRACT || vk == VK_LEFT || vk == VK_RIGHT || vk == '0' || vk == VK_NUMPAD0;
 }

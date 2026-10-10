@@ -34,6 +34,11 @@ public:
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
 
+    void          ZoomAboutCenter (double factor);
+    void          PanBy           (double fractionOfView);
+    void          ShowWholeTrack  ();
+    std::wstring  GetReadout      () const;
+
 private:
     void           PaintTrack   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
     void           PaintCells      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
@@ -48,13 +53,13 @@ private:
     StripGeometry  MakeGeometry () const;
     RECT           GetBarRect   () const;
     int            GetNibbleAtX (const TrackAnalysis & track, float xPx) const;
-    uint32_t       GetNibbleColor (const TrackAnalysis & track, int nibble) const;
 
-    mutable const TrackAnalysis *  m_turnsOf    = nullptr;
+    mutable const TrackAnalysis  * m_turnsOf     = nullptr;
     mutable vector<double>         m_turns;
     mutable vector<double>         m_cellTurns;
-    bool                           m_isPressed  = false;
-    bool                           m_isPanning  = false;
-    POINT                          m_pressAt    = {};
-    POINT                          m_lastAt     = {};
+    bool                           m_isPressed   = false;
+    bool                           m_isPanning   = false;
+    POINT                          m_pressAt     = {};
+    POINT                          m_lastAt      = {};
+    int64_t                        m_lastClickMs = 0;
 };

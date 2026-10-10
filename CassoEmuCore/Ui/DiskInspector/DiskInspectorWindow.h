@@ -73,6 +73,7 @@ private:
     void  UpdateControls   ();
     void  OnSelection      ();
     void  ShowTrackTab     (int tab);
+    static bool  IsStripKey (WPARAM vk);
     void  ShowDiskTab      (int tab);
     void  RefreshTables    ();
     void  SyncTables       ();
@@ -116,6 +117,12 @@ private:
     DxuiButton *                             m_fit            = nullptr;
     DxuiLabel *                              m_zoomLabel      = nullptr;
     DxuiLabel *                              m_hintLabel      = nullptr;
+    DxuiButton *                             m_stripOut       = nullptr;
+    DxuiButton *                             m_stripIn        = nullptr;
+    DxuiButton *                             m_stripWhole     = nullptr;
+    DxuiLabel *                              m_stripReadout   = nullptr;
+    DxuiLabel *                              m_stripHint      = nullptr;
+    bool                                     m_isStripKeys    = false;
     PlatterView *                            m_platterView    = nullptr;
     TrackHeaderView *                        m_headerView     = nullptr;
     TrackStripView *                         m_stripView      = nullptr;

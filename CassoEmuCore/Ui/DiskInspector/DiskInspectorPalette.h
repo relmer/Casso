@@ -94,6 +94,10 @@ public:
     //  Nominal at zero, blending to fast or slow at the full range.
     uint32_t  GetTimingColor (double deviation, double range) const;
 
+    //  A nibble as the strip and the zoomed platter show it: its kind, or a
+    //  failed checksum, or in Timing mode on a flux track its cells' timing.
+    uint32_t  GetNibbleColor (const TrackAnalysis & track, int nibble, bool isTimingMode, double range) const;
+
 private:
     static void  Fill (DiskInspectorPalette & inOut);
 };

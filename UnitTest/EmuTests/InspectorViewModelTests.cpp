@@ -129,6 +129,7 @@ public:
 
         model.ZoomAbout (1000000.0, anchor);
         Assert::AreEqual (InspectorViewModel::kMaxZoom, model.GetZoom());
+        Assert::IsTrue   (InspectorViewModel::kMaxZoom >= 600.0, L"the platter zooms to at least 600 times");
 
         model.ZoomAbout (0.5, anchor);
         Assert::IsTrue (model.IsAtFit());

@@ -98,6 +98,56 @@ public:
 
 
 
+    TEST_METHOD (AViewHoldingTheCenterShowsEveryRingAndTheWholeTurn)
+    {
+        PlatterPlacement  view  = MakeView();
+        RECT              rect  = { 0, 0, 1000, 1000 };
+        int               first = -1;
+        int               last  = -1;
+        double            start = -1;
+        double            end   = -1;
+
+
+
+        PlatterGeometry::GetVisibleRings (view, rect, first, last);
+
+        Assert::AreEqual (0, first);
+        Assert::AreEqual (DiskImage::kQuarterTrackCount - 1, last);
+        Assert::IsFalse  (PlatterGeometry::GetVisibleTurns (view, rect, start, end));
+        Assert::AreEqual (0.0, start);
+        Assert::AreEqual (1.0, end);
+    }
+
+
+
+    TEST_METHOD (AZoomedViewShowsOnlyTheRingsAndTurnsUnderIt)
+    {
+        PlatterPlacement  view  = MakeView();
+        RECT              rect  = { 0, 0, 1000, 1000 };
+        int               first = -1;
+        int               last  = -1;
+        double            start = -1;
+        double            end   = -1;
+
+
+
+        //  The disk 400 times larger with its rim at the top of the view, so
+        //  the view straddles 12 o'clock on the outer rings.
+        view.outerRadiusPx = 480.0f * 400.0f;
+        view.centerYPx     = 100.0f + view.outerRadiusPx;
+        view.rotation      = 0.25f;
+
+        PlatterGeometry::GetVisibleRings (view, rect, first, last);
+
+        Assert::AreEqual (0, first);
+        Assert::IsTrue   (last > 0 && last < 8, L"only the outermost rings reach the view");
+        Assert::IsTrue   (PlatterGeometry::GetVisibleTurns (view, rect, start, end));
+        Assert::AreEqual (0.75, start + (end - start) / 2, 0.002, L"centered on 12 o'clock less the rotation");
+        Assert::IsTrue   (end - start < 0.01, L"a sliver of the turn");
+    }
+
+
+
     TEST_METHOD (GroovesRunOutsideEachWholeTrack)
     {
         Assert::IsTrue  (PlatterGeometry::IsGrooveOutside (0));

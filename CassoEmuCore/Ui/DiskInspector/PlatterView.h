@@ -44,7 +44,24 @@ public:
     void               SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
 
 private:
+    struct RingTurns
+    {
+        const TrackAnalysis *  of = nullptr;
+        vector<double>         nibbles;
+        vector<double>         cells;
+    };
+
     void           Draw           (const DxuiCustomDrawArgs & args);
+    void           PaintNibbles   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view);
+    void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
+                                   const TrackAnalysis & track, const RingTurns & turns, double start, double end);
+    static void    DrawRadial     (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);
+    void           DrawUpright    (IDxuiTextRenderer & text, const PlatterPlacement & view, double turn, double radius, const std::wstring & value, float widthPx,
+                                   float textPx, uint32_t argb) const;
+    bool           IsShowingValues (const PlatterPlacement & view, int quarterTrack) const;
+    bool           IsShowingTicks  (const PlatterPlacement & view, int quarterTrack) const;
+    const TrackAnalysis *  GetRingTrack (int quarterTrack) const;
+    const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
@@ -52,14 +69,15 @@ private:
     PlatterPlacement  MakeView       () const;
     InspectorViewModel::Point  ToViewPoint (POINT pointPx) const;
 
-    PlatterRenderer  m_renderer;
-    bool             m_isRendererReady  = false;
-    bool             m_isAlignmentShown = false;
-    bool             m_isPressed        = false;
-    bool             m_isPanning        = false;
-    POINT            m_pressAt          = {};
-    POINT            m_lastAt           = {};
-    int64_t          m_lastClickMs      = 0;
-    int              m_hoverRing        = -1;
-    double           m_rotation         = 0.0;
+    PlatterRenderer            m_renderer;
+    bool                       m_isRendererReady  = false;
+    bool                       m_isAlignmentShown = false;
+    bool                       m_isPressed        = false;
+    bool                       m_isPanning        = false;
+    POINT                      m_pressAt          = {};
+    POINT                      m_lastAt           = {};
+    int64_t                    m_lastClickMs      = 0;
+    int                        m_hoverRing        = -1;
+    double                     m_rotation         = 0.0;
+    mutable vector<RingTurns>  m_ringTurns;
 };

@@ -40,6 +40,12 @@ public:
     static bool        IsGrooveOutside   (int quarterTrack);
     static PlatterHit  HitTest           (const PlatterPlacement & view, POINT pointPx);
 
+    //  The rings and the stretch of the turn a view shows: every ring the
+    //  rectangle reaches, and when it does not hold the center, the turns
+    //  between its corners, as data turns that may run past 1.
+    static void        GetVisibleRings   (const PlatterPlacement & view, const RECT & boundsPx, int & outFirst, int & outLast);
+    static bool        GetVisibleTurns   (const PlatterPlacement & view, const RECT & boundsPx, double & outStart, double & outEnd);
+
     //  What lies at a place along a track.
     static uint32_t    GetCellAtTurn     (const TrackAnalysis & track, double turn);
     static int         GetFieldAt        (const TrackAnalysis & track, uint32_t cell);
