@@ -82,6 +82,7 @@ static constexpr int      s_kCopySectorDip   = 110;
 static constexpr int      s_kCompareDip      = 130;
 static constexpr int      s_kFollowDip       = 120;
 static constexpr int      s_kGoToHeadDip     = 100;
+static constexpr int64_t  s_kRecopyMs        = 500;
 static constexpr int      s_kBarDip          = 36;
 static constexpr int      s_kBarButtonDip    = 136;
 static constexpr int      s_kStopButtonDip   = 116;
@@ -1010,10 +1011,20 @@ void DiskInspectorWindow::TakeReplies()
 
     for (InspectorReply & reply : replies)
     {
-        if (!m_comparison.OfferReply (reply) && reply.requestId == m_pendingRequest)
+        if (m_comparison.OfferReply (reply))
+        {
+            continue;
+        }
+
+        if (reply.requestId == m_pendingRequest)
         {
             m_pendingRequest = 0;
             StartDisk (reply.disk, (reply.status == InspectorReplyStatus::Unopenable) ? reply.reason : std::wstring());
+        }
+        else if (reply.requestId == m_trackRequest)
+        {
+            m_trackRequest = 0;
+            TakeWrittenTracks (reply);
         }
     }
 }
@@ -1060,6 +1071,16 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
         for (slot = 0; slot < static_cast<int> (copy->tracks.size()); slot++)
         {
             m_changedSlots.insert (slot);
+        }
+
+        //  The copy's own write counts are where the guest's writes start.
+        m_writeCounts.clear();
+        m_writtenSlots.clear();
+        m_trackRequest = 0;
+
+        for (const std::shared_ptr<const TrackCopy> & track : copy->tracks)
+        {
+            m_writeCounts.push_back (track != nullptr ? track->guestWriteCount : 0);
         }
     }
     else
@@ -3219,6 +3240,8 @@ void DiskInspectorWindow::TickHead()
 
     m_headState = m_host->GetHeadState (m_drive);
 
+    RequestWrittenTracks();
+
     if (m_headState != nullptr && m_headState->hasDisk && m_headState->mediaId == m_analysis.mediaId && IsWindowDiskA())
     {
         qt = m_followHead.Tick (m_headState->headQuarterTrack, static_cast<int64_t> (GetTickCount64()));
@@ -3293,4 +3316,96 @@ void DiskInspectorWindow::SelectHeadTrack (int quarterTrack)
     m_model.SelectQuarterTrack (quarterTrack);
     OnSelection();
     m_isHeadSelecting = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RequestWrittenTracks
+//
+//  The records the guest has written since the window's copy, from the
+//  published write counts, copied again at most twice a second so a track
+//  being written continuously still shows within half a second (FR-069).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RequestWrittenTracks()
+{
+    const DriveHeadState *  state = m_headState.get();
+    int64_t                 now   = static_cast<int64_t> (GetTickCount64());
+    InspectorRequest        request;
+    size_t                  slot  = 0;
+
+
+
+    if (state != nullptr && m_analysis.copy != nullptr && state->mediaId == m_analysis.mediaId && IsWindowDiskA() && state->countsGeneration != m_countsGeneration)
+    {
+        for (slot = 0; slot < state->recordWriteCounts.size() && slot < m_analysis.copy->tracks.size(); slot++)
+        {
+            if (slot >= m_writeCounts.size() || state->recordWriteCounts[slot] != m_writeCounts[slot])
+            {
+                m_writtenSlots.insert (static_cast<int> (slot));
+            }
+        }
+
+        m_writeCounts      = state->recordWriteCounts;
+        m_countsGeneration = state->countsGeneration;
+    }
+
+    if (!m_writtenSlots.empty() && m_trackRequest == 0 && now - m_trackRequestMs >= s_kRecopyMs)
+    {
+        request.kind     = InspectorRequestKind::CopyTracks;
+        request.drive    = m_drive;
+        request.mediaId  = m_analysis.mediaId;
+        request.slots.assign (m_writtenSlots.begin(), m_writtenSlots.end());
+        m_trackRequest   = m_host->PostInspectorRequest (request);
+        m_trackRequestMs = now;
+        m_writtenSlots.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::TakeWrittenTracks
+//
+//  The written records go into a new copy of the disk, sharing every other
+//  record with the old one, and only they are analyzed again. A reply for a
+//  disk no longer in the drive starts the window over on the new one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::TakeWrittenTracks (const InspectorReply & reply)
+{
+    vector<int>  slots;
+
+
+
+    if (reply.status == InspectorReplyStatus::DiskChanged || reply.status == InspectorReplyStatus::NoDisk)
+    {
+        RequestCopy();
+    }
+    else if (m_analysis.copy != nullptr && reply.mediaId == m_analysis.mediaId && !reply.tracks.empty())
+    {
+        auto  copy = std::make_shared<DiskCopy> (*m_analysis.copy);
+
+        for (const std::shared_ptr<const TrackCopy> & track : reply.tracks)
+        {
+            if (track != nullptr && track->slot >= 0 && track->slot < static_cast<int> (copy->tracks.size()))
+            {
+                copy->tracks[track->slot] = track;
+                slots.push_back (track->slot);
+            }
+        }
+
+        m_analysis.copy = copy;
+        m_scheduler->Update (copy, slots);
+        m_isTablesDirty = true;
+    }
 }

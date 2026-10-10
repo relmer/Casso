@@ -98,6 +98,8 @@ private:
     void  TakeComparison   ();
     void  SyncSideB        ();
     void  TickHead         ();
+    void  RequestWrittenTracks ();
+    void  TakeWrittenTracks    (const InspectorReply & reply);
     void  SetFollowHead    (bool isOn);
     void  GoToHead         ();
     void  SelectHeadTrack  (int quarterTrack);
@@ -211,6 +213,11 @@ private:
     FollowHead                              m_followHead;
     bool                                    m_isHeadSelecting    = false;
     std::shared_ptr<const DriveHeadState>   m_headState;
+    uint64_t                                m_countsGeneration   = 0;
+    vector<uint64_t>                        m_writeCounts;
+    std::set<int>                           m_writtenSlots;
+    uint64_t                                m_trackRequest       = 0;
+    int64_t                                 m_trackRequestMs     = 0;
     DxuiButton                            * m_prevDiff           = nullptr;
     DxuiButton                            * m_nextDiff           = nullptr;
     DxuiButton                            * m_swapButton         = nullptr;
