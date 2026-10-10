@@ -125,6 +125,8 @@ struct MappedFile
     int                stillFree      = 0;
     int                usedByOthers   = 0;
     uint32_t           states         = 0;
+    uint32_t           created        = 0;
+    uint32_t           modified       = 0;
 
     int  GetUsedCount () const;
 };

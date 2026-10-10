@@ -15,6 +15,7 @@ static constexpr int  s_kName          = 7;
 static constexpr int  s_kTotalBlocks   = 14;
 static constexpr int  s_kFileCount     = 16;
 static constexpr int  s_kLastBytes     = 22;
+static constexpr int  s_kDate          = 24;
 static constexpr int  s_kVolumeNameMax = 7;
 static constexpr int  s_kFileNameMax   = 15;
 static constexpr int  s_kMinBlocks     = 6;
@@ -125,6 +126,7 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
         entries++;
         file.path         = ReadName (entry + s_kName, length);
         file.type         = GetKindName (kind);
+        file.modified     = static_cast<uint32_t> (GetWord (entry + s_kDate));
         file.recordedSize = (next > first) ? static_cast<uint64_t> (next - first - 1) * s_kBlockBytes + GetWord (entry + s_kLastBytes) : 0;
         index             = writer.AddFile (std::move (file));
 

@@ -19,6 +19,8 @@ static constexpr int   s_kKeyPointer     = 0x11;
 static constexpr int   s_kBlocksUsed     = 0x13;
 static constexpr int   s_kEof            = 0x15;
 static constexpr int   s_kAccess         = 0x1E;
+static constexpr int   s_kCreated        = 0x18;
+static constexpr int   s_kModified       = 0x21;
 static constexpr Byte  s_kWriteEnabled   = 0x02;
 static constexpr int   s_kSeedling       = 0x1;
 static constexpr int   s_kSapling        = 0x2;
@@ -223,6 +225,8 @@ void ProDosMapReader::ReadEntry (Walk & walk, const Byte * entry, const std::wst
         file.recordedSize  = eof;
         file.recordedCount = used;
         file.isDeleted     = storage == 0;
+        file.created       = entry[s_kCreated] | (entry[s_kCreated + 1] << 8) | (entry[s_kCreated + 2] << 16) | (static_cast<uint32_t> (entry[s_kCreated + 3]) << 24);
+        file.modified      = entry[s_kModified] | (entry[s_kModified + 1] << 8) | (entry[s_kModified + 2] << 16) | (static_cast<uint32_t> (entry[s_kModified + 3]) << 24);
         index              = walk.writer.AddFile (std::move (file));
 
         if (storage == 0)
