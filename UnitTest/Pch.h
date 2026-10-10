@@ -26,4 +26,10 @@
 
 #include <CppUnitTest.h>
 
+// The AddressSanitizer flavor (CassoSanitize=Address) checks for a report
+// and for poisoned memory through the sanitizer's own interface.
+#ifdef __SANITIZE_ADDRESS__
+#include <sanitizer/asan_interface.h>
+#endif
+
 #include "HResultAssert.h"

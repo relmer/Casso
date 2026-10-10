@@ -71,8 +71,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)$(CassoBuildFlavor)\</IntDir>
   </PropertyGroup>
   <!-- The entry point is wCassoMain in CassoEmuCore/Gui/GuiMain.cpp. Cassque's
        entry point lives in the same library, and a library keeps only one
@@ -224,7 +224,7 @@
     <MSBuild Projects="..\MeshCreator\MeshCreator.vcxproj"
              Properties="Configuration=$(Configuration);Platform=x64" />
     <MakeDir Directories="$(IntDir)Models" />
-    <Exec Command="&quot;$(SolutionDir)x64\$(Configuration)\MeshCreator.exe&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
+    <Exec Command="&quot;$(SolutionDir)x64\$(Configuration)$(CassoBuildFlavor)\MeshCreator.exe&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
     <Touch Files="Casso.rc" />
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

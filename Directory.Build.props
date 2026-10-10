@@ -134,4 +134,21 @@
     </ClCompile>
   </ItemDefinitionGroup>
 
+  <!--
+    AddressSanitizer flavor of Debug x64, opt-in with -p:CassoSanitize=Address
+    (scripts\Build.ps1 -Sanitize). It builds into x64\DebugAsan\ so its objects
+    never mix with the plain Debug build's. /RTC is off because it is
+    incompatible with /fsanitize=address. See docs/testing.md.
+  -->
+  <PropertyGroup Condition="'$(CassoSanitize)' == 'Address'">
+    <CassoBuildFlavor>Asan</CassoBuildFlavor>
+    <EnableASAN>true</EnableASAN>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(CassoSanitize)' == 'Address'">
+    <ClCompile>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <PreprocessorDefinitions>CASSO_SANITIZE_ADDRESS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
 </Project>

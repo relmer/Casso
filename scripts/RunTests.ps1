@@ -59,6 +59,12 @@
     ./scripts/RunTests.ps1 -Filter "FullyQualifiedName~Merlin&Name!~Slow"
     Passes a full vstest filter expression through unchanged.
 
+.PARAMETER Sanitize
+    Run the AddressSanitizer flavor (x64\DebugAsan\), built with
+    Build.ps1 -Sanitize, or here with -Build -Sanitize. Debug x64 only. The run
+    fails when the output holds an AddressSanitizer report, even if vstest
+    itself exits 0. See docs/testing.md.
+
 .EXAMPLE
     ./scripts/RunTests.ps1 -Build -Scenario
     Builds, then runs the scenario suite -- the system tests that need the
@@ -79,6 +85,8 @@ param(
     [string]$Filter = '',
 
     [switch]$Scenario,
+
+    [switch]$Sanitize,
 
     [switch]$NormalPriority,
 
@@ -114,6 +122,13 @@ if ($Platform -eq 'Auto') {
 }
 
 $ErrorActionPreference = 'Stop'
+
+if ($Sanitize -and ($Configuration -ne 'Debug' -or $Platform -ne 'x64')) {
+    throw '-Sanitize runs the Debug x64 AddressSanitizer build only.'
+}
+
+#  The AddressSanitizer flavor builds into a folder of its own, x64\DebugAsan\.
+$flavor = $Sanitize ? 'Asan' : ''
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 
@@ -168,7 +183,7 @@ if ($Build) {
         throw "Build script not found: $buildScript"
     }
 
-    & $buildScript -Configuration $Configuration -Platform $Platform
+    & $buildScript -Configuration $Configuration -Platform $Platform -Sanitize:$Sanitize
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
@@ -207,9 +222,16 @@ if ($Scenario) {
     $sourceProjects = @('CassoCore/', 'CassoEmuCore/', 'UnitTest/', 'ScenarioTests/')
 }
 
-$testAssembly = Join-Path -Path $repoRoot -ChildPath "$Platform\$Configuration\$assemblyName"
+$testAssembly = Join-Path -Path $repoRoot -ChildPath "$Platform\$Configuration$flavor\$assemblyName"
 if (-not (Test-Path -Path $testAssembly)) {
     throw "Test assembly not found at $testAssembly. Build the tests before running them, or pass -Build."
+}
+
+#  The instrumented DLL loads the sanitizer runtime from its own folder; MSBuild
+#  copies it there. Without it the test host cannot load the assembly at all.
+$asanRuntime = Join-Path (Split-Path $testAssembly -Parent) 'clang_rt.asan_dynamic-x86_64.dll'
+if ($Sanitize -and -not (Test-Path -LiteralPath $asanRuntime)) {
+    throw "AddressSanitizer runtime not found beside the test assembly: $asanRuntime. Rebuild with -Build -Sanitize."
 }
 
 # A stale assembly reports a full, confident pass against code that is not the
@@ -232,6 +254,13 @@ if (-not $AllowStale) {
 
 Write-Host "Running tests from $testAssembly" -ForegroundColor Cyan
 Write-Host "vstest.console path: $vstestPath" -ForegroundColor DarkGray
+
+if ($Sanitize) {
+    Write-Host ''
+    Write-Host 'SANITIZER BUILD -- AddressSanitizer (x64\DebugAsan), about three times slower.' -ForegroundColor Yellow
+    Write-Host '  Catches use-after-free and buffer overflows; it does not detect data races.' -ForegroundColor DarkGray
+    Write-Host ''
+}
 
 if ($Scenario) {
     # A scenario run is not the unit-test suite, and a green one says nothing
@@ -329,8 +358,31 @@ if ($insideGit) {
     $stateBefore = Get-TrackedFileState
 }
 
-& $vstestPath @vstestArgs
-$testExit = $LASTEXITCODE
+if ($Sanitize) {
+    #  CONTINUE-ON-ERROR HIDES A REPORT. With ASAN_OPTIONS asking to carry on,
+    #  a use-after-free prints its report and the test still passes, exit 0.
+    #  The child gets no options at all, and the caller's are put back after.
+    $asanOptionsWas = $env:ASAN_OPTIONS
+    Remove-Item Env:ASAN_OPTIONS -ErrorAction SilentlyContinue
+
+    try {
+        & $vstestPath @vstestArgs 2>&1 | Tee-Object -Variable vstestOutput
+        $testExit = $LASTEXITCODE
+    } finally {
+        if ($null -ne $asanOptionsWas) { $env:ASAN_OPTIONS = $asanOptionsWas }
+    }
+
+    #  A report fails the run even when vstest exits 0.
+    if ($testExit -eq 0 -and ($vstestOutput | Select-String -SimpleMatch 'ERROR: AddressSanitizer' -Quiet)) {
+        Write-Host ''
+        Write-Host 'ADDRESSSANITIZER REPORTED AN ERROR (see above), so this run fails.' -ForegroundColor Red
+        $testExit = 1
+    }
+}
+else {
+    & $vstestPath @vstestArgs
+    $testExit = $LASTEXITCODE
+}
 
 if ($insideGit) {
     $stateAfter = Get-TrackedFileState

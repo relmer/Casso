@@ -36,6 +36,13 @@
     single-configuration run can pass while CI fails on one it did not
     compile, and ARM64 is build-only here, so nothing else exercises it.
 
+.PARAMETER Sanitize
+    Build the AddressSanitizer flavor of Debug x64 (-p:CassoSanitize=Address)
+    into x64\DebugAsan\, beside the plain Debug build rather than over it. Debug
+    x64 and a single-configuration target only. It builds the whole solution, so
+    Casso.exe and CassoCli.exe land beside UnitTest.dll, which the suite needs.
+    Run it with RunTests.ps1 -Build -Sanitize. See docs/testing.md.
+
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
     no foreground to protect.
@@ -66,6 +73,8 @@ param(
 
     [switch]$RunCodeAnalysis,
 
+    [switch]$Sanitize,
+
     [switch]$NormalPriority,
 
     [switch]$LowPriority
@@ -80,6 +89,14 @@ if ($Platform -eq 'Auto') {
 }
 
 $ErrorActionPreference = 'Stop'
+
+if ($Sanitize -and ($Configuration -ne 'Debug' -or $Platform -ne 'x64')) {
+    throw '-Sanitize builds Debug x64 only.'
+}
+
+if ($Sanitize -and $Target -notin @('Build', 'Clean', 'Rebuild')) {
+    throw '-Sanitize takes a single-configuration target: Build, Clean or Rebuild.'
+}
 
 $repoRoot     = Split-Path $PSScriptRoot -Parent
 $solutionPath = Join-Path $repoRoot 'Casso.sln'
@@ -303,11 +320,17 @@ else {
         $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
     }
 
+    if ($Sanitize) {
+        $msbuildArgs += '-p:CassoSanitize=Address'
+    }
+
     if ($Target -ne 'Build') {
         $msbuildArgs += "-t:$Target"
     }
 
-    Write-Host "Building: $solutionPath ($Configuration|$Platform) Target=$Target"
+    $flavorText = if ($Sanitize) { ' AddressSanitizer' } else { '' }
+
+    Write-Host "Building: $solutionPath ($Configuration|$Platform$flavorText) Target=$Target"
 
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     & $msbuildPath @msbuildArgs

@@ -75,6 +75,42 @@ committed listing into a booted master, never from the tokenizer's own
 output. The circularity guard is spelled out in the inventory beside the
 fixture.
 
+## The AddressSanitizer build
+
+`scripts/RunTests.ps1 -Build -Sanitize` builds Debug x64 with
+AddressSanitizer (`/fsanitize=address`) and runs the unit suite against it.
+The flavor is a build property, `CassoSanitize=Address` in
+`Directory.Build.props`, not a third solution configuration, and it builds
+into `x64\DebugAsan\` so its objects never mix with plain Debug's. It builds
+the whole solution, because the suite needs `Casso.exe` and `CassoCli.exe`
+beside `UnitTest.dll`. `-Scenario` works with it too.
+
+**What it catches.** A read or write of freed memory (use-after-free), and a
+read or write past the end of a heap or stack object, as a process abort with
+the allocation and free stacks. When one thread frees or resizes something another thread is still reading,
+this build usually stops at the bad read: the drive-status race fails under
+this build and passes under plain Debug.
+
+**What it misses.** It is not a race detector: two threads updating a plain
+`int` lose updates with no report. It also misses an overflow that never
+leaves its allocation, such as one past a page-aligned 143,360-byte volume
+image, which has no red zone after it. The single-owner assertion and the
+stress tests cover what it cannot.
+
+**Continue-on-error hides a report.** With `ASAN_OPTIONS=continue_on_error=2`
+a report prints and the test still passes, with exit 0. The runner removes
+`ASAN_OPTIONS` for the test run, restores it afterward, and fails the run on
+any `ERROR: AddressSanitizer` line in the output even when vstest exits 0.
+
+**What changes in this build.** `/RTC` is off, because it is incompatible with
+AddressSanitizer. `ThreadAllocationCounter` reports itself unavailable,
+because the sanitizer's heap bypasses the debug CRT's allocation hook, so the
+allocation-count tests skip their counts.
+
+**Cost and when to run it.** About three times the plain Debug suite's time
+(15 minutes against about 5, measured 2026-10). Run it once before merging a
+change to threading, ownership or object lifetime, not on every iteration.
+
 ## The generated cycle reference
 
 `docs/cycle-reference.md` is not written, it is generated: `CycleReference` in

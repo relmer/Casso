@@ -38,7 +38,7 @@ TEST_CLASS (RecordingBufferTests)
 {
 public:
 
-#ifdef _DEBUG
+#if defined(_DEBUG) && !defined(__SANITIZE_ADDRESS__)
     TEST_METHOD (ASteadyCaptureAllocatesNothingOnTheMachineThread)
     {
         TestMachine              machine    ("Apple2e");

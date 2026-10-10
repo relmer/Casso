@@ -14,7 +14,9 @@
 //  through the debug CRT's allocation hook, so a test can hold a hot path to
 //  allocating nothing. Debug builds only: the release CRT has no hook, so
 //  IsAvailable is false there and a test must not claim a count it did not
-//  take. One counter at a time.
+//  take. The AddressSanitizer build allocates through the sanitizer's own
+//  heap, which bypasses the hook, so it is unavailable there too. One counter
+//  at a time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +25,7 @@ class ThreadAllocationCounter
 public:
     static constexpr bool  IsAvailable()
     {
-#ifdef _DEBUG
+#if defined(_DEBUG) && !defined(__SANITIZE_ADDRESS__)
         return true;
 #else
         return false;
