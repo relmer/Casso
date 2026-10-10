@@ -3,6 +3,8 @@
 #include "MachineManager.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/TapeManager.h"
 #include "Shell/Components/ShellAudio.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
@@ -347,7 +349,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                             IGNORE_RETURN_VALUE (hrR, S_OK);
                         }
 
-                        m_shell.m_tapeRecorderConnected = recorder;
+                        m_shell.m_tapeDeck->SetRecorderConnected (recorder);
                     }
 
                     // The block the switched-to machine's input mapping is
@@ -566,7 +568,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
 
     // Each machine keeps its own tape, as it keeps its own disks.
-    m_shell.m_tapeManager->OnMachineSwitched();
+    m_shell.m_tapeDeck->GetManager()->OnMachineSwitched();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.

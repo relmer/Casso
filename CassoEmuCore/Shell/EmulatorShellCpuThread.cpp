@@ -3,6 +3,8 @@
 #include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/TapeManager.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -117,25 +119,25 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     hrOpt = uiPrefs->GetBool ("fastTapeLoading", enabled);
     if (SUCCEEDED (hrOpt))
     {
-        SetFastTapeLoading (enabled);
+        m_tapeDeck->SetFastTapeLoading (enabled);
     }
 
     hrOpt = uiPrefs->GetBool ("tapeAutoStop", enabled);
     if (SUCCEEDED (hrOpt))
     {
-        SetTapeAutoStop (enabled);
+        m_tapeDeck->SetTapeAutoStop (enabled);
     }
 
     hrOpt = uiPrefs->GetBool ("tapeIdleStop", enabled);
     if (SUCCEEDED (hrOpt))
     {
-        SetTapeIdleStop (enabled);
+        m_tapeDeck->SetTapeIdleStop (enabled);
     }
 
     hrOpt = uiPrefs->GetBool ("tapeEightBit", enabled);
     if (SUCCEEDED (hrOpt))
     {
-        SetTapeEightBit (enabled);
+        m_tapeDeck->SetTapeEightBit (enabled);
     }
 
     hrOpt = uiPrefs->GetNumber ("tapeVolume", tapeVolume);
@@ -541,7 +543,7 @@ void EmulatorShell::PlayDriveTestSound (int drive, int kind)
 void EmulatorShell::ApplyTapeTurbo()
 {
     uint64_t  now    = *m_machine.GetCpu()->GetBusCyclePtr();
-    bool      isFast = TapeTurboGovernor::ShouldRunAtMaximum (m_fastTapeLoading.load (std::memory_order_relaxed),
+    bool      isFast = TapeTurboGovernor::ShouldRunAtMaximum (m_tapeDeck->IsFastTapeLoading(),
                                                               m_machine.GetTapeDeck(),
                                                               now,
                                                               (double) m_machine.GetConfig().clockSpeed);
@@ -576,7 +578,7 @@ void EmulatorShell::ControlTape (TapeCommand command)
 
 
 
-    m_tapeManager->Execute (command, m_machine.GetTapeDeck(), now);
+    m_tapeDeck->GetManager()->Execute (command, m_machine.GetTapeDeck(), now);
 }
 
 
@@ -830,7 +832,7 @@ void EmulatorShell::ExecuteCpuSlices()
 
         if (m_machine.GetTapeDeck().HasPendingRecording())
         {
-            hr = m_tapeManager->CommitPendingRecording (m_machine.GetTapeDeck());
+            hr = m_tapeDeck->GetManager()->CommitPendingRecording (m_machine.GetTapeDeck());
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Update/UpdateResult.h"
@@ -536,7 +537,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
-    m_host->GetRoot().Adopt (m_tapeChrome);
+    m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
@@ -823,16 +824,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
             case IDM_STORAGE_DRIVE2:   return IsSecondDriveOffered();
-            case IDM_STORAGE_RECORDER: return MachineHasCassettePort();
+            case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
             case IDM_DISK_INSERT2:     return ShouldShowExternalDrive();
             case IDM_DISK_EJECT2:      return ShouldShowExternalDrive();
-            case IDM_TAPE_INSERT:      return IsTapeRecorderShown();
-            case IDM_TAPE_NEW:         return IsTapeRecorderShown();
-            case IDM_TAPE_PLAY:        return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        GetTapeView());
-            case IDM_TAPE_STOP:        return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,        GetTapeView());
-            case IDM_TAPE_REWIND:      return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      GetTapeView());
-            case IDM_TAPE_FASTFORWARD: return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, GetTapeView());
-            case IDM_TAPE_EJECT:       return IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       GetTapeView());
+            case IDM_TAPE_INSERT:      return m_tapeDeck->IsTapeRecorderShown();
+            case IDM_TAPE_NEW:         return m_tapeDeck->IsTapeRecorderShown();
+            case IDM_TAPE_PLAY:        return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        m_tapeDeck->GetTapeView());
+            case IDM_TAPE_STOP:        return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Stop,        m_tapeDeck->GetTapeView());
+            case IDM_TAPE_REWIND:      return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      m_tapeDeck->GetTapeView());
+            case IDM_TAPE_FASTFORWARD: return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, m_tapeDeck->GetTapeView());
+            case IDM_TAPE_EJECT:       return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       m_tapeDeck->GetTapeView());
             default:           return true;
         }
     });
@@ -858,8 +859,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
             case IDM_STORAGE_RECORDER:
             {
-                return IsTapeRecorderShown() ? std::wstring (L"Detach ca&ssette recorder")
-                                             : std::wstring (L"Attach ca&ssette recorder");
+                return m_tapeDeck->IsTapeRecorderShown() ? std::wstring (L"Detach ca&ssette recorder")
+                                                         : std::wstring (L"Attach ca&ssette recorder");
             }
 
             case IDM_DISK_WP1:
@@ -1103,7 +1104,7 @@ int EmulatorShell::GetDriveRowWidthPx()
     outer = drive.GetOuterRect();
     width = count * (outer.right - outer.left) + (count + 1) * gap;
 
-    if (IsTapeRecorderShown())
+    if (m_tapeDeck->IsTapeRecorderShown())
     {
         tape.Layout (RECT {}, scaler);
         outer  = tape.GetOuterRect();
@@ -2121,7 +2122,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                     }
                 }
 
-                RegisterTapeDropTarget();
+                m_tapeDeck->RegisterTapeDropTarget();
             }
         }
 

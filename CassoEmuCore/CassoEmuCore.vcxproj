@@ -194,7 +194,7 @@
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
     <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
     <ClCompile Include="Shell\EmulatorShellStorage.cpp" />
-    <ClCompile Include="Shell\EmulatorShellTape.cpp" />
+    <ClCompile Include="Shell\Components\ShellTapeDeck.cpp" />
     <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
     <ClCompile Include="Shell\TapeManager.cpp" />
     <ClCompile Include="Devices\Tape\MfTapeAudioDecoder.cpp" />
@@ -898,6 +898,7 @@
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="Shell\Components\ShellAudio.h" />
+    <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />

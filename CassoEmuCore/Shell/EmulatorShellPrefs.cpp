@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -798,9 +799,8 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     }
 
     // The cassette recorder, connected unless it was disconnected.
-    m_tapeRecorderConnected = true;
-    hrOpt = uiPrefs->GetBool ("tapeRecorderConnected", m_tapeRecorderConnected);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    m_tapeDeck->SetRecorderConnected (true);
+    m_tapeDeck->LoadRecorderConnected (*uiPrefs);
 
 
     // Seed the per-drive user write-protect preference BEFORE the

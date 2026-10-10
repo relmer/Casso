@@ -4,7 +4,7 @@
 
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
-#include "Devices/Tape/MfTapeAudioDecoder.h"
+#include "Devices/Tape/TapeDeck.h"
 #include "Config/Win32FileSystem.h"
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
@@ -33,7 +33,6 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/BackgroundWorkQueue.h"
-#include "Shell/TapeManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
@@ -42,7 +41,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/TapeDeckWidget.h"
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -69,6 +67,7 @@ class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
 class ShellAudio;
+class ShellTapeDeck;
 class ShellUpdater;
 struct MonitorSpec;
 
@@ -226,6 +225,10 @@ public:
     // Update notification and self-update, including the launch-by-update
     // flags and the Settings > General update toggles.
     ShellUpdater &  GetUpdater();
+
+    // The cassette recorder: its tape manager, flat widget, key latches and
+    // tape settings.
+    ShellTapeDeck &  GetTapeDeck();
 
     // Settings > General: the two download offers. Each is saved
     // immediately, like the other live toggles in Settings.
@@ -766,13 +769,7 @@ public:
 public:
     void PostCommand (WORD id, const string & payload = "");
 
-    // Whether tape loads run at Maximum speed. Read by the CPU thread each
-    // slice; written by Settings and at startup.
-    void SetFastTapeLoading (bool enabled) { m_fastTapeLoading.store (enabled, std::memory_order_relaxed); }
-    void SetTapeVolume      (float gain);
-    void SetTapeAutoStop    (bool enabled) { m_machine.GetTapeDeck().SetAutoStop (enabled); }
-    void SetTapeIdleStop    (bool enabled) { m_machine.GetTapeDeck().SetIdleStop (enabled); }
-    void SetTapeEightBit    (bool enabled) { if (m_tapeManager) { m_tapeManager->SetBlankEightBit (enabled); } }
+    void SetTapeVolume (float gain);
 
     // Single-step the CPU from the UI thread. Only safe when the
     // CPU thread is paused (provably idle on pauseCV.wait); the
@@ -1085,27 +1082,9 @@ private:
     // come from the composition's projected drive bounds.
     void    SyncSceneDriveChrome ();
 
-    // The cassette recorder's flat widget and what its controls do. Shown
-    // when the machine has a cassette port and the recorder is connected.
-    bool          MachineHasCassettePort () const;
-    bool          IsTapeRecorderShown    () const { return MachineHasCassettePort() && m_tapeRecorderConnected; }
-    TapeDeckView  GetTapeView            () const;
-    void          SyncTapeChrome         ();
-    void          HandleTapeClick        (TapeDeckRegion region);
-    void          PickTape               ();
-    void          BrowseForTape          ();
-    void          InsertTape             (const std::wstring & path);
-    void          CreateBlankTape        ();
-    void          PromptTapePosition     ();
-    void          LatchRecorderKeys      (TapeDeckRegion region);
-    bool          ReleaseOtherRecorderKeys (TapeDeckRegion region);
-    void          EjectAndPickTape       ();
-    int           GetDriveRowWidthPx     ();
-    void          RegisterTapeDropTarget ();
-    void          OnFileDropped          (int tag, const std::wstring & path);
-
-    // The drop tag of the tape, after the drives' 0 and 1.
-    static constexpr int  s_kTapeDropTag = 2;
+    // The drive row's width, and a file dropped on a drive or the recorder.
+    int     GetDriveRowWidthPx ();
+    void    OnFileDropped      (int tag, const std::wstring & path);
 
     // Re-hangs the mounted-image basename strip under each projected drive.
     // The desk's baked labels: the two drives' names, the recorder's tape
@@ -1532,6 +1511,7 @@ private:
     // enough shell state during construction and command dispatch that
     // friend declarations are the pragmatic seam; no new global state is
     // introduced.
+    friend class ShellTapeDeck;
     friend class ShellUpdater;
     friend class MachineManager;
     friend class WindowCommandManager;
@@ -1619,9 +1599,6 @@ private:
     MainMenu                    m_mainMenu;
     CassoTheme                  m_chromeTheme   = CassoTheme::MakeSkeuomorphic();
     std::array<DriveWidget, 2>  m_driveChrome;
-    TapeDeckWidget              m_tapeChrome;
-    RECT                        m_tapeAnchor    = {};   // where the drive row placed it
-    UINT                        m_tapeAnchorDpi = 0;   // and at what DPI; 0 until it has
 
     // The command toolbar: the strip below the menu bar with Settings /
     // theme + monitor-color pickers / Printer (+status LED) / master Volume
@@ -1728,8 +1705,8 @@ protected:
     }
 
     RECT  GetDriveRectForTest     (size_t drive) const { return m_driveChrome[drive].GetOuterRect(); }
-    RECT  GetTapeAnchorForTest    () const             { return m_tapeAnchor; }
-    void  SetRecorderAttachedForTest (bool attached)   { m_tapeRecorderConnected = attached; }
+    RECT  GetTapeAnchorForTest    () const;
+    void  SetRecorderAttachedForTest (bool attached);
 
 private:
 
@@ -1886,17 +1863,10 @@ private:
     int                       m_recorderHoverKey      = -1;
     int                       m_recorderHeldKey       = -1;   // the key the left button is holding down
 
-    // Which of the desk recorder's keys are locked down. They latch as the
-    // RQ-309DS's do: Record, Rewind, Fast-forward and Play stay down once
-    // pressed, and only Stop, Eject or a reset releases them.
-    std::array<bool, 6>       m_recorderKeyLatched    = {};
+    // The tape deck's resets and transport as of the last frame, which the
+    // desk recorder's keys follow.
     uint32_t                  m_seenTapeResets        = 0;
-    TapeTransport             m_seenTransport         = TapeTransport::Empty;  // as of the last frame
-    int64_t                   m_recorderReleaseAtMs   = 0;    // when a pressed Stop or Eject bottoms out
-
-    // How long a key takes to go all the way down.
-    static constexpr int64_t  s_kRecorderKeyDownMs    = 120;
-    TapeTransport             m_shownTapeTransport    = TapeTransport::Empty;   // last drawn, to repaint on a change
+    TapeTransport             m_seenTransport         = TapeTransport::Empty;
 
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no
@@ -2159,12 +2129,6 @@ private:
     // fixed hardware (they have no banked ROM, so the gate is always open).
     bool                     m_externalDriveConnected = false;
 
-    // Whether the cassette recorder is connected, where the machine has a
-    // cassette port. Per machine, saved in $cassoUiPrefs.tapeRecorderConnected,
-    // and connected by default so new users find it. Disconnecting hides it
-    // everywhere and ejects its tape.
-    bool                     m_tapeRecorderConnected  = true;
-
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
     // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
     // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
@@ -2410,11 +2374,7 @@ private:
 
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
-    std::unique_ptr<IDiskFileIo>              m_tapeFileIo;
-    MfTapeAudioDecoder                        m_tapeAudioDecoder;
-    std::unique_ptr<TapeManager>              m_tapeManager;
-    std::unique_ptr<BackgroundWorkQueue>      m_tapeLoader;   // reads and decodes tape files
-    std::atomic<bool>                         m_fastTapeLoading { true };
+    std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

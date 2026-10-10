@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -113,8 +114,9 @@ EmulatorShell::EmulatorShell()
 
     SetPrngSeed (seed);
 
-    m_updater = std::make_unique<ShellUpdater> (*this);
-    m_audio   = std::make_unique<ShellAudio>();
+    m_updater  = std::make_unique<ShellUpdater> (*this);
+    m_audio    = std::make_unique<ShellAudio>();
+    m_tapeDeck = std::make_unique<ShellTapeDeck> (*this);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -290,6 +292,51 @@ ShellUpdater & EmulatorShell::GetUpdater()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTapeDeck
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellTapeDeck & EmulatorShell::GetTapeDeck()
+{
+    return *m_tapeDeck;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTapeAnchorForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::GetTapeAnchorForTest() const
+{
+    return m_tapeDeck->GetAnchor();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRecorderAttachedForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetRecorderAttachedForTest (bool attached)
+{
+    m_tapeDeck->SetRecorderConnected (attached);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetTapeVolume
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,8 +400,7 @@ HRESULT EmulatorShell::Initialize (
     const string        & disk2Path,
     const string        & tapePath)
 {
-    HRESULT  hr     = S_OK;
-    HRESULT  hrTape = S_OK;
+    HRESULT  hr = S_OK;
 
 
 
@@ -566,21 +612,7 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
-    // A tape given on the command line goes in instead of the remembered one,
-    // and is remembered in its place, as --disk1 is.
-    if (tapePath.empty())
-    {
-        hrTape = m_tapeManager->RestoreSavedTape();
-        IGNORE_RETURN_VALUE (hrTape, S_OK);
-    }
-    else if (MachineHasCassettePort())
-    {
-        m_tapeManager->Insert (tapePath);
-    }
-    else
-    {
-        PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
-    }
+    m_tapeDeck->InsertStartupTape (tapePath);
 
     ApplyPersistedAudioPrefs();
 
@@ -662,16 +694,7 @@ void EmulatorShell::InitAssetPathsAndStores()
     m_audio->AttachTape (&m_machine.GetTapeDeck(),
                          [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
 
-    m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
-    m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();
-    m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
-                                                   m_uiFs,
-                                                   *m_userConfigStore,
-                                                   m_tapeAudioDecoder,
-                                                   [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
-                                                   [this] () { return m_machine.GetCurrentMachineName(); },
-                                                   [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
-    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { PostNotice (text); });
+    m_tapeDeck->Initialize (*m_userConfigStore, m_uiFs);
 }
 
 
@@ -1102,7 +1125,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
             }
         }
 
-        RegisterTapeDropTarget();
+        m_tapeDeck->RegisterTapeDropTarget();
     }
 
     if (m_fOleInitialized)

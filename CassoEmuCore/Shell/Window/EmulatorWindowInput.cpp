@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -475,7 +476,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    if (m_tapeChrome.UpdateHover (x, y))
+    if (m_tapeDeck->GetWidget().UpdateHover (x, y))
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -681,7 +682,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     // Off every control, so the recorder's magnified controls ease back down
     // and the desk's scrolling name returns to its start.
-    m_tapeChrome.UpdateHover (INT_MIN / 2, INT_MIN / 2);
+    m_tapeDeck->GetWidget().UpdateHover (INT_MIN / 2, INT_MIN / 2);
     m_recorderHoverKey = -1;
 
     if (UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
@@ -1449,7 +1450,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
             if (TapeDeckWidget::GetButtonRegion ((size_t) keyHit.recorderKey) == TapeDeckRegion::Stop)
             {
-                m_recorderReleaseAtMs = nowMs + s_kRecorderKeyDownMs;
+                m_tapeDeck->SetKeyReleaseAtMs (nowMs + ShellTapeDeck::kRecorderKeyDownMs);
             }
 
             m_d3dRenderer.MarkRedrawNeeded();
@@ -1782,12 +1783,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
         if (PtInRect (&m_sceneTapeCounterRect, pt))
         {
-            HandleTapeClick (TapeDeckRegion::Counter);
+            m_tapeDeck->HandleTapeClick (TapeDeckRegion::Counter);
             driveTook = true;
         }
         else if (PtInRect (&m_sceneTapeNameRect, pt))
         {
-            HandleTapeClick (TapeDeckRegion::Name);
+            m_tapeDeck->HandleTapeClick (TapeDeckRegion::Name);
             driveTook = true;
         }
 
@@ -1797,11 +1798,11 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         {
             if (sceneHit.recorderKey >= 0)
             {
-                HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
+                m_tapeDeck->HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
             }
             else
             {
-                HandleTapeClick (TapeDeckRegion::Name);
+                m_tapeDeck->HandleTapeClick (TapeDeckRegion::Name);
             }
 
             driveTook = true;
@@ -1844,11 +1845,11 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             }
         }
 
-        tapeRegion = driveTook ? TapeDeckRegion::None : m_tapeChrome.HitTest (x, y);
+        tapeRegion = driveTook ? TapeDeckRegion::None : m_tapeDeck->GetWidget().HitTest (x, y);
 
         if (tapeRegion != TapeDeckRegion::None)
         {
-            HandleTapeClick (tapeRegion);
+            m_tapeDeck->HandleTapeClick (tapeRegion);
             driveTook = true;
         }
     }
@@ -2046,7 +2047,7 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
         if (RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
             PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
         {
-            return IsTapeRecorderShown() ? kStorageMenuRecorder : -1;
+            return m_tapeDeck->IsTapeRecorderShown() ? kStorageMenuRecorder : -1;
         }
 
         return -1;
@@ -2060,7 +2061,7 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
         }
     }
 
-    if (IsTapeRecorderShown() && m_tapeChrome.HitTest (x, y) != TapeDeckRegion::None)
+    if (m_tapeDeck->IsTapeRecorderShown() && m_tapeDeck->GetWidget().HitTest (x, y) != TapeDeckRegion::None)
     {
         return kStorageMenuRecorder;
     }

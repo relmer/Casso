@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -170,7 +171,7 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 
     // The cassette recorder sits beside the stack only on a machine with
     // cassette jacks to plug it into.
-    if (MachineHasCassettePort())
+    if (m_tapeDeck->MachineHasCassettePort())
     {
         recorderMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_CASSETTE_RECORDER_MESH);
         haveTape     = !recorderMesh.empty();
@@ -225,15 +226,14 @@ HRESULT EmulatorShell::InitializeDeskScene()
 
         if (uiPrefs != nullptr)
         {
-            hrOpt = uiPrefs->GetBool ("tapeRecorderConnected", m_tapeRecorderConnected);
-            IGNORE_RETURN_VALUE (hrOpt, S_OK);
+            m_tapeDeck->LoadRecorderConnected (*uiPrefs);
         }
     }
 
     hr = LoadDeskSceneModelsForMachine();
     CHRA (hr);
 
-    m_deskScene.SetRecorderShown (IsTapeRecorderShown());
+    m_deskScene.SetRecorderShown (m_tapeDeck->IsTapeRecorderShown());
 
     // A powered monitor's lamp is lit for as long as the machine exists;
     // drive activity arrives per frame from the drive state sync.
@@ -1252,7 +1252,7 @@ void EmulatorShell::SyncSceneDriveChrome()
         }
     }
 
-    RegisterTapeDropTarget();
+    m_tapeDeck->RegisterTapeDropTarget();
 }
 
 
@@ -1432,9 +1432,9 @@ void EmulatorShell::SyncSceneDriveLabels()
     // The recorder's labels work like the drives' labels: the same bake, the
     // same halo, quads and scroll under the pointer -- its tape name,
     // the counter under it, and the name of the key under the pointer.
-    if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && IsTapeRecorderShown())
+    if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && m_tapeDeck->IsTapeRecorderShown())
     {
-        TapeDeckView  view = GetTapeView();
+        TapeDeckView  view = m_tapeDeck->GetTapeView();
 
         fullNames[s_kSceneTapeNameCell] = TapeDeckWidget::GetDisplayName (view);
 
@@ -1684,7 +1684,7 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
     constexpr float                                       kTravelMm = 6.0f;   // how far a key goes down
     constexpr int64_t                                     kDipMs    = 160;   // held down long enough to reach the bottom
     constexpr size_t                                      kRecord   = 0, kRewind = 1, kForward = 2, kPlay = 3;
-    TapeDeckView                                          view      = GetTapeView();
+    TapeDeckView                                          view      = m_tapeDeck->GetTapeView();
     TapeTransport                                         transport = view.transport;
     std::array<float, DeskSceneModel::kRecorderKeyCount>  depths    = {};
     bool                                                  dipping   = false;
@@ -1694,11 +1694,11 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
     // A reset, a power cycle or an empty deck releases every key, and so does
     // a Stop or Eject press once the key has reached the bottom of its stroke.
     if (m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty ||
-        (m_recorderReleaseAtMs != 0 && nowMs >= m_recorderReleaseAtMs))
+        (m_tapeDeck->GetKeyReleaseAtMs() != 0 && nowMs >= m_tapeDeck->GetKeyReleaseAtMs()))
     {
         m_seenTapeResets      = m_machine.GetTapeResetCount();
-        m_recorderReleaseAtMs = 0;
-        m_recorderKeyLatched.fill (false);
+        m_tapeDeck->SetKeyReleaseAtMs (0);
+        m_tapeDeck->GetKeyLatches().fill (false);
     }
 
     // A key is released when the deck stops by itself -- auto stop, or the
@@ -1707,9 +1707,9 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
     {
         bool  wasMoving = m_seenTransport != TapeTransport::Empty && m_seenTransport != TapeTransport::Stopped;
 
-        if (wasMoving && transport == TapeTransport::Stopped && m_recorderReleaseAtMs == 0)
+        if (wasMoving && transport == TapeTransport::Stopped && m_tapeDeck->GetKeyReleaseAtMs() == 0)
         {
-            m_recorderKeyLatched.fill (false);
+            m_tapeDeck->GetKeyLatches().fill (false);
         }
 
         m_seenTransport = transport;
@@ -1717,22 +1717,22 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
     // The Rewind or Fast-forward key is released once the tape has reached
     // the end it was moving toward and stopped there.
-    if (m_recorderKeyLatched[kRewind] && transport != TapeTransport::Rewinding && view.positionSeconds <= 0.0)
+    if (m_tapeDeck->GetKeyLatches()[kRewind] && transport != TapeTransport::Rewinding && view.positionSeconds <= 0.0)
     {
-        m_recorderKeyLatched[kRewind] = false;
+        m_tapeDeck->GetKeyLatches()[kRewind] = false;
     }
 
-    if (m_recorderKeyLatched[kForward] && transport != TapeTransport::FastForwarding &&
+    if (m_tapeDeck->GetKeyLatches()[kForward] && transport != TapeTransport::FastForwarding &&
         view.positionSeconds >= view.lengthSeconds)
     {
-        m_recorderKeyLatched[kForward] = false;
+        m_tapeDeck->GetKeyLatches()[kForward] = false;
     }
 
-    dipping = m_recorderReleaseAtMs != 0 || m_recorderHeldKey >= 0;
+    dipping = m_tapeDeck->GetKeyReleaseAtMs() != 0 || m_recorderHeldKey >= 0;
 
     for (size_t key = 0; key < depths.size(); key++)
     {
-        depths[key] = (m_recorderKeyLatched[key] || (int) key == m_recorderHeldKey) ? kTravelMm : 0.0f;
+        depths[key] = (m_tapeDeck->GetKeyLatches()[key] || (int) key == m_recorderHeldKey) ? kTravelMm : 0.0f;
     }
 
     for (size_t key = 0; key < depths.size(); key++)
@@ -1750,7 +1750,7 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
     // speeds up to the bottom, as under a finger; coming up it returns fast
     // and at an even speed, as a spring sends it.
     {
-        constexpr float  kDownMs  = (float) s_kRecorderKeyDownMs;
+        constexpr float  kDownMs  = (float) ShellTapeDeck::kRecorderKeyDownMs;
         constexpr float  kUpMs    = 35.0f;     // a full stroke back up
         float            elapsed  = (m_recorderKeyStepMs == 0) ? 0.0f : clamp ((float) (nowMs - m_recorderKeyStepMs), 0.0f, 100.0f);
 
@@ -1855,8 +1855,8 @@ void EmulatorShell::SyncSceneTapeLabel()
     const DeskSceneComposition &  comp      = onStrip ? m_stripComp : m_deskScene.Composition();
     bool                          visible   = DeskSceneActive() && (!fs || onStrip) &&
                                               comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
-                                              IsTapeRecorderShown();
-    TapeDeckView                  view      = GetTapeView();
+                                              m_tapeDeck->IsTapeRecorderShown();
+    TapeDeckView                  view      = m_tapeDeck->GetTapeView();
     float                         anchor[3] = {};
     float                         screen[2] = {};
     int                           halfW     = GetSceneLabelHalfWidthPx (comp);

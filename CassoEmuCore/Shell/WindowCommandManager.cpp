@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
@@ -1406,15 +1407,15 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
 
     if (userBrowsed)
     {
-        m_shell.BrowseForTape();
+        m_shell.m_tapeDeck->BrowseForTape();
     }
     else if (userCreateNew)
     {
-        m_shell.CreateBlankTape();
+        m_shell.m_tapeDeck->CreateBlankTape();
     }
     else if (!chosenPath.empty())
     {
-        m_shell.InsertTape (chosenPath);
+        m_shell.m_tapeDeck->InsertTape (chosenPath);
     }
 
 Error:
@@ -1554,17 +1555,17 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         // The tape items open their pickers here; the deck commands are
         // queued to the CPU thread by the tape manager.
-        case IDM_TAPE_INSERT:      m_shell.PickTape();                                     break;
-        case IDM_TAPE_NEW:         m_shell.CreateBlankTape();                              break;
-        case IDM_TAPE_EJECT:       m_shell.HandleTapeClick (TapeDeckRegion::Eject);        break;
-        case IDM_TAPE_PLAY:        m_shell.HandleTapeClick (TapeDeckRegion::Play);         break;
-        case IDM_TAPE_STOP:        m_shell.HandleTapeClick (TapeDeckRegion::Stop);         break;
-        case IDM_TAPE_REWIND:      m_shell.HandleTapeClick (TapeDeckRegion::Rewind);       break;
-        case IDM_TAPE_FASTFORWARD: m_shell.HandleTapeClick (TapeDeckRegion::FastForward);  break;
+        case IDM_TAPE_INSERT:      m_shell.m_tapeDeck->PickTape();                                     break;
+        case IDM_TAPE_NEW:         m_shell.m_tapeDeck->CreateBlankTape();                              break;
+        case IDM_TAPE_EJECT:       m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Eject);        break;
+        case IDM_TAPE_PLAY:        m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Play);         break;
+        case IDM_TAPE_STOP:        m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Stop);         break;
+        case IDM_TAPE_REWIND:      m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Rewind);       break;
+        case IDM_TAPE_FASTFORWARD: m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::FastForward);  break;
 
         // Each flips its device, connected to disconnected or back.
-        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.ShouldShowExternalDrive()); break;
-        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeRecorderConnected);  break;
+        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.ShouldShowExternalDrive());         break;
+        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected()); break;
     }
 }
 

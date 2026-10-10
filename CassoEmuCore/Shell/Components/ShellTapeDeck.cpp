@@ -1,6 +1,11 @@
 #include "Pch.h"
 
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Core/JsonValue.h"
 #include "Devices/Tape/TapeImageLoader.h"
+#include "Seams/Win32DiskFileIo.h"
+#include "Shell/BackgroundWorkQueue.h"
+#include "Shell/TapeManager.h"
 #include "Ui/Dialogs/TapePositionDialog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
@@ -12,13 +17,176 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellTapeDeck
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellTapeDeck::ShellTapeDeck (EmulatorShell & shell)
+    : m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~ShellTapeDeck
+//
+//  Out of line so the tape manager, its loader and its file access are
+//  complete where their unique_ptrs destroy them. The loader goes first,
+//  joining any read still decoding a tape for the manager.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellTapeDeck::~ShellTapeDeck() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::Initialize
+//
+//  Builds the tape manager once the config store exists. Its commands are
+//  posted to the CPU thread through the shell, its file reads run on the
+//  loader, and what it has to say is posted as a notice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::Initialize (UserConfigStore & configStore, IFileSystem & fileSystem)
+{
+    m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
+    m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();
+    m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
+                                                   fileSystem,
+                                                   configStore,
+                                                   m_tapeAudioDecoder,
+                                                   [this] (WORD id, const std::string & payload) { m_shell.PostCommand (id, payload); },
+                                                   [this] () { return m_shell.m_machine.GetCurrentMachineName(); },
+                                                   [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
+    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { m_shell.PostNotice (text); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::InsertStartupTape
+//
+//  A tape given on the command line goes in instead of the remembered one,
+//  and is remembered in its place, as --disk1 is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::InsertStartupTape (const std::string & tapePath)
+{
+    HRESULT  hrTape = S_OK;
+
+
+
+    if (tapePath.empty())
+    {
+        hrTape = m_tapeManager->RestoreSavedTape();
+        IGNORE_RETURN_VALUE (hrTape, S_OK);
+    }
+    else if (MachineHasCassettePort())
+    {
+        m_tapeManager->Insert (tapePath);
+    }
+    else
+    {
+        m_shell.PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::LoadRecorderConnected
+//
+//  Reads the machine's saved recorder connection, leaving the flag as it was
+//  when the machine has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::LoadRecorderConnected (const JsonValue & uiPrefs)
+{
+    HRESULT  hrOpt = uiPrefs.GetBool ("tapeRecorderConnected", m_tapeRecorderConnected);
+
+
+
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::SetTapeAutoStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::SetTapeAutoStop (bool enabled)
+{
+    m_shell.m_machine.GetTapeDeck().SetAutoStop (enabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::SetTapeIdleStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::SetTapeIdleStop (bool enabled)
+{
+    m_shell.m_machine.GetTapeDeck().SetIdleStop (enabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::SetTapeEightBit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::SetTapeEightBit (bool enabled)
+{
+    if (m_tapeManager)
+    {
+        m_tapeManager->SetBlankEightBit (enabled);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHasCassettePort
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::MachineHasCassettePort() const
+bool ShellTapeDeck::MachineHasCassettePort() const
 {
-    const MachineDefinition  * definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
+    const MachineDefinition  * definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
 
 
 
@@ -38,10 +206,10 @@ bool EmulatorShell::MachineHasCassettePort() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TapeDeckView EmulatorShell::GetTapeView() const
+TapeDeckView ShellTapeDeck::GetTapeView() const
 {
     constexpr int64_t   kLoadingShowMs = 150;
-    TapeDeck::Snapshot  snapshot       = m_machine.GetTapeDeck().GetSnapshot();
+    TapeDeck::Snapshot  snapshot       = m_shell.m_machine.GetTapeDeck().GetSnapshot();
     TapeDeckView        view;
     std::string         loading;
     int64_t             loadingMs      = 0;
@@ -89,10 +257,10 @@ TapeDeckView EmulatorShell::GetTapeView() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncTapeChrome()
+void ShellTapeDeck::SyncTapeChrome()
 {
-    RECT           drive   = m_driveChrome[0].GetOuterRect();
-    bool           isShown = IsTapeRecorderShown() && !DeskSceneActive() && !IsRectEmpty (&drive) &&
+    RECT           drive   = m_shell.m_driveChrome[0].GetOuterRect();
+    bool           isShown = IsTapeRecorderShown() && !m_shell.DeskSceneActive() && !IsRectEmpty (&drive) &&
                              m_tapeAnchorDpi != 0;
     DxuiDpiScaler  scaler;
     TapeDeckView   view    = GetTapeView();
@@ -100,7 +268,7 @@ void EmulatorShell::SyncTapeChrome()
 
 
     m_tapeChrome.SyncFromView (view);
-    SyncSceneTapeLabel();
+    m_shell.SyncSceneTapeLabel();
 
     // A static guest screen presents no frames, and a program loading from
     // tape is exactly that: so while the tape moves, and while a long name may
@@ -111,14 +279,14 @@ void EmulatorShell::SyncTapeChrome()
     if (view.transport != m_shownTapeTransport)
     {
         m_shownTapeTransport = view.transport;
-        m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_d3dRenderer.MarkRedrawNeeded();
     }
 
     if ((view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped) ||
         (isShown && m_tapeChrome.GetHover() == TapeDeckRegion::Name) ||
         (isShown && m_tapeChrome.IsMagnifying()))
     {
-        m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_d3dRenderer.MarkRedrawNeeded();
     }
 
     if (!isShown)
@@ -148,7 +316,7 @@ void EmulatorShell::SyncTapeChrome()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RegisterTapeDropTarget()
+void ShellTapeDeck::RegisterTapeDropTarget()
 {
     HRESULT  hr   = S_OK;
     RECT     rect = {};
@@ -157,9 +325,9 @@ void EmulatorShell::RegisterTapeDropTarget()
 
     BAIL_OUT_IF (!IsTapeRecorderShown(), S_OK);
 
-    if (DeskSceneActive())
+    if (m_shell.DeskSceneActive())
     {
-        rect = m_deskScene.Composition().recorderRectPx;
+        rect = m_shell.m_deskScene.Composition().recorderRectPx;
     }
     else
     {
@@ -169,40 +337,10 @@ void EmulatorShell::RegisterTapeDropTarget()
 
     BAIL_OUT_IF (IsRectEmpty (&rect), S_OK);
 
-    m_uiShell.GetHitTester().Register (DxuiHitRect { rect, DxuiHitSlot::Custom, s_kTapeDropTag });
+    m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { rect, DxuiHitSlot::Custom, kTapeDropTag });
 
 Error:
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnFileDropped
-//
-//  A file dropped on a drive mounts there and one dropped on the recorder is
-//  inserted into it, but only the kind each takes: a tape dropped on a drive,
-//  or a disk on the recorder, is ignored rather than mounted somewhere it
-//  cannot be read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
-{
-    if (tag == s_kTapeDropTag)
-    {
-        if (TapeImageLoader::IsTapeFileExtension (path))
-        {
-            InsertTape (path);
-        }
-    }
-    else if (IsSupportedDiskImageExtension (path))
-    {
-        Mount (6, tag, path);
-    }
 }
 
 
@@ -218,7 +356,7 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
+void ShellTapeDeck::HandleTapeClick (TapeDeckRegion region)
 {
     TapeDeckView  view = GetTapeView();
 
@@ -272,7 +410,7 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
         default:                                                                                                      break;
     }
 
-    m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_d3dRenderer.MarkRedrawNeeded();
 }
 
 
@@ -288,7 +426,7 @@ void EmulatorShell::HandleTapeClick (TapeDeckRegion region)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PromptTapePosition()
+void ShellTapeDeck::PromptTapePosition()
 {
     HRESULT                   hr     = S_OK;
     TapeDeckView              view   = GetTapeView();
@@ -297,11 +435,11 @@ void EmulatorShell::PromptTapePosition()
 
 
 
-    dialog.Configure (&m_chromeTheme, view.positionSeconds, view.lengthSeconds);
+    dialog.Configure (&m_shell.m_chromeTheme, view.positionSeconds, view.lengthSeconds);
 
     params.title                    = L"Tape position";
     params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = m_hwnd;
+    params.ownerHwnd                = m_shell.m_hwnd;
     params.initialSizeDip           = { 360, 170 };
     params.minSizeDip               = { 360, 170 };
     params.resizable                = false;
@@ -312,7 +450,7 @@ void EmulatorShell::PromptTapePosition()
     hr = dialog.Create (params);
     CHRA (hr);
 
-    dialog.SetTheme (&m_chromeTheme);
+    dialog.SetTheme (&m_shell.m_chromeTheme);
     dialog.ShowModalDialog (IDOK);
 
     BAIL_OUT_IF (!dialog.GetOutcome().confirmed || m_tapeManager == nullptr, S_OK);
@@ -338,7 +476,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::ReleaseOtherRecorderKeys (TapeDeckRegion region)
+bool ShellTapeDeck::ReleaseOtherRecorderKeys (TapeDeckRegion region)
 {
     constexpr size_t  kRecord = 0, kRewind = 1, kForward = 2, kPlay = 3;
     size_t            pressed = 0;
@@ -366,7 +504,7 @@ bool EmulatorShell::ReleaseOtherRecorderKeys (TapeDeckRegion region)
 
     if (any)
     {
-        m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_d3dRenderer.MarkRedrawNeeded();
     }
 
     return any;
@@ -387,7 +525,7 @@ bool EmulatorShell::ReleaseOtherRecorderKeys (TapeDeckRegion region)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
+void ShellTapeDeck::LatchRecorderKeys (TapeDeckRegion region)
 {
     constexpr size_t  kRecord      = 0, kRewind = 1, kForward = 2, kPlay = 3;
     bool              wasRecording = m_recorderKeyLatched[kRecord];
@@ -429,14 +567,14 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
         case TapeDeckRegion::Eject:
             m_recorderReleaseAtMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                         std::chrono::steady_clock::now().time_since_epoch()).count() +
-                                    s_kRecorderKeyDownMs;
+                                    kRecorderKeyDownMs;
             break;
 
         default:
             break;
     }
 
-    m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_d3dRenderer.MarkRedrawNeeded();
 }
 
 
@@ -452,7 +590,7 @@ void EmulatorShell::LatchRecorderKeys (TapeDeckRegion region)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::EjectAndPickTape()
+void ShellTapeDeck::EjectAndPickTape()
 {
     if (GetTapeView().transport != TapeTransport::Empty)
     {
@@ -475,7 +613,7 @@ void EmulatorShell::EjectAndPickTape()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::BrowseForTape()
+void ShellTapeDeck::BrowseForTape()
 {
     HRESULT                hr        = S_OK;
     FileDialogSpec         spec;
@@ -486,11 +624,11 @@ void EmulatorShell::BrowseForTape()
 
     spec.filters = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.aifc;*.mp3;*.flac" }, { L"All files", L"*.*" } };
 
-    spec.initialFolder = m_windowCommandManager->GetDiskCreateFolder();
+    spec.initialFolder = m_shell.m_windowCommandManager->GetDiskCreateFolder();
 
-    m_host->BeginModalKeepAlive();
-    hr = m_hostDialogs.PickFileToOpen (m_hwnd, spec, picked, isPicked);
-    m_host->EndModalKeepAlive();
+    m_shell.m_host->BeginModalKeepAlive();
+    hr = m_shell.m_hostDialogs.PickFileToOpen (m_shell.m_hwnd, spec, picked, isPicked);
+    m_shell.m_host->EndModalKeepAlive();
 
     CHR (hr);
     BAIL_OUT_IF (!isPicked, S_OK);
@@ -514,7 +652,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CreateBlankTape()
+void ShellTapeDeck::CreateBlankTape()
 {
     HRESULT                hr        = S_OK;
     FileDialogSpec         spec;
@@ -527,22 +665,22 @@ void EmulatorShell::CreateBlankTape()
     spec.filters          = { { L"WAV recordings", L"*.wav" } };
     spec.defaultExtension = L"wav";
     spec.defaultFileName  = L"New tape.wav";
-    spec.initialFolder    = m_windowCommandManager->GetDiskCreateFolder();
+    spec.initialFolder    = m_shell.m_windowCommandManager->GetDiskCreateFolder();
 
-    m_host->BeginModalKeepAlive();
-    hr = m_hostDialogs.PickFileToSave (m_hwnd, spec, picked, isPicked);
-    m_host->EndModalKeepAlive();
+    m_shell.m_host->BeginModalKeepAlive();
+    hr = m_shell.m_hostDialogs.PickFileToSave (m_shell.m_hwnd, spec, picked, isPicked);
+    m_shell.m_host->EndModalKeepAlive();
 
     CHR (hr);
     BAIL_OUT_IF (!isPicked || m_tapeManager == nullptr, S_OK);
 
     // New tapes and new disks share the create folder.
     folderUtf8 = picked.parent_path().u8string();
-    m_globalPrefs.lastDiskCreateFolder.assign (folderUtf8.begin(), folderUtf8.end());
-    SaveGlobalPrefs();
+    m_shell.m_globalPrefs.lastDiskCreateFolder.assign (folderUtf8.begin(), folderUtf8.end());
+    m_shell.SaveGlobalPrefs();
 
     m_tapeManager->CreateBlank (picked.string());
-    RecordRecentDisk (picked.wstring(), S_OK);
+    m_shell.RecordRecentDisk (picked.wstring(), S_OK);
 
 Error:
     return;
@@ -560,7 +698,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PickTape()
+void ShellTapeDeck::PickTape()
 {
     HRESULT       hr       = S_OK;
     RECT          anchor   = m_tapeChrome.GetNameRect();
@@ -570,13 +708,13 @@ void EmulatorShell::PickTape()
 
     if (!IsRectEmpty (&anchor))
     {
-        MapWindowPoints (m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchor), 2);
+        MapWindowPoints (m_shell.m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchor), 2);
         pAnchor = &anchor;
     }
 
-    m_host->BeginModalKeepAlive();
-    hr = m_windowCommandManager->PromptInsertTapeMru (pAnchor);
-    m_host->EndModalKeepAlive();
+    m_shell.m_host->BeginModalKeepAlive();
+    hr = m_shell.m_windowCommandManager->PromptInsertTapeMru (pAnchor);
+    m_shell.m_host->EndModalKeepAlive();
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -594,7 +732,7 @@ void EmulatorShell::PickTape()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::InsertTape (const std::wstring & path)
+void ShellTapeDeck::InsertTape (const std::wstring & path)
 {
     if (m_tapeManager == nullptr)
     {
@@ -602,7 +740,7 @@ void EmulatorShell::InsertTape (const std::wstring & path)
     }
 
     m_tapeManager->Insert (std::filesystem::path (path).string());
-    RecordRecentDisk (path, S_OK);
+    m_shell.RecordRecentDisk (path, S_OK);
 }
 
 

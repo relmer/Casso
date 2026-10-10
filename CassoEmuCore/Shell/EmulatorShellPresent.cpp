@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -637,7 +638,7 @@ bool EmulatorShell::TryPresentUiFrame()
         m_diskManager->UpdateDriveWidgets();
     }
 
-    SyncTapeChrome();
+    m_tapeDeck->SyncTapeChrome();
 
     // The capture bar and the fullscreen top chrome's reveal, both per-frame
     // because both answer where the pointer is right now.
@@ -925,7 +926,7 @@ bool EmulatorShell::TryPresentUiFrame()
                     driveRow         = m_stripRectPx;
                     driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
 
-                    if (m_deskScene.HasRecorder() && IsTapeRecorderShown())
+                    if (m_deskScene.HasRecorder() && m_tapeDeck->IsTapeRecorderShown())
                     {
                         driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp);
                     }

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -129,14 +130,14 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
     // The recorder is added to the row, to the right of the drives, and the
     // row is centered as one unit with it. Measured at this DPI like the drives.
-    showTape = IsTapeRecorderShown();
+    showTape = m_tapeDeck->IsTapeRecorderShown();
 
     if (showTape)
     {
         RECT  tapeProbe = {};
 
-        m_tapeChrome.Layout (RECT {}, scaler);
-        tapeProbe = m_tapeChrome.GetOuterRect();
+        m_tapeDeck->GetWidget().Layout (RECT {}, scaler);
+        tapeProbe = m_tapeDeck->GetWidget().GetOuterRect();
         tapeW     = tapeProbe.right  - tapeProbe.left;
         tapeH     = tapeProbe.bottom - tapeProbe.top;
         x         = std::max (0, x - (gap + tapeW) / 2);
@@ -187,8 +188,7 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     {
         int  tapeX = DriveRowLayout::ComputeWidgetX (x, visibleCount, widgetW, gap);
 
-        m_tapeAnchor    = { tapeX, y, tapeX, y };
-        m_tapeAnchorDpi = dpi;
+        m_tapeDeck->SetAnchor ({ tapeX, y, tapeX, y }, dpi);
     }
 }
 
@@ -1139,7 +1139,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
     // loaded while the machine has the jacks, and is only shown or hidden.
     if (m_deskSceneReady &&
         (MachineHasCaseSwitches() != m_deskSceneMachineIsC ||
-         MachineHasCassettePort() != m_deskScene.IsRecorderLoaded()))
+         m_tapeDeck->MachineHasCassettePort() != m_deskScene.IsRecorderLoaded()))
     {
         HRESULT  hrModels = LoadDeskSceneModelsForMachine();
 
@@ -1153,7 +1153,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
 
     if (m_deskSceneReady)
     {
-        m_deskScene.SetRecorderShown (IsTapeRecorderShown());
+        m_deskScene.SetRecorderShown (m_tapeDeck->IsTapeRecorderShown());
         InvalidateSceneComposition();
     }
 

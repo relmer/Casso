@@ -2,11 +2,43 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/TapeManager.h"
 #include "Core/JsonParser.h"
 #include "Core/PathResolver.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "resource.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnFileDropped
+//
+//  A file dropped on a drive mounts there and one dropped on the recorder is
+//  inserted into it, but only the kind each takes: a tape dropped on a drive,
+//  or a disk on the recorder, is ignored rather than mounted somewhere it
+//  cannot be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
+{
+    if (tag == ShellTapeDeck::kTapeDropTag)
+    {
+        if (TapeImageLoader::IsTapeFileExtension (path))
+        {
+            m_tapeDeck->InsertTape (path);
+        }
+    }
+    else if (IsSupportedDiskImageExtension (path))
+    {
+        Mount (6, tag, path);
+    }
+}
 
 
 
@@ -85,17 +117,17 @@ void EmulatorShell::SetSecondDriveConnected (bool connected)
 
 void EmulatorShell::SetTapeRecorderConnected (bool connected)
 {
-    if (!MachineHasCassettePort() || connected == m_tapeRecorderConnected)
+    if (!m_tapeDeck->MachineHasCassettePort() || connected == m_tapeDeck->IsRecorderConnected())
     {
         return;
     }
 
-    if (!connected && m_tapeManager != nullptr)
+    if (!connected && m_tapeDeck->GetManager() != nullptr)
     {
-        m_tapeManager->Eject();
+        m_tapeDeck->GetManager()->Eject();
     }
 
-    m_tapeRecorderConnected = connected;
+    m_tapeDeck->SetRecorderConnected (connected);
 
     ReflowChromeForMachineChange();
     SaveStorageDevices();
@@ -161,7 +193,7 @@ void EmulatorShell::SaveStorageDevices()
         state.SetSecondDriveAttached (ShouldShowExternalDrive());
     }
 
-    state.SetTapeRecorderConnected (m_tapeRecorderConnected);
+    state.SetTapeRecorderConnected (m_tapeDeck->IsRecorderConnected());
 
     savedJson = state.BuildCurrentJson();
 
@@ -212,7 +244,7 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         // Drive 1 is always there, so its menu is where a detached drive 2 or
         // recorder is attached again: neither is on screen to be clicked.
         bool  drive2Away   = IsSecondDriveOffered() && !ShouldShowExternalDrive();
-        bool  recorderAway = MachineHasCassettePort() && !IsTapeRecorderShown();
+        bool  recorderAway = m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown();
 
         ids = { IDM_DISK_INSERT1, IDM_DISK_EJECT1, IDM_DISK_WP1, IDM_DISK_SALVAGE1 };
 
