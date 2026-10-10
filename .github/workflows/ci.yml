@@ -64,8 +64,10 @@ jobs:
       # 32-bit process's memory (C1002 "compiler is out of heap space in pass
       # 2"). Code analysis runs on the same 64-bit compiler, as Build.ps1's
       # -RunCodeAnalysis does locally, so the two agree.
+      # -m builds the projects that do not depend on each other at the same time,
+      # as Build.ps1 does; without it they built one after another.
       - name: Build
-        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
       # The ROMs are Apple's and are not in the repository. The suite reads
       # them from UnitTest/Fixtures, so they are fetched from their pinned
@@ -151,7 +153,7 @@ jobs:
 
       # 64-bit tools, as the x64 build above uses and for the same reason.
       - name: Build ARM64
-        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).

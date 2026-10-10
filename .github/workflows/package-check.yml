@@ -42,11 +42,11 @@ jobs:
       # of memory in the larger outputs' link-time code generation.
       - name: Build Release x64
         if: inputs.from_release == ''
-        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=x64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+        run: msbuild Casso.sln -m -p:Configuration=Release -p:Platform=x64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
 
       - name: Build Release ARM64
         if: inputs.from_release == ''
-        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=ARM64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+        run: msbuild Casso.sln -m -p:Configuration=Release -p:Platform=ARM64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
 
       # The reused binaries carry the release's version, not the tree's.
       - name: Work out the version
