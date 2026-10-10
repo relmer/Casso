@@ -142,7 +142,9 @@ void FluxTiming::BuildLevels (const vector<Byte> & cells, vector<vector<Byte>> &
 //  FluxTiming::BuildIntervals
 //
 //  Each transition at its recorded time, not rounded to cells; the first is
-//  measured from the index.
+//  measured from the index. A transition under half a cell after the one
+//  before rounds into the same cell, which a drive reads as one transition
+//  and Casso's drive moves on to the next cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,13 +164,14 @@ void FluxTiming::BuildIntervals (const TrackAnalysis & track, vector<FluxInterva
         {
             FluxInterval  interval;
             uint64_t      gap      = tick - prev;
+            uint64_t      rounded  = (gap * FluxTrack::kCellDenominator + FluxTrack::kCellNumerator / 2) / FluxTrack::kCellNumerator;
 
-            cells += std::max<uint64_t> (1, (gap * FluxTrack::kCellDenominator + FluxTrack::kCellNumerator / 2) / FluxTrack::kCellNumerator);
+            cells += std::max<uint64_t> (1, rounded);
 
             interval.turn         = static_cast<double> (tick) / framed.turnTicks;
             interval.ticks        = static_cast<double> (gap);
             interval.cell         = static_cast<uint32_t> (cells - 1);
-            interval.isWithinCell = gap < TrackAnalyzer::kNominalCellTicks;
+            interval.isWithinCell = rounded == 0;
 
             outIntervals.push_back (interval);
             prev = tick;
@@ -185,19 +188,21 @@ void FluxTiming::BuildIntervals (const TrackAnalysis & track, vector<FluxInterva
 //  FluxTiming::BuildHistogram
 //
 //  Intervals whose transition lands in [firstCell, endCell); the whole track
-//  when endCell is past its last cell.
+//  when endCell is past its last cell, and a range across the index when
+//  endCell is below firstCell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 FluxHistogram FluxTiming::BuildHistogram (const vector<FluxInterval> & intervals, uint32_t firstCell, uint32_t endCell)
 {
     FluxHistogram  histogram;
+    bool           isWrapped = endCell < firstCell;
 
 
 
     for (const FluxInterval & interval : intervals)
     {
-        if (interval.cell >= firstCell && interval.cell < endCell)
+        if (isWrapped ? (interval.cell >= firstCell || interval.cell < endCell) : (interval.cell >= firstCell && interval.cell < endCell))
         {
             int  bin = GetBin (interval.ticks);
 
@@ -327,4 +332,60 @@ double FluxTiming::GetMeanDeviation (const TrackAnalysis & track, uint32_t first
     }
 
     return mean;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxTiming::GetSelectionCells
+//
+//  The cells the selection covers: the selected nibbles, or the selected
+//  sector from its address prologue to the end of its last field when no
+//  nibbles are selected (FR-045). The range wraps when it crosses the index.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FluxTiming::GetSelectionCells (const TrackAnalysis & track, int firstNibble, int nibbleCount, int sectorIndex, uint32_t & outFirst, uint32_t & outEnd)
+{
+    const FramedTrack &  framed  = track.framed;
+    int                  n       = static_cast<int> (framed.nibbles.size());
+    int                  first   = -1;
+    int                  end     = -1;
+    bool                 isFound = false;
+
+
+
+    if (n > 0 && framed.cellCount > 0 && nibbleCount > 0 && firstNibble >= 0 && firstNibble < n)
+    {
+        first = firstNibble;
+        end   = firstNibble + nibbleCount;
+    }
+    else if (n > 0 && framed.cellCount > 0 && sectorIndex >= 0 && sectorIndex < static_cast<int> (track.sectors.size()))
+    {
+        const AnalyzedSector &  sector = track.sectors[sectorIndex];
+        const LocatedField &    last   = track.fields[sector.dataField >= 0 ? sector.dataField : sector.addressField];
+
+        first = track.fields[sector.addressField].firstNibble;
+        end   = last.firstNibble + last.nibbleCount;
+    }
+
+    if (first >= 0)
+    {
+        outFirst = framed.nibbles[first % n].startCell % framed.cellCount;
+        outEnd   = framed.nibbles[end % n].startCell % framed.cellCount;
+
+        //  A selection of the whole turn starts and ends on the same cell.
+        if (outEnd == outFirst)
+        {
+            outFirst = 0;
+            outEnd   = UINT32_MAX;
+        }
+
+        isFound  = true;
+    }
+
+    return isFound;
 }

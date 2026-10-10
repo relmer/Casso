@@ -501,6 +501,7 @@
     <ClCompile Include="Ui\DiskInspector\TrackStripView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
+    <ClCompile Include="Ui\DiskInspector\FluxTimingTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterGeometry.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterLegendView.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterRenderer.cpp" />
@@ -951,6 +952,7 @@
     <ClInclude Include="Ui\DiskInspector\TrackStripView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterCells.h" />
+    <ClInclude Include="Ui\DiskInspector\FluxTimingTab.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterGeometry.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterLegendView.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterRenderer.h" />

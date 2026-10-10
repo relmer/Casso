@@ -14,8 +14,8 @@
 //
 //  One transition of a flux track: when it falls as a fraction of the turn,
 //  the time since the one before it in 125 ns ticks, the cell it lands in,
-//  and whether it came within one cell of the one before, which the drive
-//  reads as a single transition. And a histogram of the intervals.
+//  and whether it came within one cell of the one before: under half a cell,
+//  so the two round into one cell, which the drive reads as one transition. And a histogram of the intervals.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,4 +76,6 @@ public:
     static void      BuildCellTurns   (const TrackAnalysis & track, vector<double> & outTurns);
     static uint32_t  GetCellAt        (const vector<double> & cellTurns, double turn);
     static double    GetMeanDeviation (const TrackAnalysis & track, uint32_t firstCell, uint32_t endCell);
+
+    static bool  GetSelectionCells (const TrackAnalysis & track, int firstNibble, int nibbleCount, int sectorIndex, uint32_t & outFirst, uint32_t & outEnd);
 };

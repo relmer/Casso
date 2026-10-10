@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/FindingsTab.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Ui/DiskInspector/NibblesTab.h"
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/PlatterCells.h"
@@ -254,6 +255,7 @@ void DiskInspectorWindow::OnCreate()
     m_byteView    = CreateChild<SectorByteView>  (m_context);
     m_nibblesTab  = CreateChild<NibblesTab>      (m_context);
     m_fieldsTab   = CreateChild<InspectorTableView> (m_context);
+    m_fluxTab     = CreateChild<FluxTimingTab>   (m_context);
     m_diskTabs    = CreateChild<DxuiTabStrip>();
     m_decodeButton = CreateChild<DxuiButton> (L"Decode settings...");
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
@@ -431,6 +433,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_byteView->Layout   ({ right.left, y, right.right, right.bottom }, scaler);
     m_nibblesTab->Layout ({ right.left, y, right.right, right.bottom }, scaler);
     m_fieldsTab->Layout  ({ right.left, y, right.right, right.bottom }, scaler);
+    m_fluxTab->Layout    ({ right.left, y, right.right, right.bottom }, scaler);
 }
 
 
@@ -956,6 +959,7 @@ void DiskInspectorWindow::ShowTrackTab (int tab)
     m_byteView->SetVisible   (tab == kTabSectorData);
     m_nibblesTab->SetVisible (tab == kTabNibbles);
     m_fieldsTab->SetVisible  (tab == kTabFields);
+    m_fluxTab->SetVisible    (tab == kTabFluxTiming);
     m_trackTabs->SetSelected (tab);
 }
 
@@ -977,7 +981,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     std::wstring                          tip;
     RECT                                  anchor = {};
     int64_t                               now    = static_cast<int64_t> (GetTickCount64());
-    const std::array<InspectorView *, 4>  views  = { m_platterView, m_stripView, m_sectorRow, m_nibblesTab };
+    const std::array<InspectorView *, 5>  views  = { m_platterView, m_stripView, m_sectorRow, m_nibblesTab, m_fluxTab };
 
 
 

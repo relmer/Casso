@@ -113,6 +113,33 @@ public:
 
 
 
+    TEST_METHOD (APairUnderHalfACellIsWithinOneCell)
+    {
+        auto                  copy = std::make_shared<TrackCopy>();
+        TrackContext          context;
+        TrackAnalysis         track;
+        vector<FluxInterval>  intervals;
+        int                   i    = 0;
+
+
+
+        copy->kind = TrackKind::Flux;
+
+        for (i = 0; i < kTransitions; i++)
+        {
+            copy->fluxBytes.push_back (static_cast<Byte> (i == 100 ? 12 : 32));
+        }
+
+        TrackAnalyzer::Analyze (*copy, context, DecodeSettings::MakeStandard(), track);
+        FluxTiming::BuildIntervals (track, intervals);
+
+        Assert::IsTrue  (intervals[100].isWithinCell, L"12 ticks rounds to no cells at all");
+        Assert::IsFalse (intervals[99].isWithinCell);
+        Assert::AreEqual (intervals[99].cell + 1, intervals[100].cell, L"Casso's drive still gives it a cell of its own");
+    }
+
+
+
     TEST_METHOD (CoarserLevelsKeepTheFurthestDeviation)
     {
         vector<Byte>          cells (64, FluxTiming::kNominal);
@@ -149,7 +176,7 @@ public:
         Assert::AreEqual (kTransitions / 2, whole.counts[FluxTiming::GetBin (kSlowTicks)]);
         Assert::AreEqual (kTransitions / 2, firstHalf.total, L"a stretch of cells counts only its own transitions");
         Assert::AreEqual (0, firstHalf.counts[FluxTiming::GetBin (kSlowTicks)]);
-        Assert::IsTrue (intervals[5].isWithinCell, L"30 ticks is less than one 31.3-tick cell");
+        Assert::IsFalse (intervals[5].isWithinCell, L"30 ticks rounds to one 31.3-tick cell");
         Assert::IsFalse (intervals[kTransitions - 5].isWithinCell);
     }
 

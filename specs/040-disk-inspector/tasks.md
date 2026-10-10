@@ -188,7 +188,7 @@ without the others in its merge.
 - [X] T073 [P] [US3] Write `UT/FluxTimingTests.cpp`: per-cell deviation against 3.91 µs (about -5% and +5% for 3.7 and 4.1 µs), histogram peaks at written intervals, selection histogram covers only the sector, pairs within one cell marked, bit-track note
 - [X] T074 [US3] Add Timing mode to `UI/PlatterView.cpp` and `UI/PlatterShader.hlsl` (deviation texture, range ±1% to ±25%, default ±5%, dimmed bit and sector-image tracks) and the legend for both modes (FR-024, FR-030)
 - [X] T075 [US3] Add the timing line and per-cell timing to `UI/TrackStripView.cpp` (FR-033, FR-035)
-- [ ] T076 [US3] Create `UI/FluxTimingTab.h` / `.cpp`: interval plot at recorded time with 1, 2 and 3 cell lines, index and sector marks, linked zoom and pan, histogram with "Whole track" and "Selection" (FR-044 to FR-046)
+- [X] T076 [US3] Create `UI/FluxTimingTab.h` / `.cpp`: interval plot at recorded time with 1, 2 and 3 cell lines, index and sector marks, linked zoom and pan, histogram with "Whole track" and "Selection" (FR-044 to FR-046)
 
 ---
 

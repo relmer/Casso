@@ -19,6 +19,7 @@ class NibblesTab;
 class FindingsTab;
 class InspectorTableView;
 class PlatterLegendView;
+class FluxTimingTab;
 
 
 
@@ -133,6 +134,7 @@ private:
     InspectorTableView *                     m_tracksTab      = nullptr;
     FindingsTab *                            m_findingsTab    = nullptr;
     InspectorTableView *                     m_fieldsTab      = nullptr;
+    FluxTimingTab *                          m_fluxTab        = nullptr;
     int                                      m_diskTab        = 0;
     bool                                     m_isTablesDirty  = true;
     int                                      m_fieldsOf       = -1;
