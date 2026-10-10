@@ -1,7 +1,9 @@
 #include "Pch.h"
 
-#include "EmuTests/GuestSession.h"
-#include "EmuTests/ReverseSessionRig.h"
+#include "GuestSession.h"
+#include "HResultAssert.h"
+#include "TestMachine.h"
+#include "Debugger/Reverse/ReverseController.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
