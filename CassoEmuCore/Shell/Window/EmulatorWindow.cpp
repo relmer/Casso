@@ -2567,7 +2567,8 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 //  EmulatorShell::OnDiskAppMessage
 //
 //  The disk messages: a change made outside Casso, its question, a damaged
-//  mount and a mount's outcome. Each builds UI, so it lands on this thread.
+//  mount, a mount's outcome and salvage's two results. Each builds UI, so it
+//  lands on this thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2620,6 +2621,34 @@ DxuiMessageResult EmulatorShell::OnDiskAppMessage (UINT msg, WPARAM wParam, LPAR
         if (carried != nullptr)
         {
             HandleMountCompletion (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // Salvage: the CPU thread assessed the disk, or wrote the copy, and the
+    // dialogs for each open here.
+    if (msg == WM_APP_SALVAGE_OFFER)
+    {
+        SalvageOffer *  carried = reinterpret_cast<SalvageOffer *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowSalvageOffer (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_SALVAGE_DONE)
+    {
+        SalvageOutcome *  carried = reinterpret_cast<SalvageOutcome *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowSalvageOutcome (*carried);
             delete carried;
         }
 

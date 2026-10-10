@@ -66,6 +66,9 @@ public:
     Disk2Controller *   FindSlot6Controller    ();
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
 
+    //  CPU thread, or the UI thread during Initialize before the CPU thread
+    //  starts (MountCommandLineDisks); any other UI-thread caller goes
+    //  through Mount.
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);
 
     //  Called after any attempted mount, whatever started it: the command

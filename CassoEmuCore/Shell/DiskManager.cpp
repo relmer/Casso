@@ -428,8 +428,8 @@ void DiskManager::MountCommandLineDisks (
 //  serialize.
 //
 //  Whatever the outcome, it leaves through the completion callback: this
-//  runs on the CPU thread for every user-initiated mount, so the HRESULT
-//  returned here reaches nobody who can act on it. A mount that failed used
+//  runs on the CPU thread for every user-initiated mount, a salvaged copy's
+//  included, so the HRESULT returned here reaches nobody who can act on it. A mount that failed used
 //  to end here in silence, with the machine sitting at a bare text screen and
 //  nothing said about why.
 //

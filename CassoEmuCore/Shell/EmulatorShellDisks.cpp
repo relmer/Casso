@@ -584,42 +584,28 @@ bool EmulatorShell::IsSalvageOffered (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::RunSalvageFlow
+//  EmulatorShell::ShowSalvageOffer
 //
-//  Assess, show the figures, write on confirmation, then offer to insert the
-//  copy. The assessment is shown BEFORE anything is written: a lossy copy is
-//  the user's decision to make with the numbers in front of them, not one to
-//  learn about afterwards.
+//  The assessment the CPU thread made, shown before anything is written: a
+//  lossy copy is the user's decision to make with the numbers in front of
+//  them, not one to learn about afterwards. On Salvage the write goes back to
+//  the CPU thread with the media id, so it writes nothing if the drive holds
+//  another disk by then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunSalvageFlow (int drive)
+void EmulatorShell::ShowSalvageOffer (const SalvageOffer & offer)
 {
-    SalvageAssessment                       assessment;
-    DenibblizeReport                        report;
+    const SalvageAssessment               & assessment  = offer.assessment;
     DialogDefinition                        def;
     std::unique_ptr<SalvageDialogContent>   content;
-    HRESULT                                 hr     = S_OK;
-    int                                     choice = 0;
-    std::wstring                            sourcePath;
-    std::wstring                            destName;
-    std::wstring                            summary;
+    HRESULT                                 hr          = S_OK;
+    int                                     choice      = 0;
+    bool                                    isConfirmed = false;
+    std::wstring                            sourcePath  = fs::path (assessment.sourcePath).wstring();
+    std::wstring                            destName    = fs::path (assessment.suggestedPath).filename().wstring();
 
 
-
-    hr =m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
-    if (FAILED (hr))
-    {
-        return;
-    }
-
-    if (!assessment.isOffered)
-    {
-        return;
-    }
-
-    sourcePath = fs::path (m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring();
-    destName   = fs::path (assessment.suggestedPath).filename().wstring();
 
     content = std::make_unique<SalvageDialogContent>();
     content->SetAssessment (sourcePath, destName, assessment);
@@ -628,53 +614,119 @@ void EmulatorShell::RunSalvageFlow (int drive)
     def.buttons.push_back (DialogButton { L"Salvage", 1, true,  false, false });
     def.buttons.push_back (DialogButton { L"Cancel",  0, false, true,  false });
 
-    choice = ShowSalvageDialog (def, std::move (content));
-    if (choice != 1)
+    choice      = ShowSalvageDialog (def, std::move (content));
+    isConfirmed = choice == 1;
+    BAIL_OUT_IF (!isConfirmed, S_OK);
+
+    PostCommand (IDM_DISK_SALVAGE_WRITE,
+                 std::format ("{} {} {}", offer.drive, assessment.mediaId, assessment.suggestedPath));
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowSalvageOutcome
+//
+//  What writing the copy did: why nothing was written, or the counts and then
+//  the offer to insert the copy. The insert is posted like any other, so the
+//  CPU thread mounts it and it is journaled and asked about behind live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowSalvageOutcome (const SalvageOutcome & outcome)
+{
+    DialogDefinition  def;
+    HRESULT           hr             = S_OK;
+    HRESULT           hrInsert       = S_OK;
+    int               choice         = 0;
+    bool              isWritten      = SUCCEEDED (outcome.hr);
+    bool              isMediaChanged = outcome.hr == HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED);
+    bool              isInsert       = false;
+    std::wstring      copyPath       = fs::path (outcome.path).wstring();
+    std::wstring      body;
+
+
+
+    if (isMediaChanged)
     {
-        return;
+        body = L"Casso did not write the salvaged copy, because the disk in drive " +
+               std::to_wstring (outcome.drive + 1) + L" changed after it was assessed. "
+               L"Salvage again to copy the disk now in the drive.";
+    }
+    else if (!isWritten)
+    {
+        body = copyPath + L"\n\n"
+               L"The original disk image was not changed.\n\n" +
+               WindowCommandManager::FormatSystemError (outcome.hr);
     }
 
-    hr = m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.mediaId, assessment.suggestedPath, report);
-
-    if (FAILED (hr))
+    if (!isWritten)
     {
-        DialogDefinition  failed;
+        def.title = L"Could not write the salvaged copy";
+        def.icon  = DialogIcon::Error;
+        def.body.push_back (DialogTextRun { body, false, std::wstring() });
+        def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
 
-        failed.title = L"Could not write the salvaged copy";
-        failed.icon  = DialogIcon::Error;
-        failed.body.push_back (DialogTextRun {
-            fs::path (assessment.suggestedPath).wstring() + L"\n\n"
-            L"The original disk image was not changed.\n\n" +
-            WindowCommandManager::FormatSystemError (hr), false, std::wstring() });
-        failed.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
-
-        ShowModalDialog (failed);
-        return;
+        ShowModalDialog (def);
     }
+
+    BAIL_OUT_IF (!isWritten, S_OK);
 
     // Result first, then the question: the counts are what happened, not part
     // of the prompt.
-    summary = L"Salvaged copy written to:\n\n" +
-              fs::path (assessment.suggestedPath).wstring() + L"\n\n" +
-              std::to_wstring (report.sectorsRecovered) + L" sectors recovered, " +
-              std::to_wstring (report.sectorsLost) + L" lost. The original disk "
-              L"image was not changed.\n\n"
-              L"Insert the salvaged copy into drive " + std::to_wstring (drive + 1) + L"?";
+    body = L"Salvaged copy written to:\n\n" + copyPath + L"\n\n" +
+           std::to_wstring (outcome.report.sectorsRecovered) + L" sectors recovered, " +
+           std::to_wstring (outcome.report.sectorsLost) + L" lost. The original disk "
+           L"image was not changed.\n\n"
+           L"Insert the salvaged copy into drive " + std::to_wstring (outcome.drive + 1) + L"?";
 
-    def = DialogDefinition();
     def.title = L"Salvage complete";
-    def.body.push_back (DialogTextRun { summary, false, std::wstring() });
+    def.body.push_back (DialogTextRun { body, false, std::wstring() });
     def.buttons.push_back (DialogButton { L"Insert",  1, true,  false, false });
     def.buttons.push_back (DialogButton { L"Not now", 0, false, true,  false });
 
-    choice = ShowModalDialog (def);
+    choice   = ShowModalDialog (def);
+    isInsert = choice == 1;
+    BAIL_OUT_IF (!isInsert, S_OK);
 
-    if (choice == 1)
-    {
-        HRESULT  hrMount = m_diskManager->MountDiskInSlot6 (drive, assessment.suggestedPath);
+    hrInsert = InsertSalvagedCopy (*m_diskManager, outcome.drive, outcome.path);
+    IGNORE_RETURN_VALUE (hrInsert, S_OK);
 
-        IGNORE_RETURN_VALUE (hrMount, S_OK);
-    }
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InsertSalvagedCopy
+//
+//  Puts the salvaged copy into the drive through the ordinary insert command,
+//  so the CPU thread mounts it, and the insert is journaled and asked about
+//  behind live like any other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::InsertSalvagedCopy (DiskManager & disks, int drive, const std::string & path)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = disks.Mount (6, drive, fs::path (path).wstring());
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -707,8 +759,9 @@ void EmulatorShell::ReportDamagedMount (int drive)
         return;
     }
 
-    // Mounts run on the CPU thread -- the picker and the menu both route
-    // through it so a flush never races the drive engine -- and this raises a
+    // Mounts run on the CPU thread -- the picker, the menu and the salvaged
+    // copy all post their insert, which is also what asks before diverging
+    // from history and records it in the input journal -- and this raises a
     // modal. Bounce to the UI thread rather than building a dialog from there.
     isOffThread = (m_hwnd != nullptr) &&
                   (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
@@ -746,9 +799,10 @@ void EmulatorShell::ReportDamagedMount (int drive)
 
     choice = ShowModalDialog (def);
 
+    // The salvage itself starts on the CPU thread, which holds the disk.
     if (choice == 1)
     {
-        RunSalvageFlow (drive);
+        PostCommand ((drive == 0) ? IDM_DISK_SALVAGE1 : IDM_DISK_SALVAGE2);
     }
 }
 

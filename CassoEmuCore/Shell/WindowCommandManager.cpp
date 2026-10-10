@@ -1510,8 +1510,9 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_SALVAGE1:
         case IDM_DISK_SALVAGE2:
         {
-            // Stays on the UI thread: the flow opens Dxui modals.
-            m_shell.RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            // The CPU thread, which holds the disk, assesses it and posts the
+            // offer back; the dialogs open on the UI thread from there.
+            m_shell.PostCommand (static_cast<WORD> (id));
             break;
         }
 

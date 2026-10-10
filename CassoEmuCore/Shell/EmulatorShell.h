@@ -1434,6 +1434,10 @@ public:
 
     void  SetKeyOwnerFn (KeyOwnerFn fn)  { m_keyOwnerFn = std::move (fn); }
 
+    //  Puts the salvaged copy into the drive. Static, so a test can call it
+    //  with a DiskManager and no shell.
+    static HRESULT  InsertSalvagedCopy (DiskManager & disks, int drive, const std::string & path);
+
 private:
 
     // Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as
@@ -1471,10 +1475,6 @@ private:
     int     ShowSalvageDialog (const DialogDefinition & def,
                                std::unique_ptr<SalvageDialogContent> content);
 
-    // The whole salvage interaction: assess, show the figures, write the copy
-    // on confirmation, then offer to insert it.
-    void    RunSalvageFlow (int drive);
-
     // Salvage's two results, carried from the CPU thread, which reads the
     // damaged disk, to the UI thread, which asks the user: the assessment to
     // offer, and then what writing the copy did.
@@ -1491,6 +1491,12 @@ private:
         DenibblizeReport  report;
         std::string       path;
     };
+
+    // The salvage interaction on the UI thread: show the assessment and post
+    // the write on confirmation, then show what the write did and post the
+    // insert of the copy if the user wants it.
+    void    ShowSalvageOffer   (const SalvageOffer   & offer);
+    void    ShowSalvageOutcome (const SalvageOutcome & outcome);
 
     // What one bay's external change wants said, carried from the thread that
     // owns disk writes to the one that owns the screen.
