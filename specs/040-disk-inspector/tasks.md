@@ -169,12 +169,12 @@ without the others in its merge.
 
 **Independent Test**: Made-up image with one of each planted anomaly; Findings, Tracks and Fields against the planted list.
 
-- [ ] T067 [P] [US2] Extend `UT/InspectorViewModelTests.cpp`: Findings ordering, sorting, filtering and category counts (FR-049); selecting a finding selects its track, sector and field; Tracks rows (FR-047) including shared records and the synchronized-flag note; decode-settings chip and reset
+- [X] T067 (table rows, filters, counts and the decode settings form are tested; selecting a row is window code) [P] [US2] Extend `UT/InspectorViewModelTests.cpp`: Findings ordering, sorting, filtering and category counts (FR-049); selecting a finding selects its track, sector and field; Tracks rows (FR-047) including shared records and the synchronized-flag note; decode-settings chip and reset
 - [X] T068 [US2] Create `UI/FindingsTab.h` / `.cpp` (FR-048, FR-049)
 - [X] T069 [US2] Create `UI/TracksTab.h` / `.cpp` (FR-047 columns without the Casso-only marks)
 - [X] T070 [US2] Create `UI/FieldsTab.h` / `.cpp` (FR-042, "Address field, checksum failed" wording per FR-023)
 - [X] T071 [US2] Create `UI/DecodeSettingsDialog.h` / `.cpp`: marks with `??`, checks, track range, "Match standard marks too", "Reset to standard"; a change re-analyzes every track it covers; settings chip (FR-019, FR-020)
-- [X] T071a (the switch is saved with the window's preferences in T080's work) [US2] "Alignment" overlay marking each track's sector 0 address field and longest sync run on the platter, with the overlay switch saved in preferences (FR-031)
+- [X] T071a (the switch is saved with the window's preferences in T101) [US2] "Alignment" overlay marking each track's sector 0 address field and longest sync run on the platter, with the overlay switch saved in preferences (FR-031)
 - [X] T072 [US2] Show "not checked" sectors with their own color and symbol in the sector row, header, Fields tab and strip labels (FR-020)
 
 ---
@@ -185,7 +185,7 @@ without the others in its merge.
 
 **Independent Test**: Made-up flux track mixing 3.7 µs and 4.1 µs cells.
 
-- [ ] T073 [P] [US3] Write `UT/FluxTimingTests.cpp`: per-cell deviation against 3.91 µs (about -5% and +5% for 3.7 and 4.1 µs), histogram peaks at written intervals, selection histogram covers only the sector, pairs within one cell marked, bit-track note
+- [X] T073 [P] [US3] Write `UT/FluxTimingTests.cpp`: per-cell deviation against 3.91 µs (about -5% and +5% for 3.7 and 4.1 µs), histogram peaks at written intervals, selection histogram covers only the sector, pairs within one cell marked, bit-track note
 - [ ] T074 [US3] Add Timing mode to `UI/PlatterView.cpp` and `UI/PlatterShader.hlsl` (deviation texture, range ±1% to ±25%, default ±5%, dimmed bit and sector-image tracks) and the legend for both modes (FR-024, FR-030)
 - [ ] T075 [US3] Add the timing line and per-cell timing to `UI/TrackStripView.cpp` (FR-033, FR-035)
 - [ ] T076 [US3] Create `UI/FluxTimingTab.h` / `.cpp`: interval plot at recorded time with 1, 2 and 3 cell lines, index and sector marks, linked zoom and pan, histogram with "Whole track" and "Selection" (FR-044 to FR-046)

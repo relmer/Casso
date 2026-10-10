@@ -375,6 +375,7 @@
     <ClCompile Include="EmuTests\DiskInspectorPaletteTests.cpp" />
     <ClCompile Include="EmuTests\TrackAnalyzerTests.cpp" />
     <ClCompile Include="EmuTests\FieldLocatorTests.cpp" />
+    <ClCompile Include="EmuTests\FluxTimingTests.cpp" />
     <ClCompile Include="EmuTests\InspectorFormatTests.cpp" />
     <ClCompile Include="EmuTests\InspectorRequestQueueTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTablesTests.cpp" />
