@@ -3,13 +3,16 @@
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
 #include "Ui/DiskInspector/FindingsTab.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/NibblesTab.h"
+#include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/PlatterCells.h"
+#include "Ui/DiskInspector/PlatterLegendView.h"
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/SectorByteView.h"
 #include "Ui/DiskInspector/SectorRowView.h"
@@ -46,6 +49,9 @@ static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr double   s_kPlatterShare   = 0.55;
 static constexpr int      s_kDecodeButtonDip = 140;
+static constexpr int      s_kModeTabDip     = 80;
+static constexpr int      s_kRangeDip       = 120;
+static constexpr double   s_kRanges[]       = { 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25 };
 
 enum TrackTab
 {
@@ -236,7 +242,7 @@ void DiskInspectorWindow::OnCreate()
 {
     m_driveTabs   = CreateChild<DxuiTabStrip>();
     m_platterView = CreateChild<PlatterView> (m_context);
-    m_zoomOut     = CreateChild<DxuiButton> (L"\x2212");
+    m_zoomOut     = CreateChild<DxuiButton> (s_kpszMinus);
     m_zoomIn      = CreateChild<DxuiButton> (L"+");
     m_fit         = CreateChild<DxuiButton> (L"Fit");
     m_zoomLabel   = CreateChild<DxuiLabel> (L"",         DxuiTextRole::Body,    DxuiTextHAlign::Left);
@@ -251,6 +257,11 @@ void DiskInspectorWindow::OnCreate()
     m_diskTabs    = CreateChild<DxuiTabStrip>();
     m_decodeButton = CreateChild<DxuiButton> (L"Decode settings...");
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
+    m_modeTabs     = CreateChild<DxuiTabStrip>();
+    m_rangeDown    = CreateChild<DxuiButton> (s_kpszMinus);
+    m_rangeUp      = CreateChild<DxuiButton> (L"+");
+    m_rangeLabel   = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Center);
+    m_legend       = CreateChild<PlatterLegendView> (m_context);
     m_tracksTab   = CreateChild<InspectorTableView> (m_context);
     m_findingsTab = CreateChild<FindingsTab>     (m_context);
 
@@ -267,6 +278,9 @@ void DiskInspectorWindow::OnCreate()
     m_fit->SetOnClick        ([this] () { m_model.Fit(); });
     m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
+    m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
+    m_rangeDown->SetOnClick  ([this] () { StepRange (-1); });
+    m_rangeUp->SetOnClick    ([this] () { StepRange (1); });
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -346,7 +360,21 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_driveTabs->Layout  ({ x, boundsDip.top, x + drives * tab, top }, scaler);
 
     m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), static_cast<int> (boundsDip.right)), top };
-    m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip) - margin, top };
+    x = boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip) - margin - scaler.ToPx (s_kRangeDip) - scaler.ToPx (2 * s_kModeTabDip);
+    m_chipsPx = { m_fileNamePx.right + margin, boundsDip.top, x - margin, top };
+
+    tabs.clear();
+    tabs.push_back ({ { x, boundsDip.top + margin / 2, x + scaler.ToPx (s_kModeTabDip), top - margin / 2 }, L"Structure" });
+    tabs.push_back ({ { x + scaler.ToPx (s_kModeTabDip), boundsDip.top + margin / 2, x + scaler.ToPx (2 * s_kModeTabDip), top - margin / 2 }, L"Timing" });
+    m_modeTabs->SetTabs     (std::move (tabs));
+    m_modeTabs->SetSelected (m_context.isTimingMode ? 1 : 0);
+    m_modeTabs->Layout      ({ x, boundsDip.top, x + scaler.ToPx (2 * s_kModeTabDip), top }, scaler);
+
+    x += scaler.ToPx (2 * s_kModeTabDip);
+    m_rangeDown->Layout  ({ x,                                     boundsDip.top + margin, x + button,                            top - margin }, scaler);
+    m_rangeLabel->Layout ({ x + button,                            boundsDip.top + margin, x + scaler.ToPx (s_kRangeDip) - button, top - margin }, scaler);
+    m_rangeUp->Layout    ({ x + scaler.ToPx (s_kRangeDip) - button, boundsDip.top + margin, x + scaler.ToPx (s_kRangeDip),          top - margin }, scaler);
+    x = boundsDip.left + margin;
     m_decodeButton->Layout ({ boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip), boundsDip.top + margin / 2, boundsDip.right - margin, top - margin / 2 }, scaler);
 
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
@@ -361,6 +389,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
 
     y += 2 * row;
+    m_legend->Layout ({ x, y, splitX - margin, y + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows) }, scaler);
+    y += scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows);
     tabs.clear();
 
     for (LPCWSTR label : { L"Tracks", L"Findings", L"File map", L"Image" })
@@ -711,6 +741,7 @@ void DiskInspectorWindow::TakeReplies()
         m_context.hasDisk = (reply.disk != nullptr);
         m_changedSlots.clear();
         m_levels.fill (nullptr);
+        m_timingLevels.fill (nullptr);
 
         if (m_context.hasDisk)
         {
@@ -768,7 +799,8 @@ void DiskInspectorWindow::TakeResults()
         {
             DiskAnalyzer::Accept (result.copy, result.slot, std::move (result.analysis), m_analysis);
             m_changedSlots.insert (result.slot);
-            m_levels[result.slot] = nullptr;
+            m_levels[result.slot]       = nullptr;
+            m_timingLevels[result.slot] = nullptr;
         }
     }
 
@@ -827,9 +859,18 @@ void DiskInspectorWindow::UpdateRings()
                 PlatterCells::BuildCells  (*m_analysis.tracks[slot], cells);
                 PlatterCells::BuildLevels (cells, *levels);
                 m_levels[slot] = levels;
+
+                if (m_analysis.tracks[slot]->framed.isFlux)
+                {
+                    auto  timing = std::make_shared<PlatterRenderer::Levels>();
+
+                    FluxTiming::BuildDeviations (*m_analysis.tracks[slot], cells);
+                    FluxTiming::BuildLevels     (cells, *timing);
+                    m_timingLevels[slot] = timing;
+                }
             }
 
-            renderer.SetRing (qt, PlatterRingState::Data, m_levels[slot]);
+            renderer.SetRing (qt, PlatterRingState::Data, m_levels[slot], m_timingLevels[slot]);
         }
     }
 
@@ -862,6 +903,11 @@ void DiskInspectorWindow::UpdateControls()
         m_zoomLabel->SetVisible (m_context.hasDisk);
         m_hintLabel->SetVisible (m_context.hasDisk);
         m_alignmentCheck->SetVisible (m_context.hasDisk);
+        m_modeTabs->SetVisible   (m_context.hasDisk);
+        m_rangeDown->SetVisible  (m_context.hasDisk && m_context.isTimingMode);
+        m_rangeUp->SetVisible    (m_context.hasDisk && m_context.isTimingMode);
+        m_rangeLabel->SetVisible (m_context.hasDisk && m_context.isTimingMode);
+        m_rangeLabel->SetText    (std::wstring (s_kpszPlusMinus) + InspectorFormat::FormatPercent (m_context.timingRange).substr (1));
     }
 }
 
@@ -1222,4 +1268,22 @@ void DiskInspectorWindow::ApplySettings (const DecodeSettings & settings)
         m_scheduler.Restart (m_analysis.copy, settings);
         m_isTablesDirty = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StepRange
+//
+//  The timing range steps through ±1% to ±25% (FR-024).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StepRange (int delta)
+{
+    m_rangeStep           = std::clamp (m_rangeStep + delta, 0, static_cast<int> (std::size (s_kRanges)) - 1);
+    m_context.timingRange = s_kRanges[m_rangeStep];
 }

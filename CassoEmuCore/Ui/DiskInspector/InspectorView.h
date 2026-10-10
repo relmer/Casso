@@ -21,10 +21,12 @@
 
 struct InspectorViewContext
 {
-    const DiskAnalysis *      analysis = nullptr;
-    InspectorViewModel *      model    = nullptr;
-    DiskInspectorPalette      palette  = DiskInspectorPalette::MakeFallback (true);
-    bool                      hasDisk  = false;
+    const DiskAnalysis    * analysis     = nullptr;
+    InspectorViewModel    * model        = nullptr;
+    DiskInspectorPalette    palette      = DiskInspectorPalette::MakeFallback (true);
+    bool                    hasDisk      = false;
+    bool                    isTimingMode = false;
+    double                  timingRange  = 0.05;
     std::function<void ()>    onSelectionChanged;
 
     const TrackAnalysis *  GetTrack () const { return (model != nullptr && hasDisk) ? model->GetTrack() : nullptr; }

@@ -18,6 +18,7 @@ class SectorByteView;
 class NibblesTab;
 class FindingsTab;
 class InspectorTableView;
+class PlatterLegendView;
 
 
 
@@ -77,6 +78,7 @@ private:
     void  SelectFromRow    (const TableRow & row);
     void  OpenDecodeSettings ();
     void  ApplySettings    (const DecodeSettings & settings);
+    void  StepRange        (int delta);
     void  UpdateTooltip    (POINT pointPx);
     void  PaintToolbar     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  StepSector       (int delta, bool isToEnd);
@@ -94,6 +96,7 @@ private:
     AnalysisScheduler                                                                            m_scheduler;
     DxuiTooltip                                                                                  m_tooltip;
     std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_levels;
+    std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_timingLevels;
     std::set<int>                                                                                m_changedSlots;
     bool                                                                                         m_isSplitting    = false;
     double                                                                                       m_splitFraction  = 0.5;
@@ -121,6 +124,12 @@ private:
     DxuiTabStrip *                           m_diskTabs       = nullptr;
     DxuiButton *                             m_decodeButton   = nullptr;
     DxuiCheckbox *                           m_alignmentCheck = nullptr;
+    DxuiTabStrip *                           m_modeTabs       = nullptr;
+    DxuiButton *                             m_rangeDown      = nullptr;
+    DxuiButton *                             m_rangeUp        = nullptr;
+    DxuiLabel *                              m_rangeLabel     = nullptr;
+    PlatterLegendView *                      m_legend         = nullptr;
+    int                                      m_rangeStep      = 3;
     InspectorTableView *                     m_tracksTab      = nullptr;
     FindingsTab *                            m_findingsTab    = nullptr;
     InspectorTableView *                     m_fieldsTab      = nullptr;

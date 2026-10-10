@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/PlatterRenderer.h"
+#include "Ui/DiskInspector/FluxTiming.h"
 #include "platter.vs.h"
 #include "platter.ps.h"
 
@@ -80,12 +81,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels)
+void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing)
 {
     if (ring >= 0 && ring < kRingCount)
     {
         m_ringData[ring].state  = state;
         m_ringData[ring].levels = std::move (levels);
+        m_ringData[ring].timing = std::move (timing);
         m_isDirty               = true;
     }
 }
@@ -103,6 +105,25 @@ void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr
 void PlatterRenderer::SetPalette (const DiskInspectorPalette & palette)
 {
     m_palette = palette;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterRenderer::SetTiming
+//
+//  Timing mode colors flux cells by their deviation, with the range the
+//  colors reach at their extremes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterRenderer::SetTiming (bool isTimingMode, double range)
+{
+    m_isTimingMode = isTimingMode;
+    m_timingRange  = range;
 }
 
 
@@ -131,8 +152,8 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
     D3D11_MAPPED_SUBRESOURCE    mapped      = {};
     Constants                   c           = {};
     D3D11_VIEWPORT              viewport    = {};
-    ID3D11ShaderResourceView  * views[2]    = {};
-    ID3D11ShaderResourceView  * nulls[2]    = {};
+    ID3D11ShaderResourceView  * views[3]    = {};
+    ID3D11ShaderResourceView  * nulls[3]    = {};
     const DiskInspectorColors & colors      = m_palette.colors;
     size_t                      i           = 0;
 
@@ -167,6 +188,12 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
     ToFloat4 (colors.damaged,           c.damagedColor);
     ToFloat4 (colors.damageHatch,       c.hatchColor);
     ToFloat4 (colors.beyondReach,       c.beyondColor);
+    ToFloat4 (colors.timingFast,        c.fastColor);
+    ToFloat4 (colors.timingNominal,     c.nominalColor);
+    ToFloat4 (colors.timingSlow,        c.slowColor);
+
+    c.timingMode  = m_isTimingMode ? 1.0f : 0.0f;
+    c.timingRange = static_cast<float> (m_timingRange);
 
     hr = context->Map (m_constants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHRA (hr);
@@ -182,6 +209,7 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
 
     views[0] = m_kindsView.Get();
     views[1] = m_ringsView.Get();
+    views[2] = m_timingView.Get();
 
     context->OMSetRenderTargets      (1, &args.target, nullptr);
     context->OMSetBlendState         (nullptr, nullptr, 0xFFFFFFFF);
@@ -194,11 +222,11 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
     context->VSSetShader             (m_vs.Get(), nullptr, 0);
     context->PSSetShader             (m_ps.Get(), nullptr, 0);
     context->PSSetConstantBuffers    (0, 1, m_constants.GetAddressOf());
-    context->PSSetShaderResources    (0, 2, views);
+    context->PSSetShaderResources    (0, 3, views);
 
     context->Draw (3, 0);
 
-    context->PSSetShaderResources (0, 2, nulls);
+    context->PSSetShaderResources (0, 3, nulls);
 
 Error:
     return hr;
@@ -214,7 +242,8 @@ Error:
 //
 //  Lays every distinct record's levels end to end, records where each ring's
 //  levels start, and uploads both. Rings that play the same record point at
-//  the same texels.
+//  the same texels. Timing levels sit at the same offsets in their own
+//  texture, nominal where a record has none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,6 +252,7 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
     HRESULT                                hr      = S_OK;
     vector<uint32_t>                       table (kRingCount * kRingStride, 0);
     vector<Byte>                           texels;
+    vector<Byte>                           timing;
     std::map<const Levels *, size_t>       placed;
     int                                    ring    = 0;
     size_t                                 level   = 0;
@@ -236,7 +266,7 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
         const Ring &  r    = m_ringData[ring];
         uint32_t *    row  = table.data() + ring * kRingStride;
 
-        row[1] = static_cast<uint32_t> (r.state);
+        row[1] = static_cast<uint32_t> (r.state) | ((r.timing != nullptr) ? kTimingFlag : 0);
 
         if (r.state != PlatterRingState::Data || r.levels == nullptr || r.levels->empty())
         {
@@ -249,9 +279,20 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
         {
             placed[r.levels.get()] = texels.size();
 
-            for (const vector<Byte> & l : *r.levels)
+            for (level = 0; level < r.levels->size(); level++)
             {
+                const vector<Byte> &  l = (*r.levels)[level];
+
                 texels.insert (texels.end(), l.begin(), l.end());
+
+                if (r.timing != nullptr && level < r.timing->size() && (*r.timing)[level].size() == l.size())
+                {
+                    timing.insert (timing.end(), (*r.timing)[level].begin(), (*r.timing)[level].end());
+                }
+                else
+                {
+                    timing.insert (timing.end(), l.size(), FluxTiming::kNominal);
+                }
             }
         }
 
@@ -271,11 +312,13 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
 
     rows = std::max<UINT> (1, static_cast<UINT> ((texels.size() + kTextureWidth - 1) / kTextureWidth));
     texels.resize (static_cast<size_t> (rows) * kTextureWidth, 0);
+    timing.resize (static_cast<size_t> (rows) * kTextureWidth, FluxTiming::kNominal);
 
     hr = EnsureKinds (rows);
     CHRA (hr);
 
-    pContext->UpdateSubresource (m_kinds.Get(), 0, nullptr, texels.data(), kTextureWidth, 0);
+    pContext->UpdateSubresource (m_kinds.Get(),  0, nullptr, texels.data(), kTextureWidth, 0);
+    pContext->UpdateSubresource (m_timing.Get(), 0, nullptr, timing.data(), kTextureWidth, 0);
     pContext->UpdateSubresource (m_rings.Get(), 0, nullptr, table.data(), 0, 0);
 
     m_isDirty = false;
@@ -305,6 +348,8 @@ HRESULT PlatterRenderer::EnsureKinds (UINT rows)
 
     m_kinds.Reset();
     m_kindsView.Reset();
+    m_timing.Reset();
+    m_timingView.Reset();
 
     desc.Width            = kTextureWidth;
     desc.Height           = rows;
@@ -319,6 +364,12 @@ HRESULT PlatterRenderer::EnsureKinds (UINT rows)
     CHRA (hr);
 
     hr = m_device->CreateShaderResourceView (m_kinds.Get(), nullptr, &m_kindsView);
+    CHRA (hr);
+
+    hr = m_device->CreateTexture2D (&desc, nullptr, &m_timing);
+    CHRA (hr);
+
+    hr = m_device->CreateShaderResourceView (m_timing.Get(), nullptr, &m_timingView);
     CHRA (hr);
 
     m_kindRows = rows;

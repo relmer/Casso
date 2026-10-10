@@ -502,6 +502,7 @@
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterGeometry.cpp" />
+    <ClCompile Include="Ui\DiskInspector\PlatterLegendView.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterRenderer.cpp" />
     <ClCompile Include="Ui\Printer3DScene.cpp" />
     <ClCompile Include="Ui\Scene\DeskScene.cpp" />
@@ -951,6 +952,7 @@
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterCells.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterGeometry.h" />
+    <ClInclude Include="Ui\DiskInspector\PlatterLegendView.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterRenderer.h" />
     <ClInclude Include="Ui\Printer3DScene.h" />
     <ClInclude Include="Ui\Scene\DeskScene.h" />

@@ -11,7 +11,8 @@
 
 
 
-static constexpr LPCWSTR  s_kpszSeparator = L" \x00B7 ";     // U+00B7 MIDDLE DOT, between items on a line
+//  Between items on a line.
+static const std::wstring  s_kSeparator = std::wstring (L" ") + s_kpszMiddleDot + L" ";
 
 
 
@@ -233,15 +234,15 @@ std::wstring InspectorText::FormatTrackLine (const TrackAnalysis * track)
 
     if (track != nullptr && track->framed.cellCount > 0)
     {
-        text = InspectorFormat::FormatCount (track->framed.cellCount) + L" cells" + s_kpszSeparator
-             + InspectorFormat::FormatCount (track->framed.nibbles.size()) + L" nibbles" + s_kpszSeparator
+        text = InspectorFormat::FormatCount (track->framed.cellCount) + L" cells" + s_kSeparator
+             + InspectorFormat::FormatCount (track->framed.nibbles.size()) + L" nibbles" + s_kSeparator
              + (track->sectorsFound > 0
                 ? std::format (L"{}, {} good", FormatCount (track->sectorsFound, L"sector", L"sectors"), track->sectorsGood)
                 : std::wstring (L"no standard sectors"));
 
         if (track->framed.isFlux)
         {
-            text += s_kpszSeparator + std::wstring (L"flux");
+            text += s_kSeparator + std::wstring (L"flux");
         }
     }
 
@@ -287,7 +288,7 @@ std::wstring InspectorText::FormatMeasureLine (const TrackAnalysis & track)
 
     for (const std::wstring & item : items)
     {
-        text += (text.empty() ? L"" : s_kpszSeparator) + item;
+        text += (text.empty() ? L"" : s_kSeparator) + item;
     }
 
     if (!text.empty() && text[0] >= L'a' && text[0] <= L'z')
@@ -534,7 +535,7 @@ std::wstring InspectorText::FormatPlatterTooltip (const DiskAnalysis & analysis,
 
         if (sector >= 0)
         {
-            text += s_kpszSeparator + std::wstring (L"Sector ") + InspectorFormat::FormatSector (track->sectors[sector].sector);
+            text += s_kSeparator + std::wstring (L"Sector ") + InspectorFormat::FormatSector (track->sectors[sector].sector);
         }
 
         if (track->sectorsFound > 0)
@@ -551,7 +552,7 @@ std::wstring InspectorText::FormatPlatterTooltip (const DiskAnalysis & analysis,
         if (isShowingNibbles && nibble >= 0 && !isRandom)
         {
             text += std::format (L"\nNibble {:02X} at offset {}{}cell {} of {}", track->framed.nibbles[nibble].value, InspectorFormat::FormatHexOffset (nibble),
-                                 s_kpszSeparator, InspectorFormat::FormatCount (cell + 1), InspectorFormat::FormatCount (track->framed.cellCount));
+                                 s_kSeparator, InspectorFormat::FormatCount (cell + 1), InspectorFormat::FormatCount (track->framed.cellCount));
         }
     }
 
@@ -592,7 +593,7 @@ std::wstring InspectorText::FormatNibbleTooltip (const TrackAnalysis & track, in
 
     if (sector >= 0)
     {
-        text += s_kpszSeparator + std::wstring (L"Sector ") + InspectorFormat::FormatSector (track.sectors[sector].sector);
+        text += s_kSeparator + std::wstring (L"Sector ") + InspectorFormat::FormatSector (track.sectors[sector].sector);
     }
 
     if (framed.isFlux && framed.cellTicks.size() >= framed.cellCount && width > 0)

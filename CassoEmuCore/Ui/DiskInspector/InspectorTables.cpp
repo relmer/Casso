@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorTables.h"
+#include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
@@ -10,7 +11,8 @@
 
 
 
-static constexpr LPCWSTR  s_kpszNone = L"\x2014";    // U+2014 EM DASH, for a value that does not apply
+//  An em dash stands for a value that does not apply.
+static constexpr LPCWSTR  s_kpszNone = s_kpszEmDash;
 
 enum FindingColumn
 {
@@ -249,7 +251,7 @@ vector<TableRow> InspectorTables::BuildFields (const DiskAnalysis & analysis, in
             data == nullptr ? std::wstring (s_kpszNone) : (checks.isDataChecksumOn ? FormatChecksum (data->data.storedChecksum, data->data.computedChecksum, data->data.isChecksumGood) : FormatUnchecked (data->data.storedChecksum, data->data.computedChecksum)),
             field.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3",
             (f < track->fieldGaps.size() && track->fieldGaps[f].syncBefore.count > 0)
-                ? std::format (L"{} {} {}", track->fieldGaps[f].syncBefore.count, L"\x00D7", track->fieldGaps[f].syncBefore.widthCells)
+                ? std::format (L"{} {} {}", track->fieldGaps[f].syncBefore.count, s_kpszMultiplyX, track->fieldGaps[f].syncBefore.widthCells)
                 : std::wstring (s_kpszNone),
             count > 0 ? std::to_wstring (count) : std::wstring(),
         };

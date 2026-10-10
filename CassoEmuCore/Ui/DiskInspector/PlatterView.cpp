@@ -384,6 +384,7 @@ void PlatterView::Draw (const DxuiCustomDrawArgs & args)
     }
 
     m_renderer.SetPalette (m_context.palette);
+    m_renderer.SetTiming  (m_context.isTimingMode, m_context.timingRange);
 
     hr = m_renderer.Render (args, MakeView());
     CHR (hr);

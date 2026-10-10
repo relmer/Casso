@@ -9,8 +9,11 @@
 //  as the pixel's arc, so a pixel samples one texel holding the most
 //  important kind under it.
 //
-//  Must match PlatterRenderer: kTextureWidth, kRingStride and the state
-//  values.
+//  Timing holds each cell's deviation from the nominal cell, 128 at nominal
+//  and 1 and 255 at full scale, at the same texels as its kind.
+//
+//  Must match PlatterRenderer: kTextureWidth, kRingStride, kTimingFlag and
+//  the state values.
 
 static const uint  kTextureWidth = 4096;
 static const uint  kMaxLevels    = 17;
@@ -23,6 +26,9 @@ static const uint  kStateDamaged = 3;
 
 static const float kTwoPi        = 6.28318530718;
 static const float kPatternPx    = 6.0;
+static const uint  kTimingFlag   = 0x100;
+static const float kFullScale    = 0.25;
+static const float kDimShare     = 0.6;
 
 cbuffer Platter : register (b0)
 {
@@ -40,10 +46,17 @@ cbuffer Platter : register (b0)
     float4  damagedColor;
     float4  hatchColor;
     float4  beyondColor;
+    float4  fastColor;
+    float4  nominalColor;
+    float4  slowColor;
+    float   timingMode;
+    float   timingRange;
+    float2  padding;
 };
 
-Texture2D<uint>  Kinds : register (t0);
-Buffer<uint>     Rings : register (t1);
+Texture2D<uint>  Kinds  : register (t0);
+Buffer<uint>     Rings  : register (t1);
+Texture2D<uint>  Timing : register (t2);
 
 
 
@@ -51,7 +64,8 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position)
 {
     uint    base   = ring * kRingStride;
     uint    count  = Rings[base];
-    uint    state  = Rings[base + 1];
+    uint    flags  = Rings[base + 1];
+    uint    state  = flags & 0xFF;
     float4  color  = nothingColor;
     float   stripe = frac ((position.x + position.y) / (2.0 * kPatternPx));
 
@@ -72,9 +86,24 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position)
         uint   levelCount    = (count + (1u << level) - 1) >> level;
         uint   index         = min (((uint) (turn * count)) >> level, levelCount - 1);
         uint   texel         = Rings[base + 2 + level] + index;
-        uint   value         = Kinds.Load (int3 (texel % kTextureWidth, texel / kTextureWidth, 0));
+        int3   at            = int3 (texel % kTextureWidth, texel / kTextureWidth, 0);
+        uint   value         = Kinds.Load (at);
 
         color = kindColors[value & 15];
+
+        //  Timing mode colors a flux cell by its deviation, fast to slow
+        //  through nominal, and dims a track that records no timing.
+        if (timingMode > 0.5 && (flags & kTimingFlag) != 0)
+        {
+            float  deviation = ((float) Timing.Load (at) - 128.0) / 127.0 * kFullScale;
+            float  t         = clamp (deviation / timingRange, -1.0, 1.0);
+
+            color = (t < 0.0) ? lerp (nominalColor, fastColor, -t) : lerp (nominalColor, slowColor, t);
+        }
+        else if (timingMode > 0.5)
+        {
+            color = lerp (color, nothingColor, kDimShare);
+        }
     }
 
     return color;
