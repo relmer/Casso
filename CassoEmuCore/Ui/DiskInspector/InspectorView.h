@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/DiskComparison.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
 
@@ -15,7 +16,8 @@
 //
 //  What every view of the inspector window reads: the disk's analysis, the
 //  view model it changes, the resolved palette, and the call to make after
-//  it changes the selection so the other views follow.
+//  it changes the selection so the other views follow, and while comparing
+//  the comparison and B's analysis.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +32,9 @@ struct InspectorViewContext
     const FileMap         * fileMap        = nullptr;
     int                     selectedFile   = -1;
     bool                    isFilesOverlay = false;
+    bool                    isDiffsOverlay = false;
+    const DiskComparison  * comparison     = nullptr;
+    const DiskAnalysis    * analysisB      = nullptr;
     std::function<void ()>    onSelectionChanged;
 
     const TrackAnalysis *  GetTrack () const { return (model != nullptr && hasDisk) ? model->GetTrack() : nullptr; }

@@ -85,6 +85,8 @@ struct TrackComparison
     int           slotA           = -1;
     int           slotB           = -1;
     int           rotationCells   = 0;
+    int           rotationNibbles = 0;
+    uint32_t      cellCount       = 0;
     int           lengthChange    = 0;
     int           sectorsDiffer   = 0;
     bool          isTimingDiffer  = false;

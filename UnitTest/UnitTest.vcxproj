@@ -375,6 +375,7 @@
     <ClCompile Include="EmuTests\DiskInspectorPaletteTests.cpp" />
     <ClCompile Include="EmuTests\TrackAnalyzerTests.cpp" />
     <ClCompile Include="EmuTests\FieldLocatorTests.cpp" />
+    <ClCompile Include="EmuTests\ComparisonSessionTests.cpp" />
     <ClCompile Include="EmuTests\ComparisonTestImages.cpp" />
     <ClCompile Include="EmuTests\DiskComparisonTests.cpp" />
     <ClCompile Include="EmuTests\FileMapTestImages.cpp" />

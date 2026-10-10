@@ -42,6 +42,9 @@ public:
     static WozSyntheticTrack  MakeTrack (int track, const TrackSpec & spec);
     static void               Analyze   (const vector<WozSyntheticTrack> & tracks, DiskAnalysis & out);
 
-    //  A whole disk of standard tracks, with the given track changed.
-    static void  AnalyzeDisk (int changedTrack, const TrackSpec & changed, DiskAnalysis & out, bool isFlux = false);
+    //  A whole disk of standard tracks, with the given track changed: its
+    //  tracks, its WOZ file, or its analysis.
+    static vector<WozSyntheticTrack>  BuildTracks (int changedTrack, const TrackSpec & changed, bool isFlux = false);
+    static vector<Byte>               BuildWoz    (int changedTrack, const TrackSpec & changed, bool isFlux = false);
+    static void                       AnalyzeDisk (int changedTrack, const TrackSpec & changed, DiskAnalysis & out, bool isFlux = false);
 };

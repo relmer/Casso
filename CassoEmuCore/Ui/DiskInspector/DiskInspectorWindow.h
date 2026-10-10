@@ -6,6 +6,7 @@
 #include "Seams/Win32Clipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
+#include "Ui/DiskInspector/ComparisonSession.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 #include "Ui/DiskInspector/InspectorTables.h"
 #include "Ui/DiskInspector/InspectorView.h"
@@ -23,6 +24,7 @@ class InspectorTableView;
 class PlatterLegendView;
 class FluxTimingTab;
 class FileMapGridView;
+class DifferencesTab;
 
 
 
@@ -42,6 +44,7 @@ enum class KeyTarget
     Findings,
     Image,
     FileList,
+    Differences,
 };
 
 
@@ -90,6 +93,16 @@ protected:
 
 private:
     void  RequestCopy      ();
+    void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason);
+    void  TakeComparison   ();
+    void  OpenCompare      ();
+    void  StopComparing    ();
+    void  SwapSides        ();
+    void  OpenBSettings    ();
+    void  StepDifference   (int step);
+    void  SelectDifference (const Difference & difference);
+    void  PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    bool  IsWindowDiskA    () const;
     void  TakeReplies      ();
     void  TakeResults      ();
     void  UpdateRings      ();
@@ -136,27 +149,33 @@ private:
     std::wstring  GetFileName () const;
     static bool   IsInside    (const RECT & rect, POINT pointPx);
 
-    const CassoTheme                                                                           * m_theme          = nullptr;
-    IDiskInspectorHost                                                                         * m_host           = nullptr;
+    const CassoTheme                                                                           * m_theme             = nullptr;
+    IDiskInspectorHost                                                                         * m_host              = nullptr;
     NullDiskInspectorHost                                                                        m_nullHost;
-    int                                                                                          m_drive          = 0;
-    uint64_t                                                                                     m_pendingRequest = 0;
+    int                                                                                          m_drive             = 0;
+    uint64_t                                                                                     m_pendingRequest    = 0;
     DiskAnalysis                                                                                 m_analysis;
     InspectorViewModel                                                                           m_model;
     InspectorViewContext                                                                         m_context;
-    AnalysisScheduler                                                                            m_scheduler;
+    std::unique_ptr<AnalysisScheduler>                                                           m_scheduler;
+    ComparisonSession                                                                            m_comparison;
+    ComparisonSource                                                                             m_sourceA;
+    uint64_t                                                                                     m_comparisonVersion = 0;
+    bool                                                                                         m_isTracksCompared  = false;
+    int                                                                                          m_diffIndex         = -1;
+    RECT                                                                                         m_barPx             = {};
     DxuiTooltip                                                                                  m_tooltip;
     std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_levels;
     std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_timingLevels;
     std::set<int>                                                                                m_changedSlots;
-    bool                                                                                         m_isSplitting    = false;
-    double                                                                                       m_splitFraction  = 0.5;
-    int                                                                                          m_trackTab       = 0;
+    bool                                                                                         m_isSplitting       = false;
+    double                                                                                       m_splitFraction     = 0.5;
+    int                                                                                          m_trackTab          = 0;
     DxuiDpiScaler                                                                                m_scaler;
-    RECT                                                                                         m_toolbarPx      = {};
-    RECT                                                                                         m_fileNamePx     = {};
-    RECT                                                                                         m_chipsPx        = {};
-    RECT                                                                                         m_splitterPx     = {};
+    RECT                                                                                         m_toolbarPx         = {};
+    RECT                                                                                         m_fileNamePx        = {};
+    RECT                                                                                         m_chipsPx           = {};
+    RECT                                                                                         m_splitterPx        = {};
     std::wstring                                                                                 m_tooltipText;
 
     DxuiTabStrip                          * m_driveTabs          = nullptr;
@@ -170,6 +189,14 @@ private:
     DxuiButton                            * m_goToButton         = nullptr;
     DxuiButton                            * m_findButton         = nullptr;
     DxuiButton                            * m_copySector         = nullptr;
+    DxuiButton                            * m_compareButton      = nullptr;
+    DxuiButton                            * m_prevDiff           = nullptr;
+    DxuiButton                            * m_nextDiff           = nullptr;
+    DxuiButton                            * m_swapButton         = nullptr;
+    DxuiButton                            * m_bSettingsButton    = nullptr;
+    DxuiButton                            * m_stopButton         = nullptr;
+    DxuiCheckbox                          * m_diffsCheck         = nullptr;
+    DifferencesTab                        * m_diffsTab           = nullptr;
     DxuiButton                            * m_stripOut           = nullptr;
     DxuiButton                            * m_stripIn            = nullptr;
     DxuiButton                            * m_stripWhole         = nullptr;

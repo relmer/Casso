@@ -194,6 +194,7 @@ void DiskComparer::CompareTrack (const TrackAnalysis & a, const TrackAnalysis & 
 
 
     inOut.isFluxOnOneSide = isFluxA != isFluxB;
+    inOut.cellCount       = a.framed.cellCount;
 
     if (IsSameCells (a, b, rotation, isTimingSame))
     {
@@ -208,8 +209,9 @@ void DiskComparer::CompareTrack (const TrackAnalysis & a, const TrackAnalysis & 
     }
     else if (IsSameNibbles (a, b))
     {
-        inOut.verdict      = TrackVerdict::SameNibbles;
-        inOut.lengthChange = static_cast<int> (b.framed.cellCount) - static_cast<int> (a.framed.cellCount);
+        inOut.verdict         = TrackVerdict::SameNibbles;
+        inOut.rotationNibbles = Align (a, b);
+        inOut.lengthChange    = static_cast<int> (b.framed.cellCount) - static_cast<int> (a.framed.cellCount);
         ListNibbles (a, b, quarterTrack, inOutDiffs);
     }
     else if (HasSectors (a) || HasSectors (b))
@@ -366,6 +368,7 @@ int DiskComparer::CompareSectors (const TrackAnalysis & a, const TrackAnalysis &
         if (match < 0)
         {
             inOutDiffs.push_back ({ DifferenceKind::SectorOnlyInA, quarterTrack, sa.sector });
+            inOutDiffs.back().cell = GetSectorCell (a, sa);
             differing++;
             continue;
         }
@@ -390,12 +393,14 @@ int DiskComparer::CompareSectors (const TrackAnalysis & a, const TrackAnalysis &
 
             d.count       = (bytesA == nullptr || bytesB == nullptr) ? DiskFieldFormat::kSectorBytes : count;
             d.firstOffset = (first < 0) ? 0 : first;
+            d.cell        = GetSectorCell (a, sa);
             inOutDiffs.push_back (d);
             differing++;
         }
         else if (sa.state != sb.state)
         {
             inOutDiffs.push_back ({ DifferenceKind::SectorChecksum, quarterTrack, sa.sector });
+            inOutDiffs.back().cell = GetSectorCell (a, sa);
             differing++;
         }
 
@@ -411,6 +416,7 @@ int DiskComparer::CompareSectors (const TrackAnalysis & a, const TrackAnalysis &
         if (!isPaired[j])
         {
             inOutDiffs.push_back ({ DifferenceKind::SectorOnlyInB, quarterTrack, b.sectors[j].sector });
+            inOutDiffs.back().cell = GetSectorCell (b, b.sectors[j]);
             differing++;
         }
     }
@@ -424,6 +430,29 @@ int DiskComparer::CompareSectors (const TrackAnalysis & a, const TrackAnalysis &
     }
 
     return differing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::GetSectorCell
+//
+//  Where a sector starts: its address field's first cell, or its data
+//  field's for a sector found by its data alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskComparer::GetSectorCell (const TrackAnalysis & track, const AnalyzedSector & sector)
+{
+    int  field  = (sector.addressField >= 0) ? sector.addressField : sector.dataField;
+    int  nibble = (field >= 0) ? track.fields[field].firstNibble : -1;
+
+
+
+    return (nibble >= 0 && nibble < static_cast<int> (track.framed.nibbles.size())) ? track.framed.nibbles[nibble].startCell : 0;
 }
 
 

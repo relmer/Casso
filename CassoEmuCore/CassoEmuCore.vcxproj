@@ -292,6 +292,7 @@
     <ClCompile Include="Devices\Disk\Inspector\DiskComparer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorClipboard.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorFormat.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\InspectorImageLoader.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorSearch.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\TrackExport.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\StandardTrackDecoder.cpp" />
@@ -494,7 +495,11 @@
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\AnalysisScheduler.cpp" />
+    <ClCompile Include="Ui\DiskInspector\CompareDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\ComparisonSession.cpp" />
+    <ClCompile Include="Ui\DiskInspector\ComparisonText.cpp" />
     <ClCompile Include="Ui\DiskInspector\DecodeSettingsDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\DifferencesTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\DecodeSettingsForm.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorPalette.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
@@ -691,6 +696,7 @@
     <ClInclude Include="Devices\Disk\Inspector\DiskComparison.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorClipboard.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorFormat.h" />
+    <ClInclude Include="Devices\Disk\Inspector\InspectorImageLoader.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorSearch.h" />
     <ClInclude Include="Devices\Disk\Inspector\TrackExport.h" />
     <ClInclude Include="Devices\Disk\Inspector\StandardTrackDecoder.h" />
@@ -960,7 +966,11 @@
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
     <ClInclude Include="Ui\DiskInspector\AnalysisScheduler.h" />
+    <ClInclude Include="Ui\DiskInspector\CompareDialog.h" />
+    <ClInclude Include="Ui\DiskInspector\ComparisonSession.h" />
+    <ClInclude Include="Ui\DiskInspector\ComparisonText.h" />
     <ClInclude Include="Ui\DiskInspector\DecodeSettingsDialog.h" />
+    <ClInclude Include="Ui\DiskInspector\DifferencesTab.h" />
     <ClInclude Include="Ui\DiskInspector\DecodeSettingsForm.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorPalette.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />

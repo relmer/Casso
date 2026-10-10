@@ -53,6 +53,7 @@ private:
     static bool            IsSameCells      (const TrackAnalysis & a, const TrackAnalysis & b, int & outRotation, bool & outIsTimingSame);
     static bool            IsSameNibbles    (const TrackAnalysis & a, const TrackAnalysis & b);
     static int             CompareSectors   (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, vector<Difference> & inOutDiffs);
+    static uint32_t        GetSectorCell    (const TrackAnalysis & track, const AnalyzedSector & sector);
     static void            ListNibbles      (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, vector<Difference> & inOutDiffs);
     static void            ListTiming       (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, int rotation, vector<Difference> & inOutDiffs);
     static void            CompareFiles     (const DiskAnalysis & a, const DiskAnalysis & b, DiskComparison & inOut);

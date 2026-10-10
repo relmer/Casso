@@ -5,7 +5,9 @@
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Ui/DiskInspector/CompareDialog.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
+#include "Ui/DiskInspector/DifferencesTab.h"
 #include "Ui/DiskInspector/FindingsTab.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -75,6 +77,10 @@ static constexpr int      s_kDecodeButtonDip = 140;
 static constexpr int      s_kExportButtonDip = 90;
 static constexpr int      s_kFindButtonDip   = 64;
 static constexpr int      s_kCopySectorDip   = 110;
+static constexpr int      s_kCompareDip      = 130;
+static constexpr int      s_kBarDip          = 36;
+static constexpr int      s_kBarButtonDip    = 136;
+static constexpr int      s_kStopButtonDip   = 116;
 static constexpr int      s_kMinFileNameDip  = 200;
 static constexpr int      s_kFocusGapDip    = 3;
 static constexpr int      s_kModeTabDip     = 80;
@@ -96,6 +102,7 @@ enum DiskTab
     kTabFindings,
     kTabFileMap,
     kTabImage,
+    kTabDifferences,
 };
 
 
@@ -112,7 +119,7 @@ enum DiskTab
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskInspectorWindow::DiskInspectorWindow() :
-    m_scheduler (nullptr)
+    m_scheduler (std::make_unique<AnalysisScheduler> (nullptr))
 {
     m_context.analysis           = &m_analysis;
     m_context.model              = &m_model;
@@ -201,7 +208,15 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
 
     CBRA (drive >= 0);
 
-    m_drive = drive;
+    //  Another drive's disk ends a comparison of this one.
+    if (m_comparison.IsComparing())
+    {
+        m_comparison.End();
+        ShowDiskTab (m_diskTab == kTabDifferences ? kTabTracks : m_diskTab);
+    }
+
+    m_drive   = drive;
+    m_sourceA = { ComparisonSourceKind::DriveNow, drive };
 
     if (m_driveTabs != nullptr)
     {
@@ -242,6 +257,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     TakeReplies();
     TakeResults();
+    TakeComparison();
     UpdateRings();
     UpdateControls();
     RefreshTables();
@@ -294,6 +310,13 @@ void DiskInspectorWindow::OnCreate()
     m_goToButton   = CreateChild<DxuiButton> (L"Go to");
     m_findButton   = CreateChild<DxuiButton> (L"Find");
     m_copySector   = CreateChild<DxuiButton> (L"Copy sector");
+    m_compareButton = CreateChild<DxuiButton> (L"Compare with...");
+    m_prevDiff     = CreateChild<DxuiButton> (L"Previous difference");
+    m_nextDiff     = CreateChild<DxuiButton> (L"Next difference");
+    m_swapButton   = CreateChild<DxuiButton> (L"Swap A and B");
+    m_bSettingsButton = CreateChild<DxuiButton> (L"B's decode settings...");
+    m_stopButton   = CreateChild<DxuiButton> (L"Stop comparing");
+    m_diffsCheck   = CreateChild<DxuiCheckbox> (L"Differences");
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
     m_filesCheck     = CreateChild<DxuiCheckbox> (L"Files");
     m_modeTabs     = CreateChild<DxuiTabStrip>();
@@ -312,6 +335,7 @@ void DiskInspectorWindow::OnCreate()
     m_mapPrev     = CreateChild<DxuiButton> (L"Previous sector in file");
     m_mapNext     = CreateChild<DxuiButton> (L"Next sector in file");
     m_mapCopy     = CreateChild<DxuiButton> (L"Copy map");
+    m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
     m_trackTabs->SetOnChange ([this] (int index) { ShowTrackTab (index); });
@@ -342,6 +366,14 @@ void DiskInspectorWindow::OnCreate()
     m_goToButton->SetOnClick   ([this] () { OpenGoTo(); });
     m_findButton->SetOnClick   ([this] () { OpenFind(); });
     m_copySector->SetOnClick   ([this] () { CopySector(); });
+    m_compareButton->SetOnClick   ([this] () { OpenCompare(); });
+    m_prevDiff->SetOnClick        ([this] () { StepDifference (-1); });
+    m_nextDiff->SetOnClick        ([this] () { StepDifference (1); });
+    m_swapButton->SetOnClick      ([this] () { SwapSides(); });
+    m_bSettingsButton->SetOnClick ([this] () { OpenBSettings(); });
+    m_stopButton->SetOnClick      ([this] () { StopComparing(); });
+    m_diffsCheck->SetOnChange     ([this] (bool isChecked) { m_context.isDiffsOverlay = isChecked; });
+    m_diffsTab->SetOnSelect       ([this] (const TableRow & row) { if (const Difference * d = m_diffsTab->GetDifference (row)) { m_diffIndex = row.finding; SelectDifference (*d); } });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
     m_filesCheck->SetOnChange     ([this] (bool isChecked) { m_context.isFilesOverlay = isChecked; });
     m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
@@ -396,10 +428,11 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int                        drives    = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
     int                        toolbar   = scaler.ToPx (s_kToolbarDip);
     int                        rowBottom = boundsDip.top + toolbar;
-    int                        ctlW      = scaler.ToPx (2 * s_kModeTabDip + s_kRangeDip + 2 * s_kFindButtonDip + s_kExportButtonDip + s_kDecodeButtonDip) + 6 * margin;
+    int                        ctlW      = scaler.ToPx (2 * s_kModeTabDip + s_kRangeDip + 2 * s_kFindButtonDip + s_kExportButtonDip + s_kDecodeButtonDip + s_kCompareDip) + 7 * margin;
     bool                       isTwoRows = 2 * margin + drives * tab + scaler.ToPx (s_kMinFileNameDip) + ctlW > width;
-    int                        top       = rowBottom + (isTwoRows ? toolbar : 0);
-    int                        ctlTop    = top - toolbar;
+    int                        bar       = m_comparison.IsComparing() ? scaler.ToPx (s_kBarDip) : 0;
+    int                        top       = rowBottom + (isTwoRows ? toolbar : 0) + bar;
+    int                        ctlTop    = top - bar - toolbar;
     int                        column    = splitX - boundsDip.left - 2 * margin;
     int                        below     = 4 * margin + 2 * scaler.ToPx (s_kRowDip) + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows + s_kTabsDip + s_kMinTableDip);
     int                        side      = std::max (0, std::min ({ column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare), static_cast<int> (boundsDip.bottom - top) - below }));
@@ -407,6 +440,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int                        y         = 0;
     int                        i         = 0;
     int                        header    = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
+    int                        diskTab   = std::min (tab, (column + margin) / (m_comparison.IsComparing() ? 5 : 4));
     RECT                       right     = {};
     RECT                       platter   = {};
     vector<DxuiTabStrip::Tab>  tabs;
@@ -418,7 +452,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_tooltip.SetDpi (scaler.GetDpi());
     m_tooltip.SetViewportSize (width, boundsDip.bottom - boundsDip.top);
 
-    m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top };
+    m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top - bar };
+    m_barPx      = { boundsDip.left, top - bar, boundsDip.right, top };
     m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), boundsDip.bottom };
     right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, boundsDip.bottom - margin };
 
@@ -434,31 +469,44 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     //  The buttons and the mode controls from the right; on one row with the
     //  file name when there is room for it, or on a row of their own below.
     i = boundsDip.right - margin;
-    m_decodeButton->Layout ({ i - scaler.ToPx (s_kDecodeButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    m_decodeButton->Layout ({ i - scaler.ToPx (s_kDecodeButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
     i -= scaler.ToPx (s_kDecodeButtonDip) + margin;
-    m_exportButton->Layout ({ i - scaler.ToPx (s_kExportButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    m_compareButton->Layout ({ i - scaler.ToPx (s_kCompareDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
+    i -= scaler.ToPx (s_kCompareDip) + margin;
+    m_exportButton->Layout ({ i - scaler.ToPx (s_kExportButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
     i -= scaler.ToPx (s_kExportButtonDip) + margin;
-    m_findButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    m_findButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
     i -= scaler.ToPx (s_kFindButtonDip) + margin;
-    m_goToButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    m_goToButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
     i -= scaler.ToPx (s_kFindButtonDip) + margin;
 
-    m_rangeDown->Layout  ({ i - scaler.ToPx (s_kRangeDip),          ctlTop + margin, i - scaler.ToPx (s_kRangeDip) + button, top - margin }, scaler);
-    m_rangeLabel->Layout ({ i - scaler.ToPx (s_kRangeDip) + button, ctlTop + margin, i - button,                            top - margin }, scaler);
-    m_rangeUp->Layout    ({ i - button,                             ctlTop + margin, i,                                     top - margin }, scaler);
+    m_rangeDown->Layout  ({ i - scaler.ToPx (s_kRangeDip),          ctlTop + margin, i - scaler.ToPx (s_kRangeDip) + button, ctlTop + toolbar - margin }, scaler);
+    m_rangeLabel->Layout ({ i - scaler.ToPx (s_kRangeDip) + button, ctlTop + margin, i - button,                            ctlTop + toolbar - margin }, scaler);
+    m_rangeUp->Layout    ({ i - button,                             ctlTop + margin, i,                                     ctlTop + toolbar - margin }, scaler);
     i -= scaler.ToPx (s_kRangeDip);
 
     tabs.clear();
-    tabs.push_back ({ { i - scaler.ToPx (2 * s_kModeTabDip), ctlTop + margin / 2, i - scaler.ToPx (s_kModeTabDip), top - margin / 2 }, L"Structure" });
-    tabs.push_back ({ { i - scaler.ToPx (s_kModeTabDip),     ctlTop + margin / 2, i,                                top - margin / 2 }, L"Timing" });
+    tabs.push_back ({ { i - scaler.ToPx (2 * s_kModeTabDip), ctlTop + margin / 2, i - scaler.ToPx (s_kModeTabDip), ctlTop + toolbar - margin / 2 }, L"Structure" });
+    tabs.push_back ({ { i - scaler.ToPx (s_kModeTabDip),     ctlTop + margin / 2, i,                                ctlTop + toolbar - margin / 2 }, L"Timing" });
     m_modeTabs->SetTabs     (std::move (tabs));
     m_modeTabs->SetSelected (m_context.isTimingMode ? 1 : 0);
-    m_modeTabs->Layout      ({ i - scaler.ToPx (2 * s_kModeTabDip), ctlTop, i, top }, scaler);
+    m_modeTabs->Layout      ({ i - scaler.ToPx (2 * s_kModeTabDip), ctlTop, i, ctlTop + toolbar }, scaler);
     i -= scaler.ToPx (2 * s_kModeTabDip) + margin;
 
     m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), isTwoRows ? static_cast<int> (boundsDip.right) - margin : i),
                      rowBottom };
     m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, isTwoRows ? static_cast<int> (boundsDip.right) - margin : i, rowBottom };
+
+    //  The comparison bar's buttons from the right, its sources on the left.
+    i = boundsDip.right - margin;
+
+    for (DxuiButton * barButton : { m_stopButton, m_bSettingsButton, m_swapButton, m_nextDiff, m_prevDiff })
+    {
+        int  w = scaler.ToPx (barButton == m_stopButton ? s_kStopButtonDip : s_kBarButtonDip);
+
+        barButton->Layout ({ i - w, m_barPx.top + margin / 2, i, m_barPx.bottom - margin / 2 }, scaler);
+        i -= w + margin / 2;
+    }
 
     //  The File map takes most of the column; the platter stays in view for
     //  the Files overlay, and the legend and hint give way.
@@ -473,7 +521,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_fit->Layout       ({ x + 2 * button, y, x + 4 * button, y + row }, scaler);
     m_zoomLabel->Layout ({ x + 4 * button + margin, y, x + 6 * button, y + row }, scaler);
     m_alignmentCheck->Layout ({ x + 6 * button + margin, y, x + 6 * button + margin + scaler.ToPx (s_kOverlayDip), y + row }, scaler);
-    m_filesCheck->Layout     ({ x + 6 * button + margin + scaler.ToPx (s_kOverlayDip), y, splitX - margin, y + row }, scaler);
+    m_filesCheck->Layout     ({ x + 6 * button + margin + scaler.ToPx (s_kOverlayDip), y, x + 6 * button + margin + scaler.ToPx (2 * s_kOverlayDip), y + row }, scaler);
+    m_diffsCheck->Layout     ({ x + 6 * button + margin + scaler.ToPx (2 * s_kOverlayDip), y, splitX - margin, y + row }, scaler);
     m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
 
     if (m_diskTab == kTabFileMap)
@@ -489,10 +538,16 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     tabs.clear();
 
-    for (LPCWSTR label : { L"Tracks", L"Findings", L"File map", L"Image" })
+    for (LPCWSTR label : { L"Tracks", L"Findings", L"File map", L"Image", L"Differences" })
     {
         i = static_cast<int> (tabs.size());
-        tabs.push_back ({ { x + i * tab, y, x + (i + 1) * tab, y + scaler.ToPx (s_kTabsDip) }, label });
+
+        if (i == kTabDifferences && !m_comparison.IsComparing())
+        {
+            break;
+        }
+
+        tabs.push_back ({ { x + i * diskTab, y, x + (i + 1) * diskTab, y + scaler.ToPx (s_kTabsDip) }, label });
     }
 
     m_diskTabs->SetTabs     (std::move (tabs));
@@ -503,6 +558,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_tracksTab->Layout   ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
     m_findingsTab->Layout ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
     m_imageTab->Layout    ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
+    m_diffsTab->Layout    ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
     LayoutFileMap ({ x, y, splitX - margin, static_cast<int> (boundsDip.bottom) - margin }, scaler);
     m_diskContentPx = { x, y, splitX - margin, boundsDip.bottom - margin };
     m_platterAreaPx = { boundsDip.left, top, splitX, y - scaler.ToPx (s_kTabsDip) - margin / 2 };
@@ -573,6 +629,11 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     PaintToolbar (painter, text, theme);
 
+    if (m_comparison.IsComparing())
+    {
+        PaintComparisonBar (painter, text, theme);
+    }
+
     DxuiWindow::Paint (painter, text, theme);
 
     if (m_is35)
@@ -638,6 +699,18 @@ void DiskInspectorWindow::PaintToolbar (IDxuiPainter & painter, IDxuiTextRendere
 
     if (m_context.hasDisk)
     {
+        //  While comparing, the result comes first (FR-121).
+        if (m_comparison.IsComparing())
+        {
+            std::wstring  result = (m_comparison.IsBusy() || !m_comparison.HasResult()) ? std::wstring (L"Comparing") : ComparisonText::FormatResult (m_comparison.GetResult());
+
+            text.MeasureString (result.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+            painter.FillRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, theme.SelectionBackground());
+            text.DrawString (result.c_str(), x, y, w + 2 * pad, chipH, theme.Foreground(), textPx, DxuiTheme::kBodyFace,
+                             DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+            x += w + 2 * pad + gap;
+        }
+
         for (const SummaryChip & chip : InspectorText::BuildChips (m_analysis.summary))
         {
             text.MeasureString (chip.text.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
@@ -664,7 +737,7 @@ void DiskInspectorWindow::PaintToolbar (IDxuiPainter & painter, IDxuiTextRendere
             x += w + 2 * pad + gap;
         }
 
-        if (m_scheduler.HasPending())
+        if (m_scheduler->HasPending())
         {
             text.DrawString (s_kpszAnalyzing, x, y, m_scaler.ToPxf (s_kAnalyzingDip), chipH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
@@ -907,7 +980,6 @@ void DiskInspectorWindow::RequestCopy()
 void DiskInspectorWindow::TakeReplies()
 {
     vector<InspectorReply>  replies;
-    int                     slot    = 0;
 
 
 
@@ -915,45 +987,67 @@ void DiskInspectorWindow::TakeReplies()
 
     for (InspectorReply & reply : replies)
     {
-        if (reply.requestId != m_pendingRequest)
+        if (!m_comparison.OfferReply (reply) && reply.requestId == m_pendingRequest)
         {
-            continue;
+            m_pendingRequest = 0;
+            StartDisk (reply.disk, (reply.status == InspectorReplyStatus::Unopenable) ? reply.reason : std::wstring());
         }
-
-        m_pendingRequest  = 0;
-        m_context.hasDisk = (reply.disk != nullptr);
-        m_openError       = (reply.status == InspectorReplyStatus::Unopenable) ? reply.reason : std::wstring();
-        m_changedSlots.clear();
-        m_levels.fill (nullptr);
-        m_timingLevels.fill (nullptr);
-
-        if (m_context.hasDisk)
-        {
-            m_model.SetDisk (reply.disk->mediaId);
-
-            m_analysis           = DiskAnalysis();
-            m_analysis.mediaId   = reply.disk->mediaId;
-            m_analysis.copy      = reply.disk;
-            m_analysis.settings  = DecodeSettings::MakeStandard();
-            m_analysis.headLimit = Disk2Controller::kMaxQuarterTrack;
-            m_analysis.tracks.resize (reply.disk->tracks.size());
-            DiskAnalyzer::Assemble (m_analysis);
-            m_scheduler.Restart (reply.disk, m_analysis.settings);
-
-            for (slot = 0; slot < static_cast<int> (reply.disk->tracks.size()); slot++)
-            {
-                m_changedSlots.insert (slot);
-            }
-        }
-        else
-        {
-            m_model.SetDisk (0);
-            m_analysis = DiskAnalysis();
-        }
-
-        m_model.SetAnalysis (m_context.hasDisk ? &m_analysis : nullptr);
-        m_isTablesDirty = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StartDisk
+//
+//  A new disk for side A starts the view over; every record waits for its
+//  analysis. With no disk, the reason it could not be opened is kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason)
+{
+    DecodeSettings  settings = m_comparison.IsComparing() ? m_analysis.settings : DecodeSettings::MakeStandard();
+    int             slot     = 0;
+
+
+
+    m_context.hasDisk = (copy != nullptr);
+    m_openError       = reason;
+    m_changedSlots.clear();
+    m_levels.fill (nullptr);
+    m_timingLevels.fill (nullptr);
+
+    if (m_context.hasDisk)
+    {
+        m_model.SetDisk (copy->mediaId);
+
+        m_analysis           = DiskAnalysis();
+        m_analysis.mediaId   = copy->mediaId;
+        m_analysis.copy      = copy;
+        m_analysis.settings  = settings;
+        m_analysis.headLimit = Disk2Controller::kMaxQuarterTrack;
+        m_analysis.tracks.resize (copy->tracks.size());
+        DiskAnalyzer::Assemble (m_analysis);
+        m_scheduler->Restart (copy, m_analysis.settings);
+
+        for (slot = 0; slot < static_cast<int> (copy->tracks.size()); slot++)
+        {
+            m_changedSlots.insert (slot);
+        }
+    }
+    else
+    {
+        m_model.SetDisk (0);
+        m_analysis = DiskAnalysis();
+    }
+
+    m_model.SetAnalysis (m_context.hasDisk ? &m_analysis : nullptr);
+    m_comparison.MarkAChanged();
+    m_isTablesDirty = true;
 }
 
 
@@ -975,7 +1069,7 @@ void DiskInspectorWindow::TakeResults()
 
 
 
-    m_scheduler.TakeResults (results);
+    m_scheduler->TakeResults (results);
 
     for (RecordResult & result : results)
     {
@@ -992,6 +1086,7 @@ void DiskInspectorWindow::TakeResults()
     {
         DiskAnalyzer::Assemble (m_analysis);
         m_model.SetAnalysis (&m_analysis);
+        m_comparison.MarkAChanged();
         m_isTablesDirty = true;
     }
 }
@@ -1030,7 +1125,7 @@ void DiskInspectorWindow::UpdateRings()
         {
             renderer.SetRing (qt, damaged ? PlatterRingState::Damaged : PlatterRingState::Nothing, nullptr);
         }
-        else if (m_scheduler.IsPending (slot) || slot >= static_cast<int> (m_analysis.tracks.size()) || m_analysis.tracks[slot] == nullptr)
+        else if (m_scheduler->IsPending (slot) || slot >= static_cast<int> (m_analysis.tracks.size()) || m_analysis.tracks[slot] == nullptr)
         {
             renderer.SetRing (qt, PlatterRingState::Pending, nullptr);
         }
@@ -1087,6 +1182,17 @@ void DiskInspectorWindow::UpdateControls()
         m_findButton->SetVisible   (m_context.hasDisk);
         m_copySector->SetVisible   (m_context.hasDisk && m_trackTab == kTabSectorData);
         m_copySector->SetEnabled   (m_model.GetSector() != nullptr && m_model.GetSector()->dataField >= 0);
+        m_compareButton->SetVisible   (m_context.hasDisk || m_comparison.IsComparing());
+        m_prevDiff->SetVisible        (m_comparison.IsComparing());
+        m_nextDiff->SetVisible        (m_comparison.IsComparing());
+        m_swapButton->SetVisible      (m_comparison.IsComparing());
+        m_bSettingsButton->SetVisible (m_comparison.IsComparing());
+        m_stopButton->SetVisible      (m_comparison.IsComparing());
+        m_diffsCheck->SetVisible      (m_comparison.IsComparing() && m_context.hasDisk);
+        m_prevDiff->SetEnabled        (!m_comparison.GetListed().empty());
+        m_nextDiff->SetEnabled        (!m_comparison.GetListed().empty());
+        m_swapButton->SetEnabled      (m_context.hasDisk && m_comparison.GetB().copy != nullptr);
+        m_bSettingsButton->SetEnabled (m_comparison.GetB().copy != nullptr);
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
@@ -1303,6 +1409,7 @@ void DiskInspectorWindow::ShowDiskTab (int tab)
     m_tracksTab->SetVisible   (tab == kTabTracks);
     m_findingsTab->SetVisible (tab == kTabFindings);
     m_imageTab->SetVisible    (tab == kTabImage);
+    m_diffsTab->SetVisible    (tab == kTabDifferences);
     ShowFileMap (tab == kTabFileMap);
 
     if (m_scaler.GetDpi() != 0)
@@ -1335,7 +1442,23 @@ void DiskInspectorWindow::RefreshTables()
 
     if (m_isTablesDirty)
     {
-        m_tracksTab->SetRows    (m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis) : vector<TableRow>());
+        vector<std::wstring>  columns = InspectorTables::GetTrackColumns();
+        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis) : vector<TableRow>();
+
+        //  While comparing, each quarter track's verdict (FR-121).
+        if (m_comparison.IsComparing())
+        {
+            ComparisonText::AddVerdictColumn (columns, rows, m_comparison.GetResult(), m_comparison.IsBusy() || !m_comparison.HasResult());
+        }
+
+        if (m_comparison.IsComparing() != m_isTracksCompared)
+        {
+            m_tracksTab->SetColumns (columns);
+            m_isTracksCompared = m_comparison.IsComparing();
+        }
+
+        m_tracksTab->SetRows    (std::move (rows));
+        m_diffsTab->Refresh();
         m_tracksTab->SetCaption (m_context.hasDisk && InspectorTables::IsAlignmentNoteShown (m_analysis)
                                      ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
                                      : L"");
@@ -1491,7 +1614,9 @@ void DiskInspectorWindow::ApplySettings (const DecodeSettings & settings)
     if (m_context.hasDisk && m_analysis.copy != nullptr)
     {
         m_analysis.settings = settings;
-        m_scheduler.Restart (m_analysis.copy, settings);
+        m_scheduler->Restart (m_analysis.copy, settings);
+        m_comparison.ApplySettings (settings);
+        m_comparison.MarkAChanged();
         m_isTablesDirty = true;
     }
 }
@@ -1760,6 +1885,10 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     {
         target = KeyTarget::FileList;
     }
+    else if (m_diffsTab->IsVisible() && IsInside (m_diffsTab->GetBounds(), pointPx))
+    {
+        target = KeyTarget::Differences;
+    }
 
     return target;
 }
@@ -1860,6 +1989,7 @@ void DiskInspectorWindow::Copy()
         case KeyTarget::Findings:   text = m_findingsTab->GetSelectedText(); break;
         case KeyTarget::Image:      text = m_imageTab->GetSelectedText();    break;
         case KeyTarget::FileList:   text = m_fileList->GetSelectedText();    break;
+        case KeyTarget::Differences: text = m_diffsTab->GetSelectedText();   break;
         case KeyTarget::FluxTiming: text = m_fluxTab->GetHistogramText();    break;
 
         case KeyTarget::Strip:
@@ -2081,6 +2211,13 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         { m_copySector,     L"Copy the whole sector as a hex dump (Ctrl+Shift+C)" },
         { m_exportButton,   L"Save sectors, nibbles or this quarter track's bits to a file" },
         { m_decodeButton,   L"Change the marks and checks used to decode tracks" },
+        { m_compareButton,  L"Compare two disks track by track and file by file" },
+        { m_prevDiff,       L"Go to the previous difference" },
+        { m_nextDiff,       L"Go to the next difference" },
+        { m_swapButton,     L"Make A the disk B is, and B the disk A is" },
+        { m_bSettingsButton, L"Give B decode settings of its own" },
+        { m_stopButton,     L"End the comparison" },
+        { m_diffsCheck,     L"Mark the quarter tracks that differ" },
     };
 
 
@@ -2122,7 +2259,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
 void DiskInspectorWindow::StepKeyTarget (int step)
 {
-    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 9>  order =
+    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 10>  order =
     {{
         { KeyTarget::Platter,    m_platterView },
         { KeyTarget::Strip,      m_stripView },
@@ -2133,6 +2270,7 @@ void DiskInspectorWindow::StepKeyTarget (int step)
         { KeyTarget::FluxTiming, m_fluxTab },
         { KeyTarget::Tracks,     m_tracksTab },
         { KeyTarget::Findings,   m_findingsTab },
+        { KeyTarget::Differences, m_diffsTab },
     }};
 
 
@@ -2186,6 +2324,7 @@ RECT DiskInspectorWindow::GetKeyTargetBounds() const
         case KeyTarget::FluxTiming: bounds = m_fluxTab->GetBounds();     break;
         case KeyTarget::Tracks:     bounds = m_tracksTab->GetBounds();   break;
         case KeyTarget::Findings:   bounds = m_findingsTab->GetBounds(); break;
+        case KeyTarget::Differences: bounds = m_diffsTab->GetBounds();   break;
         default:                                                         break;
     }
 
@@ -2555,4 +2694,365 @@ void DiskInspectorWindow::CopyFileMap()
     {
         (void) m_clipboard.SetText (GetHwnd(), FileMapText::FormatMap (*map));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::TakeComparison
+//
+//  Once a frame, after A's results: the comparison takes its reads and B's
+//  results, hands over A's disk when A was read from another source, and
+//  compares once both sides are analyzed. A new result rebuilds the tables.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::TakeComparison()
+{
+    vector<LoadedDisk>  loads;
+    bool                isAReady = m_context.hasDisk && m_pendingRequest == 0 && !m_scheduler->HasPending();
+
+
+
+    m_comparison.Tick (m_analysis, isAReady, loads);
+
+    for (LoadedDisk & loaded : loads)
+    {
+        StartDisk (loaded.copy, loaded.reason);
+    }
+
+    m_context.comparison = (m_comparison.IsComparing() && m_comparison.HasResult()) ? &m_comparison.GetResult() : nullptr;
+    m_context.analysisB  = m_comparison.IsComparing() ? &m_comparison.GetB() : nullptr;
+
+    if (m_comparison.GetVersion() != m_comparisonVersion)
+    {
+        m_comparisonVersion = m_comparison.GetVersion();
+        m_diffIndex         = std::min (m_diffIndex, static_cast<int> (m_comparison.GetListed().size()) - 1);
+        m_isTablesDirty     = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenCompare
+//
+//  "Compare with..." (FR-117): the dialog gives A's and B's sources. A that
+//  is this window's drive keeps its disk, or reads it again after a swap;
+//  any other A is read by the comparison and shown in its place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenCompare()
+{
+    HRESULT                   hr      = S_OK;
+    CompareDialog             dialog;
+    DxuiWindow::CreateParams  params;
+    ComparisonSource          b       = m_comparison.IsComparing() ? m_comparison.GetSourceB() : ComparisonSource { ComparisonSourceKind::ImageFile, 0 };
+    ComparisonSource          own     = { ComparisonSourceKind::DriveNow, m_drive };
+    bool                      isSame  = false;
+
+
+
+    dialog.Configure (m_theme, std::max (1, m_host->GetDriveCount()), m_sourceA, b);
+
+    params.title                    = L"Compare with";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = GetHwnd();
+    params.initialSizeDip           = CompareDialog::kSizeDip;
+    params.minSizeDip               = CompareDialog::kSizeDip;
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (m_theme);
+    dialog.ShowModalDialog (IDOK);
+    BAIL_OUT_IF (!dialog.IsChosen(), S_OK);
+
+    isSame    = dialog.GetSource (ComparisonSession::kSideA) == m_sourceA && m_context.hasDisk;
+    m_sourceA = dialog.GetSource (ComparisonSession::kSideA);
+    m_diffIndex = -1;
+
+    m_comparison.Begin (m_sourceA, dialog.GetSource (ComparisonSession::kSideB), !isSame && !(m_sourceA == own), m_analysis.settings, *m_host);
+
+    if (!isSame && m_sourceA == own)
+    {
+        RequestCopy();
+    }
+
+    m_isTablesDirty = true;
+    ShowDiskTab (kTabDifferences);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StopComparing
+//
+//  The window goes back to its own disk, read again when A was another.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StopComparing()
+{
+    bool  isOwn = IsWindowDiskA();
+
+
+
+    m_comparison.End();
+    m_context.comparison = nullptr;
+    m_context.analysisB  = nullptr;
+    m_diffIndex          = -1;
+    m_isTablesDirty      = true;
+
+    if (!isOwn)
+    {
+        (void) ShowDrive (m_drive);
+    }
+
+    ShowDiskTab (m_diskTab == kTabDifferences ? kTabTracks : m_diskTab);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SwapSides
+//
+//  "Swap A and B": the views show what was B, whose rings are built anew.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SwapSides()
+{
+    int  slot = 0;
+
+
+
+    m_comparison.Swap (m_analysis, m_scheduler, m_sourceA);
+
+    m_context.hasDisk = m_analysis.copy != nullptr;
+    m_model.SetDisk     (m_analysis.mediaId);
+    m_model.SetAnalysis (m_context.hasDisk ? &m_analysis : nullptr);
+    m_levels.fill (nullptr);
+    m_timingLevels.fill (nullptr);
+    m_changedSlots.clear();
+
+    for (slot = 0; slot < static_cast<int> (m_analysis.tracks.size()); slot++)
+    {
+        m_changedSlots.insert (slot);
+    }
+
+    m_diffIndex     = -1;
+    m_isTablesDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenBSettings
+//
+//  B's decode settings of its own (FR-117), which the window's settings no
+//  longer change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenBSettings()
+{
+    HRESULT                   hr     = S_OK;
+    DecodeSettingsDialog      dialog;
+    DxuiWindow::CreateParams  params;
+
+
+
+    dialog.Configure (m_theme, m_comparison.GetB().settings, m_model.GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack);
+
+    params.title                    = L"B's decode settings";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = GetHwnd();
+    params.initialSizeDip           = DecodeSettingsDialog::kSizeDip;
+    params.minSizeDip               = DecodeSettingsDialog::kSizeDip;
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (m_theme);
+    dialog.ShowModalDialog (IDOK);
+
+    if (dialog.GetOutcome() != DecodeSettingsDialog::Outcome::Cancelled)
+    {
+        m_comparison.ApplyOwnSettings (dialog.GetSettings());
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StepDifference
+//
+//  "Next difference" and "Previous difference" step through the listed
+//  differences across the disk, wrapping at either end (FR-121).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StepDifference (int step)
+{
+    const vector<Difference> &  listed = m_comparison.GetListed();
+    int                         count  = static_cast<int> (listed.size());
+
+
+
+    if (count > 0)
+    {
+        m_diffIndex = (m_diffIndex < 0) ? (step > 0 ? 0 : count - 1) : (m_diffIndex + step + count) % count;
+
+        SelectDifference (listed[m_diffIndex]);
+        m_diffsTab->SelectRowWhere ([this] (const TableRow & row) { return row.finding == m_diffIndex; });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SelectDifference
+//
+//  A difference goes to what it is about on A: its nibbles, its sector, its
+//  quarter track, or its file in the file map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SelectDifference (const Difference & difference)
+{
+    const TrackAnalysis *  track  = nullptr;
+    const FileMap *        map    = GetFileMap();
+    int                    sector = -1;
+    int                    file   = -1;
+    size_t                 i      = 0;
+
+
+
+    if (difference.quarterTrack >= 0)
+    {
+        m_model.SelectQuarterTrack (difference.quarterTrack);
+        track = m_model.GetTrack();
+
+        for (i = 0; track != nullptr && sector < 0 && difference.sector >= 0 && i < track->sectors.size(); i++)
+        {
+            sector = (track->sectors[i].sector == difference.sector) ? static_cast<int> (i) : -1;
+        }
+
+        if (difference.firstNibbleA >= 0 && difference.nibbleCountA > 0)
+        {
+            m_model.SelectNibbles (difference.quarterTrack, difference.firstNibbleA, difference.nibbleCountA);
+        }
+        else if (sector >= 0)
+        {
+            m_model.SelectSector (difference.quarterTrack, sector);
+        }
+
+        OnSelection();
+    }
+    else if (!difference.path.empty() && map != nullptr)
+    {
+        for (i = 0; file < 0 && i < map->files.size(); i++)
+        {
+            file = (map->files[i].path == difference.path && !map->files[i].isDeleted) ? static_cast<int> (i) : -1;
+        }
+
+        if (file >= 0)
+        {
+            ChooseFile (file);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PaintComparisonBar
+//
+//  A's and B's sources and file names (FR-121), with the reason a side
+//  could not be read in place of its name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    float             margin = m_scaler.ToPxf (static_cast<float> (s_kMarginDip));
+    float             left   = static_cast<float> (m_barPx.left) + margin;
+    float             right  = static_cast<float> (m_prevDiff->GetBounds().left) - margin;
+    float             half   = std::max (0.0f, (right - left) / 2.0f);
+    float             height = static_cast<float> (m_barPx.bottom - m_barPx.top);
+    const DiskCopy  * copyB  = m_comparison.GetB().copy.get();
+    std::wstring      nameB  = (copyB != nullptr) ? std::filesystem::path (TextEncoding::Utf8ToWide (copyB->fileName)).filename().wstring() : std::wstring();
+    std::wstring   sideA  = std::format (L"A  {}  {}  {}", ComparisonText::FormatSource (m_comparison.GetSourceA()), s_kpszMiddleDot,
+                                         m_context.hasDisk ? GetFileName() : m_comparison.GetAError());
+    std::wstring   sideB  = std::format (L"B  {}  {}  {}", ComparisonText::FormatSource (m_comparison.GetSourceB()), s_kpszMiddleDot,
+                                         m_comparison.GetBError().empty() ? (nameB.empty() ? std::wstring (s_kpszAnalyzing) : nameB) : m_comparison.GetBError());
+
+
+
+    painter.FillRect (static_cast<float> (m_barPx.left), static_cast<float> (m_barPx.top), static_cast<float> (m_barPx.right - m_barPx.left), height,
+                      theme.SelectionBackground());
+
+    text.DrawString (sideA.c_str(), left, static_cast<float> (m_barPx.top), half, height, theme.Foreground(), m_scaler.ToPxf (InspectorView::kTextDip),
+                     DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    text.DrawString (sideB.c_str(), left + half, static_cast<float> (m_barPx.top), half, height,
+                     m_comparison.GetBError().empty() ? theme.Foreground() : theme.ErrorForeground(), m_scaler.ToPxf (InspectorView::kTextDip),
+                     DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsWindowDiskA
+//
+//  True while A is the window's own drive as it is now, the one disk the
+//  window can edit (FR-121).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsWindowDiskA() const
+{
+    return m_sourceA == ComparisonSource { ComparisonSourceKind::DriveNow, m_drive };
 }

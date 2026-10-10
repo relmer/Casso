@@ -97,14 +97,14 @@ void ComparisonTestImages::Analyze (const vector<WozSyntheticTrack> & tracks, Di
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ComparisonTestImages::AnalyzeDisk
+//  ComparisonTestImages::BuildTracks
 //
 //  Each record at its whole track and the quarter tracks either side, as
 //  the standard layout maps them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ComparisonTestImages::AnalyzeDisk (int changedTrack, const TrackSpec & changed, DiskAnalysis & out, bool isFlux)
+vector<WozSyntheticTrack> ComparisonTestImages::BuildTracks (int changedTrack, const TrackSpec & changed, bool isFlux)
 {
     vector<WozSyntheticTrack>  tracks;
     TrackSpec                  standard;
@@ -129,5 +129,41 @@ void ComparisonTestImages::AnalyzeDisk (int changedTrack, const TrackSpec & chan
         }
     }
 
-    Analyze (tracks, out);
+    return tracks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonTestImages::BuildWoz
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<Byte> ComparisonTestImages::BuildWoz (int changedTrack, const TrackSpec & changed, bool isFlux)
+{
+    vector<Byte>  woz;
+
+
+
+    AssertSucceeded (WozLoader::BuildSyntheticV21 (BuildTracks (changedTrack, changed, isFlux), woz));
+
+    return woz;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonTestImages::AnalyzeDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonTestImages::AnalyzeDisk (int changedTrack, const TrackSpec & changed, DiskAnalysis & out, bool isFlux)
+{
+    Analyze (BuildTracks (changedTrack, changed, isFlux), out);
 }
