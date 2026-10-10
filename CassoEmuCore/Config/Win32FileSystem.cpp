@@ -200,6 +200,26 @@ bool Win32FileSystem::Exists (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DirectoryExists
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32FileSystem::DirectoryExists (const std::wstring & path)
+{
+    DWORD  attrs = GetFileAttributesW (path.c_str());
+
+
+
+    return attrs != INVALID_FILE_ATTRIBUTES
+        && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Delete
 //
 //  Idempotent — succeeds (S_OK) when the file is already absent.

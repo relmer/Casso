@@ -647,6 +647,7 @@ private:
     void  ShowRowProperties      (int row);
     void  ShowLocationProperties (const Location & location);
     void  ShowHostProperties     (const std::wstring & path);
+    void  ReloadKnownFolders     ();
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
 
     //  Re-reads the tree, keeping what was open, highlighted and on screen.

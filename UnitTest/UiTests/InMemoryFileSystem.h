@@ -77,6 +77,21 @@ public:
     }
 
 
+    //  A folder exists here while any file is under it.
+    bool    DirectoryExists      (const std::wstring & path) override
+    {
+        std::lock_guard<std::mutex>  lock   (m_mutex);
+        std::wstring                 prefix = Normalize (path);
+
+        if (!prefix.empty() && prefix.back() != L'/')
+        {
+            prefix += L'/';
+        }
+
+        return std::any_of (m_files.begin(), m_files.end(), [&prefix] (const auto & kv) { return kv.first.compare (0, prefix.size(), prefix) == 0; });
+    }
+
+
     HRESULT Delete               (const std::wstring & path) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);

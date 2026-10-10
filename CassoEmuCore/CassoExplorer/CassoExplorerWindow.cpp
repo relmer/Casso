@@ -1475,6 +1475,18 @@ void CassoExplorerWindow::FillList()
             m_findBox->SetText        (L"");
             m_findBox->SetPlaceholder (L"Search " + (segments.empty() ? std::wstring() : segments.back().label));
         }
+        else
+        {
+            //  A search's results, a restored tab's among them, show its query
+            //  over the folder it searched.
+            std::wstring  scope;
+            std::wstring  query;
+            Location      up;
+
+            SearchQuery::TryParseId (m_listLocation.path, scope, query);
+            m_findBox->SetText        (query);
+            m_findBox->SetPlaceholder (L"Search " + (m_browser.TryGetUpTarget (up) ? GetNavLabel (up) : std::wstring()));
+        }
 
         m_list->SetTopRow (0);
         m_list->SetLeftPx (0);
@@ -4106,6 +4118,7 @@ void CassoExplorerWindow::Dispatch (int id)
 
         case CassoExplorerCommands::kRefresh:
             ReadFolderOptions();
+            ReloadKnownFolders();
             m_browser.GetBrowserModel().InvalidateAllCatalogs();
             hr     = m_browser.Refresh();
             refill = true;
@@ -8126,8 +8139,6 @@ void CassoExplorerWindow::ShowHostProperties (const std::wstring & path)
 void CassoExplorerWindow::ChangeKnownFolder (const std::wstring & folder, bool add)
 {
     HRESULT                               hr = S_OK;
-    std::vector<KnownFolderStore::Entry>  entries;
-    std::vector<std::wstring>             folders;
 
 
 
@@ -8145,6 +8156,41 @@ void CassoExplorerWindow::ChangeKnownFolder (const std::wstring & folder, bool a
         ShowMessage (L"Casso's folder list could not be changed.", MB_ICONERROR);
         return;
     }
+
+    ReloadKnownFolders();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ReloadKnownFolders
+//
+//  Casso's root lists the folders on record, less any that are gone, which
+//  are dropped from the record as they are noticed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ReloadKnownFolders()
+{
+    HRESULT                               hr      = S_OK;
+    std::vector<KnownFolderStore::Entry>  entries;
+    std::vector<std::wstring>             folders;
+    bool                                  removed = false;
+
+
+
+    if (m_context.fs == nullptr)
+    {
+        return;
+    }
+
+    KnownFolderStore  store (*m_context.fs, m_context.baseDir);
+
+    hr = store.RemoveMissing (removed);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = store.Load (entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -10378,10 +10424,16 @@ int CassoExplorerWindow::GetDefaultMachineDriveCount()
     hr = files.ReadAllText (configPath.wstring(), jsonText);
     CHR (hr);
 
-    //  Every file found where it is named, so a missing ROM does not stop
-    //  the slots from being read.
+    //  Only the slots are read here, never a ROM's bytes, so a ROM that is
+    //  missing stands in as the config file itself rather than stopping the
+    //  slots from being read; one that is there is found where Casso finds it.
     hr = MachineConfigLoader::Load (jsonText, fs::path (machine).string(), searchPaths,
-                                    [] (const std::vector<fs::path> &, const fs::path & relative) { return relative; },
+                                    [&configPath] (const std::vector<fs::path> & paths, const fs::path & relative)
+                                    {
+                                        fs::path  found = PathResolver::FindFile (paths, relative);
+
+                                        return found.empty() ? configPath : found;
+                                    },
                                     config, error);
     CHR (hr);
 

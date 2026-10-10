@@ -107,6 +107,30 @@ public:
 
 
 
+    TEST_METHOD (RemoveMissing_DropsOnlyFoldersThatAreGone)
+    {
+        InMemoryFileSystem                    fs;
+        KnownFolderStore                      store (fs, kBase, false);
+        std::vector<KnownFolderStore::Entry>  entries;
+        bool                                  removed = false;
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Kept\\disk.dsk", "x"));
+        AssertSucceeded (store.Append (L"C:\\Gone", 1));
+        AssertSucceeded (store.Append (L"C:\\Kept", 2));
+
+        AssertSucceeded (store.RemoveMissing (removed));
+        AssertSucceeded (store.Load (entries));
+
+        Assert::IsTrue   (removed);
+        Assert::AreEqual ((size_t) 1, entries.size(), L"A folder that is gone is dropped from the record");
+        Assert::AreEqual (std::wstring (L"C:\\Kept"), entries[0].path);
+
+        AssertSucceeded (store.RemoveMissing (removed));
+        Assert::IsFalse (removed, L"and nothing more goes while every folder is there");
+    }
+
+
+
     TEST_METHOD (Write_LeavesOneWholeFileAndNoTemporary)
     {
         InMemoryFileSystem  fs;

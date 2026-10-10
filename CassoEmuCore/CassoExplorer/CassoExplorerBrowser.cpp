@@ -2,6 +2,7 @@
 
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 
 #pragma comment(lib, "shlwapi.lib")
@@ -2380,7 +2381,7 @@ bool CassoExplorerBrowser::CanGoUp() const
             return true;
 
         case Location::Kind::ShellFolder:
-            return m_shellParent.kind != Location::Kind::None;
+            return SearchQuery::IsId (location.path) || m_shellParent.kind != Location::Kind::None;
 
         default:
             return false;
@@ -2414,6 +2415,18 @@ bool CassoExplorerBrowser::TryGetUpTarget (Location & outTarget) const
     if (location.kind == Location::Kind::DiskDirectory)
     {
         outTarget = Location::MakeDiskImage (location.path);
+    }
+    else if (location.kind == Location::Kind::ShellFolder && SearchQuery::IsId (location.path))
+    {
+        std::wstring               scope;
+        std::wstring               query;
+        std::vector<std::wstring>  folders;
+
+        //  A search's results go up to the folder searched, or to Casso's
+        //  root for one that searched all of Casso's folders.
+        SearchQuery::TryParseId (location.path, scope, query);
+        folders   = SearchQuery::SplitScopes (scope);
+        outTarget = (folders.size() == 1) ? Location::MakeHostFolder (folders[0]) : Location::MakeRoot (TreeModel::kCassoRootId);
     }
     else if (location.kind == Location::Kind::ShellFolder)
     {

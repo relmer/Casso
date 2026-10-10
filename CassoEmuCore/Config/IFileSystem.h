@@ -67,6 +67,9 @@ public:
     // True iff `path` exists and is a regular file.
     virtual bool    Exists               (const std::wstring & path) = 0;
 
+    // True iff `path` exists and is a directory.
+    virtual bool    DirectoryExists      (const std::wstring & path) = 0;
+
     // Deletes `path` if it exists.
     virtual HRESULT Delete               (const std::wstring & path) = 0;
 

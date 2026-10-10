@@ -216,13 +216,19 @@ std::vector<std::filesystem::path> KnownFolderStore::LoadPickerFolders (
     const std::vector<DiskMru::Entry>  & mru,
     int64_t                              nowUnix)
 {
-    KnownFolderStore    store (fs, baseDir);
-    std::vector<Entry>  known;
-    HRESULT             hr    = S_OK;
+    KnownFolderStore                    store   (fs, baseDir);
+    std::vector<Entry>                  known;
+    std::vector<std::filesystem::path>  folders;
+    std::vector<std::filesystem::path>  present;
+    HRESULT                             hr      = S_OK;
+    bool                                removed = false;
 
 
 
     hr = store.SeedFromMru (mru, nowUnix);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = store.RemoveMissing (removed);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = store.Load (known);
@@ -232,7 +238,18 @@ std::vector<std::filesystem::path> KnownFolderStore::LoadPickerFolders (
         known.clear();
     }
 
-    return MergePickerFolders (known, mru);
+    //  A recent disk's folder that is gone is left out too.
+    folders = MergePickerFolders (known, mru);
+
+    for (const std::filesystem::path & folder : folders)
+    {
+        if (fs.DirectoryExists (folder.wstring()))
+        {
+            present.push_back (folder);
+        }
+    }
+
+    return present;
 }
 
 
@@ -559,6 +576,53 @@ HRESULT KnownFolderStore::Remove (const std::wstring & folder)
 
     hr = WriteEntries (kept);
     CHR (hr);
+
+Error:
+    ReleaseLock (lock);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KnownFolderStore::RemoveMissing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KnownFolderStore::RemoveMissing (bool & outRemoved)
+{
+    HRESULT             hr   = S_OK;
+    HANDLE              lock = nullptr;
+    std::vector<Entry>  entries;
+    std::vector<Entry>  kept;
+
+
+
+    outRemoved = false;
+    lock       = AcquireLock();
+
+    hr = ReadEntries (entries);
+    CHR (hr);
+
+    for (const Entry & entry : entries)
+    {
+        if (m_fs.DirectoryExists (entry.path))
+        {
+            kept.push_back (entry);
+        }
+    }
+
+    outRemoved = kept.size() != entries.size();
+
+    if (outRemoved)
+    {
+        hr = WriteEntries (kept);
+        CHR (hr);
+    }
 
 Error:
     ReleaseLock (lock);

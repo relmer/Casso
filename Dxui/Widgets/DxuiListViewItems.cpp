@@ -3354,7 +3354,7 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
                 float  lineX = (float) label.left;
 
                 //  A result's folder leads the first line, cut short so the
-                //  line after it still fits.
+                //  line after it still fits with a gap before the column beside it.
                 if (at == 0 && !cells[0].contentPath.empty())
                 {
                     float         restW = 0.0f;
@@ -3366,7 +3366,7 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
                     IGNORE_RETURN_VALUE (hr, S_OK);
 
                     path = DxuiTextElide::ToWidth (text, cells[0].contentPath, fontPx, DxuiTheme::kBodyFace,
-                                                   (std::max) (0.0f, rightX - lineX - restW - m_scaler.ToPxf (s_kContentPathGapDip)), DxuiElide::Tail, 0, true);
+                                                   (std::max) (0.0f, rightX - lineX - restW - 2.0f * m_scaler.ToPxf (s_kContentPathGapDip)), DxuiElide::Tail, 0, true);
 
                     hr = text.MeasureString (path.c_str(), fontPx, DxuiTheme::kBodyFace, pathW, restH);
                     IGNORE_RETURN_VALUE (hr, S_OK);

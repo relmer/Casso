@@ -22,9 +22,10 @@
 //  read on demand and replaced whole by whichever process appends, under a
 //  named mutex so two writers cannot interleave.
 //
-//  NOTHING IS PRUNED. A folder that no longer exists stays listed and dimmed
-//  until the user removes it; a listing that quietly dropped a folder would
-//  look identical to one that never had it.
+//  A FOLDER THAT NO LONGER EXISTS IS DROPPED by whichever process notices it
+//  first, the emulator when it lists folders for a picker and the browser
+//  when it lists them for its Casso root, so neither offers a folder that
+//  cannot be opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +50,10 @@ public:
     //  Adds or re-stamps one folder; paths compare case-insensitively.
     HRESULT  Append (const std::wstring & folder, int64_t nowUnix);
     HRESULT  Remove (const std::wstring & folder);
+
+    //  Drops every folder the file system no longer has, saying whether any
+    //  went; the file is rewritten only when one did.
+    HRESULT  RemoveMissing (bool & outRemoved);
 
     //  First-run seeding: the distinct folders of the recent-disks list, only
     //  when no file exists yet. Afterwards the two lists diverge.

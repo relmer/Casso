@@ -275,11 +275,12 @@ static HRESULT ResolveRomFile (
     size_t                                                                              & outFileSize,
     string                                                                              & outError)
 {
-    HRESULT   hr         = S_OK;
-    fs::path  romRelPath = relDirPrefix / file;
-    fs::path  found      = resolver (searchPaths, romRelPath);
-    auto      sz         = std::uintmax_t {0};
-    bool      wasFound   = false;
+    HRESULT     hr         = S_OK;
+    fs::path    romRelPath = relDirPrefix / file;
+    fs::path    found      = resolver (searchPaths, romRelPath);
+    auto        sz         = std::uintmax_t {0};
+    bool        wasFound   = false;
+    error_code  sizeError;
 
 
 
@@ -289,7 +290,13 @@ static HRESULT ResolveRomFile (
                              "Place the file under the appropriate per-machine or per-device folder.",
                              romRelPath.string()));
 
-    sz = fs::file_size (found);
+    //  The non-throwing form: a file that vanishes or cannot be read between
+    //  being found and being measured is an error, not an exception that
+    //  ends the program.
+    sz = fs::file_size (found, sizeError);
+    CBRF (!sizeError,
+          outError = format ("ROM file could not be read: {} ({})", romRelPath.string(), sizeError.message()));
+
     CBRF (sz > 0,
           outError = format ("ROM file is empty: {}", romRelPath.string()));
 

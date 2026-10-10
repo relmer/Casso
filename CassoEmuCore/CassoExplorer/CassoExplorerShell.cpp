@@ -387,7 +387,11 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
 
     {
         KnownFolderStore  store (m_fs, m_baseDir);
-        HRESULT           hrLoad = store.Load (entries);
+        bool     pruned  = false;
+        HRESULT  hrPrune = store.RemoveMissing (pruned);
+        HRESULT  hrLoad  = store.Load (entries);
+
+        IGNORE_RETURN_VALUE (hrPrune, S_OK);
 
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
