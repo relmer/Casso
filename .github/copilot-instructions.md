@@ -28,7 +28,35 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
 - Every `.cpp` file MUST include `"Pch.h"` as its **first** `#include`
 - **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h` or a library project's umbrella header (currently only `Dxui.h`)
 - All system headers and STL headers belong in `Pch.h`
+- **The only project headers a `Pch.h` may include are `Ehm.h` and `Dxui.h`.**
+  A change to any header in a precompiled header rebuilds every file in its
+  project, and project headers change constantly. These two are exempt
+  because nearly every file uses them and they rarely change.
 - Individual `.cpp` and `.h` files use only quoted includes (`"header.h"`) for project headers
+
+### Header Includes
+- **A `.h` includes another project header only when it needs that header's
+  full definition**: a base class, a member or array held by value, a type
+  used inside an inline function body, `sizeof`, an enum's values, or a
+  nested type or constant from it.
+- **Everything else is a forward declaration.** A type used only through a
+  pointer, a reference, `std::unique_ptr` or `std::shared_ptr`, or as a
+  parameter or return type of a function the header only declares, gets
+  `class X;` (or `struct X;`), never `#include "X.h"`. The `.cpp` that needs
+  the definition includes it there.
+- **Include what you use; never rely on an include that arrives through
+  another header.** A header that needs `X`'s definition includes `X.h`
+  itself, even when another of its includes already brings it in. Otherwise,
+  removing an include from one header breaks headers that never mentioned it.
+- A `std::unique_ptr` member of a forward-declared type needs the owning
+  class's destructor declared in the header and defined in the `.cpp`
+  (`Foo::~Foo() = default;`), because the destructor is where the type must
+  be complete.
+- **Every header compiles on its own**, after `Pch.h` and nothing else.
+- Why it matters: every file that includes a header parses everything that
+  header includes, all the way down. Before this rule, `EmulatorShell.h`
+  pulled 292 headers into each of the 28 files that include it, and a change
+  to any of those 292 recompiled all 28.
 
 ### Code Style
 - Use spaces for indentation (match existing code style)

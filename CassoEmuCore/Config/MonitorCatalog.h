@@ -1,6 +1,7 @@
 #pragma once
 
 #include "resource.h"
+#include "Core/JsonValue.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/Scene/DeskSceneModel.h"
 

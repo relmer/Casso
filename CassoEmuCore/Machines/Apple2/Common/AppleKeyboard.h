@@ -132,7 +132,7 @@ public:
     // matching host key-up notification once.
     void EndKeyRepeat();
 
-    // Attach (or detach with nullptr) the Input Debug panel sink. Set from
+    // Attach (or detach with nullptr) the input event sink. Set from
     // the UI thread; read from the CPU thread on the device's null
     // fast-path, matching the Disk2 event-sink convention.
     void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
@@ -180,7 +180,7 @@ private:
     Byte           m_lastRepeatKey = 0;
 
 protected:
-    // Input Debug panel sink (null when no panel is open). Plain pointer
+    // Input event sink (null when nothing is observing). Plain pointer
     // per the Disk2 event-sink convention; written on the UI thread,
     // read on the CPU thread.
     IInputEventSink * GetInputSink () const noexcept { return m_inputSink; }

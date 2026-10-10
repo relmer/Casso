@@ -7,6 +7,7 @@
 
 #include "../ThemeManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 #include "../../AssetBootstrap.h"
 #include "Config/UserConfigStore.h"
 #include "Config/IFileSystem.h"

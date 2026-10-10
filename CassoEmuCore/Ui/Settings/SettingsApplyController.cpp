@@ -12,6 +12,9 @@
 #include "SettingsPreviewController.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
 
 
 
@@ -240,7 +243,7 @@ void SettingsApplyController::ApplyThemeLive (const std::string & name)
         return;
     }
 
-    hr = m_emuShell->ApplyThemeLive (name);
+    hr = m_emuShell->GetSettings().ApplyThemeLive (name);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
     if (m_onChromeThemeChanged)
@@ -555,7 +558,7 @@ void SettingsApplyController::CommitApply()
     // path costs nothing.
     if (!m_pendingTheme.empty())
     {
-        HRESULT  hrTheme = m_emuShell->ApplyAndPersistTheme (m_pendingTheme);
+        HRESULT  hrTheme = m_emuShell->GetSettings().ApplyAndPersistTheme (m_pendingTheme);
 
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
         if (m_onChromeThemeChanged)
@@ -643,7 +646,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
 
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {
-        m_emuShell->SetColorModeLive (m_baselineColorMode);
+        m_emuShell->GetRenderer().SetColorModeLive (m_baselineColorMode);
     }
 
     // FR-132: undo an "Apply now" live theme apply by re-activating the
@@ -651,7 +654,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
     // just reskins the chrome back.
     if (m_themeAppliedLive && m_emuShell != nullptr)
     {
-        HRESULT  hrTheme = m_emuShell->ApplyThemeLive (m_baselineTheme);
+        HRESULT  hrTheme = m_emuShell->GetSettings().ApplyThemeLive (m_baselineTheme);
 
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
         if (m_onChromeThemeChanged)

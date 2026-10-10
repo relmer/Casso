@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
 
 
@@ -33,10 +35,10 @@ void EmulatorShell::OpenDiskInspector (int drive)
         hInstance       = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
         m_diskInspector = std::make_unique<DiskInspectorWindow>();
 
-        hr = m_diskInspector->Create (hInstance, m_hwnd, &m_chromeTheme, &m_inspectorHost, activate);
+        hr = m_diskInspector->Create (hInstance, m_hwnd, &m_chrome->GetTheme(), &m_inspectorHost, activate);
         CHRF (hr, m_diskInspector.reset());
 
-        ApplyAppIconToWindow (m_diskInspector->GetHwnd());
+        m_window->ApplyAppIconToWindow (m_diskInspector->GetHwnd());
     }
     else
     {

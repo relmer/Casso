@@ -2,7 +2,7 @@
 
 #include "Devices/Tape/ITapeAudioDecoder.h"
 #include "Devices/Tape/TapeDeck.h"
-#include "Shell/CpuCommandDispatcher.h"
+#include "Shell/CpuCommandTargets.h"
 
 class IDiskFileIo;
 class IFileSystem;

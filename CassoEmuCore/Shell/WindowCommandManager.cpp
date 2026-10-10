@@ -6,6 +6,18 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/ClipboardManager.h"
+#include "Shell/Components/ShellWindow.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellDeskScene.h"
+#include "Shell/WindowManager.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellPrinter.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"
@@ -475,7 +487,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
         case WindowCommandRoute::Disk:                OnDiskCommand (id);          break;
         case WindowCommandRoute::View:                OnViewCommand (id);          break;
         case WindowCommandRoute::Printer:             OnPrinterCommand (id);       break;
-        case WindowCommandRoute::PrinterPreview:      m_shell.ShowPrinterPanel();  break;
+        case WindowCommandRoute::PrinterPreview:      m_shell.m_printer->ShowPrinterPanel();  break;
         case WindowCommandRoute::PrinterModernSent:   OnModernPrintResult (true);  break;
         case WindowCommandRoute::PrinterModernFailed: OnModernPrintResult (false); break;
         case WindowCommandRoute::Help:                OnHelpCommand (id);          break;
@@ -554,9 +566,9 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
 
 
 
-    if (connected != m_shell.m_externalDriveConnected)
+    if (connected != m_shell.m_disks->IsExternalDriveConnected())
     {
-        m_shell.m_externalDriveConnected = connected;
+        m_shell.m_disks->SetExternalDriveConnected (connected);
         fChanged = true;
     }
 
@@ -579,12 +591,12 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
     // unwritten changes in an image the user can no longer reach -- and it
     // routes through the CPU command queue like every other eject, rather
     // than tearing state out from under the running machine.
-    if (!connected && m_shell.m_diskManager != nullptr)
+    if (!connected && m_shell.m_disks->GetManager() != nullptr)
     {
-        m_shell.m_diskManager->Eject (6, 1);
+        m_shell.m_disks->GetManager()->Eject (6, 1);
     }
 
-    m_shell.ReflowChromeForMachineChange();
+    m_shell.m_chrome->ReflowChromeForMachineChange();
 }
 
 
@@ -639,7 +651,7 @@ void WindowCommandManager::OnEditCommand (int id)
 
         case IDM_EDIT_COPY_SCREENSHOT:
         {
-            m_shell.TakeScreenshot();
+            m_shell.m_renderer->TakeScreenshot();
             break;
         }
 
@@ -701,7 +713,7 @@ void WindowCommandManager::OnMachineCommand (int id)
         case IDM_MACHINE_PAUSE:
         {
             m_shell.m_cpuManager.TogglePaused();
-            m_shell.UpdateWindowTitle();
+            m_shell.m_window->UpdateWindowTitle();
             break;
         }
 
@@ -715,7 +727,7 @@ void WindowCommandManager::OnMachineCommand (int id)
             }
             else
             {
-                m_shell.PostNotice (L"Start Casso with --trace to record a CPU trace.");
+                m_shell.m_chrome->PostNotice (L"Start Casso with --trace to record a CPU trace.");
             }
 
             break;
@@ -843,25 +855,25 @@ void WindowCommandManager::OnViewCommand (int id)
     {
         case IDM_VIEW_COLOR:
         {
-            m_shell.m_colorMode.store (ColorMode::Color, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::Color);
             break;
         }
 
         case IDM_VIEW_GREEN:
         {
-            m_shell.m_colorMode.store (ColorMode::GreenMono, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::GreenMono);
             break;
         }
 
         case IDM_VIEW_AMBER:
         {
-            m_shell.m_colorMode.store (ColorMode::AmberMono, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::AmberMono);
             break;
         }
 
         case IDM_VIEW_WHITE:
         {
-            m_shell.m_colorMode.store (ColorMode::WhiteMono, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::WhiteMono);
             break;
         }
 
@@ -869,7 +881,7 @@ void WindowCommandManager::OnViewCommand (int id)
         {
             RECT  rcClient = {};
 
-            m_shell.m_d3dRenderer.ToggleFullscreen (m_shell.m_hwnd);
+            m_shell.m_renderer->GetD3D().ToggleFullscreen (m_shell.m_hwnd);
 
             // The transition's WM_SIZE runs while the fullscreen flag is
             // deliberately still held (placement persistence), so the layout
@@ -880,7 +892,7 @@ void WindowCommandManager::OnViewCommand (int id)
             {
                 (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left),
                                        (UINT) (rcClient.bottom - rcClient.top));
-                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+                m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
             }
 
             break;
@@ -889,15 +901,15 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_FRAME_RATE:
         {
             // Persisted, so the choice outlives the session in either build.
-            m_shell.m_globalPrefs.showFrameRate = !m_shell.m_globalPrefs.showFrameRate;
-            m_shell.SaveGlobalPrefs();
+            m_shell.m_settings->GetPrefs().showFrameRate = !m_shell.m_settings->GetPrefs().showFrameRate;
+            m_shell.m_settings->SaveGlobalPrefs();
             break;
         }
 
         case IDM_VIEW_SCENE_VIEW:
         {
-            m_shell.m_globalPrefs.showSceneView = !m_shell.m_globalPrefs.showSceneView;
-            m_shell.SaveGlobalPrefs();
+            m_shell.m_settings->GetPrefs().showSceneView = !m_shell.m_settings->GetPrefs().showSceneView;
+            m_shell.m_settings->SaveGlobalPrefs();
             break;
         }
 
@@ -912,9 +924,9 @@ void WindowCommandManager::OnViewCommand (int id)
             // no size to reset but the scene can still be turned around.
             // Harmless where no scene exists: ResetSceneView returns early
             // at identity, which a themeless scene never leaves.
-            m_shell.ResetSceneView();
+            m_shell.m_scene->ResetSceneView();
 
-            if (!m_shell.m_d3dRenderer.IsFullscreen())
+            if (!m_shell.m_renderer->GetD3D().IsFullscreen())
             {
                 RECT  rcCurrentClient = {};
                 RECT  rcCurrentWindow = {};
@@ -943,7 +955,7 @@ void WindowCommandManager::OnViewCommand (int id)
                 // policy -- see it for the one-line toggle to switch to
                 // integer-only scaling.
                 {
-                    SIZE  desired = m_shell.GetClientSizeForFramebufferPx (
+                    SIZE  desired = m_shell.m_window->GetClientSizeForFramebufferPx (
                                         kFramebufferWidthPx,
                                         kFramebufferHeightPx);
                     desiredClientW = (int) desired.cx;
@@ -999,34 +1011,22 @@ void WindowCommandManager::OnViewCommand (int id)
                     // only at the end of the OS drag loop or on a user maximize or
                     // restore, precisely so a programmatic SetWindowPos cannot
                     // stomp it. This one is the user's, so it has to say so.
-                    m_shell.m_windowManager.SaveWindowPlacement (m_shell.m_hwnd, false);
+                    m_shell.m_window->GetWindowManager().SaveWindowPlacement (m_shell.m_hwnd, false);
                 }
             }
 
             break;
         }
 
-        case IDM_VIEW_DISK2_DEBUG:
-        {
-            m_shell.OpenDisk2DebugDialog();
-            break;
-        }
-
-        case IDM_VIEW_INPUT_DEBUG:
-        {
-            m_shell.OpenInputDebugDialog();
-            break;
-        }
-
         case IDM_VIEW_SETTINGS:
         {
-            m_shell.OpenSettings();
+            m_shell.m_settings->OpenSettings();
             break;
         }
 
         case IDM_VIEW_CONTROLLER_SETTINGS:
         {
-            m_shell.OpenSettings (true);
+            m_shell.m_settings->OpenSettings (true);
             break;
         }
 
@@ -1035,10 +1035,10 @@ void WindowCommandManager::OnViewCommand (int id)
             // Only meaningful in fullscreen; the FSM consumes the edge on its
             // next tick (releasing a guest capture if one is held). Windowed,
             // the drives are already on screen.
-            if (m_shell.m_d3dRenderer.IsFullscreen())
+            if (m_shell.m_renderer->GetD3D().IsFullscreen())
             {
-                m_shell.m_stripHotkeyPending = true;
-                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+                m_shell.m_scene->RequestStripHotkey();
+                m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
             }
 
             break;
@@ -1093,7 +1093,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive, bool & outMountStar
     // mount happened.
     BAIL_OUT_IF (!picked, S_OK);
 
-    hr = m_shell.Mount (6, drive - 1, chosen.wstring());
+    hr = m_shell.m_disks->Mount (6, drive - 1, chosen.wstring());
     CHR (hr);
 
     outMountStarted = true;
@@ -1161,18 +1161,18 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
         mountedDrives.push_back (mounted.drive);
     }
 
-    model.Bind (&m_shell.m_uiFs);
+    model.Bind (&m_shell.m_settings->GetFileSystem());
     model.SetExtensionFilter (L".woz");
     model.SetMountedPaths (std::move (mountedPaths), std::move (mountedDrives));
 
     hr = model.SetFolder (folder);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               L"Could not open the disk folder.",
                               L"Create new disk", MB_OK | MB_ICONERROR));
 
     // Boot-payload plumbing: availability answers from the download cache;
     // the download callback runs on the dialog's explicit button click.
-    dialog.Configure (&model, &m_shell.m_chromeTheme,
+    dialog.Configure (&model, &m_shell.m_chrome->GetTheme(),
         [] (BlankDiskContents contents)
         {
             return AssetBootstrap::IsStockBootDiskCached (
@@ -1205,7 +1205,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     hr = dialog.Create (params);
     CHRA (hr);
 
-    dialog.SetTheme (&m_shell.m_chromeTheme);
+    dialog.SetTheme (&m_shell.m_chrome->GetTheme());
     dialog.ShowModalDialog (IDOK);
 
     // Cancel / Escape / close box: nothing to do, and no mount started.
@@ -1217,7 +1217,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     if (occupied)
     {
         message = std::format (L"Drive {} already has a disk. Replace it with the new disk?", drive);
-        choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, message.c_str(),
+        choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(), message.c_str(),
                                   L"Create new disk", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
         BAIL_OUT_IF (choice != IDYES, S_OK);
@@ -1238,7 +1238,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
         bool  opened = master.good();
 
-        CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+        CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                                       L"The OS master disk is missing from the download cache.",
                                       L"Create new disk", MB_OK | MB_ICONERROR));
 
@@ -1250,7 +1250,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     }
 
     hr = BlankDiskBuilder::Build (dialog.GetOutcome().spec, payload, imageBytes);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               L"Could not build the new disk image.",
                               L"Create new disk", MB_OK | MB_ICONERROR));
 
@@ -1258,8 +1258,8 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     // a failure here leaves no partial image behind.
     imageContent.assign (reinterpret_cast<const char *> (imageBytes.data()), imageBytes.size());
 
-    hr = m_shell.m_uiFs.WriteAllText (dialog.GetOutcome().targetPath, imageContent);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    hr = m_shell.m_settings->GetFileSystem().WriteAllText (dialog.GetOutcome().targetPath, imageContent);
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               (L"Could not write \"" + dialog.GetOutcome().targetPath + L"\".\n\n"
                                + FormatSystemError (hr)).c_str(),
                               L"Create new disk", MB_OK | MB_ICONERROR));
@@ -1270,12 +1270,12 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
         std::u8string  u8folder = std::filesystem::path (dialog.GetOutcome().targetPath)
                                       .parent_path().u8string();
 
-        m_shell.m_globalPrefs.lastDiskCreateFolder.assign (u8folder.begin(), u8folder.end());
-        m_shell.SaveGlobalPrefs();
+        m_shell.m_settings->GetPrefs().lastDiskCreateFolder.assign (u8folder.begin(), u8folder.end());
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 
-    hr = m_shell.Mount (6, drive - 1, dialog.GetOutcome().targetPath);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    hr = m_shell.m_disks->Mount (6, drive - 1, dialog.GetOutcome().targetPath);
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               L"The disk was created but could not be mounted.",
                               L"Create new disk", MB_OK | MB_ICONERROR));
 
@@ -1304,9 +1304,9 @@ std::wstring WindowCommandManager::GetDiskCreateFolder()
 
 
 
-    if (!m_shell.m_globalPrefs.lastDiskCreateFolder.empty())
+    if (!m_shell.m_settings->GetPrefs().lastDiskCreateFolder.empty())
     {
-        const std::string &  stored = m_shell.m_globalPrefs.lastDiskCreateFolder;
+        const std::string &  stored = m_shell.m_settings->GetPrefs().lastDiskCreateFolder;
         std::u8string        u8     (reinterpret_cast<const char8_t *> (stored.data()), stored.size());
         std::wstring         last   = std::filesystem::path (u8).wstring();
 
@@ -1351,8 +1351,8 @@ Error:
 
 void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<DiskMru::Entry> & entries)
 {
-    DiskMru                      mru      = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
-                                                               m_shell.m_globalPrefs.recentDiskLoadedAt);
+    DiskMru                      mru      = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
+                                                               m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
     std::vector<DiskMru::Entry>  existing = mru.Prune ([] (const std::filesystem::path & p)
                                                        {
                                                            return std::filesystem::exists (p)
@@ -1408,7 +1408,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
                                               anchorRectPx,
                                               entries,
                                               AssetBootstrap::GetDiskDirectory(),
-                                              m_shell.m_globalPrefs.activeTheme,
+                                              m_shell.m_settings->GetPrefs().activeTheme,
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
@@ -1417,15 +1417,15 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
 
     if (userBrowsed)
     {
-        m_shell.BrowseForTape();
+        m_shell.m_tapeDeck->BrowseForTape();
     }
     else if (userCreateNew)
     {
-        m_shell.CreateBlankTape();
+        m_shell.m_tapeDeck->CreateBlankTape();
     }
     else if (!chosenPath.empty())
     {
-        m_shell.InsertTape (chosenPath);
+        m_shell.m_tapeDeck->InsertTape (chosenPath);
     }
 
 Error:
@@ -1474,7 +1474,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
                                               anchorRectPx,
                                               mruPruned,
                                               diskDir,
-                                              m_shell.m_globalPrefs.activeTheme,
+                                              m_shell.m_settings->GetPrefs().activeTheme,
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
@@ -1493,7 +1493,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     }
     else if (!chosenPath.empty())
     {
-        hr = m_shell.Mount (6, drive - 1, chosenPath);
+        hr = m_shell.m_disks->Mount (6, drive - 1, chosenPath);
         CHR (hr);
 
         outMountStarted = true;
@@ -1535,7 +1535,7 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            m_shell.BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
+            m_shell.m_disks->BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
             break;
         }
 
@@ -1559,7 +1559,7 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_SALVAGE2:
         {
             // Stays on the UI thread: the flow opens Dxui modals.
-            m_shell.RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            m_shell.m_disks->RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
             break;
         }
 
@@ -1572,17 +1572,17 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         // The tape items open their pickers here; the deck commands are
         // queued to the CPU thread by the tape manager.
-        case IDM_TAPE_INSERT:      m_shell.PickTape();                                     break;
-        case IDM_TAPE_NEW:         m_shell.CreateBlankTape();                              break;
-        case IDM_TAPE_EJECT:       m_shell.HandleTapeClick (TapeDeckRegion::Eject);        break;
-        case IDM_TAPE_PLAY:        m_shell.HandleTapeClick (TapeDeckRegion::Play);         break;
-        case IDM_TAPE_STOP:        m_shell.HandleTapeClick (TapeDeckRegion::Stop);         break;
-        case IDM_TAPE_REWIND:      m_shell.HandleTapeClick (TapeDeckRegion::Rewind);       break;
-        case IDM_TAPE_FASTFORWARD: m_shell.HandleTapeClick (TapeDeckRegion::FastForward);  break;
+        case IDM_TAPE_INSERT:      m_shell.m_tapeDeck->PickTape();                                     break;
+        case IDM_TAPE_NEW:         m_shell.m_tapeDeck->CreateBlankTape();                              break;
+        case IDM_TAPE_EJECT:       m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Eject);        break;
+        case IDM_TAPE_PLAY:        m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Play);         break;
+        case IDM_TAPE_STOP:        m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Stop);         break;
+        case IDM_TAPE_REWIND:      m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Rewind);       break;
+        case IDM_TAPE_FASTFORWARD: m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::FastForward);  break;
 
         // Each flips its device, connected to disconnected or back.
-        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.ShouldShowExternalDrive()); break;
-        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeRecorderConnected);  break;
+        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.m_disks->ShouldShowExternalDrive()); break;
+        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected());  break;
     }
 }
 
@@ -1687,7 +1687,7 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     bool                      picked      = false;
     HRESULT                   hrPictures  = S_OK;
     std::error_code           ec;
-    const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
+    const GlobalUserPrefs &   prefs       = m_shell.m_settings->GetPrefs();
 
 
 
@@ -1710,7 +1710,7 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     spec.defaultFileName  = suggested.filename().wstring();
     spec.initialFolder    = folder;
 
-    hr = m_shell.GetHostDialogs().PickFileToSave (m_shell.GetPrinterDialogOwner(), spec, outFile, picked);
+    hr = m_shell.GetHostDialogs().PickFileToSave (m_shell.m_printer->GetPrinterDialogOwner(), spec, outFile, picked);
     CHR (hr);
 
     // A user cancel is not a delivery failure.
@@ -1768,7 +1768,7 @@ Error:
 HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage, PrintOutcome & outOutcome)
 {
     HRESULT                               hr       = S_OK;
-    const GlobalUserPrefs               & prefs    = m_shell.m_globalPrefs;
+    const GlobalUserPrefs               & prefs    = m_shell.m_settings->GetPrefs();
     vector<PrintPagination::PageRange>    pages    = PrintPagination::Paginate (raster);
     PRINTDLGW                             pd       = {};
     DOCINFOW                              di       = {};
@@ -1925,7 +1925,7 @@ Error:
 HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raster)
 {
     HRESULT                  hr       = S_OK;
-    const GlobalUserPrefs &  prefs    = m_shell.m_globalPrefs;
+    const GlobalUserPrefs &  prefs    = m_shell.m_settings->GetPrefs();
     PaperRenderer            renderer;
     PaperRenderer::Options   opt;
     RgbaImage                img;
@@ -2095,14 +2095,14 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // first and read the job's raster from a quiesced worker (no
         // concurrent mutation). Every arm below is responsible for restarting
         // the worker -- that is why they take the job rather than re-reading it.
-        m_shell.m_printerWorker.Stop();
+        m_shell.m_printer->GetWorker().Stop();
 
         {
             vector<PrinterEvent>   events;
-            m_shell.m_printerWorker.FlushNow (events);
+            m_shell.m_printer->GetWorker().FlushNow (events);
         }
 
-        job = m_shell.m_printerWorker.GetJob();
+        job = m_shell.m_printer->GetWorker().GetJob();
 
         // "No page" also covers a strip whose drained bytes left nothing on the
         // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent
@@ -2150,15 +2150,15 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
 
 
 
-    DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso printer", MB_OK | MB_ICONINFORMATION);
+    DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), emptyMsg, L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
     if (job != nullptr)
     {
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
     }
 }
 
@@ -2181,12 +2181,12 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 
 
 
-    m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
-    m_shell.NotePrinterDeliveryResult (FAILED (hr));
+    m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+    m_shell.m_printer->NotePrinterDeliveryResult (FAILED (hr));
 
     if (FAILED (hr))
     {
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), L"Could not copy the printout to the clipboard.",
                      L"Casso printer", MB_OK | MB_ICONWARNING);
     }
 }
@@ -2208,8 +2208,8 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
 {
     int   choice = DxuiMessageBox (
-        m_shell.GetPrinterDialogOwner(),
-        &m_shell.m_chromeTheme,
+        m_shell.m_printer->GetPrinterDialogOwner(),
+        &m_shell.m_chrome->GetTheme(),
         L"Tear off and discard the current printout?\n\n"
         L"The page in the printer will be thrown away without saving. "
         L"This cannot be undone.",
@@ -2220,17 +2220,17 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
     if (choice != IDYES)
     {
         // Canceled: keep the strip and resume on the same page.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
         // Confirmed: play the tear-off (a random paper-tear), start a fresh
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
-        m_shell.m_printerAudio.PlayTearOff();
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_audio->GetPrinterAudio().PlayTearOff();
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
         PrintJobStore::Clear (m_shell.GetPendingPrintDir());
-        m_shell.NotePrinterDeliveryResult (false);
+        m_shell.m_printer->NotePrinterDeliveryResult (false);
     }
 }
 
@@ -2269,10 +2269,10 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         // (which prints with honest error reporting, just no preview pane). The
         // CASSO_CLASSIC_PRINT env var forces the classic path -- a support
         // hatch for the rare machine whose print stack misbehaves.
-        const GlobalUserPrefs &  prefs  = m_shell.m_globalPrefs;
-        HRESULT                  hrShow = m_shell.GetPrintDialog().ShowAsync (m_shell.m_hwnd, job->GetRaster(),
-                                                                              PrintDpiFromPrefs (prefs),
-                                                                              PrintDotStyleFromPrefs (prefs));
+        const GlobalUserPrefs &  prefs  = m_shell.m_settings->GetPrefs();
+        HRESULT                  hrShow = m_shell.m_printer->GetPrintDialog().ShowAsync (m_shell.m_hwnd, job->GetRaster(),
+                                                                                         PrintDpiFromPrefs (prefs),
+                                                                                         PrintDotStyleFromPrefs (prefs));
 
         // The async session owns the outcome from here; resume and let its
         // completion callback post the result.
@@ -2289,7 +2289,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
     {
         // Modern session up, or the user canceled the print / save dialog:
         // keep the strip either way, no clear.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else if (SUCCEEDED (hr))
     {
@@ -2297,11 +2297,11 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
                                  ? std::wstring (L"Sent the printout to the printer.")
                                  : (L"Saved printout to:\n" + file.wstring());
 
-        m_shell.NotePrinterDeliveryResult (false);
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
+        m_shell.m_printer->NotePrinterDeliveryResult (false);
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
@@ -2320,14 +2320,14 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
         msg += FormatSystemError (hr);
 
-        m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
+        m_shell.m_printer->NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
 
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(),
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), msg.c_str(),
                      L"Casso printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
 }
 
@@ -2349,17 +2349,17 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
 void WindowCommandManager::OnModernPrintResult (bool succeeded)
 {
-    m_shell.NotePrinterDeliveryResult (!succeeded);   // toolbar LED tracks the outcome
+    m_shell.m_printer->NotePrinterDeliveryResult (!succeeded);   // toolbar LED tracks the outcome
 
     if (succeeded)
     {
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(),
                         L"Sent the printout to the printer.",
                         L"Casso printer", MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(),
                         L"Something went wrong while sending your printout, so it is still "
                         L"waiting in the printer. Please try printing again.",
                         L"Casso printer", MB_OK | MB_ICONWARNING);
@@ -2420,7 +2420,7 @@ void WindowCommandManager::OnHelpCommand (int id)
         {
             // Runs on the update service's thread; the result comes back to
             // the shell, which reports it whatever it is.
-            m_shell.CheckForUpdatesNow();
+            m_shell.GetUpdater().CheckForUpdatesNow();
             break;
         }
 
