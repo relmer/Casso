@@ -857,11 +857,12 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
             }
             else
             {
-                const MappedFile &  fb      = mapB->files[match];
-                vector<Byte>        bytesA;
-                vector<Byte>        bytesB;
-                bool                isReadA = ReadContents (*mapA, sourceA, fa, bytesA);
-                bool                isReadB = ReadContents (*mapB, sourceB, fb, bytesB);
+                const MappedFile                & fb      = mapB->files[match];
+                vector<Byte>                      bytesA;
+                vector<Byte>                      bytesB;
+                vector<std::pair<size_t, int>>    startsA;
+                bool                              isReadA = ReadContents (*mapA, sourceA, fa, bytesA, &startsA);
+                bool                              isReadB = ReadContents (*mapB, sourceB, fb, bytesB);
 
                 isUsed[match] = true;
                 pair.isSame   = true;
@@ -891,6 +892,8 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
                         pair.outcome = DifferenceKind::FileContents;
                         inOut.differences.push_back ({ DifferenceKind::FileContents, -1, -1, -1, 0, -1, 0, 0, count, first, false, fa.path });
                     }
+
+                    pair.differingCells = GetDifferingCells (startsA, bytesA, bytesB);
 
                     if (bytesA.size() != bytesB.size())
                     {
@@ -941,12 +944,13 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
 //
 //  A file's data in file order, each hole as zeros of its unit (a sector,
 //  a block, or a CP/M allocation block), cut to the size its entry records
-//  where that is in bytes. False when its chain is broken or a sector of
-//  it cannot be read.
+//  where that is in bytes, and where each cell's bytes start when asked.
+//  False when its chain is broken or a sector of it cannot be read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskComparer::ReadContents (const FileMap & map, const SectorSource & source, const MappedFile & file, vector<Byte> & outBytes)
+bool DiskComparer::ReadContents (const FileMap & map, const SectorSource & source, const MappedFile & file, vector<Byte> & outBytes,
+                                 vector<std::pair<size_t, int>> * outStarts)
 {
     size_t  hole   = (map.fileSystem == MapFileSystem::Dos33) ? 256u : (map.fileSystem == MapFileSystem::Cpm) ? 1024u : 512u;
     bool    isRead = file.chainReason == ChainReason::None;
@@ -968,6 +972,11 @@ bool DiskComparer::ReadContents (const FileMap & map, const SectorSource & sourc
         }
         else
         {
+            if (outStarts != nullptr)
+            {
+                outStarts->push_back ({ outBytes.size(), place.cell });
+            }
+
             isRead = ReadCell (map, source, place.cell, outBytes);
         }
     }
@@ -978,6 +987,46 @@ bool DiskComparer::ReadContents (const FileMap & map, const SectorSource & sourc
     }
 
     return isRead;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::GetDifferingCells
+//
+//  Each of A's cells whose bytes differ from B's at the same offsets, or
+//  that reach past the end of B's contents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<int> DiskComparer::GetDifferingCells (const vector<std::pair<size_t, int>> & starts, const vector<Byte> & a, const vector<Byte> & b)
+{
+    vector<int>  cells;
+    size_t       end   = 0;
+    bool         isOff = false;
+
+
+
+    for (size_t i = 0; i < starts.size(); i++)
+    {
+        end   = (i + 1 < starts.size()) ? starts[i + 1].first : a.size();
+        isOff = false;
+
+        for (size_t k = starts[i].first; !isOff && k < std::min (end, a.size()); k++)
+        {
+            isOff = k >= b.size() || a[k] != b[k];
+        }
+
+        if (isOff)
+        {
+            cells.push_back (starts[i].second);
+        }
+    }
+
+    return cells;
 }
 
 

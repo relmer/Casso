@@ -169,6 +169,7 @@ private:
     InspectorViewContext                                                                         m_contextB;
     uint64_t                                                                                     m_modelBDisk        = 0;
     vector<Difference>                                                                           m_nibbleDiffs;
+    vector<int>                                                                                  m_diffCells;
     const TrackAnalysis                                                                        * m_diffsOfA          = nullptr;
     const TrackAnalysis                                                                        * m_diffsOfB          = nullptr;
     double                                                                                       m_bOffset           = 0.0;

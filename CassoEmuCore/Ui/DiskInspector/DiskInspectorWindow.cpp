@@ -2735,6 +2735,7 @@ void DiskInspectorWindow::TakeComparison()
     }
 
     m_context.comparison = (m_comparison.IsComparing() && m_comparison.HasResult()) ? &m_comparison.GetResult() : nullptr;
+    m_context.diffCells  = (m_comparison.IsComparing() && !m_diffCells.empty()) ? &m_diffCells : nullptr;
     m_context.analysisB  = m_comparison.IsComparing() ? &m_comparison.GetB() : nullptr;
 
     if (m_comparison.GetVersion() != m_comparisonVersion)
@@ -2922,6 +2923,7 @@ void DiskInspectorWindow::StopComparing()
 
 
     m_comparison.End();
+    m_diffCells.clear();
     m_context.comparison = nullptr;
     m_context.analysisB  = nullptr;
     m_diffIndex          = -1;
@@ -3071,6 +3073,8 @@ void DiskInspectorWindow::SelectDifference (const Difference & difference)
 
 
 
+    m_diffCells.clear();
+
     if (difference.quarterTrack >= 0)
     {
         m_model.SelectQuarterTrack (difference.quarterTrack);
@@ -3097,6 +3101,12 @@ void DiskInspectorWindow::SelectDifference (const Difference & difference)
         for (i = 0; file < 0 && i < map->files.size(); i++)
         {
             file = (map->files[i].path == difference.path && !map->files[i].isDeleted) ? static_cast<int> (i) : -1;
+        }
+
+        //  A file pair marks A's sectors that differ from B's (FR-120).
+        for (const FilePair & pair : m_comparison.GetResult().files)
+        {
+            m_diffCells = (file >= 0 && pair.fileA == file) ? pair.differingCells : m_diffCells;
         }
 
         if (file >= 0)

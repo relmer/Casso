@@ -15,6 +15,7 @@ static constexpr float     s_kMinRowDip     = 9.0f;
 static constexpr float     s_kMaxRowDip     = 16.0f;
 static constexpr float     s_kLetterMinDip  = 12.0f;
 static constexpr float     s_kOutlineDip    = 2.0f;
+static constexpr float     s_kDiffBandDip   = 3.0f;
 static constexpr uint32_t  s_kMarkAlpha     = 0xE0000000u;
 
 
@@ -156,6 +157,13 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     if (number > 0)
     {
         painter.OutlineRect (x, y, w, h, 1.0f, theme.Accent());
+    }
+
+    //  While comparing, a cell of the selected file pair that differs (FR-120).
+    if (m_context.diffCells != nullptr && std::find (m_context.diffCells->begin(), m_context.diffCells->end(), cell) != m_context.diffCells->end())
+    {
+        painter.FillRect    (x, y + h - m_scaler.ToPxf (s_kDiffBandDip), w, m_scaler.ToPxf (s_kDiffBandDip), m_context.palette.colors.difference);
+        painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, m_scaler.ToPxf (s_kOutlineDip), m_context.palette.colors.difference);
     }
 
     if (cell == m_selectedCell)

@@ -296,6 +296,12 @@ public:
             Assert::AreEqual (1, CountKind (c.differences, DifferenceKind::FileContents), std::to_wstring (system).c_str());
             Assert::AreEqual (1, CountKind (c.differences, DifferenceKind::SectorBytes));
             Assert::AreEqual (static_cast<size_t> (2), c.differences.size(), L"the sector and the file, nothing else");
+
+            //  The changed file's pair marks exactly the one cell that differs.
+            auto  changed = std::find_if (c.files.begin(), c.files.end(), [] (const FilePair & p) { return p.outcome == DifferenceKind::FileContents && !p.isSame; });
+
+            Assert::IsTrue (changed != c.files.end());
+            Assert::AreEqual (static_cast<size_t> (1), changed->differingCells.size(), L"one differing cell");
         }
     }
 

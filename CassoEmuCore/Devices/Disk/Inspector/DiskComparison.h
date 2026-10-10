@@ -66,7 +66,8 @@ enum class DifferenceKind
 //  comparison, never a verdict (FR-120). A track's comparison gives its
 //  verdict with the rotation and length change that qualify it; a
 //  difference gives its place on A and on B; a file pair gives the outcome
-//  of comparing two files of one path.
+//  of comparing two files of one path, with A's map cells that hold bytes
+//  differing from B's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,6 +122,7 @@ struct FilePair
     DifferenceKind  outcome   = DifferenceKind::FileContents;
     bool            isSame    = false;
     std::wstring    reason;
+    vector<int>     differingCells;
 };
 
 

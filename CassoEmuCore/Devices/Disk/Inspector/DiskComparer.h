@@ -64,7 +64,9 @@ private:
     static uint32_t        GetSectorCell    (const TrackAnalysis & track, const AnalyzedSector & sector);
     static void            ListTiming       (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, int rotation, vector<Difference> & inOutDiffs);
     static void            CompareFiles     (const DiskAnalysis & a, const DiskAnalysis & b, DiskComparison & inOut);
-    static bool            ReadContents     (const FileMap & map, const SectorSource & source, const MappedFile & file, vector<Byte> & outBytes);
+    static bool            ReadContents     (const FileMap & map, const SectorSource & source, const MappedFile & file, vector<Byte> & outBytes,
+                                             vector<std::pair<size_t, int>> * outStarts = nullptr);
+    static vector<int>     GetDifferingCells (const vector<std::pair<size_t, int>> & starts, const vector<Byte> & a, const vector<Byte> & b);
     static bool            ReadCell         (const FileMap & map, const SectorSource & source, int cell, vector<Byte> & inOut);
     static vector<Byte>    GetNibbles       (const TrackAnalysis & track, int rotation);
     static bool            HasSectors       (const TrackAnalysis & track) { return !track.sectors.empty(); }

@@ -292,7 +292,7 @@ without the others in its merge.
 - [X] T123 [P] [US10] Write `UT/DiskComparisonTests.cpp`: each planted verdict and difference once and nothing else; "Standard layout" and "Nothing recorded" not counted; tracks not compared never counted as matching; options change only the Differences tab and file comparison; timing under 1 s and 5 s in Release
 - [X] T124 [US10] Create `DD/Inspector/DiskComparer.h` / `.cpp`: alignment by first shared address field or voted 8-nibble rotation, bounded Myers diff (64), flux timing within ±1%, verdicts of FR-118, sector pairing and volume differences (FR-120), file comparison by path in catalog order (R27)
 - [ ] T125 [US10] Comparison sources in Casso (`ComparisonSource`: image file, drive now, as inserted, its file, other drive) through the request queue; B's own decode settings; "Swap A and B", "Stop comparing" (FR-117)
-- [ ] T126 [US10] Comparison bar, Differences tab, result chip, Tracks "Comparison" column, "Differences" overlay, B's strip linked below A's, B's bytes in Sector data, differing nibbles marked, Previous and Next difference, Copy (FR-121)
+- [X] T126 [US10] Comparison bar, Differences tab, result chip, Tracks "Comparison" column, "Differences" overlay, B's strip linked below A's, B's bytes in Sector data, differing nibbles marked, Previous and Next difference, Copy (FR-121)
 - [ ] T127 [US10] Re-comparison of changed records only, ends on eject, file deleted note, "Use B's bytes" as a pending edit (FR-122, FR-123)
 - [ ] T128 [US10] Add SC-022 to `ScenarioTests/GuestVisibleInspectorEditTests.cpp`: after a guest SAVE, disk now vs as inserted differs only on written tracks and the new file is only in A
 

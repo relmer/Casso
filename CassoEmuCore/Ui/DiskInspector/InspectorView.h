@@ -37,6 +37,7 @@ struct InspectorViewContext
     const DiskAnalysis        * analysisB      = nullptr;
     const TrackAnalysis       * trackB         = nullptr;
     const vector<Difference>  * nibbleDiffs    = nullptr;
+    const vector<int>         * diffCells      = nullptr;
     std::function<void ()>    onSelectionChanged;
 
     const TrackAnalysis *  GetTrack () const { return (model != nullptr && hasDisk) ? model->GetTrack() : nullptr; }
