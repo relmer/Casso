@@ -36,7 +36,14 @@ public:
 
 private:
     void           PaintTrack   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
+    void           PaintCells      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void           PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom);
+    void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
+    bool           IsOverSeam      (const TrackAnalysis & track, float xPx) const;
+    float          GetCellPx       (const TrackAnalysis & track) const;
+    static bool    IsTimed         (const TrackAnalysis & track);
     void           UpdateTurns  (const TrackAnalysis & track) const;
     StripGeometry  MakeGeometry () const;
     RECT           GetBarRect   () const;
@@ -45,6 +52,7 @@ private:
 
     mutable const TrackAnalysis *  m_turnsOf    = nullptr;
     mutable vector<double>         m_turns;
+    mutable vector<double>         m_cellTurns;
     bool                           m_isPressed  = false;
     bool                           m_isPanning  = false;
     POINT                          m_pressAt    = {};

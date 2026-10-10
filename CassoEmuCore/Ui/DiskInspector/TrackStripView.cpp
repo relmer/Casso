@@ -3,6 +3,8 @@
 #include "Ui/DiskInspector/TrackStripView.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
+#include "Core/UnicodeSymbols.h"
+#include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
@@ -16,6 +18,16 @@ static constexpr int    s_kDragThresholdPx = 4;
 static constexpr float  s_kOutlineDip      = 2.0f;
 static constexpr float  s_kValueMinPx      = 18.0f;
 static constexpr float  s_kLabelDip        = 11.0f;
+static constexpr float  s_kPadDip          = 6.0f;
+static constexpr float  s_kCellDigitDip    = 9.0f;
+static constexpr float  s_kCellTimingDip   = 40.0f;
+static constexpr float  s_kValueShare      = 0.4f;
+static constexpr float  s_kLineInsetDip    = 3.0f;
+static constexpr float  s_kLineStepDip     = 2.0f;
+static constexpr float  s_kLineDip         = 1.5f;
+static constexpr float  s_kSeamRuleDip     = 3.0f;
+static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
+static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
 
 
 
@@ -57,22 +69,36 @@ void TrackStripView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  TrackStripView::PaintTrack
 //
-//  Only the nibbles in view are drawn, found by searching the turns.
+//  Each nibble in its kind's color, or in Timing mode on a flux track its
+//  cells' mean timing, with its value and then its kind once they fit and a
+//  divider before it once its value fits (FR-033, FR-035). Zoomed in far
+//  enough, the cells, the timing line on a flux track, then the write seam
+//  and the sector labels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track)
 {
-    StripGeometry                g      = MakeGeometry();
-    RECT                         bar    = GetBarRect();
-    std::array<StripSegment, 2>  parts  = {};
-    float                        top    = static_cast<float> (bar.top);
-    float                        height = static_cast<float> (bar.bottom - bar.top);
-    size_t                       i      = 0;
-    int                          count  = 0;
-    int                          k      = 0;
-    uint32_t                     color  = 0;
-    float                        textPx = m_scaler.ToPxf (kSmallDip);
+    const FramedTrack &          framed    = track.framed;
+    StripGeometry                g         = MakeGeometry();
+    RECT                         bar       = GetBarRect();
+    std::array<StripSegment, 2>  parts     = {};
+    float                        top       = static_cast<float> (bar.top);
+    float                        height    = static_cast<float> (bar.bottom - bar.top);
+    float                        textPx    = m_scaler.ToPxf (kSmallDip);
+    bool                         isTimed   = IsTimed (track);
+    bool                         isTiming  = isTimed && m_context.isTimingMode;
+    bool                         showCells = GetCellPx (track) >= m_scaler.ToPxf (s_kCellDigitDip);
+    float                        valueH    = showCells ? height * s_kValueShare : height;
+    size_t                       i         = 0;
+    size_t                       next      = 0;
+    int                          count     = 0;
+    int                          k         = 0;
+    uint32_t                     color     = 0;
+    float                        w         = 0;
+    float                        textW     = 0;
+    float                        textH     = 0;
+    std::wstring                 label;
 
 
 
@@ -80,28 +106,42 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     for (i = 0; i + 1 < m_turns.size(); i++)
     {
+        next  = (i + 1) % framed.nibbles.size();
         count = g.GetSegments (m_turns[i], m_turns[i + 1] - m_turns[i], parts);
-        color = GetNibbleColor (track, static_cast<int> (i));
+        color = isTiming ? m_context.palette.GetTimingColor (FluxTiming::GetMeanDeviation (track, framed.nibbles[i].startCell, framed.nibbles[next].startCell),
+                                                             m_context.timingRange)
+                         : GetNibbleColor (track, static_cast<int> (i));
 
         for (k = 0; k < count; k++)
         {
-            painter.FillRect (parts[k].x0, top, std::max (parts[k].x1 - parts[k].x0, 1.0f), height, color);
+            w = parts[k].x1 - parts[k].x0;
+            painter.FillRect (parts[k].x0, top, std::max (w, 1.0f), height, color);
 
-            if (parts[k].x1 - parts[k].x0 >= m_scaler.ToPxf (s_kValueMinPx))
+            if (w >= m_scaler.ToPxf (s_kValueMinPx))
             {
-                text.DrawString (std::format (L"{:02X}", track.framed.nibbles[i].value).c_str(), parts[k].x0, top, parts[k].x1 - parts[k].x0, height,
-                                 DiskInspectorPalette::GetTextColorOn (color), textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                                 DxuiFontWeight::Normal, false);
+                painter.FillRect (parts[k].x0, top, 1.0f, height, theme.Background());
+
+                label = std::format (L"{:02X} ", framed.nibbles[i].value)
+                      + InspectorText::FormatNibbleKind (track.nibbleKinds[i], i < track.isFailedChecksum.size() && track.isFailedChecksum[i] != 0);
+                text.MeasureString (label.c_str(), textPx, DxuiTheme::kMonoFace, textW, textH);
+
+                if (textW > w - m_scaler.ToPxf (s_kPadDip))
+                {
+                    label = std::format (L"{:02X}", framed.nibbles[i].value);
+                }
+
+                text.DrawString (label.c_str(), parts[k].x0, top, w, valueH, DiskInspectorPalette::GetTextColorOn (color), textPx, DxuiTheme::kMonoFace,
+                                 DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             }
         }
     }
 
-    for (const RandomRegion & region : track.framed.randomRegions)
+    for (const RandomRegion & region : framed.randomRegions)
     {
-        double  a = TrackAnalyzer::GetAngle (track, region.startCell);
-        double  b = TrackAnalyzer::GetAngle (track, region.startCell + region.cellCount);
+        double  ra = TrackAnalyzer::GetAngle (track, region.startCell);
+        double  rb = TrackAnalyzer::GetAngle (track, region.startCell + region.cellCount);
 
-        count = g.GetSegments (a, (b > a) ? b - a : b + 1.0 - a, parts);
+        count = g.GetSegments (ra, (rb > ra) ? rb - ra : rb + 1.0 - ra, parts);
 
         for (k = 0; k < count; k++)
         {
@@ -109,7 +149,215 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
         }
     }
 
+    if (showCells)
+    {
+        PaintCells (painter, text, theme, track, g);
+    }
+
+    //  Zoomed in to cells, the line takes the cell band's empty upper row,
+    //  until each cell's own timing fills that row in its place.
+    if (isTimed && !showCells)
+    {
+        PaintTimingLine (painter, theme, track, g, top, top + height);
+    }
+    else if (isTimed && GetCellPx (track) < m_scaler.ToPxf (s_kCellTimingDip))
+    {
+        PaintTimingLine (painter, theme, track, g, top + valueH, top + valueH + (height - valueH) / 2);
+    }
+
+    PaintSeam   (painter, text, theme, track, g);
     PaintLabels (painter, text, theme, track, g);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintCells
+//
+//  Under the values, a band holding each cell in view: its 1 or 0 with a
+//  pulse over each 1, and on a flux track its own timing once that fits
+//  (FR-035).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g)
+{
+    const FramedTrack &          framed     = track.framed;
+    RECT                         bar        = GetBarRect();
+    std::array<StripSegment, 2>  parts      = {};
+    float                        height     = static_cast<float> (bar.bottom - bar.top);
+    float                        bandTop    = static_cast<float> (bar.top) + height * s_kValueShare;
+    float                        bandH      = static_cast<float> (bar.bottom) - bandTop;
+    float                        rowH       = bandH / 2;
+    float                        textPx     = m_scaler.ToPxf (kSmallDip);
+    bool                         showTiming = IsTimed (track) && GetCellPx (track) >= m_scaler.ToPxf (s_kCellTimingDip);
+    uint32_t                     first      = FluxTiming::GetCellAt (m_cellTurns, g.GetTurn (static_cast<float> (bar.left)));
+    uint32_t                     inView     = static_cast<uint32_t> (GetWidth() / std::max (GetCellPx (track), 1.0f)) + 2;
+    uint32_t                     n          = 0;
+    uint32_t                     cell       = 0;
+    int                          count      = 0;
+    int                          k          = 0;
+    float                        cx         = 0;
+    uint32_t                     band       = (theme.Background() & 0x00FFFFFFu) | s_kBandAlpha;
+
+
+
+    painter.FillRect (static_cast<float> (bar.left), bandTop, GetWidth(), bandH, band);
+
+    for (n = 0; n < inView && n < framed.cellCount; n++)
+    {
+        cell  = (first + n) % framed.cellCount;
+        count = g.GetSegments (m_cellTurns[cell], m_cellTurns[cell + 1] - m_cellTurns[cell], parts);
+
+        for (k = 0; k < count; k++)
+        {
+            cx = (parts[k].x0 + parts[k].x1) / 2;
+
+            if (framed.cells[cell] != 0)
+            {
+                painter.DrawLine (cx, bandTop + m_scaler.ToPxf (2.0f), cx, bandTop + rowH, m_scaler.ToPxf (1.5f), theme.Foreground());
+            }
+
+            text.DrawString (framed.cells[cell] != 0 ? L"1" : L"0", parts[k].x0, bandTop + rowH, parts[k].x1 - parts[k].x0, rowH, theme.Foreground(), textPx,
+                             DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+
+            if (showTiming)
+            {
+                text.DrawString (InspectorFormat::FormatPercent (FluxTiming::GetDeviation (framed.cellTicks[cell])).c_str(), parts[k].x0, bandTop,
+                                 parts[k].x1 - parts[k].x0, rowH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
+                                 DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintTimingLine
+//
+//  On a flux track, the mean cell timing under each few pixels, nominal in
+//  the middle of the band from top to bottom, slow above and fast below,
+//  with the timing range filling it (FR-033).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom)
+{
+    RECT      bar    = GetBarRect();
+    float     inset  = m_scaler.ToPxf (s_kLineInsetDip);
+    float     mid    = (top + bottom) / 2.0f;
+    float     half   = std::max ((bottom - top) / 2.0f - inset, 1.0f);
+    float     step   = m_scaler.ToPxf (s_kLineStepDip);
+    float     thick  = m_scaler.ToPxf (s_kLineDip);
+    float     x      = static_cast<float> (bar.left);
+    float     prevX  = 0;
+    float     prevY  = 0;
+    float     y      = 0;
+    uint32_t  a      = 0;
+    uint32_t  b      = 0;
+    double    t      = 0;
+    bool      isPrev = false;
+
+
+
+    painter.DrawLine (static_cast<float> (bar.left), mid, static_cast<float> (bar.right), mid, 1.0f, theme.Border());
+
+    for (x = static_cast<float> (bar.left); x < bar.right; x += step)
+    {
+        a = FluxTiming::GetCellAt (m_cellTurns, g.GetTurn (x));
+        b = FluxTiming::GetCellAt (m_cellTurns, g.GetTurn (std::min (x + step, static_cast<float> (bar.right))));
+        t = std::clamp (FluxTiming::GetMeanDeviation (track, a, (b == a) ? a + 1 : b) / std::max (m_context.timingRange, 1e-6), -1.0, 1.0);
+        y = mid - static_cast<float> (t) * half;
+
+        if (isPrev)
+        {
+            painter.DrawLine (prevX, prevY, x + step / 2, y, thick, theme.Foreground());
+        }
+
+        prevX  = x + step / 2;
+        prevY  = y;
+        isPrev = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintSeam
+//
+//  The longest sync run, the likely write seam (FR-033): a rule along the
+//  bottom of the label row, with its label over it where that fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintSeam (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g)
+{
+    RECT                         bar    = GetBarRect();
+    std::array<StripSegment, 2>  parts  = {};
+    int                          count  = GetSeamSegments (track, g, parts);
+    float                        rule   = m_scaler.ToPxf (s_kSeamRuleDip);
+    float                        textPx = m_scaler.ToPxf (s_kLabelDip);
+    float                        textW  = 0;
+    float                        textH  = 0;
+    int                          k      = 0;
+
+
+
+    text.MeasureString (s_kpszSeamLabel, textPx, DxuiTheme::kBodyFace, textW, textH);
+
+    for (k = 0; k < count; k++)
+    {
+        painter.FillRect (parts[k].x0, static_cast<float> (bar.top) - rule - 1.0f, std::max (parts[k].x1 - parts[k].x0, 1.0f), rule, theme.ForegroundMuted());
+
+        if (parts[k].x1 - parts[k].x0 >= textW + m_scaler.ToPxf (s_kPadDip))
+        {
+            text.DrawString (s_kpszSeamLabel, parts[k].x0, static_cast<float> (m_boundsDip.top), parts[k].x1 - parts[k].x0,
+                             static_cast<float> (bar.top - m_boundsDip.top) - rule, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
+                             DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetSeamSegments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int TrackStripView::GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const
+{
+    const SyncRun &  seam  = track.measurements.longestSync;
+    size_t           n     = track.framed.nibbles.size();
+    double           a     = 0;
+    double           b     = 0;
+    int              count = 0;
+
+
+
+    //  A run's width in cells is each sync nibble's, so its extent comes from
+    //  where its first nibble starts and where the nibble after it starts.
+    if (seam.count > 0 && n > 0 && m_turns.size() == n + 1)
+    {
+        a     = m_turns[static_cast<size_t> (seam.firstNibble) % n];
+        b     = m_turns[static_cast<size_t> (seam.firstNibble + seam.count) % n];
+        count = g.GetSegments (a, b - a - std::floor (b - a), outParts);
+    }
+
+    return count;
 }
 
 
@@ -293,6 +541,13 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
         outText     = InspectorText::FormatNibbleTooltip (*track, nibble);
         outAnchorPx = { pointPx.x, bar.top, pointPx.x + 1, bar.bottom };
     }
+    else if (track != nullptr && !m_isPanning && pointPx.y >= m_boundsDip.top && pointPx.y < bar.top && IsOverSeam (*track, static_cast<float> (pointPx.x)))
+    {
+        outText     = std::format (L"Longest sync run, {} nibbles at cell {}\nThe likely write seam", track->measurements.longestSync.count,
+                                   InspectorFormat::FormatCount (track->measurements.longestSync.startCell));
+        outAnchorPx = { pointPx.x, m_boundsDip.top, pointPx.x + 1, bar.top };
+        nibble      = 0;
+    }
 
     return nibble >= 0;
 }
@@ -312,6 +567,7 @@ void TrackStripView::UpdateTurns (const TrackAnalysis & track) const
     if (m_turnsOf != &track)
     {
         StripGeometry::BuildNibbleTurns (track, m_turns);
+        FluxTiming::BuildCellTurns (track, m_cellTurns);
         m_turnsOf = &track;
     }
 }
@@ -405,4 +661,63 @@ uint32_t TrackStripView::GetNibbleColor (const TrackAnalysis & track, int nibble
 
 
     return m_context.palette.GetKindColor (isFailed ? PlatterKind::FailedChecksum : PlatterCells::GetKindOf (track.nibbleKinds[nibble]));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::IsTimed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackStripView::IsTimed (const TrackAnalysis & track)
+{
+    return track.framed.isFlux && track.framed.turnTicks > 0 && track.framed.cellTicks.size() >= track.framed.cellCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetCellPx
+//
+//  How wide a cell of the mean length is at the strip's zoom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float TrackStripView::GetCellPx (const TrackAnalysis & track) const
+{
+    return GetWidth() / static_cast<float> (m_context.model->GetStripSpan() * std::max<uint32_t> (track.framed.cellCount, 1));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::IsOverSeam
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackStripView::IsOverSeam (const TrackAnalysis & track, float xPx) const
+{
+    std::array<StripSegment, 2>  parts  = {};
+    int                          count  = GetSeamSegments (track, MakeGeometry(), parts);
+    int                          k      = 0;
+    bool                         isOver = false;
+
+
+
+    for (k = 0; k < count; k++)
+    {
+        isOver = isOver || (xPx >= parts[k].x0 && xPx < parts[k].x1);
+    }
+
+    return isOver;
 }

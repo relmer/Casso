@@ -24,6 +24,8 @@ void TrackHeaderView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     int                    qt     = m_context.model->GetQuarterTrack();
     std::wstring           title;
     std::wstring           note;
+    std::wstring           measure;
+    std::wstring           rest;
 
 
 
@@ -48,7 +50,19 @@ void TrackHeaderView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
         if (track != nullptr)
         {
-            text.DrawString (InspectorText::FormatMeasureLine (*track).c_str(), x, y + 2 * line, w, line, theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip),
+            measure = InspectorText::FormatMeasureLine (*track);
+
+            //  A flux track's measurements can run past the width; with no
+            //  note under them, the rest goes on the line the note would take.
+            if (note.empty())
+            {
+                rest = SplitToFit (text, measure, w);
+            }
+
+            text.DrawString (measure.c_str(), x, y + 2 * line, w, line, theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip),
+                             DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+
+            text.DrawString (rest.c_str(), x, y + 3 * line, w, line, theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip),
                              DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
 
@@ -95,4 +109,48 @@ std::wstring TrackHeaderView::GetFormatNote (DiskFormat format)
     }
 
     return note;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackHeaderView::SplitToFit
+//
+//  Shortens the line to the items that fit the width and returns the rest,
+//  breaking only between items.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TrackHeaderView::SplitToFit (IDxuiTextRenderer & text, std::wstring & inOutLine, float widthPx) const
+{
+    std::wstring  separator = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+    std::wstring  rest;
+    size_t        at        = inOutLine.size();
+    float         textW     = 0;
+    float         textH     = 0;
+
+
+
+    text.MeasureString (inOutLine.c_str(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, textW, textH);
+
+    while (textW > widthPx && at != std::wstring::npos && at > 0)
+    {
+        at = inOutLine.rfind (separator, at - 1);
+
+        if (at != std::wstring::npos)
+        {
+            text.MeasureString (inOutLine.substr (0, at).c_str(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, textW, textH);
+        }
+    }
+
+    if (at != std::wstring::npos && at < inOutLine.size())
+    {
+        rest = inOutLine.substr (at + separator.size());
+        inOutLine.resize (at);
+    }
+
+    return rest;
 }

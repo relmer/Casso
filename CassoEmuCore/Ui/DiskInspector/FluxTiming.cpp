@@ -228,3 +228,103 @@ int FluxTiming::GetBin (double ticks)
 
     return std::clamp (bin, 0, FluxHistogram::kBinCount - 1);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxTiming::BuildCellTurns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxTiming::BuildCellTurns (const TrackAnalysis & track, vector<double> & outTurns)
+{
+    const FramedTrack &  framed  = track.framed;
+    bool                 isTimed = framed.isFlux && framed.turnTicks > 0 && framed.cellTicks.size() >= framed.cellCount;
+    double               elapsed = 0;
+    uint32_t             cell    = 0;
+
+
+
+    outTurns.resize (static_cast<size_t> (framed.cellCount) + 1);
+
+    for (cell = 0; cell <= framed.cellCount; cell++)
+    {
+        outTurns[cell] = isTimed ? elapsed / framed.turnTicks : static_cast<double> (cell) / std::max<uint32_t> (framed.cellCount, 1);
+
+        if (isTimed && cell < framed.cellCount)
+        {
+            elapsed += framed.cellTicks[cell];
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxTiming::GetCellAt
+//
+//  The cell under a point of the turn, wrapped into the track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t FluxTiming::GetCellAt (const vector<double> & cellTurns, double turn)
+{
+    double    wrapped = turn - std::floor (turn);
+    uint32_t  cell    = 0;
+
+
+
+    if (cellTurns.size() > 1)
+    {
+        auto  after = std::upper_bound (cellTurns.begin(), cellTurns.end() - 1, wrapped);
+
+        cell = (after == cellTurns.begin()) ? 0 : static_cast<uint32_t> (after - cellTurns.begin()) - 1;
+    }
+
+    return cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxTiming::GetMeanDeviation
+//
+//  The mean cell's deviation over [firstCell, endCell), which may wrap past
+//  the index; zero on a track that records no timing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double FluxTiming::GetMeanDeviation (const TrackAnalysis & track, uint32_t firstCell, uint32_t endCell)
+{
+    const FramedTrack &  framed = track.framed;
+    uint32_t             count  = 0;
+    uint32_t             k      = 0;
+    double               ticks  = 0;
+    double               mean   = 0;
+
+
+
+    if (framed.isFlux && framed.cellCount > 0 && framed.cellTicks.size() >= framed.cellCount)
+    {
+        count = (endCell + framed.cellCount - firstCell % framed.cellCount) % framed.cellCount;
+        count = (count == 0) ? 1 : count;
+
+        for (k = 0; k < count; k++)
+        {
+            ticks += framed.cellTicks[(firstCell + k) % framed.cellCount];
+        }
+
+        mean = GetDeviation (ticks / count);
+    }
+
+    return mean;
+}

@@ -164,6 +164,25 @@ LPCWSTR DiskInspectorPalette::GetMarkSymbol (bool isAddressMark)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskInspectorPalette::GetTimingColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskInspectorPalette::GetTimingColor (double deviation, double range) const
+{
+    double  t = std::clamp (deviation / std::max (range, 1e-6), -1.0, 1.0);
+
+
+
+    return DxuiColor::Lerp (colors.timingNominal, (t < 0) ? colors.timingFast : colors.timingSlow, static_cast<float> (std::abs (t)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskInspectorPalette::Fill
 //
 //  The indexed tables from the named colors.

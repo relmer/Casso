@@ -70,6 +70,49 @@ public:
 
 
 
+    TEST_METHOD (CellTurnsFollowTheCellTimes)
+    {
+        TrackAnalysis   track;
+        vector<double>  turns;
+        uint32_t        end = 0;
+
+
+
+        AnalyzeMixed (track);
+        FluxTiming::BuildCellTurns (track, turns);
+        end = track.framed.cellCount;
+
+        Assert::AreEqual (static_cast<size_t> (end) + 1, turns.size());
+        Assert::AreEqual (0.0, turns.front());
+        Assert::AreEqual (1.0, turns.back(), 0.001);
+        Assert::AreEqual (1234u, FluxTiming::GetCellAt (turns, turns[1234] + 1e-9));
+        Assert::AreEqual (FluxTiming::GetCellAt (turns, 0.25), FluxTiming::GetCellAt (turns, 1.25), L"a turn past the index wraps");
+        Assert::IsTrue (FluxTiming::GetCellAt (turns, 0.5) > end / 2, L"the fast half's cells take less than half the turn");
+    }
+
+
+
+    TEST_METHOD (MeanDeviationCoversARangeOfCells)
+    {
+        TrackAnalysis  track;
+        uint32_t       end     = 0;
+        double         wrapped = 0;
+
+
+
+        AnalyzeMixed (track);
+        end     = track.framed.cellCount;
+        wrapped = FluxTiming::GetMeanDeviation (track, end - 100, 100);
+
+        Assert::AreEqual (-0.041, FluxTiming::GetMeanDeviation (track, 10, 110),          0.005);
+        Assert::AreEqual ( 0.055, FluxTiming::GetMeanDeviation (track, end - 110, end - 10), 0.005);
+        Assert::AreEqual (FluxTiming::GetMeanDeviation (track, 10, 11), FluxTiming::GetMeanDeviation (track, 10, 10), L"an empty range is its first cell");
+
+        Assert::IsTrue (wrapped > -0.041 && wrapped < 0.055, L"a range across the index averages both halves");
+    }
+
+
+
     TEST_METHOD (CoarserLevelsKeepTheFurthestDeviation)
     {
         vector<Byte>          cells (64, FluxTiming::kNominal);

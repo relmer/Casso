@@ -29,4 +29,7 @@ public:
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     static std::wstring  GetFormatNote (DiskFormat format);
+
+private:
+    std::wstring  SplitToFit (IDxuiTextRenderer & text, std::wstring & inOutLine, float widthPx) const;
 };

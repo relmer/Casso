@@ -161,6 +161,19 @@ public:
 
 
 
+    TEST_METHOD (TimingColorsRunFromFastThroughNominalToSlow)
+    {
+        DiskInspectorPalette  palette = DiskInspectorPalette::MakeFallback (true);
+
+
+
+        Assert::AreEqual (palette.colors.timingNominal, palette.GetTimingColor (0.0, 0.05));
+        Assert::AreEqual (palette.colors.timingFast,    palette.GetTimingColor (-0.05, 0.05));
+        Assert::AreEqual (palette.colors.timingSlow,    palette.GetTimingColor (0.2, 0.05), L"past the range is clamped");
+        Assert::AreNotEqual (palette.colors.timingSlow, palette.GetTimingColor (0.02, 0.05));
+    }
+
+
     TEST_METHOD (TextReachesFourAndAHalfToOne)
     {
         for (const NamedPalette & p : MakeAll())

@@ -155,7 +155,7 @@ without the others in its merge.
 - [X] T060 [US1] (nibble values and cell ticks on the zoomed platter per FR-026 still to do) Create `UI/PlatterView.h` / `.cpp`: Structure mode via `PlatterRenderer`, index mark, hub, grooves, hover and selected ring outlines, pending pattern, beyond-reach dimming and limit line, damaged hatch (FR-022, FR-023, FR-028)
 - [X] T060a [US1] Platter tooltips per FR-027: track, kind, sector, the ring's sectors good out of found, flux cell time and deviation ("4.10µs cells (+4.8%)"); once nibble values show, the nibble value, offset and "cell N of M"; "Nothing recorded" with the random-bits note; none during a drag; text from a core formatter tested in `UT/InspectorViewModelTests.cpp`
 - [X] T061 [US1] Create the toolbar chips with file name ellipsis and full-name tooltip in `UI/DiskInspectorWindow.cpp` (FR-018 display rules)
-- [ ] T062 [US1] (built except the write seam mark) Create `UI/TrackHeaderView.h` / `.cpp` (FR-032 lines) and `UI/TrackStripView.h` / `.cpp` with `UI/StripGeometry.h` / `.cpp`: unrolled track, kind colors, sector labels, selected sector outline in two parts across the index, write seam mark (FR-033, FR-036)
+- [X] T062 [US1] Create `UI/TrackHeaderView.h` / `.cpp` (FR-032 lines) and `UI/TrackStripView.h` / `.cpp` with `UI/StripGeometry.h` / `.cpp`: unrolled track, kind colors, sector labels, selected sector outline in two parts across the index, write seam mark (FR-033, FR-036)
 - [X] T063 [US1] Create `UI/SectorRowView.h` / `.cpp` (FR-039)
 - [X] T064 [US1] Create `UI/SectorByteView.h` / `.cpp` (read-only in this phase): 16×16 hex and text columns as separate tab stops, zero and high-bit colors, bad data marked (FR-040, R20)
 - [X] T065 [US1] Create `UI/NibblesTab.h` / `.cpp`: rows in steps of 8 sized to the pane, kind colors, sync widths, extra-zero counts, invalid nibbles and random-bit regions, tooltips, scroll-to-a-third on selection (FR-041)
@@ -187,7 +187,7 @@ without the others in its merge.
 
 - [X] T073 [P] [US3] Write `UT/FluxTimingTests.cpp`: per-cell deviation against 3.91 µs (about -5% and +5% for 3.7 and 4.1 µs), histogram peaks at written intervals, selection histogram covers only the sector, pairs within one cell marked, bit-track note
 - [X] T074 [US3] Add Timing mode to `UI/PlatterView.cpp` and `UI/PlatterShader.hlsl` (deviation texture, range ±1% to ±25%, default ±5%, dimmed bit and sector-image tracks) and the legend for both modes (FR-024, FR-030)
-- [ ] T075 [US3] Add the timing line and per-cell timing to `UI/TrackStripView.cpp` (FR-033, FR-035)
+- [X] T075 [US3] Add the timing line and per-cell timing to `UI/TrackStripView.cpp` (FR-033, FR-035)
 - [ ] T076 [US3] Create `UI/FluxTimingTab.h` / `.cpp`: interval plot at recorded time with 1, 2 and 3 cell lines, index and sector marks, linked zoom and pan, histogram with "Whole track" and "Selection" (FR-044 to FR-046)
 
 ---

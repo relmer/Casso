@@ -91,6 +91,9 @@ public:
     uint32_t  GetRoleColor   (MapRole role)     const { return roles[static_cast<size_t> (role)]; }
     uint32_t  GetStateColor  (SectorState state) const { return sectorStates[static_cast<size_t> (state)]; }
 
+    //  Nominal at zero, blending to fast or slow at the full range.
+    uint32_t  GetTimingColor (double deviation, double range) const;
+
 private:
     static void  Fill (DiskInspectorPalette & inOut);
 };

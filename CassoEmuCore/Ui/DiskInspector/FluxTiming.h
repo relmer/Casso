@@ -70,4 +70,10 @@ public:
     static void           BuildIntervals  (const TrackAnalysis & track, vector<FluxInterval> & outIntervals);
     static FluxHistogram  BuildHistogram  (const vector<FluxInterval> & intervals, uint32_t firstCell, uint32_t endCell);
     static int            GetBin          (double ticks);
+
+    //  Each cell's start as a fraction of the turn, and one entry past the
+    //  last; a flux track places cells by their times, a bit track evenly.
+    static void      BuildCellTurns   (const TrackAnalysis & track, vector<double> & outTurns);
+    static uint32_t  GetCellAt        (const vector<double> & cellTurns, double turn);
+    static double    GetMeanDeviation (const TrackAnalysis & track, uint32_t firstCell, uint32_t endCell);
 };
