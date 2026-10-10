@@ -62,7 +62,6 @@ public:
 
         IDM_VIEW_FULLSCREEN,
         IDM_VIEW_RESET_SIZE,
-        IDM_VIEW_DISK2_DEBUG,
 
         IDM_HELP_KEYMAP,
         IDM_HELP_CHECK_UPDATES,
@@ -126,8 +125,6 @@ public:
         { L"IDM_VIEW_FULLSCREEN",           IDM_VIEW_FULLSCREEN           },
         { L"IDM_VIEW_CRT_SHADER",           IDM_VIEW_CRT_SHADER           },
         { L"IDM_VIEW_RESET_SIZE",           IDM_VIEW_RESET_SIZE           },
-        { L"IDM_VIEW_INPUT_DEBUG",          IDM_VIEW_INPUT_DEBUG          },
-        { L"IDM_VIEW_DISK2_DEBUG",          IDM_VIEW_DISK2_DEBUG          },
         { L"IDM_VIEW_SETTINGS",             IDM_VIEW_SETTINGS             },
         { L"IDM_AUDIO_DRIVE_ENABLE",        IDM_AUDIO_DRIVE_ENABLE        },
         { L"IDM_AUDIO_DRIVE_DISABLE",       IDM_AUDIO_DRIVE_DISABLE       },

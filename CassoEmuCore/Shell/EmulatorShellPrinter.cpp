@@ -65,7 +65,7 @@
 //
 //  Lazily creates the printer panel / print preview window, wires its toolbar
 //  callbacks to the existing delivery commands, pushes a fresh strip snapshot,
-//  and brings it to the foreground. Mirrors ShowDisk2Debug's create pattern.
+//  and brings it to the foreground.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

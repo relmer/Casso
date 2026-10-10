@@ -2636,7 +2636,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // Game-port input submitted off the UI thread (the controller thread, or a
     // machine rebuild) waits here to be written: the device setters report
-    // host input to the input debug panel, which is UI-thread only.
+    // host input to their input event sink, which is UI-thread only.
     if (msg == WM_APP_GAMEPORT_FLUSH)
     {
         m_gamePortMixer.FlushPending();

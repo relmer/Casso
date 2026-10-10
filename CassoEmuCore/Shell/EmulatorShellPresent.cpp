@@ -1020,18 +1020,6 @@ bool EmulatorShell::TryPresentUiFrame()
         SyncSwitchBarState();
     }
 
-    if (m_disk2DebugPanel != nullptr)
-    {
-        hr = m_disk2DebugPanel->RenderFrame();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (m_inputDebugPanel != nullptr)
-    {
-        hr = m_inputDebugPanel->RenderFrame();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
     if (m_printerPanel != nullptr)
     {
         hr = m_printerPanel->RenderFrame();

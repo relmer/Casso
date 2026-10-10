@@ -168,15 +168,6 @@ EmulatorShell::EmulatorShell()
 //  The CPU thread stops first: nothing can be safely destroyed while it is
 //  still executing instructions against these devices.
 //
-//  Debug panels are unwired before they are destroyed. Each was registered as
-//  an event SINK on live machine devices (disk controller, drive audio,
-//  keyboard, //e soft switches, game port), and those devices outlive the
-//  panel -- they die later, with the machine's owned devices. Resetting a
-//  panel without
-//  first revoking its sinks leaves the devices calling into freed memory. The
-//  disk panel revokes controller then audio, mirroring the attachment order
-//  in OpenDisk2DebugDialog (Spec-006 / FR-024).
-//
 //  Dirty disks are flushed before anything owning them unwinds, so a clean
 //  quit never loses user writes (T097 / FR-025).
 //
@@ -194,8 +185,7 @@ EmulatorShell::EmulatorShell()
 
 EmulatorShell::~EmulatorShell()
 {
-    HRESULT             hrFlush    = S_OK;
-    Disk2Controller *   controller = nullptr;
+    HRESULT  hrFlush = S_OK;
 
 
 
@@ -229,55 +219,6 @@ EmulatorShell::~EmulatorShell()
     m_controllerBackend.reset();
 
     m_cpuManager.Stop();
-
-    // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
-    // down its ring (and before the controller / audio source itself
-    // is destroyed, which happens via the machine's owned devices and
-    // m_diskAudioSources
-    // below). Controller sink first, then audio sink, matching the
-    // attachment order in OpenDisk2DebugDialog.
-    if (m_disk2DebugPanel != nullptr)
-    {
-        controller = m_diskManager->FindSlot6Controller();
-
-        if (controller != nullptr)
-        {
-            controller->SetEventSink (nullptr);
-        }
-
-        for (auto & diskAudioSource : m_diskAudioSources)
-        {
-            if (diskAudioSource != nullptr)
-            {
-                diskAudioSource->SetAudioEventSink (nullptr);
-            }
-        }
-
-        m_disk2DebugPanel.reset();
-    }
-
-    if (m_inputDebugPanel != nullptr)
-    {
-        Apple2eSoftSwitchBank * iieSwitches = nullptr;
-
-        if (m_machine.GetRefs().keyboard != nullptr)
-        {
-            m_machine.GetRefs().keyboard->SetInputEventSink (nullptr);
-        }
-
-        iieSwitches = m_machine.GetRefs().iieSoftSwitches;
-        if (iieSwitches != nullptr)
-        {
-            iieSwitches->SetInputEventSink (nullptr);
-        }
-
-        if (m_machine.GetRefs().gamePort != nullptr)
-        {
-            m_machine.GetRefs().gamePort->SetInputEventSink (nullptr);
-        }
-
-        m_inputDebugPanel.reset();
-    }
 
     // The printer panel holds no machine sinks -- just close its window.
     m_printerPanel.reset();

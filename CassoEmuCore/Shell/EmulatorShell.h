@@ -55,11 +55,9 @@
 #include "Update/UpdateRuntime.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
-#include "Ui/Disk2DebugPanel.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
 #include "Ui/IDriveCommandSink.h"
-#include "Ui/InputDebugPanel.h"
 #include "Ui/Scene/DeskScene.h"
 #include "Ui/Scene/DeskSceneHitTester.h"
 #include "Ui/Scene/FullscreenStripState.h"
@@ -262,51 +260,7 @@ public:
     void SoftReset();
     void PowerCycle();
 
-    // Spec-006 / FR-001 / FR-024. View -> Disk II Debug... command
-    // entry point. On first call: lazy-create the modeless dialog,
-    // attach it as the sink on the active Disk II controller
-    // (controller #0 per FR-017) AND on that controller's
-    // Disk2AudioSource. On subsequent calls: show + bring to front.
-    void OpenDisk2DebugDialog();
-    void OpenInputDebugDialog();
     void OpenSettings (bool showControllers = false);
-
-    // Spec-006 bug 15. SwitchMachine destroys and recreates the
-    // controller + audio source while the modeless debug dialog
-    // (if open) holds raw pointers into the now-defunct old
-    // components. Call this AFTER the new components are wired
-    // up so the dialog re-attaches as the controller event sink
-    // and the active drive's audio-event sink on the new objects.
-    // No-op when the dialog has never been opened.
-    void AttachDebugSinksIfOpen();
-
-    // Spec-006 / FR-004a. Re-zero the Uptime column anchor on every
-    // //e SoftReset / PowerCycle. The anchor is shell-owned (lives
-    // across dialog opens) but read by the dialog via
-    // GetUptimeAnchor() on each WM_TIMER drain.
-    void ResetUptimeAnchor() noexcept
-    {
-        m_uptimeAnchor = std::chrono::steady_clock::now();
-
-        if (m_disk2DebugPanel != nullptr)
-        {
-            // ResetUptimeAnchor runs on the CPU thread. Touching the
-            // panel's event deque / DxuiListView rows here would race the
-            // render thread's per-frame drain and corrupt the row Cells,
-            // so marshal the re-anchor + clear onto the render thread.
-            m_disk2DebugPanel->RequestResetAnchor (m_uptimeAnchor);
-        }
-
-        if (m_inputDebugPanel != nullptr)
-        {
-            m_inputDebugPanel->RequestResetAnchor (m_uptimeAnchor);
-        }
-    }
-
-    std::chrono::steady_clock::time_point GetUptimeAnchor() const noexcept
-    {
-        return m_uptimeAnchor;
-    }
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user
@@ -2538,12 +2492,6 @@ private:
     // (>= 0) every keydown is consumed so letters never leak to the //e.
     int             m_chromeFocusIndex      = -1;
 
-    // Spec-011 / US7. DX-themed panel for the Disk II debug window.
-    // Lazy-created on first Ctrl+Shift+D and reused across opens.
-    // The uptime anchor lives on the shell (not the panel) so resets
-    // re-zero it even while the panel is closed.
-    std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
-    std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
     std::unique_ptr<class PrinterPanel>       m_printerPanel;
 
     // Live-preview bookkeeping (UpdatePrinterPreview). Auto-open fires once when a
@@ -2554,7 +2502,6 @@ private:
     bool                                      m_printerAutoOpenArmed    = true;
     uint64_t                                  m_printerAutoOpenActivity = 0;
     int64_t                                   m_printerActiveLastMs     = 0;
-    std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor
     // placement persistence (now backed by GlobalUserPrefs JSON).

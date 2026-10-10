@@ -12,8 +12,8 @@
 //
 //  Abstract notification interface fired by the keyboard devices whenever
 //  a user-visible input event happens on the keyboard / button surface.
-//  Implemented by the Casso Input Debug panel; the devices have zero
-//  awareness of who is listening.
+//  Implemented by whatever observes the input stream; the devices have
+//  zero awareness of who is listening.
 //
 //  Contract:
 //    * All methods are void and infallible. They MUST NOT throw and MUST

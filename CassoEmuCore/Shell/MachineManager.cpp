@@ -42,8 +42,6 @@
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
-#include "../Ui/Disk2DebugPanel.h"
-#include "../Ui/InputDebugPanel.h"
 #include "Core/TextEncoding.h"
 
 
@@ -427,38 +425,6 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     carryDisk1 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 0);
     carryDisk2 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 1);
 
-    // Tear down current machine. The Disk II debug dialog (if open)
-    // holds a raw pointer into the old CPU's cycle counter; revoke it
-    // before the CPU is reset so the dialog can't dereference dangling
-    // memory between here and CreateCpu below.
-    if (m_shell.m_disk2DebugPanel != nullptr)
-    {
-        m_shell.m_disk2DebugPanel->SetCycleCounter (nullptr);
-    }
-
-    if (m_shell.m_inputDebugPanel != nullptr)
-    {
-        m_shell.m_inputDebugPanel->SetCycleCounter (nullptr);
-    }
-
-    if (m_shell.m_machine.GetRefs().keyboard != nullptr)
-    {
-        m_shell.m_machine.GetRefs().keyboard->SetInputEventSink (nullptr);
-    }
-
-    {
-        auto * iieSwitches = m_shell.m_machine.GetRefs().iieSoftSwitches;
-        if (iieSwitches != nullptr)
-        {
-            iieSwitches->SetInputEventSink (nullptr);
-        }
-    }
-
-    if (m_shell.m_machine.GetRefs().gamePort != nullptr)
-    {
-        m_shell.m_machine.GetRefs().gamePort->SetInputEventSink (nullptr);
-    }
-
     // Tear down ALL per-machine state in one atomic move. The refs are a
     // struct of observer pointers into the owning collections
     // (owned devices, video modes); resetting them as a whole keeps
@@ -556,23 +522,6 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         IGNORE_RETURN_VALUE (hrMech, S_OK);
     }
 
-    // Re-attach the new CPU's cycle counter to the debug dialog (the
-    // pointer was revoked above before the old CPU was destroyed).
-    if (m_shell.m_disk2DebugPanel != nullptr && m_shell.m_machine.GetCpu() != nullptr)
-    {
-        m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
-    }
-
-    if (m_shell.m_inputDebugPanel != nullptr && m_shell.m_machine.GetCpu() != nullptr)
-    {
-        m_shell.m_inputDebugPanel->SetCycleCounter (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
-    }
-
-    // Re-wire the debug dialog onto the freshly built controller +
-    // audio source. Without this the dialog goes silent after a
-    // machine switch even though it's still on screen.
-    m_shell.AttachDebugSinksIfOpen();
-
     m_shell.UpdateWindowTitle();
 
     // Record the new active machine in GlobalUserPrefs so the next
@@ -654,10 +603,6 @@ Error:
 void MachineManager::SoftReset()
 {
     m_shell.m_machine.SoftReset();
-
-    // Re-zero the Disk II Debug Uptime column on every reset so the user
-    // sees a clean 00:00 anchor after each Ctrl+Shift+R / Ctrl+Shift+P.
-    m_shell.ResetUptimeAnchor();
 }
 
 
@@ -673,8 +618,6 @@ void MachineManager::SoftReset()
 void MachineManager::PowerCycle()
 {
     m_shell.m_machine.PowerCycle();
-
-    m_shell.ResetUptimeAnchor();
 }
 
 

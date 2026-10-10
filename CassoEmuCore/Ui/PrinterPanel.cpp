@@ -360,7 +360,6 @@ HRESULT PrinterPanel::Create (
     // 434dip the two collide -- and nothing reflows to prevent it. Vertically
     // the caption, both 46dip toolbars and the 20dip hint strip are fixed, so
     // every dip lost comes out of the printer scene and then the hint clips.
-    // Matches Disk2DebugPanel / InputDebugPanel, which already do this.
     // The toolbar is the ONLY thing that cannot adapt, so it alone sets the
     // floor. Its top band packs a fixed left group (Print / Save / Copy,
     // ending at pad + 3*btnW + 2*gap = 274dip) against a fixed zoom group

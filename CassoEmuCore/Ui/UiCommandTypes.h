@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/MachineConfig.h"
 #include "Devices/Disk/IDiskImage.h"
 
 
@@ -76,34 +75,6 @@ enum class InputMappingMode
     Paddle,
     Mouse
 };
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShouldEnableDisk2DebugMenuItem
-//
-//  Pure helper that returns true iff the active MachineConfig wires
-//  at least one Disk II controller (any slot). Inline so the headless
-//  UnitTest project can exercise the decision without pulling in any
-//  Win32 dependencies.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-inline bool ShouldEnableDisk2DebugMenuItem (const MachineConfig & config) noexcept
-{
-    for (const SlotConfig & slot : config.slots)
-    {
-        if (slot.device == "disk-ii")
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
 
 
 

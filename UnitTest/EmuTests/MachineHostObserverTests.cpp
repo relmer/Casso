@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  RecordingInputSink
 //
-//  Stands in for the Input debug panel. Counts what it was told.
+//  Stands in for an input observer. Counts what it was told.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

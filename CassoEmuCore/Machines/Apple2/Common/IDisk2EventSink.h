@@ -12,8 +12,8 @@
 //
 //  Abstract notification interface fired by Disk2Controller whenever a
 //  user-visible event happens on the controller surface. Implemented by
-//  Casso/Disk2DebugDialog and exercised by the spec-006 debug window;
-//  the controller has zero awareness of who is listening.
+//  whatever observes the controller; the controller has zero awareness
+//  of who is listening.
 //
 //  Contract:
 //    * All methods are void and infallible. They MUST NOT throw and MUST
